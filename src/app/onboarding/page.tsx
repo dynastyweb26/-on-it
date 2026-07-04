@@ -103,6 +103,12 @@ export default function Onboarding() {
     });
     setBusy(false);
     if (dbErr) { setError(dbErr.message); return; }
+    const grantToken = document.cookie
+  .split('; ').find((c) => c.startsWith('onit_grant='))?.split('=')[1];
+if (grantToken) {
+  await supabase.rpc('redeem_grant', { p_token: grantToken });
+  document.cookie = 'onit_grant=; max-age=0; path=/';
+}
     router.push('/chat');
   }
 
