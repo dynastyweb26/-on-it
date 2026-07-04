@@ -1,0 +1,55 @@
+// GET /api/followups — Vercel Cron target (see vercel.json).
+// Every run: find sent/unpaid invoices not nudged in 2+ days,
+// push a notification to the owner, stamp last_nudge_at.
+import { NextRequest, NextResponse } from 'next/server';
+import webpush from 'web-push';
+import { adminClient } from '@/lib/supabase/admin';
+
+export async function GET(req: NextRequest) {
+  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  webpush.setVapidDetails(
+    'mailto:dynastyweb26@gmail.com',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
+  );
+
+  const supabase = adminClient();
+  const cutoff = new Date(Date.now() - 2 * 24 * 3600e3).toISOString();
+
+  const { data: due } = await supabase
+    .from('invoices')
+    .select('id, user_id, client_name, total, invoice_number')
+    .in('status', ['sent', 'overdue'])
+    .or(`last_nudge_at.is.null,last_nudge_at.lt.${cutoff}`)
+    .lt('sent_at', cutoff)
+    .limit(200);
+
+  let sent = 0;
+  for (const inv of due ?? []) {
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .eq('user_id', inv.user_id);
+
+    for (const s of subs ?? []) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          JSON.stringify({
+            title: `${inv.client_name} hasn't paid yet`,
+            body: `Invoice #${inv.invoice_number} — $${inv.total}. Tap to resend or mark paid.`,
+            url: `/invoices/${inv.id}`,
+          })
+        );
+        sent++;
+      } catch {
+        await supabase.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
+      }
+    }
+    await supabase.from('invoices').update({ last_nudge_at: new Date().toISOString() }).eq('id', inv.id);
+  }
+  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent });
+}

@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #D4A017;
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+body { @apply bg-paper text-ink font-body antialiased; }
+
+.btn-gold {
+  @apply bg-gold text-white font-display font-bold rounded-full px-6 py-3.5
+         active:scale-95 transition-transform disabled:opacity-40 disabled:active:scale-100;
+}
+.card {
+  @apply bg-white rounded-card border border-line p-4;
+}
+.chip {
+  @apply rounded-full border border-line px-4 py-2 text-sm font-medium bg-white active:scale-95 transition;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
