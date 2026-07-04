@@ -183,11 +183,11 @@ end $$;
 -- Key lives in Vault: Dashboard → Settings → Vault → add secret 'zelle_key'
 -- Simpler v1 approach: pass the key from the server (service role) only.
 create or replace function public.set_zelle(p_user uuid, p_value text, p_key text)
-returns void language sql security definer set search_path = public as $$
+returns void language sql security definer set search_path = public, extensions as $$
   update profiles set zelle_info_enc = pgp_sym_encrypt(p_value, p_key) where id = p_user;
 $$;
 create or replace function public.get_zelle(p_user uuid, p_key text)
-returns text language sql security definer set search_path = public as $$
+returns text language sql security definer set search_path = public, extensions as $$
   select pgp_sym_decrypt(zelle_info_enc, p_key) from profiles where id = p_user;
 $$;
 revoke execute on function public.set_zelle from anon, authenticated;
