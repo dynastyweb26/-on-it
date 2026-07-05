@@ -2,16 +2,17 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { MessageCircle, FileText, BarChart3, Settings, HelpCircle, History } from 'lucide-react';
 import Tutorial from '@/components/Tutorial';
+import Icon from '@/components/Icon';
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
+// Icons: Design Standard §4 canonical assignments.
 const TABS = [
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/invoices', label: 'Invoices', icon: FileText },
-  { href: '/dashboard', label: 'Cash Flow', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/chat', label: 'Chat', icon: 'mic' },
+  { href: '/invoices', label: 'Invoices', icon: 'description' },
+  { href: '/dashboard', label: 'Cash Flow', icon: 'payments' },
+  { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
 const SWIPE_THRESHOLD = 60; // px of horizontal travel to switch tabs
@@ -54,24 +55,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="font-display text-xl font-extrabold">
-          On It<span className="text-gold">.</span>
+          On It<span className="text-primary-container">.</span>
         </span>
         <div className="flex items-center gap-1">
           {path.startsWith('/chat') && (
             <button
               aria-label="Recent conversations"
-              className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
+              className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
               onClick={() => window.dispatchEvent(new Event('onit-history'))}
             >
-              <History size={22} />
+              <Icon name="history" size={24} />
             </button>
           )}
           <button
             aria-label="How On It works"
-            className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
+            className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
             onClick={() => setShowTutorial(true)}
           >
-            <HelpCircle size={22} />
+            <Icon name="help" size={24} />
           </button>
         </div>
       </header>
@@ -84,14 +85,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
-      <nav className="flex border-t border-line bg-surface-container-lowest pb-[env(safe-area-inset-bottom)]">
-        {TABS.map(({ href, label, icon: Icon }) => {
+      <nav className="glass-nav flex justify-around border-t border-outline-variant/40 px-2 pb-[env(safe-area-inset-bottom)]">
+        {TABS.map(({ href, label, icon }) => {
           const active = path.startsWith(href);
           return (
             <Link key={href} href={href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium
-                ${active ? 'text-gold' : 'text-ink/45'}`}>
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+              className={`my-1.5 flex min-h-touch flex-col items-center justify-center gap-0.5 rounded-full px-4 text-[12px] font-semibold tracking-wide transition-all active:scale-90
+                ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
+              <Icon name={icon} size={24} filled={active} />
               {label}
             </Link>
           );
