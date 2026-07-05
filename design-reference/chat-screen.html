@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>On It - Voice Assistant</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&amp;family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mic-pulse {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+        }
+        .message-bubble-ai {
+            border-bottom-left-radius: 4px;
+        }
+        .message-bubble-user {
+            border-bottom-right-radius: 4px;
+        }
+        body {
+            background-color: #fff8f0; /* Overriding with explicit warm white hex for brand fidelity */
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#735c00",
+                        "on-error-container": "#93000a",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#415ba4",
+                        "outline-variant": "#d0c5af",
+                        "surface-container-high": "#efe7da",
+                        "on-tertiary-fixed": "#00174b",
+                        "inverse-on-surface": "#f8f0e2",
+                        "on-primary-fixed": "#241a00",
+                        "on-background": "#1f1b13",
+                        "secondary-container": "#e5e2db",
+                        "on-secondary-container": "#65645f",
+                        "tertiary-container": "#97b0ff",
+                        "surface-bright": "#fff8f0",
+                        "primary-fixed": "#ffe088",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#474742",
+                        "primary-container": "#d4af37",
+                        "on-primary-fixed-variant": "#574500",
+                        "surface-variant": "#eae1d4",
+                        "on-surface-variant": "#4d4635",
+                        "on-tertiary-container": "#254188",
+                        "tertiary-fixed-dim": "#b4c5ff",
+                        "on-tertiary-fixed-variant": "#27438a",
+                        "surface-dim": "#e1d9cc",
+                        "secondary-fixed-dim": "#c9c6c0",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#735c00",
+                        "on-surface": "#1f1b13",
+                        "inverse-primary": "#e9c349",
+                        "tertiary-fixed": "#dbe1ff",
+                        "on-secondary-fixed": "#1c1c18",
+                        "secondary": "#5f5e59",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#e9c349",
+                        "background": "#fff8f0",
+                        "outline": "#7f7663",
+                        "surface-container": "#f5eddf",
+                        "surface": "#fff8f0",
+                        "secondary-fixed": "#e5e2db",
+                        "on-tertiary": "#ffffff",
+                        "inverse-surface": "#343027",
+                        "on-primary-container": "#554300",
+                        "surface-container-highest": "#eae1d4",
+                        "surface-container-low": "#fbf3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "stack-sm": "12px",
+                        "stack-md": "24px",
+                        "gutter": "16px",
+                        "container-padding": "24px",
+                        "stack-lg": "40px",
+                        "touch-target-min": "56px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Montserrat"],
+                        "display-lg": ["Montserrat"],
+                        "display-md": ["Montserrat"],
+                        "headline-lg": ["Montserrat"],
+                        "numeric-xl": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "display-md": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "numeric-xl": ["40px", {"lineHeight": "48px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col font-body-md text-body-md">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-40 bg-background dark:bg-background">
+<div class="flex justify-between items-center px-gutter h-touch-target-min w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a tradesperson in a clean workshop setting. The lighting is soft and warm, reflecting a premium fintech aesthetic with high contrast and sharp focus. The individual looks confident and approachable, wearing a high-quality leather work apron." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgnehzxXB0KkG6gNyZuE7-EYUgtc9fMDAlcnrXsCLbRbKXwfdQEBF0j1LGRQGHrT605nhm_VdqQ2mR10GJEiSyKOL70lNZyBkeR1rvchFe6blBUaNXk4NPcMF2VKwVqu1fwViUPm3oBxIxFvXT68uRDPM8b0oJKTHZHrubKOc3PVBIrkwBMeK7_Hx_j1g_sjVpx1IgtPVIpDfBH0XuYUrGyxJqjmEiO2Mcvk3VZJUpB0ura7RXyhmzRjT-ffBZJX-XPqNFjr3BXNaU"/>
+</div>
+<h1 class="font-display-md text-display-md font-bold text-primary dark:text-primary-fixed">On It<span class="text-primary-container">.</span></h1>
+</div>
+<button class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-transform active:scale-95 text-primary">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<!-- Main Chat Canvas -->
+<main class="flex-grow w-full max-w-2xl mx-auto px-gutter py-stack-md flex flex-col gap-stack-md pb-48">
+<!-- AI Message -->
+<div class="flex flex-col items-start max-w-[85%]">
+<div class="bg-surface-container-lowest p-stack-md rounded-[20px] message-bubble-ai shadow-sm border border-outline-variant/20">
+<p class="font-body-lg text-body-lg text-on-surface">Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice.</p>
+</div>
+<span class="text-on-surface-variant font-label-lg text-[10px] mt-1 ml-2">JUST NOW</span>
+</div>
+<!-- User Message -->
+<div class="flex flex-col items-end max-w-[85%] ml-auto">
+<div class="bg-primary-container text-on-primary-container p-stack-md rounded-[20px] message-bubble-user shadow-sm">
+<p class="font-body-lg text-body-lg">Just finished the cedar fence for the Miller property on Oak St. 40 linear feet, heavy-duty posts, plus the gate hardware. Total labor and materials should be five hundred.</p>
+</div>
+<span class="text-on-surface-variant font-label-lg text-[10px] mt-1 mr-2">10:42 AM</span>
+</div>
+<!-- Invoice Preview Card (Asymmetric Bento-ish feel) -->
+<div class="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+<div class="bg-surface-container-lowest rounded-[20px] p-stack-md shadow-lg border border-primary-container/20 flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label-lg text-primary uppercase tracking-wider">Draft Invoice</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Miller Residence</h3>
+</div>
+<div class="bg-primary-container/10 text-primary-container px-3 py-1 rounded-lg border border-primary-container/30 flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">pending_actions</span>
+<span class="font-label-lg">Preview</span>
+</div>
+</div>
+<div class="space-y-3 py-2">
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-body-md">40ft Cedar Fencing &amp; Posts</span>
+<span class="font-body-md font-semibold">$350.00</span>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant">
+<span class="font-body-md">Gate Hardware &amp; Install</span>
+<span class="font-body-md font-semibold">$150.00</span>
+</div>
+</div>
+<div class="border-t border-outline-variant pt-4 flex flex-col gap-6">
+<div class="flex justify-between items-end">
+<span class="text-on-surface-variant font-label-lg">TOTAL DUE</span>
+<span class="font-numeric-xl text-numeric-xl text-primary">$500.00</span>
+</div>
+<button class="h-touch-target-min w-full bg-primary-container text-on-primary-container rounded-xl font-headline-lg-mobile text-headline-lg-mobile transition-all hover:brightness-110 active:scale-[0.98] shadow-md flex items-center justify-center gap-2">
+<span>Looks right — send it</span>
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dynamic Transcription Feedback -->
+<div class="flex items-center gap-3 italic text-on-surface-variant animate-pulse py-4">
+<span class="material-symbols-outlined text-primary">graphic_eq</span>
+<p class="font-body-md">Drafting invoice for Miller Residence...</p>
+</div>
+</main>
+<!-- Bottom Input & Mic Area -->
+<div class="fixed bottom-14 left-0 w-full px-gutter pb-stack-md pt-2 bg-gradient-to-t from-background via-background/90 to-transparent z-50">
+<div class="max-w-2xl mx-auto flex items-center gap-3">
+<!-- Mic Trigger -->
+<button class="w-[72px] h-[72px] rounded-full bg-primary-container text-on-primary-container shadow-xl flex items-center justify-center transition-all hover:scale-105 active:scale-90 relative">
+<div class="absolute inset-0 rounded-full mic-pulse bg-primary-container/40 -z-10"></div>
+<span class="material-symbols-outlined text-[32px]">mic</span>
+</button>
+<!-- Text Input Field -->
+<div class="flex-grow flex items-center bg-surface-container-lowest h-touch-target-min rounded-full px-4 border border-outline-variant/30 shadow-sm">
+<input class="flex-grow bg-transparent border-none focus:ring-0 text-body-lg placeholder:text-on-surface-variant/50" placeholder="Or type it..." type="text"/>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-surface-container/90 backdrop-blur-xl rounded-t-xl shadow-lg">
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full min-h-[56px] min-w-[56px] px-4 transition-all duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">mic</span>
+<span class="font-label-lg text-label-lg">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant min-h-[56px] p-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-lg text-label-lg">Invoices</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant min-h-[56px] p-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-lg text-label-lg">Money</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant min-h-[56px] p-2 hover:text-primary transition-all duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-lg text-label-lg">Settings</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for the voice button
+        const micBtn = document.querySelector('button .material-symbols-outlined[data-icon="mic"]')?.parentElement;
+        if(micBtn) {
+            micBtn.addEventListener('click', () => {
+                const pulse = micBtn.querySelector('.mic-pulse');
+                pulse.classList.toggle('hidden');
+                console.log('Voice listening toggled');
+            });
+        }
+    </script>
+</body></html>

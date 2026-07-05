@@ -1,0 +1,157 @@
+/* ============================================================
+   On It — Warm Premium design tokens v1.0
+   Drop into app/globals.css (Tailwind v4) — the @theme block
+   maps every variable to Tailwind utilities automatically
+   (bg-background, text-primary, rounded-card, etc.).
+   Tailwind v3: use tailwind.config.snippet.js instead and keep
+   only the :root block from this file.
+   ============================================================ */
+
+@theme {
+  /* ---- Color: core surfaces ---- */
+  --color-background: #fff8f0;
+  --color-on-background: #1f1b13;
+  --color-surface: #fff8f0;
+  --color-surface-dim: #e1d9cc;
+  --color-surface-bright: #fff8f0;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #fbf3e5;
+  --color-surface-container: #f5eddf;
+  --color-surface-container-high: #efe7da;
+  --color-surface-container-highest: #eae1d4;
+  --color-surface-variant: #eae1d4;
+  --color-on-surface: #1f1b13;
+  --color-on-surface-variant: #4d4635;
+  --color-inverse-surface: #343027;
+  --color-inverse-on-surface: #f8f0e2;
+  --color-outline: #7f7663;
+  --color-outline-variant: #d0c5af;
+
+  /* ---- Color: primary (gold) ----
+     RULE: primary (#735c00) = gold as TEXT/ICON on light surfaces.
+           primary-container (#d4af37) = gold as FILL, with dark text.
+           inverse-primary (#e9c349) = gold on dark surfaces.
+           NEVER white text on #d4af37. */
+  --color-primary: #735c00;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #d4af37;
+  --color-on-primary-container: #554300;
+  --color-inverse-primary: #e9c349;
+  --color-primary-fixed: #ffe088;
+  --color-primary-fixed-dim: #e9c349;
+  --color-on-primary-fixed: #241a00;
+  --color-on-primary-fixed-variant: #574500;
+  --color-surface-tint: #735c00;
+
+  /* ---- Color: secondary / tertiary ---- */
+  --color-secondary: #5f5e59;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e5e2db;
+  --color-on-secondary-container: #65645f;
+  --color-tertiary: #415ba4;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #97b0ff;
+  --color-on-tertiary-container: #254188;
+
+  /* ---- Color: semantic status ---- */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-paid: #0f6d31;
+  --color-paid-container: #c9f2d4;
+  --color-sent: #735c00;
+  --color-sent-container: #f3e9c8;
+  --color-draft: #474742;
+  --color-draft-container: #e5e2db;
+
+  /* ---- Typography ----
+     Wire the actual font objects with next/font/google:
+       Montserrat({ weight: ['700','800'], variable: '--font-montserrat' })
+       Inter({ weight: ['400','600'], variable: '--font-inter' }) */
+  --font-display: var(--font-montserrat), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 56px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md: 32px;
+  --text-display-md--line-height: 40px;
+  --text-display-md--letter-spacing: -0.01em;
+  --text-numeric-xl: 40px;
+  --text-numeric-xl--line-height: 48px;
+  --text-headline-lg: 24px;
+  --text-headline-lg--line-height: 32px;
+  --text-headline-mobile: 20px;
+  --text-headline-mobile--line-height: 28px;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-label-lg: 14px;
+  --text-label-lg--line-height: 20px;
+  --text-label-lg--letter-spacing: 0.05em;
+
+  /* ---- Shape (one radius per component class) ---- */
+  --radius-card: 20px;     /* cards, sheets, modals */
+  --radius-button: 9999px; /* primary buttons: pill  */
+  --radius-input: 12px;    /* inputs                 */
+  --radius-chip: 8px;      /* status chips           */
+
+  /* ---- Spacing / sizing ---- */
+  --spacing-container: 24px; /* outer page padding */
+  --spacing-gutter: 16px;
+  --spacing-stack-sm: 12px;
+  --spacing-stack-md: 24px;
+  --spacing-stack-lg: 40px;
+  --size-touch: 56px;   /* min height, all interactive elements */
+  --size-row: 64px;     /* min height, list items */
+  --size-fab: 72px;     /* voice trigger */
+
+  /* ---- Elevation (warm-tinted, diffuse only) ---- */
+  --shadow-card: 0 4px 24px rgba(115, 92, 0, 0.08);
+  --shadow-card-raised: 0 8px 32px rgba(115, 92, 0, 0.10);
+}
+
+/* ---- Base ---- */
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+/* ---- Selected / voice-active state (Batch 2 "gold ring" spec) ---- */
+.ring-gold-selected {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
+}
+
+/* ---- Voice FAB pulse ---- */
+@keyframes onit-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.45); }
+  70%  { box-shadow: 0 0 0 16px rgba(212, 175, 55, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+.voice-listening { animation: onit-pulse 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .voice-listening { animation: none; }
+}
+
+/* ---- Glass nav (the only two glass surfaces: bottom nav + voice overlay) ---- */
+.glass-nav {
+  background: rgba(255, 248, 240, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ---- Material Symbols defaults ---- */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.material-symbols-outlined.icon-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
