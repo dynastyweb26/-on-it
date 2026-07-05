@@ -79,6 +79,11 @@ body { @apply bg-background text-on-background font-body antialiased; }
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
+.glass-overlay {
+  background: rgba(255, 248, 240, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
 
 /* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
 .material-symbols-outlined {

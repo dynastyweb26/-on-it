@@ -6,7 +6,7 @@
    The conversation is shared state with the chat page, so everything said
    here appears in the text chat on exit.                                  */
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { speak } from '@/lib/tts';
 
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -139,16 +139,20 @@ export default function VoiceMode({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-paper">
+    <div className="glass-overlay fixed inset-0 z-50 flex flex-col items-center justify-center">
       <button
         aria-label="Exit voice mode"
-        className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-container-lowest text-ink/60 active:scale-90"
+        className="absolute right-4 top-4 grid h-touch w-touch place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant active:scale-90"
         onClick={close}
       >
-        <X size={22} />
+        <Icon name="close" size={24} />
       </button>
 
-      <button aria-label="Talk" className={`orb orb-${phase}`} onClick={orbTap} />
+      <button
+        aria-label="Talk"
+        className={`orb orb-${phase} ${phase === 'listening' ? 'voice-listening' : ''}`}
+        onClick={orbTap}
+      />
 
       <p className="mt-10 h-6 text-[15px] text-ink/50">{PHASE_HINT[phase]}</p>
     </div>

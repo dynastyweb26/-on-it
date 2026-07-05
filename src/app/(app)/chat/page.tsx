@@ -6,7 +6,8 @@
    Text mode is silent. Tapping the mic opens full-screen voice mode.  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, Send, Share2, FileText } from 'lucide-react';
+import { Send, Share2, FileText } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -443,10 +444,10 @@ export default function Chat() {
       <div className="flex items-end gap-2 border-t border-line bg-paper px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           aria-label="Open voice mode"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold text-white transition active:scale-90"
+          className="grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90"
           onClick={() => setVoiceMode(true)}
         >
-          <Mic size={24} />
+          <Icon name="mic" size={32} filled />
         </button>
         <textarea
           className="input max-h-32 flex-1 resize-none py-3.5"
