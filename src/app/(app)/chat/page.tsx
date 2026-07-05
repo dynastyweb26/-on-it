@@ -392,8 +392,10 @@ export default function Chat() {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[82%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[15px] leading-relaxed
-                ${m.role === 'user' ? 'rounded-br-md bg-ink text-paper' : 'rounded-bl-md bg-surface-container-lowest border border-line'}`}
+              className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
+                ${m.role === 'user'
+                  ? 'rounded-br-md bg-primary-container text-on-primary-container'
+                  : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
             >
               {m.content}
             </div>
