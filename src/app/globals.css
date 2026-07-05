@@ -44,8 +44,15 @@ body { @apply bg-background text-on-background font-body antialiased; }
 .card {
   @apply bg-surface-container-low rounded-card border border-outline-variant/30 p-4 shadow-card;
 }
+/* Interactive chips: 8px radius (§5), 56px touch floor (§1), label type. */
 .chip {
-  @apply rounded-full border border-line px-4 py-2 text-sm font-medium bg-surface-container-lowest active:scale-95 transition;
+  @apply inline-flex min-h-touch items-center justify-center gap-1.5 rounded-chip border border-outline
+         bg-surface-container-lowest px-4 text-label-lg font-semibold text-on-surface-variant
+         active:scale-95 transition;
+}
+/* Status chips (§2): semantic container colors, ALWAYS icon + text, never color alone. */
+.status-chip {
+  @apply inline-flex items-center gap-1.5 rounded-chip px-3 py-1.5 text-label-lg font-semibold uppercase;
 }
 /* The one obvious selected state — every selectable element uses this so it can't drift. */
 .chip-selected {
