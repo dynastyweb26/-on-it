@@ -134,7 +134,7 @@ export default function Settings() {
             const sel = p.brand_colors?.includes(hex);
             return (
               <button key={hex} title={name}
-                className={`aspect-square rounded-full border ${sel ? 'border-gold ring-2 ring-gold' : 'border-line'}`}
+                className={`aspect-square rounded-full border ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
                 style={{ background: hex }}
                 onClick={() => {
                   const cur: string[] = p.brand_colors ?? [];
@@ -148,7 +148,7 @@ export default function Settings() {
           <div className="flex gap-2">
             {p.brand_colors.map((hex: string) => (
               <button key={hex}
-                className={`flex-1 rounded-xl border py-2 text-sm ${p.background_color === hex ? 'border-gold ring-2 ring-gold font-bold' : 'border-line font-medium'}`}
+                className={`flex-1 rounded-xl border py-2 text-sm ${p.background_color === hex ? 'border-primary-container ring-gold-selected font-bold' : 'border-outline-variant font-medium'}`}
                 style={{ background: hex, color: onColor(hex) }}
                 onClick={() => save({ background_color: hex })}>
                 {p.background_color === hex ? 'Background — selected' : 'Set background'}

@@ -117,7 +117,7 @@ export default function Dashboard() {
             </div>
             <div className="space-y-3">
               <input
-                className="input font-mono text-lg"
+                className="input font-display font-bold text-lg"
                 placeholder="$ Amount" inputMode="decimal" value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
               />
@@ -155,7 +155,7 @@ export default function Dashboard() {
                 type="date" className="input"
                 value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
               />
-              {formError && <p className="text-sm text-red-700">{formError}</p>}
+              {formError && <p className="text-sm text-error">{formError}</p>}
               <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
                 {saving ? 'Saving…' : 'Save expense'}
               </button>

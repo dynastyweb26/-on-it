@@ -22,21 +22,21 @@ export default function Expenses() {
 
   return (
     <div className="px-4 py-4">
-      <p className="mb-3 text-sm text-ink/60">
+      <p className="mb-3 text-sm text-on-surface-variant">
         Log expenses from Chat — just say “spent 80 on paint at Home Depot.”
       </p>
-      {rows.length === 0 && <p className="mt-16 text-center text-ink/50">No expenses yet.</p>}
+      {rows.length === 0 && <p className="mt-16 text-center text-on-surface-variant">No expenses yet.</p>}
       <div className="space-y-2">
         {rows.map((e) => (
           <div key={e.id} className="card flex items-center justify-between">
             <div>
               <div className="font-medium">{e.description}</div>
-              <div className="text-xs text-ink/50">
+              <div className="text-xs text-on-surface-variant">
                 {e.category ?? 'Uncategorized'} · {new Date(e.spent_on).toLocaleDateString()}
               </div>
             </div>
             <div className="text-right">
-              <div className="font-mono font-bold">{money(Number(e.amount))}</div>
+              <div className="font-display font-bold">{money(Number(e.amount))}</div>
               <button
                 className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
                 onClick={() => toggleDeductible(e.id, e.tax_deductible)}>

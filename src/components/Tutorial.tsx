@@ -10,7 +10,7 @@ const CARDS = [
     title: 'Talk. Invoice done.',
     text: 'Tap the gold mic and say the job. On It asks a question or two, then builds your invoice.',
     art: (
-      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
+      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-primary-container/15">
         <div className="grid h-28 w-28 place-items-center rounded-full bg-primary-container text-on-background shadow-lg">
           <Icon name="mic" size={52} filled />
         </div>
@@ -21,9 +21,9 @@ const CARDS = [
     title: 'Quotes too.',
     text: 'Say "make it a quote." When they say yes, one tap turns it into an invoice.',
     art: (
-      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
+      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-primary-container/15">
         <Icon name="description" size={64} className="text-primary" />
-        <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-ink text-paper shadow-lg">
+        <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-lg">
           <Icon name="sync" size={26} />
         </div>
       </div>
@@ -33,7 +33,7 @@ const CARDS = [
     title: 'Track what you spend.',
     text: 'Say "spent 80 on paint" in Chat, or add it in Cash Flow. Tax write-offs included.',
     art: (
-      <div className="grid h-44 w-44 place-items-center rounded-full bg-gold/15">
+      <div className="grid h-44 w-44 place-items-center rounded-full bg-primary-container/15">
         <Icon name="account_balance_wallet" size={64} className="text-primary" />
       </div>
     ),
@@ -42,9 +42,9 @@ const CARDS = [
     title: 'Get paid.',
     text: "Share the invoice anywhere. If they haven't paid in 2 days, On It reminds you.",
     art: (
-      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
+      <div className="relative grid h-44 w-44 place-items-center rounded-full bg-primary-container/15">
         <Icon name="attach_file" size={60} className="text-primary" />
-        <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-ink text-paper shadow-lg">
+        <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface shadow-lg">
           <Icon name="notifications" size={26} filled />
         </div>
       </div>
@@ -63,11 +63,11 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-paper">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex justify-end px-4 py-3">
         <button
           aria-label="Close tutorial"
-          className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-container-lowest text-ink/60 active:scale-90"
+          className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant active:scale-90"
           onClick={onClose}
         >
           <Icon name="close" size={24} />
@@ -85,7 +85,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
             {c.art}
             <div className="text-center">
               <h2 className="font-display text-2xl font-extrabold">{c.title}</h2>
-              <p className="mx-auto mt-3 max-w-xs text-[16px] leading-relaxed text-ink/70">{c.text}</p>
+              <p className="mx-auto mt-3 max-w-xs text-[16px] leading-relaxed text-on-surface-variant">{c.text}</p>
             </div>
           </div>
         ))}
@@ -93,7 +93,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
 
       <div className="flex items-center justify-center gap-2 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {CARDS.map((_, i) => (
-          <span key={i} className={`h-2 rounded-full transition-all ${i === index ? 'w-6 bg-gold' : 'w-2 bg-line'}`} />
+          <span key={i} className={`h-2 rounded-full transition-all ${i === index ? 'w-6 bg-primary-container' : 'w-2 bg-outline-variant'}`} />
         ))}
       </div>
     </div>

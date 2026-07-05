@@ -27,7 +27,7 @@ export default function Vault() {
       <input className="input mb-3" placeholder="Search your documents…"
         value={q} onChange={(e) => setQ(e.target.value)} />
       {filtered.length === 0 && (
-        <p className="mt-16 text-center text-ink/50">Every invoice you send lands here automatically.</p>
+        <p className="mt-16 text-center text-on-surface-variant">Every invoice you send lands here automatically.</p>
       )}
       <div className="space-y-2">
         {filtered.map((d) => (
@@ -35,7 +35,7 @@ export default function Vault() {
             <Icon name="description" size={22} className="shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{d.title}</div>
-              <div className="text-xs uppercase text-ink/45">{d.doc_type} · {new Date(d.created_at).toLocaleDateString()}</div>
+              <div className="text-xs uppercase text-on-surface-variant/70">{d.doc_type} · {new Date(d.created_at).toLocaleDateString()}</div>
             </div>
             <Icon name="download" size={20} className="shrink-0 text-on-surface-variant" />
           </button>

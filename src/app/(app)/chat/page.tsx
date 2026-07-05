@@ -467,7 +467,7 @@ export default function Chat() {
         />
         <button
           aria-label="Send"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink text-paper active:scale-90 disabled:opacity-30"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
           disabled={!input.trim() || busy}
           onClick={() => void send(input)}
         >

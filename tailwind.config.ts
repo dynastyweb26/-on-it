@@ -38,22 +38,10 @@ const config: Config = {
         paid: { DEFAULT: '#0f6d31', container: '#c9f2d4' },
         sent: { DEFAULT: '#735c00', container: '#f3e9c8' },
         draft: { DEFAULT: '#474742', container: '#e5e2db' },
-
-        // ── Legacy aliases (Batch 1–2 class names, remapped to the new
-        //    palette so nothing renders the old gold). Remove after Step 6. ──
-        gold: '#d4af37',
-        'gold-light': '#e9c349',
-        ink: '#1f1b13',
-        paper: '#fff8f0',
-        'paper-dim': '#f5eddf',
-        line: '#d0c5af',
       },
       fontFamily: {
         display: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
         body: ['var(--font-inter)', 'system-ui', 'sans-serif'],
-        // Legacy alias: currency figures used font-mono; standard §3 puts all
-        // numerals in Montserrat. Remove after Step 6 migrates to numeric-xl.
-        mono: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         'display-lg': ['48px', { lineHeight: '56px', letterSpacing: '-0.02em', fontWeight: '700' }],

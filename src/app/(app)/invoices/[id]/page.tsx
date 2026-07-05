@@ -45,7 +45,7 @@ export default function InvoiceDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (!inv || !profile) return <p className="p-6 text-ink/50">Loading…</p>;
+  if (!inv || !profile) return <p className="p-6 text-on-surface-variant">Loading…</p>;
 
   const theme = profile.background_color && profile.brand_colors?.length >= 2
     ? buildTheme(profile.brand_colors, profile.background_color)
@@ -103,15 +103,15 @@ export default function InvoiceDetail() {
         <div className="flex items-center justify-between">
           <div>
             <div className="font-display text-lg font-bold">{inv.client_name}</div>
-            <div className="text-xs text-ink/50">
+            <div className="text-xs text-on-surface-variant">
               {inv.kind === 'quote' ? 'QTE' : 'INV'}-{String(inv.invoice_number).padStart(4, '0')} · {inv.status}
             </div>
           </div>
-          <div className="font-mono text-xl font-bold text-gold">{money(Number(inv.total))}</div>
+          <div className="font-display text-xl font-bold text-primary">{money(Number(inv.total))}</div>
         </div>
         <div className="mt-3 flex gap-2">
           {inv.status !== 'paid' && inv.kind === 'invoice' && (
-            <button className="chip flex items-center gap-1.5 border-green-600 text-green-700" onClick={markPaid}>
+            <button className="chip flex items-center gap-1.5 border-paid text-paid" onClick={markPaid}>
               <Icon name="check_circle" size={18} /> Mark paid
             </button>
           )}
@@ -124,13 +124,13 @@ export default function InvoiceDetail() {
             </button>
           )}
           {inv.kind === 'quote' && (
-            <button className="chip flex items-center gap-1.5 border-gold text-gold" onClick={convertToInvoice}>
+            <button className="chip flex items-center gap-1.5 border-primary text-primary" onClick={convertToInvoice}>
               <Icon name="sync" size={18} /> Make it an invoice
             </button>
           )}
         </div>
       </div>
-      <div className="overflow-hidden rounded-card border border-line">
+      <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
           <div ref={printRef}>
             <InvoiceTemplate template={(profile.invoice_template ?? 'classic') as TemplateKey} data={rd} theme={theme} />

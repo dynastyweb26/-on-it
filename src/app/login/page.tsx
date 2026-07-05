@@ -41,9 +41,9 @@ export default function Login() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 px-6">
       <div>
         <h1 className="font-display text-4xl font-extrabold">
-          On It<span className="text-gold">.</span>
+          On It<span className="text-primary-container">.</span>
         </h1>
-        <p className="mt-1 text-sm text-ink/60">Invoices done by talking.</p>
+        <p className="mt-1 text-sm text-on-surface-variant">Invoices done by talking.</p>
       </div>
       <input
         className="input" type="email" placeholder="Email" autoComplete="email"
@@ -54,12 +54,12 @@ export default function Login() {
         autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
         value={password} onChange={(e) => setPassword(e.target.value)}
       />
-      {error && <p className="text-sm text-crimson text-red-700">{error}</p>}
+      {error && <p className="text-sm text-error">{error}</p>}
       <button className="btn-primary" disabled={busy || !email} onClick={submit}>
         {busy ? 'One sec…' : mode === 'signup' ? 'Create free account' : 'Sign in'}
       </button>
       <button
-        className="text-sm text-ink/60 underline"
+        className="text-sm text-on-surface-variant underline"
         onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
       >
         {mode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create an account'}

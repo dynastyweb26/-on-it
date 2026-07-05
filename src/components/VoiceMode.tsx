@@ -154,7 +154,7 @@ export default function VoiceMode({
         onClick={orbTap}
       />
 
-      <p className="mt-10 h-6 text-[15px] text-ink/50">{PHASE_HINT[phase]}</p>
+      <p className="mt-10 h-6 text-[15px] text-on-surface-variant">{PHASE_HINT[phase]}</p>
     </div>
   );
 }

@@ -119,7 +119,7 @@ export default function Onboarding() {
     <main className="mx-auto max-w-md px-5 pb-28 pt-8">
       <div className="mb-6 flex items-center gap-2">
         {[1, 2, 3, 4].map((s) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-gold' : 'bg-line'}`} />
+          <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-primary-container' : 'bg-outline-variant'}`} />
         ))}
       </div>
 
@@ -141,8 +141,8 @@ export default function Onboarding() {
           <label className="card flex cursor-pointer items-center gap-3">
             {logoPreview
               ? <img src={logoPreview} className="h-12 w-12 rounded-lg object-cover" alt="" />
-              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-paper-dim"><Icon name="image" size={24} className="text-on-surface-variant" /></span>}
-            <span className="text-sm text-ink/70">{logoFile ? logoFile.name : 'Upload your logo (optional)'}</span>
+              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-surface-container"><Icon name="image" size={24} className="text-on-surface-variant" /></span>}
+            <span className="text-sm text-on-surface-variant">{logoFile ? logoFile.name : 'Upload your logo (optional)'}</span>
             <input type="file" accept="image/*" className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
@@ -159,14 +159,14 @@ export default function Onboarding() {
       {step === 2 && (
         <section className="flex flex-col gap-4">
           <h1 className="font-display text-2xl font-extrabold">Pick your brand colors</h1>
-          <p className="text-sm text-ink/60">Tap 2 or 3. These become your invoice colors.</p>
+          <p className="text-sm text-on-surface-variant">Tap 2 or 3. These become your invoice colors.</p>
           <div className="grid grid-cols-5 gap-3">
             {PALETTE.map(({ name, hex }) => {
               const sel = colors.includes(hex);
               return (
                 <button key={hex} aria-label={name} title={name}
                   className={`relative aspect-square rounded-full border-2 transition active:scale-90
-                    ${sel ? 'border-gold ring-2 ring-gold' : 'border-line'}`}
+                    ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
                   style={{ background: hex }}
                   onClick={() => toggleColor(hex)}>
                   {sel && (
@@ -178,7 +178,7 @@ export default function Onboarding() {
             })}
           </div>
           {allDarkOrAllLight && (
-            <p className="rounded-xl bg-gold/10 p-3 text-sm">
+            <p className="rounded-xl bg-primary-container/10 p-3 text-sm">
               These colors might be hard to read together. Want to swap one for more contrast? Your call — it&apos;ll still work.
             </p>
           )}
@@ -191,14 +191,14 @@ export default function Onboarding() {
       {step === 3 && (
         <section className="flex flex-col gap-4">
           <h1 className="font-display text-2xl font-extrabold">Which color is your background?</h1>
-          <p className="text-sm text-ink/60">
+          <p className="text-sm text-on-surface-variant">
             Dark background gets white text. Light background gets black text. The rest become your accents.
           </p>
           <div className="flex gap-4">
             {colors.map((hex) => (
               <button key={hex}
                 className={`h-24 flex-1 rounded-card border-2 transition active:scale-95
-                  ${background === hex ? 'border-gold ring-2 ring-gold font-bold' : 'border-line font-medium'}`}
+                  ${background === hex ? 'border-primary-container ring-gold-selected font-bold' : 'border-outline-variant font-medium'}`}
                 style={{ background: hex, color: onColor(hex) }}
                 onClick={() => setBackground(hex)}>
                 {PALETTE.find((p) => p.hex === hex)?.name ?? hex}
@@ -206,7 +206,7 @@ export default function Onboarding() {
             ))}
           </div>
           {theme && (
-            <div className="overflow-hidden rounded-card border border-line" style={{ height: 300 }}>
+            <div className="overflow-hidden rounded-card border border-outline-variant" style={{ height: 300 }}>
               <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
                 <InvoiceTemplate template={template} data={sample} theme={theme} />
               </div>
@@ -230,13 +230,13 @@ export default function Onboarding() {
               </button>
             ))}
           </div>
-          <p className="text-sm text-ink/60">{TEMPLATE_META.find((t) => t.key === template)?.blurb}</p>
-          <div className="overflow-hidden rounded-card border border-line" style={{ height: 420 }}>
+          <p className="text-sm text-on-surface-variant">{TEMPLATE_META.find((t) => t.key === template)?.blurb}</p>
+          <div className="overflow-hidden rounded-card border border-outline-variant" style={{ height: 420 }}>
             <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
               <InvoiceTemplate template={template} data={sample} theme={theme} />
             </div>
           </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
           <button className="btn-primary" disabled={busy} onClick={finish}>
             {busy ? 'Setting up…' : 'Confirm and continue'}
           </button>

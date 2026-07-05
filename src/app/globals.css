@@ -6,10 +6,6 @@
    this file holds the base layer + the handful of stateful classes from
    tokens.css (ring, pulse, glass, icon defaults). */
 
-:root {
-  --gold: #d4af37; /* legacy var — remove after Step 6 */
-}
-
 html { -webkit-tap-highlight-color: transparent; }
 body { @apply bg-background text-on-background font-body antialiased; }
 
@@ -54,9 +50,12 @@ body { @apply bg-background text-on-background font-body antialiased; }
 .status-chip {
   @apply inline-flex items-center gap-1.5 rounded-chip px-3 py-1.5 text-label-lg font-semibold uppercase;
 }
-/* The one obvious selected state — every selectable element uses this so it can't drift. */
+/* The one obvious selected state (§7 gold ring spec): 2px #d4af37, offset 2px.
+   Every selectable element uses this so it can't drift. */
 .chip-selected {
-  @apply ring-2 ring-gold border-gold bg-gold/10 font-bold;
+  @apply border-primary-container bg-primary-container/10 font-bold text-on-background;
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
 }
 
 /* ---- Selected / voice-active state (Batch 2 "gold ring" spec, §7) ---- */
