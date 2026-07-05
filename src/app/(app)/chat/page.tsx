@@ -402,26 +402,26 @@ export default function Chat() {
         ))}
 
         {ready && draft && (
-          <div className="card border-gold/60 ring-1 ring-gold/30">
-            <div className="mb-2 flex items-center gap-2 font-display font-bold">
-              <Icon name="description" size={18} className="text-primary" />
+          <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
+            <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
+              <Icon name="description" size={18} />
               {draft.intent === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
             {previewItems.map((li, i) => (
-              <div key={i} className="flex justify-between py-1 text-sm">
+              <div key={i} className="flex items-center justify-between py-1 text-body-md">
                 <span>{li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}</span>
-                <span className="font-mono">{money(li.qty * li.unit_price)}</span>
+                <span className="font-display font-bold">{money(li.qty * li.unit_price)}</span>
               </div>
             ))}
-            <div className="mt-2 flex justify-between border-t border-line pt-2 font-bold">
-              <span>Total</span>
-              <span className="font-mono text-gold">{money(previewTotal)}</span>
+            <div className="mt-2 flex items-end justify-between border-t border-outline-variant pt-3">
+              <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
+              <span className="font-display text-numeric-xl tracking-tight text-on-background">{money(previewTotal)}</span>
             </div>
-            <button className="btn-primary mt-3 flex w-full items-center justify-center gap-2" disabled={finalizing} onClick={finalize}>
+            <button className="btn-primary mt-3 w-full" disabled={finalizing} onClick={finalize}>
               <Icon name="attach_file" size={18} />
               {finalizing ? 'Building your PDF…' : 'Looks right — send it'}
             </button>
-            <button className="mt-2 w-full text-center text-sm text-ink/50 underline"
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline"
               onClick={() => send('Actually, let me change something')}>
               Change something
             </button>
@@ -429,20 +429,25 @@ export default function Chat() {
         )}
 
         {reminderPrompt && (
-          <div className="card border-gold/60">
-            <p className="text-[15px]">Want me to remind you if they haven&apos;t paid in 2 days?</p>
+          <div className="card border-primary-container/50">
+            <p className="text-body-md">Want me to remind you if they haven&apos;t paid in 2 days?</p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Enable reminders</button>
-            <button className="mt-2 w-full text-center text-sm text-ink/50 underline" onClick={dismissReminders}>
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now
             </button>
           </div>
         )}
 
-        {busy && <div className="px-2 text-sm text-ink/40">On It is thinking…</div>}
+        {busy && (
+          <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
+            <Icon name="graphic_eq" size={20} className="text-primary" />
+            On It is thinking…
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t border-line bg-paper px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="flex items-end gap-2 border-t border-outline-variant/40 bg-background px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           aria-label="Open voice mode"
           className="grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90"
@@ -477,12 +482,12 @@ export default function Chat() {
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
-            className="max-h-[70dvh] w-full overflow-y-auto rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="max-h-[70dvh] w-full overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-3 font-display text-lg font-bold">Recent conversations</h2>
             {history.length === 0 && (
-              <p className="py-8 text-center text-sm text-ink/50">Nothing here yet — your last 5 conversations will show up.</p>
+              <p className="py-8 text-center text-sm text-on-surface-variant">Nothing here yet — your last 5 conversations will show up.</p>
             )}
             <div className="space-y-2">
               {history.map((h) => (
@@ -490,10 +495,11 @@ export default function Chat() {
                   onClick={() => openHistoryEntry(h)}>
                   <div className="min-w-0">
                     <div className="truncate font-semibold">{h.title}</div>
-                    <div className="text-xs text-ink/50">{new Date(h.date).toLocaleDateString()}</div>
+                    <div className="text-xs text-on-surface-variant/80">{new Date(h.date).toLocaleDateString()}</div>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase
-                    ${h.finalized ? 'bg-green-100 text-green-800' : 'bg-gold/15 text-gold'}`}>
+                  <span className={`status-chip shrink-0
+                    ${h.finalized ? 'bg-paid-container text-paid' : 'bg-draft-container text-draft'}`}>
+                    <Icon name={h.finalized ? 'check_circle' : 'history'} size={16} />
                     {h.finalized ? 'Sent' : 'Draft'}
                   </span>
                 </button>
