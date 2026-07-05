@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Copy, Share2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
@@ -20,6 +21,7 @@ export default function Settings() {
   // real subscription state, not a fire-and-forget button
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -170,6 +172,38 @@ export default function Settings() {
           </div>
         )}
       </section>
+
+      {p.referral_code && (() => {
+        // host read dynamically so the link survives the custom-domain move
+        const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
+        return (
+          <section className="card space-y-3">
+            <h2 className="font-display font-bold">Invite</h2>
+            <p className="text-sm text-ink/60">Share On It with another contractor.</p>
+            <div className="break-all rounded-xl border border-line bg-paper-dim px-3 py-2.5 font-mono text-sm">
+              {inviteUrl}
+            </div>
+            <div className="flex gap-2">
+              <button className="chip flex items-center gap-1.5"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  } catch { /* clipboard blocked */ }
+                }}>
+                <Copy size={16} /> {copied ? 'Copied' : 'Copy link'}
+              </button>
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
+                <button className="chip flex items-center gap-1.5"
+                  onClick={() => navigator.share({ url: inviteUrl, title: 'On It — invoices done by talking' }).catch(() => {})}>
+                  <Share2 size={16} /> Share
+                </button>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       <section className="card space-y-2">
         <h2 className="font-display font-bold">Notifications</h2>
