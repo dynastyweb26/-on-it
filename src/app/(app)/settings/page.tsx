@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
-import { InvoiceTemplate, TemplateKey } from '@/lib/pdf/templates';
+import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -81,8 +81,8 @@ export default function Settings() {
         <h2 className="font-display font-bold">Invoice style</h2>
         <div className="flex gap-2">
           {TEMPLATES.map((t) => (
-            <button key={t} className={`chip capitalize ${p.invoice_template === t ? 'chip-selected' : ''}`}
-              onClick={() => save({ invoice_template: t })}>{t}</button>
+            <button key={t} className={`chip ${p.invoice_template === t ? 'chip-selected' : ''}`}
+              onClick={() => save({ invoice_template: t })}>{TEMPLATE_LABELS[t]}</button>
           ))}
         </div>
         <div className="grid grid-cols-10 gap-2">

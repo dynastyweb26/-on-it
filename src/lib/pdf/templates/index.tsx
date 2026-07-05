@@ -3,7 +3,9 @@
    Each template is a genuinely different LAYOUT, not a reskin:
 
    1. classic    — centered header, ruled table. The safe professional default.
-   2. sidebar    — bold color band down the left with logo + business info.
+   2. ledger     — old-school carbon-copy invoice book: ruled lines, slab type,
+                   monospace numerals, rotated DUE/QUOTE/PAID stamp.
+                   (DB key stays 'sidebar' — display label is 'Ledger'.)
    3. industrial — full-bleed dark-style header block, heavy type, hard edges.
                    (Cyril's black/red invoice energy lives here.)
    4. friendly   — rounded cards, soft spacing, approachable. Built from scratch.
@@ -33,6 +35,7 @@ export interface InvoiceRenderData {
   notes?: string | null;
   issuedDate: string;
   dueDate?: string | null;
+  paid?: boolean; // drives the Ledger stamp: DUE / QUOTE / PAID
   zelle?: string | null;
   paypalMe?: string | null;
   cashappTag?: string | null;
@@ -185,40 +188,126 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   );
 }
 
-/* ── 2. SIDEBAR ─────────────────────────────────────────────── */
-function Sidebar({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+/* ── 2. LEDGER (DB key 'sidebar') ───────────────────────────── */
+/* Old-school carbon-copy invoice book: ruled horizontal lines, slab-serif
+   business name, monospace numerals right-aligned in a ruled table, and a
+   rotated stamp-style DUE / QUOTE / PAID badge in the accent color.       */
+const SLAB = "Rockwell, 'Roboto Slab', Georgia, 'Times New Roman', serif";
+const MONO = "'Courier New', Courier, monospace";
+
+function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const stamp = d.kind === 'quote' ? 'QUOTE' : d.paid ? 'PAID' : 'DUE';
+  const rule = `1.5px solid ${t.accent}`;
+  const faintRule = `1px solid ${t.accent}66`;
+  const label: React.CSSProperties = {
+    fontFamily: SLAB, fontSize: 11, textTransform: 'uppercase',
+    letterSpacing: 2, color: t.accent, fontWeight: 700,
+  };
   return (
-    <div style={{ ...PAGE, background: t.background, color: t.text, display: 'flex' }}>
-      <div style={{ width: 240, background: t.primary, color: onColor(t.primary), padding: '48px 28px', display: 'flex', flexDirection: 'column' }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ width: 144, marginBottom: 20 }} alt="" />}
-        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2 }}>{d.businessName}</div>
-        {d.slogan && <div style={{ color: t.accent, fontSize: 13, marginTop: 8, fontStyle: 'italic' }}>{d.slogan}</div>}
-        <div style={{ marginTop: 'auto', fontSize: 12, lineHeight: 1.8 }}>
-          {d.websiteUrl && <div style={{ color: t.accent, fontWeight: 700 }}>{d.websiteUrl}</div>}
-          <div style={{ marginTop: 16 }}>
-            <PaymentBlock d={d} t={{ ...t, text: onColor(t.primary) }} />
+    <div style={{ ...PAGE, background: t.background, color: t.text, padding: '72px 64px', fontFamily: SLAB }}>
+      {/* stamp badge */}
+      <div
+        style={{
+          position: 'absolute', top: 84, right: 64,
+          transform: 'rotate(-12deg)',
+          border: `4px double ${t.accent}`, color: t.accent,
+          padding: '10px 26px', fontFamily: SLAB, fontWeight: 900,
+          fontSize: 30, letterSpacing: 6, textTransform: 'uppercase',
+          opacity: 0.9,
+        }}
+      >
+        {stamp}
+      </div>
+
+      {/* header — business name top-left, slab type */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 96 }} alt="" />}
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5, color: t.primary === t.background ? t.text : t.primary }}>
+            {d.businessName}
+          </div>
+          {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
+          {d.websiteUrl && <div style={{ color: t.accent, fontSize: 13, marginTop: 2 }}>{d.websiteUrl}</div>}
+        </div>
+      </div>
+
+      <div style={{ borderBottom: rule, margin: '28px 0 24px' }} />
+
+      {/* meta — filled-in ledger lines */}
+      <div style={{ display: 'flex', gap: 40, marginBottom: 28, fontSize: 14 }}>
+        <div>
+          <span style={label}>No.&nbsp;</span>
+          <span style={{ fontFamily: MONO, fontWeight: 700 }}>
+            {d.kind === 'quote' ? 'QTE' : 'INV'}-{String(d.invoiceNumber).padStart(4, '0')}
+          </span>
+        </div>
+        <div>
+          <span style={label}>Date&nbsp;</span>
+          <span style={{ fontFamily: MONO }}>{d.issuedDate}</span>
+        </div>
+        {d.dueDate && (
+          <div>
+            <span style={label}>Due&nbsp;</span>
+            <span style={{ fontFamily: MONO }}>{d.dueDate}</span>
+          </div>
+        )}
+      </div>
+      <div style={{ marginBottom: 32, fontSize: 16, borderBottom: faintRule, paddingBottom: 10 }}>
+        <span style={label}>Billed to&nbsp;&nbsp;</span>
+        <span style={{ fontWeight: 700 }}>{d.clientName}</span>
+        {d.clientAddress && <span style={{ opacity: 0.8, fontSize: 13 }}> — {d.clientAddress}</span>}
+      </div>
+
+      {/* ruled items table — monospace numerals right-aligned */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <thead>
+          <tr>
+            {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
+              <th key={h} style={{ ...label, textAlign: i === 0 ? 'left' : 'right', padding: '8px 4px', borderBottom: rule }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {d.lineItems.map((li, i) => (
+            <tr key={i}>
+              <td style={{ padding: '12px 4px', borderBottom: faintRule }}>{li.description}</td>
+              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO }}>{li.qty}</td>
+              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO }}>{money(li.unit_price)}</td>
+              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>
+                {money(li.qty * li.unit_price)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* totals — ledger style, double-ruled total */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+        <div style={{ width: 280, fontSize: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px' }}>
+            <span>Subtotal</span>
+            <span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
+          </div>
+          {d.taxRate > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px' }}>
+              <span>Tax ({d.taxRate}%)</span>
+              <span style={{ fontFamily: MONO }}>{money(d.taxAmount)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 4px', marginTop: 6, borderTop: `4px double ${t.accent}`, fontWeight: 900, fontSize: 19 }}>
+            <span style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+              {d.kind === 'quote' ? 'Quoted' : 'Total due'}
+            </span>
+            <span style={{ fontFamily: MONO, color: t.accent }}>{money(d.total)}</span>
           </div>
         </div>
       </div>
-      <div style={{ flex: 1, padding: '48px 40px' }}>
-        <div style={{ fontSize: 40, fontWeight: 800, color: t.accent, letterSpacing: 2, textTransform: 'uppercase' }}>
-          {d.kind === 'quote' ? 'Quote' : 'Invoice'}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '24px 0 32px' }}>
-          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.accent, fontWeight: 700 }}>
-              Billed to
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
-            {d.clientAddress && <div>{d.clientAddress}</div>}
-          </div>
-          <Meta d={d} t={t} />
-        </div>
-        <ItemsTable d={d} t={t} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-          <Totals d={d} t={t} />
-        </div>
-        {d.notes && <div style={{ fontSize: 12, marginTop: 32, opacity: 0.85 }}>{d.notes}</div>}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 48 }}>
+        <PaymentBlock d={d} t={t} />
+        {d.notes && <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>}
       </div>
     </div>
   );
@@ -317,12 +406,20 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 
 export const TEMPLATES = {
   classic: Classic,
-  sidebar: Sidebar,
+  sidebar: Ledger, // DB key kept stable; the design + label are 'Ledger'
   industrial: Industrial,
   friendly: Friendly,
 } as const;
 
 export type TemplateKey = keyof typeof TEMPLATES;
+
+/** Display names — the 'sidebar' key renders and reads as 'Ledger'. */
+export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
+  classic: 'Classic',
+  sidebar: 'Ledger',
+  industrial: 'Industrial',
+  friendly: 'Friendly',
+};
 
 export function InvoiceTemplate({
   template,

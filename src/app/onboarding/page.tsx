@@ -14,7 +14,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 const TRADES = ['Handyman', 'Trucking', 'Landscaping', 'Electrical', 'Plumbing', 'Painting', 'HVAC', 'Cleaning', 'Roofing', 'Other'];
 const TEMPLATE_META: { key: TemplateKey; name: string; blurb: string }[] = [
   { key: 'classic', name: 'Classic', blurb: 'Clean and professional. The safe pick.' },
-  { key: 'sidebar', name: 'Sidebar', blurb: 'Bold color band. Your brand front and center.' },
+  { key: 'sidebar', name: 'Ledger', blurb: 'Old-school invoice book. Ruled lines, stamped, built on trust.' },
   { key: 'industrial', name: 'Industrial', blurb: 'Heavy type, hard edges. Built tough.' },
   { key: 'friendly', name: 'Friendly', blurb: 'Rounded and warm. Easy on the eyes.' },
 ];

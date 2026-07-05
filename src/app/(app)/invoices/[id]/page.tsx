@@ -54,7 +54,8 @@ export default function InvoiceDetail() {
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
-    dueDate: inv.due_date, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
+    dueDate: inv.due_date, paid: inv.status === 'paid',
+    cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
   };
 
   async function viewPdf() {
