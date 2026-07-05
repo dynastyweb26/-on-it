@@ -6,7 +6,7 @@ import { MessageCircle, FileText, BarChart3, FolderLock, Settings } from 'lucide
 const TABS = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/invoices', label: 'Invoices', icon: FileText },
-  { href: '/dashboard', label: 'Money', icon: BarChart3 },
+  { href: '/dashboard', label: 'Cash Flow', icon: BarChart3 },
   { href: '/vault', label: 'Vault', icon: FolderLock },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
