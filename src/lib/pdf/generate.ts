@@ -17,6 +17,27 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
   const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
   pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 794, 1123);
+
+  // Tappable payment links: templates mark elements with data-pdf-link.
+  // Positions are measured against the live DOM and normalized to PDF
+  // coordinates, so on-screen scale() transforms don't skew the boxes.
+  const elRect = el.getBoundingClientRect();
+  if (elRect.width > 0) {
+    const ratio = 794 / elRect.width;
+    el.querySelectorAll<HTMLElement>('[data-pdf-link]').forEach((node) => {
+      const url = node.dataset.pdfLink;
+      if (!url) return;
+      const r = node.getBoundingClientRect();
+      pdf.link(
+        (r.left - elRect.left) * ratio,
+        (r.top - elRect.top) * ratio,
+        r.width * ratio,
+        r.height * ratio,
+        { url }
+      );
+    });
+  }
+
   const blob = pdf.output('blob');
   return new File([blob], filename, { type: 'application/pdf' });
 }

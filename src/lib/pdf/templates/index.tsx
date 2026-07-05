@@ -52,12 +52,18 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
+// Payment handles become real tappable links in the final PDF: rows carry a
+// data-pdf-link attribute that elementToPdf() converts into jsPDF link
+// annotations. Zelle stays display-only (no public URL scheme exists).
+const cashAppUrl = (tag: string) => `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
+const payPalUrl = (handle: string) =>
+  `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
+
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  const rows = [
-    d.zelle && `Zelle: ${d.zelle}`,
-    d.cashappTag && `Cash App: ${d.cashappTag}`,
-    d.paypalMe && `PayPal: paypal.me/${d.paypalMe}`,
-  ].filter(Boolean);
+  const rows: { text: string; url?: string }[] = [];
+  if (d.zelle) rows.push({ text: `Zelle: ${d.zelle}` });
+  if (d.cashappTag) rows.push({ text: `Cash App: ${d.cashappTag}`, url: cashAppUrl(d.cashappTag) });
+  if (d.paypalMe) rows.push({ text: `PayPal: paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe) });
   if (!rows.length) return null;
   return (
     <div style={{ fontSize: 13, lineHeight: 1.7 }}>
@@ -65,7 +71,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         How to pay
       </div>
       {rows.map((r) => (
-        <div key={r as string}>{r}</div>
+        <div key={r.text} {...(r.url ? { 'data-pdf-link': r.url } : {})}>{r.text}</div>
       ))}
     </div>
   );
