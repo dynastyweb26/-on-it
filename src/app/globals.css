@@ -29,6 +29,36 @@ body { @apply bg-paper text-ink font-body antialiased; }
   to { stroke-dashoffset: 0; }
 }
 
+/* ── Voice mode orb ─────────────────────────────────────────── */
+.orb {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #E8C158, #D4A017 60%, #A87D0E);
+  box-shadow: 0 0 60px 12px rgba(212, 160, 23, 0.40);
+}
+.orb-idle    { animation: orb-pulse 3.2s ease-in-out infinite; }
+.orb-listening { animation: orb-listen 1.4s ease-out infinite; }
+.orb-thinking  { animation: orb-shimmer 1.1s ease-in-out infinite; }
+.orb-speaking  { animation: orb-speak 0.55s ease-in-out infinite; }
+
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+@keyframes orb-listen {
+  0%   { transform: scale(1.02); box-shadow: 0 0 60px 12px rgba(212,160,23,.45), 0 0 0 0 rgba(212,160,23,.35); }
+  100% { transform: scale(1.06); box-shadow: 0 0 60px 12px rgba(212,160,23,.45), 0 0 0 44px rgba(212,160,23,0); }
+}
+@keyframes orb-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.28); }
+}
+@keyframes orb-speak {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.10); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
   /* with animations disabled, show the splash icon fully drawn */

@@ -2,14 +2,16 @@
 /* ═══ The core loop ═══
    Speak or type a job → "On it!" → follow-up questions →
    invoice preview card → PDF → native share sheet → follow-up engine.
-   Works for guests (5 free parses), saves for signed-in users.        */
+   Works for guests (5 free parses), saves for signed-in users.
+   Text mode is silent. Tapping the mic opens full-screen voice mode.  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, Square, Send, Share2, FileText } from 'lucide-react';
+import { Mic, Send, Share2, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
+import VoiceMode, { VoiceSendResult } from '@/components/VoiceMode';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; }
@@ -54,12 +56,10 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [recording, setRecording] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [voiceMode, setVoiceMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -101,18 +101,11 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, ready]);
 
-  function speak(text: string) {
-    // Voice read-back — core accessibility feature. Strip emoji for TTS.
-    if (typeof speechSynthesis === 'undefined') return;
-    const clean = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '');
-    const u = new SpeechSynthesisUtterance(clean);
-    u.rate = 1.05;
-    speechSynthesis.speak(u);
-  }
-
-  async function send(text: string) {
+  /** Shared parse flow for text AND voice mode. Returns the reply for
+   *  voice mode to speak; null tells voice mode to stop. Text mode never speaks. */
+  async function send(text: string): Promise<VoiceSendResult | null> {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy) return null;
     const next: Msg[] = [...messages, { role: 'user', content: trimmed }];
     setMessages(next);
     setInput('');
@@ -128,13 +121,13 @@ export default function Chat() {
       if (res.status === 401 && data.authRequired) {
         setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
         setTimeout(() => router.push('/login'), 1600);
-        return;
+        return null;
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
-      speak(reply);
+      const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) setDraft(data);
-      setReady(Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense');
+      setReady(isReady);
 
       // Expenses save immediately — no preview card needed
       if (data.intent === 'expense' && data.expense && profile) {
@@ -146,43 +139,12 @@ export default function Chat() {
           tax_deductible: data.expense.tax_deductible,
         });
       }
+      return { reply, ready: isReady };
     } catch {
       setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that again.' }]);
+      return null;
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function toggleRecording() {
-    if (recording) {
-      recorderRef.current?.stop();
-      setRecording(false);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => chunksRef.current.push(e.data);
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        setBusy(true);
-        try {
-          const res = await fetch('/api/transcribe', { method: 'POST', body: blob });
-          const { text } = await res.json();
-          setBusy(false);
-          if (text) send(text);
-        } catch {
-          setBusy(false);
-          setMessages((m) => [...m, { role: 'assistant', content: "Couldn't hear that — try again or type it." }]);
-        }
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
-    } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Mic access is blocked. You can type instead.' }]);
     }
   }
 
@@ -279,7 +241,6 @@ export default function Chat() {
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
       setMessages((m) => [...m, { role: 'assistant', content: done }]);
-      speak(done);
       setDraft(null);
       setReady(false);
       setRenderData(null);
@@ -343,32 +304,35 @@ export default function Chat() {
 
       <div className="flex items-end gap-2 border-t border-line bg-paper px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
-          aria-label={recording ? 'Stop recording' : 'Speak your job'}
-          className={`grid h-14 w-14 shrink-0 place-items-center rounded-full text-white transition active:scale-90
-            ${recording ? 'animate-pulse bg-red-600' : 'bg-gold'}`}
-          onClick={toggleRecording}
+          aria-label="Open voice mode"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gold text-white transition active:scale-90"
+          onClick={() => setVoiceMode(true)}
         >
-          {recording ? <Square size={22} /> : <Mic size={24} />}
+          <Mic size={24} />
         </button>
         <textarea
           className="max-h-32 min-h-[3.5rem] flex-1 resize-none rounded-3xl border border-line bg-white px-4 py-3.5 text-[15px] outline-none focus:border-gold"
-          placeholder={recording ? 'Listening…' : 'Or type it…'}
+          placeholder="Or type it…"
           value={input}
           rows={1}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
           }}
         />
         <button
           aria-label="Send"
           className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink text-paper active:scale-90 disabled:opacity-30"
           disabled={!input.trim() || busy}
-          onClick={() => send(input)}
+          onClick={() => void send(input)}
         >
           <Send size={20} />
         </button>
       </div>
+
+      {voiceMode && (
+        <VoiceMode onClose={() => setVoiceMode(false)} sendMessage={send} />
+      )}
 
       {/* Offscreen render target for PDF capture */}
       {renderData && theme && profile && (
