@@ -152,7 +152,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   return (
     <div style={{ ...PAGE, background: t.background, color: t.text, padding: 56 }}>
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 64, marginBottom: 12 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 96, marginBottom: 12 }} alt="" />}
         <div style={{ fontSize: 30, fontWeight: 800, color: t.primary === t.background ? t.text : t.primary }}>
           {d.businessName}
         </div>
@@ -190,7 +190,7 @@ function Sidebar({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   return (
     <div style={{ ...PAGE, background: t.background, color: t.text, display: 'flex' }}>
       <div style={{ width: 240, background: t.primary, color: onColor(t.primary), padding: '48px 28px', display: 'flex', flexDirection: 'column' }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ width: 96, marginBottom: 20 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ width: 144, marginBottom: 20 }} alt="" />}
         <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2 }}>{d.businessName}</div>
         {d.slogan && <div style={{ color: t.accent, fontSize: 13, marginTop: 8, fontStyle: 'italic' }}>{d.slogan}</div>}
         <div style={{ marginTop: 'auto', fontSize: 12, lineHeight: 1.8 }}>
@@ -236,7 +236,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {d.slogan && <div style={{ color: t.accent, fontWeight: 700, fontSize: 14 }}>{d.slogan}</div>}
           {d.websiteUrl && <div style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>{d.websiteUrl}</div>}
         </div>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 72 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 108 }} alt="" />}
       </div>
       <div style={{ background: t.accent, color: onColor(t.accent), padding: '10px 56px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 3, fontSize: 14, display: 'flex', justifyContent: 'space-between' }}>
         <span>{d.kind === 'quote' ? 'Quote' : 'Invoice'} INV-{String(d.invoiceNumber).padStart(4, '0')}</span>
@@ -273,7 +273,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     <div style={{ ...PAGE, background: t.background, color: t.text, padding: 48 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28 }}>
         {d.logoUrl && (
-          <img src={d.logoUrl} style={{ height: 64, width: 64, borderRadius: 16, objectFit: 'cover' }} alt="" />
+          <img src={d.logoUrl} style={{ height: 96, width: 96, borderRadius: 16, objectFit: 'cover' }} alt="" />
         )}
         <div>
           <div style={{ fontSize: 26, fontWeight: 800, color: t.primary === t.background ? t.text : t.primary }}>
