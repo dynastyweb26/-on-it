@@ -21,12 +21,34 @@ interface Profile {
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+// Mobile browsers suspend/kill background tabs constantly — persist the
+// conversation per-browser so switching apps never loses a draft.
+const CHAT_STORE_KEY = 'onit_chat_current';
+const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
+
+interface StoredChat {
+  messages: Msg[];
+  draft: Partial<ExtractResult> | null;
+  ready: boolean;
+  updatedAt: number;
+}
+
+function loadStoredChat(): StoredChat | null {
+  try {
+    const raw = localStorage.getItem(CHAT_STORE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredChat;
+    if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export default function Chat() {
   const supabase = createClient();
   const router = useRouter();
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([GREETING]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
@@ -34,6 +56,8 @@ export default function Chat() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recording, setRecording] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -49,8 +73,29 @@ export default function Chat() {
     })();
     // register service worker for the 2-day follow-up notifications
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // restore an in-progress conversation (mobile tab suspends wipe React state)
+    const stored = loadStoredChat();
+    if (stored) {
+      setMessages(stored.messages);
+      setDraft(stored.draft);
+      setReady(Boolean(stored.ready));
+    }
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // persist on every change so nothing is lost when the browser suspends us
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (finished || messages.length < 2) {
+        localStorage.removeItem(CHAT_STORE_KEY);
+      } else {
+        const payload: StoredChat = { messages, draft, ready, updatedAt: Date.now() };
+        localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
+      }
+    } catch { /* storage full or blocked — nothing to do */ }
+  }, [messages, draft, ready, hydrated, finished]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,6 +117,7 @@ export default function Chat() {
     setMessages(next);
     setInput('');
     setBusy(true);
+    setFinished(false); // a new message means a live conversation again
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
@@ -237,6 +283,8 @@ export default function Chat() {
       setDraft(null);
       setReady(false);
       setRenderData(null);
+      setFinished(true); // clears the persisted conversation
+      try { localStorage.removeItem(CHAT_STORE_KEY); } catch { /* ignore */ }
     } catch (e) {
       console.error(e);
       setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — try again." }]);
