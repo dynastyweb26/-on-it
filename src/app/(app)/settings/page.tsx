@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
+import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -16,6 +17,9 @@ export default function Settings() {
   const [zelleMasked, setZelleMasked] = useState<string | null>(null);
   const [zelleInput, setZelleInput] = useState('');
   const [zelleBusy, setZelleBusy] = useState(false);
+  // real subscription state, not a fire-and-forget button
+  const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -28,6 +32,7 @@ export default function Settings() {
         const z = await res.json();
         if (z.set) setZelleMasked(z.masked);
       } catch { /* leave unset */ }
+      setPushOn(Boolean(await getPushSubscription()));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,19 +65,18 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 1500);
   }
 
-  async function enableNotifications() {
-    // Push subscription for the 2-day payment follow-ups
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-    });
-    const json = sub.toJSON();
-    await supabase.from('push_subscriptions').upsert(
-      { user_id: p.id, endpoint: json.endpoint!, p256dh: json.keys!.p256dh, auth: json.keys!.auth },
-      { onConflict: 'endpoint' }
-    );
-    alert("You're set — I'll nudge you when invoices go unpaid for 2 days.");
+  async function togglePush() {
+    if (pushBusy || pushOn === null) return;
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        if (await unsubscribeFromPush(supabase)) setPushOn(false);
+      } else {
+        if (await subscribeToPush(supabase, p.id)) setPushOn(true);
+      }
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   if (!p) return <p className="p-6 text-ink/50">Loading…</p>;
@@ -169,8 +173,23 @@ export default function Settings() {
 
       <section className="card space-y-2">
         <h2 className="font-display font-bold">Notifications</h2>
-        <p className="text-sm text-ink/60">Get a nudge when an invoice goes unpaid for 2 days.</p>
-        <button className="btn-gold w-full" onClick={enableNotifications}>Turn on payment reminders</button>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-ink/60">Payment reminders when an invoice goes unpaid for 2 days.</p>
+          <button
+            role="switch"
+            aria-checked={Boolean(pushOn)}
+            aria-label="Payment reminders"
+            disabled={pushBusy || pushOn === null}
+            onClick={togglePush}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50
+              ${pushOn ? 'bg-gold' : 'bg-line'}`}
+          >
+            <span
+              className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all
+                ${pushOn ? 'left-7' : 'left-1'}`}
+            />
+          </button>
+        </div>
       </section>
 
       <button className="w-full py-3 text-sm text-red-700 underline"

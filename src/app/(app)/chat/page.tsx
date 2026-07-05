@@ -12,6 +12,7 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import VoiceMode, { VoiceSendResult } from '@/components/VoiceMode';
+import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; }
@@ -60,6 +61,7 @@ export default function Chat() {
   const [hydrated, setHydrated] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   const [voiceMode, setVoiceMode] = useState(false);
+  const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
   const bottomRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -252,12 +254,49 @@ export default function Chat() {
       setRenderData(null);
       setFinished(true); // clears the persisted conversation
       try { localStorage.removeItem(CHAT_STORE_KEY); } catch { /* ignore */ }
+
+      // The right moment to ask about reminders: right after the FIRST
+      // invoice goes out. One-time; skipped if already subscribed.
+      if (rd.kind === 'invoice') void maybeOfferReminders();
     } catch (e) {
       console.error(e);
       setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — try again." }]);
     } finally {
       setFinalizing(false);
     }
+  }
+
+  async function maybeOfferReminders() {
+    if (!profile) return;
+    try {
+      if (localStorage.getItem('onit_reminder_prompted')) return;
+      const { count } = await supabase
+        .from('invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+        .eq('kind', 'invoice');
+      if (count !== 1) return; // only the very first invoice
+      if (await getPushSubscription()) return; // already on
+      setReminderPrompt(true);
+    } catch { /* never block the send flow */ }
+  }
+
+  async function enableReminders() {
+    if (!profile) return;
+    setReminderPrompt(false);
+    try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
+    const ok = await subscribeToPush(supabase, profile.id);
+    setMessages((m) => [...m, {
+      role: 'assistant',
+      content: ok
+        ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
+        : "Couldn't turn that on — you can enable reminders any time in Settings.",
+    }]);
+  }
+
+  function dismissReminders() {
+    setReminderPrompt(false);
+    try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
   }
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
@@ -300,6 +339,16 @@ export default function Chat() {
             <button className="mt-2 w-full text-center text-sm text-ink/50 underline"
               onClick={() => send('Actually, let me change something')}>
               Change something
+            </button>
+          </div>
+        )}
+
+        {reminderPrompt && (
+          <div className="card border-gold/60">
+            <p className="text-[15px]">Want me to remind you if they haven&apos;t paid in 2 days?</p>
+            <button className="btn-gold mt-3 w-full" onClick={enableReminders}>Enable reminders</button>
+            <button className="mt-2 w-full text-center text-sm text-ink/50 underline" onClick={dismissReminders}>
+              Not now
             </button>
           </div>
         )}
