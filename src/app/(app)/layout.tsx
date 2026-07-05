@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, FileText, BarChart3, FolderLock, Settings } from 'lucide-react';
+import { MessageCircle, FileText, BarChart3, Settings } from 'lucide-react';
 
+// 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
+// each invoice's detail page) but is no longer in primary navigation.
 const TABS = [
   { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/dashboard', label: 'Cash Flow', icon: BarChart3 },
-  { href: '/vault', label: 'Vault', icon: FolderLock },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

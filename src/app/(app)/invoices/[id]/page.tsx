@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Share2, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Share2, CheckCircle2, RefreshCw, FileText } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -16,6 +16,7 @@ export default function InvoiceDetail() {
   const [inv, setInv] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +26,15 @@ export default function InvoiceDetail() {
       if (i) {
         const { data: p } = await supabase.from('profiles').select('*').eq('id', i.user_id).maybeSingle();
         setProfile(p);
+        // archived PDF from the Vault (uploaded at finalize time)
+        const { data: doc } = await supabase
+          .from('vault_documents')
+          .select('storage_path')
+          .eq('invoice_id', i.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setVaultPath(doc?.storage_path ?? null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,6 +56,12 @@ export default function InvoiceDetail() {
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
   };
+
+  async function viewPdf() {
+    if (!vaultPath) return;
+    const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
 
   async function markPaid() {
     await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
@@ -96,6 +112,11 @@ export default function InvoiceDetail() {
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
             <Share2 size={16} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
+          {vaultPath && (
+            <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
+              <FileText size={16} /> View PDF
+            </button>
+          )}
           {inv.kind === 'quote' && (
             <button className="chip flex items-center gap-1.5 border-gold text-gold" onClick={convertToInvoice}>
               <RefreshCw size={16} /> Make it an invoice
