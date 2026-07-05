@@ -100,7 +100,7 @@ export default function Dashboard() {
       </a>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end bg-ink/40" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
           <div
             className="w-full rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
@@ -114,12 +114,12 @@ export default function Dashboard() {
             </div>
             <div className="space-y-3">
               <input
-                className="w-full rounded-xl border border-line bg-white px-3 py-3 font-mono text-lg"
+                className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3 font-mono text-lg"
                 placeholder="$ Amount" inputMode="decimal" value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
               />
               <input
-                className="w-full rounded-xl border border-line bg-white px-3 py-3"
+                className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
                 placeholder="What was it for?" maxLength={300} value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -133,23 +133,23 @@ export default function Dashboard() {
               </div>
               {category === 'Other' && (
                 <input
-                  className="w-full rounded-xl border border-line bg-white px-3 py-3"
+                  className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
                   placeholder="Category name" maxLength={60} value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                 />
               )}
-              <label className="flex items-center justify-between rounded-xl border border-line bg-white px-3 py-3">
+              <label className="flex items-center justify-between rounded-xl border border-line bg-surface-container-lowest px-3 py-3">
                 <span className="text-sm">Tax deductible</span>
                 <button
                   role="switch" aria-checked={deductible} aria-label="Tax deductible"
                   onClick={() => setDeductible(!deductible)}
                   className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-gold' : 'bg-line'}`}
                 >
-                  <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
+                  <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
                 </button>
               </label>
               <input
-                type="date" className="w-full rounded-xl border border-line bg-white px-3 py-3"
+                type="date" className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
                 value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
               />
               {formError && <p className="text-sm text-red-700">{formError}</p>}

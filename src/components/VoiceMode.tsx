@@ -142,7 +142,7 @@ export default function VoiceMode({
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-paper">
       <button
         aria-label="Exit voice mode"
-        className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-line bg-white text-ink/60 active:scale-90"
+        className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-container-lowest text-ink/60 active:scale-90"
         onClick={close}
       >
         <X size={22} />

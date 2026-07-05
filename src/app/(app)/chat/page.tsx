@@ -392,7 +392,7 @@ export default function Chat() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[82%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[15px] leading-relaxed
-                ${m.role === 'user' ? 'rounded-br-md bg-ink text-paper' : 'rounded-bl-md bg-white border border-line'}`}
+                ${m.role === 'user' ? 'rounded-br-md bg-ink text-paper' : 'rounded-bl-md bg-surface-container-lowest border border-line'}`}
             >
               {m.content}
             </div>
@@ -449,7 +449,7 @@ export default function Chat() {
           <Mic size={24} />
         </button>
         <textarea
-          className="max-h-32 min-h-[3.5rem] flex-1 resize-none rounded-3xl border border-line bg-white px-4 py-3.5 text-[15px] outline-none focus:border-gold"
+          className="max-h-32 min-h-[3.5rem] flex-1 resize-none rounded-3xl border border-line bg-surface-container-lowest px-4 py-3.5 text-[15px] outline-none focus:border-gold"
           placeholder="Or type it…"
           value={input}
           rows={1}
@@ -473,7 +473,7 @@ export default function Chat() {
       )}
 
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-ink/40" onClick={() => setShowHistory(false)}>
+        <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
             className="max-h-[70dvh] w-full overflow-y-auto rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}

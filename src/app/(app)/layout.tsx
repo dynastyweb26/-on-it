@@ -84,7 +84,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
-      <nav className="flex border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+      <nav className="flex border-t border-line bg-surface-container-lowest pb-[env(safe-area-inset-bottom)]">
         {TABS.map(({ href, label, icon: Icon }) => {
           const active = path.startsWith(href);
           return (

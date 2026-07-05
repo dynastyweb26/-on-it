@@ -67,7 +67,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
       <div className="flex justify-end px-4 py-3">
         <button
           aria-label="Close tutorial"
-          className="grid h-11 w-11 place-items-center rounded-full border border-line bg-white text-ink/60 active:scale-90"
+          className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-container-lowest text-ink/60 active:scale-90"
           onClick={onClose}
         >
           <X size={22} />

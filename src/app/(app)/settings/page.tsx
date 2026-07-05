@@ -219,7 +219,7 @@ export default function Settings() {
               ${pushOn ? 'bg-gold' : 'bg-line'}`}
           >
             <span
-              className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all
+              className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
                 ${pushOn ? 'left-7' : 'left-1'}`}
             />
           </button>
