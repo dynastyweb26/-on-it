@@ -55,7 +55,7 @@ export default function Login() {
         value={password} onChange={(e) => setPassword(e.target.value)}
       />
       {error && <p className="text-sm text-crimson text-red-700">{error}</p>}
-      <button className="btn-gold" disabled={busy || !email} onClick={submit}>
+      <button className="btn-primary" disabled={busy || !email} onClick={submit}>
         {busy ? 'One sec…' : mode === 'signup' ? 'Create free account' : 'Sign in'}
       </button>
       <button

@@ -92,7 +92,7 @@ export default function Dashboard() {
         <Stat label="Tax deductible" value={money(stats.deductible)} tone="text-ink" />
       </div>
 
-      <button className="btn-gold flex w-full items-center justify-center gap-2" onClick={() => setShowForm(true)}>
+      <button className="btn-primary flex w-full items-center justify-center gap-2" onClick={() => setShowForm(true)}>
         <Plus size={20} /> Add expense
       </button>
       <a href="/expenses" className="card block text-center font-semibold text-gold">
@@ -153,7 +153,7 @@ export default function Dashboard() {
                 value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
               />
               {formError && <p className="text-sm text-red-700">{formError}</p>}
-              <button className="btn-gold w-full" disabled={saving} onClick={saveExpense}>
+              <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
                 {saving ? 'Saving…' : 'Save expense'}
               </button>
             </div>

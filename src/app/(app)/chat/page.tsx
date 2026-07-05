@@ -415,7 +415,7 @@ export default function Chat() {
               <span>Total</span>
               <span className="font-mono text-gold">{money(previewTotal)}</span>
             </div>
-            <button className="btn-gold mt-3 flex w-full items-center justify-center gap-2" disabled={finalizing} onClick={finalize}>
+            <button className="btn-primary mt-3 flex w-full items-center justify-center gap-2" disabled={finalizing} onClick={finalize}>
               <Share2 size={18} />
               {finalizing ? 'Building your PDF…' : 'Looks right — send it'}
             </button>
@@ -429,7 +429,7 @@ export default function Chat() {
         {reminderPrompt && (
           <div className="card border-gold/60">
             <p className="text-[15px]">Want me to remind you if they haven&apos;t paid in 2 days?</p>
-            <button className="btn-gold mt-3 w-full" onClick={enableReminders}>Enable reminders</button>
+            <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Enable reminders</button>
             <button className="mt-2 w-full text-center text-sm text-ink/50 underline" onClick={dismissReminders}>
               Not now
             </button>

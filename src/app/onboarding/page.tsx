@@ -150,7 +150,7 @@ export default function Onboarding() {
                 setLogoPreview(f ? URL.createObjectURL(f) : null);
               }} />
           </label>
-          <button className="btn-gold" disabled={!business.trim()} onClick={() => setStep(2)}>
+          <button className="btn-primary" disabled={!business.trim()} onClick={() => setStep(2)}>
             Next — pick your colors
           </button>
         </section>
@@ -182,7 +182,7 @@ export default function Onboarding() {
               These colors might be hard to read together. Want to swap one for more contrast? Your call — it&apos;ll still work.
             </p>
           )}
-          <button className="btn-gold" disabled={colors.length < 2} onClick={() => setStep(3)}>
+          <button className="btn-primary" disabled={colors.length < 2} onClick={() => setStep(3)}>
             Next — pick your background
           </button>
         </section>
@@ -212,7 +212,7 @@ export default function Onboarding() {
               </div>
             </div>
           )}
-          <button className="btn-gold" disabled={!background} onClick={() => setStep(4)}>
+          <button className="btn-primary" disabled={!background} onClick={() => setStep(4)}>
             Looks good — pick a style
           </button>
         </section>
@@ -237,7 +237,7 @@ export default function Onboarding() {
             </div>
           </div>
           {error && <p className="text-sm text-red-700">{error}</p>}
-          <button className="btn-gold" disabled={busy} onClick={finish}>
+          <button className="btn-primary" disabled={busy} onClick={finish}>
             {busy ? 'Setting up…' : 'Confirm and continue'}
           </button>
         </section>

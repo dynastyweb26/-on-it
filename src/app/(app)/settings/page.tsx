@@ -113,7 +113,7 @@ export default function Settings() {
           <input className="w-full flex-1 rounded-xl border border-line px-3 py-2.5"
             placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Zelle (phone or email)'}
             value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
-          <button className="btn-gold px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
+          <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
             onClick={saveZelle}>
             {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
           </button>
