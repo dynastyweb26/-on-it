@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { MessageCircle, FileText, BarChart3, Settings } from 'lucide-react';
+import { MessageCircle, FileText, BarChart3, Settings, HelpCircle } from 'lucide-react';
+import Tutorial from '@/components/Tutorial';
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Instagram-style horizontal swipe between tabs. Touch only; vertical
   // scrolling always wins once the gesture is more vertical than horizontal.
   const touch = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
@@ -54,7 +56,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <span className="font-display text-xl font-extrabold">
           On It<span className="text-gold">.</span>
         </span>
+        <button
+          aria-label="How On It works"
+          className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
+          onClick={() => setShowTutorial(true)}
+        >
+          <HelpCircle size={22} />
+        </button>
       </header>
+      {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       <main
         className="min-h-0 flex-1 overflow-y-auto"
         onTouchStart={onTouchStart}
