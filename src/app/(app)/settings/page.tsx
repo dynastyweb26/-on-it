@@ -81,15 +81,15 @@ export default function Settings() {
     }
   }
 
-  if (!p) return <p className="p-6 text-ink/50">Loading…</p>;
+  if (!p) return <p className="p-6 text-on-surface-variant">Loading…</p>;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
   return (
     <div className="space-y-4 px-4 py-4">
-      {saved && <div className="rounded-xl bg-green-100 p-2 text-center text-sm text-green-800">Saved</div>}
+      {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
 
       <section className="card space-y-3">
-        <h2 className="font-display font-bold">Business</h2>
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
         <input className="input" value={p.business_name ?? ''}
           onChange={(e) => setP({ ...p, business_name: e.target.value })}
           onBlur={(e) => save({ business_name: e.target.value })} />
@@ -102,7 +102,7 @@ export default function Settings() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-display font-bold">Payment info on invoices</h2>
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Payment info on invoices</h2>
         <input className="input" placeholder="Cash App ($tag)"
           value={p.cashapp_tag ?? ''} onChange={(e) => setP({ ...p, cashapp_tag: e.target.value })}
           onBlur={(e) => save({ cashapp_tag: e.target.value || null })} />
@@ -118,11 +118,11 @@ export default function Settings() {
             {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
           </button>
         </div>
-        <p className="text-xs text-ink/50">Zelle is stored encrypted. Leave the field empty and tap Remove to clear it.</p>
+        <p className="text-xs text-on-surface-variant/80">Zelle is stored encrypted. Leave the field empty and tap Remove to clear it.</p>
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-display font-bold">Invoice style</h2>
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
         <div className="flex gap-2">
           {TEMPLATES.map((t) => (
             <button key={t} className={`chip ${p.invoice_template === t ? 'chip-selected' : ''}`}
@@ -157,7 +157,7 @@ export default function Settings() {
           </div>
         )}
         {theme && (
-          <div className="overflow-hidden rounded-xl border border-line" style={{ height: 240 }}>
+          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 240 }}>
             <div style={{ transform: 'scale(0.36)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
               <InvoiceTemplate template={p.invoice_template} theme={theme} data={{
                 kind: 'invoice', invoiceNumber: 1, businessName: p.business_name,
@@ -178,9 +178,9 @@ export default function Settings() {
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
         return (
           <section className="card space-y-3">
-            <h2 className="font-display font-bold">Invite</h2>
-            <p className="text-sm text-ink/60">Share On It with another contractor.</p>
-            <div className="break-all rounded-xl border border-line bg-paper-dim px-3 py-2.5 font-mono text-sm">
+            <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invite</h2>
+            <p className="text-sm text-on-surface-variant">Share On It with another contractor.</p>
+            <div className="break-all rounded-input border border-outline-variant bg-surface-container px-3 py-2.5 font-mono text-sm">
               {inviteUrl}
             </div>
             <div className="flex gap-2">
@@ -206,9 +206,9 @@ export default function Settings() {
       })()}
 
       <section className="card space-y-2">
-        <h2 className="font-display font-bold">Notifications</h2>
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-ink/60">Payment reminders when an invoice goes unpaid for 2 days.</p>
+          <p className="text-sm text-on-surface-variant">Payment reminders when an invoice goes unpaid for 2 days.</p>
           <button
             role="switch"
             aria-checked={Boolean(pushOn)}
@@ -216,7 +216,7 @@ export default function Settings() {
             disabled={pushBusy || pushOn === null}
             onClick={togglePush}
             className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50
-              ${pushOn ? 'bg-gold' : 'bg-line'}`}
+              ${pushOn ? 'bg-primary-container' : 'bg-outline-variant'}`}
           >
             <span
               className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
@@ -226,11 +226,11 @@ export default function Settings() {
         </div>
       </section>
 
-      <button className="w-full py-3 text-sm text-red-700 underline"
+      <button className="w-full py-3 text-sm text-error underline"
         onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}>
         Sign out
       </button>
-      <p className="pb-4 text-center text-xs text-ink/35">On It · a Dynasty Web product · $9/month</p>
+      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9/month</p>
     </div>
   );
 }
