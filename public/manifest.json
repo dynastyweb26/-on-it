@@ -4,8 +4,8 @@
   "description": "Speak your job. Get a branded invoice. Get paid.",
   "start_url": "/chat",
   "display": "standalone",
-  "background_color": "#FCFAF6",
-  "theme_color": "#D4A017",
+  "background_color": "#fff8f0",
+  "theme_color": "#d4af37",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }

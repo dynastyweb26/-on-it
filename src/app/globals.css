@@ -2,16 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Warm Premium (Design Standard v1.0). Tokens live in tailwind.config.ts;
+   this file holds the base layer + the handful of stateful classes from
+   tokens.css (ring, pulse, glass, icon defaults). */
+
 :root {
-  --gold: #D4A017;
+  --gold: #d4af37; /* legacy var — remove after Step 6 */
 }
 
 html { -webkit-tap-highlight-color: transparent; }
-body { @apply bg-paper text-ink font-body antialiased; }
+body { @apply bg-background text-on-background font-body antialiased; }
+
+@layer base {
+  h1, h2, h3 { @apply font-display; }
+}
 
 .btn-gold {
   @apply bg-gold text-white font-display font-bold rounded-full px-6 py-3.5
          active:scale-95 transition-transform disabled:opacity-40 disabled:active:scale-100;
+  /* NOTE: white-on-gold violates §2 — respec'd in Step 4 (buttons pass) */
 }
 .card {
   @apply bg-white rounded-card border border-line p-4;
@@ -24,18 +33,58 @@ body { @apply bg-paper text-ink font-body antialiased; }
   @apply ring-2 ring-gold border-gold bg-gold/10 font-bold;
 }
 
+/* ---- Selected / voice-active state (Batch 2 "gold ring" spec, §7) ---- */
+.ring-gold-selected {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
+}
+
+/* ---- Voice FAB pulse ---- */
+@keyframes onit-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.45); }
+  70%  { box-shadow: 0 0 0 16px rgba(212, 175, 55, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+.voice-listening { animation: onit-pulse 1.6s ease-out infinite; }
+
+/* ---- Glass surfaces (exactly two allowed: bottom nav + voice overlay) ---- */
+.glass-nav {
+  background: rgba(255, 248, 240, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.material-symbols-outlined.icon-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
 /* Splash icon self-draw (stroke-dashoffset) */
 @keyframes onit-draw {
   to { stroke-dashoffset: 0; }
 }
 
 /* ── Voice mode orb ─────────────────────────────────────────── */
+/* Transitional: gradient rebuilt around #d4af37 in the voice pass (Step 4/6) */
 .orb {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #E8C158, #D4A017 60%, #A87D0E);
-  box-shadow: 0 0 60px 12px rgba(212, 160, 23, 0.40);
+  background: radial-gradient(circle at 35% 30%, #e9c349, #d4af37 60%, #a8892b);
+  box-shadow: 0 0 60px 12px rgba(212, 175, 55, 0.40);
 }
 .orb-idle    { animation: orb-pulse 3.2s ease-in-out infinite; }
 .orb-listening { animation: orb-listen 1.4s ease-out infinite; }
@@ -47,8 +96,8 @@ body { @apply bg-paper text-ink font-body antialiased; }
   50%      { transform: scale(1.04); }
 }
 @keyframes orb-listen {
-  0%   { transform: scale(1.02); box-shadow: 0 0 60px 12px rgba(212,160,23,.45), 0 0 0 0 rgba(212,160,23,.35); }
-  100% { transform: scale(1.06); box-shadow: 0 0 60px 12px rgba(212,160,23,.45), 0 0 0 44px rgba(212,160,23,0); }
+  0%   { transform: scale(1.02); box-shadow: 0 0 60px 12px rgba(212,175,55,.45), 0 0 0 0 rgba(212,175,55,.35); }
+  100% { transform: scale(1.06); box-shadow: 0 0 60px 12px rgba(212,175,55,.45), 0 0 0 44px rgba(212,175,55,0); }
 }
 @keyframes orb-shimmer {
   0%, 100% { filter: brightness(1); }
