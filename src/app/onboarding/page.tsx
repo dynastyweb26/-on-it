@@ -6,6 +6,7 @@
    Live mini invoice preview updates on every tap.                  */
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Image as ImageIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, isDark, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -138,7 +139,7 @@ if (grantToken) {
           <label className="card flex cursor-pointer items-center gap-3">
             {logoPreview
               ? <img src={logoPreview} className="h-12 w-12 rounded-lg object-cover" alt="" />
-              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-paper-dim text-xl">🖼️</span>}
+              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-paper-dim"><ImageIcon size={22} className="text-ink/40" /></span>}
             <span className="text-sm text-ink/70">{logoFile ? logoFile.name : 'Upload your logo (optional)'}</span>
             <input type="file" accept="image/*" className="hidden"
               onChange={(e) => {
@@ -235,7 +236,7 @@ if (grantToken) {
           </div>
           {error && <p className="text-sm text-red-700">{error}</p>}
           <button className="btn-gold" disabled={busy} onClick={finish}>
-            {busy ? 'Setting up…' : "That's my look — let's go 🎉"}
+            {busy ? 'Setting up…' : 'Confirm and continue'}
           </button>
         </section>
       )}

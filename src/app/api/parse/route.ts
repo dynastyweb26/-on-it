@@ -1,4 +1,4 @@
-// POST /api/parse — the brain of the "On it! 🎉" chat loop.
+// POST /api/parse — the brain of the "On it!" chat loop.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extract } from '@/lib/ai';

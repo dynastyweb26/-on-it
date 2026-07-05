@@ -1,6 +1,6 @@
 'use client';
 /* ═══ The core loop ═══
-   Speak or type a job → "On it! 🎉" → follow-up questions →
+   Speak or type a job → "On it!" → follow-up questions →
    invoice preview card → PDF → native share sheet → follow-up engine.
    Works for guests (5 free parses), saves for signed-in users.        */
 import { useEffect, useRef, useState } from 'react';
@@ -276,7 +276,7 @@ export default function Chat() {
       }
 
       const done = outcome === 'shared'
-        ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days. 💪`
+        ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
       setMessages((m) => [...m, { role: 'assistant', content: done }]);
       speak(done);

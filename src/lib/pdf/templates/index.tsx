@@ -309,7 +309,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <Totals d={d} t={t} />
       </div>
       <div style={{ textAlign: 'center', marginTop: 36, color: t.accent, fontWeight: 700, fontSize: 13 }}>
-        Thanks for the work! 🤝
+        Thank you for your business.
       </div>
     </div>
   );
