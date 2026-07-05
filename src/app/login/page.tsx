@@ -46,11 +46,11 @@ export default function Login() {
         <p className="mt-1 text-sm text-ink/60">Invoices done by talking.</p>
       </div>
       <input
-        className="card" type="email" placeholder="Email" autoComplete="email"
+        className="input" type="email" placeholder="Email" autoComplete="email"
         value={email} onChange={(e) => setEmail(e.target.value)}
       />
       <input
-        className="card" type="password" placeholder="Password (8+ characters)"
+        className="input" type="password" placeholder="Password (8+ characters)"
         autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
         value={password} onChange={(e) => setPassword(e.target.value)}
       />

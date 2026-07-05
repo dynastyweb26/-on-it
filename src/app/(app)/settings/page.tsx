@@ -90,27 +90,27 @@ export default function Settings() {
 
       <section className="card space-y-3">
         <h2 className="font-display font-bold">Business</h2>
-        <input className="w-full rounded-xl border border-line px-3 py-2.5" value={p.business_name ?? ''}
+        <input className="input" value={p.business_name ?? ''}
           onChange={(e) => setP({ ...p, business_name: e.target.value })}
           onBlur={(e) => save({ business_name: e.target.value })} />
-        <input className="w-full rounded-xl border border-line px-3 py-2.5" placeholder="Website"
+        <input className="input" placeholder="Website"
           value={p.website_url ?? ''} onChange={(e) => setP({ ...p, website_url: e.target.value })}
           onBlur={(e) => save({ website_url: e.target.value || null })} />
-        <input className="w-full rounded-xl border border-line px-3 py-2.5" placeholder="Slogan"
+        <input className="input" placeholder="Slogan"
           value={p.slogan ?? ''} onChange={(e) => setP({ ...p, slogan: e.target.value })}
           onBlur={(e) => save({ slogan: e.target.value || null })} />
       </section>
 
       <section className="card space-y-3">
         <h2 className="font-display font-bold">Payment info on invoices</h2>
-        <input className="w-full rounded-xl border border-line px-3 py-2.5" placeholder="Cash App ($tag)"
+        <input className="input" placeholder="Cash App ($tag)"
           value={p.cashapp_tag ?? ''} onChange={(e) => setP({ ...p, cashapp_tag: e.target.value })}
           onBlur={(e) => save({ cashapp_tag: e.target.value || null })} />
-        <input className="w-full rounded-xl border border-line px-3 py-2.5" placeholder="PayPal.me handle"
+        <input className="input" placeholder="PayPal.me handle"
           value={p.paypal_me ?? ''} onChange={(e) => setP({ ...p, paypal_me: e.target.value })}
           onBlur={(e) => save({ paypal_me: e.target.value || null })} />
         <div className="flex gap-2">
-          <input className="w-full flex-1 rounded-xl border border-line px-3 py-2.5"
+          <input className="input flex-1"
             placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Zelle (phone or email)'}
             value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
           <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}

@@ -449,7 +449,7 @@ export default function Chat() {
           <Mic size={24} />
         </button>
         <textarea
-          className="max-h-32 min-h-[3.5rem] flex-1 resize-none rounded-3xl border border-line bg-surface-container-lowest px-4 py-3.5 text-[15px] outline-none focus:border-gold"
+          className="input max-h-32 flex-1 resize-none py-3.5"
           placeholder="Or type it…"
           value={input}
           rows={1}

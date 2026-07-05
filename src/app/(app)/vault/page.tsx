@@ -24,7 +24,7 @@ export default function Vault() {
 
   return (
     <div className="px-4 py-4">
-      <input className="card mb-3 w-full" placeholder="Search your documents…"
+      <input className="input mb-3" placeholder="Search your documents…"
         value={q} onChange={(e) => setQ(e.target.value)} />
       {filtered.length === 0 && (
         <p className="mt-16 text-center text-ink/50">Every invoice you send lands here automatically.</p>

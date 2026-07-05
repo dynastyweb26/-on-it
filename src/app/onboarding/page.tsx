@@ -126,7 +126,7 @@ export default function Onboarding() {
       {step === 1 && (
         <section className="flex flex-col gap-4">
           <h1 className="font-display text-2xl font-extrabold">Tell us about your business</h1>
-          <input className="card" placeholder="Business name *" value={business}
+          <input className="input" placeholder="Business name *" value={business}
             onChange={(e) => setBusiness(e.target.value)} maxLength={120} />
           <div className="flex flex-wrap gap-2">
             {TRADES.map((t) => (
@@ -134,9 +134,9 @@ export default function Onboarding() {
                 onClick={() => setTrade(t)}>{t}</button>
             ))}
           </div>
-          <input className="card" placeholder="Website (optional)" value={website}
+          <input className="input" placeholder="Website (optional)" value={website}
             onChange={(e) => setWebsite(e.target.value)} inputMode="url" />
-          <input className="card" placeholder="Slogan (optional)" value={slogan}
+          <input className="input" placeholder="Slogan (optional)" value={slogan}
             onChange={(e) => setSlogan(e.target.value)} maxLength={140} />
           <label className="card flex cursor-pointer items-center gap-3">
             {logoPreview

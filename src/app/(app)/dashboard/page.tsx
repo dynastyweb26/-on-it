@@ -114,12 +114,12 @@ export default function Dashboard() {
             </div>
             <div className="space-y-3">
               <input
-                className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3 font-mono text-lg"
+                className="input font-mono text-lg"
                 placeholder="$ Amount" inputMode="decimal" value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
               />
               <input
-                className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
+                className="input"
                 placeholder="What was it for?" maxLength={300} value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -133,12 +133,12 @@ export default function Dashboard() {
               </div>
               {category === 'Other' && (
                 <input
-                  className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
+                  className="input"
                   placeholder="Category name" maxLength={60} value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                 />
               )}
-              <label className="flex items-center justify-between rounded-xl border border-line bg-surface-container-lowest px-3 py-3">
+              <label className="flex min-h-touch items-center justify-between rounded-input border border-outline-variant/60 bg-surface-container px-4 py-3">
                 <span className="text-sm">Tax deductible</span>
                 <button
                   role="switch" aria-checked={deductible} aria-label="Tax deductible"
@@ -149,7 +149,7 @@ export default function Dashboard() {
                 </button>
               </label>
               <input
-                type="date" className="w-full rounded-xl border border-line bg-surface-container-lowest px-3 py-3"
+                type="date" className="input"
                 value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
               />
               {formError && <p className="text-sm text-red-700">{formError}</p>}

@@ -34,6 +34,13 @@ body { @apply bg-background text-on-background font-body antialiased; }
          text-on-background font-body font-semibold rounded-button px-6 py-3 min-h-touch
          active:scale-[0.97] transition-transform disabled:opacity-40 disabled:active:scale-100;
 }
+/* Inputs (§8): 56px, 12px radius, surface-container fill, gold 20% border,
+   focus ring 2px #d4af37. */
+.input {
+  @apply w-full rounded-input bg-surface-container border border-primary-container/20 px-4 min-h-touch
+         text-body-md text-on-background placeholder:text-on-surface-variant/60
+         outline-none focus:ring-2 focus:ring-primary-container focus:border-primary-container;
+}
 .card {
   @apply bg-surface-container-low rounded-card border border-outline-variant/30 p-4 shadow-card;
 }
