@@ -191,6 +191,12 @@ export default function Chat() {
       const rd = buildRenderData(no);
       if (!rd) throw new Error('incomplete');
 
+      // Zelle is encrypted at rest — the server route is the only reader
+      try {
+        const z = await (await fetch('/api/zelle?full=1')).json();
+        if (z?.value) rd.zelle = z.value;
+      } catch { /* invoice simply prints without Zelle */ }
+
       // Upsert client + save invoice
       const { data: client } = await supabase
         .from('clients')

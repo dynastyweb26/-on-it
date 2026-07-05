@@ -12,6 +12,10 @@ export default function Settings() {
   const router = useRouter();
   const [p, setP] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
+  const [zelleMasked, setZelleMasked] = useState<string | null>(null);
+  const [zelleInput, setZelleInput] = useState('');
+  const [zelleBusy, setZelleBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -19,9 +23,34 @@ export default function Settings() {
       if (!user) return;
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       setP(data);
+      try {
+        const res = await fetch('/api/zelle');
+        const z = await res.json();
+        if (z.set) setZelleMasked(z.masked);
+      } catch { /* leave unset */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function saveZelle() {
+    setZelleBusy(true);
+    try {
+      const res = await fetch('/api/zelle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ value: zelleInput }),
+      });
+      const z = await res.json();
+      if (res.ok) {
+        setZelleMasked(z.set ? z.masked : null);
+        setZelleInput('');
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      }
+    } finally {
+      setZelleBusy(false);
+    }
+  }
 
   async function save(patch: Record<string, unknown>) {
     const next = { ...p, ...patch };
@@ -74,7 +103,16 @@ export default function Settings() {
         <input className="w-full rounded-xl border border-line px-3 py-2.5" placeholder="PayPal.me handle"
           value={p.paypal_me ?? ''} onChange={(e) => setP({ ...p, paypal_me: e.target.value })}
           onBlur={(e) => save({ paypal_me: e.target.value || null })} />
-        <p className="text-xs text-ink/50">Zelle is stored encrypted — manage it during invoice setup.</p>
+        <div className="flex gap-2">
+          <input className="w-full flex-1 rounded-xl border border-line px-3 py-2.5"
+            placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Zelle (phone or email)'}
+            value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
+          <button className="btn-gold px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
+            onClick={saveZelle}>
+            {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
+          </button>
+        </div>
+        <p className="text-xs text-ink/50">Zelle is stored encrypted. Leave the field empty and tap Remove to clear it.</p>
       </section>
 
       <section className="card space-y-3">

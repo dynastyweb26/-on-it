@@ -17,6 +17,7 @@ export default function InvoiceDetail() {
   const [profile, setProfile] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [vaultPath, setVaultPath] = useState<string | null>(null);
+  const [zelle, setZelle] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +36,10 @@ export default function InvoiceDetail() {
           .limit(1)
           .maybeSingle();
         setVaultPath(doc?.storage_path ?? null);
+        try {
+          const z = await (await fetch('/api/zelle?full=1')).json();
+          if (z?.value) setZelle(z.value);
+        } catch { /* renders without Zelle */ }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,7 +60,7 @@ export default function InvoiceDetail() {
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, paid: inv.status === 'paid',
-    cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
+    zelle, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
   };
 
   async function viewPdf() {
