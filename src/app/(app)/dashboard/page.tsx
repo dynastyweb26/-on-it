@@ -3,7 +3,7 @@
 // One glance: money in, money out, what's still owed, tax-deductible total.
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
 import { useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -93,7 +93,7 @@ export default function Dashboard() {
       </div>
 
       <button className="btn-primary flex w-full items-center justify-center gap-2" onClick={() => setShowForm(true)}>
-        <Plus size={20} /> Add expense
+        <Icon name="add" size={22} /> Add expense
       </button>
       <a href="/expenses" className="card block text-center font-semibold text-gold">
         See all expenses →
@@ -109,7 +109,7 @@ export default function Dashboard() {
               <h2 className="font-display text-lg font-bold">Add expense</h2>
               <button aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full text-ink/50"
                 onClick={() => setShowForm(false)}>
-                <X size={22} />
+                <Icon name="close" size={24} />
               </button>
             </div>
             <div className="space-y-3">

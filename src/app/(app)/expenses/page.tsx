@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -37,9 +38,10 @@ export default function Expenses() {
             <div className="text-right">
               <div className="font-mono font-bold">{money(Number(e.amount))}</div>
               <button
-                className={`text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-green-700' : 'text-ink/35'}`}
+                className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
                 onClick={() => toggleDeductible(e.id, e.tax_deductible)}>
-                {e.tax_deductible ? '✓ deductible' : 'not deductible'}
+                {e.tax_deductible && <Icon name="check_circle" size={14} />}
+                {e.tax_deductible ? 'deductible' : 'not deductible'}
               </button>
             </div>
           </div>

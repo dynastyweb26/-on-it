@@ -1,7 +1,7 @@
 'use client';
 // ═══ The Vault ═══ Every PDF and receipt, searchable, forever.
 import { useEffect, useState } from 'react';
-import { FileText, Download } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 
 export default function Vault() {
@@ -32,12 +32,12 @@ export default function Vault() {
       <div className="space-y-2">
         {filtered.map((d) => (
           <button key={d.id} className="card flex w-full items-center gap-3 text-left" onClick={() => open(d.storage_path)}>
-            <FileText size={20} className="shrink-0 text-gold" />
+            <Icon name="description" size={22} className="shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{d.title}</div>
               <div className="text-xs uppercase text-ink/45">{d.doc_type} · {new Date(d.created_at).toLocaleDateString()}</div>
             </div>
-            <Download size={16} className="shrink-0 text-ink/40" />
+            <Icon name="download" size={20} className="shrink-0 text-on-surface-variant" />
           </button>
         ))}
       </div>

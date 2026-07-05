@@ -6,7 +6,7 @@
    Live mini invoice preview updates on every tap.                  */
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Image as ImageIcon } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, isDark, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -141,7 +141,7 @@ export default function Onboarding() {
           <label className="card flex cursor-pointer items-center gap-3">
             {logoPreview
               ? <img src={logoPreview} className="h-12 w-12 rounded-lg object-cover" alt="" />
-              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-paper-dim"><ImageIcon size={22} className="text-ink/40" /></span>}
+              : <span className="grid h-12 w-12 place-items-center rounded-lg bg-paper-dim"><Icon name="image" size={24} className="text-on-surface-variant" /></span>}
             <span className="text-sm text-ink/70">{logoFile ? logoFile.name : 'Upload your logo (optional)'}</span>
             <input type="file" accept="image/*" className="hidden"
               onChange={(e) => {
@@ -170,8 +170,8 @@ export default function Onboarding() {
                   style={{ background: hex }}
                   onClick={() => toggleColor(hex)}>
                   {sel && (
-                    <span className="absolute inset-0 grid place-items-center text-lg font-bold"
-                      style={{ color: onColor(hex) }}>✓</span>
+                    <span className="absolute inset-0 grid place-items-center"
+                      style={{ color: onColor(hex) }}><Icon name="check" size={22} /></span>
                   )}
                 </button>
               );

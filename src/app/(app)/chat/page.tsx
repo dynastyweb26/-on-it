@@ -6,7 +6,6 @@
    Text mode is silent. Tapping the mic opens full-screen voice mode.  */
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Share2, FileText } from 'lucide-react';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
@@ -405,7 +404,7 @@ export default function Chat() {
         {ready && draft && (
           <div className="card border-gold/60 ring-1 ring-gold/30">
             <div className="mb-2 flex items-center gap-2 font-display font-bold">
-              <FileText size={18} className="text-gold" />
+              <Icon name="description" size={18} className="text-primary" />
               {draft.intent === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
             {previewItems.map((li, i) => (
@@ -419,7 +418,7 @@ export default function Chat() {
               <span className="font-mono text-gold">{money(previewTotal)}</span>
             </div>
             <button className="btn-primary mt-3 flex w-full items-center justify-center gap-2" disabled={finalizing} onClick={finalize}>
-              <Share2 size={18} />
+              <Icon name="attach_file" size={18} />
               {finalizing ? 'Building your PDF…' : 'Looks right — send it'}
             </button>
             <button className="mt-2 w-full text-center text-sm text-ink/50 underline"
@@ -467,7 +466,7 @@ export default function Chat() {
           disabled={!input.trim() || busy}
           onClick={() => void send(input)}
         >
-          <Send size={20} />
+          <Icon name="send" size={22} filled />
         </button>
       </div>
 

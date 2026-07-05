@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Share2, CheckCircle2, RefreshCw, FileText } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -112,20 +112,20 @@ export default function InvoiceDetail() {
         <div className="mt-3 flex gap-2">
           {inv.status !== 'paid' && inv.kind === 'invoice' && (
             <button className="chip flex items-center gap-1.5 border-green-600 text-green-700" onClick={markPaid}>
-              <CheckCircle2 size={16} /> Mark paid
+              <Icon name="check_circle" size={18} /> Mark paid
             </button>
           )}
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
-            <Share2 size={16} /> {busy ? 'Building…' : 'Share PDF'}
+            <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
           {vaultPath && (
             <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
-              <FileText size={16} /> View PDF
+              <Icon name="preview" size={18} /> View PDF
             </button>
           )}
           {inv.kind === 'quote' && (
             <button className="chip flex items-center gap-1.5 border-gold text-gold" onClick={convertToInvoice}>
-              <RefreshCw size={16} /> Make it an invoice
+              <Icon name="sync" size={18} /> Make it an invoice
             </button>
           )}
         </div>

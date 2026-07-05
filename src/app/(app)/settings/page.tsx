@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Copy, Share2 } from 'lucide-react';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
@@ -151,7 +151,7 @@ export default function Settings() {
                 className={`flex-1 rounded-xl border py-2 text-sm ${p.background_color === hex ? 'border-gold ring-2 ring-gold font-bold' : 'border-line font-medium'}`}
                 style={{ background: hex, color: onColor(hex) }}
                 onClick={() => save({ background_color: hex })}>
-                {p.background_color === hex ? 'Background ✓' : 'Set background'}
+                {p.background_color === hex ? 'Background — selected' : 'Set background'}
               </button>
             ))}
           </div>
@@ -192,12 +192,12 @@ export default function Settings() {
                     setTimeout(() => setCopied(false), 1500);
                   } catch { /* clipboard blocked */ }
                 }}>
-                <Copy size={16} /> {copied ? 'Copied' : 'Copy link'}
+                <Icon name="content_copy" size={18} /> {copied ? 'Copied' : 'Copy link'}
               </button>
               {typeof navigator !== 'undefined' && 'share' in navigator && (
                 <button className="chip flex items-center gap-1.5"
                   onClick={() => navigator.share({ url: inviteUrl, title: 'On It — invoices done by talking' }).catch(() => {})}>
-                  <Share2 size={16} /> Share
+                  <Icon name="share" size={18} /> Share
                 </button>
               )}
             </div>

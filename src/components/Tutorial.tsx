@@ -3,7 +3,7 @@
    Audience may have low literacy: big visuals, one or two short
    sentences per card, swipe like stories. Pure in-app, no video.  */
 import { useRef, useState } from 'react';
-import { X, Mic, FileText, Wallet, BellRing, RefreshCw, Share2 } from 'lucide-react';
+import Icon from '@/components/Icon';
 
 const CARDS = [
   {
@@ -11,8 +11,8 @@ const CARDS = [
     text: 'Tap the gold mic and say the job. On It asks a question or two, then builds your invoice.',
     art: (
       <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
-        <div className="grid h-28 w-28 place-items-center rounded-full bg-gold text-white shadow-lg">
-          <Mic size={52} />
+        <div className="grid h-28 w-28 place-items-center rounded-full bg-primary-container text-on-background shadow-lg">
+          <Icon name="mic" size={52} filled />
         </div>
       </div>
     ),
@@ -22,9 +22,9 @@ const CARDS = [
     text: 'Say "make it a quote." When they say yes, one tap turns it into an invoice.',
     art: (
       <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
-        <FileText size={64} className="text-gold" />
+        <Icon name="description" size={64} className="text-primary" />
         <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-ink text-paper shadow-lg">
-          <RefreshCw size={26} />
+          <Icon name="sync" size={26} />
         </div>
       </div>
     ),
@@ -34,7 +34,7 @@ const CARDS = [
     text: 'Say "spent 80 on paint" in Chat, or add it in Cash Flow. Tax write-offs included.',
     art: (
       <div className="grid h-44 w-44 place-items-center rounded-full bg-gold/15">
-        <Wallet size={64} className="text-gold" />
+        <Icon name="account_balance_wallet" size={64} className="text-primary" />
       </div>
     ),
   },
@@ -43,9 +43,9 @@ const CARDS = [
     text: "Share the invoice anywhere. If they haven't paid in 2 days, On It reminds you.",
     art: (
       <div className="relative grid h-44 w-44 place-items-center rounded-full bg-gold/15">
-        <Share2 size={60} className="text-gold" />
+        <Icon name="attach_file" size={60} className="text-primary" />
         <div className="absolute bottom-6 right-4 grid h-14 w-14 place-items-center rounded-full bg-ink text-paper shadow-lg">
-          <BellRing size={26} />
+          <Icon name="notifications" size={26} filled />
         </div>
       </div>
     ),
@@ -70,7 +70,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
           className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface-container-lowest text-ink/60 active:scale-90"
           onClick={onClose}
         >
-          <X size={22} />
+          <Icon name="close" size={24} />
         </button>
       </div>
 
