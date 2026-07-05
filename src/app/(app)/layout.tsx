@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { MessageCircle, FileText, BarChart3, Settings, HelpCircle } from 'lucide-react';
+import { MessageCircle, FileText, BarChart3, Settings, HelpCircle, History } from 'lucide-react';
 import Tutorial from '@/components/Tutorial';
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
@@ -56,13 +56,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <span className="font-display text-xl font-extrabold">
           On It<span className="text-gold">.</span>
         </span>
-        <button
-          aria-label="How On It works"
-          className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
-          onClick={() => setShowTutorial(true)}
-        >
-          <HelpCircle size={22} />
-        </button>
+        <div className="flex items-center gap-1">
+          {path.startsWith('/chat') && (
+            <button
+              aria-label="Recent conversations"
+              className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
+              onClick={() => window.dispatchEvent(new Event('onit-history'))}
+            >
+              <History size={22} />
+            </button>
+          )}
+          <button
+            aria-label="How On It works"
+            className="grid h-10 w-10 place-items-center rounded-full text-ink/45 active:scale-90"
+            onClick={() => setShowTutorial(true)}
+          >
+            <HelpCircle size={22} />
+          </button>
+        </div>
       </header>
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       <main

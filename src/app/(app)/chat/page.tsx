@@ -25,15 +25,31 @@ interface Profile {
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
-// conversation per-browser so switching apps never loses a draft.
+// conversation per-browser so switching apps never loses a draft. The same
+// storage layer feeds the "recent conversations" history (last 5).
 const CHAT_STORE_KEY = 'onit_chat_current';
+const HISTORY_KEY = 'onit_chat_history';
+const HISTORY_MAX = 5;
 const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
 
+const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 interface StoredChat {
+  id?: string;
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
   updatedAt: number;
+}
+
+interface HistoryEntry {
+  id: string;
+  title: string;
+  date: number;
+  finalized: boolean;
+  messages: Msg[];
+  draft: Partial<ExtractResult> | null;
+  ready: boolean;
 }
 
 function loadStoredChat(): StoredChat | null {
@@ -46,6 +62,29 @@ function loadStoredChat(): StoredChat | null {
   } catch {
     return null;
   }
+}
+
+function loadHistory(): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const list = raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushHistory(entry: HistoryEntry) {
+  try {
+    const list = [entry, ...loadHistory().filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch { /* storage full — history is a nicety */ }
+}
+
+function convoTitle(messages: Msg[], draft: Partial<ExtractResult> | null): string {
+  if (draft?.client_name) return draft.client_name;
+  const firstUser = messages.find((m) => m.role === 'user');
+  return firstUser ? firstUser.content.slice(0, 40) : 'Conversation';
 }
 
 export default function Chat() {
@@ -62,6 +101,9 @@ export default function Chat() {
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   const [voiceMode, setVoiceMode] = useState(false);
   const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
+  const [convoId, setConvoId] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +124,15 @@ export default function Chat() {
       setDraft(stored.draft);
       setReady(Boolean(stored.ready));
     }
+    setConvoId(stored?.id ?? genId());
     setHydrated(true);
+    // header history icon lives in the shared layout — it signals us here
+    const openHistory = () => {
+      setHistory(loadHistory());
+      setShowHistory(true);
+    };
+    window.addEventListener('onit-history', openHistory);
+    return () => window.removeEventListener('onit-history', openHistory);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,11 +143,11 @@ export default function Chat() {
       if (finished || messages.length < 2) {
         localStorage.removeItem(CHAT_STORE_KEY);
       } else {
-        const payload: StoredChat = { messages, draft, ready, updatedAt: Date.now() };
+        const payload: StoredChat = { id: convoId, messages, draft, ready, updatedAt: Date.now() };
         localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, hydrated, finished]);
+  }, [messages, draft, ready, hydrated, finished, convoId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -248,7 +298,19 @@ export default function Chat() {
       const done = outcome === 'shared'
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
-      setMessages((m) => [...m, { role: 'assistant', content: done }]);
+      const doneMsg: Msg = { role: 'assistant', content: done };
+      setMessages((m) => [...m, doneMsg]);
+      // archive the completed conversation, then start a fresh one
+      pushHistory({
+        id: convoId || genId(),
+        title: convoTitle(messages, draft),
+        date: Date.now(),
+        finalized: true,
+        messages: [...messages, doneMsg],
+        draft: null,
+        ready: false,
+      });
+      setConvoId(genId());
       setDraft(null);
       setReady(false);
       setRenderData(null);
@@ -297,6 +359,27 @@ export default function Chat() {
   function dismissReminders() {
     setReminderPrompt(false);
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
+  }
+
+  function openHistoryEntry(entry: HistoryEntry) {
+    // an unfinished live conversation gets archived before we switch away
+    if (!finished && messages.length >= 2 && convoId && convoId !== entry.id) {
+      pushHistory({
+        id: convoId,
+        title: convoTitle(messages, draft),
+        date: Date.now(),
+        finalized: false,
+        messages,
+        draft,
+        ready,
+      });
+    }
+    setMessages(entry.messages);
+    setDraft(entry.draft);
+    setReady(Boolean(entry.ready) && !entry.finalized);
+    setFinished(entry.finalized); // finalized ones stay read-only until a new message
+    setConvoId(entry.id);
+    setShowHistory(false);
   }
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
@@ -387,6 +470,35 @@ export default function Chat() {
 
       {voiceMode && (
         <VoiceMode onClose={() => setVoiceMode(false)} sendMessage={send} />
+      )}
+
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-end bg-ink/40" onClick={() => setShowHistory(false)}>
+          <div
+            className="max-h-[70dvh] w-full overflow-y-auto rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-3 font-display text-lg font-bold">Recent conversations</h2>
+            {history.length === 0 && (
+              <p className="py-8 text-center text-sm text-ink/50">Nothing here yet — your last 5 conversations will show up.</p>
+            )}
+            <div className="space-y-2">
+              {history.map((h) => (
+                <button key={h.id} className="card flex w-full items-center justify-between gap-3 text-left"
+                  onClick={() => openHistoryEntry(h)}>
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{h.title}</div>
+                    <div className="text-xs text-ink/50">{new Date(h.date).toLocaleDateString()}</div>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase
+                    ${h.finalized ? 'bg-green-100 text-green-800' : 'bg-gold/15 text-gold'}`}>
+                    {h.finalized ? 'Sent' : 'Draft'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Offscreen render target for PDF capture */}
