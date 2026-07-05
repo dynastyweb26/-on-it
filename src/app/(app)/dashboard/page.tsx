@@ -78,36 +78,39 @@ export default function Dashboard() {
   const net = stats.paid - stats.spent;
   return (
     <div className="space-y-3 px-4 py-4">
-      <div className="card bg-ink text-paper">
-        <div className="text-xs uppercase tracking-widest text-paper/60">Net (all time)</div>
-        <div className={`font-mono text-4xl font-bold ${net >= 0 ? 'text-gold-light' : 'text-red-400'}`}>
+      {/* The ONE deliberately dark element on this screen (§8) */}
+      <div className="rounded-card bg-inverse-surface p-6 shadow-card-raised">
+        <div className="text-label-lg font-semibold uppercase tracking-widest text-inverse-primary/80">
+          Net (all time)
+        </div>
+        <div className={`font-display text-numeric-xl tracking-tight ${net >= 0 ? 'text-inverse-primary' : 'text-error-container'}`}>
           {money(net)}
         </div>
-        <div className="mt-1 text-xs text-paper/50">{stats.count} invoices created</div>
+        <div className="mt-1 text-xs text-inverse-on-surface/60">{stats.count} invoices created</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Collected" value={money(stats.paid)} tone="text-green-700" />
-        <Stat label="Still owed" value={money(stats.outstanding)} tone="text-gold" />
-        <Stat label="Spent" value={money(stats.spent)} tone="text-red-700" />
-        <Stat label="Tax deductible" value={money(stats.deductible)} tone="text-ink" />
+        <Stat label="Collected" value={money(stats.paid)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
+        <Stat label="Still owed" value={money(stats.outstanding)} tone="text-primary" icon="pending" iconCls="bg-primary-fixed text-primary" />
+        <Stat label="Spent" value={money(stats.spent)} tone="text-error" icon="shopping_cart" iconCls="bg-error-container text-error" />
+        <Stat label="Deductible" value={money(stats.deductible)} tone="text-on-surface" icon="receipt_long" iconCls="bg-secondary-container text-on-surface" />
       </div>
 
-      <button className="btn-primary flex w-full items-center justify-center gap-2" onClick={() => setShowForm(true)}>
+      <button className="btn-primary w-full" onClick={() => setShowForm(true)}>
         <Icon name="add" size={22} /> Add expense
       </button>
-      <a href="/expenses" className="card block text-center font-semibold text-gold">
-        See all expenses →
+      <a href="/expenses" className="btn-outline w-full text-primary">
+        See all expenses <Icon name="arrow_forward" size={18} />
       </a>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
           <div
-            className="w-full rounded-t-card bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="w-full rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Add expense</h2>
-              <button aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full text-ink/50"
+              <button aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full text-on-surface-variant"
                 onClick={() => setShowForm(false)}>
                 <Icon name="close" size={24} />
               </button>
@@ -143,7 +146,7 @@ export default function Dashboard() {
                 <button
                   role="switch" aria-checked={deductible} aria-label="Tax deductible"
                   onClick={() => setDeductible(!deductible)}
-                  className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-gold' : 'bg-line'}`}
+                  className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-primary-container' : 'bg-outline-variant'}`}
                 >
                   <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -164,11 +167,18 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
+function Stat({ label, value, tone, icon, iconCls }: {
+  label: string; value: string; tone: string; icon: string; iconCls: string;
+}) {
   return (
-    <div className="card">
-      <div className="text-xs uppercase tracking-wider text-ink/50">{label}</div>
-      <div className={`font-mono text-xl font-bold ${tone}`}>{value}</div>
+    <div className="card p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span className={`grid h-8 w-8 place-items-center rounded-lg ${iconCls}`}>
+          <Icon name={icon} size={18} />
+        </span>
+        <span className="text-label-lg font-semibold text-on-surface-variant/80">{label}</span>
+      </div>
+      <div className={`font-display text-[24px] font-bold leading-tight ${tone}`}>{value}</div>
     </div>
   );
 }
