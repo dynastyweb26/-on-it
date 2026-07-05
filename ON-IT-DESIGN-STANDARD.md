@@ -175,8 +175,14 @@ name from button to confirmation.
 
 ## 10. Relationship to the app icon
 
-The shipped app icon (dark gold thumbs-up) stays dark — an icon lives on the OS home
-screen, not inside the app, and the dark tile reads better against iOS/Android
-wallpapers. The splash screen (Batch 1 item) bridges the two: `background` cream
-page, centered dark-tile icon or gold thumbs-up mark, wordmark in Montserrat 800
-with the gold period, then dissolve into the cream UI.
+**Final: the white/glossy gold thumbs-up icon** (white rounded-square background,
+metallic gold thumbs-up, "ON IT!" wordmark baked into the icon). This is the
+shipped app icon — no further icon exploration, this is decided.
+
+Because the icon itself is white/cream, the splash screen needs a treatment that
+still gives it contrast rather than the dark-tile approach originally planned here.
+Splash spec: `background` cream page (`#fff8f0`), icon centered with a thin
+`outline-variant` (`#d0c5af`) or soft warm-shadow ring so its white edge doesn't
+disappear into the page, no separate wordmark below it since "ON IT!" is already
+in the icon art, then a brief hold and dissolve into the chat UI. Keep motion
+minimal — fade/scale only, respecting `prefers-reduced-motion`.
