@@ -81,7 +81,7 @@ export default function Settings() {
         <h2 className="font-display font-bold">Invoice style</h2>
         <div className="flex gap-2">
           {TEMPLATES.map((t) => (
-            <button key={t} className={`chip capitalize ${p.invoice_template === t ? 'border-gold bg-gold/10 font-bold' : ''}`}
+            <button key={t} className={`chip capitalize ${p.invoice_template === t ? 'chip-selected' : ''}`}
               onClick={() => save({ invoice_template: t })}>{t}</button>
           ))}
         </div>
@@ -90,7 +90,7 @@ export default function Settings() {
             const sel = p.brand_colors?.includes(hex);
             return (
               <button key={hex} title={name}
-                className={`aspect-square rounded-full border ${sel ? 'ring-2 ring-gold' : 'border-line'}`}
+                className={`aspect-square rounded-full border ${sel ? 'border-gold ring-2 ring-gold' : 'border-line'}`}
                 style={{ background: hex }}
                 onClick={() => {
                   const cur: string[] = p.brand_colors ?? [];
@@ -104,7 +104,7 @@ export default function Settings() {
           <div className="flex gap-2">
             {p.brand_colors.map((hex: string) => (
               <button key={hex}
-                className={`flex-1 rounded-xl border py-2 text-sm font-bold ${p.background_color === hex ? 'border-gold' : 'border-line'}`}
+                className={`flex-1 rounded-xl border py-2 text-sm ${p.background_color === hex ? 'border-gold ring-2 ring-gold font-bold' : 'border-line font-medium'}`}
                 style={{ background: hex, color: onColor(hex) }}
                 onClick={() => save({ background_color: hex })}>
                 {p.background_color === hex ? 'Background ✓' : 'Set background'}

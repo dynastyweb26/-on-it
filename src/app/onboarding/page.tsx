@@ -128,7 +128,7 @@ if (grantToken) {
             onChange={(e) => setBusiness(e.target.value)} maxLength={120} />
           <div className="flex flex-wrap gap-2">
             {TRADES.map((t) => (
-              <button key={t} className={`chip ${trade === t ? 'border-gold bg-gold/10 font-bold' : ''}`}
+              <button key={t} className={`chip ${trade === t ? 'chip-selected' : ''}`}
                 onClick={() => setTrade(t)}>{t}</button>
             ))}
           </div>
@@ -164,7 +164,7 @@ if (grantToken) {
               return (
                 <button key={hex} aria-label={name} title={name}
                   className={`relative aspect-square rounded-full border-2 transition active:scale-90
-                    ${sel ? 'border-gold ring-2 ring-gold/40' : 'border-line'}`}
+                    ${sel ? 'border-gold ring-2 ring-gold' : 'border-line'}`}
                   style={{ background: hex }}
                   onClick={() => toggleColor(hex)}>
                   {sel && (
@@ -195,8 +195,8 @@ if (grantToken) {
           <div className="flex gap-4">
             {colors.map((hex) => (
               <button key={hex}
-                className={`h-24 flex-1 rounded-card border-2 font-bold transition active:scale-95
-                  ${background === hex ? 'border-gold ring-2 ring-gold/40' : 'border-line'}`}
+                className={`h-24 flex-1 rounded-card border-2 transition active:scale-95
+                  ${background === hex ? 'border-gold ring-2 ring-gold font-bold' : 'border-line font-medium'}`}
                 style={{ background: hex, color: onColor(hex) }}
                 onClick={() => setBackground(hex)}>
                 {PALETTE.find((p) => p.hex === hex)?.name ?? hex}
@@ -222,7 +222,7 @@ if (grantToken) {
           <div className="flex gap-2 overflow-x-auto pb-1">
             {TEMPLATE_META.map((t) => (
               <button key={t.key}
-                className={`chip shrink-0 ${template === t.key ? 'border-gold bg-gold/10 font-bold' : ''}`}
+                className={`chip shrink-0 ${template === t.key ? 'chip-selected' : ''}`}
                 onClick={() => setTemplate(t.key)}>
                 {t.name}
               </button>

@@ -19,6 +19,10 @@ body { @apply bg-paper text-ink font-body antialiased; }
 .chip {
   @apply rounded-full border border-line px-4 py-2 text-sm font-medium bg-white active:scale-95 transition;
 }
+/* The one obvious selected state — every selectable element uses this so it can't drift. */
+.chip-selected {
+  @apply ring-2 ring-gold border-gold bg-gold/10 font-bold;
+}
 
 /* Splash icon self-draw (stroke-dashoffset) */
 @keyframes onit-draw {

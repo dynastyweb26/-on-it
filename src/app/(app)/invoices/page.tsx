@@ -47,7 +47,7 @@ export default function Invoices() {
     <div className="px-4 py-4">
       <div className="mb-4 flex gap-2">
         {(['all', 'unpaid', 'paid', 'quote'] as const).map((f) => (
-          <button key={f} className={`chip capitalize ${filter === f ? 'border-gold bg-gold/10 font-bold' : ''}`}
+          <button key={f} className={`chip capitalize ${filter === f ? 'chip-selected' : ''}`}
             onClick={() => setFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
         ))}
       </div>
