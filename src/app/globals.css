@@ -103,9 +103,10 @@ body { @apply bg-background text-on-background font-body antialiased; }
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Splash icon self-draw (stroke-dashoffset) */
-@keyframes onit-draw {
-  to { stroke-dashoffset: 0; }
+/* Splash: icon fades/scales in (§10 white-icon spec — motion minimal) */
+@keyframes splash-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 /* ── Voice mode orb ─────────────────────────────────────────── */
@@ -141,6 +142,4 @@ body { @apply bg-background text-on-background font-body antialiased; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
-  /* with animations disabled, show the splash icon fully drawn */
-  .splash-draw { stroke-dashoffset: 0 !important; }
 }
