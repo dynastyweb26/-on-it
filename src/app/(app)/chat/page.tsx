@@ -11,11 +11,12 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
-import VoiceMode, { VoiceSendResult } from '@/components/VoiceMode';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
+import { speak } from '@/lib/tts';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; }
+interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
   slogan: string | null; brand_colors: string[]; background_color: string | null;
@@ -99,11 +100,20 @@ export default function Chat() {
   const [finalizing, setFinalizing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
-  const [voiceMode, setVoiceMode] = useState(false);
   const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
   const [convoId, setConvoId] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Push-to-talk voice session: mic toggles a session (X ends it). TTS only
+  // ever plays while a session is on; text-only chat is always silent.
+  const [voiceSession, setVoiceSession] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const sessionRef = useRef(false);            // latest session state for async speak gate
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recAbortRef = useRef(false);           // X pressed mid-record → drop the take
+  const cancelSpeechRef = useRef<(() => void) | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -153,9 +163,9 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, ready]);
 
-  /** Shared parse flow for text AND voice mode. Returns the reply for
-   *  voice mode to speak; null tells voice mode to stop. Text mode never speaks. */
-  async function send(text: string): Promise<VoiceSendResult | null> {
+  /** Shared parse flow for typed and spoken input. The reply always renders
+   *  as text first; it is spoken only when a voice session is active. */
+  async function send(text: string): Promise<SendResult | null> {
     const trimmed = text.trim();
     if (!trimmed || busy) return null;
     const next: Msg[] = [...messages, { role: 'user', content: trimmed }];
@@ -177,6 +187,11 @@ export default function Chat() {
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
+      // Text renders first (above); speech is additive and session-gated.
+      if (sessionRef.current) {
+        cancelSpeechRef.current?.();
+        cancelSpeechRef.current = speak(reply);
+      }
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) setDraft(data);
       setReady(isReady);
@@ -361,6 +376,74 @@ export default function Chat() {
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
   }
 
+  // ── Push-to-talk voice session ──────────────────────────────
+  function stopSpeech() {
+    cancelSpeechRef.current?.();
+    cancelSpeechRef.current = null;
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recAbortRef.current = false;
+      rec.ondataavailable = (e) => chunksRef.current.push(e.data);
+      rec.onstop = async () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        setRecording(false);
+        if (recAbortRef.current) return; // session ended mid-take — discard
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
+        setBusy(true);
+        let text = '';
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: blob });
+          text = ((await res.json()).text ?? '').trim();
+        } catch { /* treated as "didn't catch that" */ }
+        setBusy(false);
+        if (text) void send(text);
+        else setMessages((m) => [...m, { role: 'assistant', content: "Didn't catch that — try again or type it." }]);
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+    } catch {
+      // mic blocked → end the session and fall back to typing
+      setVoiceSession(false); sessionRef.current = false;
+      setMessages((m) => [...m, { role: 'assistant', content: 'Mic access is blocked. You can type instead.' }]);
+    }
+  }
+
+  function micTap() {
+    if (!voiceSession) {
+      setVoiceSession(true); sessionRef.current = true;
+      void startRecording();
+    } else if (recording) {
+      recorderRef.current?.stop(); // finish this turn → transcribe → send
+    } else {
+      void startRecording();       // session on, idle → speak the next turn
+    }
+  }
+
+  function endVoiceSession() {
+    setVoiceSession(false); sessionRef.current = false;
+    stopSpeech();
+    if (recording && recorderRef.current) {
+      recAbortRef.current = true;
+      recorderRef.current.stop();
+    }
+  }
+
+  // Cancel any speech / capture if the screen unmounts (tab switch suspension
+  // is the browser's job — we never auto-resume on return).
+  useEffect(() => () => {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
+
   function openHistoryEntry(entry: HistoryEntry) {
     // an unfinished live conversation gets archived before we switch away
     if (!finished && messages.length >= 2 && convoId && convoId !== entry.id) {
@@ -447,37 +530,49 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t border-outline-variant/40 bg-background px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <button
-          aria-label="Open voice mode"
-          className="grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90"
-          onClick={() => setVoiceMode(true)}
-        >
-          <Icon name="mic" size={32} filled />
-        </button>
-        <textarea
-          className="input max-h-32 flex-1 resize-none py-3.5"
-          placeholder="Or type it…"
-          value={input}
-          rows={1}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
-          }}
-        />
-        <button
-          aria-label="Send"
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
-          disabled={!input.trim() || busy}
-          onClick={() => void send(input)}
-        >
-          <Icon name="send" size={22} filled />
-        </button>
+      <div className="border-t border-outline-variant/40 bg-background px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {recording && (
+          // Static "Listening" label doubles as the reduced-motion fallback
+          // for the mic pulse (§ voice spec).
+          <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening…</div>
+        )}
+        <div className="flex items-end gap-2">
+          {voiceSession && (
+            <button
+              aria-label="End voice session"
+              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant transition active:scale-90"
+              onClick={endVoiceSession}
+            >
+              <Icon name="close" size={24} />
+            </button>
+          )}
+          <button
+            aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
+            className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 ${recording ? 'voice-listening' : ''}`}
+            onClick={micTap}
+          >
+            <Icon name="mic" size={32} filled />
+          </button>
+          <textarea
+            className="input max-h-32 flex-1 resize-none py-3.5"
+            placeholder={recording ? 'Listening…' : 'Or type it…'}
+            value={input}
+            rows={1}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
+            }}
+          />
+          <button
+            aria-label="Send"
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
+            disabled={!input.trim() || busy}
+            onClick={() => void send(input)}
+          >
+            <Icon name="send" size={22} filled />
+          </button>
+        </div>
       </div>
-
-      {voiceMode && (
-        <VoiceMode onClose={() => setVoiceMode(false)} sendMessage={send} />
-      )}
 
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>

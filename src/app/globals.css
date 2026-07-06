@@ -78,12 +78,6 @@ body { @apply bg-background text-on-background font-body antialiased; }
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
-.glass-overlay {
-  background: rgba(255, 248, 240, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
 /* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined', sans-serif;
@@ -106,37 +100,6 @@ body { @apply bg-background text-on-background font-body antialiased; }
 @keyframes splash-in {
   from { opacity: 0; transform: scale(0.92); }
   to   { opacity: 1; transform: scale(1); }
-}
-
-/* ── Voice mode orb ─────────────────────────────────────────── */
-/* Transitional: gradient rebuilt around #d4af37 in the voice pass (Step 4/6) */
-.orb {
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #e9c349, #d4af37 60%, #a8892b);
-  box-shadow: 0 0 60px 12px rgba(212, 175, 55, 0.40);
-}
-.orb-idle    { animation: orb-pulse 3.2s ease-in-out infinite; }
-.orb-listening { animation: orb-listen 1.4s ease-out infinite; }
-.orb-thinking  { animation: orb-shimmer 1.1s ease-in-out infinite; }
-.orb-speaking  { animation: orb-speak 0.55s ease-in-out infinite; }
-
-@keyframes orb-pulse {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.04); }
-}
-@keyframes orb-listen {
-  0%   { transform: scale(1.02); box-shadow: 0 0 60px 12px rgba(212,175,55,.45), 0 0 0 0 rgba(212,175,55,.35); }
-  100% { transform: scale(1.06); box-shadow: 0 0 60px 12px rgba(212,175,55,.45), 0 0 0 44px rgba(212,175,55,0); }
-}
-@keyframes orb-shimmer {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.28); }
-}
-@keyframes orb-speak {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.10); }
 }
 
 @media (prefers-reduced-motion: reduce) {
