@@ -10,18 +10,28 @@ const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', curr
 
 const CATEGORIES = ['Gas', 'Materials', 'Tools', 'Meals', 'Phone', 'Insurance', 'Other'];
 
+// Recordkeeping framing only — never tax advice. Exact wording is locked.
+const DEDUCTIBLE_TIP =
+  'Common examples pros deduct: fuel between jobs, materials, tools, part of your phone bill. We track it — your tax preparer decides what qualifies.';
+
 export default function Dashboard() {
   const supabase = createClient();
   const [stats, setStats] = useState({ paid: 0, outstanding: 0, spent: 0, deductible: 0, count: 0 });
   const [showForm, setShowForm] = useState(false);
+
   const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [customCategory, setCustomCategory] = useState('');
+  const [category, setCategory] = useState('');   // chip label; 'Other' reveals a required field
+  const [detail, setDetail] = useState('');        // optional note (normal chips) OR required text (Other)
+  const [showNote, setShowNote] = useState(false); // "Add a note" reveal, normal chips only
   const [deductible, setDeductible] = useState(true);
   const [spentOn, setSpentOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [showTip, setShowTip] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState('');
+
+  // Field-level errors (replaces the old combined message)
+  const [amountError, setAmountError] = useState('');
+  const [categoryError, setCategoryError] = useState('');
+  const [detailError, setDetailError] = useState('');
 
   async function loadStats() {
     const [{ data: invs }, { data: exps }] = await Promise.all([
@@ -41,32 +51,53 @@ export default function Dashboard() {
   }, []);
 
   function resetForm() {
-    setAmount(''); setDescription(''); setCategory(''); setCustomCategory('');
+    setAmount(''); setCategory(''); setDetail(''); setShowNote(false);
     setDeductible(true); setSpentOn(new Date().toISOString().slice(0, 10));
-    setFormError('');
+    setShowTip(false);
+    setAmountError(''); setCategoryError(''); setDetailError('');
+  }
+
+  function selectCategory(c: string) {
+    const next = category === c ? '' : c;
+    setCategory(next);
+    // switching category resets the text field's meaning (note vs. required)
+    setDetail('');
+    setShowNote(false);
+    setCategoryError('');
+    setDetailError('');
   }
 
   async function saveExpense() {
     const value = Number(amount);
-    if (!value || value <= 0 || !description.trim()) {
-      setFormError('Add an amount and what it was for.');
-      return;
-    }
+    const trimmedDetail = detail.trim();
+
+    // Amount always required; description satisfied by a chip (or chip + note),
+    // or by "Other" + filled text. Field-level errors, no combined message.
+    let ok = true;
+    if (!value || value <= 0) { setAmountError('Enter an amount.'); ok = false; } else setAmountError('');
+    if (!category) { setCategoryError('Pick a category.'); ok = false; } else setCategoryError('');
+    if (category === 'Other' && !trimmedDetail) { setDetailError('What was it for?'); ok = false; } else setDetailError('');
+    if (!ok) return;
+
+    // Chip name is the description; an optional note is appended for good records.
+    const description =
+      category === 'Other'
+        ? trimmedDetail
+        : trimmedDetail ? `${category} — ${trimmedDetail}` : category;
+
     setSaving(true);
-    setFormError('');
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setFormError('Sign in to log expenses.'); return; }
-      const cat = category === 'Other' ? customCategory.trim() || 'Other' : category || null;
+      if (!user) { setAmountError('Sign in to log expenses.'); return; }
       const { error } = await supabase.from('expenses').insert({
         user_id: user.id,
-        description: description.trim(),
+        description,
         amount: value,
-        category: cat,
+        category,
         tax_deductible: deductible,
         spent_on: spentOn,
       });
-      if (error) { setFormError(error.message); return; }
+      if (error) { setAmountError(error.message); return; }
       setShowForm(false);
       resetForm();
       void loadStats();
@@ -105,57 +136,108 @@ export default function Dashboard() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
           <div
-            className="w-full rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="max-h-[88dvh] w-full overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Add expense</h2>
-              <button aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full text-on-surface-variant"
+              <button aria-label="Close" className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant"
                 onClick={() => setShowForm(false)}>
                 <Icon name="close" size={24} />
               </button>
             </div>
             <div className="space-y-3">
-              <input
-                className="input font-display font-bold text-lg"
-                placeholder="$ Amount" inputMode="decimal" value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-              />
-              <input
-                className="input"
-                placeholder="What was it for?" maxLength={300} value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((c) => (
-                  <button key={c} className={`chip ${category === c ? 'chip-selected' : ''}`}
-                    onClick={() => setCategory(category === c ? '' : c)}>
-                    {c}
-                  </button>
-                ))}
+              <div>
+                <input
+                  className="input font-display font-bold text-lg"
+                  placeholder="$ Amount" inputMode="decimal" value={amount}
+                  onChange={(e) => { setAmount(e.target.value.replace(/[^0-9.]/g, '')); if (amountError) setAmountError(''); }}
+                />
+                {amountError && <p className="mt-1 text-sm text-error">{amountError}</p>}
               </div>
-              {category === 'Other' && (
+
+              {/* Chips are the primary input — a selection satisfies the description */}
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORIES.map((c) => (
+                    <button key={c} className={`chip ${category === c ? 'chip-selected' : ''}`}
+                      onClick={() => selectCategory(c)}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                {categoryError && <p className="mt-1 text-sm text-error">{categoryError}</p>}
+              </div>
+
+              {/* Normal chips: optional note, hidden behind a quiet link */}
+              {category && category !== 'Other' && !showNote && (
+                <button
+                  className="min-h-touch text-left text-label-lg font-semibold text-primary"
+                  onClick={() => setShowNote(true)}
+                >
+                  Add a note
+                </button>
+              )}
+              {category && category !== 'Other' && showNote && (
                 <input
                   className="input"
-                  placeholder="Category name" maxLength={60} value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
+                  autoFocus
+                  placeholder="Add a note (optional)"
+                  maxLength={280}
+                  value={detail}
+                  onChange={(e) => setDetail(e.target.value)}
                 />
               )}
-              <label className="flex min-h-touch items-center justify-between rounded-input border border-outline-variant/60 bg-surface-container px-4 py-3">
-                <span className="text-sm">Tax deductible</span>
-                <button
-                  role="switch" aria-checked={deductible} aria-label="Tax deductible"
-                  onClick={() => setDeductible(!deductible)}
-                  className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-primary-container' : 'bg-outline-variant'}`}
-                >
-                  <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
-                </button>
-              </label>
+
+              {/* Other: required free text */}
+              {category === 'Other' && (
+                <div>
+                  <input
+                    className="input"
+                    autoFocus
+                    placeholder="What was it for?"
+                    maxLength={300}
+                    value={detail}
+                    onChange={(e) => { setDetail(e.target.value); if (detailError) setDetailError(''); }}
+                  />
+                  {detailError && <p className="mt-1 text-sm text-error">{detailError}</p>}
+                </div>
+              )}
+
+              <div className="rounded-input border border-outline-variant/60 bg-surface-container px-4 py-3">
+                <div className="flex min-h-touch items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-sm">
+                    Tax deductible
+                    <button
+                      aria-label="What counts as deductible?"
+                      className="grid h-6 w-6 place-items-center"
+                      onClick={() => setShowTip((v) => !v)}
+                    >
+                      <Icon name="help" size={20} className="text-on-surface-variant" />
+                    </button>
+                  </span>
+                  <button
+                    role="switch" aria-checked={deductible} aria-label="Tax deductible"
+                    onClick={() => setDeductible(!deductible)}
+                    className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-primary-container' : 'bg-outline-variant'}`}
+                  >
+                    <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
+                  </button>
+                </div>
+                {showTip && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setShowTip(false)} />
+                    <div className="relative z-[61] mt-3 rounded-input bg-surface-container-low p-3 text-sm text-on-surface-variant shadow-card">
+                      {DEDUCTIBLE_TIP}
+                    </div>
+                  </>
+                )}
+              </div>
+
               <input
                 type="date" className="input"
                 value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
               />
-              {formError && <p className="text-sm text-error">{formError}</p>}
               <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
                 {saving ? 'Saving…' : 'Save expense'}
               </button>
