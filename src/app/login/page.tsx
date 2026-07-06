@@ -41,7 +41,7 @@ export default function Login() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-5 px-6">
       <div>
         <h1 className="font-display text-4xl font-extrabold">
-          On It<span className="text-primary-container">.</span>
+          On It<span className="text-primary">.</span>
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">Invoices done by talking.</p>
       </div>

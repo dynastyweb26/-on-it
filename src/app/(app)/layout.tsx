@@ -55,7 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
         <span className="font-display text-xl font-extrabold">
-          On It<span className="text-primary-container">.</span>
+          On It<span className="text-primary">.</span>
         </span>
         <div className="flex items-center gap-1">
           {path.startsWith('/chat') && (
