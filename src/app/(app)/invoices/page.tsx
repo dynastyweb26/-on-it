@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 
 interface Row {
@@ -8,12 +9,14 @@ interface Row {
   total: number; status: string; created_at: string; due_date: string | null;
 }
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-const STATUS_STYLE: Record<string, string> = {
-  paid: 'bg-green-100 text-green-800',
-  sent: 'bg-gold/15 text-gold',
-  overdue: 'bg-red-100 text-red-700',
-  draft: 'bg-paper-dim text-ink/60',
-  void: 'bg-paper-dim text-ink/40 line-through',
+
+// Status chips (§2): semantic containers, ALWAYS icon + text.
+const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {
+  paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
+  sent: { cls: 'bg-sent-container text-sent', icon: 'send' },
+  overdue: { cls: 'bg-error-container text-on-error-container', icon: 'warning' },
+  draft: { cls: 'bg-draft-container text-draft', icon: 'history' },
+  void: { cls: 'bg-draft-container text-draft line-through', icon: 'block' },
 };
 
 export default function Invoices() {
@@ -45,35 +48,45 @@ export default function Invoices() {
 
   return (
     <div className="px-4 py-4">
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {(['all', 'unpaid', 'paid', 'quote'] as const).map((f) => (
-          <button key={f} className={`chip capitalize ${filter === f ? 'chip-selected' : ''}`}
+          <button key={f} className={`chip shrink-0 capitalize ${filter === f ? 'chip-selected' : ''}`}
             onClick={() => setFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
         ))}
       </div>
       {sorted.length === 0 && (
-        <p className="mt-16 text-center text-ink/50">
+        <p className="mt-16 text-center text-on-surface-variant">
           Nothing here yet. Head to Chat and tell me about a job.
         </p>
       )}
-      <div className="space-y-2">
-        {sorted.map((r) => (
-          <Link key={r.id} href={`/invoices/${r.id}`} className="card flex items-center justify-between">
-            <div>
-              <div className="font-semibold">{r.client_name}</div>
-              <div className="text-xs text-ink/50">
-                {r.kind === 'quote' ? 'QTE' : 'INV'}-{String(r.invoice_number).padStart(4, '0')}
-                {' · '}{new Date(r.created_at).toLocaleDateString()}
+      <div className="space-y-4">
+        {sorted.map((r) => {
+          const chip = STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
+          return (
+            <Link key={r.id} href={`/invoices/${r.id}`}
+              className="card block p-5 transition-transform active:scale-[0.98]">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
+                  <div className="text-body-md text-on-surface-variant/70">
+                    {r.kind === 'quote' ? 'QTE' : 'INV'}-{String(r.invoice_number).padStart(4, '0')}
+                    {' • '}{new Date(r.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <span className={`status-chip shrink-0 ${chip.cls}`}>
+                  <Icon name={chip.icon} size={18} />
+                  {r.status}
+                </span>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="font-mono font-bold">{money(r.total)}</div>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${STATUS_STYLE[r.status] ?? ''}`}>
-                {r.status}
-              </span>
-            </div>
-          </Link>
-        ))}
+              <div className="flex items-end justify-between">
+                <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
+                  <Icon name="chevron_right" size={24} />
+                </span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
