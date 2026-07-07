@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { sanitizeField } from '@/lib/sanitize';
 
 const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.slice(-4)}`);
@@ -19,7 +19,7 @@ async function requireUser() {
 export async function GET(req: NextRequest) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!(await checkRateLimit(user.id, 'zelle', 10))) {
+  if (!(await rateLimit('zelle_read', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
   const key = process.env.ZELLE_ENC_KEY;
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!(await checkRateLimit(user.id, 'zelle', 5))) {
+  if (!(await rateLimit('zelle_write', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
   const key = process.env.ZELLE_ENC_KEY;

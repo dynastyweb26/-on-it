@@ -3,16 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extract } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Rate limit BEFORE any paid work — keyed by user, or by IP for guests so a
+  // cookie-dropping anonymous caller can't drain the Anthropic bill.
+  if (!(await rateLimit('parse', rateIdentifier(req, user?.id)))) {
+    return NextResponse.json(
+      { reply: 'One sec — slow down a moment.' },
+      { status: 429 }
+    );
+  }
+
   // Deferred auth: unauthenticated users get 5 free parses per session
   // via a signed cookie counter — enough to feel the magic, then sign up.
-  let userId = user?.id;
-  if (!userId) {
+  if (!user) {
     const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
     if (guestCount >= 5) {
       return NextResponse.json(
@@ -20,14 +28,6 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    userId = 'guest';
-  }
-
-  if (user && !(await checkRateLimit(user.id, 'parse', 20))) {
-    return NextResponse.json(
-      { reply: 'Whoa, slow down a second — try again in a minute.' },
-      { status: 429 }
-    );
   }
 
   const body = await req.json().catch(() => null);
