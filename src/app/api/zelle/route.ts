@@ -16,11 +16,11 @@ const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.s
 async function requireUser() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return { supabase, user };
 }
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
+  const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (!(await rateLimit('zelle_read', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
+  const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (!(await rateLimit('zelle_write', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
@@ -53,8 +53,10 @@ export async function POST(req: NextRequest) {
   const value = sanitizeField(parsed.data.value, 120);
 
   if (!value) {
-    // empty value clears the stored handle
-    const { error } = await adminClient()
+    // Empty value clears the stored handle. Plain column write → session
+    // client, so RLS ("own profile") enforces ownership. Admin is reserved
+    // for the set/get RPCs below, which are revoked from authenticated roles.
+    const { error } = await supabase
       .from('profiles')
       .update({ zelle_info_enc: null })
       .eq('id', user.id);
