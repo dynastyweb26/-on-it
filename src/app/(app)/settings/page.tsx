@@ -26,7 +26,7 @@ export default function Settings() {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { router.replace('/login'); return; }
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       setP(data);
       try {
