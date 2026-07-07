@@ -35,11 +35,44 @@ const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job 
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+// A create-invoice the user was asked to confirm (duplicate detected). Lives in
+// the SAME conversation store as messages/draft (Batch 1 #1) — not a parallel
+// state layer — so an affirmative next turn resolves it instead of re-parsing
+// the original intent and re-detecting the duplicate in a loop.
+interface PendingAction {
+  type: 'create_invoice';
+  client: string | null;
+  amount: number;
+  forceCreate: true;
+}
+
+// A "bare" affirmative: the WHOLE message is a confirmation (allowlist) with
+// only light politeness/punctuation — nothing else. A message that merely
+// starts with "yes" but carries more ("yes but make it $300") is NOT bare and
+// must never finalize the stale draft.
+const AFFIRMATIVE_WORDS = /^(?:y|ya|yes|yeah|yep|yup|sure|ok|okay|k|do it|go ahead|go for it|create it|send it|make it|another|another one|new one|correct|confirm|confirmed|absolutely|definitely|please|please do|yes please)[\s!.,]*$/i;
+
+// Any invoice signal disqualifies an affirmative: a digit (dollar amount or
+// quantity), or an edit word. A NEW CLIENT NAME is already excluded because it
+// would break the whole-message "bare" match above.
+const INVOICE_SIGNAL = /\d|\b(?:but|instead|change|actually|wait)\b/i;
+
+const NEGATIVE = /^\s*(n|no|nope|nah|don'?t|do not|cancel|stop|never ?mind|leave it|forget it|skip|not now)\b/i;
+
+// Affirmative requires BOTH: (1) a bare affirmative from the allowlist, AND
+// (2) no invoice signal. Otherwise it is NOT affirmative.
+const isAffirmative = (t: string) => {
+  const s = t.trim();
+  return AFFIRMATIVE_WORDS.test(s) && !INVOICE_SIGNAL.test(s);
+};
+const isNegative = (t: string) => NEGATIVE.test(t.trim());
+
 interface StoredChat {
   id?: string;
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
+  pending?: PendingAction | null;
   updatedAt: number;
 }
 
@@ -104,6 +137,7 @@ export default function Chat() {
   const [convoId, setConvoId] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
   // Push-to-talk voice session: mic toggles a session (X ends it). TTS only
   // ever plays while a session is on; text-only chat is always silent.
   const [voiceSession, setVoiceSession] = useState(false);
@@ -133,6 +167,7 @@ export default function Chat() {
       setMessages(stored.messages);
       setDraft(stored.draft);
       setReady(Boolean(stored.ready));
+      setPending(stored.pending ?? null);
     }
     setConvoId(stored?.id ?? genId());
     setHydrated(true);
@@ -153,11 +188,11 @@ export default function Chat() {
       if (finished || messages.length < 2) {
         localStorage.removeItem(CHAT_STORE_KEY);
       } else {
-        const payload: StoredChat = { id: convoId, messages, draft, ready, updatedAt: Date.now() };
+        const payload: StoredChat = { id: convoId, messages, draft, ready, pending, updatedAt: Date.now() };
         localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, hydrated, finished, convoId]);
+  }, [messages, draft, ready, pending, hydrated, finished, convoId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -171,8 +206,32 @@ export default function Chat() {
     const next: Msg[] = [...messages, { role: 'user', content: trimmed }];
     setMessages(next);
     setInput('');
-    setBusy(true);
     setFinished(false); // a new message means a live conversation again
+
+    // Duplicate-confirmation resolution: if we're awaiting a yes/no, DON'T
+    // re-parse (that re-detects the duplicate and loops). Affirmative → create
+    // anyway via finalize() (which runs no duplicate check); negative → drop it;
+    // anything else → clear the pending action and parse the message fresh.
+    if (pending) {
+      if (isAffirmative(trimmed)) {
+        setPending(null);
+        setBusy(true);
+        try { await finalize(); } // bypasses duplicate detection by design
+        finally { setBusy(false); }
+        return null;
+      }
+      if (isNegative(trimmed)) {
+        setPending(null);
+        setMessages((m) => [...m, {
+          role: 'assistant',
+          content: "Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.",
+        }]);
+        return null;
+      }
+      setPending(null); // ambiguous reply — fall through to a fresh parse
+    }
+
+    setBusy(true);
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
@@ -195,6 +254,15 @@ export default function Chat() {
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) setDraft(data);
       setReady(isReady);
+
+      // A duplicate was flagged — remember the pending create so the next
+      // affirmative resolves it instead of re-parsing into the same warning.
+      if (data.duplicateWarning) {
+        const amount = Array.isArray(data.line_items)
+          ? (data.line_items as LineItem[]).reduce((s, li) => s + li.qty * li.unit_price, 0)
+          : 0;
+        setPending({ type: 'create_invoice', client: data.client_name ?? null, amount, forceCreate: true });
+      }
 
       // Expenses save immediately — no preview card needed
       if (data.intent === 'expense' && data.expense && profile) {
@@ -460,6 +528,7 @@ export default function Chat() {
     setMessages(entry.messages);
     setDraft(entry.draft);
     setReady(Boolean(entry.ready) && !entry.finalized);
+    setPending(null); // confirmation state doesn't carry across conversations
     setFinished(entry.finalized); // finalized ones stay read-only until a new message
     setConvoId(entry.id);
     setShowHistory(false);
