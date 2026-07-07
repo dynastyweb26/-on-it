@@ -179,9 +179,56 @@ founder must set (not code):
 
 ---
 
-## Blocker for Item 1
+## AFTER — state with Items 1–4 applied (for review)
 
-Item 1 (Upstash rate limiting) **requires the Upstash Redis database to exist
-first** — the spec explicitly says stop and ask rather than fall back to
-in-memory. Confirm the Upstash DB is created and its two env vars are available
-before I start Item 1.
+| Route | Auth | Input validation | Rate limit | Client |
+|---|---|---|---|---|
+| `/api/parse` | session or guest-cookie | **zod** (history shape + 4k msg cap + 8k draft cap) + `sanitizeForAI` | **Upstash** 20/min, **user-or-IP** (guest gap closed) | session (+ no service-role) |
+| `/api/transcribe` | user-or-IP limited | byte-length 0–10MB (binary) | **Upstash** 30/min, **user-or-IP** (anon gap closed) | session (read) |
+| `/api/zelle` | `requireUser()` 401 | **zod** value ≤200 + `sanitizeField` | **Upstash** read 10 / write 5 per user | session for clear; **admin only** for revoked RPCs |
+| `/api/followups` | `Bearer CRON_SECRET` | none (no body) | n/a (cron) | admin (justified — no session) |
+| `/i/[token]` | public | **charset/length regex** before cookie set | n/a | none |
+
+**Headers now:** CSP (scoped), HSTS, X-Frame-Options, X-Content-Type-Options,
+Referrer-Policy, Permissions-Policy. Verified emitted on `/login` (200) via a
+production `npm run start` smoke test; production CSP correctly omits
+`unsafe-eval`.
+
+**Verified automatically:** `tsc --noEmit` clean, `npm run build` passes on every
+commit, header smoke test, grep-confirmed zero `checkRateLimit` refs and
+service-role only in cron + revoked-RPC paths.
+
+**Needs manual verification (can't do headlessly — needs a real session):**
+walk login → chat (send a message; confirm 429 degrades to "One sec — slow down
+a moment" under a burst) → invoice create/send → settings load (confirm no
+infinite spinner) → logo upload. Recommend a quick pass against a preview deploy
+before merge. **Also load every page with the browser console open to confirm no
+CSP violations** — the CSP was smoke-tested on `/login` but authenticated pages
+(Supabase images/realtime, Material Symbols font) should be eyeballed once.
+
+## Deferred (with reasons)
+
+- **Nonce-based CSP** — script-src keeps `'unsafe-inline'` because Next injects
+  inline bootstrap scripts without a nonce; a strict nonce CSP needs nonce
+  middleware and carries breakage risk. Present CSP still adds real value
+  (connect/img/font/frame scoping, `object-src 'none'`, `frame-ancestors`).
+  Follow-up, not a blocker.
+- **HIBP leaked-password protection** — needs Supabase **Pro** plan (same
+  deferral as T-Vault). Founder-dashboard action, not code.
+- **Rate-limit fail-open** — `rateLimit()` fails open on a Redis outage
+  (availability over a narrow cost window). Revisit if abuse is observed.
+- **`rate_limits` Postgres table** — now unused (Upstash replaced it). Left in
+  place; drop in a future migration once the Upstash cutover is confirmed in
+  production.
+- **Paywall-scaffold routes** — intentionally NOT hardened on this branch (per
+  instruction). Re-apply these same patterns (Upstash limits on
+  checkout/billing-portal, zod on account/delete confirm) when
+  `feat/paywall-scaffold` merges July 17. CSP already includes Stripe origins.
+
+## Item 1 blocker — RESOLVED
+
+Upstash Redis is provisioned; `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
+are set in Vercel + `.env.local`. **Founder action before merge:** confirm both
+vars are present in the Vercel **production** environment (not just preview/dev)
+so the limiter is active in prod — otherwise `rateLimit()` fails open and the
+cost guard is silently off.
