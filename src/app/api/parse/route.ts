@@ -1,9 +1,20 @@
 // POST /api/parse — the brain of the "On it!" chat loop.
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { extract } from '@/lib/ai';
+import { extract, type ExtractResult } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+
+// Bound structure AND size: chat messages capped, history bounded so a crafted
+// payload can't inflate the Anthropic token bill.
+const ParseBody = z.object({
+  history: z.array(z.object({
+    role: z.string().max(20),
+    content: z.string().max(4000),
+  })).min(1).max(50),
+  draft: z.record(z.string(), z.unknown()).nullish(),
+});
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -30,12 +41,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body?.history?.length) {
-    return NextResponse.json({ error: 'history required' }, { status: 400 });
+  const parsed = ParseBody.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid request', reply: 'Say that again?' }, { status: 400 });
+  }
+  const { history: rawHistory, draft } = parsed.data;
+  // Bound the draft context too (it's stringified into the prompt).
+  if (draft && JSON.stringify(draft).length > 8000) {
+    return NextResponse.json({ error: 'draft too large', reply: 'Let’s start that one fresh.' }, { status: 400 });
   }
 
-  const history = (body.history as { role: string; content: string }[])
+  const history = rawHistory
     .slice(-12) // bound context
     .map((m) => ({
       role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
@@ -46,7 +62,7 @@ export async function POST(req: NextRequest) {
     }));
 
   try {
-    const result = await extract(history, body.draft ?? null, new Date().toISOString().slice(0, 10));
+    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
     // Duplicate detection: same client + same total in the last 48h
     let duplicateWarning: string | null = null;

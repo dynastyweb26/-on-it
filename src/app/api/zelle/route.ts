@@ -3,10 +3,13 @@
 // browser. The set_zelle/get_zelle SQL functions are revoked from anon and
 // authenticated roles, so even direct PostgREST calls can't touch them.
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { sanitizeField } from '@/lib/sanitize';
+
+const ZelleBody = z.object({ value: z.string().max(200).optional() });
 
 const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.slice(-4)}`);
 
@@ -43,8 +46,11 @@ export async function POST(req: NextRequest) {
   const key = process.env.ZELLE_ENC_KEY;
   if (!key) return NextResponse.json({ error: 'not configured' }, { status: 500 });
 
-  const body = await req.json().catch(() => null);
-  const value = sanitizeField(body?.value, 120);
+  const parsed = ZelleBody.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+  }
+  const value = sanitizeField(parsed.data.value, 120);
 
   if (!value) {
     // empty value clears the stored handle
