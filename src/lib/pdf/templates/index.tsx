@@ -60,19 +60,63 @@ const payPalUrl = (handle: string) =>
   `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
 
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  const rows: { text: string; url?: string }[] = [];
-  if (d.zelle) rows.push({ text: `Zelle: ${d.zelle}` });
-  if (d.cashappTag) rows.push({ text: `Cash App: ${d.cashappTag}`, url: cashAppUrl(d.cashappTag) });
-  if (d.paypalMe) rows.push({ text: `PayPal: paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe) });
+  // METHOD | DETAIL | TIP. DETAIL is the tappable element for methods with a
+  // public URL (Cash App, PayPal): rendered in the accent color + underlined
+  // so it reads as a link, and carrying data-pdf-link so elementToPdf() lays a
+  // real jsPDF link annotation over it. Zelle has no shareable web link, so its
+  // detail is plain text and the tip explains to pay via the bank app.
+  const rows: { method: string; detail: string; url?: string; tip: string }[] = [];
+  if (d.zelle)
+    rows.push({ method: 'Zelle', detail: d.zelle, tip: 'Send in your bank app to this number' });
+  if (d.cashappTag)
+    rows.push({ method: 'Cash App', detail: d.cashappTag, url: cashAppUrl(d.cashappTag), tip: 'Tap to pay' });
+  if (d.paypalMe)
+    rows.push({ method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), tip: 'Tap to pay' });
   if (!rows.length) return null;
+
+  const th: React.CSSProperties = {
+    textAlign: 'left',
+    padding: '6px 12px 6px 0',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: t.accent,
+    fontWeight: 700,
+    borderBottom: `1.5px solid ${t.accent}`,
+  };
+  const td: React.CSSProperties = { padding: '8px 12px 8px 0', verticalAlign: 'top' };
+
   return (
-    <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-      <div style={{ fontWeight: 700, color: t.accent, textTransform: 'uppercase', letterSpacing: 1, fontSize: 11 }}>
+    <div style={{ fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: t.accent, textTransform: 'uppercase', letterSpacing: 1, fontSize: 11, marginBottom: 6 }}>
         How to pay
       </div>
-      {rows.map((r) => (
-        <div key={r.text} {...(r.url ? { 'data-pdf-link': r.url } : {})}>{r.text}</div>
-      ))}
+      <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th style={th}>Method</th>
+            <th style={th}>Detail</th>
+            <th style={th}>Tip</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.method} style={{ borderBottom: `1px solid ${t.accent}33` }}>
+              <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.method}</td>
+              <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                {r.url ? (
+                  <span data-pdf-link={r.url} style={{ color: t.accent, textDecoration: 'underline', fontWeight: 600 }}>
+                    {r.detail}
+                  </span>
+                ) : (
+                  <span>{r.detail}</span>
+                )}
+              </td>
+              <td style={{ ...td, paddingRight: 0, opacity: 0.75, maxWidth: 150 }}>{r.tip}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
