@@ -22,20 +22,40 @@ export default function Settings() {
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.replace('/login'); return; }
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      setP(data);
       try {
-        const res = await fetch('/api/zelle');
-        const z = await res.json();
-        if (z.set) setZelleMasked(z.masked);
-      } catch { /* leave unset */ }
-      setPushOn(Boolean(await getPushSubscription()));
+        // Auth-gated page: a signed-out user (or a failed/expired auth check)
+        // must land on login, never sit on "Loading…". getUser() can reject on
+        // a token-refresh/network failure, so the whole check is guarded — any
+        // throw routes to /login rather than leaving the effect hung.
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!active) return;
+        if (error || !user) { setRedirecting(true); router.replace('/login'); return; }
+
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if (!active) return;
+        // Signed in but no profile yet → finish onboarding (matches chat's pattern).
+        if (!data) { setRedirecting(true); router.replace('/onboarding'); return; }
+        setP(data);
+
+        try {
+          const res = await fetch('/api/zelle');
+          const z = await res.json();
+          if (active && z.set) setZelleMasked(z.masked);
+        } catch { /* leave unset */ }
+        if (active) setPushOn(Boolean(await getPushSubscription()));
+      } catch {
+        // Auth/network failed — don't hang; send to login.
+        if (!active) return;
+        setRedirecting(true);
+        router.replace('/login');
+      }
     })();
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,6 +101,7 @@ export default function Settings() {
     }
   }
 
+  if (redirecting) return <p className="p-6 text-on-surface-variant">Redirecting…</p>;
   if (!p) return <p className="p-6 text-on-surface-variant">Loading…</p>;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
