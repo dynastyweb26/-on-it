@@ -12,7 +12,7 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
-import { speak } from '@/lib/tts';
+import { speak, primeSpeech } from '@/lib/tts';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
@@ -506,6 +506,10 @@ export default function Chat() {
   }
 
   function micTap() {
+    // iOS Safari only lets TTS start from a user gesture. Prime it here, inside
+    // the tap, so the reply — spoken later after async transcribe+parse — is
+    // allowed to play. Cheap and idempotent; safe on every tap.
+    primeSpeech();
     if (!voiceSession) {
       setVoiceSession(true); sessionRef.current = true;
       void startRecording();
