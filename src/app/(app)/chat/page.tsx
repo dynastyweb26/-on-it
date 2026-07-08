@@ -145,10 +145,6 @@ export default function Chat() {
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
   const sessionRef = useRef(false);
-  // How the text currently in the input was entered. Transcription sets 'voice';
-  // any manual keystroke sets 'typed' (last interaction wins). Read at send time
-  // to decide whether the reply is spoken.
-  const inputSourceRef = useRef<'voice' | 'typed'>('typed');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -213,7 +209,6 @@ export default function Chat() {
     const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
     setMessages(next);
     setInput('');
-    inputSourceRef.current = 'typed'; // input cleared — next message defaults to typed
     setFinished(false); // a new message means a live conversation again
 
     // Duplicate-confirmation resolution: if we're awaiting a yes/no, DON'T
@@ -492,10 +487,10 @@ export default function Chat() {
           text = ((await res.json()).text ?? '').trim();
         } catch { /* treated as "didn't catch that" */ }
         setBusy(false);
-        // Voice fills the draft and marks it voice-entered; the existing black
-        // send button brightens to its active state and the user taps to send.
-        // The reply speaks because this message's source is 'voice'.
-        if (text) { setInput(text); inputSourceRef.current = 'voice'; }
+        // Voice auto-sends immediately as a 'voice' message — no cancel window,
+        // no send tap. One final transcript per take (record-then-POST), so this
+        // fires exactly once. The reply is spoken because the source is 'voice'.
+        if (text) void send(text, 'voice');
         else setMessages((m) => [...m, { role: 'assistant', content: "Didn't catch that — try again or type it." }]);
       };
       rec.start();
@@ -645,7 +640,7 @@ export default function Chat() {
             </button>
           )}
           <button
-            aria-label={recording ? 'Stop and review' : voiceSession ? 'Speak' : 'Start voice'}
+            aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
             className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 ${recording ? 'voice-listening' : ''}`}
             onClick={micTap}
           >
@@ -656,16 +651,16 @@ export default function Chat() {
             placeholder={recording ? 'Listening…' : 'Or type it…'}
             value={input}
             rows={1}
-            onChange={(e) => { setInput(e.target.value); inputSourceRef.current = 'typed'; }}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input, inputSourceRef.current); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
             }}
           />
           <button
             aria-label="Send"
             className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
             disabled={!input.trim() || busy}
-            onClick={() => void send(input, inputSourceRef.current)}
+            onClick={() => void send(input)}
           >
             <Icon name="send" size={22} filled />
           </button>
