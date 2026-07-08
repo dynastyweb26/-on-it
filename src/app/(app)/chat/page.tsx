@@ -12,10 +12,10 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
-import { speak } from '@/lib/tts';
+import { speak, primeSpeech } from '@/lib/tts';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
-interface Msg { role: 'user' | 'assistant'; content: string; }
+interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -138,11 +138,13 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
-  // Push-to-talk voice session: mic toggles a session (X ends it). TTS only
-  // ever plays while a session is on; text-only chat is always silent.
+  // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
+  // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
-  const sessionRef = useRef(false);            // latest session state for async speak gate
+  // TODO: sessionRef unused — per-message `source` replaced the speak gate.
+  // Left in place intentionally; remove in a dedicated cleanup.
+  const sessionRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -198,12 +200,13 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, ready]);
 
-  /** Shared parse flow for typed and spoken input. The reply always renders
-   *  as text first; it is spoken only when a voice session is active. */
-  async function send(text: string): Promise<SendResult | null> {
+  /** Shared parse flow for typed and spoken input. The reply always renders as
+   *  text first; it is spoken (TTS) only when THIS message was entered by voice
+   *  — per-message modality, so typed messages stay silent. */
+  async function send(text: string, source: 'voice' | 'typed' = 'typed'): Promise<SendResult | null> {
     const trimmed = text.trim();
     if (!trimmed || busy) return null;
-    const next: Msg[] = [...messages, { role: 'user', content: trimmed }];
+    const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
     setMessages(next);
     setInput('');
     setFinished(false); // a new message means a live conversation again
@@ -246,8 +249,9 @@ export default function Chat() {
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
       setMessages((m) => [...m, { role: 'assistant', content: reply }]);
-      // Text renders first (above); speech is additive and session-gated.
-      if (sessionRef.current) {
+      // Text renders first (above); speech is additive and follows the input
+      // modality of THIS message — voice in, voice out; typed in, silent.
+      if (source === 'voice') {
         cancelSpeechRef.current?.();
         cancelSpeechRef.current = speak(reply);
       }
@@ -451,17 +455,28 @@ export default function Chat() {
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
   }
 
+  // Acquire the mic ONCE per voice session and reuse the same stream for every
+  // take. Re-calling getUserMedia on each tap — and tearing the stream down
+  // after each take — is what re-prompted for permission on every click. The
+  // stream is released only when the session ends (X) or the screen unmounts.
+  async function getSessionStream(): Promise<MediaStream> {
+    const live = streamRef.current;
+    if (live && live.getAudioTracks().some((t) => t.readyState === 'live')) return live;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+    return stream;
+  }
+
   async function startRecording() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      const stream = await getSessionStream(); // reused across takes — one prompt per session
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
       recAbortRef.current = false;
       rec.ondataavailable = (e) => chunksRef.current.push(e.data);
       rec.onstop = async () => {
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
+        // Keep the stream open for the next take; endVoiceSession()/unmount
+        // release it. (It used to be stopped here, forcing a re-prompt next tap.)
         setRecording(false);
         if (recAbortRef.current) return; // session ended mid-take — discard
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
@@ -472,20 +487,29 @@ export default function Chat() {
           text = ((await res.json()).text ?? '').trim();
         } catch { /* treated as "didn't catch that" */ }
         setBusy(false);
-        if (text) void send(text);
+        // Voice auto-sends immediately as a 'voice' message — no cancel window,
+        // no send tap. One final transcript per take (record-then-POST), so this
+        // fires exactly once. The reply is spoken because the source is 'voice'.
+        if (text) void send(text, 'voice');
         else setMessages((m) => [...m, { role: 'assistant', content: "Didn't catch that — try again or type it." }]);
       };
       rec.start();
       recorderRef.current = rec;
       setRecording(true);
     } catch {
-      // mic blocked → end the session and fall back to typing
+      // mic blocked/denied → end the session and fall back to typing (no hang)
       setVoiceSession(false); sessionRef.current = false;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
       setMessages((m) => [...m, { role: 'assistant', content: 'Mic access is blocked. You can type instead.' }]);
     }
   }
 
   function micTap() {
+    // iOS Safari only lets TTS start from a user gesture. Prime it here, inside
+    // the tap, so the reply — spoken later after async transcribe+parse — is
+    // allowed to play. Cheap and idempotent; safe on every tap.
+    primeSpeech();
     if (!voiceSession) {
       setVoiceSession(true); sessionRef.current = true;
       void startRecording();
@@ -503,6 +527,10 @@ export default function Chat() {
       recAbortRef.current = true;
       recorderRef.current.stop();
     }
+    // Release the session mic. The stream is reused across takes, so it is only
+    // stopped here and on unmount — never per take.
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
   }
 
   // Cancel any speech / capture if the screen unmounts (tab switch suspension
