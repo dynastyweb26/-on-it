@@ -44,6 +44,13 @@ export interface InvoiceRenderData {
 const money = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+// No-logo fallback: when the user has no logo, the business NAME is promoted
+// to display size so the header looks intentional, never missing. Montserrat
+// 800 (loaded app-wide via next/font, so available to the html2canvas capture)
+// for Classic / Industrial / Friendly; Ledger keeps its slab face — per-template
+// identity wins, consistent with the design standard's own PDF exemption.
+const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
+
 const PAGE: React.CSSProperties = {
   width: 794,
   minHeight: 1123,
@@ -219,7 +226,14 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     <div style={{ ...PAGE, background: t.background, color: t.text, padding: 56 }}>
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 96, marginBottom: 12 }} alt="" />}
-        <div style={{ fontSize: 30, fontWeight: 800, color: t.primary === t.background ? t.text : t.primary }}>
+        <div
+          style={{
+            fontSize: d.logoUrl ? 30 : 42,
+            fontWeight: 800,
+            color: t.primary === t.background ? t.text : t.primary,
+            ...(d.logoUrl ? {} : { fontFamily: MONTSERRAT, letterSpacing: -0.5, marginBottom: 4 }),
+          }}
+        >
           {d.businessName}
         </div>
         {d.slogan && <div style={{ color: t.accent, fontStyle: 'italic', fontSize: 14 }}>{d.slogan}</div>}
@@ -287,7 +301,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 96 }} alt="" />}
         <div>
-          <div style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5, color: t.primary === t.background ? t.text : t.primary }}>
+          {/* Ledger fallback keeps the slab face — only the size is promoted */}
+          <div style={{ fontSize: d.logoUrl ? 36 : 48, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5, color: t.primary === t.background ? t.text : t.primary }}>
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
@@ -384,7 +399,15 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     <div style={{ ...PAGE, background: t.background, color: t.text }}>
       <div style={{ background: t.primary, color: onColor(t.primary), padding: '40px 56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: 34, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>
+          <div
+            style={{
+              fontSize: d.logoUrl ? 34 : 44,
+              fontWeight: d.logoUrl ? 900 : 800, // Montserrat loads 700/800 only
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+              ...(d.logoUrl ? {} : { fontFamily: MONTSERRAT }),
+            }}
+          >
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontWeight: 700, fontSize: 14 }}>{d.slogan}</div>}
@@ -431,7 +454,14 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <img src={d.logoUrl} style={{ height: 96, width: 96, borderRadius: 16, objectFit: 'cover' }} alt="" />
         )}
         <div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: t.primary === t.background ? t.text : t.primary }}>
+          <div
+            style={{
+              fontSize: d.logoUrl ? 26 : 36,
+              fontWeight: 800,
+              color: t.primary === t.background ? t.text : t.primary,
+              ...(d.logoUrl ? {} : { fontFamily: MONTSERRAT }),
+            }}
+          >
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 13 }}>{d.slogan}</div>}
