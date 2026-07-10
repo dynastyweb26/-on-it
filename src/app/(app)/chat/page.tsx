@@ -12,6 +12,7 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
+import { defaultDueDate } from '@/lib/dates';
 import { speak, primeSpeech } from '@/lib/tts';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
@@ -312,7 +313,9 @@ export default function Chat() {
       total: subtotal + taxAmount,
       notes: draft.notes ?? null,
       issuedDate: new Date().toLocaleDateString(),
-      dueDate: draft.due_date ?? null,
+      // No stated due date → default to issue date + 30 days. The AI never
+      // asks for one; the user can still edit it on the invoice detail page.
+      dueDate: draft.due_date ?? defaultDueDate(),
       cashappTag: profile.cashapp_tag,
       paypalMe: profile.paypal_me,
     };

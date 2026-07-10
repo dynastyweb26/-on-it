@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
+import { defaultDueDate } from '@/lib/dates';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -69,6 +70,13 @@ export default function InvoiceDetail() {
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   }
 
+  // The +30 default is a pre-fill, not a lock — the ONLY editable field here.
+  async function setDueDate(v: string) {
+    const due = v || null;
+    setInv({ ...inv, due_date: due });
+    await supabase.from('invoices').update({ due_date: due }).eq('id', id);
+  }
+
   async function markPaid() {
     await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
     setInv({ ...inv, status: 'paid' });
@@ -92,6 +100,7 @@ export default function InvoiceDetail() {
         invoice_number: no, client_name: inv.client_name, line_items: inv.line_items,
         subtotal: inv.subtotal, tax_rate: inv.tax_rate, tax_amount: inv.tax_amount,
         total: inv.total, notes: inv.notes, status: 'draft', converted_from: inv.id,
+        due_date: defaultDueDate(), // every new invoice gets the +30 default
       },
     }).select('id').single();
     if (created) router.push(`/invoices/${created.id}`);
@@ -129,6 +138,18 @@ export default function InvoiceDetail() {
             </button>
           )}
         </div>
+        {inv.kind === 'invoice' && (
+          <div className="mt-3 flex items-center gap-2">
+            <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>
+            <input
+              id="due-date"
+              type="date"
+              className="input h-auto flex-1 py-2 text-sm"
+              value={inv.due_date ?? ''}
+              onChange={(e) => void setDueDate(e.target.value)}
+            />
+          </div>
+        )}
       </div>
       <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
