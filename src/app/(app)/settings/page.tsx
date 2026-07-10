@@ -14,6 +14,7 @@ export default function Settings() {
   const router = useRouter();
   const [p, setP] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
   const [zelleMasked, setZelleMasked] = useState<string | null>(null);
   const [zelleInput, setZelleInput] = useState('');
@@ -87,6 +88,45 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 1500);
   }
 
+  // ── Logo manager: upload / replace / remove ─────────────────
+  // Same mechanism as onboarding: 'logos' bucket, `${user.id}/logo-<ts>` path,
+  // public URL stored on profiles.logo_url. No second upload path.
+  function logoStoragePath(url: string | null): string | null {
+    const m = url?.match(/\/logos\/(.+)$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  async function uploadLogo(file: File) {
+    if (logoBusy) return;
+    setLogoBusy(true);
+    try {
+      const oldPath = logoStoragePath(p.logo_url);
+      const path = `${p.id}/logo-${Date.now()}`;
+      const { error } = await supabase.storage.from('logos').upload(path, file);
+      if (error) return;
+      const url = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl;
+      await save({ logo_url: url });
+      // best-effort cleanup of the replaced file (needs the 005 delete policy)
+      if (oldPath) await supabase.storage.from('logos').remove([oldPath]);
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (logoBusy) return;
+    setLogoBusy(true);
+    try {
+      const oldPath = logoStoragePath(p.logo_url);
+      // pointer first: even if the storage delete fails, invoices already
+      // fall back to the business-name header
+      await save({ logo_url: null });
+      if (oldPath) await supabase.storage.from('logos').remove([oldPath]);
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
   async function togglePush() {
     if (pushBusy || pushOn === null) return;
     setPushBusy(true);
@@ -120,6 +160,34 @@ export default function Settings() {
         <input className="input" placeholder="Slogan"
           value={p.slogan ?? ''} onChange={(e) => setP({ ...p, slogan: e.target.value })}
           onBlur={(e) => save({ slogan: e.target.value || null })} />
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Logo</h2>
+        <div className="flex items-center gap-3">
+          {p.logo_url
+            ? <img src={p.logo_url} className="h-14 w-14 rounded-lg border border-outline-variant object-cover" alt="Business logo" />
+            : <span className="grid h-14 w-14 place-items-center rounded-lg bg-surface-container"><Icon name="image" size={24} className="text-on-surface-variant" /></span>}
+          <p className="flex-1 text-sm text-on-surface-variant">
+            {p.logo_url ? 'Shown on your invoices.' : 'No logo — invoices show your business name instead.'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <label className={`chip flex cursor-pointer items-center gap-1.5 ${logoBusy ? 'pointer-events-none opacity-50' : ''}`}>
+            <Icon name="upload" size={18} /> {logoBusy ? 'Working…' : p.logo_url ? 'Replace' : 'Upload'}
+            <input type="file" accept="image/*" className="hidden" disabled={logoBusy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadLogo(f);
+                e.target.value = ''; // allow re-picking the same file
+              }} />
+          </label>
+          {p.logo_url && (
+            <button className="chip flex items-center gap-1.5 border-error text-error" disabled={logoBusy} onClick={removeLogo}>
+              <Icon name="delete" size={18} /> Remove
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="card space-y-3">
