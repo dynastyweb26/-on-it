@@ -42,14 +42,19 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   return new File([blob], filename, { type: 'application/pdf' });
 }
 
-/** Native share sheet — the locked send mechanism (no Twilio). */
-export async function shareInvoice(file: File, clientName: string): Promise<'shared' | 'downloaded'> {
+/** Native share sheet — the locked send mechanism (no Twilio).
+ *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
+ *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
+ *  share error falls through to a download so the user still gets their file. */
+export async function shareInvoice(file: File, clientName: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: file.name, text: `Invoice for ${clientName}` });
       return 'shared';
-    } catch {
-      /* user cancelled — fall through to download */
+    } catch (err) {
+      // User dismissed the sheet → cancel (don't download, don't mark sent).
+      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      /* any other share error — fall through to download */
     }
   }
   const url = URL.createObjectURL(file);

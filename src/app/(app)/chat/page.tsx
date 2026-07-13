@@ -131,6 +131,11 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Distinguishes "profile fetch still in flight" from "genuinely no profile
+  // (a guest)". finalize() must not bounce an authed user to login just because
+  // the fetch hasn't resolved yet (audit B2); only a true guest sees the
+  // sign-in prompt (audit A3).
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
@@ -153,14 +158,21 @@ export default function Chat() {
   const cancelSpeechRef = useRef<(() => void) | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  // A draft invoice row already inserted this session but not yet marked sent
+  // (share pending / cancelled). A retry reuses it instead of inserting a
+  // second row (audit B1). In-memory only: cleared whenever the draft content
+  // changes (a fresh parse) so we never mark a stale row sent, and reset on a
+  // reload so a post-reload send safely starts a new row.
+  const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { setProfileLoaded(true); return; } // resolved: genuine guest
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       if (!data) { router.push('/onboarding'); return; }
       setProfile(data as Profile);
+      setProfileLoaded(true);
     })();
     // register service worker for the 2-day follow-up notifications
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -257,7 +269,12 @@ export default function Chat() {
         cancelSpeechRef.current = speak(reply);
       }
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
-      if (data.intent) setDraft(data);
+      if (data.intent) {
+        setDraft(data);
+        // Draft content may have changed — any previously inserted-but-unsent
+        // row is now stale; force the next finalize to insert a fresh one (B1).
+        pendingInvoiceRef.current = null;
+      }
       setReady(isReady);
 
       // A duplicate was flagged — remember the pending create so the next
@@ -324,12 +341,79 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
 
   async function finalize() {
-    if (!profile || !draft) { router.push('/login'); return; }
+    if (!draft) return;
+
+    // A3 / B2: no profile in hand — decide WHY before doing anything.
+    //  - fetch still in flight → don't bounce an authed user to login over a
+    //    timing window; ask them to tap again in a moment.
+    //  - fetch resolved with no profile → a genuine guest: friendly sign-in
+    //    nudge (mirrors the parse route's 401 copy), THEN route to login.
+    if (!profile) {
+      if (!profileLoaded) {
+        setMessages((m) => [...m, { role: 'assistant', content: 'One sec — still loading your business info. Tap send again in a moment.' }]);
+        return;
+      }
+      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to send this invoice." }]);
+      setTimeout(() => router.push('/login'), 1600);
+      return;
+    }
+
     setFinalizing(true);
     try {
-      const { data: no, error: noErr } = await supabase.rpc('next_invoice_no', { p_user: profile.id });
-      if (noErr || no == null) throw noErr;
+      // ── 1. Persist the invoice as a DRAFT (not "sent" until it actually is).
+      //    A retry after a cancel/failure reuses the stashed row rather than
+      //    inserting a second one (B1). buildRenderData reuses the stashed
+      //    number so the retried PDF keeps the same invoice number.
+      let invoiceId = pendingInvoiceRef.current?.id ?? null;
+      let no = pendingInvoiceRef.current?.no ?? null;
 
+      if (!invoiceId) {
+        const { data: allocNo, error: noErr } = await supabase.rpc('next_invoice_no', { p_user: profile.id });
+        if (noErr || allocNo == null) throw noErr ?? new Error('no invoice number');
+        const newNo = allocNo as number;
+        no = newNo;
+
+        const rd0 = buildRenderData(newNo);
+        if (!rd0) throw new Error('incomplete');
+
+        const { data: client } = await supabase
+          .from('clients')
+          .upsert({ user_id: profile.id, name: rd0.clientName }, { onConflict: 'user_id,name' })
+          .select('id').single();
+
+        // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
+        // share, no "Sent!". Keep draft + ready so the user can retry.
+        const { data: saved, error: insErr } = await supabase.from('invoices').insert({
+          user_id: profile.id,
+          client_id: client?.id ?? null,
+          kind: rd0.kind,
+          invoice_number: newNo,
+          client_name: rd0.clientName,
+          line_items: rd0.lineItems,
+          subtotal: rd0.subtotal,
+          tax_rate: rd0.taxRate,
+          tax_amount: rd0.taxAmount,
+          total: rd0.total,
+          notes: rd0.notes,
+          due_date: rd0.dueDate,
+          status: 'draft', // becomes 'sent' only after a real share (B1)
+        }).select('id').single();
+
+        if (insErr || !saved?.id) {
+          console.error('invoice insert failed', insErr);
+          setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+          return; // finally clears finalizing; draft + ready untouched
+        }
+        const newId = saved.id as string;
+        invoiceId = newId;
+        pendingInvoiceRef.current = { id: newId, no: newNo };
+      }
+
+      // Invariant after step 1: the row exists. Narrows the nullable locals for
+      // the update/archive below (both are set on the insert and the reuse path).
+      if (!invoiceId || no == null) throw new Error('invoice not persisted');
+
+      // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
       if (!rd) throw new Error('incomplete');
 
@@ -339,30 +423,7 @@ export default function Chat() {
         if (z?.value) rd.zelle = z.value;
       } catch { /* invoice simply prints without Zelle */ }
 
-      // Upsert client + save invoice
-      const { data: client } = await supabase
-        .from('clients')
-        .upsert({ user_id: profile.id, name: rd.clientName }, { onConflict: 'user_id,name' })
-        .select('id').single();
-
-      const { data: saved } = await supabase.from('invoices').insert({
-        user_id: profile.id,
-        client_id: client?.id ?? null,
-        kind: rd.kind,
-        invoice_number: no,
-        client_name: rd.clientName,
-        line_items: rd.lineItems,
-        subtotal: rd.subtotal,
-        tax_rate: rd.taxRate,
-        tax_amount: rd.taxAmount,
-        total: rd.total,
-        notes: rd.notes,
-        due_date: rd.dueDate,
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-      }).select('id').single();
-
-      // Render offscreen → PDF → share sheet
+      // ── 3. Render offscreen → PDF.
       setRenderData(rd);
       await new Promise((r) => setTimeout(r, 350)); // let the template paint
       if (!printRef.current) throw new Error('render failed');
@@ -370,10 +431,25 @@ export default function Chat() {
         printRef.current,
         invoiceFilename(no, rd.clientName, profile.business_name)
       );
+
+      // ── 4. Share — only now is anything actually sent.
       const outcome = await shareInvoice(file, rd.clientName);
 
-      // Archive in the Vault
-      if (saved?.id) {
+      // B1: cancelling the share sheet is a normal choice, not an error. The
+      // row stays a draft; the stashed id + draft survive so a retry reuses
+      // the SAME invoice. No alarming message.
+      if (outcome === 'cancelled') {
+        setRenderData(null);
+        setMessages((m) => [...m, { role: 'assistant', content: 'All set when you are — tap send to share it whenever you’re ready.' }]);
+        return;
+      }
+
+      // ── 5. Shared/downloaded for real → NOW mark it sent, then archive.
+      await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', invoiceId);
+
+      // Archive in the Vault (best-effort — a storage hiccup must not undo the
+      // send we just confirmed).
+      try {
         const path = `${profile.id}/${file.name}`;
         await supabase.storage.from('vault').upload(path, file, { upsert: true });
         await supabase.from('vault_documents').insert({
@@ -381,9 +457,9 @@ export default function Chat() {
           title: file.name,
           doc_type: rd.kind,
           storage_path: path,
-          invoice_id: saved.id,
+          invoice_id: invoiceId,
         });
-      }
+      } catch (archiveErr) { console.error('vault archive failed', archiveErr); }
 
       const done = outcome === 'shared'
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
@@ -400,6 +476,7 @@ export default function Chat() {
         draft: null,
         ready: false,
       });
+      pendingInvoiceRef.current = null; // this invoice is complete
       setConvoId(genId());
       setDraft(null);
       setReady(false);
@@ -412,7 +489,9 @@ export default function Chat() {
       if (rd.kind === 'invoice') void maybeOfferReminders();
     } catch (e) {
       console.error(e);
-      setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — try again." }]);
+      // A row may already exist as a draft (stashed) — the retry reuses it, so
+      // the draft is genuinely safe and no duplicate is created.
+      setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — tap send to try again." }]);
     } finally {
       setFinalizing(false);
     }
