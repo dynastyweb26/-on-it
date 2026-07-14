@@ -1,18 +1,37 @@
 // POST /api/parse — the brain of the "On it!" chat loop.
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { extract } from '@/lib/ai';
+import { extract, type ExtractResult } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+
+// Bound structure AND size: chat messages capped, history bounded so a crafted
+// payload can't inflate the Anthropic token bill.
+const ParseBody = z.object({
+  history: z.array(z.object({
+    role: z.string().max(20),
+    content: z.string().max(4000),
+  })).min(1).max(50),
+  draft: z.record(z.string(), z.unknown()).nullish(),
+});
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Rate limit BEFORE any paid work — keyed by user, or by IP for guests so a
+  // cookie-dropping anonymous caller can't drain the Anthropic bill.
+  if (!(await rateLimit('parse', rateIdentifier(req, user?.id)))) {
+    return NextResponse.json(
+      { reply: 'One sec — slow down a moment.' },
+      { status: 429 }
+    );
+  }
+
   // Deferred auth: unauthenticated users get 5 free parses per session
   // via a signed cookie counter — enough to feel the magic, then sign up.
-  let userId = user?.id;
-  if (!userId) {
+  if (!user) {
     const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
     if (guestCount >= 5) {
       return NextResponse.json(
@@ -20,22 +39,19 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    userId = 'guest';
   }
 
-  if (user && !(await checkRateLimit(user.id, 'parse', 20))) {
-    return NextResponse.json(
-      { reply: 'Whoa, slow down a second — try again in a minute.' },
-      { status: 429 }
-    );
+  const parsed = ParseBody.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid request', reply: 'Say that again?' }, { status: 400 });
+  }
+  const { history: rawHistory, draft } = parsed.data;
+  // Bound the draft context too (it's stringified into the prompt).
+  if (draft && JSON.stringify(draft).length > 8000) {
+    return NextResponse.json({ error: 'draft too large', reply: 'Let’s start that one fresh.' }, { status: 400 });
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body?.history?.length) {
-    return NextResponse.json({ error: 'history required' }, { status: 400 });
-  }
-
-  const history = (body.history as { role: string; content: string }[])
+  const history = rawHistory
     .slice(-12) // bound context
     .map((m) => ({
       role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
@@ -46,7 +62,7 @@ export async function POST(req: NextRequest) {
     }));
 
   try {
-    const result = await extract(history, body.draft ?? null, new Date().toISOString().slice(0, 10));
+    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
     // Duplicate detection: same client + same total in the last 48h
     let duplicateWarning: string | null = null;

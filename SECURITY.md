@@ -8,7 +8,7 @@ All nine T-Vault security holes prevented from day one, plus On It-specific laye
 | 1 | RLS on every table, deny-by-default, owner-only policies | `001_init.sql` |
 | 2 | RBAC role column on top of RLS (owner/member/admin) | `profiles.role` |
 | 3 | Audit log table + triggers on invoices/profiles (payment data excluded from log detail) | `audit_log`, `log_audit()` |
-| 4 | Per-user Postgres-backed rate limiting (cross-instance safe — T-Vault lesson) | `rate_limits`, `src/lib/ratelimit.ts` |
+| 4 | Per-user/IP Upstash-backed rate limiting (atomic sliding window, cross-instance safe — T-Vault lesson) | `src/lib/ratelimit.ts` (Upstash Redis) |
 | 5 | Column-level encryption for Zelle info (pgcrypto, key server-side only) | `zelle_info_enc`, `set_zelle()`/`get_zelle()` |
 | 6 | Service-role isolation (`server-only` import guard; key never in client bundle) | `src/lib/supabase/admin.ts` |
 | 7 | Input sanitization against prompt injection (tag stripping, length caps, `<user_input>` wrapping, model instructed to treat contents as data) | `src/lib/sanitize.ts`, `src/lib/ai.ts` |

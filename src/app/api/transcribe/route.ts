@@ -2,15 +2,21 @@
 // Receives an audio blob, returns { text }.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 
 const AAI = 'https://api.assemblyai.com/v2';
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (user && !(await checkRateLimit(user.id, 'transcribe', 10))) {
-    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+
+  // Guests and anon callers hit this too (voice is open pre-signup), so limit
+  // by user-or-IP — previously anonymous callers had NO limit on AssemblyAI.
+  if (!(await rateLimit('transcribe', rateIdentifier(req, user?.id)))) {
+    return NextResponse.json(
+      { error: 'rate limited', message: 'One sec — slow down a moment.' },
+      { status: 429 }
+    );
   }
 
   const audio = await req.arrayBuffer();

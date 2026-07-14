@@ -3,23 +3,26 @@
 // browser. The set_zelle/get_zelle SQL functions are revoked from anon and
 // authenticated roles, so even direct PostgREST calls can't touch them.
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { sanitizeField } from '@/lib/sanitize';
+
+const ZelleBody = z.object({ value: z.string().max(200).optional() });
 
 const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.slice(-4)}`);
 
 async function requireUser() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return { supabase, user };
 }
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
+  const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!(await checkRateLimit(user.id, 'zelle', 10))) {
+  if (!(await rateLimit('zelle_read', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
   const key = process.env.ZELLE_ENC_KEY;
@@ -35,20 +38,25 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
+  const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!(await checkRateLimit(user.id, 'zelle', 5))) {
+  if (!(await rateLimit('zelle_write', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
   const key = process.env.ZELLE_ENC_KEY;
   if (!key) return NextResponse.json({ error: 'not configured' }, { status: 500 });
 
-  const body = await req.json().catch(() => null);
-  const value = sanitizeField(body?.value, 120);
+  const parsed = ZelleBody.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+  }
+  const value = sanitizeField(parsed.data.value, 120);
 
   if (!value) {
-    // empty value clears the stored handle
-    const { error } = await adminClient()
+    // Empty value clears the stored handle. Plain column write → session
+    // client, so RLS ("own profile") enforces ownership. Admin is reserved
+    // for the set/get RPCs below, which are revoked from authenticated roles.
+    const { error } = await supabase
       .from('profiles')
       .update({ zelle_info_enc: null })
       .eq('id', user.id);

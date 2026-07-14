@@ -23,7 +23,15 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-  const { data: { user } } = await supabase.auth.getUser();
+  // Treat a thrown/errored session lookup as unauthenticated rather than
+  // letting the request through (or crashing) — a stale cookie must not reach
+  // a protected page and hang it.
+  let user = null;
+  try {
+    ({ data: { user } } = await supabase.auth.getUser());
+  } catch {
+    user = null;
+  }
 
   const path = request.nextUrl.pathname;
   if (!user && PROTECTED.some((p) => path.startsWith(p))) {
