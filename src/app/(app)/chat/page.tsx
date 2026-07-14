@@ -13,6 +13,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
+import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
@@ -339,6 +340,7 @@ export default function Chat() {
   }
 
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
 
   async function finalize() {
     if (!draft) return;
@@ -356,6 +358,23 @@ export default function Chat() {
       setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to send this invoice." }]);
       setTimeout(() => router.push('/login'), 1600);
       return;
+    }
+
+    // Paywall gate — only for a brand-new invoice. A retry of an already-created
+    // draft (pendingInvoiceRef set, e.g. after a cancelled share) is exempt, so
+    // we never block an invoice the user already made and is entitled to finish.
+    // hasAccess() encodes the rules: founder/trialing/active pass; free passes
+    // under the 2-invoice cap; free at/over cap and past_due/canceled are gated.
+    // Fail OPEN if /api/access is unreachable — a transient blip must not block
+    // a legitimate invoice (matches the rate-limiter's fail-open stance).
+    if (!pendingInvoiceRef.current) {
+      try {
+        const gate = await (await fetch('/api/access')).json();
+        if (gate && gate.hasAccess === false) {
+          setShowPaywall(true);
+          return;
+        }
+      } catch { /* access check unreachable — fail open, allow the invoice */ }
     }
 
     setFinalizing(true);
@@ -791,6 +810,8 @@ export default function Chat() {
           </div>
         </div>
       )}
+
+      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }
