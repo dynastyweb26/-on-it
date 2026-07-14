@@ -112,8 +112,10 @@ nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
 (`*.supabase.co`), Anthropic is server-side only (no browser origin needed),
 AssemblyAI is server-side only, Google Fonts (`fonts.googleapis.com` /
 `fonts.gstatic.com` for Material Symbols + Montserrat/Inter), and — for July 17 —
-Stripe (`js.stripe.com`, `api.stripe.com`, `*.stripe.com` frames). Must be
-tested against the live app (webfonts + Supabase realtime/storage) before commit.
+Stripe (`js.stripe.com` script + frame, `*.stripe.com` frames, and
+`api.stripe.com`/`r.stripe.com`/`m.stripe.com` in `connect-src` for Stripe.js
+XHR + telemetry). Must be tested against the live app (webfonts + Supabase
+realtime/storage) before commit.
 
 ## 8. Input validation library
 
@@ -223,7 +225,11 @@ CSP violations** — the CSP was smoke-tested on `/login` but authenticated page
 - **Paywall-scaffold routes** — intentionally NOT hardened on this branch (per
   instruction). Re-apply these same patterns (Upstash limits on
   checkout/billing-portal, zod on account/delete confirm) when
-  `feat/paywall-scaffold` merges July 17. CSP already includes Stripe origins.
+  `feat/paywall-scaffold` merges July 17. CSP now includes the Stripe origins
+  Stripe.js needs: `js.stripe.com` in `script-src`, `js.stripe.com` +
+  `*.stripe.com` in `frame-src`, and `api.stripe.com` + `r.stripe.com` +
+  `m.stripe.com` in `connect-src` (the connect-src origins were added in the
+  CSP fix commit — they were missing in the original hardening pass).
 
 ## Item 1 blocker — RESOLVED
 
