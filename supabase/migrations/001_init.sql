@@ -9,12 +9,16 @@
 --   5. Column-level encryption for payment handles (pgcrypto)
 --   6. Service-role isolation (no anon grants on internal tables)
 --   7. Input length constraints as a final backstop against injection payloads
+--
+-- Idempotent: every create is guarded (if not exists / or replace / drop-then-
+-- create for policies) so a full replay against an empty DB — or a re-run — is
+-- safe and produces the same schema.
 -- ═══════════════════════════════════════════════════════════════
 
 create extension if not exists pgcrypto;
 
 -- ── Profiles (one per auth user, created on onboarding) ──────
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   business_name text not null check (char_length(business_name) between 1 and 120),
   trade_type text check (char_length(trade_type) <= 60),
@@ -38,7 +42,7 @@ create table public.profiles (
 );
 
 -- ── Clients ──────────────────────────────────────────────────
-create table public.clients (
+create table if not exists public.clients (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 120),
@@ -50,7 +54,7 @@ create table public.clients (
 );
 
 -- ── Invoices (also stores quotes — kind column) ──────────────
-create table public.invoices (
+create table if not exists public.invoices (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   client_id uuid references public.clients(id) on delete set null,
@@ -74,12 +78,12 @@ create table public.invoices (
   updated_at timestamptz not null default now(),
   unique (user_id, invoice_number, kind)
 );
-create index invoices_user_status_idx on public.invoices (user_id, status);
-create index invoices_nudge_idx on public.invoices (status, last_nudge_at)
+create index if not exists invoices_user_status_idx on public.invoices (user_id, status);
+create index if not exists invoices_nudge_idx on public.invoices (status, last_nudge_at)
   where status in ('sent','overdue');
 
 -- ── Expenses ─────────────────────────────────────────────────
-create table public.expenses (
+create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   description text not null check (char_length(description) between 1 and 300),
@@ -91,10 +95,10 @@ create table public.expenses (
   spent_on date not null default current_date,
   created_at timestamptz not null default now()
 );
-create index expenses_user_date_idx on public.expenses (user_id, spent_on desc);
+create index if not exists expenses_user_date_idx on public.expenses (user_id, spent_on desc);
 
 -- ── The Vault (document archive metadata; files in Storage) ──
-create table public.vault_documents (
+create table if not exists public.vault_documents (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   title text not null check (char_length(title) between 1 and 200),
@@ -103,10 +107,10 @@ create table public.vault_documents (
   invoice_id uuid references public.invoices(id) on delete set null,
   created_at timestamptz not null default now()
 );
-create index vault_user_idx on public.vault_documents (user_id, created_at desc);
+create index if not exists vault_user_idx on public.vault_documents (user_id, created_at desc);
 
 -- ── Push subscriptions (2-day follow-up notifications) ───────
-create table public.push_subscriptions (
+create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   endpoint text not null unique,
@@ -116,7 +120,7 @@ create table public.push_subscriptions (
 );
 
 -- ── Rate limits (layer 4 — Postgres-backed, per user per route)
-create table public.rate_limits (
+create table if not exists public.rate_limits (
   user_id uuid not null,
   route text not null,
   window_start timestamptz not null default now(),
@@ -127,7 +131,7 @@ create table public.rate_limits (
 alter table public.rate_limits enable row level security;
 
 -- ── Audit log (layer 3) ──────────────────────────────────────
-create table public.audit_log (
+create table if not exists public.audit_log (
   id bigint generated always as identity primary key,
   user_id uuid,
   table_name text not null,
@@ -153,18 +157,18 @@ begin
   return coalesce(new, old);
 end $$;
 
-create trigger audit_invoices after insert or update or delete on public.invoices
+create or replace trigger audit_invoices after insert or update or delete on public.invoices
   for each row execute function public.log_audit();
-create trigger audit_profiles after update or delete on public.profiles
+create or replace trigger audit_profiles after update or delete on public.profiles
   for each row execute function public.log_audit();
 
 -- ── updated_at maintenance ───────────────────────────────────
 create or replace function public.touch_updated_at() returns trigger
 language plpgsql as $$
 begin new.updated_at = now(); return new; end $$;
-create trigger touch_profiles before update on public.profiles
+create or replace trigger touch_profiles before update on public.profiles
   for each row execute function public.touch_updated_at();
-create trigger touch_invoices before update on public.invoices
+create or replace trigger touch_invoices before update on public.invoices
   for each row execute function public.touch_updated_at();
 
 -- ── Atomic invoice numbering ─────────────────────────────────
@@ -201,16 +205,24 @@ alter table public.expenses enable row level security;
 alter table public.vault_documents enable row level security;
 alter table public.push_subscriptions enable row level security;
 
+-- Policies: drop-then-create (no CREATE OR REPLACE POLICY in Postgres) so a
+-- replay/re-run doesn't error on an already-present policy.
+drop policy if exists "own profile" on public.profiles;
 create policy "own profile" on public.profiles
   for all using (auth.uid() = id) with check (auth.uid() = id);
+drop policy if exists "own clients" on public.clients;
 create policy "own clients" on public.clients
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "own invoices" on public.invoices;
 create policy "own invoices" on public.invoices
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "own expenses" on public.expenses;
 create policy "own expenses" on public.expenses
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "own documents" on public.vault_documents;
 create policy "own documents" on public.vault_documents
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "own subscriptions" on public.push_subscriptions;
 create policy "own subscriptions" on public.push_subscriptions
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -220,13 +232,18 @@ insert into storage.buckets (id, name, public) values ('vault', 'vault', false)
 insert into storage.buckets (id, name, public) values ('logos', 'logos', true)
   on conflict do nothing;
 
+drop policy if exists "vault owner read" on storage.objects;
 create policy "vault owner read" on storage.objects for select
   using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault owner write" on storage.objects;
 create policy "vault owner write" on storage.objects for insert
   with check (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "vault owner delete" on storage.objects;
 create policy "vault owner delete" on storage.objects for delete
   using (bucket_id = 'vault' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "logo owner write" on storage.objects;
 create policy "logo owner write" on storage.objects for insert
   with check (bucket_id = 'logos' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "logo public read" on storage.objects;
 create policy "logo public read" on storage.objects for select
   using (bucket_id = 'logos');
