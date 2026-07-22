@@ -1,8 +1,14 @@
-alter table public.profiles
-  add column access_tier text not null default 'standard',
-  add column granted_via text;
+-- ═══════════════════════════════════════════════════════════════
+-- 002 — Access grants (founder bypass) + access_tier / granted_via
+-- Idempotent: add-column-if-not-exists, create-table-if-not-exists,
+-- seed with on-conflict-do-nothing.
+-- ═══════════════════════════════════════════════════════════════
 
-create table public.access_grants (
+alter table public.profiles
+  add column if not exists access_tier text not null default 'standard',
+  add column if not exists granted_via text;
+
+create table if not exists public.access_grants (
   id uuid primary key default gen_random_uuid(),
   token text not null unique check (char_length(token) between 3 and 40),
   label text not null check (char_length(label) <= 200),
@@ -32,4 +38,5 @@ revoke execute on function public.redeem_grant from anon;
 grant execute on function public.redeem_grant to authenticated;
 
 insert into access_grants (token, label, access_tier, max_uses)
-  values ('dadcrew', 'Dad''s contractor network', 'founder', 50);
+  values ('dadcrew', 'Dad''s contractor network', 'founder', 50)
+  on conflict (token) do nothing;

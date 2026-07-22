@@ -6,12 +6,14 @@
 -- returns null the token is treated as a referral code and
 -- redeem_referral() stamps referred_by on the new profile.
 -- No credit/reward logic yet — that lands with Stripe.
+-- Idempotent: add-column-if-not-exists (inline unique/check/FK come with the
+-- column on a fresh add), or-replace functions, or-replace trigger.
 -- ═══════════════════════════════════════════════════════════════
 
 alter table public.profiles
-  add column referral_code text unique
+  add column if not exists referral_code text unique
     check (referral_code is null or char_length(referral_code) between 6 and 8),
-  add column referred_by uuid references public.profiles(id);
+  add column if not exists referred_by uuid references public.profiles(id);
 
 -- Short readable code: lowercase, no look-alike chars (0/o, 1/l/i)
 create or replace function public.gen_referral_code() returns text
@@ -40,7 +42,7 @@ begin
   end if;
   return new;
 end $$;
-create trigger profiles_referral_code before insert on public.profiles
+create or replace trigger profiles_referral_code before insert on public.profiles
   for each row execute function public.set_referral_code();
 
 -- Backfill existing rows

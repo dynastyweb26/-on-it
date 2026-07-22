@@ -1,16 +1,17 @@
 -- ═══════════════════════════════════════════════════════════════
--- 007 — add the missing profiles.trial_ends_at column
--- Run in Supabase SQL Editor (project: bitfmmffnigxjjyxoxfr).
+-- 007 — profiles.trial_ends_at  (SUPERSEDED by 006, retained as tombstone)
 --
--- Root cause of the Stripe webhook 500s: the paywall columns on the live DB
--- came from a PARTIAL earlier scaffold run that added only stripe_customer_id,
--- subscription_status, and current_period_end. 006 (which would have added
--- trial_ends_at) never fully applied because those three already existed. The
--- webhook's profiles UPDATE writes trial_ends_at, so PostgREST rejects the
--- whole statement (PGRST204 "column not found") and the handler 500s —
--- leaving access_tier stuck at 'free'.
+-- History: on the live DB, the paywall columns came from a PARTIAL earlier
+-- scaffold run that added only stripe_customer_id / subscription_status /
+-- current_period_end. 006's plain `add column trial_ends_at` therefore errored
+-- (the other columns already existed), so trial_ends_at never landed and the
+-- Stripe webhook 500'd (PGRST204). 007 added it out-of-band.
 --
--- Idempotent: safe to run even if the column somehow already exists.
+-- Now that 006 uses `add column if not exists`, it is the authoritative home of
+-- trial_ends_at and a clean replay creates the column there. This file is kept
+-- (NOT deleted or renumbered) so environments that already recorded 007 in the
+-- migration ledger keep a stable history; on a fresh replay it is a harmless
+-- idempotent no-op.
 -- ═══════════════════════════════════════════════════════════════
 
 alter table public.profiles
