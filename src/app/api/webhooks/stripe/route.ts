@@ -161,7 +161,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (e) {
     // Transient DB/Stripe failure → 500 so Stripe retries with backoff.
-    console.error('stripe webhook handler error', event.type, e);
+    // Serialize the error so the code (e.g. PostgREST PGRST204 "column not
+    // found") is captured in full instead of a truncated object.
+    const err = e as { code?: string; message?: string; details?: string; hint?: string };
+    console.error('stripe webhook handler error', event.type, JSON.stringify({
+      code: err?.code, message: err?.message, details: err?.details, hint: err?.hint,
+    }));
     return NextResponse.json({ error: 'handler failed' }, { status: 500 });
   }
 }
