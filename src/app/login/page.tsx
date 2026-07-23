@@ -1,14 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, createEmailAuthClient } from '@/lib/supabase/client';
 
 // Client-side throttle on the resend button. Supabase SMTP is 30/hr project-wide;
 // this just stops one user spamming the button.
 const RESEND_COOLDOWN = 60; // seconds
 
 export default function Login() {
-  const supabase = createClient();
+  const supabase = createClient();               // PKCE — sign-in + session/data
+  const emailAuth = createEmailAuthClient();      // implicit — mints auth emails only
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,8 +50,10 @@ export default function Login() {
     setError(''); setNotice(''); setShowResend(false);
     if (password.length < 8) { setError('Password needs at least 8 characters.'); return; }
     setBusy(true);
+    // signUp via the implicit client so the confirmation email is a plain hash
+    // (not pkce_) and works cross-device. Sign-in stays on the PKCE client.
     const { data, error } = mode === 'signup'
-      ? await supabase.auth.signUp({
+      ? await emailAuth.auth.signUp({
           email, password,
           options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
         })
@@ -70,6 +73,15 @@ export default function Login() {
       setMode('signin');
       return;
     }
+    // Confirmations OFF: signUp returned a session on the (no-persist) email
+    // client — hand it to the PKCE client so the session persists exactly as
+    // before. (Sign-in already has its session on the PKCE client.)
+    if (mode === 'signup' && data.session) {
+      await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+    }
     // New accounts go to onboarding; profile check handles returning users.
     const { data: profile } = await supabase
       .from('profiles').select('id').eq('id', data.session!.user.id).maybeSingle();
@@ -84,7 +96,7 @@ export default function Login() {
     // Route the emailed link through the server /auth/confirm handler (token_hash
     // + verifyOtp) so it works cross-device; the template appends
     // type=recovery&next=/reset-password.
-    await supabase.auth.resetPasswordForEmail(email, {
+    await emailAuth.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/confirm`,
     }).catch(() => {});
     setBusy(false);
@@ -95,7 +107,7 @@ export default function Login() {
     if (cooldown > 0 || !email) return;
     setError('');
     setCooldown(RESEND_COOLDOWN);
-    await supabase.auth.resend({
+    await emailAuth.auth.resend({
       type: 'signup', email,
       options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
     }).catch(() => {});
