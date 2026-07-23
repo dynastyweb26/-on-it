@@ -26,6 +26,21 @@ export default function Login() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
+  // Surface a failed /auth/confirm callback (expired vs already-used link).
+  // Read from the URL directly (no useSearchParams → no Suspense/dynamic churn).
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('authError');
+    if (!reason) return;
+    setMode('signin');
+    setError(
+      reason === 'expired' ? 'That link has expired. Request a new one below.'
+      : reason === 'used' ? 'That link was already used. Sign in, or request a new link below.'
+      : 'That link is invalid. Request a new one below.'
+    );
+    // Clean the query so a refresh doesn't re-show it.
+    window.history.replaceState({}, '', '/login');
+  }, []);
+
   function switchMode(m: 'signin' | 'signup' | 'forgot') {
     setMode(m); setError(''); setNotice(''); setShowResend(false);
   }
@@ -35,7 +50,10 @@ export default function Login() {
     if (password.length < 8) { setError('Password needs at least 8 characters.'); return; }
     setBusy(true);
     const { data, error } = mode === 'signup'
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({
+          email, password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+        })
       : await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) {
@@ -63,8 +81,11 @@ export default function Login() {
     if (!email) { setError('Enter your email first.'); return; }
     setBusy(true);
     // Never reveal whether the address exists — same outcome either way.
+    // Route the emailed link through the server /auth/confirm handler (token_hash
+    // + verifyOtp) so it works cross-device; the template appends
+    // type=recovery&next=/reset-password.
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/auth/confirm`,
     }).catch(() => {});
     setBusy(false);
     setNotice('If an account exists for that email, we just sent a password reset link. Check your inbox.');
@@ -74,7 +95,10 @@ export default function Login() {
     if (cooldown > 0 || !email) return;
     setError('');
     setCooldown(RESEND_COOLDOWN);
-    await supabase.auth.resend({ type: 'signup', email }).catch(() => {});
+    await supabase.auth.resend({
+      type: 'signup', email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    }).catch(() => {});
     setNotice('Confirmation email sent. Check your inbox.');
   }
 

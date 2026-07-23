@@ -12,9 +12,11 @@ export default function ResetPassword() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // The emailed link carries a recovery token; the browser client
-    // (detectSessionInUrl) exchanges it for a session on load. Gate the form on
-    // that session — if it never arrives (expired/invalid link), show the retry.
+    // The /auth/confirm handler has already verified the recovery token
+    // (token_hash + verifyOtp) and written the session cookies before
+    // redirecting here, so the browser client reads that session. Gate the form
+    // on it; if it never arrives (came here without a valid recovery), show the
+    // retry path.
     let settled = false;
     const mark = (ok: boolean) => { if (!settled) { settled = true; setPhase(ok ? 'ready' : 'invalid'); } };
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { if (session) mark(true); });
