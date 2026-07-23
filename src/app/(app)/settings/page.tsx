@@ -14,6 +14,11 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // whole section (grants bypass billing entirely).
 const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
 
+// Renewal / first-charge date. Returns null when the field is absent so the
+// caller can drop the date clause entirely (null-guard).
+const fmtDate = (d: string | null | undefined): string | null =>
+  d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+
 export default function Settings() {
   const supabase = createClient();
   const router = useRouter();
@@ -335,8 +340,8 @@ export default function Settings() {
                 {access.tier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
                   : access.tier === 'trialing'
-                    ? 'You’re on your free month. Manage your plan or cancel anytime.'
-                    : 'You’re subscribed. Manage your plan or payment method anytime.'}
+                    ? `You’re on your free month${fmtDate(p.trial_ends_at) ? ` — first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
+                    : `You’re subscribed${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/billing-portal')}>
