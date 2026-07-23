@@ -9,6 +9,11 @@ import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
+// A live subscription (any of these) gets the "Manage subscription" row → Stripe
+// Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
+// whole section (grants bypass billing entirely).
+const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
+
 export default function Settings() {
   const supabase = createClient();
   const router = useRouter();
@@ -24,6 +29,10 @@ export default function Settings() {
   const [pushBusy, setPushBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
+  // Subscription: tier drives manage-vs-upgrade; founder hides the section.
+  const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingNotice, setBillingNotice] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -48,6 +57,10 @@ export default function Settings() {
           const z = await res.json();
           if (active && z.set) setZelleMasked(z.masked);
         } catch { /* leave unset */ }
+        try {
+          const a = await fetch('/api/access');
+          if (active && a.ok) setAccess(await a.json());
+        } catch { /* leave null → the section simply doesn't render */ }
         if (active) setPushOn(Boolean(await getPushSubscription()));
       } catch {
         // Auth/network failed — don't hang; send to login.
@@ -138,6 +151,25 @@ export default function Settings() {
       }
     } finally {
       setPushBusy(false);
+    }
+  }
+
+  // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
+  // Free/canceled users → Checkout (start the $9.99/mo, first-month-free plan).
+  // Both redirect to a Stripe-hosted page; the 503 dormant message shows inline.
+  async function billingAction(endpoint: '/api/billing-portal' | '/api/checkout') {
+    if (billingBusy) return;
+    setBillingBusy(true);
+    setBillingNotice('');
+    try {
+      const res = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+      if (data?.url) { window.location.href = data.url; return; }
+      setBillingNotice(data?.message ?? 'That’s not available right now — try again shortly.');
+    } catch {
+      setBillingNotice('That’s not available right now — try again shortly.');
+    } finally {
+      setBillingBusy(false);
     }
   }
 
@@ -294,6 +326,36 @@ export default function Settings() {
         );
       })()}
 
+      {access && access.tier !== 'founder' && (
+        <section className="card space-y-3">
+          <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
+          {SUBSCRIBED.has(access.tier) ? (
+            <>
+              <p className="text-sm text-on-surface-variant">
+                {access.tier === 'past_due'
+                  ? 'Your last payment didn’t go through. Update your card to keep going.'
+                  : access.tier === 'trialing'
+                    ? 'You’re on your free month. Manage your plan or cancel anytime.'
+                    : 'You’re subscribed. Manage your plan or payment method anytime.'}
+              </p>
+              <button className="btn-outline w-full" disabled={billingBusy}
+                onClick={() => billingAction('/api/billing-portal')}>
+                <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, and reminders. First month free.</p>
+              <button className="btn-primary w-full" disabled={billingBusy}
+                onClick={() => billingAction('/api/checkout')}>
+                {billingBusy ? 'Opening…' : 'Upgrade — $9.99/month'}
+              </button>
+            </>
+          )}
+          {billingNotice && <p className="text-sm text-on-surface-variant">{billingNotice}</p>}
+        </section>
+      )}
+
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
@@ -319,7 +381,7 @@ export default function Settings() {
         onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}>
         Sign out
       </button>
-      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9/month</p>
+      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
     </div>
   );
 }

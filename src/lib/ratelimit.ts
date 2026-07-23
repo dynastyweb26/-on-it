@@ -7,15 +7,16 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout';
+export type RateRoute = 'parse' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal';
 
 // Starting points (tune later). AI ~20/min, transcribe ~30/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
-  parse:        { tokens: 20, window: '60 s' },
-  transcribe:   { tokens: 30, window: '60 s' },
-  zelle_read:   { tokens: 10, window: '60 s' },
-  zelle_write:  { tokens: 5,  window: '60 s' },
-  checkout:     { tokens: 5,  window: '60 s' }, // checkout-session spam guard
+  parse:          { tokens: 20, window: '60 s' },
+  transcribe:     { tokens: 30, window: '60 s' },
+  zelle_read:     { tokens: 10, window: '60 s' },
+  zelle_write:    { tokens: 5,  window: '60 s' },
+  checkout:       { tokens: 5,  window: '60 s' }, // checkout-session spam guard
+  billing_portal: { tokens: 5,  window: '60 s' }, // portal-session spam guard
 };
 
 let redis: Redis | null = null;
