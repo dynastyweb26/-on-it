@@ -41,5 +41,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.json|icons/|icon-.*|api/).*)'],
+  // `auth/` excluded so the /auth/confirm callback sets its session cookies
+  // without middleware's own getUser/cookie pass interfering.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.json|icons/|icon-.*|api/|auth/).*)'],
 };
