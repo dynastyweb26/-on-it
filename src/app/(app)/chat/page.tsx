@@ -16,6 +16,8 @@ import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
+import ExpenseCard from '@/components/ExpenseCard';
+import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
@@ -27,6 +29,7 @@ interface Profile {
 }
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const today = () => new Date().toISOString().slice(0, 10);
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser so switching apps never loses a draft. The same
@@ -155,6 +158,11 @@ export default function Chat() {
   const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);
   const [preparing, setPreparing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The parsed expense awaiting confirmation. Never auto-saved — the user
+  // always sees the four fields and presses save.
+  const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft | null>(null);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
   const sessionRef = useRef(false);
@@ -565,10 +573,11 @@ export default function Chat() {
     e.target.value = '';
     if (!file) return;
 
-    clearReceipt();
+    discardExpense();
     setPreparing(true);
+    let prepared: PreparedReceipt;
     try {
-      const prepared = await prepareReceipt(file);
+      prepared = await prepareReceipt(file);
       setReceipt(prepared);
     } catch (err) {
       // ReceiptError messages are written for the user; anything else isn't.
@@ -578,13 +587,126 @@ export default function Chat() {
           ? err.message
           : "Couldn't read that photo — try taking it again.",
       }]);
+      return;
     } finally {
       setPreparing(false);
     }
+
+    // Straight into the read — no second tap. The user's intent was complete
+    // the moment they chose the photo.
+    await readReceipt(prepared);
   }
 
-  function clearReceipt() {
+  async function readReceipt(prepared: PreparedReceipt) {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('image', prepared.blob, 'receipt.jpg');
+      const res = await fetch('/api/parse-receipt', { method: 'POST', body });
+      const data = await res.json();
+
+      if (res.status === 401 && data.authRequired) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setReceipt(null);
+        setTimeout(() => router.push('/login'), 1600);
+        return;
+      }
+      if (!res.ok) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.reply ?? "Couldn't read that one." }]);
+        setReceipt(null);
+        return;
+      }
+
+      // A receipt we couldn't get an amount off is not a saveable expense —
+      // say so plainly rather than opening a card full of blanks.
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        setMessages((m) => [...m, {
+          role: 'assistant',
+          content: "I couldn't make out the total on that one. Tell me the amount and I'll log it.",
+        }]);
+        setReceipt(null);
+        return;
+      }
+
+      setExpenseDraft({
+        amount: data.amount,
+        category: isExpenseCategory(data.category) ? data.category : 'other',
+        vendor: typeof data.vendor === 'string' ? data.vendor : null,
+        // No legible date on the receipt → today, which is right far more often
+        // than it's wrong for a photo taken at the counter.
+        occurred_on: typeof data.occurred_on === 'string' ? data.occurred_on : today(),
+      });
+    } catch {
+      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that photo again.' }]);
+      setReceipt(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Saving an expense ───────────────────────────────────────
+  async function saveExpense() {
+    if (!expenseDraft) return;
+    if (!profile) {
+      if (!profileLoaded) {
+        setExpenseError('One sec — still loading your account. Tap save again in a moment.');
+        return;
+      }
+      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to keep this expense." }]);
+      setTimeout(() => router.push('/login'), 1600);
+      return;
+    }
+
+    setSavingExpense(true);
+    setExpenseError(null);
+    try {
+      // Path is the content hash, so the same photo always lands on the same
+      // object instead of piling up copies. The bucket has no UPDATE policy
+      // (copied from vault), so upsert is off and a re-upload of an identical
+      // path is treated as already-done rather than an error.
+      let receiptPath: string | null = null;
+      if (receipt) {
+        receiptPath = `${profile.id}/${receipt.hash}.jpg`;
+        const { error: upErr } = await supabase.storage
+          .from('receipts')
+          .upload(receiptPath, receipt.blob, { contentType: 'image/jpeg', upsert: false });
+        if (upErr && !/exists/i.test(upErr.message)) {
+          console.error('receipt upload failed', upErr);
+          setExpenseError("Couldn't save the photo just now — tap save to try again.");
+          return;
+        }
+      }
+
+      const { error: insErr } = await supabase.from('expenses').insert({
+        user_id: profile.id,
+        amount: expenseDraft.amount,
+        category: expenseDraft.category,
+        vendor: expenseDraft.vendor,
+        spent_on: expenseDraft.occurred_on ?? today(),
+        receipt_url: receiptPath,
+        receipt_hash: receipt?.hash ?? null,
+      });
+      if (insErr) {
+        console.error('expense insert failed', insErr);
+        setExpenseError("Couldn't save that expense — tap save to try again.");
+        return;
+      }
+
+      const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
+      const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
+      setMessages((m) => [...m, { role: 'assistant', content: saved }]);
+      discardExpense();
+    } finally {
+      setSavingExpense(false);
+    }
+  }
+
+  /** Drop the in-flight expense and its photo. Used by cancel, and before a
+   *  new pick so two receipts can never share one card. */
+  function discardExpense() {
     setReceipt(null);
+    setExpenseDraft(null);
+    setExpenseError(null);
   }
 
   // Owns the preview object URL's whole lifetime: the cleanup closes over the
@@ -751,6 +873,24 @@ export default function Chat() {
           </div>
         )}
 
+        {expenseDraft && (
+          <ExpenseCard
+            draft={expenseDraft}
+            onChange={setExpenseDraft}
+            onSave={saveExpense}
+            onCancel={() => {
+              discardExpense();
+              setMessages((m) => [...m, {
+                role: 'assistant',
+                content: "No problem — tell me what it should say, or send another photo.",
+              }]);
+            }}
+            saving={savingExpense}
+            previewUrl={receipt?.previewUrl ?? null}
+            error={expenseError}
+          />
+        )}
+
         {reminderPrompt && (
           <div className="card border-primary-container/50">
             <p className="text-body-md">Want me to remind you if they haven&apos;t paid in 2 days?</p>
@@ -763,8 +903,8 @@ export default function Chat() {
 
         {busy && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
-            <Icon name="graphic_eq" size={20} className="text-primary" />
-            On It is thinking…
+            <Icon name={receipt && !expenseDraft ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
+            {receipt && !expenseDraft ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
         <div ref={bottomRef} />
@@ -781,28 +921,6 @@ export default function Chat() {
           <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
             <Icon name="photo_camera" size={20} className="text-primary" />
             Getting that photo ready…
-          </div>
-        )}
-
-        {receipt && (
-          <div className="mb-2 flex items-center gap-3 rounded-card border border-outline-variant/40 bg-surface-container-low p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={receipt.previewUrl}
-              alt="Receipt you attached"
-              className="h-14 w-14 shrink-0 rounded-input border border-outline-variant/40 object-cover"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-label-lg font-semibold text-on-background">Receipt attached</div>
-              <div className="text-xs text-on-surface-variant">Ready to read</div>
-            </div>
-            <button
-              aria-label="Remove receipt"
-              className="grid h-touch w-touch shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
-              onClick={clearReceipt}
-            >
-              <Icon name="close" size={24} />
-            </button>
           </div>
         )}
 
