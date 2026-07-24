@@ -7,11 +7,14 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal';
 
 // Starting points (tune later). AI ~20/min, transcribe ~30/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   parse:          { tokens: 20, window: '60 s' },
+  // Vision costs meaningfully more per call than a text parse, and a human
+  // photographing receipts can't outpace 10/min. Tighter on purpose.
+  parse_receipt:  { tokens: 10, window: '60 s' },
   transcribe:     { tokens: 30, window: '60 s' },
   zelle_read:     { tokens: 10, window: '60 s' },
   zelle_write:    { tokens: 5,  window: '60 s' },

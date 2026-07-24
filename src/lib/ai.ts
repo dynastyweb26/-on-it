@@ -1,8 +1,9 @@
 // ═══ ON IT — Conversational extraction engine (Claude Haiku 4.5) ═══
 // The core loop: freeform speech/text → "On it!" → structured invoice.
 import Anthropic from '@anthropic-ai/sdk';
+import { parseJsonObject } from '@/lib/json-guard';
 
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 
 export interface LineItem { description: string; qty: number; unit_price: number; }
 export interface ExtractResult {
@@ -60,13 +61,7 @@ Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|nu
     .map((b) => b.text)
     .join('');
 
-  // Guard: small models sometimes prepend conversational text ("On it! Who…")
-  // before the JSON, which makes JSON.parse throw "Unexpected token 'O'".
-  // Strip fences, then isolate the JSON object (first '{' … last '}') so a
-  // stray preamble doesn't blow up the parse.
-  const stripped = text.replace(/```json|```/g, '').trim();
-  const start = stripped.indexOf('{');
-  const end = stripped.lastIndexOf('}');
-  const json = start !== -1 && end > start ? stripped.slice(start, end + 1) : stripped;
-  return JSON.parse(json) as ExtractResult;
+  // Guard against a conversational preamble before the JSON — see json-guard.ts.
+  // Shared with the receipt-vision route so the fix can't drift between them.
+  return parseJsonObject(text) as ExtractResult;
 }
