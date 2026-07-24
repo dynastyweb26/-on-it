@@ -80,3 +80,40 @@ export function buildTheme(selected: string[], background: string): BrandTheme {
 
 /** Text color to sit ON TOP of a given fill (e.g. white text on navy header) */
 export const onColor = (hex: string) => (isDark(hex) ? '#FFFFFF' : '#000000');
+
+/** Darken a color toward black until it clears WCAG AA text contrast (~4.5:1)
+ *  against WHITE, preserving hue. This is the gold-on-cream fix generalized:
+ *  contrast vs white is 1.05/(L+0.05), so ≥4.5 needs relative luminance ≤ ~0.18.
+ *  A color already dark enough is returned unchanged. */
+export function darkenForWhite(hex: string): string {
+  const c = hex.replace('#', '');
+  let r = parseInt(c.slice(0, 2), 16);
+  let g = parseInt(c.slice(2, 4), 16);
+  let b = parseInt(c.slice(4, 6), 16);
+  const toHex = () =>
+    '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  // Scale toward black in small steps; guard bounds the loop for pure white.
+  let guard = 0;
+  while (luminance(toHex()) > 0.18 && guard++ < 40) {
+    r *= 0.88; g *= 0.88; b *= 0.88;
+  }
+  return toHex();
+}
+
+/** The brand accent, made safe as INK ON WHITE PAPER — the only brand color the
+ *  tax-summary document uses. Picks the accent the way invoices do when a
+ *  background is set; else the most-saturated brand pick; else a neutral warm
+ *  charcoal when the user has no brand colors at all. Whatever it lands on is
+ *  darkened so it's legible on white (gold, lime, sky would otherwise vanish). */
+export function accentForWhite(brandColors: string[] | null | undefined, background: string | null): string {
+  const colors = brandColors ?? [];
+  let base: string | null = null;
+  if (background && colors.length >= 2) {
+    base = buildTheme(colors, background).accent;
+  } else if (colors.length) {
+    base = [...colors].sort((x, y) => saturation(y) - saturation(x))[0];
+  }
+  // No brand colors → neutral dark (Design Standard on-background warm charcoal).
+  if (!base) return '#1f1b13';
+  return darkenForWhite(base);
+}

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Deferred auth: /chat is open to guests (5 free parses via cookie).
 // Everything that touches saved data requires a session.
-const PROTECTED = ['/dashboard', '/invoices', '/expenses', '/vault', '/settings', '/onboarding'];
+const PROTECTED = ['/dashboard', '/invoices', '/expenses', '/summary', '/vault', '/settings', '/onboarding'];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

@@ -136,6 +136,9 @@ export default function Dashboard() {
       <a href="/expenses" className="btn-outline w-full text-primary">
         See all expenses <Icon name="arrow_forward" size={18} />
       </a>
+      <a href="/summary" className="btn-outline w-full text-primary">
+        <Icon name="receipt_long" size={18} /> Tax summary
+      </a>
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
