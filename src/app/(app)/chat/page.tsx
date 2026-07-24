@@ -301,15 +301,19 @@ export default function Chat() {
         setPending({ type: 'create_invoice', client: data.client_name ?? null, amount, forceCreate: true });
       }
 
-      // Expenses save immediately — no preview card needed
-      if (data.intent === 'expense' && data.expense && profile) {
-        await supabase.from('expenses').insert({
-          user_id: profile.id,
-          description: data.expense.description,
+      // Expenses used to insert silently here, with the user never seeing what
+      // got saved or able to correct it. They now go to the SAME confirmation
+      // card as a photographed receipt — one review step, one save.
+      // No amount yet means the AI is still asking for it; leave the card shut.
+      if (data.intent === 'expense' && data.expense && typeof data.expense.amount === 'number' && data.expense.amount > 0) {
+        setReceipt(null); // a typed expense carries no photo
+        setExpenseDraft({
           amount: data.expense.amount,
-          category: data.expense.category,
-          tax_deductible: data.expense.tax_deductible,
+          category: isExpenseCategory(data.expense.category) ? data.expense.category : 'other',
+          vendor: typeof data.expense.vendor === 'string' ? data.expense.vendor : null,
+          occurred_on: typeof data.expense.occurred_on === 'string' ? data.expense.occurred_on : today(),
         });
+        setExpenseError(null);
       }
       return { reply, ready: isReady };
     } catch {
