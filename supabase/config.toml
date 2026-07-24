@@ -153,9 +153,21 @@ max_indexes = 5
 # [storage.vector.buckets.documents-openai]
 
 [auth]
+# ─────────────────────────────────────────────────────────────────────────────
+# WARNING — DO NOT run `supabase config push`.
+# Production auth (site_url, redirect URLs, email confirmations, password rules,
+# email rate limits) is managed in the Supabase DASHBOARD, not this file. The
+# values below are the CLI's local-dev defaults. Pushing them would point every
+# production email link at localhost, disable email confirmations, drop the
+# minimum password length, and slash the email rate limit — a production auth
+# outage. This project uses ONLY `supabase db push` (migrations); it must never
+# push auth config. The two values aligned below (enable_confirmations,
+# minimum_password_length) match production as defense-in-depth if this is ever
+# pushed by mistake — but the rule stands: don't push it.
+# ─────────────────────────────────────────────────────────────────────────────
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
+# in emails. (Production value lives in the Supabase Dashboard — see the warning above.)
 site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
@@ -179,7 +191,8 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# App enforces 8 (login form); kept in sync here.
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
@@ -223,7 +236,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Production has this ON (mailer_autoconfirm=false) — aligned here so a stray
+# `config push` can't silently disable email confirmation in prod.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
