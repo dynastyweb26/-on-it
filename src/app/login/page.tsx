@@ -61,10 +61,27 @@ export default function Login() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Surface a failed /auth/confirm callback (expired vs already-used link).
-  // Read from the URL directly (no useSearchParams → no Suspense/dynamic churn).
+  // Surface an /auth/confirm callback outcome. Read from the URL directly
+  // (no useSearchParams → no Suspense/dynamic churn).
   useEffect(() => {
-    const reason = new URLSearchParams(window.location.search).get('authError');
+    const params = new URLSearchParams(window.location.search);
+
+    // Email confirmed, but the confirm handler couldn't establish a session on
+    // this device (e.g. opened on a different device). The account is real and
+    // confirmed — drop them into sign-in with the email prefilled and the
+    // password focused, NEVER a blank create-account form.
+    if (params.get('confirmed') === '1') {
+      const em = params.get('email') ?? '';
+      setMode('signin');
+      if (em) setEmail(em);
+      setShowResend(false); // nothing to resend — already confirmed
+      setNotice('Email confirmed — sign in to continue.');
+      window.history.replaceState({}, '', '/login');
+      requestAnimationFrame(() => passwordRef.current?.focus());
+      return;
+    }
+
+    const reason = params.get('authError');
     if (!reason) return;
     setMode('signin');
     setError(
