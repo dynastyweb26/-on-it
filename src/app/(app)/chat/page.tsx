@@ -15,6 +15,7 @@ import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
+import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
@@ -149,6 +150,11 @@ export default function Chat() {
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
+  // Receipt capture: the compressed image waits here between "picked" and
+  // "parsed", so the user can back out before anything is uploaded or read.
+  const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
   const sessionRef = useRef(false);
@@ -549,6 +555,42 @@ export default function Chat() {
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
   }
 
+  // ── Receipt capture ─────────────────────────────────────────
+  // One input, no `capture` attribute: on a phone that opens the OS sheet with
+  // both "Take Photo" and "Photo Library", which is the whole choice the user
+  // wants. Forcing `capture="environment"` would remove the library option.
+  async function onPickReceipt(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset immediately so picking the SAME file twice still fires onChange.
+    e.target.value = '';
+    if (!file) return;
+
+    clearReceipt();
+    setPreparing(true);
+    try {
+      const prepared = await prepareReceipt(file);
+      setReceipt(prepared);
+    } catch (err) {
+      // ReceiptError messages are written for the user; anything else isn't.
+      setMessages((m) => [...m, {
+        role: 'assistant',
+        content: err instanceof ReceiptError
+          ? err.message
+          : "Couldn't read that photo — try taking it again.",
+      }]);
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  function clearReceipt() {
+    setReceipt(null);
+  }
+
+  // Owns the preview object URL's whole lifetime: the cleanup closes over the
+  // OUTGOING receipt, so it fires on replace, on clear, and on unmount alike.
+  useEffect(() => () => { if (receipt) URL.revokeObjectURL(receipt.previewUrl); }, [receipt]);
+
   // ── Push-to-talk voice session ──────────────────────────────
   function stopSpeech() {
     cancelSpeechRef.current?.();
@@ -734,6 +776,36 @@ export default function Chat() {
           // for the mic pulse (§ voice spec).
           <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening…</div>
         )}
+
+        {preparing && (
+          <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
+            <Icon name="photo_camera" size={20} className="text-primary" />
+            Getting that photo ready…
+          </div>
+        )}
+
+        {receipt && (
+          <div className="mb-2 flex items-center gap-3 rounded-card border border-outline-variant/40 bg-surface-container-low p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={receipt.previewUrl}
+              alt="Receipt you attached"
+              className="h-14 w-14 shrink-0 rounded-input border border-outline-variant/40 object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-label-lg font-semibold text-on-background">Receipt attached</div>
+              <div className="text-xs text-on-surface-variant">Ready to read</div>
+            </div>
+            <button
+              aria-label="Remove receipt"
+              className="grid h-touch w-touch shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
+              onClick={clearReceipt}
+            >
+              <Icon name="close" size={24} />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           {voiceSession && (
             <button
@@ -744,6 +816,26 @@ export default function Chat() {
               <Icon name="close" size={24} />
             </button>
           )}
+          {/* Camera sits beside the mic — hidden mid-voice-session, where the
+              row already carries an X + mic + send and a fourth 56px control
+              would squeeze the text field below a usable width. */}
+          {!voiceSession && (
+            <button
+              aria-label="Add a receipt photo"
+              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+              disabled={preparing || busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Icon name="photo_camera" size={24} />
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.heic,.heif"
+            className="hidden"
+            onChange={onPickReceipt}
+          />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
             className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 ${recording ? 'voice-listening' : ''}`}
