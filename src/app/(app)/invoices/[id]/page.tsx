@@ -7,6 +7,7 @@ import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
+import PaywallModal from '@/components/PaywallModal';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -19,6 +20,7 @@ export default function InvoiceDetail() {
   const [busy, setBusy] = useState(false);
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [zelle, setZelle] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,9 +94,11 @@ export default function InvoiceDetail() {
   }
 
   async function convertToInvoice() {
-    // Quote → Invoice: one tap, new number, trail preserved
+    // Quote → Invoice: one tap, new number, trail preserved. This is a second
+    // invoice INSERT path — it goes through the same server-side cap trigger, so
+    // a free user at the limit is stopped here too, with the paywall modal.
     const { data: no } = await supabase.rpc('next_invoice_no', { p_user: profile.id });
-    const { data: created } = await supabase.from('invoices').insert({
+    const { data: created, error } = await supabase.from('invoices').insert({
       ...{
         user_id: inv.user_id, client_id: inv.client_id, kind: 'invoice',
         invoice_number: no, client_name: inv.client_name, line_items: inv.line_items,
@@ -103,6 +107,11 @@ export default function InvoiceDetail() {
         due_date: defaultDueDate(), // every new invoice gets the +30 default
       },
     }).select('id').single();
+    if (error) {
+      if (error.hint === 'PAYWALL_LIMIT') { setShowPaywall(true); return; }
+      console.error('convert to invoice failed', error);
+      return;
+    }
     if (created) router.push(`/invoices/${created.id}`);
   }
 
@@ -158,6 +167,7 @@ export default function InvoiceDetail() {
           </div>
         </div>
       </div>
+      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }

@@ -399,8 +399,9 @@ export default function Chat() {
     // Paywall gate — only for a brand-new invoice. A retry of an already-created
     // draft (pendingInvoiceRef set, e.g. after a cancelled share) is exempt, so
     // we never block an invoice the user already made and is entitled to finish.
-    // hasAccess() encodes the rules: founder/trialing/active pass; free passes
-    // under the 2-invoice cap; free at/over cap and past_due/canceled are gated.
+    // hasAccess() encodes the rules: founder/trialing/active/past_due pass;
+    // free passes under the cap; free at/over cap and canceled are gated. The
+    // server-side trigger enforces the same rules even if this gate is bypassed.
     // Fail OPEN if /api/access is unreachable — a transient blip must not block
     // a legitimate invoice (matches the rate-limiter's fail-open stance).
     if (!pendingInvoiceRef.current) {
@@ -455,6 +456,14 @@ export default function Chat() {
         }).select('id').single();
 
         if (insErr || !saved?.id) {
+          // Server-side cap (enforce_free_invoice_limit trigger). The /api/access
+          // gate above normally catches this first, but the trigger is the real
+          // boundary and fires even if the gate failed open or was bypassed —
+          // surface the paywall, never a generic error.
+          if (insErr?.hint === 'PAYWALL_LIMIT') {
+            setShowPaywall(true);
+            return; // draft + ready untouched — upgrade, then tap send again
+          }
           console.error('invoice insert failed', insErr);
           setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
           return; // finally clears finalizing; draft + ready untouched
