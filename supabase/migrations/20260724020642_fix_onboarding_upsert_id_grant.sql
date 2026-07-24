@@ -1,0 +1,42 @@
+-- ═══════════════════════════════════════════════════════════════
+-- P0-1 follow-up — restore onboarding.
+--
+-- REGRESSION: 20260723130946 revoked table-level UPDATE on public.profiles and
+-- granted it back on 12 named columns. Settings (a plain UPDATE touching only
+-- granted columns) kept working, which is why verification passed. Onboarding
+-- did not, and the reason is the STATEMENT SHAPE, not the column list:
+--
+--   supabase.from('profiles').upsert({ id, business_name, ... })
+--     -> INSERT INTO profiles (...) VALUES (...)
+--        ON CONFLICT (id) DO UPDATE SET id = excluded.id, business_name = ...
+--
+-- PostgREST puts every payload column in the DO UPDATE SET list, including the
+-- conflict target. Postgres checks column UPDATE privileges for that SET list
+-- when the statement is PLANNED — not when a conflict actually fires — so the
+-- statement is rejected outright even for a brand-new user whose row does not
+-- exist yet. Every new signup hit this.
+--
+-- DELTA: the onboarding payload sends 9 columns. Eight are already granted.
+-- The ONLY ungranted one is `id`.
+--
+-- WHY GRANTING UPDATE (id) IS SAFE — it is not a privileged column, and RLS
+-- pins it to a no-op:
+--   policy "own profile" ... using (auth.uid() = id) with check (auth.uid() = id)
+-- On UPDATE, WITH CHECK is evaluated against the NEW row. A user can therefore
+-- only ever write id = auth.uid(), i.e. the value already there. Rewriting it
+-- to another user's id fails WITH CHECK; rewriting it to a non-existent id
+-- fails the FK to auth.users. The grant enables the upsert and confers no
+-- ability to change anything.
+--
+-- NOT granted back, deliberately, and still unreachable from a session client:
+--   access_tier, subscription_status, stripe_customer_id, current_period_end,
+--   trial_ends_at, role, granted_via, referred_by, referral_code,
+--   next_invoice_number
+-- Their legitimate writers are unaffected: the Stripe webhook uses the
+-- service-role admin client (bypasses column grants) and redeem_grant /
+-- redeem_referral / next_invoice_no are SECURITY DEFINER.
+--
+-- Idempotent: re-granting an existing privilege is a no-op.
+-- ═══════════════════════════════════════════════════════════════
+
+grant update (id) on public.profiles to authenticated;
