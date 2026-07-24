@@ -12,6 +12,12 @@ export function invoiceFilename(no: number, client: string, business: string, da
   return `INV-${String(no).padStart(4, '0')}_${safe(client)}_${d}_${safe(business)}.pdf`;
 }
 
+/** Filename for the expense-summary export, e.g.
+ *  Expense-Summary_2026_AcmePlumbing.pdf */
+export function summaryFilename(periodLabel: string, business: string) {
+  return `Expense-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+}
+
 /** el = the rendered template node (794px wide). */
 export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
   const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
