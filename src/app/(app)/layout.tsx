@@ -11,7 +11,7 @@ import Icon from '@/components/Icon';
 const TABS = [
   { href: '/chat', label: 'Chat', icon: 'mic' },
   { href: '/invoices', label: 'Invoices', icon: 'description' },
-  { href: '/dashboard', label: 'Cash Flow', icon: 'payments' },
+  { href: '/dashboard', label: 'Books', icon: 'payments' },
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
