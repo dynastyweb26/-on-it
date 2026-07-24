@@ -1,11 +1,44 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { AuthError, User } from '@supabase/supabase-js';
 import { createClient, createEmailAuthClient } from '@/lib/supabase/client';
 
 // Client-side throttle on the resend button. Supabase SMTP is 30/hr project-wide;
 // this just stops one user spamming the button.
 const RESEND_COOLDOWN = 60; // seconds
+
+/* ═══ What signUp can tell us apart — measured, not assumed ═══
+   Probed against this project (GoTrue v2.193.1, auth-js 2.110.0, email
+   confirmations ON / mailer_autoconfirm=false). All three cases return
+   error=null and session=null. The ONLY field that separates them:
+
+     new email          -> identities.length === 1
+     exists, UNCONFIRMED-> identities.length === 1   <- identical to new
+     exists, CONFIRMED  -> identities.length === 0   <- obfuscated fake user
+
+   So "already has an account (confirmed)" is detectable and gets its own
+   branch. "New" vs "started signing up but never confirmed" are NOT
+   distinguishable client-side: GoTrue resends the confirmation and returns the
+   same shape for both, by design. They therefore share one message, worded to
+   be true either way — rather than guessing and telling a brand-new user they
+   "already started signing up".
+
+   The obfuscated object also carries role:"" and a FABRICATED id (it does not
+   match the real user's id, so nothing leaks). We key on identities only:
+   it's the documented signal and the one least likely to shift. */
+function isExistingConfirmedAccount(user: User | null): boolean {
+  return Array.isArray(user?.identities) && user.identities.length === 0;
+}
+
+/* Fallback for a config change we don't control: if email confirmations are
+   ever switched OFF, GoTrue stops obfuscating and returns a real error for an
+   existing user instead. Same conclusion, different channel. */
+function isAlreadyRegisteredError(error: AuthError | null): boolean {
+  if (!error) return false;
+  return error.code === 'user_already_exists'
+    || /already registered|already exists/i.test(error.message);
+}
 
 export default function Login() {
   const supabase = createClient();               // PKCE — sign-in + session/data
@@ -19,6 +52,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [showResend, setShowResend] = useState(false); // email unconfirmed → offer resend
   const [cooldown, setCooldown] = useState(0);         // resend button cooldown (s)
+  const passwordRef = useRef<HTMLInputElement>(null);  // focused when we flip to sign-in
 
   // Resend cooldown countdown.
   useEffect(() => {
@@ -46,6 +80,20 @@ export default function Login() {
     setMode(m); setError(''); setNotice(''); setShowResend(false);
   }
 
+  /** They already have a usable account — put them one field away from being in.
+   *  Email stays (they just typed it), password clears (a signup password they
+   *  invented is probably not their real one) and takes focus. */
+  function switchToSignIn() {
+    setMode('signin');
+    setError('');
+    setShowResend(false); // nothing to resend — this account is already confirmed
+    setNotice('You already have an account. Enter your password to sign in.');
+    setPassword('');
+    // The password input renders in both modes, so it exists right now; the
+    // rAF just lets React commit the mode change before we take focus.
+    requestAnimationFrame(() => passwordRef.current?.focus());
+  }
+
   async function submit() {
     setError(''); setNotice(''); setShowResend(false);
     if (password.length < 8) { setError('Password needs at least 8 characters.'); return; }
@@ -60,6 +108,12 @@ export default function Login() {
       : await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) {
+      // Confirmations OFF → an existing account surfaces as an error instead of
+      // an obfuscated user. Same destination: sign in, don't re-register.
+      if (mode === 'signup' && isAlreadyRegisteredError(error)) {
+        switchToSignIn();
+        return;
+      }
       setError(error.message);
       // Unconfirmed email → offer to resend the confirmation.
       if (error.code === 'email_not_confirmed' || /not confirmed|confirm/i.test(error.message)) {
@@ -67,8 +121,21 @@ export default function Login() {
       }
       return;
     }
+
+    // Existing CONFIRMED account. No email was sent, so the old "check your
+    // email" copy left these users waiting for a message that never arrives —
+    // the dead end this branch removes.
+    if (mode === 'signup' && isExistingConfirmedAccount(data.user)) {
+      switchToSignIn();
+      return;
+    }
+
     if (mode === 'signup' && !data.session) {
-      setNotice('Check your email to confirm your account, then sign in.');
+      // Either a brand-new signup or a re-signup on an unconfirmed address —
+      // indistinguishable here (see the note at the top of this file). A
+      // confirmation email has genuinely just been sent in BOTH cases, so this
+      // wording is accurate either way and the resend action fits both.
+      setNotice('Check your email to finish signing up, then come back and sign in.');
       setShowResend(true);
       setMode('signin');
       return;
@@ -148,6 +215,7 @@ export default function Login() {
             value={email} onChange={(e) => setEmail(e.target.value)}
           />
           <input
+            ref={passwordRef}
             className="input" type="password" placeholder="Password (8+ characters)"
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password} onChange={(e) => setPassword(e.target.value)}
