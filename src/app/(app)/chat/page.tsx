@@ -73,6 +73,24 @@ const isAffirmative = (t: string) => {
 };
 const isNegative = (t: string) => NEGATIVE.test(t.trim());
 
+// An expense already on file carrying the receipt image being offered again.
+interface ExistingReceipt {
+  id: string;
+  amount: number;
+  vendor: string | null;
+  spent_on: string;
+}
+
+/** Names the expense we already have, so "duplicate" is checkable, not a claim. */
+function duplicateMessage(e: ExistingReceipt): string {
+  const where = e.vendor ? ` at ${e.vendor}` : '';
+  // spent_on is a bare yyyy-mm-dd; parsing it directly would shift a day in
+  // timezones behind UTC. Read the parts as local.
+  const [y, m, d] = e.spent_on.split('-').map(Number);
+  const when = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString();
+  return `You already logged this receipt — ${money(Number(e.amount))}${where} on ${when}. I didn't add it twice.`;
+}
+
 interface StoredChat {
   id?: string;
   messages: Msg[];
@@ -596,9 +614,34 @@ export default function Chat() {
       setPreparing(false);
     }
 
+    // Dedup BEFORE the vision call, not just before the insert: re-reading a
+    // receipt we already have costs vision tokens to arrive at a row we're
+    // going to refuse anyway.
+    const already = await findDuplicate(prepared.hash);
+    if (already) {
+      setReceipt(null);
+      setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
+      return;
+    }
+
     // Straight into the read — no second tap. The user's intent was complete
     // the moment they chose the photo.
     await readReceipt(prepared);
+  }
+
+  /** An existing expense for this user with the same receipt image, if any. */
+  async function findDuplicate(hash: string): Promise<ExistingReceipt | null> {
+    if (!profile) return null;
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id, amount, vendor, spent_on')
+      .eq('user_id', profile.id)
+      .eq('receipt_hash', hash)
+      .maybeSingle();
+    // A failed lookup must not block a legitimate save — the unique index is
+    // the real guarantee, and saveExpense() handles the violation it raises.
+    if (error) { console.error('dedup lookup failed', error); return null; }
+    return (data as ExistingReceipt) ?? null;
   }
 
   async function readReceipt(prepared: PreparedReceipt) {
@@ -691,6 +734,20 @@ export default function Chat() {
         receipt_hash: receipt?.hash ?? null,
       });
       if (insErr) {
+        // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
+        // the pre-check if the same receipt was saved on another device while
+        // this card sat open. Say what happened — never a raw constraint error.
+        if (insErr.code === '23505') {
+          const existing = receipt ? await findDuplicate(receipt.hash) : null;
+          discardExpense();
+          setMessages((m) => [...m, {
+            role: 'assistant',
+            content: existing
+              ? duplicateMessage(existing)
+              : "You've already logged this receipt — I didn't add it twice.",
+          }]);
+          return;
+        }
         console.error('expense insert failed', insErr);
         setExpenseError("Couldn't save that expense — tap save to try again.");
         return;
