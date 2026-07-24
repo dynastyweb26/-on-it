@@ -15,7 +15,21 @@ export function isolateJsonObject(text: string): string {
   return start !== -1 && end > start ? stripped.slice(start, end + 1) : stripped;
 }
 
-/** isolateJsonObject + JSON.parse. Throws on unparseable output. */
-export function parseJsonObject(text: string): unknown {
-  return JSON.parse(isolateJsonObject(text));
+/**
+ * isolateJsonObject + JSON.parse. Throws on unparseable output.
+ *
+ * When the assistant turn was prefilled with '{' — so the model structurally
+ * cannot emit leading prose (a stronger guard than stripping it after the
+ * fact) — the API returns only the continuation and does NOT echo the '{'.
+ * Pass { assistantPrefill: true } to put it back before parsing.
+ */
+export function parseJsonObject(text: string, opts?: { assistantPrefill?: boolean }): unknown {
+  const raw = opts?.assistantPrefill ? reprependBrace(text) : text;
+  return JSON.parse(isolateJsonObject(raw));
+}
+
+/** Restore the prefilled '{'. Skip if the continuation already starts with one
+ *  (defensive: never manufacture '{{…' if a model ever echoes the prefill). */
+function reprependBrace(text: string): string {
+  return /^\s*\{/.test(text) ? text : `{${text}`;
 }

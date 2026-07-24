@@ -77,6 +77,13 @@ Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|nu
       { role: 'user', content: contextMsg },
       { role: 'assistant', content: 'Understood. Send the conversation.' },
       ...history,
+      // Prefill the reply with '{' so the model CANNOT emit leading prose. The
+      // ambiguous-intent rule tells it to ask a question, and a small model
+      // would sometimes answer that as a bare sentence with no JSON at all
+      // ("Did you pay…") — unrecoverable by any after-the-fact strip. Forcing
+      // the turn to open on '{' makes that structurally impossible; the
+      // question goes inside the reply field where it belongs.
+      { role: 'assistant', content: '{' },
     ],
   });
 
@@ -85,7 +92,33 @@ Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|nu
     .map((b) => b.text)
     .join('');
 
-  // Guard against a conversational preamble before the JSON — see json-guard.ts.
-  // Shared with the receipt-vision route so the fix can't drift between them.
-  return parseJsonObject(text) as ExtractResult;
+  // Re-prepend the '{' the API stripped, then parse (see json-guard.ts).
+  try {
+    return parseJsonObject(text, { assistantPrefill: true }) as ExtractResult;
+  } catch (e) {
+    // Fail safe. Even prefilled, a small model can occasionally emit something
+    // unparseable — but the user must never see a 500 for an ambiguous phrase.
+    // Return a graceful clarifier as a well-formed result instead of throwing.
+    console.error('extract: unparseable model output, using clarify fallback', e);
+    return clarifyFallback();
+  }
+}
+
+/** A valid ExtractResult that asks the user to say a little more. Used when the
+ *  model's output can't be parsed, so the route returns 200 + a question rather
+ *  than a 500. intent=question / ready=false → chat shows it as a plain reply,
+ *  no preview card, no expense insert. */
+function clarifyFallback(): ExtractResult {
+  return {
+    intent: 'question',
+    client_name: null,
+    line_items: [],
+    tax_rate: null,
+    due_date: null,
+    notes: null,
+    expense: null,
+    missing: [],
+    reply: "Sorry, I didn't quite catch that. Could you say a little more? Like whether you paid for that, or you're charging someone for it.",
+    ready: false,
+  };
 }

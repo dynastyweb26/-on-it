@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { MODEL } from '@/lib/ai';
-import { isolateJsonObject } from '@/lib/json-guard';
+import { parseJsonObject } from '@/lib/json-guard';
 import { sanitizeField } from '@/lib/sanitize';
 import { EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
@@ -108,19 +108,25 @@ export async function POST(req: NextRequest) {
       model: MODEL,
       max_tokens: 512,
       system: SYSTEM,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: file.type as 'image/jpeg', data: base64 },
-          },
-          {
-            type: 'text',
-            text: `Today's date is ${new Date().toISOString().slice(0, 10)}. Extract the four fields from this receipt as JSON.`,
-          },
-        ],
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: file.type as 'image/jpeg', data: base64 },
+            },
+            {
+              type: 'text',
+              text: `Today's date is ${new Date().toISOString().slice(0, 10)}. Extract the four fields from this receipt as JSON.`,
+            },
+          ],
+        },
+        // Prefill with '{' — same hardening as the text route: the model can't
+        // open with prose, so a blurry/non-receipt photo can't produce a bare
+        // sentence that used to throw JSON.parse into a 500.
+        { role: 'assistant', content: '{' },
+      ],
     });
 
     const text = response.content
@@ -128,9 +134,20 @@ export async function POST(req: NextRequest) {
       .map((b) => b.text)
       .join('');
 
-    // Same guard as the text path — a preamble before the JSON is the exact
-    // bug already fixed once in ai.ts.
-    const parsed = VisionResult.safeParse(JSON.parse(isolateJsonObject(text)));
+    // Re-prepend the stripped '{', then parse. A parse failure here is NOT a
+    // 500 — it means we couldn't read the receipt, which is the 422 case.
+    let raw: unknown;
+    try {
+      raw = parseJsonObject(text, { assistantPrefill: true });
+    } catch (e) {
+      console.error('receipt vision unparseable output', e);
+      return NextResponse.json(
+        { reply: "I couldn't make that receipt out. Want to type the amount instead?" },
+        { status: 422 }
+      );
+    }
+
+    const parsed = VisionResult.safeParse(raw);
     if (!parsed.success) {
       console.error('receipt vision schema mismatch', parsed.error.issues);
       return NextResponse.json(
