@@ -29,7 +29,7 @@ const SYSTEM = `You read receipts for "On It", an expense tracker for blue colla
 
 You will be shown ONE photo of a receipt. Extract exactly four things:
 - amount: the FINAL TOTAL actually paid, as a number. Not the subtotal, not the tax line, not an individual item. If a tip was added, use the post-tip total. No currency symbol, no commas.
-- category: exactly one of: ${EXPENSE_CATEGORIES.join(', ')}. Gas stations and diesel are "fuel". Restaurants, coffee, groceries are "food". Lumber yards, hardware, paint, parts are "supplies". A purchased tool or equipment is "tools". Hotels, flights, parking, tolls are "travel". Vehicle or equipment repair and servicing is "maintenance". Recurring software, phone and internet bills are "subscriptions". Anything you are unsure of is "other".
+- category: exactly one of: ${EXPENSE_CATEGORIES.join(', ')}. Gas stations and diesel are "fuel". Restaurants, coffee, groceries are "food". Lumber yards, hardware, paint, parts are "supplies". A purchased tool or equipment is "tools". Hotels, flights, parking, tolls are "travel". Vehicle or equipment repair and servicing is "maintenance". A phone or mobile bill is "phone" — NOT "subscriptions". An insurance premium of any kind is "insurance" — NOT "other". Recurring software and internet bills are "subscriptions". Anything you are unsure of is "other".
 - vendor: the business name printed on the receipt, as a short plain string. No address, no store number, no slogan.
 - occurred_on: the transaction date in YYYY-MM-DD format.
 

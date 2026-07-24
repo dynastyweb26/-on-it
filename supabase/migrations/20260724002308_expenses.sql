@@ -14,9 +14,17 @@
 --     is left untouched for any legacy row pointing into 'vault'.
 --   * description becomes NULLABLE — a receipt-only expense has a vendor and
 --     an amount, not a typed description.
---   * category gains the canonical 8-value CHECK. Existing free-text values
+--   * category gains the canonical 10-value CHECK. Existing free-text values
 --     (AI-chosen, plus the dashboard's 'Gas'/'Materials'/… chips) are mapped
 --     BEFORE the constraint is added, otherwise the ALTER fails on live data.
+--     phone and insurance are their OWN categories, not folded into
+--     subscriptions/other — both are core contractor deductions and the Phase B
+--     tax summary cannot un-flatten them later.
+--
+-- Verified against the remote DB before writing this: public.expenses is
+-- EMPTY (0 rows), so the backfill below is a no-op today. It stays anyway —
+-- it's what makes this migration safe to replay onto a database that does
+-- have rows, and safe to re-run.
 --
 -- Idempotent: every add/create is guarded, matching the 001 convention.
 -- ═══════════════════════════════════════════════════════════════
@@ -65,27 +73,32 @@ do $$ begin
     check (description is null or char_length(description) between 1 and 300);
 exception when duplicate_object then null; end $$;
 
--- ── 3. category: free text → canonical 8 ─────────────────────
+-- ── 3. category: free text → canonical 10 ────────────────────
 -- Map what's already in the table. Anything unrecognised (and NULL) lands on
 -- 'other' — never dropped, never silently wrong about which bucket it's in.
 update public.expenses set category = case
   when category is null                                    then 'other'
-  when lower(category) in ('food','fuel','supplies','tools',
-                           'travel','maintenance','subscriptions','other')
-                                                           then lower(category)
+  when lower(category) in ('food','fuel','supplies','tools','travel',
+                           'maintenance','subscriptions','phone',
+                           'insurance','other')            then lower(category)
   when lower(category) in ('gas','gasoline','diesel')      then 'fuel'
   when lower(category) in ('materials','material','parts',
                            'paint','hardware')             then 'supplies'
   when lower(category) in ('tool','equipment')             then 'tools'
   when lower(category) in ('meals','meal','lunch')         then 'food'
-  when lower(category) in ('phone','software','internet')  then 'subscriptions'
+  -- 'phone' maps to itself above; only true subscriptions land here.
+  when lower(category) in ('software','internet')          then 'subscriptions'
+  when lower(category) in ('mobile','cell','cell phone')   then 'phone'
+  when lower(category) in ('liability','premium','premiums')
+                                                           then 'insurance'
   when lower(category) in ('mileage','lodging','hotel')    then 'travel'
   when lower(category) in ('repair','repairs','service')   then 'maintenance'
   else 'other'
 end
 where category is null
-   or category not in ('food','fuel','supplies','tools',
-                       'travel','maintenance','subscriptions','other');
+   or category not in ('food','fuel','supplies','tools','travel',
+                       'maintenance','subscriptions','phone',
+                       'insurance','other');
 
 alter table public.expenses alter column category set default 'other';
 alter table public.expenses alter column category set not null;
@@ -94,8 +107,9 @@ alter table public.expenses alter column category set not null;
 alter table public.expenses drop constraint if exists expenses_category_check;
 do $$ begin
   alter table public.expenses add constraint expenses_category_valid
-    check (category in ('food','fuel','supplies','tools',
-                        'travel','maintenance','subscriptions','other'));
+    check (category in ('food','fuel','supplies','tools','travel',
+                        'maintenance','subscriptions','phone',
+                        'insurance','other'));
 exception when duplicate_object then null; end $$;
 
 -- ── 4. Dedup index ───────────────────────────────────────────

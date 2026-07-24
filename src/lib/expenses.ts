@@ -7,9 +7,12 @@
 // Deliberately free of zod/server imports: this file is pulled into client
 // components.
 
+// phone and insurance are first-class rather than folded into subscriptions /
+// other: both are core contractor deductions, and the Phase B tax summary
+// can't break them back out of a bucket once they've been flattened into one.
 export const EXPENSE_CATEGORIES = [
-  'food', 'fuel', 'supplies', 'tools',
-  'travel', 'maintenance', 'subscriptions', 'other',
+  'food', 'fuel', 'supplies', 'tools', 'travel',
+  'maintenance', 'subscriptions', 'phone', 'insurance', 'other',
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
@@ -23,6 +26,8 @@ export const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   travel: 'Travel',
   maintenance: 'Maintenance',
   subscriptions: 'Subscriptions',
+  phone: 'Phone',
+  insurance: 'Insurance',
   other: 'Other',
 };
 

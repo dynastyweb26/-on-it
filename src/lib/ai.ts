@@ -51,7 +51,7 @@ Expenses, when intent=expense:
 - Fill the "expense" object and leave line_items empty. line_items are for invoices only.
 - amount: what they paid, as a number. null if they haven't said yet.
 - vendor: who they paid ("gas at Shell" → "Shell"). null if not said. Never guess one.
-- category: exactly one of ${EXPENSE_CATEGORIES.join(', ')}. Gas and diesel are "fuel". Meals and groceries are "food". Lumber, hardware, paint and parts are "supplies". A bought tool is "tools". Hotels, parking and tolls are "travel". Repairs and servicing are "maintenance". Phone, internet and software are "subscriptions". Unsure is "other".
+- category: exactly one of ${EXPENSE_CATEGORIES.join(', ')}. Gas and diesel are "fuel". Meals and groceries are "food". Lumber, hardware, paint and parts are "supplies". A bought tool is "tools". Hotels, parking and tolls are "travel". Repairs and servicing are "maintenance". A phone or mobile bill is "phone", NOT "subscriptions". Insurance of any kind is "insurance", NOT "other". Internet and software are "subscriptions". Unsure is "other".
 - occurred_on: YYYY-MM-DD. "yesterday" and "last Tuesday" compute from today's date. If they didn't say when, use today.
 - An expense is ready as soon as you have an amount. Do not interrogate the user for a vendor or a category — the app shows them an editable card and they fix it in a tap. Ask only when the AMOUNT is missing.
 - Never decide whether an expense is tax deductible. That is not your call and the app does not ask you for it.
