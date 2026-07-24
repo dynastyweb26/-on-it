@@ -1,14 +1,17 @@
 'use client';
-// ═══ Cash Flow Dashboard ═══
+// ═══ Books — the money screen ═══
 // One glance: money in, money out, what's still owed, tax-deductible total.
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
+import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-const CATEGORIES = ['Gas', 'Materials', 'Tools', 'Meals', 'Phone', 'Insurance', 'Other'];
+// The old chips (Gas / Materials / Meals / Phone / Insurance) predate the
+// category CHECK and would now be rejected on save. Same eight values as the
+// chat card, so a quick-add and a receipt file identically.
 
 // Recordkeeping framing only — never tax advice. Exact wording is locked.
 const DEDUCTIBLE_TIP =
@@ -20,7 +23,7 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
 
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');   // chip label; 'Other' reveals a required field
+  const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
   const [detail, setDetail] = useState('');        // optional note (normal chips) OR required text (Other)
   const [showNote, setShowNote] = useState(false); // "Add a note" reveal, normal chips only
   const [deductible, setDeductible] = useState(true);
@@ -57,7 +60,7 @@ export default function Dashboard() {
     setAmountError(''); setCategoryError(''); setDetailError('');
   }
 
-  function selectCategory(c: string) {
+  function selectCategory(c: ExpenseCategory) {
     const next = category === c ? '' : c;
     setCategory(next);
     // switching category resets the text field's meaning (note vs. required)
@@ -76,14 +79,15 @@ export default function Dashboard() {
     let ok = true;
     if (!value || value <= 0) { setAmountError('Enter an amount.'); ok = false; } else setAmountError('');
     if (!category) { setCategoryError('Pick a category.'); ok = false; } else setCategoryError('');
-    if (category === 'Other' && !trimmedDetail) { setDetailError('What was it for?'); ok = false; } else setDetailError('');
-    if (!ok) return;
+    if (category === 'other' && !trimmedDetail) { setDetailError('What was it for?'); ok = false; } else setDetailError('');
+    if (!ok || !category) return;
 
-    // Chip name is the description; an optional note is appended for good records.
+    // Chip label is the description; an optional note is appended for good records.
+    const label = CATEGORY_LABEL[category];
     const description =
-      category === 'Other'
+      category === 'other'
         ? trimmedDetail
-        : trimmedDetail ? `${category} — ${trimmedDetail}` : category;
+        : trimmedDetail ? `${label} — ${trimmedDetail}` : label;
 
     setSaving(true);
     try {
@@ -159,10 +163,11 @@ export default function Dashboard() {
               {/* Chips are the primary input — a selection satisfies the description */}
               <div>
                 <div className="flex flex-wrap gap-2">
-                  {CATEGORIES.map((c) => (
+                  {EXPENSE_CATEGORIES.map((c) => (
                     <button key={c} className={`chip ${category === c ? 'chip-selected' : ''}`}
+                      aria-pressed={category === c}
                       onClick={() => selectCategory(c)}>
-                      {c}
+                      {CATEGORY_LABEL[c]}
                     </button>
                   ))}
                 </div>
@@ -170,7 +175,7 @@ export default function Dashboard() {
               </div>
 
               {/* Normal chips: optional note, hidden behind a quiet link */}
-              {category && category !== 'Other' && !showNote && (
+              {category && category !== 'other' && !showNote && (
                 <button
                   className="min-h-touch text-left text-label-lg font-semibold text-primary"
                   onClick={() => setShowNote(true)}
@@ -178,7 +183,7 @@ export default function Dashboard() {
                   Add a note
                 </button>
               )}
-              {category && category !== 'Other' && showNote && (
+              {category && category !== 'other' && showNote && (
                 <input
                   className="input"
                   autoFocus
@@ -190,7 +195,7 @@ export default function Dashboard() {
               )}
 
               {/* Other: required free text */}
-              {category === 'Other' && (
+              {category === 'other' && (
                 <div>
                   <input
                     className="input"

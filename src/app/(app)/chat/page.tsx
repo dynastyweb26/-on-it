@@ -15,6 +15,9 @@ import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
+import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
+import ExpenseCard from '@/components/ExpenseCard';
+import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
 interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
@@ -26,6 +29,7 @@ interface Profile {
 }
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const today = () => new Date().toISOString().slice(0, 10);
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser so switching apps never loses a draft. The same
@@ -68,6 +72,24 @@ const isAffirmative = (t: string) => {
   return AFFIRMATIVE_WORDS.test(s) && !INVOICE_SIGNAL.test(s);
 };
 const isNegative = (t: string) => NEGATIVE.test(t.trim());
+
+// An expense already on file carrying the receipt image being offered again.
+interface ExistingReceipt {
+  id: string;
+  amount: number;
+  vendor: string | null;
+  spent_on: string;
+}
+
+/** Names the expense we already have, so "duplicate" is checkable, not a claim. */
+function duplicateMessage(e: ExistingReceipt): string {
+  const where = e.vendor ? ` at ${e.vendor}` : '';
+  // spent_on is a bare yyyy-mm-dd; parsing it directly would shift a day in
+  // timezones behind UTC. Read the parts as local.
+  const [y, m, d] = e.spent_on.split('-').map(Number);
+  const when = new Date(y, (m ?? 1) - 1, d ?? 1).toLocaleDateString();
+  return `You already logged this receipt — ${money(Number(e.amount))}${where} on ${when}. I didn't add it twice.`;
+}
 
 interface StoredChat {
   id?: string;
@@ -149,6 +171,16 @@ export default function Chat() {
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
+  // Receipt capture: the compressed image waits here between "picked" and
+  // "parsed", so the user can back out before anything is uploaded or read.
+  const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // The parsed expense awaiting confirmation. Never auto-saved — the user
+  // always sees the four fields and presses save.
+  const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft | null>(null);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
   const sessionRef = useRef(false);
@@ -287,15 +319,19 @@ export default function Chat() {
         setPending({ type: 'create_invoice', client: data.client_name ?? null, amount, forceCreate: true });
       }
 
-      // Expenses save immediately — no preview card needed
-      if (data.intent === 'expense' && data.expense && profile) {
-        await supabase.from('expenses').insert({
-          user_id: profile.id,
-          description: data.expense.description,
+      // Expenses used to insert silently here, with the user never seeing what
+      // got saved or able to correct it. They now go to the SAME confirmation
+      // card as a photographed receipt — one review step, one save.
+      // No amount yet means the AI is still asking for it; leave the card shut.
+      if (data.intent === 'expense' && data.expense && typeof data.expense.amount === 'number' && data.expense.amount > 0) {
+        setReceipt(null); // a typed expense carries no photo
+        setExpenseDraft({
           amount: data.expense.amount,
-          category: data.expense.category,
-          tax_deductible: data.expense.tax_deductible,
+          category: isExpenseCategory(data.expense.category) ? data.expense.category : 'other',
+          vendor: typeof data.expense.vendor === 'string' ? data.expense.vendor : null,
+          occurred_on: typeof data.expense.occurred_on === 'string' ? data.expense.occurred_on : today(),
         });
+        setExpenseError(null);
       }
       return { reply, ready: isReady };
     } catch {
@@ -549,6 +585,195 @@ export default function Chat() {
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
   }
 
+  // ── Receipt capture ─────────────────────────────────────────
+  // One input, no `capture` attribute: on a phone that opens the OS sheet with
+  // both "Take Photo" and "Photo Library", which is the whole choice the user
+  // wants. Forcing `capture="environment"` would remove the library option.
+  async function onPickReceipt(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset immediately so picking the SAME file twice still fires onChange.
+    e.target.value = '';
+    if (!file) return;
+
+    discardExpense();
+    setPreparing(true);
+    let prepared: PreparedReceipt;
+    try {
+      prepared = await prepareReceipt(file);
+      setReceipt(prepared);
+    } catch (err) {
+      // ReceiptError messages are written for the user; anything else isn't.
+      setMessages((m) => [...m, {
+        role: 'assistant',
+        content: err instanceof ReceiptError
+          ? err.message
+          : "Couldn't read that photo — try taking it again.",
+      }]);
+      return;
+    } finally {
+      setPreparing(false);
+    }
+
+    // Dedup BEFORE the vision call, not just before the insert: re-reading a
+    // receipt we already have costs vision tokens to arrive at a row we're
+    // going to refuse anyway.
+    const already = await findDuplicate(prepared.hash);
+    if (already) {
+      setReceipt(null);
+      setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
+      return;
+    }
+
+    // Straight into the read — no second tap. The user's intent was complete
+    // the moment they chose the photo.
+    await readReceipt(prepared);
+  }
+
+  /** An existing expense for this user with the same receipt image, if any. */
+  async function findDuplicate(hash: string): Promise<ExistingReceipt | null> {
+    if (!profile) return null;
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id, amount, vendor, spent_on')
+      .eq('user_id', profile.id)
+      .eq('receipt_hash', hash)
+      .maybeSingle();
+    // A failed lookup must not block a legitimate save — the unique index is
+    // the real guarantee, and saveExpense() handles the violation it raises.
+    if (error) { console.error('dedup lookup failed', error); return null; }
+    return (data as ExistingReceipt) ?? null;
+  }
+
+  async function readReceipt(prepared: PreparedReceipt) {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('image', prepared.blob, 'receipt.jpg');
+      const res = await fetch('/api/parse-receipt', { method: 'POST', body });
+      const data = await res.json();
+
+      if (res.status === 401 && data.authRequired) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setReceipt(null);
+        setTimeout(() => router.push('/login'), 1600);
+        return;
+      }
+      if (!res.ok) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.reply ?? "Couldn't read that one." }]);
+        setReceipt(null);
+        return;
+      }
+
+      // A receipt we couldn't get an amount off is not a saveable expense —
+      // say so plainly rather than opening a card full of blanks.
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        setMessages((m) => [...m, {
+          role: 'assistant',
+          content: "I couldn't make out the total on that one. Tell me the amount and I'll log it.",
+        }]);
+        setReceipt(null);
+        return;
+      }
+
+      setExpenseDraft({
+        amount: data.amount,
+        category: isExpenseCategory(data.category) ? data.category : 'other',
+        vendor: typeof data.vendor === 'string' ? data.vendor : null,
+        // No legible date on the receipt → today, which is right far more often
+        // than it's wrong for a photo taken at the counter.
+        occurred_on: typeof data.occurred_on === 'string' ? data.occurred_on : today(),
+      });
+    } catch {
+      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that photo again.' }]);
+      setReceipt(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Saving an expense ───────────────────────────────────────
+  async function saveExpense() {
+    if (!expenseDraft) return;
+    if (!profile) {
+      if (!profileLoaded) {
+        setExpenseError('One sec — still loading your account. Tap save again in a moment.');
+        return;
+      }
+      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to keep this expense." }]);
+      setTimeout(() => router.push('/login'), 1600);
+      return;
+    }
+
+    setSavingExpense(true);
+    setExpenseError(null);
+    try {
+      // Path is the content hash, so the same photo always lands on the same
+      // object instead of piling up copies. The bucket has no UPDATE policy
+      // (copied from vault), so upsert is off and a re-upload of an identical
+      // path is treated as already-done rather than an error.
+      let receiptPath: string | null = null;
+      if (receipt) {
+        receiptPath = `${profile.id}/${receipt.hash}.jpg`;
+        const { error: upErr } = await supabase.storage
+          .from('receipts')
+          .upload(receiptPath, receipt.blob, { contentType: 'image/jpeg', upsert: false });
+        if (upErr && !/exists/i.test(upErr.message)) {
+          console.error('receipt upload failed', upErr);
+          setExpenseError("Couldn't save the photo just now — tap save to try again.");
+          return;
+        }
+      }
+
+      const { error: insErr } = await supabase.from('expenses').insert({
+        user_id: profile.id,
+        amount: expenseDraft.amount,
+        category: expenseDraft.category,
+        vendor: expenseDraft.vendor,
+        spent_on: expenseDraft.occurred_on ?? today(),
+        receipt_url: receiptPath,
+        receipt_hash: receipt?.hash ?? null,
+      });
+      if (insErr) {
+        // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
+        // the pre-check if the same receipt was saved on another device while
+        // this card sat open. Say what happened — never a raw constraint error.
+        if (insErr.code === '23505') {
+          const existing = receipt ? await findDuplicate(receipt.hash) : null;
+          discardExpense();
+          setMessages((m) => [...m, {
+            role: 'assistant',
+            content: existing
+              ? duplicateMessage(existing)
+              : "You've already logged this receipt — I didn't add it twice.",
+          }]);
+          return;
+        }
+        console.error('expense insert failed', insErr);
+        setExpenseError("Couldn't save that expense — tap save to try again.");
+        return;
+      }
+
+      const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
+      const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
+      setMessages((m) => [...m, { role: 'assistant', content: saved }]);
+      discardExpense();
+    } finally {
+      setSavingExpense(false);
+    }
+  }
+
+  /** Drop the in-flight expense and its photo. Used by cancel, and before a
+   *  new pick so two receipts can never share one card. */
+  function discardExpense() {
+    setReceipt(null);
+    setExpenseDraft(null);
+    setExpenseError(null);
+  }
+
+  // Owns the preview object URL's whole lifetime: the cleanup closes over the
+  // OUTGOING receipt, so it fires on replace, on clear, and on unmount alike.
+  useEffect(() => () => { if (receipt) URL.revokeObjectURL(receipt.previewUrl); }, [receipt]);
+
   // ── Push-to-talk voice session ──────────────────────────────
   function stopSpeech() {
     cancelSpeechRef.current?.();
@@ -709,6 +934,24 @@ export default function Chat() {
           </div>
         )}
 
+        {expenseDraft && (
+          <ExpenseCard
+            draft={expenseDraft}
+            onChange={setExpenseDraft}
+            onSave={saveExpense}
+            onCancel={() => {
+              discardExpense();
+              setMessages((m) => [...m, {
+                role: 'assistant',
+                content: "No problem — tell me what it should say, or send another photo.",
+              }]);
+            }}
+            saving={savingExpense}
+            previewUrl={receipt?.previewUrl ?? null}
+            error={expenseError}
+          />
+        )}
+
         {reminderPrompt && (
           <div className="card border-primary-container/50">
             <p className="text-body-md">Want me to remind you if they haven&apos;t paid in 2 days?</p>
@@ -721,8 +964,8 @@ export default function Chat() {
 
         {busy && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
-            <Icon name="graphic_eq" size={20} className="text-primary" />
-            On It is thinking…
+            <Icon name={receipt && !expenseDraft ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
+            {receipt && !expenseDraft ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
         <div ref={bottomRef} />
@@ -734,6 +977,14 @@ export default function Chat() {
           // for the mic pulse (§ voice spec).
           <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening…</div>
         )}
+
+        {preparing && (
+          <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
+            <Icon name="photo_camera" size={20} className="text-primary" />
+            Getting that photo ready…
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           {voiceSession && (
             <button
@@ -744,6 +995,26 @@ export default function Chat() {
               <Icon name="close" size={24} />
             </button>
           )}
+          {/* Camera sits beside the mic — hidden mid-voice-session, where the
+              row already carries an X + mic + send and a fourth 56px control
+              would squeeze the text field below a usable width. */}
+          {!voiceSession && (
+            <button
+              aria-label="Add a receipt photo"
+              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+              disabled={preparing || busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Icon name="photo_camera" size={24} />
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,.heic,.heif"
+            className="hidden"
+            onChange={onPickReceipt}
+          />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
             className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 ${recording ? 'voice-listening' : ''}`}
