@@ -40,6 +40,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
         />
+        {/* Chrome fires `beforeinstallprompt` very early — often before React
+            hydrates and the /install hook can attach its listener. This head
+            script runs during parse, captures the event, prevents the mini-
+            infobar, and stashes it on window so useInstallPrompt can adopt it on
+            mount (its own listener still handles a late/second fire). Inline is
+            allowed by the CSP's script-src 'unsafe-inline'. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.__deferredInstallPrompt=null;" +
+              "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__deferredInstallPrompt=e;});" +
+              "window.addEventListener('appinstalled',function(){window.__deferredInstallPrompt=null;});",
+          }}
+        />
       </head>
       <body>
         <Splash />
