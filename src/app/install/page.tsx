@@ -9,10 +9,6 @@ import Icon from '@/components/Icon';
 // app stores. Styling comes entirely from the Warm Premium tokens in
 // tailwind.config.ts — no hardcoded palette here.
 
-// Canonical production origin (ONIT-SPEC.md / README). The QR points people who
-// scan from a desktop back to this same page on their phone.
-const INSTALL_URL = 'https://onit.dynastyweb.co/install';
-
 // On-background token value (#1f1b13). QRCodeSVG needs the module color as a
 // prop string, so this one literal mirrors the `on-background` token.
 const QR_INK = '#1f1b13';
@@ -44,6 +40,10 @@ export default function InstallPage() {
   const [mounted, setMounted] = useState(false);
   const [iosSafari, setIosSafari] = useState(false);
   const [iosOther, setIosOther] = useState(false);
+  // The QR points a desktop viewer back to this same page on their phone. Use
+  // the current origin (resolved on the client) so it works on the preview
+  // deployment and production alike, not a hardcoded host.
+  const [installUrl, setInstallUrl] = useState('');
 
   useEffect(() => {
     // Register the existing service worker so Chrome's installability criteria
@@ -57,6 +57,7 @@ export default function InstallPage() {
     const safari = isIOSSafari();
     setIosSafari(ios && safari);
     setIosOther(ios && !safari);
+    setInstallUrl(window.location.origin + '/install');
     setMounted(true);
   }, []);
 
@@ -114,7 +115,7 @@ export default function InstallPage() {
         <div className="flex flex-col items-center gap-4">
           <p className="text-body-md text-on-background">Scan this with your phone to install:</p>
           <div className="rounded-card bg-surface-container-lowest p-4">
-            <QRCodeSVG value={INSTALL_URL} size={180} fgColor={QR_INK} />
+            <QRCodeSVG value={installUrl} size={180} fgColor={QR_INK} />
           </div>
         </div>
       )}
