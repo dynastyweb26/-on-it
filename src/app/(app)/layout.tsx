@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Tutorial from '@/components/Tutorial';
 import Icon from '@/components/Icon';
+import InstallBanner from '@/components/InstallBanner';
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
@@ -85,6 +86,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+      {/* Slim install strip: in-flow above the tab bar (never fixed), so it can't
+          cover the tab bar or the chat input. Self-hides when installed/dismissed
+          or when install isn't possible on this device. */}
+      <InstallBanner />
       <nav className="glass-nav flex justify-around border-t border-outline-variant/40 px-2 pb-[env(safe-area-inset-bottom)]">
         {TABS.map(({ href, label, icon }) => {
           const active = path.startsWith(href);

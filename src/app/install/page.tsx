@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useInstallPrompt } from '@/lib/install/useInstallPrompt';
+import { isIOS, isIOSSafari } from '@/lib/install/platform';
 import Icon from '@/components/Icon';
 
 // Public, chrome-less distribution route (deliberately outside the (app) group,
@@ -12,23 +13,6 @@ import Icon from '@/components/Icon';
 // On-background token value (#1f1b13). QRCodeSVG needs the module color as a
 // prop string, so this one literal mirrors the `on-background` token.
 const QR_INK = '#1f1b13';
-
-function isIOS() {
-  const ua = navigator.userAgent;
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    // iPadOS 13+ reports as MacIntel; touch points disambiguate it from a Mac.
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  );
-}
-function isIOSSafari() {
-  return (
-    isIOS() &&
-    /Safari/.test(navigator.userAgent) &&
-    // In-app / third-party iOS browsers can't install; only real Safari can.
-    !/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent)
-  );
-}
 
 export default function InstallPage() {
   const { canPrompt, isInstalled, promptInstall } = useInstallPrompt();
