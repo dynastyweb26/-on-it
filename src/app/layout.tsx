@@ -29,6 +29,14 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  // Android keyboards default to `resizes-visual`: the soft keyboard overlays
+  // the page and the layout viewport (and thus `h-dvh`) stays full-height, so
+  // the in-flow chat input row ends up hidden behind the keyboard. `resizes-
+  // content` makes the keyboard shrink the layout viewport instead, so `h-dvh`
+  // collapses to the space above it — the input row lifts up and the messages
+  // list stays scrollable. iOS already lifts it via its own visual-viewport
+  // behavior, so this is Android-focused and safe there.
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
