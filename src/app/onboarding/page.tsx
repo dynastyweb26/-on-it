@@ -182,9 +182,15 @@ export default function Onboarding() {
               These colors might be hard to read together. Want to swap one for more contrast? Your call — it&apos;ll still work.
             </p>
           )}
-          <button className="btn-primary" disabled={colors.length < 2} onClick={() => setStep(3)}>
-            Next — pick your background
-          </button>
+          <div className="flex gap-3">
+            <button className="btn-outline" onClick={() => setStep(1)}>
+              <Icon name="arrow_back" size={20} />
+              Back
+            </button>
+            <button className="btn-primary flex-1" disabled={colors.length < 2} onClick={() => setStep(3)}>
+              Next — pick your background
+            </button>
+          </div>
         </section>
       )}
 
@@ -212,9 +218,15 @@ export default function Onboarding() {
               </div>
             </div>
           )}
-          <button className="btn-primary" disabled={!background} onClick={() => setStep(4)}>
-            Looks good — pick a style
-          </button>
+          <div className="flex gap-3">
+            <button className="btn-outline" onClick={() => setStep(2)}>
+              <Icon name="arrow_back" size={20} />
+              Back
+            </button>
+            <button className="btn-primary flex-1" disabled={!background} onClick={() => setStep(4)}>
+              Looks good — pick a style
+            </button>
+          </div>
         </section>
       )}
 
@@ -237,9 +249,15 @@ export default function Onboarding() {
             </div>
           </div>
           {error && <p className="text-sm text-error">{error}</p>}
-          <button className="btn-primary" disabled={busy} onClick={finish}>
-            {busy ? 'Setting up…' : 'Confirm and continue'}
-          </button>
+          <div className="flex gap-3">
+            <button className="btn-outline" disabled={busy} onClick={() => setStep(3)}>
+              <Icon name="arrow_back" size={20} />
+              Back
+            </button>
+            <button className="btn-primary flex-1" disabled={busy} onClick={finish}>
+              {busy ? 'Setting up…' : 'Confirm and continue'}
+            </button>
+          </div>
         </section>
       )}
     </main>
