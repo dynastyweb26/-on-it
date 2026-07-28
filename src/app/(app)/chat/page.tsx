@@ -175,7 +175,12 @@ export default function Chat() {
   // "parsed", so the user can back out before anything is uploaded or read.
   const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);
   const [preparing, setPreparing] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  // Two receipt inputs sharing one handler: the camera input carries
+  // `capture="environment"` so it opens the rear camera directly on mobile
+  // (Android/Brave was ignoring the choice and going straight to the gallery);
+  // the gallery input omits `capture` so an existing photo can still be picked.
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   // The parsed expense awaiting confirmation. Never auto-saved — the user
   // always sees the four fields and presses save.
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft | null>(null);
@@ -595,9 +600,12 @@ export default function Chat() {
   }
 
   // ── Receipt capture ─────────────────────────────────────────
-  // One input, no `capture` attribute: on a phone that opens the OS sheet with
-  // both "Take Photo" and "Photo Library", which is the whole choice the user
-  // wants. Forcing `capture="environment"` would remove the library option.
+  // Two inputs feed this one handler (see cameraRef/galleryRef): a camera
+  // button (`capture="environment"`, rear camera direct) and a gallery button
+  // (no `capture`, pick an existing photo). Relying on a single capture-less
+  // input to surface the OS "Take Photo / Photo Library" sheet proved
+  // unreliable — some Android browsers (Brave) jumped straight to the gallery —
+  // so the choice is now two explicit buttons.
   async function onPickReceipt(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     // Reset immediately so picking the SAME file twice still fires onChange.
@@ -1004,21 +1012,42 @@ export default function Chat() {
               <Icon name="close" size={24} />
             </button>
           )}
-          {/* Camera sits beside the mic — hidden mid-voice-session, where the
-              row already carries an X + mic + send and a fourth 56px control
-              would squeeze the text field below a usable width. */}
+          {/* Receipt capture sits beside the mic — hidden mid-voice-session,
+              where the row already carries an X + mic + send. Two stacked
+              circular buttons keep the leftmost slot one control wide (no
+              squeeze on the text field) while giving camera and gallery each
+              their own tap target: top = shoot with the rear camera, bottom =
+              pick from the gallery. Both fire the same onPickReceipt. */}
           {!voiceSession && (
-            <button
-              aria-label="Add a receipt photo"
-              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-              disabled={preparing || busy}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Icon name="photo_camera" size={24} />
-            </button>
+            <div className="flex shrink-0 flex-col gap-1.5">
+              <button
+                aria-label="Take a receipt photo"
+                className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                disabled={preparing || busy}
+                onClick={() => cameraRef.current?.click()}
+              >
+                <Icon name="photo_camera" size={20} />
+              </button>
+              <button
+                aria-label="Upload receipt from gallery"
+                className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                disabled={preparing || busy}
+                onClick={() => galleryRef.current?.click()}
+              >
+                <Icon name="photo_library" size={20} />
+              </button>
+            </div>
           )}
           <input
-            ref={fileRef}
+            ref={cameraRef}
+            type="file"
+            accept="image/*,.heic,.heif"
+            capture="environment"
+            className="hidden"
+            onChange={onPickReceipt}
+          />
+          <input
+            ref={galleryRef}
             type="file"
             accept="image/*,.heic,.heif"
             className="hidden"
