@@ -64,6 +64,25 @@ body { @apply bg-background text-on-background font-body antialiased; }
   outline-offset: 2px;
 }
 
+/* ---- Tutorial spotlight ring (§7 gold ring language) ----
+   Absolutely-positioned overlay drawn over the control a walkthrough slide is
+   about. Inherits the app-wide selected-state gold from the theme token
+   (primary.container) rather than a literal, so a theme change carries through.
+   The glow pulses twice to draw the eye, then settles to a static ring — no
+   perpetual pulse. Reduced-motion kills the animation globally (rule below),
+   leaving the static ring. */
+.spotlight-ring {
+  border-radius: 14px;
+  outline: 2px solid theme('colors.primary.container');
+  outline-offset: 2px;
+  animation: onit-spotlight 1.6s ease-out 2;
+}
+@keyframes onit-spotlight {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, theme('colors.primary.container') 45%, transparent); }
+  70%  { box-shadow: 0 0 0 12px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
 /* ---- Voice FAB pulse ---- */
 @keyframes onit-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.45); }

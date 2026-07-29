@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import Tutorial from '@/components/Tutorial';
+import TutorialCarousel, { markTutorialSeen, shouldAutoShowTutorial } from '@/components/TutorialCarousel';
 import Icon from '@/components/Icon';
 import InstallBanner from '@/components/InstallBanner';
+import { createClient } from '@/lib/supabase/client';
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
@@ -25,6 +26,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // scrolling always wins once the gesture is more vertical than horizontal.
   const touch = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  // The signed-in user, so the walkthrough's last-seen version is stored
+  // per-user. Null until resolved (or a guest — guests get no auto-show).
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Auto-show once when an ONBOARDED user is behind the current walkthrough
+  // version. Two explicit gates, so it can never surface at the wrong moment:
+  //   1. A real session — guests get nothing.
+  //   2. A profile row exists — this is the onboarding-completion signal
+  //      (onboarding's finish() is the only thing that creates it). Without it
+  //      we don't infer "onboarded" from the mere absence of a stored version,
+  //      which is true from the instant an account is created. A brand-new,
+  //      pre-onboarding user who lands on an (app) screen (e.g. /chat via '/')
+  //      is redirected to /onboarding by the page itself, and this gate keeps
+  //      the carousel from flashing in that window.
+  // Login and onboarding live OUTSIDE this route group, so this layout never
+  // mounts over them at all.
+  // A fresh account, once onboarded, has seen version 0 (< current) → the
+  // carousel opens on the first app screen; a version bump re-shows it once.
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return; // guest — nothing to auto-show against
+      setUserId(user.id);
+      if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
+      const { data: profile } = await supabase
+        .from('profiles').select('id').eq('id', user.id).maybeSingle();
+      if (profile) setShowTutorial(true); // onboarded + behind → show
+    })();
+  }, []);
+
+  function closeTutorial() {
+    if (userId) markTutorialSeen(userId);
+    setShowTutorial(false);
+  }
 
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
@@ -77,7 +113,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
-      {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
+      {showTutorial && <TutorialCarousel onClose={closeTutorial} />}
       <main
         className="min-h-0 flex-1 overflow-y-auto"
         onTouchStart={onTouchStart}
