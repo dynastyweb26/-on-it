@@ -104,12 +104,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Icon name="history" size={24} />
             </button>
           )}
+          {/* Labeled gold capsule (matches the install banner's "Show how"):
+              gold FILL + dark on-gold text — never white on this gold (fails
+              contrast). Label carries the meaning, so no "?" glyph. */}
           <button
             aria-label="How On It works"
-            className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+            className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
             onClick={() => setShowTutorial(true)}
           >
-            <Icon name="help" size={24} />
+            How On It works
           </button>
         </div>
       </header>
