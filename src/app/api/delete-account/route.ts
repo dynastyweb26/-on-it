@@ -10,10 +10,15 @@
 // Order is deliberate (auth-user delete is LAST — it's the irreversible step):
 //   1. Cancel Stripe subscriptions   (abort if it fails → never orphan a live sub)
 //   2. Clear Storage buckets          (abort if it fails → account still intact, retriable)
-//   3. Delete the auth user           (cascades every owning table from profiles)
+//   3. Redact this user's audit_log payloads (keep the who/what/when trail)
+//   4. Delete the auth user           (cascades every owning table from profiles)
 //
 // What is RETAINED, by design:
-//   - audit_log rows (no FK on user_id — kept for security/fraud investigation).
+//   - audit_log rows (no FK on user_id) — kept for security/fraud investigation,
+//     but with personal-data payloads redacted: step 3 scrubs the account's
+//     INSERT/UPDATE history, and the DELETE-path trigger (migration
+//     20260731000000) drops the payload on the cascade below. Only user_id,
+//     event type, timestamp, and row_id remain.
 //   - The Stripe *customer* object (subscriptions are canceled, not the customer)
 //     so billing/tax records survive, matching the privacy policy.
 import { NextRequest, NextResponse } from 'next/server';
@@ -104,9 +109,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 3. The irreversible step. Deleting the auth user cascades profiles →
+  // ── 3. Redact this user's personal data from the retained audit_log. The
+  //    DELETE-path trigger (migration 20260731000000) drops the payload on the
+  //    cascade DELETEs in step 4, but those cascade rows are written under the
+  //    service role (auth.uid() is null) so they can't be found by user_id
+  //    afterward — the trigger is what handles them. This scrub handles the
+  //    OTHER source: the account's lifetime of INSERT/UPDATE audit rows, which
+  //    carry client names, line items, and business details and are attributed
+  //    to this user_id. Keep the who/what/when trail, drop the payload. Done
+  //    before the irreversible delete so a failure here is retriable.
+  const { error: auditErr } = await admin
+    .from('audit_log')
+    .update({ detail: { redacted: true } })
+    .eq('user_id', user.id);
+  if (auditErr) {
+    console.error('delete-account: audit redaction failed', auditErr);
+    return NextResponse.json(
+      { error: 'audit_redaction_failed', message: 'Something went wrong finishing your deletion. Please try again.' },
+      { status: 500 }
+    );
+  }
+
+  // ── 4. The irreversible step. Deleting the auth user cascades profiles →
   //    clients, invoices, expenses, vault_documents, push_subscriptions (all
-  //    ON DELETE CASCADE from profiles). audit_log has no FK and is retained.
+  //    ON DELETE CASCADE from profiles). audit_log has no FK and is retained
+  //    (payloads already redacted in step 3 + by the DELETE-path trigger).
   const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
   if (delErr) {
     console.error('delete-account: auth user delete failed', delErr);
