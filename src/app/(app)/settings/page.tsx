@@ -340,21 +340,32 @@ export default function Settings() {
                 {access.tier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
                   : access.tier === 'trialing'
-                    ? `You’re on your free month${fmtDate(p.trial_ends_at) ? ` — first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
-                    : `You’re subscribed${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
+                    ? `You’re on your 30-day free trial — $9.99/month${fmtDate(p.trial_ends_at) ? `, first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
+                    : `You’re subscribed at $9.99/month${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/billing-portal')}>
                 <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
               </button>
+              <p className="text-sm text-on-surface-variant">Cancel or update your card in the billing portal.</p>
             </>
           ) : (
             <>
-              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, and reminders. First month free.</p>
+              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, and reminders.</p>
+              {/* Subscription disclosure — plain, body-size, visible before the Stripe
+                  redirect. Material terms match trial_period_days: 30 in /api/checkout. */}
+              <p className="text-sm text-on-surface-variant">
+                30-day free trial, then $9.99/month, recurring. Cancel anytime.
+              </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
                 {billingBusy ? 'Opening…' : 'Upgrade — $9.99/month'}
               </button>
+              <p className="text-sm text-on-surface-variant">
+                <a href="/terms" className="underline">Terms</a>
+                {' · '}
+                <a href="/privacy" className="underline">Privacy</a>
+              </p>
             </>
           )}
           {billingNotice && <p className="text-sm text-on-surface-variant">{billingNotice}</p>}

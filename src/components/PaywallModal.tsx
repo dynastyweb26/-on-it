@@ -103,7 +103,7 @@ export default function PaywallModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-5 flex items-baseline justify-center gap-1.5">
           <span className="font-display text-numeric-xl tracking-tight text-on-background">$9.99</span>
-          <span className="text-body-md text-on-surface-variant">/month · first month free · cancel anytime</span>
+          <span className="text-body-md text-on-surface-variant">/month · 30-day free trial · cancel anytime</span>
         </div>
 
         {notice && (
@@ -112,9 +112,20 @@ export default function PaywallModal({ onClose }: { onClose: () => void }) {
           </p>
         )}
 
-        <button className="btn-primary mt-4 w-full" disabled={busy} onClick={upgrade}>
+        {/* Subscription disclosure — plain, body-size, visible before the Stripe
+            redirect. Material terms match trial_period_days: 30 in /api/checkout. */}
+        <p className="mt-4 text-center text-body-md text-on-surface-variant">
+          30-day free trial, then $9.99/month, recurring. Cancel anytime.
+        </p>
+
+        <button className="btn-primary mt-3 w-full" disabled={busy} onClick={upgrade}>
           {busy ? 'One sec…' : 'Start your free month'}
         </button>
+        <p className="mt-2 text-center text-body-md text-on-surface-variant">
+          <a href="/terms" className="underline">Terms</a>
+          {' · '}
+          <a href="/privacy" className="underline">Privacy</a>
+        </p>
         <button
           className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline"
           onClick={onClose}
