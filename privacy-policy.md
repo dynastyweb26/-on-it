@@ -2,7 +2,7 @@
 
 **Last updated: July 31, 2026**
 
-On It is an invoicing app for tradespeople and home service businesses, operated by Dynasty Web LLC ("we," "us"). This policy explains what information we collect, why, and what we do with it.
+On It is an invoicing app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us"). This policy explains what information we collect, why, and what we do with it.
 
 We've written this in plain language on purpose. If anything here is unclear, email us at brandon@dynastyweb.co.
 
@@ -159,4 +159,3 @@ If we change this policy, we'll update the date at the top. For significant chan
 Questions about this policy or your data:
 
 **Email:** brandon@dynastyweb.co
-**Mailing address:** [TO BE ADDED BEFORE PUBLICATION]

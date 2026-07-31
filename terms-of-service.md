@@ -2,7 +2,7 @@
 
 **Last updated: July 31, 2026**
 
-These terms are the agreement between you and Dynasty Web LLC ("we," "us") for use of On It. By creating an account, you agree to them.
+These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us") for use of On It. By creating an account, you agree to them.
 
 ---
 
@@ -173,4 +173,3 @@ These terms, together with our Privacy Policy, are the entire agreement between 
 ## 16. Contact
 
 **Email:** brandon@dynastyweb.co
-**Mailing address:** [TO BE ADDED BEFORE PUBLICATION]
