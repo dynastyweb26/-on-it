@@ -480,6 +480,10 @@ export default function Settings() {
         )}
       </section>
 
+      <div className="flex justify-center gap-4 text-sm text-on-surface-variant">
+        <a href="/terms" className="underline">Terms</a>
+        <a href="/privacy" className="underline">Privacy</a>
+      </div>
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
     </div>
   );

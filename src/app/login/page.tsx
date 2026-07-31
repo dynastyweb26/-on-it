@@ -247,6 +247,13 @@ export default function Login() {
               {cooldown > 0 ? `Resend confirmation email (${cooldown}s)` : 'Resend confirmation email'}
             </button>
           )}
+          {mode === 'signup' && (
+            <p className="text-sm text-on-surface-variant">
+              By creating an account you agree to our{' '}
+              <a href="/terms" className="underline">Terms</a> and{' '}
+              <a href="/privacy" className="underline">Privacy Policy</a>.
+            </p>
+          )}
           <button className="btn-primary" disabled={busy || !email} onClick={submit}>
             {busy ? 'One sec…' : mode === 'signup' ? 'Create free account' : 'Sign in'}
           </button>

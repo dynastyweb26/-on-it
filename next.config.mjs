@@ -29,6 +29,13 @@ const csp = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Legal documents (privacy-policy.md / terms-of-service.md) are imported as
+  // raw strings and rendered by src/components/Markdown.tsx. Runs in dev and
+  // prod builds identically, so the .md is always bundled — no fs/tracing.
+  webpack: (config) => {
+    config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
+    return config;
+  },
   headers: async () => [
     {
       source: '/(.*)',
