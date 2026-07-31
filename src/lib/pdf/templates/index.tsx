@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { BrandTheme, onColor } from '@/lib/colors';
+import { websiteHref } from '@/lib/url';
 import type { LineItem } from '@/lib/ai';
 
 export interface InvoiceRenderData {
@@ -220,6 +221,26 @@ const Meta = ({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) => (
   </div>
 );
 
+// Website: display the raw value the user typed, but make it a real link whose
+// href is normalized (bare domains get https://). data-pdf-link → tappable in
+// the generated PDF (elementToPdf); href → clickable in the on-screen preview.
+// Returns null when there's no usable value, so callers don't render an empty line.
+const Website = ({ url, t, style }: { url?: string | null; t: BrandTheme; style?: React.CSSProperties }) => {
+  const href = websiteHref(url);
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      data-pdf-link={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: 'block', color: t.accent, textDecoration: 'none', ...style }}
+    >
+      {url}
+    </a>
+  );
+};
+
 /* ── 1. CLASSIC ─────────────────────────────────────────────── */
 function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   return (
@@ -237,7 +258,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {d.businessName}
         </div>
         {d.slogan && <div style={{ color: t.accent, fontStyle: 'italic', fontSize: 14 }}>{d.slogan}</div>}
-        {d.websiteUrl && <div style={{ color: t.accent, fontSize: 13 }}>{d.websiteUrl}</div>}
+        <Website url={d.websiteUrl} t={t} style={{ fontSize: 13 }} />
       </div>
       <div style={{ height: 3, background: t.accent, margin: '24px 0' }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 32 }}>
@@ -306,7 +327,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
-          {d.websiteUrl && <div style={{ color: t.accent, fontSize: 13, marginTop: 2 }}>{d.websiteUrl}</div>}
+          <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
       </div>
 
@@ -411,7 +432,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontWeight: 700, fontSize: 14 }}>{d.slogan}</div>}
-          {d.websiteUrl && <div style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>{d.websiteUrl}</div>}
+          <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 4 }} />
         </div>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 108 }} alt="" />}
       </div>
@@ -465,7 +486,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             {d.businessName}
           </div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 13 }}>{d.slogan}</div>}
-          {d.websiteUrl && <div style={{ color: t.accent, fontSize: 12 }}>{d.websiteUrl}</div>}
+          <Website url={d.websiteUrl} t={t} style={{ fontSize: 12 }} />
         </div>
         <div style={{ marginLeft: 'auto', background: t.accent, color: onColor(t.accent), borderRadius: 999, padding: '8px 18px', fontWeight: 800, fontSize: 14 }}>
           {d.kind === 'quote' ? 'Quote' : 'Invoice'} #{String(d.invoiceNumber).padStart(4, '0')}
