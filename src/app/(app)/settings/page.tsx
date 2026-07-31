@@ -160,7 +160,7 @@ export default function Settings() {
   }
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
-  // Free/canceled users → Checkout (start the $9.99/mo, first-month-free plan).
+  // Free/canceled users → Checkout (start the $9.99/mo, 30-day-free-trial plan).
   // Both redirect to a Stripe-hosted page; the 503 dormant message shows inline.
   async function billingAction(endpoint: '/api/billing-portal' | '/api/checkout') {
     if (billingBusy) return;

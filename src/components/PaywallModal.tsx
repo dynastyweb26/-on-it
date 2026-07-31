@@ -119,7 +119,7 @@ export default function PaywallModal({ onClose }: { onClose: () => void }) {
         </p>
 
         <button className="btn-primary mt-3 w-full" disabled={busy} onClick={upgrade}>
-          {busy ? 'One sec…' : 'Start your free month'}
+          {busy ? 'One sec…' : 'Start your 30-day free trial'}
         </button>
         <p className="mt-2 text-center text-body-md text-on-surface-variant">
           <a href="/terms" className="underline">Terms</a>
