@@ -38,6 +38,12 @@ export default function Settings() {
   const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
+  // Account deletion: a two-step, typed-confirmation flow kept well away from
+  // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -175,6 +181,34 @@ export default function Settings() {
       setBillingNotice('That’s not available right now — try again shortly.');
     } finally {
       setBillingBusy(false);
+    }
+  }
+
+  // Permanent: deletes the account, all records, and uploaded files, and cancels
+  // any live subscription server-side. Only fires on an exact "DELETE" match.
+  async function confirmDelete() {
+    if (deleteConfirm !== 'DELETE' || deleteBusy) return;
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      if (res.ok) {
+        // The account is gone; drop the local session and leave for login.
+        await supabase.auth.signOut().catch(() => {});
+        setRedirecting(true);
+        router.replace('/login');
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(data?.message ?? 'We couldn’t delete your account. Please try again.');
+    } catch {
+      setDeleteError('We couldn’t delete your account. Please try again.');
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -405,6 +439,47 @@ export default function Settings() {
         onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}>
         Sign out
       </button>
+
+      {/* Danger zone — deliberately its own error-bordered card, separated from
+          Sign out, gated behind a typed "DELETE" confirmation. */}
+      <section className="card space-y-3 border-error/40">
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-error">Delete account</h2>
+        <p className="text-sm text-on-surface-variant">
+          This permanently deletes your account, your invoices, expenses, customer records,
+          and every file you’ve uploaded. It cannot be undone — your invoices cannot be recovered.
+          Any active subscription is canceled as part of deletion.
+        </p>
+        {!deleteOpen ? (
+          <button
+            className="inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-button border border-error px-4 font-semibold text-error active:scale-[0.97] transition-transform"
+            onClick={() => { setDeleteOpen(true); setDeleteError(''); }}>
+            <Icon name="delete_forever" size={18} /> Delete account
+          </button>
+        ) : (
+          <>
+            <label htmlFor="delete-confirm" className="text-sm text-on-surface-variant">
+              Type <span className="font-semibold text-on-background">DELETE</span> to confirm.
+            </label>
+            <input id="delete-confirm" className="input" autoComplete="off" autoCapitalize="characters"
+              placeholder="DELETE" value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)} />
+            <div className="flex gap-2">
+              <button className="btn-outline flex-1"
+                onClick={() => { setDeleteOpen(false); setDeleteConfirm(''); setDeleteError(''); }}>
+                Cancel
+              </button>
+              <button
+                className="flex-1 inline-flex min-h-touch items-center justify-center gap-2 rounded-button bg-error px-4 font-semibold text-white disabled:opacity-40"
+                disabled={deleteConfirm !== 'DELETE' || deleteBusy}
+                onClick={confirmDelete}>
+                {deleteBusy ? 'Deleting…' : 'Permanently delete'}
+              </button>
+            </div>
+            {deleteError && <p className="text-sm text-error">{deleteError}</p>}
+          </>
+        )}
+      </section>
+
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
     </div>
   );
