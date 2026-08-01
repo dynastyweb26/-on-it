@@ -18,7 +18,7 @@ All nine T-Vault security holes prevented from day one, plus On It-specific laye
 - **Audio transcribe-and-discard** — audio blobs are streamed to AssemblyAI and never written to our storage; only text survives.
 - **PDF privacy** — PDFs are generated client-side; nothing sensitive transits our servers to build them.
 - **Guest limits** — deferred auth capped at 5 parses via httpOnly cookie; guests can't write to the database at all (RLS blocks it regardless).
-- **Cron auth** — `/api/followups` requires `Bearer CRON_SECRET`.
+- **Cron auth** — `/api/followups` and `/api/trial-reminders` require `Bearer CRON_SECRET`.
 - **Length constraints in SQL** — every text column has a CHECK cap as a final backstop.
 
 ## Rules for future changes (Cursor: read this)
