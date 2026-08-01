@@ -18,7 +18,7 @@ All nine T-Vault security holes prevented from day one, plus On It-specific laye
 - **Audio transcribe-and-discard** — audio blobs are streamed to AssemblyAI and never written to our storage; only text survives.
 - **PDF privacy** — PDFs are generated client-side; nothing sensitive transits our servers to build them.
 - **Guest limits** — deferred auth capped at 5 parses via httpOnly cookie; guests can't write to the database at all (RLS blocks it regardless).
-- **Guest transcribe cost cap** — the open voice demo is gated two ways so rotating IPs / cleared cookies can't drain AssemblyAI credits: a per-browser httpOnly cookie quota (`onit_guest_tx`, 4 transcriptions) plus a global per-day ceiling across all guests (`reserveGuestDaily` in `ratelimit.ts`, 500/day). Both are guest-only; signed-in users keep the standard rate limits.
+- **Guest transcribe cost cap** — the open voice demo is gated two ways so rotating IPs / cleared cookies can't drain AssemblyAI credits: a per-browser httpOnly cookie quota (`onit_guest_tx`, 6 transcriptions) plus a global per-day ceiling across all guests (`reserveGuestDaily` in `ratelimit.ts`, 500/day). Both are guest-only; signed-in users keep the standard rate limits.
 - **Cron auth** — `/api/followups` and `/api/trial-reminders` require `Bearer CRON_SECRET`.
 - **Length constraints in SQL** — every text column has a CHECK cap as a final backstop.
 

@@ -10,9 +10,9 @@ const AAI = 'https://api.assemblyai.com/v2';
 // intentional, so we cap rather than block: a small per-browser allowance
 // (cookie, mirrors /api/parse's onit_guest counter) plus a global daily ceiling
 // in reserveGuestDaily() that IP rotation + fresh cookies can't slip past.
-// Slightly tighter than parse's 5 — a transcription costs more per call, and a
-// few taps is plenty to feel the flow before creating an account.
-const GUEST_TX_LIMIT = 4;
+// A handful of taps is plenty to feel the flow before creating an account; the
+// global daily ceiling in reserveGuestDaily() is the real cost backstop.
+const GUEST_TX_LIMIT = 6;
 const GUEST_TX_COOKIE = 'onit_guest_tx'; // separate from parse's onit_guest so
                                          // the two demos don't drain each other
 
