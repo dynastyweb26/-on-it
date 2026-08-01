@@ -825,11 +825,20 @@ export default function Chat() {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         setBusy(true);
         let text = '';
+        let data: { text?: string; authRequired?: boolean; message?: string } = {};
         try {
           const res = await fetch('/api/transcribe', { method: 'POST', body: blob });
-          text = ((await res.json()).text ?? '').trim();
+          data = await res.json();
+          text = (data.text ?? '').trim();
         } catch { /* treated as "didn't catch that" */ }
         setBusy(false);
+        // Guest voice budget spent (per-browser or global daily cap) — show the
+        // signup prompt and route to login, same as /api/parse's authRequired.
+        if (data.authRequired) {
+          setMessages((m) => [...m, { role: 'assistant', content: data.message ?? "Create your free account to keep going." }]);
+          setTimeout(() => router.push('/login'), 1600);
+          return;
+        }
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.

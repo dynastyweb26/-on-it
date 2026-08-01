@@ -2,9 +2,19 @@
 // Receives an audio blob, returns { text }.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier, reserveGuestDaily } from '@/lib/ratelimit';
 
 const AAI = 'https://api.assemblyai.com/v2';
+
+// Deferred-auth guest budget for the voice demo. Trying voice before signup is
+// intentional, so we cap rather than block: a small per-browser allowance
+// (cookie, mirrors /api/parse's onit_guest counter) plus a global daily ceiling
+// in reserveGuestDaily() that IP rotation + fresh cookies can't slip past.
+// Slightly tighter than parse's 5 — a transcription costs more per call, and a
+// few taps is plenty to feel the flow before creating an account.
+const GUEST_TX_LIMIT = 4;
+const GUEST_TX_COOKIE = 'onit_guest_tx'; // separate from parse's onit_guest so
+                                         // the two demos don't drain each other
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -19,9 +29,40 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate the blob before spending anything — cheap, no AssemblyAI cost.
   const audio = await req.arrayBuffer();
   if (!audio.byteLength || audio.byteLength > 10 * 1024 * 1024) {
     return NextResponse.json({ error: 'invalid audio' }, { status: 400 });
+  }
+
+  // Deferred auth: unauthenticated callers get a few free transcriptions before
+  // we ask them to sign up. Two backstops, both guest-only — signed-in users
+  // keep the existing rate limits and nothing else:
+  if (!user) {
+    // 1. Per-browser quota via httpOnly cookie counter (same shape as /api/parse).
+    const guestCount = Number(req.cookies.get(GUEST_TX_COOKIE)?.value ?? 0);
+    if (guestCount >= GUEST_TX_LIMIT) {
+      return NextResponse.json(
+        {
+          authRequired: true,
+          message: "That's the free voice previews used up — create your free account to keep talking to On It.",
+        },
+        { status: 401 }
+      );
+    }
+
+    // 2. Global daily ceiling across ALL guests, so cookie-clearing + rotating
+    //    IPs still hit one wall. Reserve right before the paid work; signing up
+    //    lifts the guest ceiling, so we point there too.
+    if (!(await reserveGuestDaily('transcribe'))) {
+      return NextResponse.json(
+        {
+          authRequired: true,
+          message: "Voice is busy today — create your free account to keep using it. It's instant.",
+        },
+        { status: 429 }
+      );
+    }
   }
 
   const headers = { authorization: process.env.ASSEMBLYAI_API_KEY! };
@@ -43,7 +84,17 @@ export async function POST(req: NextRequest) {
     await new Promise((r) => setTimeout(r, 1000));
     const poll = await fetch(`${AAI}/transcript/${id}`, { headers });
     const data = await poll.json();
-    if (data.status === 'completed') return NextResponse.json({ text: data.text ?? '' });
+    if (data.status === 'completed') {
+      const res = NextResponse.json({ text: data.text ?? '' });
+      // Count only delivered transcriptions against the guest's browser quota —
+      // a failed take shouldn't burn a free preview. (The global daily counter
+      // above already reserved on attempt; that one is deliberately stricter.)
+      if (!user) {
+        const guestCount = Number(req.cookies.get(GUEST_TX_COOKIE)?.value ?? 0);
+        res.cookies.set(GUEST_TX_COOKIE, String(guestCount + 1), { httpOnly: true, sameSite: 'lax' });
+      }
+      return res;
+    }
     if (data.status === 'error') break;
   }
   return NextResponse.json({ error: 'transcription failed' }, { status: 500 });

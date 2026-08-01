@@ -75,3 +75,46 @@ export async function rateLimit(route: RateRoute, identifier: string): Promise<b
     return true;
   }
 }
+
+// ═══ Global daily guest ceiling ═══
+// The per-user/IP window above is per-caller; a determined abuser rotating IPs
+// and clearing cookies gets a fresh sliding window every time. This is a single
+// shared counter across ALL guests for a cost-exposed route, so cookie-clearing
+// plus IP rotation still runs into one hard daily wall. Only guest
+// (unauthenticated) calls are counted; signed-in users are never subject to it.
+const DAILY_GUEST_CAP: Partial<Record<RateRoute, number>> = {
+  // ~500 short guest voice notes/day. Generous for the real demo funnel (a few
+  // hundred new visitors doing a handful of taps each stays well under), and
+  // cheap if abused — worst case is a few dollars of AssemblyAI, not a runaway
+  // bill, no matter how many fresh cookies/IPs an attacker throws at it.
+  transcribe: 500,
+};
+
+/**
+ * Reserves one unit of today's global guest budget for `route` and returns
+ * true if still within budget (caller may proceed), false once the daily
+ * ceiling is reached. Atomic INCR, so it's cross-instance safe; rejected
+ * calls still consume, which only makes the wall firmer for the rest of the
+ * day — the right bias for a cost backstop. The key self-expires.
+ *
+ * Fails OPEN on a Redis outage / missing env, matching rateLimit — in that
+ * window the per-guest cookie cap in the route remains as a floor.
+ */
+export async function reserveGuestDaily(route: RateRoute): Promise<boolean> {
+  const cap = DAILY_GUEST_CAP[route];
+  if (cap == null) return true;
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return true; // env absent (e.g. local without Upstash) — fail open
+  }
+  if (!redis) redis = Redis.fromEnv();
+  const day = new Date().toISOString().slice(0, 10); // UTC calendar day
+  const key = `guestcap:${route}:${day}`;
+  try {
+    const n = await redis.incr(key);
+    if (n === 1) await redis.expire(key, 60 * 60 * 48); // self-clean, 48h margin
+    return n <= cap;
+  } catch (e) {
+    console.error('guest daily cap error (failing open)', route, e);
+    return true;
+  }
+}
