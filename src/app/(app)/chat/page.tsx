@@ -337,6 +337,24 @@ export default function Chat() {
       }
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) {
+        // Returning client? Pull the address/phone we already have on file so a
+        // repeat customer never re-enters them — and the confirmation gate sees
+        // them as present. Anything the user stated THIS turn wins over the
+        // stored value; a signed-in user only (guests have no client records).
+        if (profile && data.client_name && (data.intent === 'invoice' || data.intent === 'quote')
+          && (data.client_address == null || data.client_phone == null)) {
+          const { data: known } = await supabase
+            .from('clients')
+            .select('address, phone')
+            .eq('user_id', profile.id)
+            .ilike('name', data.client_name)
+            .limit(1)
+            .maybeSingle();
+          if (known) {
+            data.client_address = data.client_address ?? known.address ?? null;
+            data.client_phone = data.client_phone ?? known.phone ?? null;
+          }
+        }
         setDraft(data);
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
@@ -468,9 +486,19 @@ export default function Chat() {
         const rd0 = buildRenderData(newNo);
         if (!rd0) throw new Error('incomplete');
 
+        // Remember contact on the client record for next time. Only write a
+        // field when we actually have it: omitting a column leaves any stored
+        // value intact, so an invoice that didn't restate the address never
+        // wipes one the client already has on file.
+        const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
+          user_id: profile.id,
+          name: rd0.clientName,
+        };
+        if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
+        if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
         const { data: client } = await supabase
           .from('clients')
-          .upsert({ user_id: profile.id, name: rd0.clientName }, { onConflict: 'user_id,name' })
+          .upsert(clientRow, { onConflict: 'user_id,name' })
           .select('id').single();
 
         // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
