@@ -509,6 +509,10 @@ export default function Chat() {
           kind: rd0.kind,
           invoice_number: newNo,
           client_name: rd0.clientName,
+          // Snapshot contact onto the row — a later change to the client record
+          // must not rewrite what this invoice actually went out with.
+          client_address: rd0.clientAddress ?? null,
+          client_phone: rd0.clientPhone ?? null,
           line_items: rd0.lineItems,
           subtotal: rd0.subtotal,
           tax_rate: rd0.taxRate,
