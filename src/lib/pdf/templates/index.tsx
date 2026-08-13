@@ -28,6 +28,7 @@ export interface InvoiceRenderData {
   slogan?: string | null;
   clientName: string;
   clientAddress?: string | null;
+  clientPhone?: string | null;
   lineItems: LineItem[];
   subtotal: number;
   taxRate: number;
@@ -268,6 +269,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
+          {d.clientPhone && <div>{d.clientPhone}</div>}
         </div>
         <Meta d={d} t={t} />
       </div>
@@ -355,7 +357,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ marginBottom: 32, fontSize: 16, borderBottom: faintRule, paddingBottom: 10 }}>
         <span style={label}>Billed to&nbsp;&nbsp;</span>
         <span style={{ fontWeight: 700 }}>{d.clientName}</span>
-        {d.clientAddress && <span style={{ opacity: 0.8, fontSize: 13 }}> — {d.clientAddress}</span>}
+        {d.clientAddress && <div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
+        {d.clientPhone && <div style={{ opacity: 0.8, fontSize: 13 }}>{d.clientPhone}</div>}
       </div>
 
       {/* ruled items table — monospace numerals right-aligned */}
@@ -446,7 +449,8 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             Billed to&nbsp;&nbsp;
           </span>
           <span style={{ fontWeight: 800, fontSize: 17 }}>{d.clientName}</span>
-          {d.clientAddress && <span style={{ opacity: 0.8 }}> — {d.clientAddress}</span>}
+          {d.clientAddress && <div style={{ opacity: 0.8 }}>{d.clientAddress}</div>}
+          {d.clientPhone && <div style={{ opacity: 0.8 }}>{d.clientPhone}</div>}
         </div>
         <ItemsTable d={d} t={t} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 28 }}>
@@ -499,6 +503,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
           {d.clientAddress && <div style={{ fontSize: 13 }}>{d.clientAddress}</div>}
+          {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
         </div>
         <div style={{ ...card, width: 220 }}>
           <Meta d={d} t={t} />
