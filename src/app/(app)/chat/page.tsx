@@ -409,8 +409,11 @@ export default function Chat() {
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
         pendingInvoiceRef.current = null;
+        // Only a real parse result moves the card in or out of "ready". A
+        // no-intent response (rate limit, a transient error, a bare reply)
+        // leaves the current preview intact instead of collapsing it.
+        setReady(isReady);
       }
-      setReady(isReady);
 
       // A duplicate was flagged — remember the pending create so the next
       // affirmative resolves it instead of re-parsing into the same warning.
