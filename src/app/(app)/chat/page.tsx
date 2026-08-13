@@ -184,6 +184,13 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
+  // Confirmation gate: after the first finalize attempt we show a summary and
+  // wait for an explicit go-ahead. `prefilled` tracks which contact fields came
+  // from the saved client record (vs. spoken this turn) so the summary can flag
+  // a possibly-stale address/phone. Both are ephemeral — a reload safely
+  // re-gates rather than sending straight through.
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [prefilled, setPrefilled] = useState<{ address: boolean; phone: boolean }>({ address: false, phone: false });
   // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
@@ -314,6 +321,26 @@ export default function Chat() {
       setPending(null); // ambiguous reply — fall through to a fresh parse
     }
 
+    // ── Confirmation gate ─────────────────────────────────────
+    // A bare affirmative ("yes", "send it") is the explicit go-ahead — whether
+    // the preview card is up or we've already shown the confirm summary. Voice
+    // users just say it; no tap needed (decision: button + affirmative text).
+    if (draft && (ready || awaitingConfirm) && isAffirmative(trimmed)) {
+      setBusy(true);
+      try { await finalize(); }
+      finally { setBusy(false); }
+      return null;
+    }
+    // "No" while we're waiting to confirm: stand down and invite edits.
+    if (awaitingConfirm && isNegative(trimmed)) {
+      setAwaitingConfirm(false);
+      setMessages((m) => [...m, { role: 'assistant', content: "No rush — tell me what to change and I'll fix it up." }]);
+      return null;
+    }
+    // Anything else is fresh info: drop the confirm hold so the next send
+    // re-summarizes against the updated draft.
+    if (awaitingConfirm) setAwaitingConfirm(false);
+
     setBusy(true);
     try {
       const res = await fetch('/api/parse', {
@@ -337,12 +364,16 @@ export default function Chat() {
       }
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) {
+        // The AI's own output for contact, BEFORE we enrich — it's either what
+        // the user spoke this turn or a value carried through the draft.
+        const aiAddress = data.client_address ?? null;
+        const aiPhone = data.client_phone ?? null;
         // Returning client? Pull the address/phone we already have on file so a
         // repeat customer never re-enters them — and the confirmation gate sees
         // them as present. Anything the user stated THIS turn wins over the
-        // stored value; a signed-in user only (guests have no client records).
+        // stored value; signed-in users only (guests have no client records).
         if (profile && data.client_name && (data.intent === 'invoice' || data.intent === 'quote')
-          && (data.client_address == null || data.client_phone == null)) {
+          && (aiAddress == null || aiPhone == null)) {
           const { data: known } = await supabase
             .from('clients')
             .select('address, phone')
@@ -351,10 +382,29 @@ export default function Chat() {
             .limit(1)
             .maybeSingle();
           if (known) {
-            data.client_address = data.client_address ?? known.address ?? null;
-            data.client_phone = data.client_phone ?? known.phone ?? null;
+            data.client_address = aiAddress ?? known.address ?? null;
+            data.client_phone = aiPhone ?? known.phone ?? null;
           }
         }
+        // Mark each contact field record-sourced (so the confirm summary can
+        // flag a possibly-stale value) when the AI produced nothing for it and
+        // we filled from the record, OR it's an unchanged carry-over of a value
+        // that was already record-sourced. A value the AI newly produced —
+        // different from the prior draft — was spoken this turn, so not.
+        const prevAddress = draft?.client_address ?? null;
+        const prevPhone = draft?.client_phone ?? null;
+        setPrefilled((prev) => ({
+          address:
+            data.client_address == null ? false
+              : aiAddress == null ? true
+              : aiAddress === prevAddress ? prev.address
+              : false,
+          phone:
+            data.client_phone == null ? false
+              : aiPhone == null ? true
+              : aiPhone === prevPhone ? prev.phone
+              : false,
+        }));
         setDraft(data);
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
@@ -432,8 +482,44 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
 
+  /** The confirmation summary: what we have, any contact pulled from the saved
+   *  client record (surfaced so a stale one can be caught), what's still
+   *  missing, and how to proceed. Written to be spoken aloud — plain sentences,
+   *  no lists. */
+  function confirmSummary(): string {
+    const items = (draft?.line_items ?? []) as LineItem[];
+    const total = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
+    const kind = draft?.intent === 'quote' ? 'quote' : 'invoice';
+    const who = draft?.client_name ?? 'this client';
+    const out: string[] = [`Here's your ${kind} for ${who}: ${money(total)}.`];
+
+    const saved: string[] = [];
+    if (prefilled.address && draft?.client_address) saved.push(`the address ${draft.client_address}`);
+    if (prefilled.phone && draft?.client_phone) saved.push(`the phone number ${draft.client_phone}`);
+    if (saved.length) out.push(`I'm using ${saved.join(' and ')} from last time — tell me if that's changed.`);
+
+    const missing: string[] = [];
+    if (!draft?.client_address) missing.push('an address');
+    if (!draft?.client_phone) missing.push('a phone number');
+    if (missing.length) out.push(`I don't have ${missing.join(' or ')} yet — want to add ${missing.length > 1 ? 'either' : 'it'}?`);
+
+    out.push(`Say "send it" when you're ready, or tell me what to change.`);
+    return out.join(' ');
+  }
+
   async function finalize() {
     if (!draft) return;
+
+    // ── Confirmation gate ─────────────────────────────────────
+    // Never build straight through. The first attempt summarizes what we have,
+    // flags any contact pulled from the saved record, names what's missing, and
+    // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
+    // change re-summarizes.
+    if (!awaitingConfirm) {
+      setMessages((m) => [...m, { role: 'assistant', content: confirmSummary() }]);
+      setAwaitingConfirm(true);
+      return;
+    }
 
     // A3 / B2: no profile in hand — decide WHY before doing anything.
     //  - fetch still in flight → don't bounce an authed user to login over a
@@ -625,6 +711,8 @@ export default function Chat() {
       setConvoId(genId());
       setDraft(null);
       setReady(false);
+      setAwaitingConfirm(false);
+      setPrefilled({ address: false, phone: false });
       setRenderData(null);
       setFinished(true); // clears the persisted conversation
       try { localStorage.removeItem(CHAT_STORE_KEY); } catch { /* ignore */ }
@@ -985,6 +1073,8 @@ export default function Chat() {
     setDraft(entry.draft);
     setReady(Boolean(entry.ready) && !entry.finalized);
     setPending(null); // confirmation state doesn't carry across conversations
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
     setFinished(entry.finalized); // finalized ones stay read-only until a new message
     setConvoId(entry.id);
     setShowHistory(false);
@@ -1027,7 +1117,7 @@ export default function Chat() {
             </div>
             <button className="btn-primary mt-3 w-full" disabled={finalizing} onClick={finalize}>
               <Icon name="attach_file" size={18} />
-              {finalizing ? 'Building your PDF…' : 'Looks right — send it'}
+              {finalizing ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline"
               onClick={() => send('Actually, let me change something')}>
