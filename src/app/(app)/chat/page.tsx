@@ -396,6 +396,8 @@ export default function Chat() {
       websiteUrl: profile.website_url,
       slogan: profile.slogan,
       clientName: draft.client_name ?? 'Client',
+      clientAddress: draft.client_address ?? null,
+      clientPhone: draft.client_phone ?? null,
       lineItems: items,
       subtotal, taxRate, taxAmount,
       total: subtotal + taxAmount,
