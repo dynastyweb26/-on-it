@@ -37,6 +37,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const CHAT_STORE_KEY = 'onit_chat_current';
 const HISTORY_KEY = 'onit_chat_history';
 const HISTORY_MAX = 5;
+// Bump when StoredChat's shape changes so an entry written by an older build is
+// discarded on load instead of rehydrated into a broken draft. (v1 was the
+// original unversioned shape — any entry whose version doesn't match is dropped.)
+const STORE_VERSION = 2;
+// An in-progress invoice older than this is stale — don't resurrect a job the
+// user started a day ago and forgot about. updatedAt is refreshed on every write.
+const STORE_TTL_MS = 24 * 60 * 60 * 1000;
 const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,11 +99,16 @@ function duplicateMessage(e: ExistingReceipt): string {
 }
 
 interface StoredChat {
+  version: number;
   id?: string;
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
   pending?: PendingAction | null;
+  // The invoice row already inserted this session but not yet marked sent (id +
+  // number). Persisted so a send that resumes after a suspend/reload reuses this
+  // row instead of inserting a second one with a fresh number.
+  pendingInvoice?: { id: string; no: number } | null;
   updatedAt: number;
 }
 
@@ -115,6 +127,11 @@ function loadStoredChat(): StoredChat | null {
     const raw = localStorage.getItem(CHAT_STORE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
+    // Written by an older build — discard rather than rehydrate a draft whose
+    // fields may no longer line up with the current shape.
+    if (parsed.version !== STORE_VERSION) return null;
+    // Stale — a job left untouched past the TTL isn't "current" anymore.
+    if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
     return parsed;
   } catch {
@@ -198,9 +215,10 @@ export default function Chat() {
   const printRef = useRef<HTMLDivElement>(null);
   // A draft invoice row already inserted this session but not yet marked sent
   // (share pending / cancelled). A retry reuses it instead of inserting a
-  // second row (audit B1). In-memory only: cleared whenever the draft content
-  // changes (a fresh parse) so we never mark a stale row sent, and reset on a
-  // reload so a post-reload send safely starts a new row.
+  // second row (audit B1). Cleared whenever the draft content changes (a fresh
+  // parse) so we never mark a stale row sent. Now persisted into the chat store
+  // and restored on mount, so a send that resumes after a suspend/reload reuses
+  // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
 
   useEffect(() => {
@@ -221,6 +239,9 @@ export default function Chat() {
       setDraft(stored.draft);
       setReady(Boolean(stored.ready));
       setPending(stored.pending ?? null);
+      // Reuse an invoice row inserted before the suspend instead of starting a
+      // new one on the next send (prevents a duplicate with a fresh number).
+      pendingInvoiceRef.current = stored.pendingInvoice ?? null;
     }
     setConvoId(stored?.id ?? genId());
     setHydrated(true);
@@ -241,7 +262,15 @@ export default function Chat() {
       if (finished || messages.length < 2) {
         localStorage.removeItem(CHAT_STORE_KEY);
       } else {
-        const payload: StoredChat = { id: convoId, messages, draft, ready, pending, updatedAt: Date.now() };
+        // Twin of the explicit write in finalize() after the row is inserted —
+        // keep the two payloads in sync. pendingInvoiceRef is a ref (no effect
+        // fires on its change), so it rides along on the next state-driven write.
+        const payload: StoredChat = {
+          version: STORE_VERSION,
+          id: convoId, messages, draft, ready, pending,
+          pendingInvoice: pendingInvoiceRef.current,
+          updatedAt: Date.now(),
+        };
         localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
       }
     } catch { /* storage full or blocked — nothing to do */ }
@@ -476,6 +505,19 @@ export default function Chat() {
         const newId = saved.id as string;
         invoiceId = newId;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // The row exists but isn't marked sent yet, and setting a ref fires no
+        // persist effect. Write now so a suspend while the share sheet is open
+        // doesn't lose it and cause a duplicate row on the resumed send. Twin of
+        // the payload built in the persist effect above — keep them in sync.
+        try {
+          const payload: StoredChat = {
+            version: STORE_VERSION,
+            id: convoId, messages, draft, ready, pending,
+            pendingInvoice: pendingInvoiceRef.current,
+            updatedAt: Date.now(),
+          };
+          localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
+        } catch { /* storage blocked — the effect retries on the next change */ }
       }
 
       // Invariant after step 1: the row exists. Narrows the nullable locals for
