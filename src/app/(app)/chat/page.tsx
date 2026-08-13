@@ -37,6 +37,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const CHAT_STORE_KEY = 'onit_chat_current';
 const HISTORY_KEY = 'onit_chat_history';
 const HISTORY_MAX = 5;
+// Bump when StoredChat's shape changes so an entry written by an older build is
+// discarded on load instead of rehydrated into a broken draft. (v1 was the
+// original unversioned shape — any entry whose version doesn't match is dropped.)
+const STORE_VERSION = 2;
+// An in-progress invoice older than this is stale — don't resurrect a job the
+// user started a day ago and forgot about. updatedAt is refreshed on every write.
+const STORE_TTL_MS = 24 * 60 * 60 * 1000;
 const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,6 +99,7 @@ function duplicateMessage(e: ExistingReceipt): string {
 }
 
 interface StoredChat {
+  version: number;
   id?: string;
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
@@ -115,6 +123,11 @@ function loadStoredChat(): StoredChat | null {
     const raw = localStorage.getItem(CHAT_STORE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
+    // Written by an older build — discard rather than rehydrate a draft whose
+    // fields may no longer line up with the current shape.
+    if (parsed.version !== STORE_VERSION) return null;
+    // Stale — a job left untouched past the TTL isn't "current" anymore.
+    if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
     return parsed;
   } catch {
@@ -241,7 +254,11 @@ export default function Chat() {
       if (finished || messages.length < 2) {
         localStorage.removeItem(CHAT_STORE_KEY);
       } else {
-        const payload: StoredChat = { id: convoId, messages, draft, ready, pending, updatedAt: Date.now() };
+        const payload: StoredChat = {
+          version: STORE_VERSION,
+          id: convoId, messages, draft, ready, pending,
+          updatedAt: Date.now(),
+        };
         localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
       }
     } catch { /* storage full or blocked — nothing to do */ }
