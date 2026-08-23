@@ -9,13 +9,17 @@ import type { NextRequest } from 'next/server';
 
 export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account';
 
-// Starting points (tune later). AI ~20/min, transcribe ~30/min.
+// Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   parse:          { tokens: 20, window: '60 s' },
   // Vision costs meaningfully more per call than a text parse, and a human
   // photographing receipts can't outpace 10/min. Tighter on purpose.
   parse_receipt:  { tokens: 10, window: '60 s' },
-  transcribe:     { tokens: 30, window: '60 s' },
+  // Tightened from 30 → 12/min: with the paywall off, tier no longer gates who
+  // keeps calling, so the per-minute window is a real cost ceiling on
+  // AssemblyAI + the downstream /api/parse (Anthropic). A human dictating jobs
+  // never needs more than ~12/min; pair with the per-user daily cap below.
+  transcribe:     { tokens: 12, window: '60 s' },
   zelle_read:     { tokens: 10, window: '60 s' },
   zelle_write:    { tokens: 5,  window: '60 s' },
   checkout:       { tokens: 5,  window: '60 s' }, // checkout-session spam guard
@@ -115,6 +119,51 @@ export async function reserveGuestDaily(route: RateRoute): Promise<boolean> {
     return n <= cap;
   } catch (e) {
     console.error('guest daily cap error (failing open)', route, e);
+    return true;
+  }
+}
+
+// ═══ Per-signed-in-user daily ceiling ═══
+// The sliding per-minute window (LIMITS) caps burst rate; this caps ONE
+// account's total daily spend on a cost-exposed route. Until the paywall was
+// switched off, tier gating was the implicit daily ceiling — a free account
+// couldn't stay past the invoice cap, so it couldn't run up transcribe/parse
+// spend indefinitely. With the paywall off that backstop is gone and signed-in
+// accounts otherwise have NO daily limit, so add an explicit one. Guests are
+// covered separately by reserveGuestDaily; a caller uses one or the other.
+const DAILY_USER_CAP: Partial<Record<RateRoute, number>> = {
+  // ~150 voice notes/day per account. Far more than a real contractor dictating
+  // invoices needs, but a hard wall against a single account running up an
+  // unbounded AssemblyAI + Anthropic bill now that nothing gates on tier.
+  transcribe: 150,
+};
+
+/**
+ * Reserves one unit of TODAY's budget for (`route`, `userId`) and returns true
+ * while under the daily cap, false once it's reached. Atomic INCR (cross-
+ * instance safe); the key self-expires. Reserves on attempt, matching
+ * reserveGuestDaily — a rejected call still consumes, which only firms the wall
+ * for the rest of the day.
+ *
+ * Fails OPEN on a Redis outage / missing env, matching rateLimit and
+ * reserveGuestDaily — a limiter that hard-breaks the app during an infra blip
+ * is worse than a brief, narrow cost window (logged for alerting).
+ */
+export async function reserveUserDaily(route: RateRoute, userId: string): Promise<boolean> {
+  const cap = DAILY_USER_CAP[route];
+  if (cap == null) return true;
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return true; // env absent (e.g. local without Upstash) — fail open
+  }
+  if (!redis) redis = Redis.fromEnv();
+  const day = new Date().toISOString().slice(0, 10); // UTC calendar day
+  const key = `usercap:${route}:${userId}:${day}`;
+  try {
+    const n = await redis.incr(key);
+    if (n === 1) await redis.expire(key, 60 * 60 * 48); // self-clean, 48h margin
+    return n <= cap;
+  } catch (e) {
+    console.error('user daily cap error (failing open)', route, e);
     return true;
   }
 }

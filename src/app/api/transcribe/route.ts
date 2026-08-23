@@ -2,7 +2,7 @@
 // Receives an audio blob, returns { text }.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { rateLimit, rateIdentifier, reserveGuestDaily } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier, reserveGuestDaily, reserveUserDaily } from '@/lib/ratelimit';
 
 const AAI = 'https://api.assemblyai.com/v2';
 
@@ -60,6 +60,18 @@ export async function POST(req: NextRequest) {
           authRequired: true,
           message: "Voice is busy today — create your free account to keep using it. It's instant.",
         },
+        { status: 429 }
+      );
+    }
+  } else {
+    // Signed-in daily ceiling. The per-minute window above caps burst rate;
+    // this caps one account's total daily AssemblyAI + downstream Anthropic
+    // spend — the backstop that used to be implicit in tier gating, now that
+    // the paywall is off and nothing gates on tier. Reserved right before the
+    // paid work; fails open on a Redis outage.
+    if (!(await reserveUserDaily('transcribe', user.id))) {
+      return NextResponse.json(
+        { error: 'daily limit', message: "That's today's voice limit — it resets tomorrow. You can type in the meantime." },
         { status: 429 }
       );
     }
