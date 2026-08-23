@@ -23,6 +23,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/server';
 import { getResend, emailFrom } from '@/lib/email/resend';
 import { trialReminderEmail } from '@/lib/email/trial-reminder';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,6 +62,12 @@ function fmtAmount(unitAmount: number | null | undefined, currency: string | nul
 export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  // Paywall kill switch: no "your trial ends soon / you'll be charged" emails
+  // while billing is switched off. The cron stays scheduled but no-ops.
+  if (!PAYWALL_ENABLED) {
+    return NextResponse.json({ skipped: 'paywall_disabled' });
   }
 
   // Dormant-safe: without email or billing configured there is nothing to do.

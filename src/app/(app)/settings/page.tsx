@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -365,7 +366,11 @@ export default function Settings() {
         );
       })()}
 
-      {access && access.tier !== 'founder' && (
+      {/* Paywall kill switch: with the paywall off, only show this section to
+          users with a real Stripe subscription (Manage row). Free/canceled
+          users get nothing — no "Upgrade $9.99/month" CTA for something that's
+          currently unlimited, and no empty Subscription card either. */}
+      {access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
           {SUBSCRIBED.has(access.tier) ? (

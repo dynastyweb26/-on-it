@@ -19,6 +19,7 @@
 // gates via GET /api/access, never by importing this.
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 export type AccessTier = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'founder';
 
@@ -51,7 +52,11 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   if (raw === 'trialing' || raw === 'active' || raw === 'past_due') {
     return { hasAccess: true, tier: raw, invoiceCount };
   }
-  if (raw === 'canceled') return { hasAccess: false, tier: 'canceled', invoiceCount };
+  // Paywall kill switch: 'canceled' rejects on TIER regardless of invoice
+  // count, so the raised free_invoice_limit() doesn't cover it — the flag must.
+  // With the paywall off this early-return is skipped and a canceled user falls
+  // through to the free path, where they're under the (now huge) cap.
+  if (PAYWALL_ENABLED && raw === 'canceled') return { hasAccess: false, tier: 'canceled', invoiceCount };
 
   // free / legacy 'standard' / anything unexpected → free tier. The cap is read
   // from the SAME SQL function the trigger uses, so the number is never
