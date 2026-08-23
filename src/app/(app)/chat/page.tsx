@@ -37,6 +37,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const CHAT_STORE_KEY = 'onit_chat_current';
 const HISTORY_KEY = 'onit_chat_history';
 const HISTORY_MAX = 5;
+// Bump when StoredChat's shape changes so an entry written by an older build is
+// discarded on load instead of rehydrated into a broken draft. (v1 was the
+// original unversioned shape — any entry whose version doesn't match is dropped.)
+const STORE_VERSION = 2;
+// An in-progress invoice older than this is stale — don't resurrect a job the
+// user started a day ago and forgot about. updatedAt is refreshed on every write.
+const STORE_TTL_MS = 24 * 60 * 60 * 1000;
 const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,11 +99,16 @@ function duplicateMessage(e: ExistingReceipt): string {
 }
 
 interface StoredChat {
+  version: number;
   id?: string;
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
   pending?: PendingAction | null;
+  // The invoice row already inserted this session but not yet marked sent (id +
+  // number). Persisted so a send that resumes after a suspend/reload reuses this
+  // row instead of inserting a second one with a fresh number.
+  pendingInvoice?: { id: string; no: number } | null;
   updatedAt: number;
 }
 
@@ -115,6 +127,11 @@ function loadStoredChat(): StoredChat | null {
     const raw = localStorage.getItem(CHAT_STORE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
+    // Written by an older build — discard rather than rehydrate a draft whose
+    // fields may no longer line up with the current shape.
+    if (parsed.version !== STORE_VERSION) return null;
+    // Stale — a job left untouched past the TTL isn't "current" anymore.
+    if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
     return parsed;
   } catch {
@@ -167,6 +184,13 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
+  // Confirmation gate: after the first finalize attempt we show a summary and
+  // wait for an explicit go-ahead. `prefilled` tracks which contact fields came
+  // from the saved client record (vs. spoken this turn) so the summary can flag
+  // a possibly-stale address/phone. Both are ephemeral — a reload safely
+  // re-gates rather than sending straight through.
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [prefilled, setPrefilled] = useState<{ address: boolean; phone: boolean }>({ address: false, phone: false });
   // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
@@ -198,9 +222,10 @@ export default function Chat() {
   const printRef = useRef<HTMLDivElement>(null);
   // A draft invoice row already inserted this session but not yet marked sent
   // (share pending / cancelled). A retry reuses it instead of inserting a
-  // second row (audit B1). In-memory only: cleared whenever the draft content
-  // changes (a fresh parse) so we never mark a stale row sent, and reset on a
-  // reload so a post-reload send safely starts a new row.
+  // second row (audit B1). Cleared whenever the draft content changes (a fresh
+  // parse) so we never mark a stale row sent. Now persisted into the chat store
+  // and restored on mount, so a send that resumes after a suspend/reload reuses
+  // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
 
   useEffect(() => {
@@ -221,6 +246,9 @@ export default function Chat() {
       setDraft(stored.draft);
       setReady(Boolean(stored.ready));
       setPending(stored.pending ?? null);
+      // Reuse an invoice row inserted before the suspend instead of starting a
+      // new one on the next send (prevents a duplicate with a fresh number).
+      pendingInvoiceRef.current = stored.pendingInvoice ?? null;
     }
     setConvoId(stored?.id ?? genId());
     setHydrated(true);
@@ -241,7 +269,15 @@ export default function Chat() {
       if (finished || messages.length < 2) {
         localStorage.removeItem(CHAT_STORE_KEY);
       } else {
-        const payload: StoredChat = { id: convoId, messages, draft, ready, pending, updatedAt: Date.now() };
+        // Twin of the explicit write in finalize() after the row is inserted —
+        // keep the two payloads in sync. pendingInvoiceRef is a ref (no effect
+        // fires on its change), so it rides along on the next state-driven write.
+        const payload: StoredChat = {
+          version: STORE_VERSION,
+          id: convoId, messages, draft, ready, pending,
+          pendingInvoice: pendingInvoiceRef.current,
+          updatedAt: Date.now(),
+        };
         localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
       }
     } catch { /* storage full or blocked — nothing to do */ }
@@ -285,6 +321,26 @@ export default function Chat() {
       setPending(null); // ambiguous reply — fall through to a fresh parse
     }
 
+    // ── Confirmation gate ─────────────────────────────────────
+    // A bare affirmative ("yes", "send it") is the explicit go-ahead — whether
+    // the preview card is up or we've already shown the confirm summary. Voice
+    // users just say it; no tap needed (decision: button + affirmative text).
+    if (draft && (ready || awaitingConfirm) && isAffirmative(trimmed)) {
+      setBusy(true);
+      try { await finalize(); }
+      finally { setBusy(false); }
+      return null;
+    }
+    // "No" while we're waiting to confirm: stand down and invite edits.
+    if (awaitingConfirm && isNegative(trimmed)) {
+      setAwaitingConfirm(false);
+      setMessages((m) => [...m, { role: 'assistant', content: "No rush — tell me what to change and I'll fix it up." }]);
+      return null;
+    }
+    // Anything else is fresh info: drop the confirm hold so the next send
+    // re-summarizes against the updated draft.
+    if (awaitingConfirm) setAwaitingConfirm(false);
+
     setBusy(true);
     try {
       const res = await fetch('/api/parse', {
@@ -308,12 +364,56 @@ export default function Chat() {
       }
       const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
       if (data.intent) {
+        // The AI's own output for contact, BEFORE we enrich — it's either what
+        // the user spoke this turn or a value carried through the draft.
+        const aiAddress = data.client_address ?? null;
+        const aiPhone = data.client_phone ?? null;
+        // Returning client? Pull the address/phone we already have on file so a
+        // repeat customer never re-enters them — and the confirmation gate sees
+        // them as present. Anything the user stated THIS turn wins over the
+        // stored value; signed-in users only (guests have no client records).
+        if (profile && data.client_name && (data.intent === 'invoice' || data.intent === 'quote')
+          && (aiAddress == null || aiPhone == null)) {
+          const { data: known } = await supabase
+            .from('clients')
+            .select('address, phone')
+            .eq('user_id', profile.id)
+            .ilike('name', data.client_name)
+            .limit(1)
+            .maybeSingle();
+          if (known) {
+            data.client_address = aiAddress ?? known.address ?? null;
+            data.client_phone = aiPhone ?? known.phone ?? null;
+          }
+        }
+        // Mark each contact field record-sourced (so the confirm summary can
+        // flag a possibly-stale value) when the AI produced nothing for it and
+        // we filled from the record, OR it's an unchanged carry-over of a value
+        // that was already record-sourced. A value the AI newly produced —
+        // different from the prior draft — was spoken this turn, so not.
+        const prevAddress = draft?.client_address ?? null;
+        const prevPhone = draft?.client_phone ?? null;
+        setPrefilled((prev) => ({
+          address:
+            data.client_address == null ? false
+              : aiAddress == null ? true
+              : aiAddress === prevAddress ? prev.address
+              : false,
+          phone:
+            data.client_phone == null ? false
+              : aiPhone == null ? true
+              : aiPhone === prevPhone ? prev.phone
+              : false,
+        }));
         setDraft(data);
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
         pendingInvoiceRef.current = null;
+        // Only a real parse result moves the card in or out of "ready". A
+        // no-intent response (rate limit, a transient error, a bare reply)
+        // leaves the current preview intact instead of collapsing it.
+        setReady(isReady);
       }
-      setReady(isReady);
 
       // A duplicate was flagged — remember the pending create so the next
       // affirmative resolves it instead of re-parsing into the same warning.
@@ -367,6 +467,8 @@ export default function Chat() {
       websiteUrl: profile.website_url,
       slogan: profile.slogan,
       clientName: draft.client_name ?? 'Client',
+      clientAddress: draft.client_address ?? null,
+      clientPhone: draft.client_phone ?? null,
       lineItems: items,
       subtotal, taxRate, taxAmount,
       total: subtotal + taxAmount,
@@ -383,8 +485,44 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
 
+  /** The confirmation summary: what we have, any contact pulled from the saved
+   *  client record (surfaced so a stale one can be caught), what's still
+   *  missing, and how to proceed. Written to be spoken aloud — plain sentences,
+   *  no lists. */
+  function confirmSummary(): string {
+    const items = (draft?.line_items ?? []) as LineItem[];
+    const total = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
+    const kind = draft?.intent === 'quote' ? 'quote' : 'invoice';
+    const who = draft?.client_name ?? 'this client';
+    const out: string[] = [`Here's your ${kind} for ${who}: ${money(total)}.`];
+
+    const saved: string[] = [];
+    if (prefilled.address && draft?.client_address) saved.push(`the address ${draft.client_address}`);
+    if (prefilled.phone && draft?.client_phone) saved.push(`the phone number ${draft.client_phone}`);
+    if (saved.length) out.push(`I'm using ${saved.join(' and ')} from last time — tell me if that's changed.`);
+
+    const missing: string[] = [];
+    if (!draft?.client_address) missing.push('an address');
+    if (!draft?.client_phone) missing.push('a phone number');
+    if (missing.length) out.push(`I don't have ${missing.join(' or ')} yet — want to add ${missing.length > 1 ? 'either' : 'it'}?`);
+
+    out.push(`Say "send it" when you're ready, or tell me what to change.`);
+    return out.join(' ');
+  }
+
   async function finalize() {
     if (!draft) return;
+
+    // ── Confirmation gate ─────────────────────────────────────
+    // Never build straight through. The first attempt summarizes what we have,
+    // flags any contact pulled from the saved record, names what's missing, and
+    // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
+    // change re-summarizes.
+    if (!awaitingConfirm) {
+      setMessages((m) => [...m, { role: 'assistant', content: confirmSummary() }]);
+      setAwaitingConfirm(true);
+      return;
+    }
 
     // A3 / B2: no profile in hand — decide WHY before doing anything.
     //  - fetch still in flight → don't bounce an authed user to login over a
@@ -437,9 +575,19 @@ export default function Chat() {
         const rd0 = buildRenderData(newNo);
         if (!rd0) throw new Error('incomplete');
 
+        // Remember contact on the client record for next time. Only write a
+        // field when we actually have it: omitting a column leaves any stored
+        // value intact, so an invoice that didn't restate the address never
+        // wipes one the client already has on file.
+        const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
+          user_id: profile.id,
+          name: rd0.clientName,
+        };
+        if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
+        if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
         const { data: client } = await supabase
           .from('clients')
-          .upsert({ user_id: profile.id, name: rd0.clientName }, { onConflict: 'user_id,name' })
+          .upsert(clientRow, { onConflict: 'user_id,name' })
           .select('id').single();
 
         // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
@@ -450,6 +598,10 @@ export default function Chat() {
           kind: rd0.kind,
           invoice_number: newNo,
           client_name: rd0.clientName,
+          // Snapshot contact onto the row — a later change to the client record
+          // must not rewrite what this invoice actually went out with.
+          client_address: rd0.clientAddress ?? null,
+          client_phone: rd0.clientPhone ?? null,
           line_items: rd0.lineItems,
           subtotal: rd0.subtotal,
           tax_rate: rd0.taxRate,
@@ -476,6 +628,19 @@ export default function Chat() {
         const newId = saved.id as string;
         invoiceId = newId;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // The row exists but isn't marked sent yet, and setting a ref fires no
+        // persist effect. Write now so a suspend while the share sheet is open
+        // doesn't lose it and cause a duplicate row on the resumed send. Twin of
+        // the payload built in the persist effect above — keep them in sync.
+        try {
+          const payload: StoredChat = {
+            version: STORE_VERSION,
+            id: convoId, messages, draft, ready, pending,
+            pendingInvoice: pendingInvoiceRef.current,
+            updatedAt: Date.now(),
+          };
+          localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
+        } catch { /* storage blocked — the effect retries on the next change */ }
       }
 
       // Invariant after step 1: the row exists. Narrows the nullable locals for
@@ -549,6 +714,8 @@ export default function Chat() {
       setConvoId(genId());
       setDraft(null);
       setReady(false);
+      setAwaitingConfirm(false);
+      setPrefilled({ address: false, phone: false });
       setRenderData(null);
       setFinished(true); // clears the persisted conversation
       try { localStorage.removeItem(CHAT_STORE_KEY); } catch { /* ignore */ }
@@ -909,6 +1076,8 @@ export default function Chat() {
     setDraft(entry.draft);
     setReady(Boolean(entry.ready) && !entry.finalized);
     setPending(null); // confirmation state doesn't carry across conversations
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
     setFinished(entry.finalized); // finalized ones stay read-only until a new message
     setConvoId(entry.id);
     setShowHistory(false);
@@ -951,7 +1120,7 @@ export default function Chat() {
             </div>
             <button className="btn-primary mt-3 w-full" disabled={finalizing} onClick={finalize}>
               <Icon name="attach_file" size={18} />
-              {finalizing ? 'Building your PDF…' : 'Looks right — send it'}
+              {finalizing ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline"
               onClick={() => send('Actually, let me change something')}>

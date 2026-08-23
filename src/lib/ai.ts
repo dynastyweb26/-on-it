@@ -10,6 +10,11 @@ export interface LineItem { description: string; qty: number; unit_price: number
 export interface ExtractResult {
   intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
   client_name: string | null;
+  // Contact details, captured only if the user volunteers them. They never gate
+  // `ready` and the model never chases them — the client-side confirmation gate
+  // is what surfaces them when they're missing.
+  client_address: string | null;
+  client_phone: string | null;
   line_items: LineItem[];
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
@@ -38,6 +43,7 @@ Rules:
 - If the user says a total price for the whole job, make it one line item.
 - Never invent prices, names, or dates. If it wasn't said, it's missing.
 - due_date: fill it ONLY if the user volunteers one ("due in 2 weeks" → compute from today). Otherwise leave it null — the app sets a due date automatically. NEVER ask the user for a due date and never include due_date in "missing".
+- client_address and client_phone: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field.
 
 INVOICE OR EXPENSE — decide this first, before anything else:
 The test is WHICH WAY THE MONEY MOVES.
@@ -67,7 +73,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -112,6 +118,8 @@ function clarifyFallback(): ExtractResult {
   return {
     intent: 'question',
     client_name: null,
+    client_address: null,
+    client_phone: null,
     line_items: [],
     tax_rate: null,
     due_date: null,
