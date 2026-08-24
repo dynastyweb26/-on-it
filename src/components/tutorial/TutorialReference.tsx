@@ -67,7 +67,12 @@ export default function TutorialReference({ onClose }: { onClose: () => void }) 
 
       {/* Vertically scrollable slides for the active tab */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex max-w-[360px] flex-col items-center gap-10 py-6">
+        {/* Tightened top rhythm (pt-4 pb-8, gap-8) lifts the stack so the top
+            strip of the next mock card peeks above the fold — a self-explanatory
+            scroll affordance, no indicator/arrow/fade. Content-driven heights
+            mean the peek isn't guaranteed on landscape / sub-600px viewports;
+            that's an accepted tradeoff over clipping content or rescaling mocks. */}
+        <div className="mx-auto flex max-w-[360px] flex-col items-center gap-8 pt-4 pb-8">
           {slides.map((s) => (
             <div key={s.id} className="flex w-full flex-col items-center gap-4">
               {/* Static ring in the reference — see .spotlight-ring-static. */}
