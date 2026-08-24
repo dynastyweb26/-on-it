@@ -2,8 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import TutorialCarousel from '@/components/TutorialCarousel';
 import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
+import TutorialReference from '@/components/tutorial/TutorialReference';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
 import InstallBanner from '@/components/InstallBanner';
@@ -135,9 +135,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
-      {/* Reference doc — the tabbed surface lands in the next item; the full-set
-          carousel stands in until then. Never gated, never marks seen. */}
-      {showReference && <TutorialCarousel onClose={closeReference} />}
+      {/* Reference doc — tabbed, always available from the pill. Never gated,
+          never marks seen (see closeReference). */}
+      {showReference && <TutorialReference onClose={closeReference} />}
       <main
         className="min-h-0 flex-1 overflow-y-auto"
         onTouchStart={onTouchStart}
