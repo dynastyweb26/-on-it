@@ -32,8 +32,8 @@ export const SLIDES: Slide[] = [
   {
     id: 'mic',
     tab: 'chat',
-    headline: 'Just say it',
-    body: "Tap the mic and talk. “Invoice Cyril four fifty for a door install.” On It writes it up.",
+    headline: 'Talk or type the job',
+    body: "Tap the mic and talk, or type it — “Invoice Cyril four fifty for a door install.” On It writes it up.",
     spotlight: 'mic',
     mock: (
       <MockShell active="chat">
@@ -46,9 +46,26 @@ export const SLIDES: Slide[] = [
     ),
   },
   {
+    id: 'readback',
+    tab: 'chat',
+    headline: 'On It reads it back to you',
+    body: 'It repeats what it heard — the name, the amount, the work — so you catch a wrong number before anything is made.',
+    spotlight: 'readback',
+    mock: (
+      <MockShell active="chat">
+        <div className="space-y-2">
+          <MockBubble role="user">Invoice Cyril four fifty for a door install.</MockBubble>
+          <div data-spotlight="readback">
+            <MockBubble role="assistant">Got it — invoice for Cyril, $450.00 for a door install. Want to send it?</MockBubble>
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
     id: 'draft',
     tab: 'invoices',
-    headline: 'Check it before it goes',
+    headline: 'Check the card, change anything',
     body: 'Every invoice comes up as a draft first. Fix a price, change a name, add a line. Nothing sends until you say so.',
     spotlight: 'lineitems',
     mock: (
@@ -76,7 +93,7 @@ export const SLIDES: Slide[] = [
   {
     id: 'send',
     tab: 'invoices',
-    headline: 'Send it from the job site',
+    headline: 'Send it',
     body: 'One tap makes the PDF and sends it. Email or text, your call.',
     spotlight: 'send',
     mock: (

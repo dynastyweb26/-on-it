@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import TutorialCarousel from '@/components/TutorialCarousel';
+import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
 import InstallBanner from '@/components/InstallBanner';
@@ -26,7 +27,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Instagram-style horizontal swipe between tabs. Touch only; vertical
   // scrolling always wins once the gesture is more vertical than horizontal.
   const touch = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
-  const [showTutorial, setShowTutorial] = useState(false);
+  // Two independent surfaces (do not merge — see closeReference):
+  //   showFirstRun  — the gated 4-slide first-run carousel (auto-show once).
+  //   showReference — the always-available "How On It works" reference doc.
+  const [showFirstRun, setShowFirstRun] = useState(false);
+  const [showReference, setShowReference] = useState(false);
   // The signed-in user, so the walkthrough's last-seen version is stored
   // per-user. Null until resolved (or a guest — guests get no auto-show).
   const [userId, setUserId] = useState<string | null>(null);
@@ -54,13 +59,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
       const { data: profile } = await supabase
         .from('profiles').select('id').eq('id', user.id).maybeSingle();
-      if (profile) setShowTutorial(true); // onboarded + behind → show
+      if (profile) setShowFirstRun(true); // onboarded + behind → show
     })();
   }, []);
 
-  function closeTutorial() {
+  // Closing the first-run carousel records the seen-version so it never
+  // auto-shows again (until TUTORIAL_VERSION is bumped).
+  function closeFirstRun() {
     if (userId) markTutorialSeen(userId);
-    setShowTutorial(false);
+    setShowFirstRun(false);
+  }
+
+  // The reference doc deliberately does NOT call markTutorialSeen(). It is
+  // always available from the header pill, including for a guest with no
+  // session. Marking seen here would push getSeenVersion() up to the current
+  // version for a brand-new user who only tapped the pill, silently suppressing
+  // the first-run carousel they never actually saw. Only closeFirstRun marks
+  // seen — keep these two paths separate.
+  function closeReference() {
+    setShowReference(false);
   }
 
   function onTouchStart(e: React.TouchEvent) {
@@ -111,13 +128,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             aria-label="How On It works"
             className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
-            onClick={() => setShowTutorial(true)}
+            onClick={() => setShowReference(true)}
           >
             How On It works
           </button>
         </div>
       </header>
-      {showTutorial && <TutorialCarousel onClose={closeTutorial} />}
+      {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
+      {/* Reference doc — the tabbed surface lands in the next item; the full-set
+          carousel stands in until then. Never gated, never marks seen. */}
+      {showReference && <TutorialCarousel onClose={closeReference} />}
       <main
         className="min-h-0 flex-1 overflow-y-auto"
         onTouchStart={onTouchStart}
