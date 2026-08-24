@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import TutorialCarousel, { markTutorialSeen, shouldAutoShowTutorial } from '@/components/TutorialCarousel';
+import TutorialCarousel from '@/components/TutorialCarousel';
+import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
 import InstallBanner from '@/components/InstallBanner';
 import { createClient } from '@/lib/supabase/client';
