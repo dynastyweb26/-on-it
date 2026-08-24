@@ -10,7 +10,7 @@
 
    This surface is NOT gated by TUTORIAL_VERSION and needs no session — it holds
    no persistence state, so it opens clean for a deferred-auth guest. */
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import { SlideMock } from '@/components/tutorial/mocks';
 import { slidesForTab, type SlideTab } from '@/components/tutorial/slides';
@@ -27,6 +27,13 @@ export default function TutorialReference({ onClose }: { onClose: () => void }) 
   // Opens on Invoices — the surface a user reaches for most.
   const [active, setActive] = useState<SlideTab>('invoices');
   const slides = slidesForTab(active);
+
+  // The scroll container is one stable DOM node across tab switches, so its
+  // scrollTop survives a change of `active` — landing the next tab mid-page.
+  // Reset it to the top on every tab change, before paint (useLayoutEffect), so
+  // there's no flash of the previous scroll position.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [active]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -59,7 +66,7 @@ export default function TutorialReference({ onClose }: { onClose: () => void }) 
       </div>
 
       {/* Vertically scrollable slides for the active tab */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-[360px] flex-col items-center gap-10 py-6">
           {slides.map((s) => (
             <div key={s.id} className="flex w-full flex-col items-center gap-4">
