@@ -63,7 +63,8 @@ export default function TutorialReference({ onClose }: { onClose: () => void }) 
         <div className="mx-auto flex max-w-[360px] flex-col items-center gap-10 py-6">
           {slides.map((s) => (
             <div key={s.id} className="flex w-full flex-col items-center gap-4">
-              <SlideMock mock={s.mock} spotlight={s.spotlight} active />
+              {/* Static ring in the reference — see .spotlight-ring-static. */}
+              <SlideMock mock={s.mock} spotlight={s.spotlight} active pulse={false} />
               <div className="text-center">
                 <h2 className="font-display text-xl font-extrabold">{s.headline}</h2>
                 <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">{s.body}</p>

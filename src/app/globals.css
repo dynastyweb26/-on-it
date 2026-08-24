@@ -71,10 +71,17 @@ body { @apply bg-background text-on-background font-body antialiased; }
    The glow pulses twice to draw the eye, then settles to a static ring — no
    perpetual pulse. Reduced-motion kills the animation globally (rule below),
    leaving the static ring. */
-.spotlight-ring {
+.spotlight-ring,
+.spotlight-ring-static {
   border-radius: 14px;
   outline: 2px solid theme('colors.primary.container');
   outline-offset: 2px;
+}
+/* Pulse only in first-run, where one slide is on screen and directing the eye
+   is the whole point. The reference doc uses .spotlight-ring-static — several
+   rings on one scrollable stack should read as labels, not blink for attention.
+   Reduced-motion kills the animation globally (rule below), leaving the ring. */
+.spotlight-ring {
   animation: onit-spotlight 1.6s ease-out 2;
 }
 @keyframes onit-spotlight {

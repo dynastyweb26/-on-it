@@ -6,10 +6,17 @@
      • the reference doc groups them by `tab` (TutorialReference)
    A slide that belongs to neither surface does not belong here.
 
-   Each slide's `mock` is built only from the token-based primitives in
-   ./mocks (no hardcoded hex). Every Expenses/Tax slide passes active="books"
-   to MockShell so the mock tab bar shows Books highlighted — the user sees
-   where in the app the feature lives. */
+   Tabs read as three coherent stories:
+     Invoices — the full create-to-paid flow: talk/type → read-back → change →
+                send → mark paid.
+     Chat     — the things you do by talking that aren't the invoice flow:
+                snap a receipt, say what you spent.
+     Books    — where the money adds up: expenses land, totals, the tax PDF.
+
+   Array order is the in-tab order (slidesForTab preserves it). Each slide's
+   `mock` is built only from the token-based primitives in ./mocks (no hardcoded
+   hex). Every Expenses/Tax slide passes active="books" to MockShell so the mock
+   tab bar shows Books highlighted — the user sees where in the app it lives. */
 import Icon from '@/components/Icon';
 import { MockShell, MockBubble, MockComposer, MiniStat } from '@/components/tutorial/mocks';
 
@@ -29,9 +36,10 @@ export interface Slide {
 }
 
 export const SLIDES: Slide[] = [
+  // ── Invoices: the full create-to-paid flow ──────────────────────
   {
     id: 'mic',
-    tab: 'chat',
+    tab: 'invoices',
     headline: 'Talk or type the job',
     body: "Tap the mic and talk, or type it — “Invoice Cyril four fifty for a door install.” On It writes it up.",
     spotlight: 'mic',
@@ -47,9 +55,9 @@ export const SLIDES: Slide[] = [
   },
   {
     id: 'readback',
-    tab: 'chat',
+    tab: 'invoices',
     headline: 'On It reads it back to you',
-    body: 'It repeats what it heard — the name, the amount, the work — so you catch a wrong number before anything is made.',
+    body: 'It repeats the name, the amount, and the work — so you catch a wrong number before it goes out.',
     spotlight: 'readback',
     mock: (
       <MockShell active="chat">
@@ -127,8 +135,8 @@ export const SLIDES: Slide[] = [
   {
     id: 'paid',
     tab: 'invoices',
-    headline: 'Know who owes you',
-    body: 'Mark it paid the second the money lands. Anything still outstanding stays front and center.',
+    headline: 'Mark it paid',
+    body: 'Every invoice reads draft, sent, or paid. Tap Mark paid the second the money lands — anything still owed stays up top.',
     spotlight: 'markpaid',
     mock: (
       <MockShell active="invoices">
@@ -157,6 +165,8 @@ export const SLIDES: Slide[] = [
       </MockShell>
     ),
   },
+
+  // ── Chat: what you do by talking, outside the invoice flow ───────
   {
     id: 'receipt',
     tab: 'chat',
@@ -173,10 +183,65 @@ export const SLIDES: Slide[] = [
     ),
   },
   {
+    id: 'voiceexpense',
+    tab: 'chat',
+    headline: 'Just say what you spent',
+    body: 'No receipt handy? Say “spent forty on parts at the supply house” and On It logs it as an expense — amount, vendor, category.',
+    spotlight: 'mic',
+    mock: (
+      <MockShell active="chat">
+        <div className="space-y-2">
+          <MockBubble role="user">Spent forty on parts at the supply house.</MockBubble>
+          <MockBubble role="assistant">Logged it — $40.00 at the supply house, filed under supplies.</MockBubble>
+        </div>
+        <MockComposer micId="mic" />
+      </MockShell>
+    ),
+  },
+
+  // ── Books: where the money adds up ───────────────────────────────
+  {
+    id: 'expenseslanding',
+    tab: 'books',
+    headline: 'Every expense lands in Books',
+    body: "Snap it or say it — either way it drops straight into Books, sorted by category, so nothing's lost when taxes come around.",
+    spotlight: 'seeall',
+    mock: (
+      <MockShell active="books">
+        <div className="space-y-2">
+          <div className="card p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Recent expenses</div>
+            <div className="space-y-2">
+              {[
+                { icon: 'shopping_cart', label: 'Supplies', vendor: 'Supply house', amount: '$40.00' },
+                { icon: 'local_gas_station', label: 'Fuel', vendor: 'Shell', amount: '$45.00' },
+                { icon: 'build', label: 'Tools', vendor: 'Hardware store', amount: '$120.00' },
+              ].map((e) => (
+                <div key={e.label} className="flex items-center gap-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-error-container text-error">
+                    <Icon name={e.icon} size={14} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-on-background">{e.label}</div>
+                    <div className="text-[10px] text-on-surface-variant/70">{e.vendor}</div>
+                  </div>
+                  <span className="font-display text-[13px] font-bold text-on-background">{e.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div data-spotlight="seeall" className="btn-outline min-h-0 w-full py-2 text-[13px] text-primary">
+            See all expenses <Icon name="arrow_forward" size={14} />
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
     id: 'books',
     tab: 'books',
-    headline: 'See what you actually kept',
-    body: "Money in, money out, what's left. Updates as you work.",
+    headline: 'Books adds it all up',
+    body: "Money collected, what's still owed, what you've spent, and what's tax-deductible — totaled for you and updated as you work.",
     spotlight: 'totals',
     mock: (
       <MockShell active="books">
@@ -199,8 +264,8 @@ export const SLIDES: Slide[] = [
   {
     id: 'tax',
     tab: 'books',
-    headline: 'One PDF for your tax guy',
-    body: "Your whole year totaled up. Hand it over, you're done.",
+    headline: 'One PDF for tax time',
+    body: 'Your spending totaled by category, for any stretch of the year. Export it and send it straight to whoever does your taxes.',
     spotlight: 'taxsummary',
     mock: (
       <MockShell active="books">

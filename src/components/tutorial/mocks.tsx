@@ -122,10 +122,13 @@ export function MiniStat({ label, value, icon, iconCls, tone }: {
  *  draws the gold ring over it. Re-measures on resize, on icon-font load, and
  *  when the slide becomes active, so the ring tracks the real layout instead of
  *  relying on hardcoded coordinates. */
-export function Spotlight({ target, containerRef, active }: {
+export function Spotlight({ target, containerRef, active, pulse = true }: {
   target: string;
   containerRef: React.RefObject<HTMLDivElement>;
   active: boolean;
+  // Pulse (first-run, one slide on screen, eye-directing) vs a static ring
+  // (reference doc, several rings on a scrollable stack — labels, not blinks).
+  pulse?: boolean;
 }) {
   const [box, setBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
@@ -164,7 +167,7 @@ export function Spotlight({ target, containerRef, active }: {
   return (
     <div
       aria-hidden
-      className="spotlight-ring pointer-events-none absolute z-10"
+      className={`${pulse ? 'spotlight-ring' : 'spotlight-ring-static'} pointer-events-none absolute z-10`}
       style={{ top: box.top - pad, left: box.left - pad, width: box.width + pad * 2, height: box.height + pad * 2 }}
     />
   );
@@ -173,16 +176,17 @@ export function Spotlight({ target, containerRef, active }: {
 /** One slide's illustration: its mock screen plus the spotlight ring overlaid
  *  on the target control. Takes only what it needs (no Slide type import) so
  *  slides.tsx can import the mock primitives without a circular reference. */
-export function SlideMock({ mock, spotlight, active }: {
+export function SlideMock({ mock, spotlight, active, pulse = true }: {
   mock: React.ReactNode;
   spotlight: string;
   active: boolean;
+  pulse?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={containerRef} className="relative w-full max-w-[320px]">
       {mock}
-      <Spotlight target={spotlight} containerRef={containerRef} active={active} />
+      <Spotlight target={spotlight} containerRef={containerRef} active={active} pulse={pulse} />
     </div>
   );
 }
