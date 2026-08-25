@@ -12,6 +12,7 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { docNoun } from '@/lib/documents';
+import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
@@ -33,10 +34,9 @@ const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', curr
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
-// conversation per-browser so switching apps never loses a draft. The same
-// storage layer feeds the "recent conversations" history (last 5).
-const CHAT_STORE_KEY = 'onit_chat_current';
-const HISTORY_KEY = 'onit_chat_history';
+// conversation per-browser (and per-user, see chat-storage) so switching apps
+// never loses a draft. The same storage layer feeds the "recent conversations"
+// history (last 5). Keys are built per namespace via chatKey()/historyKey().
 const HISTORY_MAX = 5;
 // Bump when StoredChat's shape changes so an entry written by an older build is
 // discarded on load instead of rehydrated into a broken draft. (v1 was the
@@ -123,9 +123,9 @@ interface HistoryEntry {
   ready: boolean;
 }
 
-function loadStoredChat(): StoredChat | null {
+function loadStoredChat(ns: string): StoredChat | null {
   try {
-    const raw = localStorage.getItem(CHAT_STORE_KEY);
+    const raw = localStorage.getItem(chatKey(ns));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
     // Written by an older build — discard rather than rehydrate a draft whose
@@ -140,9 +140,9 @@ function loadStoredChat(): StoredChat | null {
   }
 }
 
-function loadHistory(): HistoryEntry[] {
+function loadHistory(ns: string): HistoryEntry[] {
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem(historyKey(ns));
     const list = raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
     return Array.isArray(list) ? list : [];
   } catch {
@@ -150,10 +150,10 @@ function loadHistory(): HistoryEntry[] {
   }
 }
 
-function pushHistory(entry: HistoryEntry) {
+function pushHistory(ns: string, entry: HistoryEntry) {
   try {
-    const list = [entry, ...loadHistory().filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    const list = [entry, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
+    localStorage.setItem(historyKey(ns), JSON.stringify(list));
   } catch { /* storage full — history is a nicety */ }
 }
 
@@ -228,47 +228,76 @@ export default function Chat() {
   // and restored on mount, so a send that resumes after a suspend/reload reuses
   // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
+  // Namespace for this session's localStorage keys — the signed-in user's id, or
+  // 'guest'. Resolved once auth returns (before hydrated flips true) and read
+  // imperatively by every store read/write, so the conversation is scoped to the
+  // right person and can't bleed across accounts on a shared browser.
+  const storageNsRef = useRef<string | null>(null);
+  // updatedAt of the payload we last wrote/applied, so a visibilitychange
+  // restore is a no-op when nothing actually changed while we were hidden.
+  const appliedUpdatedAtRef = useRef<number>(0);
+
+  // Apply a restored conversation into state. Shared by the mount restore and
+  // the visibilitychange restore. Only ever called with a payload that already
+  // passed loadStoredChat's version/TTL/shape checks.
+  function applyStoredChat(stored: StoredChat) {
+    setMessages(stored.messages);
+    setDraft(stored.draft);
+    setReady(Boolean(stored.ready));
+    setPending(stored.pending ?? null);
+    // Reuse an invoice row inserted before the suspend instead of starting a
+    // new one on the next send (prevents a duplicate with a fresh number).
+    pendingInvoiceRef.current = stored.pendingInvoice ?? null;
+    setConvoId(stored.id ?? genId());
+    setFinished(false);
+    appliedUpdatedAtRef.current = stored.updatedAt;
+  }
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setProfileLoaded(true); return; } // resolved: genuine guest
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      if (!data) { router.push('/onboarding'); return; }
-      setProfile(data as Profile);
-      setProfileLoaded(true);
+      if (cancelled) return;
+      // Scope storage to this user (or guest) BEFORE any read/write.
+      storageNsRef.current = storageNamespace(user?.id);
+      dropLegacyChatStorage(); // one-time cleanup of pre-namespacing keys
+      if (!user) {
+        setProfileLoaded(true); // resolved: genuine guest
+      } else {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if (cancelled) return;
+        if (!data) { router.push('/onboarding'); return; }
+        setProfile(data as Profile);
+        setProfileLoaded(true);
+      }
+      // restore an in-progress conversation (mobile tab suspends wipe React
+      // state) now that we know whose namespace to read. A stale/malformed
+      // payload yields null → we simply start clean, never crash.
+      const stored = loadStoredChat(storageNsRef.current);
+      if (stored) applyStoredChat(stored);
+      else setConvoId(genId());
+      setHydrated(true);
     })();
     // register service worker for the 2-day follow-up notifications
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-    // restore an in-progress conversation (mobile tab suspends wipe React state)
-    const stored = loadStoredChat();
-    if (stored) {
-      setMessages(stored.messages);
-      setDraft(stored.draft);
-      setReady(Boolean(stored.ready));
-      setPending(stored.pending ?? null);
-      // Reuse an invoice row inserted before the suspend instead of starting a
-      // new one on the next send (prevents a duplicate with a fresh number).
-      pendingInvoiceRef.current = stored.pendingInvoice ?? null;
-    }
-    setConvoId(stored?.id ?? genId());
-    setHydrated(true);
     // header history icon lives in the shared layout — it signals us here
     const openHistory = () => {
-      setHistory(loadHistory());
+      setHistory(loadHistory(storageNsRef.current ?? 'guest'));
       setShowHistory(true);
     };
     window.addEventListener('onit-history', openHistory);
-    return () => window.removeEventListener('onit-history', openHistory);
+    return () => { cancelled = true; window.removeEventListener('onit-history', openHistory); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // persist on every change so nothing is lost when the browser suspends us
   useEffect(() => {
     if (!hydrated) return;
+    const ns = storageNsRef.current;
+    if (!ns) return;
     try {
       if (finished || messages.length < 2) {
-        localStorage.removeItem(CHAT_STORE_KEY);
+        localStorage.removeItem(chatKey(ns));
       } else {
         // Twin of the explicit write in finalize() after the row is inserted —
         // keep the two payloads in sync. pendingInvoiceRef is a ref (no effect
@@ -279,10 +308,31 @@ export default function Chat() {
           pendingInvoice: pendingInvoiceRef.current,
           updatedAt: Date.now(),
         };
-        localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
+        localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+        appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
   }, [messages, draft, ready, pending, hydrated, finished, convoId]);
+
+  // Restore when the document becomes visible again. On mobile the OS can trim
+  // the JS heap or reload the tab behind an app switch; re-reading the store on
+  // return recovers a conversation that in-memory state lost. A no-op when the
+  // stored payload is the same one we last wrote (nothing changed while hidden),
+  // and a stale/malformed payload yields null → we keep the current clean state.
+  useEffect(() => {
+    if (!hydrated) return;
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      const ns = storageNsRef.current;
+      if (!ns) return;
+      const stored = loadStoredChat(ns);
+      if (!stored || stored.updatedAt === appliedUpdatedAtRef.current) return;
+      applyStoredChat(stored);
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -636,13 +686,17 @@ export default function Chat() {
         // doesn't lose it and cause a duplicate row on the resumed send. Twin of
         // the payload built in the persist effect above — keep them in sync.
         try {
-          const payload: StoredChat = {
-            version: STORE_VERSION,
-            id: convoId, messages, draft, ready, pending,
-            pendingInvoice: pendingInvoiceRef.current,
-            updatedAt: Date.now(),
-          };
-          localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(payload));
+          const ns = storageNsRef.current;
+          if (ns) {
+            const payload: StoredChat = {
+              version: STORE_VERSION,
+              id: convoId, messages, draft, ready, pending,
+              pendingInvoice: pendingInvoiceRef.current,
+              updatedAt: Date.now(),
+            };
+            localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+            appliedUpdatedAtRef.current = payload.updatedAt;
+          }
         } catch { /* storage blocked — the effect retries on the next change */ }
       }
 
@@ -704,7 +758,7 @@ export default function Chat() {
       const doneMsg: Msg = { role: 'assistant', content: done };
       setMessages((m) => [...m, doneMsg]);
       // archive the completed conversation, then start a fresh one
-      pushHistory({
+      pushHistory(storageNsRef.current ?? 'guest', {
         id: convoId || genId(),
         title: convoTitle(messages, draft),
         date: Date.now(),
@@ -721,7 +775,10 @@ export default function Chat() {
       setPrefilled({ address: false, phone: false });
       setRenderData(null);
       setFinished(true); // clears the persisted conversation
-      try { localStorage.removeItem(CHAT_STORE_KEY); } catch { /* ignore */ }
+      try {
+        const ns = storageNsRef.current;
+        if (ns) localStorage.removeItem(chatKey(ns));
+      } catch { /* ignore */ }
 
       // The right moment to ask about reminders: right after the FIRST
       // invoice goes out. One-time; skipped if already subscribed.
@@ -1055,8 +1112,9 @@ export default function Chat() {
     streamRef.current = null;
   }
 
-  // Cancel any speech / capture if the screen unmounts (tab switch suspension
-  // is the browser's job — we never auto-resume on return).
+  // Cancel any speech / capture if the screen unmounts. Conversation state is a
+  // separate concern: it is persisted to localStorage and restored on mount and
+  // on visibilitychange, so an app switch never loses the draft.
   useEffect(() => () => {
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -1065,7 +1123,7 @@ export default function Chat() {
   function openHistoryEntry(entry: HistoryEntry) {
     // an unfinished live conversation gets archived before we switch away
     if (!finished && messages.length >= 2 && convoId && convoId !== entry.id) {
-      pushHistory({
+      pushHistory(storageNsRef.current ?? 'guest', {
         id: convoId,
         title: convoTitle(messages, draft),
         date: Date.now(),

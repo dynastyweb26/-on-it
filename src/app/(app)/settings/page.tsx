@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
+import { clearChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
@@ -198,7 +199,9 @@ export default function Settings() {
         body: JSON.stringify({ confirm: 'DELETE' }),
       });
       if (res.ok) {
-        // The account is gone; drop the local session and leave for login.
+        // The account is gone; clear its local conversation, drop the session,
+        // and leave for login.
+        clearChatStorage(p?.id);
         await supabase.auth.signOut().catch(() => {});
         setRedirecting(true);
         router.replace('/login');
@@ -441,7 +444,7 @@ export default function Settings() {
       </section>
 
       <button className="w-full py-3 text-sm text-error underline"
-        onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}>
+        onClick={async () => { clearChatStorage(p?.id); await supabase.auth.signOut(); router.push('/login'); }}>
         Sign out
       </button>
 
