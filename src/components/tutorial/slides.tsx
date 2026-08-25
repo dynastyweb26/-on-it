@@ -170,15 +170,34 @@ export const SLIDES: Slide[] = [
   {
     id: 'receipt',
     tab: 'chat',
-    headline: 'Snap the receipt',
-    body: 'Take a picture of it or upload one from your phone. On It pulls out the amount and logs the expense.',
-    spotlight: 'capture',
+    headline: "Send a receipt, it's logged",
+    body: 'Snap it or upload it. On It pulls the total and files it under a category — no typing.',
+    spotlight: 'logged',
     mock: (
       <MockShell active="chat">
         <div className="space-y-2">
-          <MockBubble role="assistant">Snap a photo of any receipt and I&apos;ll log the expense for you.</MockBubble>
+          {/* The receipt the user sends: a token-built card (no photo), attached
+              on the user side. Line items sum to the $38.35 total. */}
+          <div className="flex justify-end">
+            <div className="w-[72%] rounded-card rounded-br-md border border-outline-variant/40 bg-surface-container-lowest p-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+                <Icon name="receipt_long" size={13} /> Receipt
+              </div>
+              <div className="space-y-0.5 text-[11px] text-on-background">
+                <div className="flex justify-between"><span>2x4 lumber ×6</span><span className="font-display font-bold">$23.40</span></div>
+                <div className="flex justify-between"><span>Wood screws</span><span className="font-display font-bold">$8.75</span></div>
+                <div className="flex justify-between"><span>Construction adhesive</span><span className="font-display font-bold">$6.20</span></div>
+              </div>
+              <div className="mt-1.5 flex justify-between border-t border-outline-variant/50 pt-1 text-[11px]">
+                <span className="font-semibold uppercase text-on-surface-variant">Total</span>
+                <span className="font-display font-bold text-on-background">$38.35</span>
+              </div>
+            </div>
+          </div>
+          <div data-spotlight="logged">
+            <MockBubble role="assistant">Logged it — $38.35 to Supplies.</MockBubble>
+          </div>
         </div>
-        <MockComposer captureId="capture" />
       </MockShell>
     ),
   },
