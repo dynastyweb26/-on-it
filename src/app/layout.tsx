@@ -18,10 +18,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: [
-      { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/icon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/manifest-icon-192.maskable.png', sizes: '192x192', type: 'image/png' },
     ],
-    apple: '/icons/icon-180.png',
+    apple: '/icons/apple-icon-180.png',
   },
 };
 export const viewport: Viewport = {
