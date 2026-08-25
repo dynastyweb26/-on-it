@@ -35,7 +35,7 @@ export default function Splash() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/icons/icon-180.png"
+        src="/icons/apple-icon-180.png"
         alt=""
         width={128}
         height={128}

@@ -4,8 +4,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'On It', {
       body: data.body || '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/icons/manifest-icon-192.maskable.png',
+      badge: '/icons/manifest-icon-192.maskable.png',
       data: { url: data.url || '/invoices' },
     })
   );
