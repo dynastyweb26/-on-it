@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
+import { docNoun } from '@/lib/documents';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
@@ -567,12 +568,13 @@ export default function Chat() {
       let no = pendingInvoiceRef.current?.no ?? null;
 
       if (!invoiceId) {
-        const { data: allocNo, error: noErr } = await supabase.rpc('next_invoice_no', { p_user: profile.id });
-        if (noErr || allocNo == null) throw noErr ?? new Error('no invoice number');
-        const newNo = allocNo as number;
-        no = newNo;
-
-        const rd0 = buildRenderData(newNo);
+        // The document number is assigned server-side by the assign_document_number
+        // trigger from the counter matching this row's kind (invoice vs quote) and
+        // read back below — the client never sends it, so it can't be forged and
+        // the invoice sequence only advances when a real invoice row is inserted.
+        // buildRenderData needs a number to shape the payload's other fields; the
+        // placeholder here is replaced with the assigned number after the insert.
+        const rd0 = buildRenderData(0);
         if (!rd0) throw new Error('incomplete');
 
         // Remember contact on the client record for next time. Only write a
@@ -596,7 +598,6 @@ export default function Chat() {
           user_id: profile.id,
           client_id: client?.id ?? null,
           kind: rd0.kind,
-          invoice_number: newNo,
           client_name: rd0.clientName,
           // Snapshot contact onto the row — a later change to the client record
           // must not rewrite what this invoice actually went out with.
@@ -610,7 +611,7 @@ export default function Chat() {
           notes: rd0.notes,
           due_date: rd0.dueDate,
           status: 'draft', // becomes 'sent' only after a real share (B1)
-        }).select('id').single();
+        }).select('id, invoice_number').single();
 
         if (insErr || !saved?.id) {
           // Server-side cap (enforce_free_invoice_limit trigger). The /api/access
@@ -626,7 +627,9 @@ export default function Chat() {
           return; // finally clears finalizing; draft + ready untouched
         }
         const newId = saved.id as string;
+        const newNo = saved.invoice_number as number; // trigger-assigned, authoritative
         invoiceId = newId;
+        no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
         // The row exists but isn't marked sent yet, and setting a ref fires no
         // persist effect. Write now so a suspend while the share sheet is open
@@ -663,11 +666,11 @@ export default function Chat() {
       if (!printRef.current) throw new Error('render failed');
       const file = await elementToPdf(
         printRef.current,
-        invoiceFilename(no, rd.clientName, profile.business_name)
+        invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
       );
 
       // ── 4. Share — only now is anything actually sent.
-      const outcome = await shareInvoice(file, rd.clientName);
+      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind));
 
       // B1: cancelling the share sheet is a normal choice, not an error. The
       // row stays a draft; the stashed id + draft survive so a retry reuses

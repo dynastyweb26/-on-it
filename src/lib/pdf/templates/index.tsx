@@ -17,6 +17,7 @@
 import React from 'react';
 import { BrandTheme, onColor } from '@/lib/colors';
 import { websiteHref } from '@/lib/url';
+import { docNoun, formatDocNumber } from '@/lib/documents';
 import type { LineItem } from '@/lib/ai';
 
 export interface InvoiceRenderData {
@@ -214,13 +215,49 @@ const Branding = ({ t }: { t: BrandTheme }) => (
 const Meta = ({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) => (
   <div style={{ fontSize: 13, lineHeight: 1.8 }}>
     <div>
-      <b style={{ color: t.accent }}>{d.kind === 'quote' ? 'Quote' : 'Invoice'} #</b> INV-
-      {String(d.invoiceNumber).padStart(4, '0')}
+      <b style={{ color: t.accent }}>{docNoun(d.kind)}</b> {formatDocNumber(d.kind, d.invoiceNumber)}
     </div>
     <div><b style={{ color: t.accent }}>Date</b> {d.issuedDate}</div>
     {d.dueDate && <div><b style={{ color: t.accent }}>Due</b> {d.dueDate}</div>}
   </div>
 );
+
+// The at-a-glance document-type marker. INVOICE prints as a SOLID accent block;
+// QUOTE as an OUTLINED one with a plain-language subline. Fill-vs-outline reads
+// instantly and doesn't depend on the user's brand colors being far apart, so a
+// quote can never be mistaken for a bill. Shared by Classic / Industrial /
+// Friendly; Ledger keeps its own rotated stamp.
+function DocTypeMark({ d, t, align = 'left', size = 22 }: {
+  d: InvoiceRenderData; t: BrandTheme; align?: 'left' | 'center'; size?: number;
+}) {
+  const isQuote = d.kind === 'quote';
+  return (
+    <div style={{ textAlign: align }}>
+      <div
+        style={{
+          display: 'inline-block',
+          padding: '6px 20px',
+          fontFamily: MONTSERRAT,
+          fontWeight: 800,
+          fontSize: size,
+          letterSpacing: 5,
+          textTransform: 'uppercase',
+          border: `2px solid ${t.accent}`,
+          borderRadius: 4,
+          background: isQuote ? 'transparent' : t.accent,
+          color: isQuote ? t.accent : onColor(t.accent),
+        }}
+      >
+        {docNoun(d.kind)}
+      </div>
+      {isQuote && (
+        <div style={{ marginTop: 5, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: t.accent, fontWeight: 700 }}>
+          Estimate — not a bill
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Website: display the raw value the user typed, but make it a real link whose
 // href is normalized (bare domains get https://). data-pdf-link → tappable in
@@ -262,10 +299,11 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <Website url={d.websiteUrl} t={t} style={{ fontSize: 13 }} />
       </div>
       <div style={{ height: 3, background: t.accent, margin: '24px 0' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 32 }}>
+      <DocTypeMark d={d} t={t} align="center" size={24} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, marginBottom: 32 }}>
         <div style={{ fontSize: 13, lineHeight: 1.8 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.accent, fontWeight: 700 }}>
-            Billed to
+            {d.kind === 'quote' ? 'Prepared for' : 'Billed to'}
           </div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
@@ -340,7 +378,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <div>
           <span style={label}>No.&nbsp;</span>
           <span style={{ fontFamily: MONO, fontWeight: 700 }}>
-            {d.kind === 'quote' ? 'QTE' : 'INV'}-{String(d.invoiceNumber).padStart(4, '0')}
+            {formatDocNumber(d.kind, d.invoiceNumber)}
           </span>
         </div>
         <div>
@@ -419,6 +457,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 
 /* ── 3. INDUSTRIAL ──────────────────────────────────────────── */
 function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const isQuote = d.kind === 'quote';
   return (
     <div style={{ ...PAGE, background: t.background, color: t.text }}>
       <div style={{ background: t.primary, color: onColor(t.primary), padding: '40px 56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -439,9 +478,20 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 108 }} alt="" />}
       </div>
-      <div style={{ background: t.accent, color: onColor(t.accent), padding: '10px 56px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 3, fontSize: 14, display: 'flex', justifyContent: 'space-between' }}>
-        <span>{d.kind === 'quote' ? 'Quote' : 'Invoice'} INV-{String(d.invoiceNumber).padStart(4, '0')}</span>
-        <span>{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}</span>
+      {/* Type bar: SOLID accent for an invoice, OUTLINED for a quote — the block
+          treatment itself signals which document this is, before the words. */}
+      <div style={{
+        background: isQuote ? t.background : t.accent,
+        color: isQuote ? t.accent : onColor(t.accent),
+        border: isQuote ? `3px solid ${t.accent}` : 'none',
+        padding: isQuote ? '9px 53px' : '12px 56px',
+        fontWeight: 800, textTransform: 'uppercase', display: 'flex',
+        justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
+        <span style={{ fontSize: 14, letterSpacing: 3 }}>
+          {formatDocNumber(d.kind, d.invoiceNumber)}&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
+        </span>
       </div>
       <div style={{ padding: '36px 56px' }}>
         <div style={{ marginBottom: 28, fontSize: 13, lineHeight: 1.8 }}>
@@ -466,6 +516,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 
 /* ── 4. FRIENDLY ────────────────────────────────────────────── */
 function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const isQuote = d.kind === 'quote';
   const card: React.CSSProperties = {
     background: `${t.primary}14`,
     border: `1.5px solid ${t.accent}55`,
@@ -492,8 +543,24 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {d.slogan && <div style={{ color: t.accent, fontSize: 13 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 12 }} />
         </div>
-        <div style={{ marginLeft: 'auto', background: t.accent, color: onColor(t.accent), borderRadius: 999, padding: '8px 18px', fontWeight: 800, fontSize: 14 }}>
-          {d.kind === 'quote' ? 'Quote' : 'Invoice'} #{String(d.invoiceNumber).padStart(4, '0')}
+        {/* Pill: SOLID for an invoice, OUTLINED for a quote — same fill/outline
+            cue as the other templates, in Friendly's rounded voice. */}
+        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+          <div style={{
+            display: 'inline-block',
+            background: isQuote ? 'transparent' : t.accent,
+            color: isQuote ? t.accent : onColor(t.accent),
+            border: `2px solid ${t.accent}`,
+            borderRadius: 999, padding: '8px 20px', fontWeight: 800, fontSize: 15,
+            textTransform: 'uppercase', letterSpacing: 1,
+          }}>
+            {docNoun(d.kind)} {formatDocNumber(d.kind, d.invoiceNumber)}
+          </div>
+          {isQuote && (
+            <div style={{ marginTop: 5, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: t.accent, fontWeight: 700 }}>
+              Estimate — not a bill
+            </div>
+          )}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>

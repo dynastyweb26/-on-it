@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
+import { formatDocNumber } from '@/lib/documents';
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
@@ -69,7 +70,7 @@ export default function Invoices() {
                 <div className="min-w-0">
                   <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
                   <div className="text-body-md text-on-surface-variant/70">
-                    {r.kind === 'quote' ? 'QTE' : 'INV'}-{String(r.invoice_number).padStart(4, '0')}
+                    {formatDocNumber(r.kind, r.invoice_number)}
                     {' • '}{new Date(r.created_at).toLocaleDateString()}
                   </div>
                 </div>

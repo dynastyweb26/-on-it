@@ -1,15 +1,18 @@
 'use client';
 // HTML → canvas → PDF. Renders the chosen template offscreen at A4 size,
 // captures it, and returns a File ready for the native share sheet.
-// Filename format (locked): INV-####_ClientName_Date_BusinessName.pdf
+// Filename format: <PREFIX>-####_ClientName_Date_BusinessName.pdf — INV- for
+// invoices (locked), Q- for quotes, so the two are distinct in the share sheet
+// and the Vault.
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { docPrefix } from '@/lib/documents';
 
 const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '').slice(0, 24) || 'Client';
 
-export function invoiceFilename(no: number, client: string, business: string, date = new Date()) {
+export function invoiceFilename(kind: string, no: number, client: string, business: string, date = new Date()) {
   const d = date.toISOString().slice(0, 10);
-  return `INV-${String(no).padStart(4, '0')}_${safe(client)}_${d}_${safe(business)}.pdf`;
+  return `${docPrefix(kind)}-${String(no).padStart(4, '0')}_${safe(client)}_${d}_${safe(business)}.pdf`;
 }
 
 /** Filename for the expense-summary export, e.g.
@@ -52,10 +55,10 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
  *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
  *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
  *  share error falls through to a download so the user still gets their file. */
-export async function shareInvoice(file: File, clientName: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareInvoice(file: File, clientName: string, noun = 'Invoice'): Promise<'shared' | 'downloaded' | 'cancelled'> {
   if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: file.name, text: `Invoice for ${clientName}` });
+      await navigator.share({ files: [file], title: file.name, text: `${noun} for ${clientName}` });
       return 'shared';
     } catch (err) {
       // User dismissed the sheet → cancel (don't download, don't mark sent).

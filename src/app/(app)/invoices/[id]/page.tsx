@@ -7,6 +7,7 @@ import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
+import { docNoun, formatDocNumber } from '@/lib/documents';
 import PaywallModal from '@/components/PaywallModal';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -21,6 +22,10 @@ export default function InvoiceDetail() {
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [zelle, setZelle] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
+  const [converting, setConverting] = useState(false);
+  // If this is a quote that was already converted, the invoice it became — so we
+  // show a link to it instead of a convert button that would mint a second one.
+  const [convertedTo, setConvertedTo] = useState<{ id: string; invoice_number: number } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,6 +35,16 @@ export default function InvoiceDetail() {
       if (i) {
         const { data: p } = await supabase.from('profiles').select('*').eq('id', i.user_id).maybeSingle();
         setProfile(p);
+        // A quote that already became an invoice — surface that, don't re-convert.
+        if (i.kind === 'quote') {
+          const { data: conv } = await supabase
+            .from('invoices')
+            .select('id, invoice_number')
+            .eq('converted_from', i.id)
+            .eq('kind', 'invoice')
+            .maybeSingle();
+          setConvertedTo(conv ?? null);
+        }
         // archived PDF from the Vault (uploaded at finalize time)
         const { data: doc } = await supabase
           .from('vault_documents')
@@ -88,32 +103,42 @@ export default function InvoiceDetail() {
   async function resend() {
     if (!printRef.current) return;
     setBusy(true);
-    const file = await elementToPdf(printRef.current, invoiceFilename(inv.invoice_number, inv.client_name, profile.business_name));
-    await shareInvoice(file, inv.client_name);
+    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, profile.business_name));
+    await shareInvoice(file, inv.client_name, docNoun(inv.kind));
     await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id);
     setBusy(false);
   }
 
   async function convertToInvoice() {
-    // Quote → Invoice: one tap, new number, trail preserved. This is a second
-    // invoice INSERT path — it goes through the same server-side cap trigger, so
-    // a free user at the limit is stopped here too, with the paywall modal.
-    const { data: no } = await supabase.rpc('next_invoice_no', { p_user: profile.id });
-    const { data: created, error } = await supabase.from('invoices').insert({
-      ...{
+    // Quote → Invoice: one tap, a fresh INVOICE number assigned server-side, the
+    // quote preserved as its own record and linked via converted_from. The
+    // invoice_number is set by the assign_document_number trigger (NOT sent from
+    // here), so the invoice sequence only advances now — at conversion — and the
+    // quote never left a gap in it. This insert goes through the same cap trigger,
+    // so a free user at the limit is stopped here too, with the paywall modal.
+    if (converting || convertedTo) return;
+    setConverting(true);
+    try {
+      const { data: created, error } = await supabase.from('invoices').insert({
         user_id: inv.user_id, client_id: inv.client_id, kind: 'invoice',
-        invoice_number: no, client_name: inv.client_name, line_items: inv.line_items,
-        subtotal: inv.subtotal, tax_rate: inv.tax_rate, tax_amount: inv.tax_amount,
-        total: inv.total, notes: inv.notes, status: 'draft', converted_from: inv.id,
+        client_name: inv.client_name,
+        // Carry the contact snapshot forward so the invoice bills the same person.
+        client_address: inv.client_address ?? null,
+        client_phone: inv.client_phone ?? null,
+        line_items: inv.line_items, subtotal: inv.subtotal, tax_rate: inv.tax_rate,
+        tax_amount: inv.tax_amount, total: inv.total, notes: inv.notes,
+        status: 'draft', converted_from: inv.id,
         due_date: defaultDueDate(), // every new invoice gets the +30 default
-      },
-    }).select('id').single();
-    if (error) {
-      if (error.hint === 'PAYWALL_LIMIT') { setShowPaywall(true); return; }
-      console.error('convert to invoice failed', error);
-      return;
+      }).select('id').single();
+      if (error) {
+        if (error.hint === 'PAYWALL_LIMIT') { setShowPaywall(true); return; }
+        console.error('convert to invoice failed', error);
+        return;
+      }
+      if (created) router.push(`/invoices/${created.id}`);
+    } finally {
+      setConverting(false);
     }
-    if (created) router.push(`/invoices/${created.id}`);
   }
 
   return (
@@ -123,7 +148,7 @@ export default function InvoiceDetail() {
           <div>
             <div className="font-display text-lg font-bold">{inv.client_name}</div>
             <div className="text-xs text-on-surface-variant">
-              {inv.kind === 'quote' ? 'QTE' : 'INV'}-{String(inv.invoice_number).padStart(4, '0')} · {inv.status}
+              {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} · {inv.status}
             </div>
           </div>
           <div className="font-display text-xl font-bold text-primary">{money(Number(inv.total))}</div>
@@ -142,9 +167,16 @@ export default function InvoiceDetail() {
               <Icon name="preview" size={18} /> View PDF
             </button>
           )}
-          {inv.kind === 'quote' && (
-            <button className="chip flex items-center gap-1.5 border-primary text-primary" onClick={convertToInvoice}>
-              <Icon name="sync" size={18} /> Make it an invoice
+          {inv.kind === 'quote' && !convertedTo && (
+            <button className="chip flex items-center gap-1.5 border-primary text-primary"
+              disabled={converting} onClick={convertToInvoice}>
+              <Icon name="sync" size={18} /> {converting ? 'Converting…' : 'Convert to Invoice'}
+            </button>
+          )}
+          {inv.kind === 'quote' && convertedTo && (
+            <button className="chip flex items-center gap-1.5 border-paid text-paid"
+              onClick={() => router.push(`/invoices/${convertedTo.id}`)}>
+              <Icon name="check_circle" size={18} /> Converted to {formatDocNumber('invoice', convertedTo.invoice_number)}
             </button>
           )}
         </div>
