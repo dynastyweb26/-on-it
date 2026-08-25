@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function ResetPassword() {
   const supabase = createClient();
@@ -62,8 +63,8 @@ export default function ResetPassword() {
 
       {phase === 'ready' && (
         <>
-          <input
-            className="input" type="password" placeholder="New password (8+ characters)"
+          <PasswordInput
+            placeholder="New password (8+ characters)"
             autoComplete="new-password" value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { createClient, createEmailAuthClient } from '@/lib/supabase/client';
+import PasswordInput from '@/components/PasswordInput';
 
 // Client-side throttle on the resend button. Supabase SMTP is 30/hr project-wide;
 // this just stops one user spamming the button.
@@ -231,9 +232,9 @@ export default function Login() {
             className="input" type="email" placeholder="Email" autoComplete="email"
             value={email} onChange={(e) => setEmail(e.target.value)}
           />
-          <input
+          <PasswordInput
             ref={passwordRef}
-            className="input" type="password" placeholder="Password (8+ characters)"
+            placeholder="Password (8+ characters)"
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password} onChange={(e) => setPassword(e.target.value)}
           />
