@@ -253,14 +253,51 @@ export default function Chat() {
     appliedUpdatedAtRef.current = stored.updatedAt;
   }
 
+  // Shared restore: re-read the namespaced store and apply it when it's newer
+  // than what we last wrote/applied. The single entry point for every trigger
+  // (mount, visibilitychange, pageshow), so the recovery logic can't drift
+  // between them. Safe to call repeatedly — it no-ops when nothing changed and
+  // never overwrites live state with an equal/older payload. Returns whether it
+  // applied anything, so the caller can decide to start a fresh conversation.
+  function restoreFromStore(): boolean {
+    const ns = storageNsRef.current;
+    if (!ns) return false; // namespace unresolved — never read a guessed slot
+    const stored = loadStoredChat(ns);
+    if (!stored || stored.updatedAt === appliedUpdatedAtRef.current) return false;
+    applyStoredChat(stored);
+    return true;
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Resolve the storage namespace from the PERSISTED session, not getUser().
+      // getSession() reads localStorage with no network round-trip, so restore
+      // is not gated on — and cannot be broken by — a slow or failed auth call
+      // on resume/remount (the regression behind the lost conversations). A
+      // stored session yields the user id; its genuine absence is a real guest.
+      // On error we leave the namespace unresolved (null) so the persist effect
+      // writes nothing to a guessed slot and never orphans the real draft.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        storageNsRef.current = storageNamespace(session?.user?.id);
+      } catch {
+        if (cancelled) return; // unresolved — storageNsRef stays null
+      }
+      dropLegacyChatStorage(); // one-time cleanup of pre-namespacing keys
+      // Restore an in-progress conversation (mobile tab suspends wipe React
+      // state) now that we know whose namespace to read — before, and
+      // independent of, the server auth check below. Nothing (or a stale/
+      // malformed payload) → start a fresh conversation.
+      if (!restoreFromStore()) setConvoId(genId());
+      setHydrated(true);
+
+      // Auth/profile gating is a separate concern from restore and uses
+      // getUser() (server-validated). A slow or failed call here no longer
+      // costs the conversation, which is already back on screen.
       const { data: { user } } = await supabase.auth.getUser();
       if (cancelled) return;
-      // Scope storage to this user (or guest) BEFORE any read/write.
-      storageNsRef.current = storageNamespace(user?.id);
-      dropLegacyChatStorage(); // one-time cleanup of pre-namespacing keys
       if (!user) {
         setProfileLoaded(true); // resolved: genuine guest
       } else {
@@ -270,13 +307,6 @@ export default function Chat() {
         setProfile(data as Profile);
         setProfileLoaded(true);
       }
-      // restore an in-progress conversation (mobile tab suspends wipe React
-      // state) now that we know whose namespace to read. A stale/malformed
-      // payload yields null → we simply start clean, never crash.
-      const stored = loadStoredChat(storageNsRef.current);
-      if (stored) applyStoredChat(stored);
-      else setConvoId(genId());
-      setHydrated(true);
     })();
     // register service worker for the 2-day follow-up notifications
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -314,23 +344,29 @@ export default function Chat() {
     } catch { /* storage full or blocked — nothing to do */ }
   }, [messages, draft, ready, pending, hydrated, finished, convoId]);
 
-  // Restore when the document becomes visible again. On mobile the OS can trim
-  // the JS heap or reload the tab behind an app switch; re-reading the store on
-  // return recovers a conversation that in-memory state lost. A no-op when the
-  // stored payload is the same one we last wrote (nothing changed while hidden),
-  // and a stale/malformed payload yields null → we keep the current clean state.
+  // Recover a conversation the OS dropped behind an app switch. Two triggers,
+  // one shared restore (restoreFromStore):
+  //   visibilitychange — Android and desktop (and an iOS freeze/resume) surface
+  //     the tab again WITHOUT a reload, so mount never re-runs; re-read the
+  //     store in case the heap was trimmed while hidden.
+  //   pageshow — fires on bfcache restore and on load, covering resumes that
+  //     arrive as a navigation rather than a visibility change.
+  // restoreFromStore no-ops when nothing changed and never clobbers live state
+  // with an equal/older payload, so wiring both triggers is safe.
   useEffect(() => {
     if (!hydrated) return;
     function onVisible() {
-      if (document.visibilityState !== 'visible') return;
-      const ns = storageNsRef.current;
-      if (!ns) return;
-      const stored = loadStoredChat(ns);
-      if (!stored || stored.updatedAt === appliedUpdatedAtRef.current) return;
-      applyStoredChat(stored);
+      if (document.visibilityState === 'visible') restoreFromStore();
+    }
+    function onPageShow() {
+      restoreFromStore();
     }
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onPageShow);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
