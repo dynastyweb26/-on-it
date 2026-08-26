@@ -233,6 +233,12 @@ export default function Chat() {
   // and restored on mount, so a send that resumes after a suspend/reload reuses
   // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
+  // The AI's original line-item descriptions from the latest parse, captured
+  // BEFORE any inline edit. On send we record original_description on a line
+  // only when the shipped text differs (passive training data; an unedited line
+  // stays null — the positive signal). In-memory only: a description edited
+  // after a suspend/restore simply logs no original, which is acceptable.
+  const originalDescriptionsRef = useRef<string[]>([]);
   // Namespace for this session's localStorage keys — the signed-in user's id, or
   // 'guest'. Resolved once auth returns (before hydrated flips true) and read
   // imperatively by every store read/write, so the conversation is scoped to the
@@ -536,6 +542,11 @@ export default function Chat() {
               : aiPhone === prevPhone ? prev.phone
               : false,
         }));
+        // Snapshot the AI's descriptions for THIS parse before the user can edit
+        // them on the card, so finalize can tell edited from unedited (per line).
+        originalDescriptionsRef.current = Array.isArray(data.line_items)
+          ? (data.line_items as LineItem[]).map((li) => li.description)
+          : [];
         setDraft(data);
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
@@ -722,6 +733,18 @@ export default function Chat() {
           .upsert(clientRow, { onConflict: 'user_id,name' })
           .select('id').single();
 
+        // Record the AI's original wording on any line whose description the
+        // user edited before sending; an unedited line carries no
+        // original_description (null is the positive signal). rd0.lineItems
+        // preserves draft order, so it aligns with the parse-time snapshot.
+        // The column is pinned server-side after insert (lock_line_items).
+        const lineItemsForInsert = rd0.lineItems.map((li, idx) => {
+          const original = originalDescriptionsRef.current[idx];
+          return original != null && original !== li.description
+            ? { ...li, original_description: original }
+            : li;
+        });
+
         // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
         // share, no "Sent!". Keep draft + ready so the user can retry.
         const { data: saved, error: insErr } = await supabase.from('invoices').insert({
@@ -733,7 +756,7 @@ export default function Chat() {
           // must not rewrite what this invoice actually went out with.
           client_address: rd0.clientAddress ?? null,
           client_phone: rd0.clientPhone ?? null,
-          line_items: rd0.lineItems,
+          line_items: lineItemsForInsert,
           subtotal: rd0.subtotal,
           tax_rate: rd0.taxRate,
           tax_amount: rd0.taxAmount,
