@@ -8,6 +8,7 @@ import { formatDocNumber } from '@/lib/documents';
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
+  converted_from: string | null;
 }
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -28,15 +29,24 @@ export default function Invoices() {
   useEffect(() => {
     supabase
       .from('invoices')
-      .select('id, kind, invoice_number, client_name, total, status, created_at, due_date')
+      .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data }) => setRows((data as Row[]) ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A quote that has already become an invoice: some invoice row points back to
+  // it via converted_from. Derived from the fetched rows, so no extra query.
+  const convertedQuoteIds = new Set(
+    rows.map((r) => r.converted_from).filter((id): id is string => Boolean(id)),
+  );
+  const isConvertedQuote = (r: Row) => r.kind === 'quote' && convertedQuoteIds.has(r.id);
+
   const filtered = rows.filter((r) =>
-    filter === 'all' ? true
+    // Hide converted quotes from the main views so one job doesn't read as two
+    // documents. They stay reachable under the Quotes tab.
+    filter === 'all' ? !isConvertedQuote(r)
     : filter === 'unpaid' ? ['sent', 'overdue'].includes(r.status)
     : filter === 'paid' ? r.status === 'paid'
     : r.kind === 'quote'
@@ -62,7 +72,12 @@ export default function Invoices() {
       )}
       <div className="space-y-4">
         {sorted.map((r) => {
-          const chip = STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
+          const converted = isConvertedQuote(r);
+          // A converted quote shows a "converted" chip (only the Quotes tab
+          // surfaces it) instead of its stale draft status.
+          const chip = converted
+            ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
+            : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
           return (
             <Link key={r.id} href={`/invoices/${r.id}`}
               className="card block p-5 transition-transform active:scale-[0.98]">
@@ -76,7 +91,7 @@ export default function Invoices() {
                 </div>
                 <span className={`status-chip shrink-0 ${chip.cls}`}>
                   <Icon name={chip.icon} size={18} />
-                  {r.status}
+                  {converted ? 'converted' : r.status}
                 </span>
               </div>
               <div className="flex items-end justify-between">

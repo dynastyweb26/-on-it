@@ -26,6 +26,9 @@ export default function InvoiceDetail() {
   // If this is a quote that was already converted, the invoice it became — so we
   // show a link to it instead of a convert button that would mint a second one.
   const [convertedTo, setConvertedTo] = useState<{ id: string; invoice_number: number } | null>(null);
+  // If this is an invoice made by converting a quote, the originating quote — so
+  // we can link back to it.
+  const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,6 +47,15 @@ export default function InvoiceDetail() {
             .eq('kind', 'invoice')
             .maybeSingle();
           setConvertedTo(conv ?? null);
+        }
+        // An invoice made from a quote — link back to the originating quote.
+        if (i.kind === 'invoice' && i.converted_from) {
+          const { data: src } = await supabase
+            .from('invoices')
+            .select('id, invoice_number')
+            .eq('id', i.converted_from)
+            .maybeSingle();
+          setConvertedFrom(src ?? null);
         }
         // archived PDF from the Vault (uploaded at finalize time)
         const { data: doc } = await supabase
@@ -177,6 +189,12 @@ export default function InvoiceDetail() {
             <button className="chip flex items-center gap-1.5 border-paid text-paid"
               onClick={() => router.push(`/invoices/${convertedTo.id}`)}>
               <Icon name="check_circle" size={18} /> Converted to {formatDocNumber('invoice', convertedTo.invoice_number)}
+            </button>
+          )}
+          {inv.kind === 'invoice' && convertedFrom && (
+            <button className="chip flex items-center gap-1.5"
+              onClick={() => router.push(`/invoices/${convertedFrom.id}`)}>
+              <Icon name="request_quote" size={18} /> From {formatDocNumber('quote', convertedFrom.invoice_number)}
             </button>
           )}
         </div>
