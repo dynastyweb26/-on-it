@@ -334,6 +334,41 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
+  // Explicit "New chat" from the header (see layout — dispatches 'onit-new-chat').
+  // Archive the live conversation to history, then reset to a clean greeting. No
+  // confirmation: history makes it recoverable. Re-bound as the conversation
+  // changes so the closure always archives the current state, never a stale one.
+  useEffect(() => {
+    function onNewChat() {
+      // Empty conversation (just the greeting) — nothing to archive or reset.
+      if (messages.length < 2) return;
+      // A finalized convo is already in history (pushed by finalize); re-pushing
+      // would replace its "Sent" entry with a draft one. Only archive live drafts.
+      if (!finished) {
+        pushHistory(storageNsRef.current ?? 'guest', {
+          id: convoId || genId(),
+          title: convoTitle(messages, draft),
+          date: Date.now(),
+          finalized: false,
+          messages, draft, ready,
+        });
+      }
+      setMessages([GREETING]);
+      setDraft(null);
+      setReady(false);
+      setPending(null);
+      setAwaitingConfirm(false);
+      setPrefilled({ address: false, phone: false });
+      pendingInvoiceRef.current = null;
+      discardExpense();
+      setFinished(false);
+      setConvoId(genId());
+    }
+    window.addEventListener('onit-new-chat', onNewChat);
+    return () => window.removeEventListener('onit-new-chat', onNewChat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, draft, ready, finished, convoId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, ready]);

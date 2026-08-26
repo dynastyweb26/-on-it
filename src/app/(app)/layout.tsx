@@ -114,13 +114,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </span>
         <div className="flex items-center gap-1">
           {path.startsWith('/chat') && (
-            <button
-              aria-label="Recent conversations"
-              className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
-              onClick={() => window.dispatchEvent(new Event('onit-history'))}
-            >
-              <Icon name="history" size={24} />
-            </button>
+            <>
+              <button
+                aria-label="New chat"
+                className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+              >
+                <Icon name="edit_square" size={24} />
+              </button>
+              <button
+                aria-label="Recent conversations"
+                className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                onClick={() => window.dispatchEvent(new Event('onit-history'))}
+              >
+                <Icon name="history" size={24} />
+              </button>
+            </>
           )}
           {/* Labeled gold capsule (matches the install banner's "Show how"):
               gold FILL + dark on-gold text — never white on this gold (fails
