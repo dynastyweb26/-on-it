@@ -29,6 +29,11 @@ export default function InvoiceDetail() {
   // If this is an invoice made by converting a quote, the originating quote — so
   // we can link back to it.
   const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
+  // Inline edit of a line-item description while the document is a draft. Mirrors
+  // the chat confirmation card: editingIdx is the row being edited, editText its
+  // working value.
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -153,6 +158,33 @@ export default function InvoiceDetail() {
     }
   }
 
+  // Commit a line-item description edit on a DRAFT. Empty or unchanged text is a
+  // no-op. Writes line_items back (allowed while draft by the lock_line_items
+  // carve-out in 20260826232448) and records the AI's original wording the first
+  // time a line is edited — but never overwrites an original already captured
+  // from a chat edit, since the first AI output is the training signal.
+  async function commitLineItemEdit(i: number) {
+    const t = editText.trim();
+    setEditingIdx(null);
+    const items = inv.line_items;
+    const cur = Array.isArray(items) ? items[i] : null;
+    if (!cur || !t || t === cur.description) return;
+    const nextItems = items.map((li: any, idx: number) => {
+      if (idx !== i) return li;
+      const next = { ...li, description: t };
+      if (!li.original_description) next.original_description = li.description;
+      return next;
+    });
+    setInv({ ...inv, line_items: nextItems });
+    const { error } = await supabase.from('invoices').update({ line_items: nextItems }).eq('id', id);
+    if (error) {
+      console.error('line item update failed', error);
+      setInv((prev: any) => ({ ...prev, line_items: items })); // revert on failure
+    }
+  }
+
+  const isDraft = inv.status === 'draft';
+
   return (
     <div className="px-4 py-4">
       <div className="card mb-4">
@@ -211,6 +243,44 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
+      {Array.isArray(inv.line_items) && inv.line_items.length > 0 && (
+        <div className="card mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Line items</span>
+            {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a description to edit</span>}
+          </div>
+          {inv.line_items.map((li: any, i: number) => (
+            <div key={i} className="flex items-center justify-between gap-2 py-1 text-body-md">
+              {isDraft && editingIdx === i ? (
+                <input
+                  autoFocus
+                  className="min-w-0 flex-1 rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-body-md text-on-background outline-none focus:border-primary"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onBlur={() => void commitLineItemEdit(i)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); void commitLineItemEdit(i); }
+                    else if (e.key === 'Escape') { e.preventDefault(); setEditingIdx(null); }
+                  }}
+                  aria-label="Edit line item description"
+                />
+              ) : isDraft ? (
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 truncate text-left underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60"
+                  onClick={() => { setEditText(li.description); setEditingIdx(i); }}
+                  aria-label={`Edit description: ${li.description}`}
+                >
+                  {li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}
+                </button>
+              ) : (
+                <span className="min-w-0 flex-1 truncate">{li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}</span>
+              )}
+              <span className="shrink-0 font-display font-bold">{money(Number(li.qty) * Number(li.unit_price))}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
           <div ref={printRef}>
