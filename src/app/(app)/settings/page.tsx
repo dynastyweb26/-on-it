@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
-import { clearChatStorage } from '@/lib/chat-storage';
+import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
@@ -199,9 +199,9 @@ export default function Settings() {
         body: JSON.stringify({ confirm: 'DELETE' }),
       });
       if (res.ok) {
-        // The account is gone; clear its local conversation, drop the session,
-        // and leave for login.
-        clearChatStorage(p?.id);
+        // The account is gone; clear everything local (conversation AND
+        // history), drop the session, and leave for login.
+        clearAllChatStorage(p?.id);
         await supabase.auth.signOut().catch(() => {});
         setRedirecting(true);
         router.replace('/login');

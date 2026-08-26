@@ -16,9 +16,23 @@ export const storageNamespace = (userId: string | null | undefined): string => u
 export const chatKey = (ns: string): string => `${CHAT_STORE_BASE}:${ns}`;
 export const historyKey = (ns: string): string => `${HISTORY_BASE}:${ns}`;
 
-/** Remove this namespace's current conversation and history. Called on logout
- *  and account deletion so nothing survives into the next session. */
+/** Remove only this namespace's in-progress conversation, leaving the recent-5
+ *  history intact. History is per-user namespaced and durable: signing back in
+ *  (or a different account signing in) restores the correct list and never sees
+ *  another account's. Called on logout and account switch. The current
+ *  conversation is ephemeral, so it is the only thing cleared. */
 export function clearChatStorage(userId: string | null | undefined): void {
+  const ns = storageNamespace(userId);
+  try {
+    localStorage.removeItem(chatKey(ns));
+  } catch {
+    /* storage blocked — nothing to clear */
+  }
+}
+
+/** Remove this namespace's conversation AND history — everything. Used only for
+ *  account deletion, where nothing about the account should survive locally. */
+export function clearAllChatStorage(userId: string | null | undefined): void {
   const ns = storageNamespace(userId);
   try {
     localStorage.removeItem(chatKey(ns));
