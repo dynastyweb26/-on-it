@@ -40,8 +40,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 const HISTORY_MAX = 5;
 // Bump when StoredChat's shape changes so an entry written by an older build is
 // discarded on load instead of rehydrated into a broken draft. (v1 was the
-// original unversioned shape — any entry whose version doesn't match is dropped.)
-const STORE_VERSION = 2;
+// original unversioned shape — any entry whose version doesn't match is dropped.
+// v3 added finalizeSent — finalize step-completion, so a resumed finalize skips
+// steps that already ran.)
+const STORE_VERSION = 3;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -110,6 +112,10 @@ interface StoredChat {
   // number). Persisted so a send that resumes after a suspend/reload reuses this
   // row instead of inserting a second one with a fresh number.
   pendingInvoice?: { id: string; no: number } | null;
+  // Finalize step-completion: true once the inserted row was marked sent. A
+  // resumed finalize (suspend between "mark sent" and the reset) reads this and
+  // finishes idempotently instead of re-sharing, re-marking, and re-archiving.
+  finalizeSent?: boolean;
   updatedAt: number;
 }
 
@@ -239,6 +245,10 @@ export default function Chat() {
   // stays null — the positive signal). In-memory only: a description edited
   // after a suspend/restore simply logs no original, which is acceptable.
   const originalDescriptionsRef = useRef<string[]>([]);
+  // Whether the pending invoice row was already marked sent this finalize. A ref
+  // (no re-render) mirrored into StoredChat.finalizeSent, so a suspend between
+  // "mark sent" and the reset resumes into an idempotent finish, not a re-share.
+  const finalizeSentRef = useRef(false);
   // Namespace for this session's localStorage keys — the signed-in user's id, or
   // 'guest'. Resolved once auth returns (before hydrated flips true) and read
   // imperatively by every store read/write, so the conversation is scoped to the
@@ -259,6 +269,7 @@ export default function Chat() {
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
+    finalizeSentRef.current = Boolean(stored.finalizeSent);
     setConvoId(stored.id ?? genId());
     setFinished(false);
     appliedUpdatedAtRef.current = stored.updatedAt;
@@ -347,6 +358,7 @@ export default function Chat() {
           version: STORE_VERSION,
           id: convoId, messages, draft, ready, pending,
           pendingInvoice: pendingInvoiceRef.current,
+          finalizeSent: finalizeSentRef.current,
           updatedAt: Date.now(),
         };
         localStorage.setItem(chatKey(ns), JSON.stringify(payload));
@@ -407,6 +419,7 @@ export default function Chat() {
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
       pendingInvoiceRef.current = null;
+      finalizeSentRef.current = false;
       discardExpense();
       setFinished(false);
       setConvoId(genId());
@@ -550,7 +563,9 @@ export default function Chat() {
         setDraft(data);
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
+        // A stale row was never sent, so clear the sent flag too.
         pendingInvoiceRef.current = null;
+        finalizeSentRef.current = false;
         // Only a real parse result moves the card in or out of "ready". A
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
@@ -650,6 +665,57 @@ export default function Chat() {
 
     out.push(`Say "send it" when you're ready, or tell me what to change.`);
     return out.join(' ');
+  }
+
+  // Write the current conversation + finalize progress (inserted row, sent flag)
+  // to the store immediately. Called at the two points a ref changes without a
+  // state update — after the insert and after mark-sent — so a suspend right
+  // then still resumes with the right progress. Twin of the persist effect.
+  function persistProgress() {
+    try {
+      const ns = storageNsRef.current;
+      if (!ns) return;
+      const payload: StoredChat = {
+        version: STORE_VERSION,
+        id: convoId, messages, draft, ready, pending,
+        pendingInvoice: pendingInvoiceRef.current,
+        finalizeSent: finalizeSentRef.current,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+      appliedUpdatedAtRef.current = payload.updatedAt;
+    } catch { /* storage blocked — the persist effect retries on the next change */ }
+  }
+
+  // Shared completion tail: append the done message, archive the finished
+  // conversation to history, clear finalize progress (row + sent flag), and
+  // reset to a clean slate. Used by a normal finalize and by an idempotent
+  // resume that finds the invoice already sent.
+  function finishFinalize(doneMsg: Msg) {
+    const archived = [...messages, doneMsg];
+    setMessages(archived);
+    pushHistory(storageNsRef.current ?? 'guest', {
+      id: convoId || genId(),
+      title: convoTitle(messages, draft),
+      date: Date.now(),
+      finalized: true,
+      messages: archived,
+      draft: null,
+      ready: false,
+    });
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setConvoId(genId());
+    setDraft(null);
+    setReady(false);
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
+    setRenderData(null);
+    setFinished(true); // clears the persisted conversation
+    try {
+      const ns = storageNsRef.current;
+      if (ns) localStorage.removeItem(chatKey(ns));
+    } catch { /* ignore */ }
   }
 
   async function finalize() {
@@ -764,8 +830,16 @@ export default function Chat() {
           notes: rd0.notes,
           due_date: rd0.dueDate,
           status: 'draft', // becomes 'sent' only after a real share (B1)
+          // Server-side idempotency key, unique per draft (the conversation id).
+          // A resumed finalize whose local pendingInvoice was lost re-inserts
+          // with the SAME key and hits the (user_id, finalize_key) unique index
+          // instead of burning a second number — we read the existing row back
+          // below. This is the durable guarantee a client-only guard can't give.
+          finalize_key: convoId || null,
         }).select('id, invoice_number').single();
 
+        let newId: string;
+        let newNo: number;
         if (insErr || !saved?.id) {
           // Server-side cap (enforce_free_invoice_limit trigger). The /api/access
           // gate above normally catches this first, but the trigger is the real
@@ -775,37 +849,54 @@ export default function Chat() {
             setShowPaywall(true);
             return; // draft + ready untouched — upgrade, then tap send again
           }
-          console.error('invoice insert failed', insErr);
-          setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
-          return; // finally clears finalizing; draft + ready untouched
+          // 23505 on finalize_key: a prior/concurrent finalize for THIS draft
+          // already inserted the row (the idempotency guard firing across a
+          // suspend that lost pendingInvoice). Read it back and continue with it,
+          // rather than erroring or creating a duplicate.
+          if (insErr?.code === '23505' && convoId) {
+            const { data: existing } = await supabase
+              .from('invoices')
+              .select('id, invoice_number')
+              .eq('user_id', profile.id)
+              .eq('finalize_key', convoId)
+              .maybeSingle();
+            if (!existing?.id) {
+              console.error('invoice insert conflict but no matching row', insErr);
+              setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+              return;
+            }
+            newId = existing.id as string;
+            newNo = existing.invoice_number as number;
+          } else {
+            console.error('invoice insert failed', insErr);
+            setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+            return; // finally clears finalizing; draft + ready untouched
+          }
+        } else {
+          newId = saved.id as string;
+          newNo = saved.invoice_number as number; // trigger-assigned, authoritative
         }
-        const newId = saved.id as string;
-        const newNo = saved.invoice_number as number; // trigger-assigned, authoritative
         invoiceId = newId;
         no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
         // The row exists but isn't marked sent yet, and setting a ref fires no
         // persist effect. Write now so a suspend while the share sheet is open
-        // doesn't lose it and cause a duplicate row on the resumed send. Twin of
-        // the payload built in the persist effect above — keep them in sync.
-        try {
-          const ns = storageNsRef.current;
-          if (ns) {
-            const payload: StoredChat = {
-              version: STORE_VERSION,
-              id: convoId, messages, draft, ready, pending,
-              pendingInvoice: pendingInvoiceRef.current,
-              updatedAt: Date.now(),
-            };
-            localStorage.setItem(chatKey(ns), JSON.stringify(payload));
-            appliedUpdatedAtRef.current = payload.updatedAt;
-          }
-        } catch { /* storage blocked — the effect retries on the next change */ }
+        // resumes with the row + progress intact.
+        persistProgress();
       }
 
       // Invariant after step 1: the row exists. Narrows the nullable locals for
       // the update/archive below (both are set on the insert and the reuse path).
       if (!invoiceId || no == null) throw new Error('invoice not persisted');
+
+      // Idempotent resume: a prior attempt already marked this row sent
+      // (finalizeSent persisted across the suspend). The share already happened —
+      // don't re-render, re-share, or re-archive. Finish once and reset.
+      if (finalizeSentRef.current) {
+        const kind = draft.intent === 'quote' ? 'quote' : 'invoice';
+        finishFinalize({ role: 'assistant', content: `All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.` });
+        return;
+      }
 
       // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
@@ -840,6 +931,10 @@ export default function Chat() {
 
       // ── 5. Shared/downloaded for real → NOW mark it sent, then archive.
       await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', invoiceId);
+      // Record the sent step BEFORE the archive (which can hang): a suspend now
+      // must resume into the idempotent finish above, never a re-share.
+      finalizeSentRef.current = true;
+      persistProgress();
 
       // Archive in the Vault (best-effort — a storage hiccup must not undo the
       // send we just confirmed).
@@ -858,30 +953,9 @@ export default function Chat() {
       const done = outcome === 'shared'
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
-      const doneMsg: Msg = { role: 'assistant', content: done };
-      setMessages((m) => [...m, doneMsg]);
-      // archive the completed conversation, then start a fresh one
-      pushHistory(storageNsRef.current ?? 'guest', {
-        id: convoId || genId(),
-        title: convoTitle(messages, draft),
-        date: Date.now(),
-        finalized: true,
-        messages: [...messages, doneMsg],
-        draft: null,
-        ready: false,
-      });
-      pendingInvoiceRef.current = null; // this invoice is complete
-      setConvoId(genId());
-      setDraft(null);
-      setReady(false);
-      setAwaitingConfirm(false);
-      setPrefilled({ address: false, phone: false });
-      setRenderData(null);
-      setFinished(true); // clears the persisted conversation
-      try {
-        const ns = storageNsRef.current;
-        if (ns) localStorage.removeItem(chatKey(ns));
-      } catch { /* ignore */ }
+      // Append the done message, archive to history, and reset to a clean slate
+      // (also clears pendingInvoice + finalizeSent so nothing replays).
+      finishFinalize({ role: 'assistant', content: done });
 
       // The right moment to ask about reminders: right after the FIRST
       // invoice goes out. One-time; skipped if already subscribed.
