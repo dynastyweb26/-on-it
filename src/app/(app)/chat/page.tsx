@@ -19,6 +19,7 @@ import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
+import LineItemsEditor from '@/components/LineItemsEditor';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
@@ -177,11 +178,6 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [ready, setReady] = useState(false);
-  // Inline edit of a line-item description on the confirmation card. editingIdx
-  // is the row being edited (null = none); editText is its working value. The
-  // edit applies to the current draft only, before send.
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editText, setEditText] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
@@ -432,10 +428,6 @@ export default function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, ready]);
-
-  // Close any open line-item editor when the preview card appears/disappears or
-  // a fresh parse replaces the draft, so a stale row index can't stay in edit.
-  useEffect(() => { setEditingIdx(null); }, [ready]);
 
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
@@ -1324,19 +1316,12 @@ export default function Chat() {
   const previewItems = (draft?.line_items ?? []) as LineItem[];
   const previewTotal = previewItems.reduce((s, li) => s + li.qty * li.unit_price, 0);
 
-  // Commit an inline description edit into the current draft. Empty or unchanged
-  // text is a no-op. The edit lives on the draft only, so it flows into the PDF
-  // and the saved row on send, and "Change something" / a re-parse can still
-  // replace it.
-  function commitEdit(i: number) {
-    const t = editText.trim();
-    setDraft((d) => {
-      if (!d || !Array.isArray(d.line_items) || !d.line_items[i]) return d;
-      if (!t || t === d.line_items[i].description) return d;
-      const items = d.line_items.map((li, idx) => (idx === i ? { ...li, description: t } : li));
-      return { ...d, line_items: items };
-    });
-    setEditingIdx(null);
+  // Apply an inline line-item edit (description, qty, or unit_price) into the
+  // current draft. The edit lives on the draft only, so it flows into the PDF and
+  // the saved row on send (buildRenderData recomputes subtotal/tax/total from
+  // line_items), and "Change something" / a re-parse can still replace it.
+  function applyDraftLineItems(items: LineItem[]) {
+    setDraft((d) => (d ? { ...d, line_items: items } : d));
   }
 
   return (
@@ -1361,34 +1346,7 @@ export default function Chat() {
               <Icon name="description" size={18} />
               {draft.intent === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
-            {previewItems.map((li, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 py-1 text-body-md">
-                {editingIdx === i ? (
-                  <input
-                    autoFocus
-                    className="min-w-0 flex-1 rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-body-md text-on-background outline-none focus:border-primary"
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onBlur={() => commitEdit(i)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); commitEdit(i); }
-                      else if (e.key === 'Escape') { e.preventDefault(); setEditingIdx(null); }
-                    }}
-                    aria-label="Edit line item description"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 truncate text-left underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60"
-                    onClick={() => { setEditText(li.description); setEditingIdx(i); }}
-                    aria-label={`Edit description: ${li.description}`}
-                  >
-                    {li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}
-                  </button>
-                )}
-                <span className="shrink-0 font-display font-bold">{money(li.qty * li.unit_price)}</span>
-              </div>
-            ))}
+            <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
             <div className="mt-2 flex items-end justify-between border-t border-outline-variant pt-3">
               <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
               <span className="font-display text-numeric-xl tracking-tight text-on-background">{money(previewTotal)}</span>

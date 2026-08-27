@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -29,11 +30,6 @@ export default function InvoiceDetail() {
   // If this is an invoice made by converting a quote, the originating quote — so
   // we can link back to it.
   const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
-  // Inline edit of a line-item description while the document is a draft. Mirrors
-  // the chat confirmation card: editingIdx is the row being edited, editText its
-  // working value.
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editText, setEditText] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,28 +154,35 @@ export default function InvoiceDetail() {
     }
   }
 
-  // Commit a line-item description edit on a DRAFT. Empty or unchanged text is a
-  // no-op. Writes line_items back (allowed while draft by the lock_line_items
-  // carve-out in 20260826232448) and records the AI's original wording the first
-  // time a line is edited — but never overwrites an original already captured
-  // from a chat edit, since the first AI output is the training signal.
-  async function commitLineItemEdit(i: number) {
-    const t = editText.trim();
-    setEditingIdx(null);
-    const items = inv.line_items;
-    const cur = Array.isArray(items) ? items[i] : null;
-    if (!cur || !t || t === cur.description) return;
-    const nextItems = items.map((li: any, idx: number) => {
-      if (idx !== i) return li;
-      const next = { ...li, description: t };
-      if (!li.original_description) next.original_description = li.description;
-      return next;
+  // Apply a line-item edit (description, qty, or unit_price) on a DRAFT. Writes
+  // line_items back (allowed while draft by the lock_line_items carve-out in
+  // 20260826232448) with subtotal/tax_amount/total recomputed atomically from the
+  // new items, so the stored totals, the PDF, and Books never drift apart. On a
+  // description change, records the AI's original wording the first time a line is
+  // edited — never overwriting an original already captured from a chat edit,
+  // since the first AI output is the training signal.
+  async function applyLineItems(newItems: LineItemRow[]) {
+    const prev = (inv.line_items ?? []) as LineItemRow[];
+    const merged = newItems.map((li, i) => {
+      const before = prev[i];
+      if (before && li.description !== before.description && !before.original_description) {
+        return { ...li, original_description: before.description };
+      }
+      return li;
     });
-    setInv({ ...inv, line_items: nextItems });
-    const { error } = await supabase.from('invoices').update({ line_items: nextItems }).eq('id', id);
+    const subtotal = merged.reduce((s, li) => s + Number(li.qty) * Number(li.unit_price), 0);
+    const taxRate = Number(inv.tax_rate);
+    const taxAmount = Math.round(subtotal * taxRate) / 100;
+    const total = subtotal + taxAmount;
+    const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
+    setInv({ ...inv, line_items: merged, subtotal, tax_amount: taxAmount, total });
+    const { error } = await supabase.from('invoices')
+      .update({ line_items: merged, subtotal, tax_amount: taxAmount, total })
+      .eq('id', id);
     if (error) {
       console.error('line item update failed', error);
-      setInv((prev: any) => ({ ...prev, line_items: items })); // revert on failure
+      // revert local optimistic state on failure
+      setInv((p: any) => ({ ...p, line_items: prev, ...prevTotals }));
     }
   }
 
@@ -247,38 +250,9 @@ export default function InvoiceDetail() {
         <div className="card mb-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Line items</span>
-            {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a description to edit</span>}
+            {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a value to edit</span>}
           </div>
-          {inv.line_items.map((li: any, i: number) => (
-            <div key={i} className="flex items-center justify-between gap-2 py-1 text-body-md">
-              {isDraft && editingIdx === i ? (
-                <input
-                  autoFocus
-                  className="min-w-0 flex-1 rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-body-md text-on-background outline-none focus:border-primary"
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  onBlur={() => void commitLineItemEdit(i)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); void commitLineItemEdit(i); }
-                    else if (e.key === 'Escape') { e.preventDefault(); setEditingIdx(null); }
-                  }}
-                  aria-label="Edit line item description"
-                />
-              ) : isDraft ? (
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 truncate text-left underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60"
-                  onClick={() => { setEditText(li.description); setEditingIdx(i); }}
-                  aria-label={`Edit description: ${li.description}`}
-                >
-                  {li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}
-                </button>
-              ) : (
-                <span className="min-w-0 flex-1 truncate">{li.description}{li.qty > 1 ? ` ×${li.qty}` : ''}</span>
-              )}
-              <span className="shrink-0 font-display font-bold">{money(Number(li.qty) * Number(li.unit_price))}</span>
-            </div>
-          ))}
+          <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
         </div>
       )}
       <div className="overflow-hidden rounded-card border border-outline-variant">
