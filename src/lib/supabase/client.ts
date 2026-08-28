@@ -39,9 +39,23 @@ export const createClient = () => {
 // pkce_ tokens. Use the plain @supabase/supabase-js client, which respects
 // flowType. Stateless (no persist/refresh/URL detection) so it never touches
 // the PKCE cookie session — sign-in and session handling are unaffected.
-export const createEmailAuthClient = () =>
-  createSupabaseClient(
+// Memoized per browser tab, same as createClient(): called in a render body on
+// /login, it minted a fresh GoTrueClient per render against the shared storage
+// key. The typeof window guard keeps SSR from caching into the server module
+// scope. flowType/persistSession/etc. are unchanged.
+let emailAuthClient: ReturnType<typeof createSupabaseClient> | undefined;
+
+export const createEmailAuthClient = () => {
+  if (typeof window === 'undefined') {
+    return createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: 'implicit', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+  }
+  return (emailAuthClient ??= createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { flowType: 'implicit', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
+  ));
+};
