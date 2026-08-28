@@ -253,6 +253,12 @@ export default function Chat() {
   // updatedAt of the payload we last wrote/applied, so a visibilitychange
   // restore is a no-op when nothing actually changed while we were hidden.
   const appliedUpdatedAtRef = useRef<number>(0);
+  // Synchronous in-flight guards for the two async turn-handlers. State (busy /
+  // finalizing) drives the UI but lags a render, so it can't stop a same-frame
+  // double-tap; a ref flips immediately. Two separate refs because send()
+  // delegates to finalize() — a single shared ref would block that nesting.
+  const sendingRef = useRef(false);
+  const finalizingRef = useRef(false);
 
   // Apply a restored conversation into state. Shared by the mount restore and
   // the visibilitychange restore. Only ever called with a payload that already
@@ -440,6 +446,12 @@ export default function Chat() {
   async function send(text: string, source: 'voice' | 'typed' = 'typed'): Promise<SendResult | null> {
     const trimmed = text.trim();
     if (!trimmed || busy) return null;
+    // Synchronous double-fire guard: flips before the first await and stays set
+    // across the whole turn, so a second concurrent call returns here instead
+    // of firing /api/parse twice. Cleared only in the outer finally below.
+    if (sendingRef.current) return null;
+    sendingRef.current = true;
+    try {
     const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
     setMessages(next);
     setInput('');
@@ -599,6 +611,9 @@ export default function Chat() {
     } finally {
       setBusy(false);
     }
+    } finally {
+      sendingRef.current = false;
+    }
   }
 
   // ── Finalize: save → render → PDF → share sheet ─────────────
@@ -716,6 +731,13 @@ export default function Chat() {
   }
 
   async function finalize() {
+    // Synchronous double-fire guard for the invoice card's action button, which
+    // calls finalize() directly (disabled={finalizing} lags a render). Separate
+    // from sendingRef so send()'s delegation to finalize() isn't self-blocked.
+    // Cleared only in the outer finally below, so no return path leaves it set.
+    if (finalizingRef.current) return;
+    finalizingRef.current = true;
+    try {
     if (!draft) return;
 
     // ── Confirmation gate ─────────────────────────────────────
@@ -964,6 +986,9 @@ export default function Chat() {
       setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — tap send to try again." }]);
     } finally {
       setFinalizing(false);
+    }
+    } finally {
+      finalizingRef.current = false;
     }
   }
 
@@ -1360,7 +1385,8 @@ export default function Chat() {
               <Icon name="attach_file" size={18} />
               {finalizing ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
             </button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline"
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={busy || finalizing}
               onClick={() => send('Actually, let me change something')}>
               Change something
             </button>
@@ -1483,7 +1509,7 @@ export default function Chat() {
             rows={1}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) void send(input); }
             }}
           />
           <button
