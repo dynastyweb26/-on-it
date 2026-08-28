@@ -284,7 +284,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   return (
     <div style={{ ...PAGE, background: t.background, color: t.text, padding: 56 }}>
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 96, marginBottom: 12 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 128, marginBottom: 12 }} alt="" />}
         <div
           style={{
             fontSize: d.logoUrl ? 30 : 42,
@@ -360,7 +360,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 
       {/* header — business name top-left, slab type */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 96 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 128 }} alt="" />}
         <div>
           {/* Ledger fallback keeps the slab face — only the size is promoted */}
           <div style={{ fontSize: d.logoUrl ? 36 : 48, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5, color: t.primary === t.background ? t.text : t.primary }}>
@@ -476,7 +476,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {d.slogan && <div style={{ color: t.accent, fontWeight: 700, fontSize: 14 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 4 }} />
         </div>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 108 }} alt="" />}
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 140 }} alt="" />}
       </div>
       {/* Type bar: SOLID accent for an invoice, OUTLINED for a quote — the block
           treatment itself signals which document this is, before the words. */}
@@ -527,7 +527,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     <div style={{ ...PAGE, background: t.background, color: t.text, padding: 48 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28 }}>
         {d.logoUrl && (
-          <img src={d.logoUrl} style={{ height: 96, width: 96, borderRadius: 16, objectFit: 'cover' }} alt="" />
+          <img src={d.logoUrl} style={{ height: 128, width: 128, borderRadius: 20, objectFit: 'cover' }} alt="" />
         )}
         <div>
           <div
