@@ -170,12 +170,21 @@ function convoTitle(messages: Msg[], draft: Partial<ExtractResult> | null): stri
   return firstUser ? firstUser.content.slice(0, 40) : 'Conversation';
 }
 
+// One in-flight flag for the whole turn. Set synchronously at the TOP of each
+// handler before any branching (so the controls disable together) and cleared in
+// that handler's single finally — except sign-in-redirect paths, which set
+// 'redirecting' and leave it set so controls stay disabled until the redirect
+// unmounts the screen. Each value titles the one visible processing indicator.
+// Replaces the old busy / finalizing / preparing / savingExpense states and both
+// guard refs. `recording` (mic open, awaiting speech) is separate and stays.
+type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving' | 'redirecting';
+
 export default function Chat() {
   const supabase = createClient();
   const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>([GREETING]);
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>(null);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -184,7 +193,6 @@ export default function Chat() {
   // the fetch hasn't resolved yet (audit B2); only a true guest sees the
   // sign-in prompt (audit A3).
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [finalizing, setFinalizing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
@@ -206,7 +214,6 @@ export default function Chat() {
   // Receipt capture: the compressed image waits here between "picked" and
   // "parsed", so the user can back out before anything is uploaded or read.
   const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);
-  const [preparing, setPreparing] = useState(false);
   // Two receipt inputs sharing one handler: the camera input carries
   // `capture="environment"` so it opens the rear camera directly on mobile
   // (Android/Brave was ignoring the choice and going straight to the gallery);
@@ -216,7 +223,6 @@ export default function Chat() {
   // The parsed expense awaiting confirmation. Never auto-saved — the user
   // always sees the four fields and presses save.
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft | null>(null);
-  const [savingExpense, setSavingExpense] = useState(false);
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
@@ -253,12 +259,6 @@ export default function Chat() {
   // updatedAt of the payload we last wrote/applied, so a visibilitychange
   // restore is a no-op when nothing actually changed while we were hidden.
   const appliedUpdatedAtRef = useRef<number>(0);
-  // Synchronous in-flight guards for the two async turn-handlers. State (busy /
-  // finalizing) drives the UI but lags a render, so it can't stop a same-frame
-  // double-tap; a ref flips immediately. Two separate refs because send()
-  // delegates to finalize() — a single shared ref would block that nesting.
-  const sendingRef = useRef(false);
-  const finalizingRef = useRef(false);
 
   // Apply a restored conversation into state. Shared by the mount restore and
   // the visibilitychange restore. Only ever called with a payload that already
@@ -445,12 +445,12 @@ export default function Chat() {
    *  — per-message modality, so typed messages stay silent. */
   async function send(text: string, source: 'voice' | 'typed' = 'typed'): Promise<SendResult | null> {
     const trimmed = text.trim();
-    if (!trimmed || busy) return null;
-    // Synchronous double-fire guard: flips before the first await and stays set
-    // across the whole turn, so a second concurrent call returns here instead
-    // of firing /api/parse twice. Cleared only in the outer finally below.
-    if (sendingRef.current) return null;
-    sendingRef.current = true;
+    // Single in-flight guard. `phase` is state and lags a render, so a sub-frame
+    // double-tap can still slip one through (accepted). It fixes the reported
+    // repeat-tap bug because it is set before ANY branch and, on redirect paths,
+    // left set. Cleared in the one outer finally below (unless 'redirecting').
+    if (!trimmed || phase) return null;
+    setPhase('thinking');
     try {
     const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
     setMessages(next);
@@ -464,9 +464,7 @@ export default function Chat() {
     if (pending) {
       if (isAffirmative(trimmed)) {
         setPending(null);
-        setBusy(true);
-        try { await finalize(); } // bypasses duplicate detection by design
-        finally { setBusy(false); }
+        await finalize(true); // internal: we already hold the turn, skip its guard
         return null;
       }
       if (isNegative(trimmed)) {
@@ -485,9 +483,7 @@ export default function Chat() {
     // the preview card is up or we've already shown the confirm summary. Voice
     // users just say it; no tap needed (decision: button + affirmative text).
     if (draft && (ready || awaitingConfirm) && isAffirmative(trimmed)) {
-      setBusy(true);
-      try { await finalize(); }
-      finally { setBusy(false); }
+      await finalize(true); // internal: we already hold the turn, skip its guard
       return null;
     }
     // "No" while we're waiting to confirm: stand down and invite edits.
@@ -500,7 +496,6 @@ export default function Chat() {
     // re-summarizes against the updated draft.
     if (awaitingConfirm) setAwaitingConfirm(false);
 
-    setBusy(true);
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
@@ -510,6 +505,7 @@ export default function Chat() {
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
         setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setPhase('redirecting'); // leave set: keep controls disabled through the redirect
         setTimeout(() => router.push('/login'), 1600);
         return null;
       }
@@ -608,11 +604,9 @@ export default function Chat() {
     } catch {
       setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that again.' }]);
       return null;
-    } finally {
-      setBusy(false);
     }
     } finally {
-      sendingRef.current = false;
+      setPhase((p) => (p === 'redirecting' ? p : null));
     }
   }
 
@@ -730,13 +724,13 @@ export default function Chat() {
     } catch { /* ignore */ }
   }
 
-  async function finalize() {
-    // Synchronous double-fire guard for the invoice card's action button, which
-    // calls finalize() directly (disabled={finalizing} lags a render). Separate
-    // from sendingRef so send()'s delegation to finalize() isn't self-blocked.
-    // Cleared only in the outer finally below, so no return path leaves it set.
-    if (finalizingRef.current) return;
-    finalizingRef.current = true;
+  // `internal` is true when send() delegates here after an affirmative — it has
+  // already claimed the turn (phase set), so we skip the direct-entry guard to
+  // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
+  // is cleared in the one outer finally (unless a redirect path left it set).
+  async function finalize(internal = false) {
+    if (!internal && phase) return;
+    setPhase('building');
     try {
     if (!draft) return;
 
@@ -762,6 +756,7 @@ export default function Chat() {
         return;
       }
       setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to send this invoice." }]);
+      setPhase('redirecting'); // leave set: keep the card disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
     }
@@ -784,7 +779,6 @@ export default function Chat() {
       } catch { /* access check unreachable — fail open, allow the invoice */ }
     }
 
-    setFinalizing(true);
     try {
       // ── 1. Persist the invoice as a DRAFT (not "sent" until it actually is).
       //    A retry after a cancel/failure reuses the stashed row rather than
@@ -889,7 +883,7 @@ export default function Chat() {
           } else {
             console.error('invoice insert failed', insErr);
             setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
-            return; // finally clears finalizing; draft + ready untouched
+            return; // outer finally clears phase; draft + ready untouched
           }
         } else {
           newId = saved.id as string;
@@ -984,11 +978,9 @@ export default function Chat() {
       // A row may already exist as a draft (stashed) — the retry reuses it, so
       // the draft is genuinely safe and no duplicate is created.
       setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — tap send to try again." }]);
-    } finally {
-      setFinalizing(false);
     }
     } finally {
-      finalizingRef.current = false;
+      setPhase((p) => (p === 'redirecting' ? p : null));
     }
   }
 
@@ -1038,38 +1030,45 @@ export default function Chat() {
     e.target.value = '';
     if (!file) return;
 
+    if (phase) return; // a turn is already in flight
     discardExpense();
-    setPreparing(true);
-    let prepared: PreparedReceipt;
+    // Own the phase for the whole pick→prepare→dedup→read flow in ONE outer
+    // finally, so there is no gap where the controls re-enable mid-flow and no
+    // path (incl. an unexpected throw in findDuplicate) can leave it stuck.
+    // readReceipt advances it to 'reading' and, on the guest 401, 'redirecting'.
+    setPhase('preparing');
     try {
-      prepared = await prepareReceipt(file);
-      setReceipt(prepared);
-    } catch (err) {
-      // ReceiptError messages are written for the user; anything else isn't.
-      setMessages((m) => [...m, {
-        role: 'assistant',
-        content: err instanceof ReceiptError
-          ? err.message
-          : "Couldn't read that photo — try taking it again.",
-      }]);
-      return;
+      let prepared: PreparedReceipt;
+      try {
+        prepared = await prepareReceipt(file);
+        setReceipt(prepared);
+      } catch (err) {
+        // ReceiptError messages are written for the user; anything else isn't.
+        setMessages((m) => [...m, {
+          role: 'assistant',
+          content: err instanceof ReceiptError
+            ? err.message
+            : "Couldn't read that photo — try taking it again.",
+        }]);
+        return;
+      }
+
+      // Dedup BEFORE the vision call, not just before the insert: re-reading a
+      // receipt we already have costs vision tokens to arrive at a row we're
+      // going to refuse anyway.
+      const already = await findDuplicate(prepared.hash);
+      if (already) {
+        setReceipt(null);
+        setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
+        return;
+      }
+
+      // Straight into the read — no second tap. The user's intent was complete
+      // the moment they chose the photo.
+      await readReceipt(prepared);
     } finally {
-      setPreparing(false);
+      setPhase((p) => (p === 'redirecting' ? p : null));
     }
-
-    // Dedup BEFORE the vision call, not just before the insert: re-reading a
-    // receipt we already have costs vision tokens to arrive at a row we're
-    // going to refuse anyway.
-    const already = await findDuplicate(prepared.hash);
-    if (already) {
-      setReceipt(null);
-      setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
-      return;
-    }
-
-    // Straight into the read — no second tap. The user's intent was complete
-    // the moment they chose the photo.
-    await readReceipt(prepared);
   }
 
   /** An existing expense for this user with the same receipt image, if any. */
@@ -1087,8 +1086,11 @@ export default function Chat() {
     return (data as ExistingReceipt) ?? null;
   }
 
+  // Called only from onPickReceipt, which owns the phase lifecycle (its finally
+  // clears it). We advance the phase to 'reading' for the vision call and, on the
+  // guest 401, to 'redirecting' so the caller leaves it set through the redirect.
   async function readReceipt(prepared: PreparedReceipt) {
-    setBusy(true);
+    setPhase('reading');
     try {
       const body = new FormData();
       body.append('image', prepared.blob, 'receipt.jpg');
@@ -1098,6 +1100,7 @@ export default function Chat() {
       if (res.status === 401 && data.authRequired) {
         setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
         setReceipt(null);
+        setPhase('redirecting'); // leave set through the redirect (caller keeps it)
         setTimeout(() => router.push('/login'), 1600);
         return;
       }
@@ -1129,27 +1132,28 @@ export default function Chat() {
     } catch {
       setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that photo again.' }]);
       setReceipt(null);
-    } finally {
-      setBusy(false);
     }
+    // No finally here — onPickReceipt's finally owns clearing the phase.
   }
 
   // ── Saving an expense ───────────────────────────────────────
   async function saveExpense() {
     if (!expenseDraft) return;
+    if (phase) return; // a turn is already in flight
+    setPhase('saving');
+    try {
     if (!profile) {
       if (!profileLoaded) {
         setExpenseError('One sec — still loading your account. Tap save again in a moment.');
         return;
       }
       setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to keep this expense." }]);
+      setPhase('redirecting'); // leave set: keep the save button disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
     }
 
-    setSavingExpense(true);
     setExpenseError(null);
-    try {
       // Path is the content hash, so the same photo always lands on the same
       // object instead of piling up copies. The bucket has no UPDATE policy
       // (copied from vault), so upsert is off and a re-upload of an identical
@@ -1201,7 +1205,7 @@ export default function Chat() {
       setMessages((m) => [...m, { role: 'assistant', content: saved }]);
       discardExpense();
     } finally {
-      setSavingExpense(false);
+      setPhase((p) => (p === 'redirecting' ? p : null));
     }
   }
 
@@ -1249,7 +1253,7 @@ export default function Chat() {
         setRecording(false);
         if (recAbortRef.current) return; // session ended mid-take — discard
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        setBusy(true);
+        setPhase('thinking'); // transcription is a turn in flight
         let text = '';
         let data: { text?: string; authRequired?: boolean; message?: string } = {};
         try {
@@ -1257,14 +1261,17 @@ export default function Chat() {
           data = await res.json();
           text = (data.text ?? '').trim();
         } catch { /* treated as "didn't catch that" */ }
-        setBusy(false);
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
           setMessages((m) => [...m, { role: 'assistant', content: data.message ?? "Create your free account to keep going." }]);
+          setPhase('redirecting'); // leave set through the redirect
           setTimeout(() => router.push('/login'), 1600);
           return;
         }
+        // Clear before delegating to send(), which re-claims the turn (its guard
+        // reads `phase`, so it must be idle here). No-text take just reports back.
+        setPhase(null);
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
@@ -1381,12 +1388,12 @@ export default function Chat() {
               <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
               <span className="font-display text-numeric-xl tracking-tight text-on-background">{money(previewTotal)}</span>
             </div>
-            <button className="btn-primary mt-3 w-full" disabled={finalizing} onClick={finalize}>
+            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={() => finalize()}>
               <Icon name="attach_file" size={18} />
-              {finalizing ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
+              {phase === 'building' ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
-              disabled={busy || finalizing}
+              disabled={phase !== null}
               onClick={() => send('Actually, let me change something')}>
               Change something
             </button>
@@ -1405,7 +1412,7 @@ export default function Chat() {
                 content: "No problem — tell me what it should say, or send another photo.",
               }]);
             }}
-            saving={savingExpense}
+            saving={phase === 'saving'}
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}
           />
@@ -1421,10 +1428,10 @@ export default function Chat() {
           </div>
         )}
 
-        {busy && (
+        {(phase === 'thinking' || phase === 'reading') && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
-            <Icon name={receipt && !expenseDraft ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
-            {receipt && !expenseDraft ? 'Reading your receipt…' : 'On It is thinking…'}
+            <Icon name={phase === 'reading' ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
+            {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
         <div ref={bottomRef} />
@@ -1437,7 +1444,7 @@ export default function Chat() {
           <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening…</div>
         )}
 
-        {preparing && (
+        {phase === 'preparing' && (
           <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
             <Icon name="photo_camera" size={20} className="text-primary" />
             Getting that photo ready…
@@ -1465,7 +1472,7 @@ export default function Chat() {
               <button
                 aria-label="Take a receipt photo"
                 className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={preparing || busy}
+                disabled={phase !== null}
                 onClick={() => cameraRef.current?.click()}
               >
                 <Icon name="photo_camera" size={20} />
@@ -1473,7 +1480,7 @@ export default function Chat() {
               <button
                 aria-label="Upload receipt from gallery"
                 className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={preparing || busy}
+                disabled={phase !== null}
                 onClick={() => galleryRef.current?.click()}
               >
                 <Icon name="photo_library" size={20} />
@@ -1497,7 +1504,8 @@ export default function Chat() {
           />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
-            className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 ${recording ? 'voice-listening' : ''}`}
+            className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40 ${recording ? 'voice-listening' : ''}`}
+            disabled={phase !== null}
             onClick={micTap}
           >
             <Icon name="mic" size={32} filled />
@@ -1509,13 +1517,13 @@ export default function Chat() {
             rows={1}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) void send(input); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
             }}
           />
           <button
             aria-label="Send"
             className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
-            disabled={!input.trim() || busy}
+            disabled={!input.trim() || phase !== null}
             onClick={() => void send(input)}
           >
             <Icon name="send" size={22} filled />
