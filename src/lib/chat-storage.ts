@@ -42,6 +42,33 @@ export function clearAllChatStorage(userId: string | null | undefined): void {
   }
 }
 
+/** Adopt a guest draft into a newly signed-in user's namespace.
+ *
+ *  A guest builds a conversation under the 'guest' slot, hits the sign-in wall
+ *  at finalize, signs in, and returns to a namespace that has never been
+ *  written — their work is stranded. Called once on mount after the session
+ *  resolves and BEFORE the namespace is used for any read, so the normal
+ *  restore path picks the adopted draft up with no special-casing.
+ *
+ *  Never clobbers: if the account already has a draft of its own, the guest
+ *  slot is left alone. Version/TTL validation is deliberately not repeated
+ *  here — loadStoredChat already rejects a stale or malformed payload on read.
+ */
+export function adoptGuestChat(userId: string | null | undefined): void {
+  if (!userId) return; // no real account to adopt into
+  const ns = storageNamespace(userId);
+  if (ns === 'guest') return; // defensive; unreachable given the guard above
+  try {
+    if (localStorage.getItem(chatKey(ns))) return; // account has its own draft — leave both alone
+    const guestDraft = localStorage.getItem(chatKey('guest'));
+    if (!guestDraft) return;
+    localStorage.setItem(chatKey(ns), guestDraft);
+    localStorage.removeItem(chatKey('guest'));
+  } catch {
+    /* storage blocked — nothing to adopt */
+  }
+}
+
 /** One-time cleanup of the pre-namespacing keys, so a draft written by an older
  *  build doesn't linger unreadable in localStorage forever. */
 export function dropLegacyChatStorage(): void {

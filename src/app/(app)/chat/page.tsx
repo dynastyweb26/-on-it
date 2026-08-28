@@ -12,7 +12,7 @@ import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { docNoun } from '@/lib/documents';
-import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage } from '@/lib/chat-storage';
+import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
 import PaywallModal from '@/components/PaywallModal';
@@ -299,7 +299,12 @@ export default function Chat() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (cancelled) return;
-        storageNsRef.current = storageNamespace(session?.user?.id);
+        const uid = session?.user?.id;
+        // Move a guest draft into this account's slot before the namespace is
+        // read below, so restoreFromStore() picks it up on the normal path — a
+        // guest who signed in at the finalize wall keeps the work they built.
+        adoptGuestChat(uid);
+        storageNsRef.current = storageNamespace(uid);
       } catch {
         if (cancelled) return; // unresolved — storageNsRef stays null
       }
