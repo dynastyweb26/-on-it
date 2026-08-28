@@ -3,11 +3,30 @@ import { createBrowserClient } from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 // Normal client — PKCE (default). Handles sign-in and all session/data access.
-export const createClient = () =>
-  createBrowserClient(
+//
+// Memoized per browser tab: createBrowserClient does NOT dedupe internally, so
+// calling this in a render body (as every call site does) minted a fresh
+// GoTrueClient on every render — eight-plus on a single /chat load, all racing
+// on the same storage key ("Multiple GoTrueClient instances detected"). One
+// lazy instance per tab fixes that with no change to any call site.
+//
+// The typeof window guard keeps SSR of client components from caching an
+// instance into the shared server module scope (which would bleed across
+// requests): on the server we hand back a throwaway; only the browser memoizes.
+let browserClient: ReturnType<typeof createBrowserClient> | undefined;
+
+export const createClient = () => {
+  if (typeof window === 'undefined') {
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return (browserClient ??= createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  ));
+};
 
 // Implicit-flow client used ONLY to mint auth emails (password reset, signup
 // confirmation, resend). PKCE mints a pkce_ token whose code_verifier lives in
