@@ -21,12 +21,14 @@ const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
 const fmtDate = (d: string | null | undefined): string | null =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
-// Brave's Shields can stall supabase-js's navigator.locks-based token access, so
-// auth.getUser() may never settle (Chrome is fine). Cap the wait: past this we
-// show an actionable Retry / Sign-in state instead of hanging on "Loading…"
-// forever. 8s is well past a slow-but-working network token refresh, while a real
-// stall is indefinite — so this only trips on a genuine hang. (reset-password
-// uses 2.5s for a purely-local session read — a cheaper, different call.)
+// Under Brave with Shields enabled, auth.getUser() has been observed to stall
+// indefinitely on this page — the check never settles and the screen sits on
+// "Loading…" (Chrome is fine). The cause is not identified as of 2026-08-31.
+// Regardless of cause, we bound the wait: past this we show an actionable
+// Retry / Sign-in state instead of hanging forever. 8s is well past a
+// slow-but-working network token refresh, while the observed stall is
+// indefinite — so this only trips on a genuine hang. (reset-password uses 2.5s
+// for a purely-local session read — a cheaper, different call.)
 const AUTH_TIMEOUT_MS = 8000;
 
 export default function Settings() {
@@ -73,8 +75,9 @@ export default function Settings() {
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
         // must land on login, never sit on "Loading…". getUser() can reject on
         // a token-refresh/network failure, so the whole check is guarded — any
-        // throw routes to /login. A getUser() that never settles (Brave's lock
-        // stall) is caught by stuckTimer above, not by this try/catch.
+        // throw routes to /login. A getUser() that never settles (the observed
+        // Brave/Shields stall, cause unidentified) is caught by stuckTimer
+        // above, not by this try/catch.
         const { data: { user }, error } = await supabase.auth.getUser();
         if (!active) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
@@ -240,7 +243,8 @@ export default function Settings() {
   }
 
   if (redirecting) return <p className="p-6 text-on-surface-variant">Redirecting…</p>;
-  // Auth stalled (Brave lock, etc.) and no profile yet — actionable, not a hang.
+  // Auth stalled (observed under Brave with Shields; cause unidentified)
+  // and no profile yet — actionable, not a hang.
   // Ordered after redirecting (a real decision wins) and gated on !p, so a
   // late-resolving getUser that sets p supersedes this and renders the page.
   if (!p && authStuck) return (
