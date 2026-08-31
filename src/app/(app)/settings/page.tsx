@@ -21,6 +21,14 @@ const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
 const fmtDate = (d: string | null | undefined): string | null =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
+// Brave's Shields can stall supabase-js's navigator.locks-based token access, so
+// auth.getUser() may never settle (Chrome is fine). Cap the wait: past this we
+// show an actionable Retry / Sign-in state instead of hanging on "Loading…"
+// forever. 8s is well past a slow-but-working network token refresh, while a real
+// stall is indefinite — so this only trips on a genuine hang. (reset-password
+// uses 2.5s for a purely-local session read — a cheaper, different call.)
+const AUTH_TIMEOUT_MS = 8000;
+
 export default function Settings() {
   const supabase = createClient();
   const router = useRouter();
@@ -36,6 +44,10 @@ export default function Settings() {
   const [pushBusy, setPushBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
+  // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
+  // an actionable state instead of an indefinite spinner. A late-resolving `p`
+  // supersedes it (render order below).
+  const [authStuck, setAuthStuck] = useState(false);
   // Subscription: tier drives manage-vs-upgrade; founder hides the section.
   const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
@@ -49,20 +61,30 @@ export default function Settings() {
 
   useEffect(() => {
     let active = true;
+    // settled + timer follow the reset-password convention: if the auth
+    // resolution below hasn't reached a terminal decision (render p, or redirect)
+    // within AUTH_TIMEOUT_MS, treat it as unresolved and show the actionable
+    // state. Cleared the moment it settles, and on unmount.
+    let settled = false;
+    const stuckTimer = setTimeout(() => { if (active && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
+    const settle = () => { settled = true; clearTimeout(stuckTimer); };
     (async () => {
       try {
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
         // must land on login, never sit on "Loading…". getUser() can reject on
         // a token-refresh/network failure, so the whole check is guarded — any
-        // throw routes to /login rather than leaving the effect hung.
+        // throw routes to /login. A getUser() that never settles (Brave's lock
+        // stall) is caught by stuckTimer above, not by this try/catch.
         const { data: { user }, error } = await supabase.auth.getUser();
         if (!active) return;
-        if (error || !user) { setRedirecting(true); router.replace('/login'); return; }
+        if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (!active) return;
         // Signed in but no profile yet → finish onboarding (matches chat's pattern).
-        if (!data) { setRedirecting(true); router.replace('/onboarding'); return; }
+        if (!data) { settle(); setRedirecting(true); router.replace('/onboarding'); return; }
+        settle();
+        setAuthStuck(false); // late resolve after a timeout: recover and render
         setP(data);
 
         try {
@@ -76,13 +98,14 @@ export default function Settings() {
         } catch { /* leave null → the section simply doesn't render */ }
         if (active) setPushOn(Boolean(await getPushSubscription()));
       } catch {
-        // Auth/network failed — don't hang; send to login.
+        // Auth/network failed (rejected) — don't hang; send to login.
         if (!active) return;
+        settle();
         setRedirecting(true);
         router.replace('/login');
       }
     })();
-    return () => { active = false; };
+    return () => { active = false; clearTimeout(stuckTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -217,6 +240,22 @@ export default function Settings() {
   }
 
   if (redirecting) return <p className="p-6 text-on-surface-variant">Redirecting…</p>;
+  // Auth stalled (Brave lock, etc.) and no profile yet — actionable, not a hang.
+  // Ordered after redirecting (a real decision wins) and gated on !p, so a
+  // late-resolving getUser that sets p supersedes this and renders the page.
+  if (!p && authStuck) return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
+      <Icon name="sync_problem" size={40} className="text-on-surface-variant" />
+      <div className="space-y-1">
+        <p className="text-body-lg font-semibold text-on-background">Settings is taking longer than usual</p>
+        <p className="text-sm text-on-surface-variant">Your browser may be blocking background access. Try again, or sign in.</p>
+      </div>
+      <div className="flex gap-2">
+        <button className="btn-primary px-5" onClick={() => window.location.reload()}>Retry</button>
+        <button className="btn-outline px-5" onClick={() => router.push('/login')}>Sign in</button>
+      </div>
+    </div>
+  );
   if (!p) return <p className="p-6 text-on-surface-variant">Loading…</p>;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
