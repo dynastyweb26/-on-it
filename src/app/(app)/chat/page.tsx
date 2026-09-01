@@ -23,7 +23,11 @@ import LineItemsEditor from '@/components/LineItemsEditor';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
+// A failed assistant message carries what it takes to re-run the operation in
+// place: the op, plus (for send) the user text to resend. finalize needs no
+// payload — it re-reads draft/convoId from state, reusing the same finalize_key.
+type Failure = { op: 'send'; text: string } | { op: 'finalize' };
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -42,6 +46,13 @@ const aMsg = (content: string, extra?: Partial<Omit<Msg, 'id' | 'role' | 'conten
   ({ id: genMsgId(), role: 'assistant', content, ...extra });
 const uMsg = (content: string, source?: Msg['source']): Msg =>
   ({ id: genMsgId(), role: 'user', content, source });
+
+// Append a message, or — during a retry (retryId set) — replace the failed
+// message in place by id. A successful retry leaves no dead error behind, and a
+// repeat failure never stacks a duplicate (the failure sites skip the append
+// entirely when retrying, leaving the existing message and its button intact).
+const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
+  retryId ? list.map((m) => (m.id === retryId ? msg : m)) : [...list, msg];
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser (and per-user, see chat-storage) so switching apps
@@ -468,7 +479,7 @@ export default function Chat() {
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
    *  — per-message modality, so typed messages stay silent. */
-  async function send(text: string, source: 'voice' | 'typed' = 'typed'): Promise<SendResult | null> {
+  async function send(text: string, source: 'voice' | 'typed' = 'typed', retryId?: string): Promise<SendResult | null> {
     const trimmed = text.trim();
     // Single in-flight guard. `phase` is state and lags a render, so a sub-frame
     // double-tap can still slip one through (accepted). It fixes the reported
@@ -477,9 +488,17 @@ export default function Chat() {
     if (!trimmed || phase) return null;
     setPhase('thinking');
     try {
-    const next: Msg[] = [...messages, uMsg(trimmed, source)];
-    setMessages(next);
-    setInput('');
+    // On a retry we don't re-echo the user's text (it's already in the
+    // transcript) and we build the parse history WITHOUT the failed bubble; the
+    // bubble stays put until the outcome replaces it (success) or leaves it
+    // (failure). A normal send echoes the user message and clears the input.
+    const next: Msg[] = retryId
+      ? messages.filter((m) => m.id !== retryId)
+      : [...messages, uMsg(trimmed, source)];
+    if (!retryId) {
+      setMessages(next);
+      setInput('');
+    }
     setFinished(false); // a new message means a live conversation again
 
     // Duplicate-confirmation resolution: if we're awaiting a yes/no, DON'T
@@ -532,7 +551,7 @@ export default function Chat() {
         return null;
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
-      setMessages((m) => [...m, aMsg(reply)]);
+      setMessages((m) => emitResult(m, aMsg(reply), retryId));
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
       if (source === 'voice') {
@@ -624,7 +643,9 @@ export default function Chat() {
       }
       return { reply, ready: isReady };
     } catch {
-      setMessages((m) => [...m, aMsg('Connection hiccup — try that again.')]);
+      // Repeat failure of a retry leaves the existing failed bubble (and its
+      // button) in place — don't stack a second error.
+      if (!retryId) setMessages((m) => [...m, aMsg('Connection hiccup — try that again.', { failed: { op: 'send', text: trimmed } })]);
       return null;
     }
     } finally {
@@ -719,8 +740,10 @@ export default function Chat() {
   // conversation to history, clear finalize progress (row + sent flag), and
   // reset to a clean slate. Used by a normal finalize and by an idempotent
   // resume that finds the invoice already sent.
-  function finishFinalize(doneMsg: Msg) {
-    const archived = [...messages, doneMsg];
+  function finishFinalize(doneMsg: Msg, retryId?: string) {
+    // On a finalize retry the done message replaces the failed bubble in place,
+    // so neither the transcript nor the archived history keeps a dead error.
+    const archived = emitResult(messages, doneMsg, retryId);
     setMessages(archived);
     pushHistory(storageNsRef.current ?? 'guest', {
       id: convoId || genId(),
@@ -750,7 +773,7 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  async function finalize(internal = false) {
+  async function finalize(internal = false, retryId?: string) {
     if (!internal && phase) return;
     setPhase('building');
     try {
@@ -897,14 +920,14 @@ export default function Chat() {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.")]);
+              if (!retryId) setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.", { failed: { op: 'finalize' } })]);
               return;
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
           } else {
             console.error('invoice insert failed', insErr);
-            setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.")]);
+            if (!retryId) setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.", { failed: { op: 'finalize' } })]);
             return; // outer finally clears phase; draft + ready untouched
           }
         } else {
@@ -929,7 +952,7 @@ export default function Chat() {
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
         const kind = draft.intent === 'quote' ? 'quote' : 'invoice';
-        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`));
+        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
         return;
       }
 
@@ -989,8 +1012,9 @@ export default function Chat() {
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
       // Append the done message, archive to history, and reset to a clean slate
-      // (also clears pendingInvoice + finalizeSent so nothing replays).
-      finishFinalize(aMsg(done));
+      // (also clears pendingInvoice + finalizeSent so nothing replays). On a
+      // retry the done message replaces the failed bubble instead of appending.
+      finishFinalize(aMsg(done), retryId);
 
       // The right moment to ask about reminders: right after the FIRST
       // invoice goes out. One-time; skipped if already subscribed.
@@ -998,12 +1022,23 @@ export default function Chat() {
     } catch (e) {
       console.error(e);
       // A row may already exist as a draft (stashed) — the retry reuses it, so
-      // the draft is genuinely safe and no duplicate is created.
-      setMessages((m) => [...m, aMsg("Couldn't finish that one. Your draft is safe — tap send to try again.")]);
+      // the draft is genuinely safe and no duplicate is created. A repeat
+      // failure of a retry leaves the existing failed bubble and its button.
+      if (!retryId) setMessages((m) => [...m, aMsg("Couldn't finish that one. Your draft is safe — tap send to try again.", { failed: { op: 'finalize' } })]);
     }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
+  }
+
+  // Re-run the operation behind a failed message, in place. The message's id is
+  // passed down so the outcome replaces THIS bubble (success) or leaves it as-is
+  // (repeat failure). finalize reuses the same convoId/finalize_key, so the
+  // server-side 23505 read-back guarantees no duplicate invoice on a retry.
+  function retry(msg: Msg) {
+    if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
+    if (msg.failed.op === 'send') void send(msg.failed.text, 'typed', msg.id);
+    else void finalize(false, msg.id);
   }
 
   async function maybeOfferReminders() {
@@ -1374,18 +1409,38 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m) => (
-          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
-                ${m.role === 'user'
-                  ? 'rounded-br-md bg-primary-container text-on-primary-container'
-                  : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
-            >
-              {m.content}
+        {messages.map((m) =>
+          m.failed ? (
+            // Failed assistant message: bubble plus an icon-only retry control
+            // beneath it. Same icon-button styling as the receipt buttons.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-1">
+                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                  {m.content}
+                </div>
+                <button
+                  aria-label="Retry"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                  disabled={phase !== null}
+                  onClick={() => retry(m)}
+                >
+                  <Icon name="refresh" size={20} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
+                  ${m.role === 'user'
+                    ? 'rounded-br-md bg-primary-container text-on-primary-container'
+                    : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
+              >
+                {m.content}
+              </div>
+            </div>
+          )
+        )}
 
         {ready && draft && (
           <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
