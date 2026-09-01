@@ -23,7 +23,11 @@ import LineItemsEditor from '@/components/LineItemsEditor';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
-interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
+// A failed assistant message carries what it takes to re-run the operation in
+// place: the op, plus (for send) the user text to resend. finalize needs no
+// payload — it re-reads draft/convoId from state, reusing the same finalize_key.
+type Failure = { op: 'send'; text: string } | { op: 'finalize' };
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -34,21 +38,37 @@ interface Profile {
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const today = () => new Date().toISOString().slice(0, 10);
 
+// Every message carries a stable id so the transcript renders by id (not array
+// index) and a specific message can be replaced in place (retry). Factories
+// stamp the id in one spot; `extra` is the seam for per-message fields.
+const genMsgId = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const aMsg = (content: string, extra?: Partial<Omit<Msg, 'id' | 'role' | 'content'>>): Msg =>
+  ({ id: genMsgId(), role: 'assistant', content, ...extra });
+const uMsg = (content: string, source?: Msg['source']): Msg =>
+  ({ id: genMsgId(), role: 'user', content, source });
+
+// Append a message, or — during a retry (retryId set) — replace the failed
+// message in place by id. A successful retry leaves no dead error behind, and a
+// repeat failure never stacks a duplicate (the failure sites skip the append
+// entirely when retrying, leaving the existing message and its button intact).
+const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
+  retryId ? list.map((m) => (m.id === retryId ? msg : m)) : [...list, msg];
+
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser (and per-user, see chat-storage) so switching apps
 // never loses a draft. The same storage layer feeds the "recent conversations"
 // history (last 5). Keys are built per namespace via chatKey()/historyKey().
 const HISTORY_MAX = 5;
-// Bump when StoredChat's shape changes so an entry written by an older build is
-// discarded on load instead of rehydrated into a broken draft. (v1 was the
-// original unversioned shape — any entry whose version doesn't match is dropped.
-// v3 added finalizeSent — finalize step-completion, so a resumed finalize skips
-// steps that already ran.)
-const STORE_VERSION = 3;
+// Bump when StoredChat's shape changes. An entry from an unmigratable older
+// build is discarded on load rather than rehydrated into a broken draft. (v1
+// was the original unversioned shape. v3 added finalizeSent — finalize
+// step-completion, so a resumed finalize skips steps that already ran. v4 added
+// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.)
+const STORE_VERSION = 4;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
-const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
+const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice.");
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -130,18 +150,30 @@ interface HistoryEntry {
   ready: boolean;
 }
 
+// Backfill a stable id onto any message that lacks one. v3 payloads (and any
+// v4 written before this field existed) stored messages without ids; a restored
+// chat must render by id like a fresh one. Pure — returns a new array and
+// leaves the input untouched.
+function withMessageIds(messages: Msg[]): Msg[] {
+  return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
+}
+
 function loadStoredChat(ns: string): StoredChat | null {
   try {
     const raw = localStorage.getItem(chatKey(ns));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
-    // Written by an older build — discard rather than rehydrate a draft whose
-    // fields may no longer line up with the current shape.
-    if (parsed.version !== STORE_VERSION) return null;
+    // v4 added Msg.id. Migrate a v3 payload rather than discard it, so an
+    // in-progress conversation from the previous build survives the upgrade:
+    // its messages get ids backfilled below and it's treated as current. Only
+    // genuinely older/unrecognized shapes (< 3) are dropped — their fields
+    // predate too much to rehydrate safely. The persist effect rewrites the
+    // migrated payload as the current version on the next change.
+    if (parsed.version !== STORE_VERSION && parsed.version !== 3) return null;
     // Stale — a job left untouched past the TTL isn't "current" anymore.
     if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
-    return parsed;
+    return { ...parsed, version: STORE_VERSION, messages: withMessageIds(parsed.messages) };
   } catch {
     return null;
   }
@@ -151,7 +183,11 @@ function loadHistory(ns: string): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(historyKey(ns));
     const list = raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    // History carries no version field; entries written before Msg.id lack ids
+    // on their messages. Backfill on read so opening an old entry renders by id
+    // without key collisions. Non-destructive — only rewritten on next push.
+    return list.map((e) => ({ ...e, messages: withMessageIds(e.messages ?? []) }));
   } catch {
     return [];
   }
@@ -443,7 +479,7 @@ export default function Chat() {
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
    *  — per-message modality, so typed messages stay silent. */
-  async function send(text: string, source: 'voice' | 'typed' = 'typed'): Promise<SendResult | null> {
+  async function send(text: string, source: 'voice' | 'typed' = 'typed', retryId?: string): Promise<SendResult | null> {
     const trimmed = text.trim();
     // Single in-flight guard. `phase` is state and lags a render, so a sub-frame
     // double-tap can still slip one through (accepted). It fixes the reported
@@ -452,9 +488,17 @@ export default function Chat() {
     if (!trimmed || phase) return null;
     setPhase('thinking');
     try {
-    const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
-    setMessages(next);
-    setInput('');
+    // On a retry we don't re-echo the user's text (it's already in the
+    // transcript) and we build the parse history WITHOUT the failed bubble; the
+    // bubble stays put until the outcome replaces it (success) or leaves it
+    // (failure). A normal send echoes the user message and clears the input.
+    const next: Msg[] = retryId
+      ? messages.filter((m) => m.id !== retryId)
+      : [...messages, uMsg(trimmed, source)];
+    if (!retryId) {
+      setMessages(next);
+      setInput('');
+    }
     setFinished(false); // a new message means a live conversation again
 
     // Duplicate-confirmation resolution: if we're awaiting a yes/no, DON'T
@@ -469,10 +513,7 @@ export default function Chat() {
       }
       if (isNegative(trimmed)) {
         setPending(null);
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: "Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.",
-        }]);
+        setMessages((m) => [...m, aMsg("Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.")]);
         return null;
       }
       setPending(null); // ambiguous reply — fall through to a fresh parse
@@ -489,7 +530,7 @@ export default function Chat() {
     // "No" while we're waiting to confirm: stand down and invite edits.
     if (awaitingConfirm && isNegative(trimmed)) {
       setAwaitingConfirm(false);
-      setMessages((m) => [...m, { role: 'assistant', content: "No rush — tell me what to change and I'll fix it up." }]);
+      setMessages((m) => [...m, aMsg("No rush — tell me what to change and I'll fix it up.")]);
       return null;
     }
     // Anything else is fresh info: drop the confirm hold so the next send
@@ -504,13 +545,13 @@ export default function Chat() {
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setMessages((m) => [...m, aMsg(data.reply)]);
         setPhase('redirecting'); // leave set: keep controls disabled through the redirect
         setTimeout(() => router.push('/login'), 1600);
         return null;
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
-      setMessages((m) => [...m, { role: 'assistant', content: reply }]);
+      setMessages((m) => emitResult(m, aMsg(reply), retryId));
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
       if (source === 'voice') {
@@ -602,7 +643,14 @@ export default function Chat() {
       }
       return { reply, ready: isReady };
     } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that again.' }]);
+      // Repeat failure of a retry leaves the existing failed bubble (and its
+      // button) in place — don't stack a second error.
+      if (!retryId) setMessages((m) => [...m, aMsg(
+        navigator.onLine
+          ? "Connection hiccup — that didn't go through."
+          : "You're offline — that didn't send. Your work is saved.",
+        { failed: { op: 'send', text: trimmed } },
+      )]);
       return null;
     }
     } finally {
@@ -697,8 +745,10 @@ export default function Chat() {
   // conversation to history, clear finalize progress (row + sent flag), and
   // reset to a clean slate. Used by a normal finalize and by an idempotent
   // resume that finds the invoice already sent.
-  function finishFinalize(doneMsg: Msg) {
-    const archived = [...messages, doneMsg];
+  function finishFinalize(doneMsg: Msg, retryId?: string) {
+    // On a finalize retry the done message replaces the failed bubble in place,
+    // so neither the transcript nor the archived history keeps a dead error.
+    const archived = emitResult(messages, doneMsg, retryId);
     setMessages(archived);
     pushHistory(storageNsRef.current ?? 'guest', {
       id: convoId || genId(),
@@ -728,7 +778,7 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  async function finalize(internal = false) {
+  async function finalize(internal = false, retryId?: string) {
     if (!internal && phase) return;
     setPhase('building');
     try {
@@ -740,7 +790,7 @@ export default function Chat() {
     // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
     // change re-summarizes.
     if (!awaitingConfirm) {
-      setMessages((m) => [...m, { role: 'assistant', content: confirmSummary() }]);
+      setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
     }
@@ -752,10 +802,10 @@ export default function Chat() {
     //    nudge (mirrors the parse route's 401 copy), THEN route to login.
     if (!profile) {
       if (!profileLoaded) {
-        setMessages((m) => [...m, { role: 'assistant', content: 'One sec — still loading your business info. Tap send again in a moment.' }]);
+        setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
       }
-      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to send this invoice." }]);
+      setMessages((m) => [...m, aMsg("Let's save your work — sign in to send this invoice.")]);
       setPhase('redirecting'); // leave set: keep the card disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
@@ -875,14 +925,24 @@ export default function Chat() {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+              if (!retryId) setMessages((m) => [...m, aMsg(
+                navigator.onLine
+                  ? "Couldn't save that invoice just now. Your draft is safe."
+                  : "You're offline — the invoice didn't send. Your draft is safe.",
+                { failed: { op: 'finalize' } },
+              )]);
               return;
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
           } else {
             console.error('invoice insert failed', insErr);
-            setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+            if (!retryId) setMessages((m) => [...m, aMsg(
+              navigator.onLine
+                ? "Couldn't save that invoice just now. Your draft is safe."
+                : "You're offline — the invoice didn't send. Your draft is safe.",
+              { failed: { op: 'finalize' } },
+            )]);
             return; // outer finally clears phase; draft + ready untouched
           }
         } else {
@@ -907,7 +967,7 @@ export default function Chat() {
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
         const kind = draft.intent === 'quote' ? 'quote' : 'invoice';
-        finishFinalize({ role: 'assistant', content: `All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.` });
+        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
         return;
       }
 
@@ -938,7 +998,7 @@ export default function Chat() {
       // the SAME invoice. No alarming message.
       if (outcome === 'cancelled') {
         setRenderData(null);
-        setMessages((m) => [...m, { role: 'assistant', content: 'All set when you are — tap send to share it whenever you’re ready.' }]);
+        setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
         return;
       }
 
@@ -967,8 +1027,9 @@ export default function Chat() {
         ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
       // Append the done message, archive to history, and reset to a clean slate
-      // (also clears pendingInvoice + finalizeSent so nothing replays).
-      finishFinalize({ role: 'assistant', content: done });
+      // (also clears pendingInvoice + finalizeSent so nothing replays). On a
+      // retry the done message replaces the failed bubble instead of appending.
+      finishFinalize(aMsg(done), retryId);
 
       // The right moment to ask about reminders: right after the FIRST
       // invoice goes out. One-time; skipped if already subscribed.
@@ -976,12 +1037,28 @@ export default function Chat() {
     } catch (e) {
       console.error(e);
       // A row may already exist as a draft (stashed) — the retry reuses it, so
-      // the draft is genuinely safe and no duplicate is created.
-      setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — tap send to try again." }]);
+      // the draft is genuinely safe and no duplicate is created. A repeat
+      // failure of a retry leaves the existing failed bubble and its button.
+      if (!retryId) setMessages((m) => [...m, aMsg(
+        navigator.onLine
+          ? "Couldn't finish that one. Your draft is safe."
+          : "You're offline — the invoice didn't send. Your draft is safe.",
+        { failed: { op: 'finalize' } },
+      )]);
     }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
+  }
+
+  // Re-run the operation behind a failed message, in place. The message's id is
+  // passed down so the outcome replaces THIS bubble (success) or leaves it as-is
+  // (repeat failure). finalize reuses the same convoId/finalize_key, so the
+  // server-side 23505 read-back guarantees no duplicate invoice on a retry.
+  function retry(msg: Msg) {
+    if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
+    if (msg.failed.op === 'send') void send(msg.failed.text, 'typed', msg.id);
+    else void finalize(false, msg.id);
   }
 
   async function maybeOfferReminders() {
@@ -1004,12 +1081,9 @@ export default function Chat() {
     setReminderPrompt(false);
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
     const ok = await subscribeToPush(supabase, profile.id);
-    setMessages((m) => [...m, {
-      role: 'assistant',
-      content: ok
-        ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
-        : "Couldn't turn that on — you can enable reminders any time in Settings.",
-    }]);
+    setMessages((m) => [...m, aMsg(ok
+      ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
+      : "Couldn't turn that on — you can enable reminders any time in Settings.")]);
   }
 
   function dismissReminders() {
@@ -1044,12 +1118,9 @@ export default function Chat() {
         setReceipt(prepared);
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: err instanceof ReceiptError
-            ? err.message
-            : "Couldn't read that photo — try taking it again.",
-        }]);
+        setMessages((m) => [...m, aMsg(err instanceof ReceiptError
+          ? err.message
+          : "Couldn't read that photo — try taking it again.")]);
         return;
       }
 
@@ -1059,7 +1130,7 @@ export default function Chat() {
       const already = await findDuplicate(prepared.hash);
       if (already) {
         setReceipt(null);
-        setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
+        setMessages((m) => [...m, aMsg(duplicateMessage(already))]);
         return;
       }
 
@@ -1098,14 +1169,14 @@ export default function Chat() {
       const data = await res.json();
 
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setMessages((m) => [...m, aMsg(data.reply)]);
         setReceipt(null);
         setPhase('redirecting'); // leave set through the redirect (caller keeps it)
         setTimeout(() => router.push('/login'), 1600);
         return;
       }
       if (!res.ok) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply ?? "Couldn't read that one." }]);
+        setMessages((m) => [...m, aMsg(data.reply ?? "Couldn't read that one.")]);
         setReceipt(null);
         return;
       }
@@ -1113,10 +1184,7 @@ export default function Chat() {
       // A receipt we couldn't get an amount off is not a saveable expense —
       // say so plainly rather than opening a card full of blanks.
       if (typeof data.amount !== 'number' || data.amount <= 0) {
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: "I couldn't make out the total on that one. Tell me the amount and I'll log it.",
-        }]);
+        setMessages((m) => [...m, aMsg("I couldn't make out the total on that one. Tell me the amount and I'll log it.")]);
         setReceipt(null);
         return;
       }
@@ -1130,7 +1198,7 @@ export default function Chat() {
         occurred_on: typeof data.occurred_on === 'string' ? data.occurred_on : today(),
       });
     } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that photo again.' }]);
+      setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
       setReceipt(null);
     }
     // No finally here — onPickReceipt's finally owns clearing the phase.
@@ -1144,10 +1212,10 @@ export default function Chat() {
     try {
     if (!profile) {
       if (!profileLoaded) {
-        setExpenseError('One sec — still loading your account. Tap save again in a moment.');
+        setExpenseError('One sec — still loading your account. Give it a moment.');
         return;
       }
-      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to keep this expense." }]);
+      setMessages((m) => [...m, aMsg("Let's save your work — sign in to keep this expense.")]);
       setPhase('redirecting'); // leave set: keep the save button disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
@@ -1166,7 +1234,7 @@ export default function Chat() {
           .upload(receiptPath, receipt.blob, { contentType: 'image/jpeg', upsert: false });
         if (upErr && !/exists/i.test(upErr.message)) {
           console.error('receipt upload failed', upErr);
-          setExpenseError("Couldn't save the photo just now — tap save to try again.");
+          setExpenseError("Couldn't save the photo just now — your expense is still here.");
           return;
         }
       }
@@ -1187,22 +1255,19 @@ export default function Chat() {
         if (insErr.code === '23505') {
           const existing = receipt ? await findDuplicate(receipt.hash) : null;
           discardExpense();
-          setMessages((m) => [...m, {
-            role: 'assistant',
-            content: existing
-              ? duplicateMessage(existing)
-              : "You've already logged this receipt — I didn't add it twice.",
-          }]);
+          setMessages((m) => [...m, aMsg(existing
+            ? duplicateMessage(existing)
+            : "You've already logged this receipt — I didn't add it twice.")]);
           return;
         }
         console.error('expense insert failed', insErr);
-        setExpenseError("Couldn't save that expense — tap save to try again.");
+        setExpenseError("Couldn't save that expense just now.");
         return;
       }
 
       const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
-      setMessages((m) => [...m, { role: 'assistant', content: saved }]);
+      setMessages((m) => [...m, aMsg(saved)]);
       discardExpense();
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
@@ -1264,7 +1329,7 @@ export default function Chat() {
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
-          setMessages((m) => [...m, { role: 'assistant', content: data.message ?? "Create your free account to keep going." }]);
+          setMessages((m) => [...m, aMsg(data.message ?? "Create your free account to keep going.")]);
           setPhase('redirecting'); // leave set through the redirect
           setTimeout(() => router.push('/login'), 1600);
           return;
@@ -1276,7 +1341,7 @@ export default function Chat() {
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
         if (text) void send(text, 'voice');
-        else setMessages((m) => [...m, { role: 'assistant', content: "Didn't catch that — try again or type it." }]);
+        else setMessages((m) => [...m, aMsg("Didn't catch that — try again or type it.")]);
       };
       rec.start();
       recorderRef.current = rec;
@@ -1286,7 +1351,7 @@ export default function Chat() {
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      setMessages((m) => [...m, { role: 'assistant', content: 'Mic access is blocked. You can type instead.' }]);
+      setMessages((m) => [...m, aMsg('Mic access is blocked. You can type instead.')]);
     }
   }
 
@@ -1364,18 +1429,38 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
-                ${m.role === 'user'
-                  ? 'rounded-br-md bg-primary-container text-on-primary-container'
-                  : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
-            >
-              {m.content}
+        {messages.map((m) =>
+          m.failed ? (
+            // Failed assistant message: bubble plus an icon-only retry control
+            // beneath it. Same icon-button styling as the receipt buttons.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-1">
+                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                  {m.content}
+                </div>
+                <button
+                  aria-label="Retry"
+                  className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                  disabled={phase !== null}
+                  onClick={() => retry(m)}
+                >
+                  <Icon name="refresh" size={20} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
+                  ${m.role === 'user'
+                    ? 'rounded-br-md bg-primary-container text-on-primary-container'
+                    : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
+              >
+                {m.content}
+              </div>
+            </div>
+          )
+        )}
 
         {ready && draft && (
           <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
@@ -1407,10 +1492,7 @@ export default function Chat() {
             onSave={saveExpense}
             onCancel={() => {
               discardExpense();
-              setMessages((m) => [...m, {
-                role: 'assistant',
-                content: "No problem — tell me what it should say, or send another photo.",
-              }]);
+              setMessages((m) => [...m, aMsg("No problem — tell me what it should say, or send another photo.")]);
             }}
             saving={phase === 'saving'}
             previewUrl={receipt?.previewUrl ?? null}
