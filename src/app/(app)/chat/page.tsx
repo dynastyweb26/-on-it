@@ -23,7 +23,7 @@ import LineItemsEditor from '@/components/LineItemsEditor';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
-interface Msg { role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -34,21 +34,30 @@ interface Profile {
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const today = () => new Date().toISOString().slice(0, 10);
 
+// Every message carries a stable id so the transcript renders by id (not array
+// index) and a specific message can be replaced in place (retry). Factories
+// stamp the id in one spot; `extra` is the seam for per-message fields.
+const genMsgId = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const aMsg = (content: string, extra?: Partial<Omit<Msg, 'id' | 'role' | 'content'>>): Msg =>
+  ({ id: genMsgId(), role: 'assistant', content, ...extra });
+const uMsg = (content: string, source?: Msg['source']): Msg =>
+  ({ id: genMsgId(), role: 'user', content, source });
+
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser (and per-user, see chat-storage) so switching apps
 // never loses a draft. The same storage layer feeds the "recent conversations"
 // history (last 5). Keys are built per namespace via chatKey()/historyKey().
 const HISTORY_MAX = 5;
-// Bump when StoredChat's shape changes so an entry written by an older build is
-// discarded on load instead of rehydrated into a broken draft. (v1 was the
-// original unversioned shape — any entry whose version doesn't match is dropped.
-// v3 added finalizeSent — finalize step-completion, so a resumed finalize skips
-// steps that already ran.)
-const STORE_VERSION = 3;
+// Bump when StoredChat's shape changes. An entry from an unmigratable older
+// build is discarded on load rather than rehydrated into a broken draft. (v1
+// was the original unversioned shape. v3 added finalizeSent — finalize
+// step-completion, so a resumed finalize skips steps that already ran. v4 added
+// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.)
+const STORE_VERSION = 4;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
-const GREETING: Msg = { role: 'assistant', content: "Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice." };
+const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice.");
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -130,18 +139,30 @@ interface HistoryEntry {
   ready: boolean;
 }
 
+// Backfill a stable id onto any message that lacks one. v3 payloads (and any
+// v4 written before this field existed) stored messages without ids; a restored
+// chat must render by id like a fresh one. Pure — returns a new array and
+// leaves the input untouched.
+function withMessageIds(messages: Msg[]): Msg[] {
+  return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
+}
+
 function loadStoredChat(ns: string): StoredChat | null {
   try {
     const raw = localStorage.getItem(chatKey(ns));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredChat;
-    // Written by an older build — discard rather than rehydrate a draft whose
-    // fields may no longer line up with the current shape.
-    if (parsed.version !== STORE_VERSION) return null;
+    // v4 added Msg.id. Migrate a v3 payload rather than discard it, so an
+    // in-progress conversation from the previous build survives the upgrade:
+    // its messages get ids backfilled below and it's treated as current. Only
+    // genuinely older/unrecognized shapes (< 3) are dropped — their fields
+    // predate too much to rehydrate safely. The persist effect rewrites the
+    // migrated payload as the current version on the next change.
+    if (parsed.version !== STORE_VERSION && parsed.version !== 3) return null;
     // Stale — a job left untouched past the TTL isn't "current" anymore.
     if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
-    return parsed;
+    return { ...parsed, version: STORE_VERSION, messages: withMessageIds(parsed.messages) };
   } catch {
     return null;
   }
@@ -151,7 +172,11 @@ function loadHistory(ns: string): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(historyKey(ns));
     const list = raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    // History carries no version field; entries written before Msg.id lack ids
+    // on their messages. Backfill on read so opening an old entry renders by id
+    // without key collisions. Non-destructive — only rewritten on next push.
+    return list.map((e) => ({ ...e, messages: withMessageIds(e.messages ?? []) }));
   } catch {
     return [];
   }
@@ -452,7 +477,7 @@ export default function Chat() {
     if (!trimmed || phase) return null;
     setPhase('thinking');
     try {
-    const next: Msg[] = [...messages, { role: 'user', content: trimmed, source }];
+    const next: Msg[] = [...messages, uMsg(trimmed, source)];
     setMessages(next);
     setInput('');
     setFinished(false); // a new message means a live conversation again
@@ -469,10 +494,7 @@ export default function Chat() {
       }
       if (isNegative(trimmed)) {
         setPending(null);
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: "Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.",
-        }]);
+        setMessages((m) => [...m, aMsg("Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.")]);
         return null;
       }
       setPending(null); // ambiguous reply — fall through to a fresh parse
@@ -489,7 +511,7 @@ export default function Chat() {
     // "No" while we're waiting to confirm: stand down and invite edits.
     if (awaitingConfirm && isNegative(trimmed)) {
       setAwaitingConfirm(false);
-      setMessages((m) => [...m, { role: 'assistant', content: "No rush — tell me what to change and I'll fix it up." }]);
+      setMessages((m) => [...m, aMsg("No rush — tell me what to change and I'll fix it up.")]);
       return null;
     }
     // Anything else is fresh info: drop the confirm hold so the next send
@@ -504,13 +526,13 @@ export default function Chat() {
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setMessages((m) => [...m, aMsg(data.reply)]);
         setPhase('redirecting'); // leave set: keep controls disabled through the redirect
         setTimeout(() => router.push('/login'), 1600);
         return null;
       }
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
-      setMessages((m) => [...m, { role: 'assistant', content: reply }]);
+      setMessages((m) => [...m, aMsg(reply)]);
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
       if (source === 'voice') {
@@ -602,7 +624,7 @@ export default function Chat() {
       }
       return { reply, ready: isReady };
     } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that again.' }]);
+      setMessages((m) => [...m, aMsg('Connection hiccup — try that again.')]);
       return null;
     }
     } finally {
@@ -740,7 +762,7 @@ export default function Chat() {
     // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
     // change re-summarizes.
     if (!awaitingConfirm) {
-      setMessages((m) => [...m, { role: 'assistant', content: confirmSummary() }]);
+      setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
     }
@@ -752,10 +774,10 @@ export default function Chat() {
     //    nudge (mirrors the parse route's 401 copy), THEN route to login.
     if (!profile) {
       if (!profileLoaded) {
-        setMessages((m) => [...m, { role: 'assistant', content: 'One sec — still loading your business info. Tap send again in a moment.' }]);
+        setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
       }
-      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to send this invoice." }]);
+      setMessages((m) => [...m, aMsg("Let's save your work — sign in to send this invoice.")]);
       setPhase('redirecting'); // leave set: keep the card disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
@@ -875,14 +897,14 @@ export default function Chat() {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+              setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.")]);
               return;
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
           } else {
             console.error('invoice insert failed', insErr);
-            setMessages((m) => [...m, { role: 'assistant', content: "Couldn't save that invoice just now — tap send to try again. Your draft is safe." }]);
+            setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.")]);
             return; // outer finally clears phase; draft + ready untouched
           }
         } else {
@@ -907,7 +929,7 @@ export default function Chat() {
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
         const kind = draft.intent === 'quote' ? 'quote' : 'invoice';
-        finishFinalize({ role: 'assistant', content: `All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.` });
+        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`));
         return;
       }
 
@@ -938,7 +960,7 @@ export default function Chat() {
       // the SAME invoice. No alarming message.
       if (outcome === 'cancelled') {
         setRenderData(null);
-        setMessages((m) => [...m, { role: 'assistant', content: 'All set when you are — tap send to share it whenever you’re ready.' }]);
+        setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
         return;
       }
 
@@ -968,7 +990,7 @@ export default function Chat() {
         : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
       // Append the done message, archive to history, and reset to a clean slate
       // (also clears pendingInvoice + finalizeSent so nothing replays).
-      finishFinalize({ role: 'assistant', content: done });
+      finishFinalize(aMsg(done));
 
       // The right moment to ask about reminders: right after the FIRST
       // invoice goes out. One-time; skipped if already subscribed.
@@ -977,7 +999,7 @@ export default function Chat() {
       console.error(e);
       // A row may already exist as a draft (stashed) — the retry reuses it, so
       // the draft is genuinely safe and no duplicate is created.
-      setMessages((m) => [...m, { role: 'assistant', content: "Couldn't finish that one. Your draft is safe — tap send to try again." }]);
+      setMessages((m) => [...m, aMsg("Couldn't finish that one. Your draft is safe — tap send to try again.")]);
     }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
@@ -1004,12 +1026,9 @@ export default function Chat() {
     setReminderPrompt(false);
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
     const ok = await subscribeToPush(supabase, profile.id);
-    setMessages((m) => [...m, {
-      role: 'assistant',
-      content: ok
-        ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
-        : "Couldn't turn that on — you can enable reminders any time in Settings.",
-    }]);
+    setMessages((m) => [...m, aMsg(ok
+      ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
+      : "Couldn't turn that on — you can enable reminders any time in Settings.")]);
   }
 
   function dismissReminders() {
@@ -1044,12 +1063,9 @@ export default function Chat() {
         setReceipt(prepared);
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: err instanceof ReceiptError
-            ? err.message
-            : "Couldn't read that photo — try taking it again.",
-        }]);
+        setMessages((m) => [...m, aMsg(err instanceof ReceiptError
+          ? err.message
+          : "Couldn't read that photo — try taking it again.")]);
         return;
       }
 
@@ -1059,7 +1075,7 @@ export default function Chat() {
       const already = await findDuplicate(prepared.hash);
       if (already) {
         setReceipt(null);
-        setMessages((m) => [...m, { role: 'assistant', content: duplicateMessage(already) }]);
+        setMessages((m) => [...m, aMsg(duplicateMessage(already))]);
         return;
       }
 
@@ -1098,14 +1114,14 @@ export default function Chat() {
       const data = await res.json();
 
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+        setMessages((m) => [...m, aMsg(data.reply)]);
         setReceipt(null);
         setPhase('redirecting'); // leave set through the redirect (caller keeps it)
         setTimeout(() => router.push('/login'), 1600);
         return;
       }
       if (!res.ok) {
-        setMessages((m) => [...m, { role: 'assistant', content: data.reply ?? "Couldn't read that one." }]);
+        setMessages((m) => [...m, aMsg(data.reply ?? "Couldn't read that one.")]);
         setReceipt(null);
         return;
       }
@@ -1113,10 +1129,7 @@ export default function Chat() {
       // A receipt we couldn't get an amount off is not a saveable expense —
       // say so plainly rather than opening a card full of blanks.
       if (typeof data.amount !== 'number' || data.amount <= 0) {
-        setMessages((m) => [...m, {
-          role: 'assistant',
-          content: "I couldn't make out the total on that one. Tell me the amount and I'll log it.",
-        }]);
+        setMessages((m) => [...m, aMsg("I couldn't make out the total on that one. Tell me the amount and I'll log it.")]);
         setReceipt(null);
         return;
       }
@@ -1130,7 +1143,7 @@ export default function Chat() {
         occurred_on: typeof data.occurred_on === 'string' ? data.occurred_on : today(),
       });
     } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Connection hiccup — try that photo again.' }]);
+      setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
       setReceipt(null);
     }
     // No finally here — onPickReceipt's finally owns clearing the phase.
@@ -1147,7 +1160,7 @@ export default function Chat() {
         setExpenseError('One sec — still loading your account. Tap save again in a moment.');
         return;
       }
-      setMessages((m) => [...m, { role: 'assistant', content: "Let's save your work — sign in to keep this expense." }]);
+      setMessages((m) => [...m, aMsg("Let's save your work — sign in to keep this expense.")]);
       setPhase('redirecting'); // leave set: keep the save button disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
       return;
@@ -1187,12 +1200,9 @@ export default function Chat() {
         if (insErr.code === '23505') {
           const existing = receipt ? await findDuplicate(receipt.hash) : null;
           discardExpense();
-          setMessages((m) => [...m, {
-            role: 'assistant',
-            content: existing
-              ? duplicateMessage(existing)
-              : "You've already logged this receipt — I didn't add it twice.",
-          }]);
+          setMessages((m) => [...m, aMsg(existing
+            ? duplicateMessage(existing)
+            : "You've already logged this receipt — I didn't add it twice.")]);
           return;
         }
         console.error('expense insert failed', insErr);
@@ -1202,7 +1212,7 @@ export default function Chat() {
 
       const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
-      setMessages((m) => [...m, { role: 'assistant', content: saved }]);
+      setMessages((m) => [...m, aMsg(saved)]);
       discardExpense();
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
@@ -1264,7 +1274,7 @@ export default function Chat() {
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
-          setMessages((m) => [...m, { role: 'assistant', content: data.message ?? "Create your free account to keep going." }]);
+          setMessages((m) => [...m, aMsg(data.message ?? "Create your free account to keep going.")]);
           setPhase('redirecting'); // leave set through the redirect
           setTimeout(() => router.push('/login'), 1600);
           return;
@@ -1276,7 +1286,7 @@ export default function Chat() {
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
         if (text) void send(text, 'voice');
-        else setMessages((m) => [...m, { role: 'assistant', content: "Didn't catch that — try again or type it." }]);
+        else setMessages((m) => [...m, aMsg("Didn't catch that — try again or type it.")]);
       };
       rec.start();
       recorderRef.current = rec;
@@ -1286,7 +1296,7 @@ export default function Chat() {
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      setMessages((m) => [...m, { role: 'assistant', content: 'Mic access is blocked. You can type instead.' }]);
+      setMessages((m) => [...m, aMsg('Mic access is blocked. You can type instead.')]);
     }
   }
 
@@ -1364,8 +1374,8 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        {messages.map((m) => (
+          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
                 ${m.role === 'user'
@@ -1407,10 +1417,7 @@ export default function Chat() {
             onSave={saveExpense}
             onCancel={() => {
               discardExpense();
-              setMessages((m) => [...m, {
-                role: 'assistant',
-                content: "No problem — tell me what it should say, or send another photo.",
-              }]);
+              setMessages((m) => [...m, aMsg("No problem — tell me what it should say, or send another photo.")]);
             }}
             saving={phase === 'saving'}
             previewUrl={receipt?.previewUrl ?? null}
