@@ -645,7 +645,12 @@ export default function Chat() {
     } catch {
       // Repeat failure of a retry leaves the existing failed bubble (and its
       // button) in place — don't stack a second error.
-      if (!retryId) setMessages((m) => [...m, aMsg('Connection hiccup — try that again.', { failed: { op: 'send', text: trimmed } })]);
+      if (!retryId) setMessages((m) => [...m, aMsg(
+        navigator.onLine
+          ? "Connection hiccup — that didn't go through."
+          : "You're offline — that didn't send. Your work is saved.",
+        { failed: { op: 'send', text: trimmed } },
+      )]);
       return null;
     }
     } finally {
@@ -920,14 +925,24 @@ export default function Chat() {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              if (!retryId) setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.", { failed: { op: 'finalize' } })]);
+              if (!retryId) setMessages((m) => [...m, aMsg(
+                navigator.onLine
+                  ? "Couldn't save that invoice just now. Your draft is safe."
+                  : "You're offline — the invoice didn't send. Your draft is safe.",
+                { failed: { op: 'finalize' } },
+              )]);
               return;
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
           } else {
             console.error('invoice insert failed', insErr);
-            if (!retryId) setMessages((m) => [...m, aMsg("Couldn't save that invoice just now — tap send to try again. Your draft is safe.", { failed: { op: 'finalize' } })]);
+            if (!retryId) setMessages((m) => [...m, aMsg(
+              navigator.onLine
+                ? "Couldn't save that invoice just now. Your draft is safe."
+                : "You're offline — the invoice didn't send. Your draft is safe.",
+              { failed: { op: 'finalize' } },
+            )]);
             return; // outer finally clears phase; draft + ready untouched
           }
         } else {
@@ -1024,7 +1039,12 @@ export default function Chat() {
       // A row may already exist as a draft (stashed) — the retry reuses it, so
       // the draft is genuinely safe and no duplicate is created. A repeat
       // failure of a retry leaves the existing failed bubble and its button.
-      if (!retryId) setMessages((m) => [...m, aMsg("Couldn't finish that one. Your draft is safe — tap send to try again.", { failed: { op: 'finalize' } })]);
+      if (!retryId) setMessages((m) => [...m, aMsg(
+        navigator.onLine
+          ? "Couldn't finish that one. Your draft is safe."
+          : "You're offline — the invoice didn't send. Your draft is safe.",
+        { failed: { op: 'finalize' } },
+      )]);
     }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
@@ -1192,7 +1212,7 @@ export default function Chat() {
     try {
     if (!profile) {
       if (!profileLoaded) {
-        setExpenseError('One sec — still loading your account. Tap save again in a moment.');
+        setExpenseError('One sec — still loading your account. Give it a moment.');
         return;
       }
       setMessages((m) => [...m, aMsg("Let's save your work — sign in to keep this expense.")]);
@@ -1214,7 +1234,7 @@ export default function Chat() {
           .upload(receiptPath, receipt.blob, { contentType: 'image/jpeg', upsert: false });
         if (upErr && !/exists/i.test(upErr.message)) {
           console.error('receipt upload failed', upErr);
-          setExpenseError("Couldn't save the photo just now — tap save to try again.");
+          setExpenseError("Couldn't save the photo just now — your expense is still here.");
           return;
         }
       }
@@ -1241,7 +1261,7 @@ export default function Chat() {
           return;
         }
         console.error('expense insert failed', insErr);
-        setExpenseError("Couldn't save that expense — tap save to try again.");
+        setExpenseError("Couldn't save that expense just now.");
         return;
       }
 
