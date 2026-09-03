@@ -11,6 +11,15 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
+// PayPal / Cash App / Venmo are plain profiles columns saved through the shared
+// save() path (on blur), exactly like every other field on this page. Zelle is
+// NOT here — it keeps its encrypted /api/zelle path.
+const PAY_HANDLES = [
+  { key: 'paypal_me', label: 'PayPal', placeholder: 'paypal.me username' },
+  { key: 'cashapp_tag', label: 'Cash App', placeholder: '$cashtag' },
+  { key: 'venmo_username', label: 'Venmo', placeholder: 'username' },
+] as const;
+
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
 // whole section (grants bypass billing entirely).
@@ -309,23 +318,61 @@ export default function Settings() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Payment info on invoices</h2>
-        <input className="input" placeholder="Cash App ($tag)"
-          value={p.cashapp_tag ?? ''} onChange={(e) => setP({ ...p, cashapp_tag: e.target.value })}
-          onBlur={(e) => save({ cashapp_tag: e.target.value || null })} />
-        <input className="input" placeholder="PayPal.me handle"
-          value={p.paypal_me ?? ''} onChange={(e) => setP({ ...p, paypal_me: e.target.value })}
-          onBlur={(e) => save({ paypal_me: e.target.value || null })} />
-        <div className="flex gap-2">
-          <input className="input flex-1"
-            placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Zelle (phone or email)'}
-            value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
-          <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
-            onClick={saveZelle}>
-            {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
+        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Payment Methods</h2>
+
+        {/* Stripe — not yet available. The disabled Connect button + "Coming soon"
+            status IS its state treatment; configured/not-configured doesn't apply. */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-on-background">Stripe</span>
+            <span className="text-xs font-medium text-on-surface-variant/60">Coming soon</span>
+          </div>
+          <button type="button" disabled
+            className="btn-outline w-full pointer-events-none opacity-50">
+            Connect
           </button>
         </div>
-        <p className="text-xs text-on-surface-variant/80">Zelle is stored encrypted. Leave the field empty and tap Remove to clear it.</p>
+
+        {/* PayPal / Cash App / Venmo — plain profile columns via the shared save()
+            path, saved on blur. Status label reuses the paid / on-surface-variant
+            tokens; no new component. */}
+        {PAY_HANDLES.map(({ key, label, placeholder }) => {
+          const on = Boolean(p[key]);
+          return (
+            <div key={key} className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-on-background">{label}</span>
+                <span className={`text-xs font-medium ${on ? 'text-paid' : 'text-on-surface-variant/60'}`}>
+                  {on ? 'Configured' : 'Not configured'}
+                </span>
+              </div>
+              <input className="input" placeholder={placeholder}
+                value={p[key] ?? ''} onChange={(e) => setP({ ...p, [key]: e.target.value })}
+                onBlur={(e) => save({ [key]: e.target.value || null })} />
+            </div>
+          );
+        })}
+
+        {/* Zelle — UNCHANGED wiring: encrypted column via /api/zelle (saveZelle),
+            masked placeholder, Save/Remove button. Only the label + hint changed. */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-on-background">Zelle</span>
+            <span className={`text-xs font-medium ${zelleMasked ? 'text-paid' : 'text-on-surface-variant/60'}`}>
+              {zelleMasked ? 'Configured' : 'Not configured'}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <input className="input flex-1"
+              placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Phone number or email'}
+              value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
+            <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
+              onClick={saveZelle}>
+              {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
+            </button>
+          </div>
+          <p className="text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
+        </div>
       </section>
 
       <section className="card space-y-3">
