@@ -45,6 +45,9 @@ export default function Settings() {
   const router = useRouter();
   const [p, setP] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  // save() applies optimistically; on a failed write it reverts and raises this,
+  // mirroring the Saved banner so a swallowed error can no longer look like success.
+  const [saveFailed, setSaveFailed] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
   const [zelleMasked, setZelleMasked] = useState<string | null>(null);
@@ -142,9 +145,15 @@ export default function Settings() {
   }
 
   async function save(patch: Record<string, unknown>) {
-    const next = { ...p, ...patch };
-    setP(next);
-    await supabase.from('profiles').update(patch).eq('id', p.id);
+    const prev = p;                         // snapshot for rollback on failure
+    setP({ ...p, ...patch });               // optimistic
+    const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
+    if (error) {
+      setP(prev);                           // revert — the write did not land
+      setSaveFailed(true);
+      setTimeout(() => setSaveFailed(false), 2500);
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   }
@@ -275,6 +284,7 @@ export default function Settings() {
   return (
     <div className="space-y-4 px-4 py-4">
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
+      {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
