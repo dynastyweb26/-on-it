@@ -20,6 +20,14 @@ const PAY_HANDLES = [
   { key: 'venmo_username', label: 'Venmo', placeholder: 'username' },
 ] as const;
 
+// PayPal.me stores a USERNAME, not a URL. Strip a pasted "paypal.me/" prefix
+// (with optional scheme / www.) so paypal.me/foo becomes foo.
+const stripPaypalPrefix = (v: string) =>
+  v.replace(/^\s*(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '');
+// A bare username has no dots or slashes; anything with them (e.g. a domain like
+// "mypaypal.com") would build a broken paypal.me/<...> link.
+const isValidPaypalHandle = (v: string) => !/[./\\]/.test(v);
+
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
 // whole section (grants bypass billing entirely).
@@ -45,6 +53,11 @@ export default function Settings() {
   const router = useRouter();
   const [p, setP] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  // save() applies optimistically; on a failed write it reverts and raises this,
+  // mirroring the Saved banner so a swallowed error can no longer look like success.
+  const [saveFailed, setSaveFailed] = useState(false);
+  // Inline PayPal.me validation message (username, not a URL/domain).
+  const [paypalError, setPaypalError] = useState('');
   const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
   const [zelleMasked, setZelleMasked] = useState<string | null>(null);
@@ -142,11 +155,33 @@ export default function Settings() {
   }
 
   async function save(patch: Record<string, unknown>) {
-    const next = { ...p, ...patch };
-    setP(next);
-    await supabase.from('profiles').update(patch).eq('id', p.id);
+    const prev = p;                         // snapshot for rollback on failure
+    setP({ ...p, ...patch });               // optimistic
+    const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
+    if (error) {
+      setP(prev);                           // revert — the write did not land
+      setSaveFailed(true);
+      setTimeout(() => setSaveFailed(false), 2500);
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  }
+
+  // Explicit confirm for the three profile-backed handles. The per-field onBlur
+  // saves still fire; this is an additional "save all three at once" button. Zelle
+  // is deliberately excluded — it keeps its own encrypted Save/Remove path.
+  function savePaymentHandles() {
+    const paypal = (p.paypal_me ?? '').trim();
+    if (paypal && !isValidPaypalHandle(paypal)) {
+      setPaypalError('Enter just your PayPal.me username — no URLs, dots, or slashes.');
+      return;
+    }
+    save({
+      paypal_me: paypal || null,
+      cashapp_tag: p.cashapp_tag || null,
+      venmo_username: p.venmo_username || null,
+    });
   }
 
   // ── Logo manager: upload / replace / remove ─────────────────
@@ -275,6 +310,7 @@ export default function Settings() {
   return (
     <div className="space-y-4 px-4 py-4">
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
+      {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
@@ -327,8 +363,11 @@ export default function Settings() {
             <span className="text-sm font-medium text-on-background">Stripe</span>
             <span className="text-xs font-medium text-on-surface-variant/60">Coming soon</span>
           </div>
+          {/* Stripe purple (#635BFF) even while disabled, so it reads as a
+              third-party connection rather than an On It (gold) action. */}
           <button type="button" disabled
-            className="btn-outline w-full pointer-events-none opacity-50">
+            className="btn-outline w-full pointer-events-none opacity-60"
+            style={{ borderColor: '#635BFF', color: '#635BFF' }}>
             Connect
           </button>
         </div>
@@ -338,6 +377,7 @@ export default function Settings() {
             tokens; no new component. */}
         {PAY_HANDLES.map(({ key, label, placeholder }) => {
           const on = Boolean(p[key]);
+          const isPaypal = key === 'paypal_me';
           return (
             <div key={key} className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -347,11 +387,27 @@ export default function Settings() {
                 </span>
               </div>
               <input className="input" placeholder={placeholder}
-                value={p[key] ?? ''} onChange={(e) => setP({ ...p, [key]: e.target.value })}
-                onBlur={(e) => save({ [key]: e.target.value || null })} />
+                value={p[key] ?? ''}
+                onChange={(e) => {
+                  const v = isPaypal ? stripPaypalPrefix(e.target.value) : e.target.value;
+                  setP({ ...p, [key]: v });
+                  if (isPaypal) setPaypalError(''); // clear as they edit
+                }}
+                onBlur={(e) => {
+                  const v = (isPaypal ? stripPaypalPrefix(e.target.value) : e.target.value).trim();
+                  if (isPaypal && v && !isValidPaypalHandle(v)) {
+                    setPaypalError('Enter just your PayPal.me username — no URLs, dots, or slashes.');
+                    return; // don't save a handle that would build a broken link
+                  }
+                  save({ [key]: v || null });
+                }} />
+              {isPaypal && paypalError && <p className="text-xs text-error">{paypalError}</p>}
             </div>
           );
         })}
+        {/* Explicit confirm covering PayPal, Cash App and Venmo together —
+            additional to the per-field onBlur saves, not a replacement. */}
+        <button className="btn-outline w-full" onClick={savePaymentHandles}>Save</button>
 
         {/* Zelle — UNCHANGED wiring: encrypted column via /api/zelle (saveZelle),
             masked placeholder, Save/Remove button. Only the label + hint changed. */}

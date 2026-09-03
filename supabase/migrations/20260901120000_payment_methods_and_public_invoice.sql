@@ -41,6 +41,12 @@ alter table public.profiles
   add column if not exists venmo_username text
     check (venmo_username is null or char_length(venmo_username) <= 60);
 
+-- 20260723130946 revoked table-level UPDATE on profiles from authenticated and
+-- grants it back per-column. A new user-editable column must therefore be
+-- granted back explicitly, or session-client writes fail with 42501. Same style
+-- as the paypal_me / cashapp_tag grant there.
+grant update (venmo_username) on public.profiles to authenticated;
+
 -- 2 ── invoices: public_token column (nullable for now; check comes next)
 alter table public.invoices
   add column if not exists public_token text;
