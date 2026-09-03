@@ -158,6 +158,17 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 1500);
   }
 
+  // Explicit confirm for the three profile-backed handles. The per-field onBlur
+  // saves still fire; this is an additional "save all three at once" button. Zelle
+  // is deliberately excluded — it keeps its own encrypted Save/Remove path.
+  function savePaymentHandles() {
+    save({
+      paypal_me: p.paypal_me || null,
+      cashapp_tag: p.cashapp_tag || null,
+      venmo_username: p.venmo_username || null,
+    });
+  }
+
   // ── Logo manager: upload / replace / remove ─────────────────
   // Same mechanism as onboarding: 'logos' bucket, `${user.id}/logo-<ts>` path,
   // public URL stored on profiles.logo_url. No second upload path.
@@ -362,6 +373,9 @@ export default function Settings() {
             </div>
           );
         })}
+        {/* Explicit confirm covering PayPal, Cash App and Venmo together —
+            additional to the per-field onBlur saves, not a replacement. */}
+        <button className="btn-outline w-full" onClick={savePaymentHandles}>Save</button>
 
         {/* Zelle — UNCHANGED wiring: encrypted column via /api/zelle (saveZelle),
             masked placeholder, Save/Remove button. Only the label + hint changed. */}
