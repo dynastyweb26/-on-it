@@ -348,8 +348,11 @@ export default function Settings() {
             <span className="text-sm font-medium text-on-background">Stripe</span>
             <span className="text-xs font-medium text-on-surface-variant/60">Coming soon</span>
           </div>
+          {/* Stripe purple (#635BFF) even while disabled, so it reads as a
+              third-party connection rather than an On It (gold) action. */}
           <button type="button" disabled
-            className="btn-outline w-full pointer-events-none opacity-50">
+            className="btn-outline w-full pointer-events-none opacity-60"
+            style={{ borderColor: '#635BFF', color: '#635BFF' }}>
             Connect
           </button>
         </div>
