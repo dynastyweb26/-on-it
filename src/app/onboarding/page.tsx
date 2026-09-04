@@ -32,7 +32,7 @@ const SAMPLE = (business: string, slogan: string, website: string): InvoiceRende
   ],
   subtotal: 335, taxRate: 0, taxAmount: 0, total: 335,
   issuedDate: new Date().toLocaleDateString(),
-  zelle: '555-0100', cashappTag: '$yourbiz',
+  zelle: '555-0100', cashappTag: '$yourbiz', venmoUsername: 'yourbiz',
 });
 
 export default function Onboarding() {

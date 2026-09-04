@@ -42,6 +42,7 @@ export interface InvoiceRenderData {
   zelle?: string | null;
   paypalMe?: string | null;
   cashappTag?: string | null;
+  venmoUsername?: string | null;
 }
 
 const money = (n: number) =>

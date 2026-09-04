@@ -93,6 +93,7 @@ export default function InvoiceDetail() {
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, paid: inv.status === 'paid',
     zelle, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
+    venmoUsername: profile.venmo_username,
   };
 
   async function viewPdf() {
