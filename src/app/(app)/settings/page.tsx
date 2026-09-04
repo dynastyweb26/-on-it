@@ -15,9 +15,9 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // save() path (on blur), exactly like every other field on this page. Zelle is
 // NOT here — it keeps its encrypted /api/zelle path.
 const PAY_HANDLES = [
-  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', letter: 'P', color: '#003087' },
-  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           letter: 'C', color: '#00b843' },
-  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           letter: 'V', color: '#008cff' },
+  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', mark: '/brands/paypal.svg',  color: '#003087' },
+  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           mark: '/brands/cashapp.svg', color: '#00D632' },
+  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           mark: '/brands/venmo.svg',   color: '#008CFF' },
 ] as const;
 
 // PayPal.me stores a USERNAME, not a URL. Strip a pasted "paypal.me/" prefix
@@ -28,16 +28,25 @@ const stripPaypalPrefix = (v: string) =>
 // "mypaypal.com") would build a broken paypal.me/<...> link.
 const isValidPaypalHandle = (v: string) => !/[./\\]/.test(v);
 
-// Placeholder brand marks: colored rounded squares with the brand letter.
-// TODO(brand): replace each with the company's real brand mark after reviewing
-// that company's brand guidelines — these stand in only so the layout can land.
-function BrandSquare({ letter, color }: { letter: string; color: string }) {
+// Brand marks: Simple Icons monochrome glyphs in public/brands/, recolored to the
+// brand's own color. The SVG is a CSS mask (its shape only) and the brand color
+// is the fill, so the glyph shape is never restyled. Slot sizing is unchanged.
+function BrandMark({ src, color }: { src: string; color: string }) {
   return (
     <span aria-hidden
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-extrabold text-white"
-      style={{ background: color }}>
-      {letter}
-    </span>
+      className="h-11 w-11 shrink-0"
+      style={{
+        display: 'inline-block',
+        backgroundColor: color,
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+      }} />
   );
 }
 
@@ -370,7 +379,7 @@ export default function Settings() {
           Layout only; no Stripe connect logic yet. Button stays disabled. */}
       <section className="card space-y-3" style={{ background: '#fff8f0' }}>
         <div className="flex items-center gap-3">
-          <BrandSquare letter="S" color="#5f09b2" />
+          <BrandMark src="/brands/stripe.svg" color="#635BFF" />
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
             <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
@@ -388,13 +397,13 @@ export default function Settings() {
           and the bottom Save button fires the existing savePaymentHandles() —
           the same three-field save(). Zelle is deliberately NOT in this group. */}
       <section className="card space-y-5">
-        {PAY_HANDLES.map(({ key, label, hint, placeholder, letter, color }) => {
+        {PAY_HANDLES.map(({ key, label, hint, placeholder, mark, color }) => {
           const on = Boolean(p[key]);
           const isPaypal = key === 'paypal_me';
           return (
             <div key={key} className="space-y-2">
               <div className="flex items-center gap-3">
-                <BrandSquare letter={letter} color={color} />
+                <BrandMark src={mark} color={color} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-display text-xl font-bold text-on-background">{label}</h3>
@@ -405,7 +414,11 @@ export default function Settings() {
                   <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>{hint}</p>
                 </div>
               </div>
+              {/* PayPal & Venmo look like usernames to the browser's password
+                  manager; autoComplete="off" clears its indicator. Cash App is
+                  unaffected, so it's left untouched. */}
               <input className="input" placeholder={placeholder}
+                autoComplete={key === 'cashapp_tag' ? undefined : 'off'}
                 value={p[key] ?? ''}
                 onChange={(e) => {
                   const v = isPaypal ? stripPaypalPrefix(e.target.value) : e.target.value;
@@ -433,7 +446,7 @@ export default function Settings() {
           placeholder, own Save/Remove button. Never folded into the group save. */}
       <section className="card space-y-3">
         <div className="flex items-center gap-3">
-          <BrandSquare letter="Z" color="#6d1ed4" />
+          <BrandMark src="/brands/zelle.svg" color="#6D1ED4" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="font-display text-xl font-bold text-on-background">Zelle</h3>
