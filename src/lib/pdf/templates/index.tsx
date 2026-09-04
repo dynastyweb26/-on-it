@@ -63,56 +63,49 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-// Payment handles become real tappable links in the final PDF: rows carry a
-// data-pdf-link attribute that elementToPdf() converts into jsPDF link
+// Payment handles become real tappable links in the final PDF: linked rows carry
+// a data-pdf-link attribute that elementToPdf() converts into jsPDF link
 // annotations. Zelle stays display-only (no public URL scheme exists).
 const cashAppUrl = (tag: string) => `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
 const payPalUrl = (handle: string) =>
   `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
+const venmoUrl = (handle: string) => `https://venmo.com/u/${handle.replace(/^@/, '')}`;
 
+// Brand marks reuse the SAME static files as the Settings screen (public/brands/
+// — no second copy). They render as <img>, which html2canvas captures reliably;
+// the glyphs are the source SVGs' native monochrome (a CSS mask recolor is NOT
+// html2canvas-safe). One row per configured method, linked methods first.
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  // METHOD | DETAIL | TIP. DETAIL is the tappable element for methods with a
-  // public URL (Cash App, PayPal): rendered in the accent color + underlined
-  // so it reads as a link, and carrying data-pdf-link so elementToPdf() lays a
-  // real jsPDF link annotation over it. Zelle has no shareable web link, so its
-  // detail is plain text and the tip explains to pay via the bank app.
-  const rows: { method: string; detail: string; url?: string; tip: string }[] = [];
-  if (d.zelle)
-    rows.push({ method: 'Zelle', detail: d.zelle, tip: 'Send in your bank app to this number' });
+  // Cash App, PayPal, Venmo carry a public URL: the detail is the tappable
+  // element — accent color + underline, plus data-pdf-link so elementToPdf()
+  // lays a real jsPDF link annotation over it. Zelle has no shareable web link,
+  // so its detail is PLAIN text (not accent, not underlined, not tappable) and
+  // the instruction explains to pay via the bank app.
+  const rows: { mark: string; method: string; detail: string; url?: string; instruction: string }[] = [];
   if (d.cashappTag)
-    rows.push({ method: 'Cash App', detail: d.cashappTag, url: cashAppUrl(d.cashappTag), tip: 'Tap to pay' });
+    rows.push({ mark: '/brands/cashapp.svg', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to open Cash App' });
   if (d.paypalMe)
-    rows.push({ method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), tip: 'Tap to pay' });
+    rows.push({ mark: '/brands/paypal.svg', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to open PayPal' });
+  if (d.venmoUsername)
+    rows.push({ mark: '/brands/venmo.svg', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to open Venmo' });
+  if (d.zelle)
+    rows.push({ mark: '/brands/zelle.svg', method: 'Zelle', detail: d.zelle, instruction: "Send to this number in your bank's Zelle" });
   if (!rows.length) return null;
 
-  const th: React.CSSProperties = {
-    textAlign: 'left',
-    padding: '6px 12px 6px 0',
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: t.accent,
-    fontWeight: 700,
-    borderBottom: `1.5px solid ${t.accent}`,
-  };
-  const td: React.CSSProperties = { padding: '8px 12px 8px 0', verticalAlign: 'top' };
+  const td: React.CSSProperties = { padding: '11px 18px 11px 0', verticalAlign: 'middle' };
 
   return (
-    <div style={{ fontSize: 12 }}>
-      <div style={{ fontWeight: 700, color: t.accent, textTransform: 'uppercase', letterSpacing: 1, fontSize: 11, marginBottom: 6 }}>
+    <div style={{ fontSize: 15 }}>
+      <div style={{ fontWeight: 700, color: t.accent, textTransform: 'uppercase', letterSpacing: 1, fontSize: 13, marginBottom: 10 }}>
         How to pay
       </div>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr>
-            <th style={th}>Method</th>
-            <th style={th}>Detail</th>
-            <th style={th}>Tip</th>
-          </tr>
-        </thead>
+      <table style={{ borderCollapse: 'collapse', fontSize: 15 }}>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.method} style={{ borderBottom: `1px solid ${t.accent}33` }}>
+            <tr key={r.method} style={{ borderBottom: `1px solid ${t.accent}22` }}>
+              <td style={{ ...td, paddingRight: 12, width: 30 }}>
+                <img src={r.mark} alt="" style={{ height: 22, width: 'auto', display: 'block' }} />
+              </td>
               <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.method}</td>
               <td style={{ ...td, whiteSpace: 'nowrap' }}>
                 {r.url ? (
@@ -120,10 +113,10 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
                     {r.detail}
                   </span>
                 ) : (
-                  <span>{r.detail}</span>
+                  <span style={{ color: t.text }}>{r.detail}</span>
                 )}
               </td>
-              <td style={{ ...td, paddingRight: 0, opacity: 0.75, maxWidth: 150 }}>{r.tip}</td>
+              <td style={{ ...td, paddingRight: 0, opacity: 0.75, maxWidth: 200 }}>{r.instruction}</td>
             </tr>
           ))}
         </tbody>
