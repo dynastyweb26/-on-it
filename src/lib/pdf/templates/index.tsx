@@ -378,128 +378,160 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 const SLAB = "Rockwell, 'Roboto Slab', Georgia, 'Times New Roman', serif";
 const MONO = "'Courier New', Courier, monospace";
 
-function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  const stamp = d.kind === 'quote' ? 'QUOTE' : d.paid ? 'PAID' : 'DUE';
-  const rule = `1.5px solid ${t.accent}`;
-  const faintRule = `1px solid ${t.accent}66`;
-  const label: React.CSSProperties = {
-    fontFamily: SLAB, fontSize: 11, textTransform: 'uppercase',
-    letterSpacing: 2, color: t.accent, fontWeight: 700,
-  };
+// Ledger-only vertical payment rail. Deliberately does NOT touch or reuse the
+// shared PaymentBlock, so Classic / Industrial / Friendly are unaffected. Methods
+// stack with whitespace only — no cards, no borders, no dividers. Brand marks
+// keep their fixed brand colors (PayMark). Rendered by the caller for INVOICES
+// ONLY; quotes get no rail.
+//
+// STRIPE-READY: the rail is a data-driven vertical list, so any subset of methods
+// renders, a single method still reads as an intentional entry, and up to five
+// fit without crowding. When Stripe Connect ships it becomes one more entry here
+// — a data change, not a layout change:
+//   if (d.stripePaymentLink)
+//     rows.push({ kind: 'stripe', method: 'Stripe', detail: 'Pay online',
+//                 url: d.stripePaymentLink, instruction: 'Tap to pay' });
+// (kind 'stripe' would then gain a PAY_COLOR '#635BFF' + GLYPH entry.)
+function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const rows: { kind: PayKind; method: string; detail: string; url?: string; instruction: string }[] = [];
+  if (d.cashappTag)
+    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to pay' });
+  if (d.paypalMe)
+    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to pay' });
+  if (d.venmoUsername)
+    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to pay' });
+  // Zelle is display-only: no url → no data-pdf-link → not tappable anywhere.
+  if (d.zelle)
+    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: 'Send from your bank app' });
+  if (!rows.length) return null;
+
   return (
-    <div style={{ ...PAGE, background: t.background, color: t.text, padding: '72px 64px', fontFamily: SLAB }}>
-      {/* stamp badge */}
-      <div
-        style={{
-          position: 'absolute', top: 84, right: 64,
-          transform: 'rotate(-12deg)',
-          border: `4px double ${t.accent}`, color: t.accent,
-          padding: '10px 26px', fontFamily: SLAB, fontWeight: 900,
-          fontSize: 30, letterSpacing: 6, textTransform: 'uppercase',
-          opacity: 0.9,
-        }}
-      >
-        {stamp}
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: t.accent }}>
+        Payment methods
       </div>
-
-      {/* header — business name top-left, slab type */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 128 }} alt="" />}
-        <div>
-          {/* Ledger fallback keeps the slab face — only the size is promoted */}
-          <div style={{ fontSize: d.logoUrl ? 36 : 48, fontWeight: 900, lineHeight: 1.1, letterSpacing: 0.5, color: t.primary === t.background ? t.text : t.primary }}>
-            {d.businessName}
+      <div style={{ borderBottom: `1px solid ${t.accent}`, marginTop: 8, marginBottom: 18 }} />
+      {rows.map((r) => (
+        // The WHOLE ROW is the tap target: data-pdf-link on the row container, so
+        // elementToPdf() lays the jsPDF annotation over the container's full
+        // bounds (mark + name + handle + instruction). Zelle has no url, so the
+        // attribute is omitted and no annotation is created for it.
+        <div key={r.method} data-pdf-link={r.url}
+          style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 18 }}>
+          <PayMark kind={r.kind} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{r.method}</div>
+            <div style={{ fontSize: 13, color: t.text, wordBreak: 'break-all', marginTop: 2 }}>{r.detail}</div>
+            <div style={{ fontSize: 12, color: t.accent, marginTop: 2 }}>{r.instruction}</div>
           </div>
-          {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
-          <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
+      ))}
+    </div>
+  );
+}
+
+function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const isInvoice = d.kind === 'invoice';
+  const rule = `1px solid ${t.accent}`;
+  const eyebrow: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: t.accent };
+  // Business name / display word use primary unless it equals the background.
+  const ink = t.primary === t.background ? t.text : t.primary;
+
+  // LEFT column. flex:1 alone (quote) fills the full width — no dead space.
+  const left = (
+    <div style={{ flex: '1 1 0', minWidth: 0 }}>
+      <div style={eyebrow}>{isInvoice ? 'Billed to' : 'Prepared for'}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{d.clientName}</div>
+      {d.clientAddress && <div style={{ fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
+      {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
+
+      {/* AMOUNT DUE band — the focal point. Solid accent fill; text via onColor
+          so it stays legible on both light (gold) and dark (navy) accents. */}
+      <div style={{ background: t.accent, color: onColor(t.accent), padding: '20px 24px', marginTop: 22 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+          {isInvoice ? 'Amount due' : 'Quoted total'}
+        </div>
+        <div style={{ fontSize: 50, fontWeight: 800, lineHeight: 1.05, marginTop: 4 }}>{money(d.total)}</div>
       </div>
 
-      <div style={{ borderBottom: rule, margin: '28px 0 24px' }} />
-
-      {/* meta — filled-in ledger lines */}
-      <div style={{ display: 'flex', gap: 40, marginBottom: 28, fontSize: 14 }}>
-        <div>
-          <span style={label}>No.&nbsp;</span>
-          <span style={{ fontFamily: MONO, fontWeight: 700 }}>
-            {formatDocNumber(d.kind, d.invoiceNumber)}
-          </span>
-        </div>
-        <div>
-          <span style={label}>Date&nbsp;</span>
-          <span style={{ fontFamily: MONO }}>{d.issuedDate}</span>
-        </div>
-        {d.dueDate && (
-          <div>
-            <span style={label}>Due&nbsp;</span>
-            <span style={{ fontFamily: MONO }}>{d.dueDate}</span>
-          </div>
-        )}
-      </div>
-      <div style={{ marginBottom: 32, fontSize: 16, borderBottom: faintRule, paddingBottom: 10 }}>
-        <span style={label}>Billed to&nbsp;&nbsp;</span>
-        <span style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</span>
-        {d.clientAddress && <div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
-        {d.clientPhone && <div style={{ opacity: 0.8, fontSize: 13 }}>{d.clientPhone}</div>}
-      </div>
-
-      {/* ruled items table — monospace numerals right-aligned */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 16 }}>
+      {/* Line items — no header fill, no gridlines; thin rule under labels only. */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15, marginTop: 28 }}>
         <thead>
           <tr>
             {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
-              <th key={h} style={{ ...label, textAlign: i === 0 ? 'left' : 'right', padding: '8px 4px', borderBottom: rule }}>
-                {h}
-              </th>
+              <th key={h} style={{ ...eyebrow, textAlign: i === 0 ? 'left' : 'right', padding: '0 4px 8px', borderBottom: rule }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {d.lineItems.map((li, i) => (
             <tr key={i}>
-              <td style={{ padding: '12px 4px', borderBottom: faintRule }}>{li.description}</td>
-              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO }}>{li.qty}</td>
-              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO }}>{money(li.unit_price)}</td>
-              <td style={{ padding: '12px 4px', borderBottom: faintRule, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>
-                {money(li.qty * li.unit_price)}
-              </td>
+              <td style={{ padding: '10px 4px' }}>{li.description}</td>
+              <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO }}>{li.qty}</td>
+              <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO }}>{money(li.unit_price)}</td>
+              <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{money(li.qty * li.unit_price)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* totals — ledger style, double-ruled total */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-        <div style={{ width: 280, fontSize: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px' }}>
-            <span>Subtotal</span>
-            <span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
+      {/* Subtotal + TOTAL DUE — thin rule above the totals only. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+        <div style={{ width: 280, borderTop: rule, paddingTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
+            <span>Subtotal</span><span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
           </div>
           {d.taxRate > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px' }}>
-              <span>Tax ({d.taxRate}%)</span>
-              <span style={{ fontFamily: MONO }}>{money(d.taxAmount)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
+              <span>Tax ({d.taxRate}%)</span><span style={{ fontFamily: MONO }}>{money(d.taxAmount)}</span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 4px', marginTop: 6, borderTop: `4px double ${t.accent}`, fontWeight: 900, fontSize: 19 }}>
-            <span style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-              {d.kind === 'quote' ? 'Quoted' : 'Total due'}
-            </span>
-            <span style={{ fontFamily: MONO, color: t.accent, fontSize: 26 }}>{money(d.total)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px', fontWeight: 800 }}>
+            <span style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>{isInvoice ? 'Total due' : 'Quoted'}</span>
+            <span style={{ fontSize: 20, color: t.accent, fontFamily: MONO }}>{money(d.total)}</span>
           </div>
         </div>
       </div>
 
-      {/* Option A: PaymentBlock on its own full-width row. Notes keeps its exact
-          styling and right-side placement, now on its own line below. */}
-      <div style={{ marginTop: 48 }}>
-        <PaymentBlock d={d} t={t} />
+      {/* Notes kept (user content) — spec didn't list it; placed subtly here. */}
+      {d.notes && <div style={{ fontSize: 13, marginTop: 24, maxWidth: 440 }}>{d.notes}</div>}
+
+      <div style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
+        {isInvoice ? 'Thank you for your business.' : 'This estimate is valid for 30 days.'}
       </div>
-      {d.notes && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-          <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ ...PAGE, background: t.background, color: t.text, padding: 64, fontFamily: SLAB }}>
+      {/* ── Header (full width): identity left, document marker right ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24 }}>
+        <div style={{ minWidth: 0 }}>
+          {d.logoUrl && <img src={d.logoUrl} style={{ height: 96, marginBottom: 10, display: 'block' }} alt="" />}
+          <div style={{ fontSize: d.logoUrl ? 28 : 34, fontWeight: 900, lineHeight: 1.05, letterSpacing: 0.5, color: ink }}>{d.businessName}</div>
+          {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
+          <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
-      )}
+        <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+          <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
+          <div style={{ fontSize: 12, marginTop: 8 }}><span style={eyebrow}>Issued</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.issuedDate}</span></div>
+          {d.dueDate && <div style={{ fontSize: 12, marginTop: 2 }}><span style={eyebrow}>Due</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.dueDate}</span></div>}
+        </div>
+      </div>
+
+      <div style={{ borderBottom: rule, margin: '24px 0 28px' }} />
+
+      {/* ── Body: two columns on an invoice, full-width left on a quote ── */}
+      <div style={{ display: 'flex', gap: isInvoice ? 36 : 0 }}>
+        {left}
+        {isInvoice && (
+          <div style={{ flex: '0 0 200px', minWidth: 0, borderLeft: rule, paddingLeft: 28 }}>
+            <LedgerPaymentRail d={d} t={t} />
+          </div>
+        )}
+      </div>
+
       <Branding t={t} />
     </div>
   );
