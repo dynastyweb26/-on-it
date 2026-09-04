@@ -14,19 +14,25 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // PayPal / Cash App / Venmo are plain profiles columns saved through the shared
 // save() path (on blur), exactly like every other field on this page. Zelle is
 // NOT here — it keeps its encrypted /api/zelle path.
-const PAY_HANDLES = [
-  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', mark: '/brands/paypal.svg',  color: '#003087' },
-  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           mark: '/brands/cashapp.svg', color: '#00D632' },
-  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           mark: '/brands/venmo.svg',   color: '#008CFF' },
-] as const;
-
-// PayPal.me stores a USERNAME, not a URL. Strip a pasted "paypal.me/" prefix
-// (with optional scheme / www.) so paypal.me/foo becomes foo.
-const stripPaypalPrefix = (v: string) =>
-  v.replace(/^\s*(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '');
-// A bare username has no dots or slashes; anything with them (e.g. a domain like
-// "mypaypal.com") would build a broken paypal.me/<...> link.
+// Users paste full URLs and prefixed handles; each field normalizes ON BLUR to
+// the bare handle that gets stored, stripping the site / scheme / www and the
+// method's sigil. Zelle is intentionally NOT normalized — it's a phone or email,
+// both valid as typed.
+const normalizePaypal = (v: string) =>
+  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '').replace(/\/+$/, '');
+const normalizeCashapp = (v: string) =>
+  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?cash\.app\//i, '').replace(/^\$/, '').replace(/\/+$/, '');
+const normalizeVenmo = (v: string) =>
+  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?venmo\.com\/u\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+// A bare PayPal username has no dots or slashes; anything with them (e.g. a
+// domain like "mypaypal.com") would build a broken paypal.me/<...> link.
 const isValidPaypalHandle = (v: string) => !/[./\\]/.test(v);
+
+const PAY_HANDLES = [
+  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', mark: '/brands/paypal.svg',  color: '#003087', normalize: normalizePaypal },
+  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           mark: '/brands/cashapp.svg', color: '#00D632', normalize: normalizeCashapp },
+  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           mark: '/brands/venmo.svg',   color: '#008CFF', normalize: normalizeVenmo },
+] as const;
 
 // Brand marks: Simple Icons monochrome glyphs in public/brands/, recolored to the
 // brand's own color. The SVG is a CSS mask (its shape only) and the brand color
@@ -397,7 +403,7 @@ export default function Settings() {
           and the bottom Save button fires the existing savePaymentHandles() —
           the same three-field save(). Zelle is deliberately NOT in this group. */}
       <section className="card space-y-5">
-        {PAY_HANDLES.map(({ key, label, hint, placeholder, mark, color }) => {
+        {PAY_HANDLES.map(({ key, label, hint, placeholder, mark, color, normalize }) => {
           const on = Boolean(p[key]);
           const isPaypal = key === 'paypal_me';
           return (
@@ -414,24 +420,29 @@ export default function Settings() {
                   <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>{hint}</p>
                 </div>
               </div>
-              {/* PayPal & Venmo look like usernames to the browser's password
-                  manager; autoComplete="off" clears its indicator. Cash App is
-                  unaffected, so it's left untouched. */}
+              {/* PayPal & Venmo get flagged by password-manager extensions as
+                  credential fields. autoComplete="off" alone didn't clear the
+                  indicator (Chrome ignores it on such fields), so we also tell
+                  1Password (data-1p-ignore) and LastPass (data-lpignore) to skip
+                  them. Not autoComplete="username" — that would mark the field AS
+                  a credential. Cash App isn't flagged, so it's left untouched. */}
               <input className="input" placeholder={placeholder}
-                autoComplete={key === 'cashapp_tag' ? undefined : 'off'}
+                {...(key === 'cashapp_tag'
+                  ? {}
+                  : { autoComplete: 'off', 'data-1p-ignore': true, 'data-lpignore': 'true' })}
                 value={p[key] ?? ''}
                 onChange={(e) => {
-                  const v = isPaypal ? stripPaypalPrefix(e.target.value) : e.target.value;
-                  setP({ ...p, [key]: v });
-                  if (isPaypal) setPaypalError(''); // clear as they edit
+                  setP({ ...p, [key]: e.target.value }); // store raw while typing
+                  if (isPaypal) setPaypalError('');      // clear as they edit
                 }}
                 onBlur={(e) => {
-                  const v = (isPaypal ? stripPaypalPrefix(e.target.value) : e.target.value).trim();
+                  const v = normalize(e.target.value);   // → bare handle, on blur
                   if (isPaypal && v && !isValidPaypalHandle(v)) {
                     setPaypalError('Enter just your PayPal.me username — no URLs, dots, or slashes.');
-                    return; // don't save a handle that would build a broken link
+                    setP({ ...p, [key]: v });            // show the normalized (still-invalid) value
+                    return;                              // don't save a handle that would build a broken link
                   }
-                  save({ [key]: v || null });
+                  save({ [key]: v || null });            // save() sets p[key]=v, so the field shows the bare handle
                 }} />
               {isPaypal && paypalError && <p className="font-body text-xs text-error">{paypalError}</p>}
             </div>
