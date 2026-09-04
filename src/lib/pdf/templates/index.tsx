@@ -187,7 +187,7 @@ function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         }}
       >
         <span>{d.kind === 'quote' ? 'Quoted total' : 'Total due'}</span>
-        <span>{money(d.total)}</span>
+        <span style={{ fontSize: 26 }}>{money(d.total)}</span>
       </div>
     </div>
   );
@@ -201,7 +201,7 @@ const Row = ({ label, value }: { label: string; value: string }) => (
 
 function ItemsTable({ d, t, rounded = false }: { d: InvoiceRenderData; t: BrandTheme; rounded?: boolean }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 16 }}>
       <thead>
         <tr style={{ background: t.primary, color: onColor(t.primary) }}>
           {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
@@ -343,7 +343,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.accent, fontWeight: 700 }}>
             {d.kind === 'quote' ? 'Prepared for' : 'Billed to'}
           </div>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
           {d.clientPhone && <div>{d.clientPhone}</div>}
         </div>
@@ -438,13 +438,13 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       </div>
       <div style={{ marginBottom: 32, fontSize: 16, borderBottom: faintRule, paddingBottom: 10 }}>
         <span style={label}>Billed to&nbsp;&nbsp;</span>
-        <span style={{ fontWeight: 700 }}>{d.clientName}</span>
+        <span style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</span>
         {d.clientAddress && <div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
         {d.clientPhone && <div style={{ opacity: 0.8, fontSize: 13 }}>{d.clientPhone}</div>}
       </div>
 
       {/* ruled items table — monospace numerals right-aligned */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 16 }}>
         <thead>
           <tr>
             {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
@@ -485,7 +485,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             <span style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
               {d.kind === 'quote' ? 'Quoted' : 'Total due'}
             </span>
-            <span style={{ fontFamily: MONO, color: t.accent }}>{money(d.total)}</span>
+            <span style={{ fontFamily: MONO, color: t.accent, fontSize: 26 }}>{money(d.total)}</span>
           </div>
         </div>
       </div>
@@ -548,7 +548,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <span style={{ color: t.accent, fontWeight: 800, textTransform: 'uppercase', fontSize: 11, letterSpacing: 2 }}>
             Billed to&nbsp;&nbsp;
           </span>
-          <span style={{ fontWeight: 800, fontSize: 17 }}>{d.clientName}</span>
+          <span style={{ fontWeight: 800, fontSize: 19 }}>{d.clientName}</span>
           {d.clientAddress && <div style={{ opacity: 0.8 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ opacity: 0.8 }}>{d.clientPhone}</div>}
         </div>
@@ -622,7 +622,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.accent, fontWeight: 700, marginBottom: 6 }}>
             For
           </div>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>{d.clientName}</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div style={{ fontSize: 13 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
         </div>
