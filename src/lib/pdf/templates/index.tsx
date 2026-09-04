@@ -92,17 +92,17 @@ const GLYPH: Record<PayKind, { vb: string; d: string }> = {
 // (the $ reads white); the others are bare symbols on a brand-filled tile.
 function PayMark({ kind }: { kind: PayKind }) {
   const color = PAY_COLOR[kind];
-  const S = 40;
+  const S = 32;
   const g = GLYPH[kind];
   if (kind === 'cashapp') {
     return (
-      <span style={{ width: S, height: S, borderRadius: 10, background: '#fff', flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
+      <span style={{ width: S, height: S, borderRadius: 8, background: '#fff', flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
         <svg width={S} height={S} viewBox={g.vb}><path fill={color} d={g.d} /></svg>
       </span>
     );
   }
   return (
-    <span style={{ width: S, height: S, borderRadius: 10, background: color, flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
+    <span style={{ width: S, height: S, borderRadius: 8, background: color, flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
       <svg width={Math.round(S * 0.58)} height={Math.round(S * 0.58)} viewBox={g.vb}><path fill="#fff" d={g.d} /></svg>
     </span>
   );
@@ -111,7 +111,7 @@ function PayMark({ kind }: { kind: PayKind }) {
 // Right-hand instruction icons — inline SVG (Material Symbols is an icon FONT and
 // does not rasterize reliably in html2canvas), stroked in the row's brand color.
 function InstrIcon({ kind, color }: { kind: 'phone' | 'external' | 'bank'; color: string }) {
-  const box: React.CSSProperties = { width: 22, height: 22, flex: '0 0 auto', display: 'block' };
+  const box: React.CSSProperties = { width: 20, height: 20, flex: '0 0 auto', display: 'block' };
   const s = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   if (kind === 'phone')
     return (<svg viewBox="0 0 24 24" style={box}><rect x="6" y="3" width="12" height="18" rx="2.5" {...s} /><line x1="10" y1="18" x2="14" y2="18" {...s} /></svg>);
@@ -128,13 +128,13 @@ function InstrIcon({ kind, color }: { kind: 'phone' | 'external' | 'bank'; color
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   const rows: { kind: PayKind; method: string; detail: string; url?: string; instruction: string; icon: 'phone' | 'external' | 'bank' }[] = [];
   if (d.cashappTag)
-    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to open Cash App', icon: 'phone' });
+    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to pay', icon: 'phone' });
   if (d.paypalMe)
-    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to open PayPal', icon: 'external' });
+    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to pay', icon: 'external' });
   if (d.venmoUsername)
-    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to open Venmo', icon: 'external' });
+    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to pay', icon: 'external' });
   if (d.zelle)
-    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: "Send to this number in your bank's Zelle", icon: 'bank' });
+    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: 'Send from your bank app', icon: 'bank' });
   if (!rows.length) return null;
 
   const border = '1px solid #e6e3dd';
@@ -142,25 +142,25 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     // Full width: PaymentBlock now gets its own row in every template, so the
     // cards can breathe and the detail never collides with the instruction.
     <div style={{ width: '100%' }}>
-      <div style={{ color: '#334155', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 800, fontSize: 15, marginBottom: 14 }}>
+      <div style={{ color: '#334155', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 800, fontSize: 15, marginBottom: 10 }}>
         How to pay
       </div>
       {rows.map((r) => {
         const color = PAY_COLOR[r.kind];
         return (
-          <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: 14, border, borderRadius: 14, padding: '14px 18px', marginBottom: 12 }}>
+          <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
             <PayMark kind={r.kind} />
-            <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 18, color: t.text }}>{r.method}</div>
-            <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 17, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>{r.method}</div>
+            <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
               {r.url ? (
                 <span data-pdf-link={r.url} style={{ color, textDecoration: 'underline' }}>{r.detail}</span>
               ) : (
                 <span style={{ color }}>{r.detail}</span>
               )}
             </div>
-            <div style={{ flex: '0 0 auto', width: 132, display: 'flex', alignItems: 'center', gap: 8, borderLeft: border, paddingLeft: 14 }}>
+            <div style={{ flex: '0 0 auto', width: 182, display: 'flex', alignItems: 'center', gap: 8, borderLeft: border, paddingLeft: 14 }}>
               <InstrIcon kind={r.icon} color={color} />
-              <span style={{ fontSize: 14, color: t.text, opacity: 0.85, lineHeight: 1.25 }}>{r.instruction}</span>
+              <span style={{ fontSize: 13, color: t.text, opacity: 0.85, lineHeight: 1.25, whiteSpace: 'nowrap' }}>{r.instruction}</span>
             </div>
           </div>
         );
