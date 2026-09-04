@@ -79,22 +79,40 @@ export default function InvoiceDetail() {
 
   if (!inv || !profile) return <p className="p-6 text-on-surface-variant">Loading…</p>;
 
-  const theme = profile.background_color && profile.brand_colors?.length >= 2
-    ? buildTheme(profile.brand_colors, profile.background_color)
+  // Render from the invoice's finalize-time snapshot when present, falling back to
+  // the LIVE profile per-field when a snapshot value is null. Pre-fix invoices have
+  // all-null snapshots → full live fallback (option b: no fabricated history).
+  //
+  // Accepted edge: for OPTIONAL fields that can be legitimately null at send time
+  // (logo_url, website_url, slogan, the handles), a null snapshot is
+  // indistinguishable from "not snapshotted", so a value ADDED after this invoice
+  // was sent will appear on it. Template, brand colors, and business name are
+  // non-null when snapshotted, so the primary bug (style/identity switching) is
+  // fully locked. Zelle is never snapshotted → always live (accepted drift), and
+  // logo_url is a URL only — the asset itself isn't frozen (can 404 if replaced).
+  const brandColors = inv.brand_colors ?? profile.brand_colors;
+  const backgroundColor = inv.background_color ?? profile.background_color;
+  const theme = backgroundColor && brandColors?.length >= 2
+    ? buildTheme(brandColors, backgroundColor)
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017' };
+  const template = (inv.template ?? profile.invoice_template ?? 'classic') as TemplateKey;
 
   const rd: InvoiceRenderData = {
     kind: inv.kind, invoiceNumber: inv.invoice_number,
-    businessName: profile.business_name, logoUrl: profile.logo_url,
-    websiteUrl: profile.website_url, slogan: profile.slogan,
+    businessName: inv.business_name ?? profile.business_name,
+    logoUrl: inv.logo_url ?? profile.logo_url,
+    websiteUrl: inv.website_url ?? profile.website_url,
+    slogan: inv.slogan ?? profile.slogan,
     clientName: inv.client_name, clientAddress: inv.client_address ?? null,
     clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, paid: inv.status === 'paid',
-    zelle, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
-    venmoUsername: profile.venmo_username,
+    zelle, // live — Zelle is intentionally not snapshotted
+    cashappTag: inv.cashapp_tag ?? profile.cashapp_tag,
+    paypalMe: inv.paypal_me ?? profile.paypal_me,
+    venmoUsername: inv.venmo_username ?? profile.venmo_username,
   };
 
   async function viewPdf() {
@@ -118,7 +136,7 @@ export default function InvoiceDetail() {
   async function resend() {
     if (!printRef.current) return;
     setBusy(true);
-    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, profile.business_name));
+    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
     await shareInvoice(file, inv.client_name, docNoun(inv.kind));
     // First send (e.g. a converted quote→invoice draft) captures the render
     // snapshot from the current profile. A RE-send of an already-sent invoice
@@ -267,7 +285,7 @@ export default function InvoiceDetail() {
       <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
           <div ref={printRef}>
-            <InvoiceTemplate template={(profile.invoice_template ?? 'classic') as TemplateKey} data={rd} theme={theme} />
+            <InvoiceTemplate template={template} data={rd} theme={theme} />
           </div>
         </div>
       </div>
