@@ -420,11 +420,16 @@ export default function Settings() {
                   <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>{hint}</p>
                 </div>
               </div>
-              {/* PayPal & Venmo look like usernames to the browser's password
-                  manager; autoComplete="off" clears its indicator. Cash App is
-                  unaffected, so it's left untouched. */}
+              {/* PayPal & Venmo get flagged by password-manager extensions as
+                  credential fields. autoComplete="off" alone didn't clear the
+                  indicator (Chrome ignores it on such fields), so we also tell
+                  1Password (data-1p-ignore) and LastPass (data-lpignore) to skip
+                  them. Not autoComplete="username" — that would mark the field AS
+                  a credential. Cash App isn't flagged, so it's left untouched. */}
               <input className="input" placeholder={placeholder}
-                autoComplete={key === 'cashapp_tag' ? undefined : 'off'}
+                {...(key === 'cashapp_tag'
+                  ? {}
+                  : { autoComplete: 'off', 'data-1p-ignore': true, 'data-lpignore': 'true' })}
                 value={p[key] ?? ''}
                 onChange={(e) => {
                   setP({ ...p, [key]: e.target.value }); // store raw while typing
