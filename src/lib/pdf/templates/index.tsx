@@ -375,7 +375,14 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 /* Old-school carbon-copy invoice book: ruled horizontal lines, slab-serif
    business name, monospace numerals right-aligned in a ruled table, and a
    rotated stamp-style DUE / QUOTE / PAID badge in the accent color.       */
-const SLAB = "Rockwell, 'Roboto Slab', Georgia, 'Times New Roman', serif";
+// Georgia is deliberately NOT in this stack: it defaults to OLDSTYLE figures
+// (varying-height digits with descenders), and html2canvas rasterizes text with
+// the font's default figures — it does NOT honor font-variant-numeric /
+// font-feature-settings (verified in the harness). Rockwell / Roboto Slab /
+// Times all default to LINING figures, so any digit that lands in slab-stack
+// text (descriptions, names) reads correctly. All dedicated numeral fields use
+// MONO (Courier), which is lining + tabular by default.
+const SLAB = "Rockwell, 'Roboto Slab', 'Times New Roman', Times, serif";
 const MONO = "'Courier New', Courier, monospace";
 
 // Ledger-only vertical payment rail. Deliberately does NOT touch or reuse the
@@ -421,7 +428,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <PayMark kind={r.kind} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{r.method}</div>
-            <div style={{ fontSize: 13, color: t.text, wordBreak: 'break-all', marginTop: 2 }}>{r.detail}</div>
+            <div style={{ fontSize: 13, color: t.text, wordBreak: 'break-all', marginTop: 2, fontFamily: MONO }}>{r.detail}</div>
             <div style={{ fontSize: 12, color: t.accent, marginTop: 2 }}>{r.instruction}</div>
           </div>
         </div>
@@ -451,7 +458,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
           {isInvoice ? 'Amount due' : 'Quoted total'}
         </div>
-        <div style={{ fontSize: 50, fontWeight: 800, lineHeight: 1.05, marginTop: 4 }}>{money(d.total)}</div>
+        <div style={{ fontSize: 50, fontWeight: 800, lineHeight: 1.05, marginTop: 4, fontFamily: MONO }}>{money(d.total)}</div>
       </div>
 
       {/* Line items — no header fill, no gridlines; thin rule under labels only. */}
@@ -503,7 +510,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   );
 
   return (
-    <div style={{ ...PAGE, background: t.background, color: t.text, padding: 64, fontFamily: SLAB }}>
+    <div style={{ ...PAGE, background: t.background, color: t.text, padding: 64, fontFamily: SLAB, fontVariantNumeric: 'lining-nums tabular-nums' }}>
       {/* ── Header (full width): identity left, document marker right ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24 }}>
         <div style={{ minWidth: 0 }}>
