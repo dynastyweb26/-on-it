@@ -407,7 +407,13 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to pay' });
   if (d.venmoUsername)
     rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to pay' });
-  // Zelle is display-only: no url → no data-pdf-link → not tappable anywhere.
+  // Zelle is display-only: no url → no data-pdf-link → we attach NO annotation
+  // to this row (verified: the generated PDF carries link annotations only for
+  // the URL-backed methods above, none over Zelle). If someone reports the Zelle
+  // number as "tappable" in a viewer, that is viewer-side Live Text / image text
+  // recognition acting on the RASTERIZED number (the page is a flattened image),
+  // offering call/copy — never a payment. It is not ours and can't be suppressed
+  // from PDF content; do not re-investigate as an annotation bug.
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: 'Send from your bank app' });
   if (!rows.length) return null;
