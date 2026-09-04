@@ -15,9 +15,9 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // save() path (on blur), exactly like every other field on this page. Zelle is
 // NOT here — it keeps its encrypted /api/zelle path.
 const PAY_HANDLES = [
-  { key: 'paypal_me', label: 'PayPal', placeholder: 'paypal.me username' },
-  { key: 'cashapp_tag', label: 'Cash App', placeholder: '$cashtag' },
-  { key: 'venmo_username', label: 'Venmo', placeholder: 'username' },
+  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', letter: 'P', color: '#003087' },
+  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           letter: 'C', color: '#00b843' },
+  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           letter: 'V', color: '#008cff' },
 ] as const;
 
 // PayPal.me stores a USERNAME, not a URL. Strip a pasted "paypal.me/" prefix
@@ -27,6 +27,19 @@ const stripPaypalPrefix = (v: string) =>
 // A bare username has no dots or slashes; anything with them (e.g. a domain like
 // "mypaypal.com") would build a broken paypal.me/<...> link.
 const isValidPaypalHandle = (v: string) => !/[./\\]/.test(v);
+
+// Placeholder brand marks: colored rounded squares with the brand letter.
+// TODO(brand): replace each with the company's real brand mark after reviewing
+// that company's brand guidelines — these stand in only so the layout can land.
+function BrandSquare({ letter, color }: { letter: string; color: string }) {
+  return (
+    <span aria-hidden
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-extrabold text-white"
+      style={{ background: color }}>
+      {letter}
+    </span>
+  );
+}
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -353,38 +366,44 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="card space-y-3">
-        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Payment Methods</h2>
-
-        {/* Stripe — not yet available. The disabled Connect button + "Coming soon"
-            status IS its state treatment; configured/not-configured doesn't apply. */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-on-background">Stripe</span>
-            <span className="text-xs font-medium text-on-surface-variant/60">Coming soon</span>
+      {/* ── Block 1 — Stripe, its own cream-tinted card ───────────────
+          Layout only; no Stripe connect logic yet. Button stays disabled. */}
+      <section className="card space-y-3" style={{ background: '#fff8f0' }}>
+        <div className="flex items-center gap-3">
+          <BrandSquare letter="S" color="#5f09b2" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
+            <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
           </div>
-          {/* Stripe purple (#635BFF) even while disabled, so it reads as a
-              third-party connection rather than an On It (gold) action. */}
           <button type="button" disabled
-            className="btn-outline w-full pointer-events-none opacity-60"
-            style={{ borderColor: '#635BFF', color: '#635BFF' }}>
-            Connect
+            className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white pointer-events-none"
+            style={{ background: '#5f09b2' }}>
+            Coming soon
           </button>
         </div>
+      </section>
 
-        {/* PayPal / Cash App / Venmo — plain profile columns via the shared save()
-            path, saved on blur. Status label reuses the paid / on-surface-variant
-            tokens; no new component. */}
-        {PAY_HANDLES.map(({ key, label, placeholder }) => {
+      {/* ── Block 2 — PayPal / Cash App / Venmo, one card, three rows ──
+          Wiring UNCHANGED: per-field save() on blur (PayPal strips/validates),
+          and the bottom Save button fires the existing savePaymentHandles() —
+          the same three-field save(). Zelle is deliberately NOT in this group. */}
+      <section className="card space-y-5">
+        {PAY_HANDLES.map(({ key, label, hint, placeholder, letter, color }) => {
           const on = Boolean(p[key]);
           const isPaypal = key === 'paypal_me';
           return (
-            <div key={key} className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-on-background">{label}</span>
-                <span className={`text-xs font-medium ${on ? 'text-paid' : 'text-on-surface-variant/60'}`}>
-                  {on ? 'Configured' : 'Not configured'}
-                </span>
+            <div key={key} className="space-y-2">
+              <div className="flex items-center gap-3">
+                <BrandSquare letter={letter} color={color} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-xl font-bold text-on-background">{label}</h3>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${on ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
+                      {on ? 'Configured' : 'Not set'}
+                    </span>
+                  </div>
+                  <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>{hint}</p>
+                </div>
               </div>
               <input className="input" placeholder={placeholder}
                 value={p[key] ?? ''}
@@ -401,34 +420,40 @@ export default function Settings() {
                   }
                   save({ [key]: v || null });
                 }} />
-              {isPaypal && paypalError && <p className="text-xs text-error">{paypalError}</p>}
+              {isPaypal && paypalError && <p className="font-body text-xs text-error">{paypalError}</p>}
             </div>
           );
         })}
-        {/* Explicit confirm covering PayPal, Cash App and Venmo together —
-            additional to the per-field onBlur saves, not a replacement. */}
-        <button className="btn-outline w-full" onClick={savePaymentHandles}>Save</button>
+        {/* Full-width gold Save — fires the SAME savePaymentHandles() as before. */}
+        <button className="btn-primary w-full" onClick={savePaymentHandles}>Save PayPal, Cash App &amp; Venmo</button>
+      </section>
 
-        {/* Zelle — UNCHANGED wiring: encrypted column via /api/zelle (saveZelle),
-            masked placeholder, Save/Remove button. Only the label + hint changed. */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-on-background">Zelle</span>
-            <span className={`text-xs font-medium ${zelleMasked ? 'text-paid' : 'text-on-surface-variant/60'}`}>
-              {zelleMasked ? 'Configured' : 'Not configured'}
-            </span>
+      {/* ── Block 3 — Zelle, its own card ─────────────────────────────
+          Wiring UNCHANGED: encrypted column via /api/zelle (saveZelle), masked
+          placeholder, own Save/Remove button. Never folded into the group save. */}
+      <section className="card space-y-3">
+        <div className="flex items-center gap-3">
+          <BrandSquare letter="Z" color="#6d1ed4" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-xl font-bold text-on-background">Zelle</h3>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${zelleMasked ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
+                {zelleMasked ? 'Configured' : 'Not set'}
+              </span>
+            </div>
+            <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>Phone or email</p>
           </div>
-          <div className="flex gap-2">
-            <input className="input flex-1"
-              placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Phone number or email'}
-              value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
-            <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
-              onClick={saveZelle}>
-              {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
-            </button>
-          </div>
-          <p className="text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
         </div>
+        <div className="flex gap-2">
+          <input className="input flex-1"
+            placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Phone or email'}
+            value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
+          <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
+            onClick={saveZelle}>
+            {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
+          </button>
+        </div>
+        <p className="font-body text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
       </section>
 
       <section className="card space-y-3">
