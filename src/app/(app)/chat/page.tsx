@@ -33,6 +33,7 @@ interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
   slogan: string | null; brand_colors: string[]; background_color: string | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
+  venmo_username: string | null;
 }
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -690,6 +691,7 @@ export default function Chat() {
       dueDate: draft.due_date ?? defaultDueDate(),
       cashappTag: profile.cashapp_tag,
       paypalMe: profile.paypal_me,
+      venmoUsername: profile.venmo_username,
     };
   }
 

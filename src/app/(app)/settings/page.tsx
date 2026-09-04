@@ -525,7 +525,7 @@ export default function Settings() {
                 lineItems: [{ description: 'Service call + labor', qty: 1, unit_price: 250 }],
                 subtotal: 250, taxRate: 0, taxAmount: 0, total: 250,
                 issuedDate: new Date().toLocaleDateString(),
-                cashappTag: p.cashapp_tag, paypalMe: p.paypal_me,
+                cashappTag: p.cashapp_tag, paypalMe: p.paypal_me, venmoUsername: p.venmo_username,
               }} />
             </div>
           </div>
