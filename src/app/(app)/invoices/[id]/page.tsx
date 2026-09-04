@@ -9,6 +9,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -119,7 +120,14 @@ export default function InvoiceDetail() {
     setBusy(true);
     const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, profile.business_name));
     await shareInvoice(file, inv.client_name, docNoun(inv.kind));
-    await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id);
+    // First send (e.g. a converted quote→invoice draft) captures the render
+    // snapshot from the current profile. A RE-send of an already-sent invoice
+    // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
+    // invoice fabricate history — so it's gated on the draft→sent transition.
+    const patch: Record<string, unknown> = { status: 'sent', sent_at: new Date().toISOString() };
+    if (inv.status !== 'sent') Object.assign(patch, renderSnapshot(profile));
+    await supabase.from('invoices').update(patch).eq('id', id);
+    setInv({ ...inv, ...patch });
     setBusy(false);
   }
 
