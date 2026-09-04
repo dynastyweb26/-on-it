@@ -71,56 +71,100 @@ const payPalUrl = (handle: string) =>
   `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
 const venmoUrl = (handle: string) => `https://venmo.com/u/${handle.replace(/^@/, '')}`;
 
-// Brand marks reuse the SAME static files as the Settings screen (public/brands/
-// — no second copy). They render as <img>, which html2canvas captures reliably;
-// the glyphs are the source SVGs' native monochrome (a CSS mask recolor is NOT
-// html2canvas-safe). One row per configured method, linked methods first.
+// Per-brand colors for the marks, detail text, and instruction icons.
+const PAY_COLOR = { cashapp: '#00D632', paypal: '#003087', venmo: '#008CFF', zelle: '#6D1ED4' } as const;
+type PayKind = keyof typeof PAY_COLOR;
+
+// Brand glyphs are INLINED (not <img>) — html2canvas fails to rasterize SVG-as-
+// <img> (blank/broken marks), and item 2 needs a recolored (white-knockout)
+// glyph, which an <img> of a monochrome source cannot do. Inline SVG is the
+// html2canvas-reliable path. Paths are the same shapes as public/brands/*.svg
+// (Cash App / PayPal / Zelle: Simple Icons; Venmo: Font Awesome Free venmo-v).
+const GLYPH: Record<PayKind, { vb: string; d: string }> = {
+  cashapp: { vb: '0 0 24 24', d: 'M23.59 3.475a5.1 5.1 0 00-3.05-3.05c-1.31-.42-2.5-.42-4.92-.42H8.36c-2.4 0-3.61 0-4.9.4a5.1 5.1 0 00-3.05 3.06C0 4.765 0 5.965 0 8.365v7.27c0 2.41 0 3.6.4 4.9a5.1 5.1 0 003.05 3.05c1.3.41 2.5.41 4.9.41h7.28c2.41 0 3.61 0 4.9-.4a5.1 5.1 0 003.06-3.06c.41-1.3.41-2.5.41-4.9v-7.25c0-2.41 0-3.61-.41-4.91zm-6.17 4.63l-.93.93a.5.5 0 01-.67.01 5 5 0 00-3.22-1.18c-.97 0-1.94.32-1.94 1.21 0 .9 1.04 1.2 2.24 1.65 2.1.7 3.84 1.58 3.84 3.64 0 2.24-1.74 3.78-4.58 3.95l-.26 1.2a.49.49 0 01-.48.39H9.63l-.09-.01a.5.5 0 01-.38-.59l.28-1.27a6.54 6.54 0 01-2.88-1.57v-.01a.48.48 0 010-.68l1-.97a.49.49 0 01.67 0c.91.86 2.13 1.34 3.39 1.32 1.3 0 2.17-.55 2.17-1.42 0-.87-.88-1.1-2.54-1.72-1.76-.63-3.43-1.52-3.43-3.6 0-2.42 2.01-3.6 4.39-3.71l.25-1.23a.48.48 0 01.48-.38h1.78l.1.01c.26.06.43.31.37.57l-.27 1.37c.9.3 1.75.77 2.48 1.39l.02.02c.19.2.19.5 0 .68z' },
+  paypal: { vb: '0 0 24 24', d: 'M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z' },
+  venmo: { vb: '48 0 512 512', d: 'M466.5 14.8c17.4 28.7 25.3 58.2 25.3 95.5 0 119-101.9 273.5-184.7 382.1l-188.9 0-75.8-451.5 165.4-15.7 40.1 321.3c37.4-60.8 83.6-156.3 83.6-221.4 0-35.6-6.1-59.9-15.7-79.9L466.5 14.8z' },
+  zelle: { vb: '0 0 24 24', d: 'M13.559 24h-2.841a.483.483 0 0 1-.483-.483v-2.765H5.638a.667.667 0 0 1-.666-.666v-2.234a.67.67 0 0 1 .142-.412l8.139-10.382h-7.25a.667.667 0 0 1-.667-.667V3.914c0-.367.299-.666.666-.666h4.23V.483c0-.266.217-.483.483-.483h2.841c.266 0 .483.217.483.483v2.765h4.323c.367 0 .666.299.666.666v2.137a.67.67 0 0 1-.141.41l-8.19 10.481h7.665c.367 0 .666.299.666.666v2.477a.667.667 0 0 1-.666.667h-4.32v2.765a.483.483 0 0 1-.483.483Z' },
+};
+
+// Colored rounded square, glyph knocked out in white. Cash App's glyph already
+// IS a rounded square with a $ knockout, so it's filled in-brand on a white tile
+// (the $ reads white); the others are bare symbols on a brand-filled tile.
+function PayMark({ kind }: { kind: PayKind }) {
+  const color = PAY_COLOR[kind];
+  const S = 40;
+  const g = GLYPH[kind];
+  if (kind === 'cashapp') {
+    return (
+      <span style={{ width: S, height: S, borderRadius: 10, background: '#fff', flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
+        <svg width={S} height={S} viewBox={g.vb}><path fill={color} d={g.d} /></svg>
+      </span>
+    );
+  }
+  return (
+    <span style={{ width: S, height: S, borderRadius: 10, background: color, flex: '0 0 auto', display: 'grid', placeItems: 'center' }}>
+      <svg width={Math.round(S * 0.58)} height={Math.round(S * 0.58)} viewBox={g.vb}><path fill="#fff" d={g.d} /></svg>
+    </span>
+  );
+}
+
+// Right-hand instruction icons — inline SVG (Material Symbols is an icon FONT and
+// does not rasterize reliably in html2canvas), stroked in the row's brand color.
+function InstrIcon({ kind, color }: { kind: 'phone' | 'external' | 'bank'; color: string }) {
+  const box: React.CSSProperties = { width: 22, height: 22, flex: '0 0 auto', display: 'block' };
+  const s = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  if (kind === 'phone')
+    return (<svg viewBox="0 0 24 24" style={box}><rect x="6" y="3" width="12" height="18" rx="2.5" {...s} /><line x1="10" y1="18" x2="14" y2="18" {...s} /></svg>);
+  if (kind === 'external')
+    return (<svg viewBox="0 0 24 24" style={box}><path d="M14 4h6v6" {...s} /><path d="M20 4l-8.5 8.5" {...s} /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...s} /></svg>);
+  return (<svg viewBox="0 0 24 24" style={box}><path d="M3 9.5l9-5.5 9 5.5" {...s} /><line x1="4" y1="21" x2="20" y2="21" {...s} /><line x1="6.5" y1="10" x2="6.5" y2="18" {...s} /><line x1="10" y1="10" x2="10" y2="18" {...s} /><line x1="14" y1="10" x2="14" y2="18" {...s} /><line x1="17.5" y1="10" x2="17.5" y2="18" {...s} /></svg>);
+}
+
+// One bordered rounded CARD per configured method (no table, no horizontal rules).
+// A vertical rule (borderLeft) separates the detail column from the instruction
+// column. Detail is per-brand colored; linked methods keep the data-pdf-link that
+// elementToPdf() turns into a real tappable annotation. Zelle's detail is purple
+// but NOT underlined and NOT linked.
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  // Cash App, PayPal, Venmo carry a public URL: the detail is the tappable
-  // element — accent color + underline, plus data-pdf-link so elementToPdf()
-  // lays a real jsPDF link annotation over it. Zelle has no shareable web link,
-  // so its detail is PLAIN text (not accent, not underlined, not tappable) and
-  // the instruction explains to pay via the bank app.
-  const rows: { mark: string; method: string; detail: string; url?: string; instruction: string }[] = [];
+  const rows: { kind: PayKind; method: string; detail: string; url?: string; instruction: string; icon: 'phone' | 'external' | 'bank' }[] = [];
   if (d.cashappTag)
-    rows.push({ mark: '/brands/cashapp.svg', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to open Cash App' });
+    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to open Cash App', icon: 'phone' });
   if (d.paypalMe)
-    rows.push({ mark: '/brands/paypal.svg', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to open PayPal' });
+    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to open PayPal', icon: 'external' });
   if (d.venmoUsername)
-    rows.push({ mark: '/brands/venmo.svg', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to open Venmo' });
+    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to open Venmo', icon: 'external' });
   if (d.zelle)
-    rows.push({ mark: '/brands/zelle.svg', method: 'Zelle', detail: d.zelle, instruction: "Send to this number in your bank's Zelle" });
+    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: "Send to this number in your bank's Zelle", icon: 'bank' });
   if (!rows.length) return null;
 
-  const td: React.CSSProperties = { padding: '11px 18px 11px 0', verticalAlign: 'middle' };
-
+  const border = '1px solid #e6e3dd';
   return (
-    <div style={{ fontSize: 15 }}>
-      <div style={{ fontWeight: 700, color: t.accent, textTransform: 'uppercase', letterSpacing: 1, fontSize: 13, marginBottom: 10 }}>
+    // Full width: PaymentBlock now gets its own row in every template, so the
+    // cards can breathe and the detail never collides with the instruction.
+    <div style={{ width: '100%' }}>
+      <div style={{ color: '#334155', textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 800, fontSize: 15, marginBottom: 14 }}>
         How to pay
       </div>
-      <table style={{ borderCollapse: 'collapse', fontSize: 15 }}>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.method} style={{ borderBottom: `1px solid ${t.accent}22` }}>
-              <td style={{ ...td, paddingRight: 12, width: 30 }}>
-                <img src={r.mark} alt="" style={{ height: 22, width: 'auto', display: 'block' }} />
-              </td>
-              <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.method}</td>
-              <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                {r.url ? (
-                  <span data-pdf-link={r.url} style={{ color: t.accent, textDecoration: 'underline', fontWeight: 600 }}>
-                    {r.detail}
-                  </span>
-                ) : (
-                  <span style={{ color: t.text }}>{r.detail}</span>
-                )}
-              </td>
-              <td style={{ ...td, paddingRight: 0, opacity: 0.75, maxWidth: 200 }}>{r.instruction}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {rows.map((r) => {
+        const color = PAY_COLOR[r.kind];
+        return (
+          <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: 14, border, borderRadius: 14, padding: '14px 18px', marginBottom: 12 }}>
+            <PayMark kind={r.kind} />
+            <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 18, color: t.text }}>{r.method}</div>
+            <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 17, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {r.url ? (
+                <span data-pdf-link={r.url} style={{ color, textDecoration: 'underline' }}>{r.detail}</span>
+              ) : (
+                <span style={{ color }}>{r.detail}</span>
+              )}
+            </div>
+            <div style={{ flex: '0 0 auto', width: 132, display: 'flex', alignItems: 'center', gap: 8, borderLeft: border, paddingLeft: 14 }}>
+              <InstrIcon kind={r.icon} color={color} />
+              <span style={{ fontSize: 14, color: t.text, opacity: 0.85, lineHeight: 1.25 }}>{r.instruction}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -309,10 +353,16 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
         <Totals d={d} t={t} />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 48 }}>
+      {/* Option A: PaymentBlock on its own full-width row. Notes keeps its exact
+          styling and right-side placement, now on its own line below. */}
+      <div style={{ marginTop: 48 }}>
         <PaymentBlock d={d} t={t} />
-        {d.notes && <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>}
       </div>
+      {d.notes && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+          <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>
+        </div>
+      )}
       <div style={{ position: 'absolute', bottom: 40, left: 56, right: 56, textAlign: 'center', fontSize: 12, color: t.accent }}>
         Thank you for your business.
       </div>
@@ -440,10 +490,16 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 48 }}>
+      {/* Option A: PaymentBlock on its own full-width row. Notes keeps its exact
+          styling and right-side placement, now on its own line below. */}
+      <div style={{ marginTop: 48 }}>
         <PaymentBlock d={d} t={t} />
-        {d.notes && <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>}
       </div>
+      {d.notes && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+          <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>
+        </div>
+      )}
       <Branding t={t} />
     </div>
   );
@@ -497,9 +553,13 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {d.clientPhone && <div style={{ opacity: 0.8 }}>{d.clientPhone}</div>}
         </div>
         <ItemsTable d={d} t={t} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 28 }}>
-          <PaymentBlock d={d} t={t} />
+        {/* Option A: Totals stays where it is (right, after the items table);
+            PaymentBlock moves to its own full-width row below. */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 28 }}>
           <Totals d={d} t={t} />
+        </div>
+        <div style={{ marginTop: 28 }}>
+          <PaymentBlock d={d} t={t} />
         </div>
         {d.notes && <div style={{ fontSize: 12, marginTop: 32, borderLeft: `4px solid ${t.accent}`, paddingLeft: 12, opacity: 0.9 }}>{d.notes}</div>}
       </div>
@@ -573,11 +633,16 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ ...card, padding: 12 }}>
         <ItemsTable d={d} t={t} rounded />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 24, gap: 16 }}>
-        <div style={{ ...card, flex: 1 }}>
-          <PaymentBlock d={d} t={t} />
-          {d.notes && <div style={{ fontSize: 12, marginTop: 12, opacity: 0.85 }}>{d.notes}</div>}
-        </div>
+      {/* Option A + F2: PaymentBlock on its own full-width row. Notes moves OUT of
+          the (now-purposeless) decorative card to sit beside Totals with its exact
+          text styling — only the wrapper is gone. justifyContent is conditional so
+          that with no notes, Totals sits alone on the right and nothing empty
+          renders (the notes element is simply absent). */}
+      <div style={{ marginTop: 24 }}>
+        <PaymentBlock d={d} t={t} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: d.notes ? 'space-between' : 'flex-end', alignItems: 'flex-start', marginTop: 24, gap: 16 }}>
+        {d.notes && <div style={{ fontSize: 12, marginTop: 12, opacity: 0.85 }}>{d.notes}</div>}
         <Totals d={d} t={t} />
       </div>
       <div style={{ textAlign: 'center', marginTop: 36, color: t.accent, fontWeight: 700, fontSize: 13 }}>
