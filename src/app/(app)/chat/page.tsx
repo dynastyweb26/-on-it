@@ -10,7 +10,7 @@ import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
-import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
+import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
 import { docNoun } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
@@ -781,7 +781,7 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  async function finalize(internal = false, retryId?: string) {
+  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send') {
     if (!internal && phase) return;
     setPhase('building');
     try {
@@ -792,7 +792,10 @@ export default function Chat() {
     // flags any contact pulled from the saved record, names what's missing, and
     // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
     // change re-summarizes.
-    if (!awaitingConfirm) {
+    // Download mode (Commit 3) is a secondary exit, not a send: skip the
+    // send-confirmation gate. It still creates the draft + renders below, then
+    // downloads without sharing/marking-sent (see the mode branch after render).
+    if (mode === 'send' && !awaitingConfirm) {
       setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
@@ -992,6 +995,19 @@ export default function Chat() {
         printRef.current,
         invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
       );
+
+      // Download-only exit (Commit 3): hand over the PDF without sending. The
+      // draft row was created above and stashed in pendingInvoiceRef, so it shows
+      // in the invoices list as a draft and a later "send" reuses the SAME row and
+      // number (no duplicate). Deliberately NOT marked sent and NOT archived to the
+      // Vault — the archive/snapshot only happen on a real send. The card stays so
+      // the user can still send.
+      if (mode === 'download') {
+        downloadFile(file);
+        setRenderData(null);
+        setMessages((m) => [...m, aMsg('Downloaded — it’s saved as a draft. Tap send whenever you’re ready.')]);
+        return;
+      }
 
       // ── 4. Share — only now is anything actually sent.
       const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind));
@@ -1486,6 +1502,13 @@ export default function Chat() {
             <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={() => finalize()}>
               <Icon name="attach_file" size={18} />
               {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+            </button>
+            {/* Quiet secondary exit: download the PDF without sending. Saves the
+                draft (sendable later); does not mark sent or archive. */}
+            <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+              disabled={phase !== null}
+              onClick={() => finalize(false, undefined, 'download')}>
+              <Icon name="download" size={18} /> Download without sending
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
               disabled={phase !== null}

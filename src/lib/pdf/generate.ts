@@ -51,6 +51,18 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   return new File([blob], filename, { type: 'application/pdf' });
 }
 
+/** Trigger a browser download of a File without sending it anywhere. Used by the
+ *  explicit download controls (confirm card, invoice detail) and as shareInvoice's
+ *  non-share fallback. */
+export function downloadFile(file: File): void {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Native share sheet — the locked send mechanism (no Twilio).
  *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
  *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
@@ -66,11 +78,6 @@ export async function shareInvoice(file: File, clientName: string, noun = 'Invoi
       /* any other share error — fall through to download */
     }
   }
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadFile(file);
   return 'downloaded';
 }
