@@ -9,6 +9,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -78,22 +79,38 @@ export default function InvoiceDetail() {
 
   if (!inv || !profile) return <p className="p-6 text-on-surface-variant">Loading…</p>;
 
-  const theme = profile.background_color && profile.brand_colors?.length >= 2
-    ? buildTheme(profile.brand_colors, profile.background_color)
+  // Per-ROW snapshot sentinel: a non-null snapshot template means this invoice was
+  // finalized WITH the render snapshot, so use the snapshot for ALL ten fields —
+  // including where a value is legitimately null (e.g. no logo at send time). A
+  // null template means the row predates the snapshot fix, so use the live profile
+  // for everything. Never mix: a row is either snapshotted or it isn't. Zelle is
+  // never snapshotted, so it is read live in both cases. (logo_url snapshots the
+  // URL only — the asset itself isn't frozen and can 404 if later replaced.)
+  const snapped = inv.template != null;
+
+  const brandColors = snapped ? inv.brand_colors : profile.brand_colors;
+  const backgroundColor = snapped ? inv.background_color : profile.background_color;
+  const theme = backgroundColor && brandColors?.length >= 2
+    ? buildTheme(brandColors, backgroundColor)
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017' };
+  const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
   const rd: InvoiceRenderData = {
     kind: inv.kind, invoiceNumber: inv.invoice_number,
-    businessName: profile.business_name, logoUrl: profile.logo_url,
-    websiteUrl: profile.website_url, slogan: profile.slogan,
+    businessName: snapped ? inv.business_name : profile.business_name,
+    logoUrl: snapped ? inv.logo_url : profile.logo_url,
+    websiteUrl: snapped ? inv.website_url : profile.website_url,
+    slogan: snapped ? inv.slogan : profile.slogan,
     clientName: inv.client_name, clientAddress: inv.client_address ?? null,
     clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, paid: inv.status === 'paid',
-    zelle, cashappTag: profile.cashapp_tag, paypalMe: profile.paypal_me,
-    venmoUsername: profile.venmo_username,
+    zelle, // live — Zelle is never snapshotted, in either case
+    cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,
+    paypalMe: snapped ? inv.paypal_me : profile.paypal_me,
+    venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
   };
 
   async function viewPdf() {
@@ -117,9 +134,16 @@ export default function InvoiceDetail() {
   async function resend() {
     if (!printRef.current) return;
     setBusy(true);
-    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, profile.business_name));
+    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
     await shareInvoice(file, inv.client_name, docNoun(inv.kind));
-    await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', id);
+    // First send (e.g. a converted quote→invoice draft) captures the render
+    // snapshot from the current profile. A RE-send of an already-sent invoice
+    // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
+    // invoice fabricate history — so it's gated on the draft→sent transition.
+    const patch: Record<string, unknown> = { status: 'sent', sent_at: new Date().toISOString() };
+    if (inv.status !== 'sent') Object.assign(patch, renderSnapshot(profile));
+    await supabase.from('invoices').update(patch).eq('id', id);
+    setInv({ ...inv, ...patch });
     setBusy(false);
   }
 
@@ -259,7 +283,7 @@ export default function InvoiceDetail() {
       <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
           <div ref={printRef}>
-            <InvoiceTemplate template={(profile.invoice_template ?? 'classic') as TemplateKey} data={rd} theme={theme} />
+            <InvoiceTemplate template={template} data={rd} theme={theme} />
           </div>
         </div>
       </div>

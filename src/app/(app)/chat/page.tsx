@@ -15,6 +15,7 @@ import { docNoun } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
+import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -1005,7 +1006,14 @@ export default function Chat() {
       }
 
       // ── 5. Shared/downloaded for real → NOW mark it sent, then archive.
-      await supabase.from('invoices').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', invoiceId);
+      // Capture the render snapshot from the profile AS SENT (template, theme,
+      // identity, handles) so later Settings changes don't rewrite this invoice.
+      // This is the first (and only) send of a freshly-created invoice — the
+      // finalizeSentRef guard above prevents a resumed re-finalize. Zelle is not
+      // snapshotted (see renderSnapshot).
+      await supabase.from('invoices')
+        .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
+        .eq('id', invoiceId);
       // Record the sent step BEFORE the archive (which can hang): a suspend now
       // must resume into the idempotent finish above, never a re-share.
       finalizeSentRef.current = true;
