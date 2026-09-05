@@ -71,6 +71,16 @@ export default function Books() {
     if (error) setRows((r) => r.map((e) => (e.id === id ? { ...e, tax_deductible: current } : e)));
   }
 
+  // Same ordering as the invoices list: newest first, then name A→Z. Tier 1 is
+  // spent_on (the displayed expense date, matching the invoices list's use of its
+  // displayed date). Tier 2 is the same field shown as the row's title — vendor,
+  // falling back to description. This replaces the previous created_at same-day
+  // tiebreak with the name tier so both lists order identically.
+  const label = (e: ExpenseRow) => e.vendor || e.description || '';
+  const sorted = [...rows].sort((a, b) =>
+    b.spent_on.localeCompare(a.spent_on) ||           // Tier 1: newest → oldest
+    label(a).localeCompare(label(b)));                // Tier 2: vendor → description A→Z
+
   return (
     <div className="px-4 py-4">
       {loading && <p className="mt-16 text-center text-on-surface-variant">Loading your books…</p>}
@@ -86,7 +96,7 @@ export default function Books() {
       )}
 
       <div className="space-y-2">
-        {rows.map((e) => {
+        {sorted.map((e) => {
           const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
           const label = e.vendor || e.description || 'Expense';
           const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';

@@ -51,11 +51,15 @@ export default function Invoices() {
     : filter === 'paid' ? r.status === 'paid'
     : r.kind === 'quote'
   );
-  // Cash flow visibility: unpaid first, biggest first
-  const sorted = [...filtered].sort((a, b) => {
-    const rank = (r: Row) => (r.status === 'overdue' ? 0 : r.status === 'sent' ? 1 : 2);
-    return rank(a) - rank(b) || b.total - a.total;
-  });
+  // One ordering for EVERY tab (All / Unpaid / Paid / Quotes): newest first, then
+  // client name A→Z. This is a client-side sort applied to the filtered set, so it
+  // is the source of truth for display — the query's .order('created_at') alone is
+  // not enough (this sort previously ranked by status then total, which overrode
+  // it). created_at is the invoice's displayed date; ISO timestamps compare
+  // chronologically, so comparing b→a gives newest→oldest.
+  const sorted = [...filtered].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at) ||        // Tier 1: newest → oldest
+    a.client_name.localeCompare(b.client_name));       // Tier 2: client name A→Z
 
   return (
     <div className="px-4 py-4">
