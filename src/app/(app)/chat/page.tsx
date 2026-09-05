@@ -1485,7 +1485,7 @@ export default function Chat() {
             </div>
             <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={() => finalize()}>
               <Icon name="attach_file" size={18} />
-              {phase === 'building' ? 'Building your PDF…' : awaitingConfirm ? 'Yes, send it' : 'Looks right — send it'}
+              {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
               disabled={phase !== null}
