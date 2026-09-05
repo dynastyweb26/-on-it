@@ -6,7 +6,7 @@ import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/compone
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
-import { elementToPdf, invoiceFilename, shareInvoice } from '@/lib/pdf/generate';
+import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
@@ -21,6 +21,7 @@ export default function InvoiceDetail() {
   const [inv, setInv] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [zelle, setZelle] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
@@ -117,6 +118,33 @@ export default function InvoiceDetail() {
     if (!vaultPath) return;
     const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300);
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }
+
+  // Download the PDF (never marks sent). Prefer the archived as-sent PDF from the
+  // Vault when one exists — that's the exact file the client received — by signing
+  // its URL with a download disposition. Fall back to re-rendering the current
+  // template (snapshot-aware) only when there is no archive (upload failed at
+  // finalize, or the invoice was never sent).
+  async function downloadInvoice() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+      if (vaultPath) {
+        const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300, { download: filename });
+        if (data?.signedUrl) {
+          const a = document.createElement('a');
+          a.href = data.signedUrl;
+          a.rel = 'noopener';
+          a.click();
+        }
+      } else if (printRef.current) {
+        const file = await elementToPdf(printRef.current, filename);
+        downloadFile(file);
+      }
+    } finally {
+      setDownloading(false);
+    }
   }
 
   // The +30 default is a pre-fill, not a lock — the ONLY editable field here.
@@ -233,6 +261,9 @@ export default function InvoiceDetail() {
           )}
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
+          </button>
+          <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
+            <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
           </button>
           {vaultPath && (
             <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
