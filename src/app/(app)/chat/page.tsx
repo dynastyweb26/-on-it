@@ -87,17 +87,6 @@ const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// A create-invoice the user was asked to confirm (duplicate detected). Lives in
-// the SAME conversation store as messages/draft (Batch 1 #1) — not a parallel
-// state layer — so an affirmative next turn resolves it instead of re-parsing
-// the original intent and re-detecting the duplicate in a loop.
-interface PendingAction {
-  type: 'create_invoice';
-  client: string | null;
-  amount: number;
-  forceCreate: true;
-}
-
 // A "bare" affirmative: the WHOLE message is a confirmation (allowlist) with
 // only light politeness/punctuation — nothing else. A message that merely
 // starts with "yes" but carries more ("yes but make it $300") is NOT bare and
@@ -143,10 +132,6 @@ interface StoredChat {
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
-  pending?: PendingAction | null;
-  // Duplicate-warning acknowledgment for the current draft (Break A). Persisted
-  // so an app switch mid-flow doesn't reset it and re-trigger the warning.
-  dupAcked?: boolean;
   // The invoice row already inserted this session but not yet marked sent (id +
   // number). Persisted so a send that resumes after a suspend/reload reuses this
   // row instead of inserting a second one with a fresh number.
@@ -253,14 +238,6 @@ export default function Chat() {
   const [convoId, setConvoId] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
-  // Server-honored acknowledgment (Break A): true once the duplicate warning has
-  // been displayed for THIS draft. Sent to /api/parse for the life of the draft
-  // so the server stops re-running the duplicate query on every subsequent ready
-  // parse — the fix for the warning re-firing turn after turn, including when the
-  // user ignores the prompt and keeps going.
-  // Persisted with the rest of the draft state so it survives an app switch.
-  const [dupAcked, setDupAcked] = useState(false);
   // Passive duplicate indicator: the server flagged a similar recent invoice
   // (duplicateWarning). Rendered as a badge on the invoice card, not a blocking
   // prompt — the card stays fully actionable, no confirmation required. Set from
@@ -337,8 +314,6 @@ export default function Chat() {
     setMessages(stored.messages);
     setDraft(stored.draft);
     setReady(Boolean(stored.ready));
-    setPending(stored.pending ?? null);
-    setDupAcked(Boolean(stored.dupAcked));
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
@@ -434,7 +409,7 @@ export default function Chat() {
         // fires on its change), so it rides along on the next state-driven write.
         const payload: StoredChat = {
           version: STORE_VERSION,
-          id: convoId, messages, draft, ready, pending, dupAcked,
+          id: convoId, messages, draft, ready,
           pendingInvoice: pendingInvoiceRef.current,
           finalizeSent: finalizeSentRef.current,
           updatedAt: Date.now(),
@@ -443,7 +418,7 @@ export default function Chat() {
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, pending, dupAcked, hydrated, finished, convoId]);
+  }, [messages, draft, ready, hydrated, finished, convoId]);
 
   // Recover a conversation the OS dropped behind an app switch. Two triggers,
   // one shared restore (restoreFromStore):
@@ -493,8 +468,6 @@ export default function Chat() {
       setMessages([GREETING]);
       setDraft(null);
       setReady(false);
-      setPending(null);
-      setDupAcked(false);
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
       pendingInvoiceRef.current = null;
@@ -544,26 +517,6 @@ export default function Chat() {
     }
     setFinished(false); // a new message means a live conversation again
 
-    // Duplicate-confirmation resolution: if we're awaiting a yes/no, DON'T
-    // re-parse (that re-detects the duplicate and loops). Affirmative → create
-    // anyway via finalize() (which runs no duplicate check); negative → drop it;
-    // anything else → clear the pending action and parse the message fresh.
-    if (pending) {
-      if (isAffirmative(trimmed)) {
-        setPending(null);
-        // "Yes, make it anyway" IS the explicit go-ahead — bypass the confirm
-        // summary gate so finalize actually creates instead of re-asking (Break B).
-        await finalize(true, undefined, 'send', true);
-        return null;
-      }
-      if (isNegative(trimmed)) {
-        setPending(null);
-        setMessages((m) => [...m, aMsg("Okay — no duplicate made. Tell me what you'd like to change and I'll sort it out.")]);
-        return null;
-      }
-      setPending(null); // ambiguous reply — fall through to a fresh parse
-    }
-
     // ── Confirmation gate ─────────────────────────────────────
     // A bare affirmative ("yes", "send it") is the explicit go-ahead — whether
     // the preview card is up or we've already shown the confirm summary. Voice
@@ -586,7 +539,7 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1), draft, dupAcked }),
+        body: JSON.stringify({ history: next.slice(1), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -791,7 +744,7 @@ export default function Chat() {
       if (!ns) return;
       const payload: StoredChat = {
         version: STORE_VERSION,
-        id: convoId, messages, draft, ready, pending, dupAcked,
+        id: convoId, messages, draft, ready,
         pendingInvoice: pendingInvoiceRef.current,
         finalizeSent: finalizeSentRef.current,
         updatedAt: Date.now(),
@@ -827,7 +780,6 @@ export default function Chat() {
     setConvoId(genId());
     setDraft(null);
     setReady(false);
-    setDupAcked(false); // draft's life is over — a fresh job re-asks the dup check
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setRenderData(null);
@@ -842,11 +794,7 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  // `alreadyConfirmed` is true only when the caller already holds an explicit
-  // go-ahead for THIS create and the confirm summary would be redundant — the
-  // affirmative answer to the duplicate warning (Break B). It bypasses the
-  // summary gate below and proceeds straight to the create.
-  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send', alreadyConfirmed = false) {
+  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send') {
     if (!internal && phase) return;
     // A direct card tap (not delegated from a send()) is its own user action:
     // mint a fresh turn id so this finalize and finishFinalize trace under their
@@ -865,7 +813,7 @@ export default function Chat() {
     // Download mode (Commit 3) is a secondary exit, not a send: skip the
     // send-confirmation gate. It still creates the draft + renders below, then
     // downloads without sharing/marking-sent (see the mode branch after render).
-    if (mode === 'send' && !awaitingConfirm && !alreadyConfirmed) {
+    if (mode === 'send' && !awaitingConfirm) {
       setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
@@ -1509,8 +1457,6 @@ export default function Chat() {
     setMessages(entry.messages);
     setDraft(entry.draft);
     setReady(Boolean(entry.ready) && !entry.finalized);
-    setPending(null); // confirmation state doesn't carry across conversations
-    setDupAcked(false);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setFinished(entry.finalized); // finalized ones stay read-only until a new message

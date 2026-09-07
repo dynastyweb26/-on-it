@@ -14,10 +14,6 @@ const ParseBody = z.object({
     content: z.string().max(4000),
   })).min(1).max(50),
   draft: z.record(z.string(), z.unknown()).nullish(),
-  // Set by the client once the user has affirmatively answered the duplicate
-  // warning for the current draft. When true, skip the duplicate query below so
-  // the warning is a per-draft decision, not one re-asked on every message.
-  dupAcked: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -49,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid request', reply: 'Say that again?' }, { status: 400 });
   }
-  const { history: rawHistory, draft, dupAcked } = parsed.data;
+  const { history: rawHistory, draft } = parsed.data;
   // Bound the draft context too (it's stringified into the prompt).
   if (draft && JSON.stringify(draft).length > 8000) {
     return NextResponse.json({ error: 'draft too large', reply: 'Let’s start that one fresh.' }, { status: 400 });
@@ -70,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     // Duplicate detection: same client + same total in the last 48h
     let duplicateWarning: string | null = null;
-    if (user && result.ready && result.intent !== 'expense' && !dupAcked) {
+    if (user && result.ready && result.intent !== 'expense') {
       const total = result.line_items.reduce((s, li) => s + li.qty * li.unit_price, 0);
       const { data: dupes } = await supabase
         .from('invoices')
