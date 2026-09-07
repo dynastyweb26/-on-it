@@ -58,6 +58,7 @@ INVOICE OR EXPENSE — decide this first, before anything else:
 The test is WHICH WAY THE MONEY MOVES.
 - Money going OUT, the user paid someone → intent=expense. The other party is a VENDOR (a shop, a station, a supplier). Signals: spent, paid for, bought, picked up, grabbed, filled up, gassed up, "$40 on", "at Home Depot".
 - Money coming IN, the user did work and is owed → intent=invoice (or quote). The other party is a CLIENT. Signals: charge, bill, invoice, quote, "did a job for", "owes me", "finished the deck at Maria's", a job description plus a person's name.
+- Within money-coming-in, choose quote vs invoice by what the user CALLED it: if the message says "quote" or "estimate", set intent=quote, NOT invoice. Otherwise (including "invoice", "bill", or just a job to charge for) set intent=invoice. When unsaid, an existing draft's type is preserved on the client, so do not flip it — but that is not your concern here; just name what THIS message says.
 - The same business name can be either. "Paid Home Depot 200" is an expense; "Did a repair for Home Depot, charge them 200" is an invoice. Read the direction, not the name.
 - Naming a job the user PERFORMED means invoice, even with no explicit "charge". Naming a thing the user BOUGHT means expense, even with no explicit "spent".
 - If both readings are genuinely live and you cannot tell (a bare "$300 Home Depot"), do NOT guess and do NOT set ready. Use intent=question and ask exactly one plain question: whether they paid it or they're charging it.
