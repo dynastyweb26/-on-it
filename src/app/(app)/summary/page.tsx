@@ -49,6 +49,12 @@ export default function TaxSummary() {
 
   useEffect(() => {
     (async () => {
+      // Fast local gate first: getSession() reads the persisted session with no
+      // network round-trip, so a signed-out user is redirected instantly and the
+      // decision can't hang on a stalled getUser() — the same fix as settings
+      // (09dcc22). This page is worse off without it: there's no stall timeout.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
