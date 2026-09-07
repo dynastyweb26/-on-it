@@ -40,6 +40,18 @@ interface Profile {
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const today = () => new Date().toISOString().slice(0, 10);
 
+// The document kind a draft renders as: 'quote' or 'invoice', handled
+// explicitly. Every other intent (expense/question/other) and a missing one are
+// unexpected on a document card — log loudly rather than let an unknown value
+// masquerade as an invoice silently, then fall back so the caller still renders.
+function docKind(draft: Partial<ExtractResult> | null | undefined): 'quote' | 'invoice' {
+  const intent = draft?.intent;
+  if (intent === 'quote') return 'quote';
+  if (intent === 'invoice') return 'invoice';
+  console.error('docKind: unexpected draft.intent, falling back to invoice:', intent);
+  return 'invoice';
+}
+
 // Every message carries a stable id so the transcript renders by id (not array
 // index) and a specific message can be replaced in place (retry). Factories
 // stamp the id in one spot; `extra` is the seam for per-message fields.
@@ -681,7 +693,7 @@ export default function Chat() {
     const taxRate = draft.tax_rate ?? 0;
     const taxAmount = Math.round(subtotal * taxRate) / 100;
     return {
-      kind: (draft.intent === 'quote' ? 'quote' : 'invoice'),
+      kind: docKind(draft),
       invoiceNumber,
       businessName: profile.business_name,
       logoUrl: profile.logo_url,
@@ -714,7 +726,7 @@ export default function Chat() {
   function confirmSummary(): string {
     const items = (draft?.line_items ?? []) as LineItem[];
     const total = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
-    const kind = draft?.intent === 'quote' ? 'quote' : 'invoice';
+    const kind = docKind(draft);
     const who = draft?.client_name ?? 'this client';
     const out: string[] = [`Here's your ${kind} for ${who}: ${money(total)}.`];
 
@@ -980,7 +992,7 @@ export default function Chat() {
       // (finalizeSent persisted across the suspend). The share already happened —
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
-        const kind = draft.intent === 'quote' ? 'quote' : 'invoice';
+        const kind = docKind(draft);
         finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
         return;
       }
@@ -1500,7 +1512,7 @@ export default function Chat() {
           <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
             <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
               <Icon name="description" size={18} />
-              {draft.intent === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
+              {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
             <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
             <div className="mt-2 flex items-end justify-between border-t border-outline-variant pt-3">
