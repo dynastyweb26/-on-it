@@ -1,8 +1,9 @@
 # On It — Punch List
 
 _Audited from the code on 2026-09-07 (branch `main`). Status is one of **Done**,
-**Partial**, **Open**, or **Unverified** (can't be determined from the repo
-alone — e.g. live DB/runtime state). Evidence is `file:line` or a commit hash.
+**Partial**, **Open**, **Unverified** (can't be determined from the repo alone —
+e.g. live DB/runtime state), or **Not Reproducible** (tried to reproduce the
+reported symptom and could not). Evidence is `file:line` or a commit hash.
 Trust this over ONIT-SPEC.md where they disagree; the spec is stale._
 
 ## Invariants
@@ -33,7 +34,8 @@ you touch the relevant area, re-verify rather than trusting this line._
 | summary getUser stall | **Open** | `src/app/(app)/summary/page.tsx:52-53` gates on the network `getUser()` with **no** `getSession()` fast-path and **no** timeout — the same stall settings had. The settings fix (`09dcc22`) was never ported here. |
 | settings unauthenticated loading | **Done** | `09dcc22` — `src/app/(app)/settings/page.tsx` added a local `getSession()` fast-path that redirects a signed-out user to `/login` instantly instead of hanging on "Loading…". |
 | duplicate warning loop | **Done** | Break A `5a6ddfa` (server-honored `dupAcked`, `src/app/api/parse/route.ts:73` skips the query when set), Break B `8862ed0` (`finalize` `alreadyConfirmed` bypass), display-time ack `df46cd6` (set when the warning shows, not when answered — `chat/page.tsx` ~661). |
-| client name truncation | **Open** | Symptom is the **parse returning a truncated name in the reply text** — e.g. "Cyi" for "Cyril" — not the CSS list ellipsis. Not yet located; likely in `src/app/api/transcribe/route.ts` or the parse (`src/lib/ai.ts` / `src/app/api/parse/route.ts`). Needs a **voice** repro to reproduce and pin down. |
+| client name truncation | **Not Reproducible** | Voice repro on 2026-09-07 returned "Cyril" correctly end to end — transcript, parse, and card all intact. The earlier "Cyi" for "Cyril" symptom did not recur. Reopen with a fresh repro if it resurfaces (candidate sites: `src/app/api/transcribe/route.ts`, `src/lib/ai.ts`). |
+| voice end-of-turn affordance | **Done** | `56d0c3d` — listening copy now reads "Listening… tap the mic when you're done." so the user knows to tap the mic to have On It process the turn. The recording state was already visually distinct (`.voice-listening` pulse + "Stop and send" aria-label). |
 | hardcoded invoice language (greeting/CTA/"ready to send") | **Done** | Greeting made neutral in `d5f9c9d` ("…I'll take care of the rest.", was "…I'll handle the invoice."). The rest were already kind-aware: send CTA "Looks right — send it" (`chat/page.tsx:1549`, `de407ee`); confirm summary + "…is sent" line via `${kind}` (`chat/page.tsx:1020`, `confirmSummary`); preview card title (`chat/page.tsx:1540`); download message names no kind (`chat/page.tsx:1098`). |
 
 ## Infra
