@@ -1630,7 +1630,7 @@ export default function Chat() {
         {recording && (
           // Static "Listening" label doubles as the reduced-motion fallback
           // for the mic pulse (§ voice spec).
-          <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening…</div>
+          <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening… tap the mic when you&rsquo;re done.</div>
         )}
 
         {phase === 'preparing' && (
