@@ -9,6 +9,11 @@ export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 export interface LineItem { description: string; qty: number; unit_price: number; }
 export interface ExtractResult {
   intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
+  // True only when the user's message THIS turn explicitly named the document
+  // type. When false, intent was re-derived by the model with no naming cue, so
+  // the client keeps the in-progress draft's intent instead of letting a bare
+  // "send it" flip a quote to an invoice.
+  intent_explicit: boolean;
   client_name: string | null;
   // Contact details, captured only if the user volunteers them. They never gate
   // `ready` and the model never chases them — the client-side confirmation gate
@@ -40,6 +45,7 @@ Rules:
 - First message of a new job: the "reply" FIELD (not your raw output) must begin with exactly "On it!" (no emoji, ever), then ask for ONE missing thing at a time. "On it!" goes INSIDE the JSON reply string — never as leading text before the JSON.
 - Never use emojis anywhere in your replies.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
+- intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
 - If the user says a total price for the whole job, make it one line item.
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
 - Line item descriptions: rephrase what the user said into clean, professional wording — strip filler ("um", "like", "a buncha") and possessives ("his front door" -> "front door"), and write it as a short noun phrase ("fixed the leaky faucet upstairs" -> "Repaired leaking faucet, upstairs"). Rephrasing is ALL you may do. "Never invent" applies in full here: do NOT add materials, tools, measurements, extra scope, or a second service the user did not state, and do NOT sharpen a vague description into a specific one ("cleaned up the yard a bit" -> "Yard cleanup", never "Comprehensive debris removal"; "unclogged the toilet" -> "Unclogged toilet", never adding an inspection).
@@ -76,7 +82,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -120,6 +126,7 @@ Schema: {"intent":"invoice|quote|expense|question|other","client_name":string|nu
 function clarifyFallback(): ExtractResult {
   return {
     intent: 'question',
+    intent_explicit: false,
     client_name: null,
     client_address: null,
     client_phone: null,

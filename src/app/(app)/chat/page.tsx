@@ -608,7 +608,15 @@ export default function Chat() {
         originalDescriptionsRef.current = Array.isArray(data.line_items)
           ? (data.line_items as LineItem[]).map((li) => li.description)
           : [];
-        setDraft(data);
+        // Intent is re-emitted fresh on every parse. When the user did NOT name
+        // the document type this turn (intent_explicit false), keep the
+        // in-progress draft's intent so a bare "send it" or "just make it"
+        // can't silently flip a quote into an invoice.
+        setDraft((prev) =>
+          data.intent_explicit === false && prev?.intent
+            ? { ...data, intent: prev.intent }
+            : data
+        );
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
         // A stale row was never sent, so clear the sent flag too.
