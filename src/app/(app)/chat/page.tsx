@@ -536,7 +536,9 @@ export default function Chat() {
         // Acknowledged for the life of this draft: subsequent parses send
         // dupAcked=true so the server stops re-detecting the same duplicate.
         setDupAcked(true);
-        await finalize(true); // internal: we already hold the turn, skip its guard
+        // "Yes, make it anyway" IS the explicit go-ahead — bypass the confirm
+        // summary gate so finalize actually creates instead of re-asking (Break B).
+        await finalize(true, undefined, 'send', true);
         return null;
       }
       if (isNegative(trimmed)) {
@@ -816,7 +818,11 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send') {
+  // `alreadyConfirmed` is true only when the caller already holds an explicit
+  // go-ahead for THIS create and the confirm summary would be redundant — the
+  // affirmative answer to the duplicate warning (Break B). It bypasses the
+  // summary gate below and proceeds straight to the create.
+  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send', alreadyConfirmed = false) {
     if (!internal && phase) return;
     setPhase('building');
     try {
@@ -830,7 +836,7 @@ export default function Chat() {
     // Download mode (Commit 3) is a secondary exit, not a send: skip the
     // send-confirmation gate. It still creates the draft + renders below, then
     // downloads without sharing/marking-sent (see the mode branch after render).
-    if (mode === 'send' && !awaitingConfirm) {
+    if (mode === 'send' && !awaitingConfirm && !alreadyConfirmed) {
       setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
