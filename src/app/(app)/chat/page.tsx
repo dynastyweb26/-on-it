@@ -253,10 +253,11 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
-  // Server-honored acknowledgment (Break A): true once the user has affirmatively
-  // answered the duplicate warning for THIS draft. Sent to /api/parse for the
-  // life of the draft so the server stops re-running the duplicate query on every
-  // subsequent ready parse — the fix for the warning re-firing turn after turn.
+  // Server-honored acknowledgment (Break A): true once the duplicate warning has
+  // been displayed for THIS draft. Sent to /api/parse for the life of the draft
+  // so the server stops re-running the duplicate query on every subsequent ready
+  // parse — the fix for the warning re-firing turn after turn, including when the
+  // user ignores the prompt and keeps going.
   // Persisted with the rest of the draft state so it survives an app switch.
   const [dupAcked, setDupAcked] = useState(false);
   // Confirmation gate: after the first finalize attempt we show a summary and
@@ -533,9 +534,6 @@ export default function Chat() {
     if (pending) {
       if (isAffirmative(trimmed)) {
         setPending(null);
-        // Acknowledged for the life of this draft: subsequent parses send
-        // dupAcked=true so the server stops re-detecting the same duplicate.
-        setDupAcked(true);
         // "Yes, make it anyway" IS the explicit go-ahead — bypass the confirm
         // summary gate so finalize actually creates instead of re-asking (Break B).
         await finalize(true, undefined, 'send', true);
@@ -663,6 +661,11 @@ export default function Chat() {
           ? (data.line_items as LineItem[]).reduce((s, li) => s + li.qty * li.unit_price, 0)
           : 0;
         setPending({ type: 'create_invoice', client: data.client_name ?? null, amount, forceCreate: true });
+        // Warn once per draft: acknowledge at DISPLAY time, not answer time, so
+        // subsequent parses send dupAcked=true and the server stops re-detecting
+        // — even when the user ignores the prompt and just continues ("Send",
+        // "Just make it") instead of answering it.
+        setDupAcked(true);
       }
 
       // Expenses used to insert silently here, with the user never seeing what
