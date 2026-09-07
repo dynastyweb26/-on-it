@@ -848,6 +848,11 @@ export default function Chat() {
   // summary gate below and proceeds straight to the create.
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send', alreadyConfirmed = false) {
     if (!internal && phase) return;
+    // A direct card tap (not delegated from a send()) is its own user action:
+    // mint a fresh turn id so this finalize and finishFinalize trace under their
+    // own id instead of inheriting the previous send()'s turn. An internal call
+    // already carries the id from the send() that delegated here.
+    if (!internal) turnIdRef.current = newTurnId();
     setPhase('building');
     try {
     if (!draft) return;
