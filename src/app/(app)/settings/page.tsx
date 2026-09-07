@@ -122,6 +122,16 @@ export default function Settings() {
     const settle = () => { settled = true; clearTimeout(stuckTimer); };
     (async () => {
       try {
+        // Fast local gate FIRST: getSession() reads the persisted session from
+        // storage with no network round-trip (unlike getUser() below), so a
+        // genuinely signed-out user is sent to /login immediately and the
+        // redirect can never be blocked by a slow or stalled auth call — the
+        // documented getUser() hang no longer leaves a signed-out user sitting
+        // on "Loading…". Mirrors chat's getSession-before-getUser convention.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!active) return;
+        if (!session) { settle(); setRedirecting(true); router.replace('/login'); return; }
+
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
         // must land on login, never sit on "Loading…". getUser() can reject on
         // a token-refresh/network failure, so the whole check is guarded — any
