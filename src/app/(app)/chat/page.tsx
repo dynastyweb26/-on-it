@@ -18,6 +18,7 @@ import { defaultDueDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
+import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
@@ -319,6 +320,10 @@ export default function Chat() {
   // updatedAt of the payload we last wrote/applied, so a visibilitychange
   // restore is a no-op when nothing actually changed while we were hidden.
   const appliedUpdatedAtRef = useRef<number>(0);
+  // Current turn's trace id (one per user message), held in a ref so finalize()
+  // and finishFinalize() log under the same id as the send() that started the
+  // turn. See src/lib/trace.ts — silent unless NEXT_PUBLIC_TRACE === 'true'.
+  const turnIdRef = useRef<string>('');
 
   // Apply a restored conversation into state. Shared by the mount restore and
   // the visibilitychange restore. Only ever called with a payload that already
@@ -513,6 +518,13 @@ export default function Chat() {
     // left set. Cleared in the one outer finally below (unless 'redirecting').
     if (!trimmed || phase) return null;
     setPhase('thinking');
+    // One turn_id per user message; finalize()/finishFinalize() read it from the
+    // ref so all four trace points share it. Point 1: the user message — a
+    // length/shape summary by default (the raw text holds client PII; it is
+    // logged only under NEXT_PUBLIC_TRACE_VERBOSE, via redactText).
+    const turnId = newTurnId();
+    turnIdRef.current = turnId;
+    traceTurn(turnId, 'input', { source, retry: Boolean(retryId), namesDocType: namesDocType(trimmed), ...redactText(trimmed) });
     try {
     // On a retry we don't re-echo the user's text (it's already in the
     // transcript) and we build the parse history WITHOUT the failed bubble; the
@@ -578,6 +590,14 @@ export default function Chat() {
         setTimeout(() => router.push('/login'), 1600);
         return null;
       }
+      // Point 2: the parsed result.
+      traceTurn(turnId, 'parsed', {
+        intent: data.intent ?? null,
+        intent_explicit: data.intent_explicit ?? null,
+        ready: Boolean(data.ready),
+        // The warning text names the client — presence only by default.
+        duplicateWarning: redactPresence(data.duplicateWarning),
+      });
       const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
       setMessages((m) => emitResult(m, aMsg(reply), retryId));
       // Text renders first (above); speech is additive and follows the input
@@ -788,6 +808,9 @@ export default function Chat() {
   // reset to a clean slate. Used by a normal finalize and by an idempotent
   // resume that finds the invoice already sent.
   function finishFinalize(doneMsg: Msg, retryId?: string) {
+    // Point 4: the final confirmation string — summarized like the input, since
+    // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
+    traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
     // On a finalize retry the done message replaces the failed bubble in place,
     // so neither the transcript nor the archived history keeps a dead error.
     const archived = emitResult(messages, doneMsg, retryId);
@@ -950,6 +973,12 @@ export default function Chat() {
           // below. This is the durable guarantee a client-only guard can't give.
           finalize_key: convoId || null,
         }).select('id, invoice_number').single();
+
+        // Point 3: the Supabase insert result — row id, or the error code.
+        traceTurn(turnIdRef.current, 'finalize', {
+          insertId: saved?.id ?? null,
+          error: insErr ? (insErr.code ?? insErr.message ?? String(insErr)) : null,
+        });
 
         let newId: string;
         let newNo: number;
