@@ -261,6 +261,11 @@ export default function Chat() {
   // user ignores the prompt and keeps going.
   // Persisted with the rest of the draft state so it survives an app switch.
   const [dupAcked, setDupAcked] = useState(false);
+  // Passive duplicate indicator: the server flagged a similar recent invoice
+  // (duplicateWarning). Rendered as a badge on the invoice card, not a blocking
+  // prompt — the card stays fully actionable, no confirmation required. Set from
+  // the parse result on every turn, so it self-clears when the match goes away.
+  const [duplicateHint, setDuplicateHint] = useState(false);
   // Confirmation gate: after the first finalize attempt we show a summary and
   // wait for an explicit go-ahead. `prefilled` tracks which contact fields came
   // from the saved client record (vs. spoken this turn) so the summary can flag
@@ -598,7 +603,9 @@ export default function Chat() {
         // The warning text names the client — presence only by default.
         duplicateWarning: redactPresence(data.duplicateWarning),
       });
-      const reply: string = data.duplicateWarning ?? data.reply ?? 'Say that again?';
+      // The duplicate warning is now a passive card badge (see duplicateHint),
+      // not a spoken/blocking reply — so the reply is always the normal one.
+      const reply: string = data.reply ?? 'Say that again?';
       setMessages((m) => emitResult(m, aMsg(reply), retryId));
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
@@ -606,7 +613,9 @@ export default function Chat() {
         cancelSpeechRef.current?.();
         cancelSpeechRef.current = speak(reply);
       }
-      const isReady = Boolean(data.ready) && !data.duplicateWarning && data.intent !== 'expense';
+      // A duplicate no longer forces the card closed — it shows, ready and
+      // actionable, with a passive badge (duplicateHint) instead of a prompt.
+      const isReady = Boolean(data.ready) && data.intent !== 'expense';
       if (data.intent) {
         // The AI's own output for contact, BEFORE we enrich — it's either what
         // the user spoke this turn or a value carried through the draft.
@@ -672,20 +681,9 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
-      }
-
-      // A duplicate was flagged — remember the pending create so the next
-      // affirmative resolves it instead of re-parsing into the same warning.
-      if (data.duplicateWarning) {
-        const amount = Array.isArray(data.line_items)
-          ? (data.line_items as LineItem[]).reduce((s, li) => s + li.qty * li.unit_price, 0)
-          : 0;
-        setPending({ type: 'create_invoice', client: data.client_name ?? null, amount, forceCreate: true });
-        // Warn once per draft: acknowledge at DISPLAY time, not answer time, so
-        // subsequent parses send dupAcked=true and the server stops re-detecting
-        // — even when the user ignores the prompt and just continues ("Send",
-        // "Just make it") instead of answering it.
-        setDupAcked(true);
+        // Reflect the server's duplicate signal as a passive card badge. Set on
+        // every parse (self-clearing), never a blocking prompt.
+        setDuplicateHint(Boolean(data.duplicateWarning));
       }
 
       // Expenses used to insert silently here, with the user never seeing what
@@ -1568,6 +1566,13 @@ export default function Chat() {
               <Icon name="description" size={18} />
               {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
+            {duplicateHint && (
+              // Passive indicator only — the card stays fully actionable below.
+              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
+                <Icon name="error" size={16} filled />
+                Similar invoice sent recently
+              </div>
+            )}
             <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
             <div className="mt-2 flex items-end justify-between border-t border-outline-variant pt-3">
               <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
