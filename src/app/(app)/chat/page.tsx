@@ -1711,7 +1711,7 @@ export default function Chat() {
           </button>
           <textarea
             className="input max-h-32 flex-1 resize-none py-3.5"
-            placeholder={recording ? 'Listening…' : 'Or type it…'}
+            placeholder="Or type it…"
             value={input}
             rows={1}
             onChange={(e) => setInput(e.target.value)}
