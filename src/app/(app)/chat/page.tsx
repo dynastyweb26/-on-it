@@ -83,7 +83,7 @@ const STORE_VERSION = 4;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
-const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll handle the invoice.");
+const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll take care of the rest.");
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
