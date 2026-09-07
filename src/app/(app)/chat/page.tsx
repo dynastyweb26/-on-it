@@ -143,6 +143,9 @@ interface StoredChat {
   draft: Partial<ExtractResult> | null;
   ready: boolean;
   pending?: PendingAction | null;
+  // Duplicate-warning acknowledgment for the current draft (Break A). Persisted
+  // so an app switch mid-flow doesn't reset it and re-trigger the warning.
+  dupAcked?: boolean;
   // The invoice row already inserted this session but not yet marked sent (id +
   // number). Persisted so a send that resumes after a suspend/reload reuses this
   // row instead of inserting a second one with a fresh number.
@@ -250,6 +253,12 @@ export default function Chat() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null); // awaiting duplicate confirmation
+  // Server-honored acknowledgment (Break A): true once the user has affirmatively
+  // answered the duplicate warning for THIS draft. Sent to /api/parse for the
+  // life of the draft so the server stops re-running the duplicate query on every
+  // subsequent ready parse — the fix for the warning re-firing turn after turn.
+  // Persisted with the rest of the draft state so it survives an app switch.
+  const [dupAcked, setDupAcked] = useState(false);
   // Confirmation gate: after the first finalize attempt we show a summary and
   // wait for an explicit go-ahead. `prefilled` tracks which contact fields came
   // from the saved client record (vs. spoken this turn) so the summary can flag
@@ -318,6 +327,7 @@ export default function Chat() {
     setDraft(stored.draft);
     setReady(Boolean(stored.ready));
     setPending(stored.pending ?? null);
+    setDupAcked(Boolean(stored.dupAcked));
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
@@ -413,7 +423,7 @@ export default function Chat() {
         // fires on its change), so it rides along on the next state-driven write.
         const payload: StoredChat = {
           version: STORE_VERSION,
-          id: convoId, messages, draft, ready, pending,
+          id: convoId, messages, draft, ready, pending, dupAcked,
           pendingInvoice: pendingInvoiceRef.current,
           finalizeSent: finalizeSentRef.current,
           updatedAt: Date.now(),
@@ -422,7 +432,7 @@ export default function Chat() {
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, pending, hydrated, finished, convoId]);
+  }, [messages, draft, ready, pending, dupAcked, hydrated, finished, convoId]);
 
   // Recover a conversation the OS dropped behind an app switch. Two triggers,
   // one shared restore (restoreFromStore):
@@ -473,6 +483,7 @@ export default function Chat() {
       setDraft(null);
       setReady(false);
       setPending(null);
+      setDupAcked(false);
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
       pendingInvoiceRef.current = null;
@@ -522,6 +533,9 @@ export default function Chat() {
     if (pending) {
       if (isAffirmative(trimmed)) {
         setPending(null);
+        // Acknowledged for the life of this draft: subsequent parses send
+        // dupAcked=true so the server stops re-detecting the same duplicate.
+        setDupAcked(true);
         await finalize(true); // internal: we already hold the turn, skip its guard
         return null;
       }
@@ -555,7 +569,7 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1), draft }),
+        body: JSON.stringify({ history: next.slice(1), draft, dupAcked }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -754,7 +768,7 @@ export default function Chat() {
       if (!ns) return;
       const payload: StoredChat = {
         version: STORE_VERSION,
-        id: convoId, messages, draft, ready, pending,
+        id: convoId, messages, draft, ready, pending, dupAcked,
         pendingInvoice: pendingInvoiceRef.current,
         finalizeSent: finalizeSentRef.current,
         updatedAt: Date.now(),
@@ -787,6 +801,7 @@ export default function Chat() {
     setConvoId(genId());
     setDraft(null);
     setReady(false);
+    setDupAcked(false); // draft's life is over — a fresh job re-asks the dup check
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setRenderData(null);
@@ -1454,6 +1469,7 @@ export default function Chat() {
     setDraft(entry.draft);
     setReady(Boolean(entry.ready) && !entry.finalized);
     setPending(null); // confirmation state doesn't carry across conversations
+    setDupAcked(false);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setFinished(entry.finalized); // finalized ones stay read-only until a new message
