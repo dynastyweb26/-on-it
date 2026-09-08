@@ -182,7 +182,7 @@ export default function TaxSummary() {
 
   return (
     <div className="space-y-4 px-4 py-4">
-      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books</h1>
+      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Expense summary</h1>
 
       {/* Period selector — full-width trigger; taps open the two-step sheet. */}
       <button
@@ -256,7 +256,6 @@ export default function TaxSummary() {
                       <div className="font-medium text-on-background">{r.label}</div>
                       <div className="text-xs text-on-surface-variant">
                         {r.count} {r.count === 1 ? 'expense' : 'expenses'}
-                        {r.anyDeductible && <span className="text-paid"> · some marked deductible</span>}
                       </div>
                     </div>
                     <div className="font-display font-bold text-on-background">{money(r.total)}</div>

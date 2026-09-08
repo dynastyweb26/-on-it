@@ -30,7 +30,6 @@ interface ExpenseRow {
   description: string | null;
   spent_on: string;
   receipt_url: string | null;
-  tax_deductible: boolean;
 }
 
 const SIGNED_URL_TTL = 3600;
@@ -50,7 +49,7 @@ export default function Books() {
     // logged on the same day keep a stable, genuinely-newest-first order.
     const { data } = await supabase
       .from('expenses')
-      .select('id, amount, category, vendor, description, spent_on, receipt_url, tax_deductible')
+      .select('id, amount, category, vendor, description, spent_on, receipt_url')
       .is('deleted_at', null)
       .order('spent_on', { ascending: false })
       .order('created_at', { ascending: false })
@@ -72,13 +71,6 @@ export default function Books() {
   }, [supabase]);
 
   useEffect(() => { void load(); }, [load]);
-
-  async function toggleDeductible(id: string, current: boolean) {
-    // Optimistic: the toggle is the whole interaction, so it must feel instant.
-    setRows((r) => r.map((e) => (e.id === id ? { ...e, tax_deductible: !current } : e)));
-    const { error } = await supabase.from('expenses').update({ tax_deductible: !current }).eq('id', id);
-    if (error) setRows((r) => r.map((e) => (e.id === id ? { ...e, tax_deductible: current } : e)));
-  }
 
   // Same ordering as the invoices list: newest first, then name A→Z. Tier 1 is
   // spent_on (the displayed expense date, matching the invoices list's use of its
@@ -179,14 +171,6 @@ export default function Books() {
 
                     <div className="shrink-0 text-right">
                       <div className="font-display font-bold">{money(Number(e.amount))}</div>
-                      <button
-                        className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
-                        aria-pressed={e.tax_deductible}
-                        onClick={() => toggleDeductible(e.id, e.tax_deductible)}
-                      >
-                        {e.tax_deductible && <Icon name="check_circle" size={14} />}
-                        {e.tax_deductible ? 'deductible' : 'not deductible'}
-                      </button>
                     </div>
                   </div>
                 </SwipeableRow>
