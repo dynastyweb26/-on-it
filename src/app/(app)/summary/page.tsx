@@ -1,12 +1,12 @@
 'use client';
-// ═══ Tax summary ═══ A record of logged expenses by category, for a period.
-// In-app view follows the Warm Premium standard; the PDF export is a separate
-// white/black document (summary-template.tsx).
+// ═══ Books summary ═══ Money in (cash basis), money out, what's kept, and what
+// is still owed — for a chosen period. In-app view follows the Warm Premium
+// standard; the PDF export is a separate white/black document (summary-template).
 //
 // Period selection is a granularity (week/month/quarter/year) plus a specific
-// bucket, chosen through a two-step sheet. Every expense is fetched once and
-// filtered client-side, so switching periods is instant and the period list can
-// be data-driven — only buckets that actually hold records are offered.
+// bucket, chosen through a two-step sheet. Expenses and invoices are each
+// fetched once and filtered client-side, so switching periods is instant and
+// the period list is data-driven — only buckets that hold records are offered.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -14,7 +14,8 @@ import { createClient } from '@/lib/supabase/client';
 import { accentForWhite } from '@/lib/colors';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
-  type Granularity, type Period, type ExpenseLite,
+  summarizeIncome, invoiceRecordDate,
+  type Granularity, type Period, type ExpenseLite, type InvoiceLite,
 } from '@/lib/tax-summary';
 import { elementToPdf, summaryFilename, shareInvoice } from '@/lib/pdf/generate';
 import { ExpenseSummaryTemplate, DISCLAIMER, type ExpenseSummaryData } from '@/lib/pdf/summary-template';
@@ -41,6 +42,7 @@ export default function TaxSummary() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [expenses, setExpenses] = useState<ExpenseLite[] | null>(null); // null = loading
+  const [invoices, setInvoices] = useState<InvoiceLite[] | null>(null);
   const [selected, setSelected] = useState<Period | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportData, setExportData] = useState<ExpenseSummaryData | null>(null);
@@ -75,25 +77,39 @@ export default function TaxSummary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch every expense once; period switching is a client-side filter from here.
+  // Fetch every expense and every money-bearing invoice once; period switching
+  // is a client-side filter from here. Quotes and draft/void invoices are not
+  // money, so the invoice query excludes them.
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from('expenses')
-        .select('amount, category, tax_deductible, spent_on');
-      const rows = (data ?? []) as ExpenseLite[];
-      setExpenses(rows);
-      const dates = rows.map((r) => r.spent_on ?? '').filter(Boolean);
+      const [exp, inv] = await Promise.all([
+        supabase.from('expenses').select('amount, category, tax_deductible, spent_on'),
+        supabase.from('invoices')
+          .select('total, client_name, status, paid_at, created_at')
+          .eq('kind', 'invoice')
+          .in('status', ['paid', 'sent', 'overdue']),
+      ]);
+      const eRows = (exp.data ?? []) as ExpenseLite[];
+      const iRows = (inv.data ?? []) as InvoiceLite[];
+      setExpenses(eRows);
+      setInvoices(iRows);
+      // Data-driven periods span both expenses and income.
+      const recordDates = [
+        ...eRows.map((r) => r.spent_on ?? ''),
+        ...iRows.map(invoiceRecordDate),
+      ].filter(Boolean);
       // Default to the most recent year that has records (the tax-relevant
       // year-to-date view), or all-time when there's nothing yet.
-      setSelected(availablePeriods('year', dates)[0] ?? allPeriod(dates));
+      setSelected(availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const dates = useMemo(() => (expenses ?? []).map((e) => e.spent_on ?? '').filter(Boolean), [expenses]);
+  const dates = useMemo(() => [
+    ...(expenses ?? []).map((e) => e.spent_on ?? ''),
+    ...(invoices ?? []).map(invoiceRecordDate),
+  ].filter(Boolean), [expenses, invoices]);
 
-  // Only the current sheet view's periods, data-driven and most-recent-first.
   const sheetPeriods = useMemo(
     () => (sheetView === 'root' ? [] : availablePeriods(sheetView, dates)),
     [sheetView, dates]
@@ -109,6 +125,16 @@ export default function TaxSummary() {
     () => summarize((expenses ?? []).filter(inPeriod)),
     [expenses, inPeriod]
   );
+
+  const income = useMemo(
+    () => (selected
+      ? summarizeIncome(invoices ?? [], selected)
+      : { broughtIn: 0, stillOwed: 0, byClient: [] as { client: string; count: number; total: number }[] }),
+    [invoices, selected]
+  );
+
+  const kept = income.broughtIn - summary.total;
+  const hasData = summary.count > 0 || income.broughtIn > 0 || income.stillOwed > 0;
 
   // Sheet: body scroll lock + Escape to dismiss (matches PaywallModal).
   useEffect(() => {
@@ -150,11 +176,11 @@ export default function TaxSummary() {
     }
   }
 
-  const loading = expenses === null || selected === null;
+  const loading = expenses === null || invoices === null || selected === null;
 
   return (
     <div className="space-y-4 px-4 py-4">
-      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Expense summary</h1>
+      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books</h1>
 
       {/* Period selector — full-width trigger; taps open the two-step sheet. */}
       <button
@@ -169,7 +195,7 @@ export default function TaxSummary() {
 
       {loading ? (
         <p className="mt-16 text-center text-on-surface-variant">Adding it up…</p>
-      ) : summary.count === 0 ? (
+      ) : !hasData ? (
         // Empty state — an invitation, never a $0 table.
         <div className="mt-14 text-center">
           <Icon name="receipt_long" size={44} className="text-primary" />
@@ -183,36 +209,81 @@ export default function TaxSummary() {
         </div>
       ) : (
         <>
-          {/* Total — the hero figure */}
-          <div className="rounded-card bg-inverse-surface p-6 shadow-card-raised">
-            <div className="text-label-lg font-semibold uppercase tracking-widest text-inverse-primary/80">
-              Total spend · {selected.friendlyLabel}
-            </div>
-            <div className="font-display text-numeric-xl tracking-tight text-inverse-primary">
-              {money(summary.total)}
-            </div>
-            <div className="mt-1 text-xs text-inverse-on-surface/60">
-              {summary.count} {summary.count === 1 ? 'expense' : 'expenses'} · {prettyDate(selected.start)} – {prettyDate(selected.end)}
-            </div>
-          </div>
-
-          {/* Category breakdown — sorted desc, zero categories omitted */}
-          <div className="card divide-y divide-outline-variant/40 p-0">
-            {summary.rows.map((r) => (
-              <div key={r.category} className="flex items-center justify-between px-4 py-3">
-                <div className="min-w-0">
-                  <div className="font-medium text-on-background">{r.label}</div>
-                  <div className="text-xs text-on-surface-variant">
-                    {r.count} {r.count === 1 ? 'expense' : 'expenses'}
-                    {r.anyDeductible && <span className="text-paid"> · some marked deductible</span>}
-                  </div>
-                </div>
-                <div className="font-display font-bold text-on-background">{money(r.total)}</div>
+          {/* Hero — four figures. Kept (income minus expenses) leads; Brought in
+              and Spent compose it; Still owed is set apart and never in the net. */}
+          <div className="space-y-4 rounded-card bg-inverse-surface p-6 shadow-card-raised">
+            <div>
+              <div className="text-label-lg font-semibold uppercase tracking-widest text-inverse-primary/80">
+                Kept · {selected.friendlyLabel}
               </div>
-            ))}
+              <div className="font-display text-numeric-xl tracking-tight text-inverse-primary">{money(kept)}</div>
+              <div className="mt-1 text-xs text-inverse-on-surface/60">
+                {summary.count} {summary.count === 1 ? 'expense' : 'expenses'} · {prettyDate(selected.start)} – {prettyDate(selected.end)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t border-inverse-on-surface/15 pt-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-inverse-on-surface/60">Brought in</div>
+                <div className="font-display text-xl font-bold text-inverse-on-surface">{money(income.broughtIn)}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-inverse-on-surface/60">Spent</div>
+                <div className="font-display text-xl font-bold text-inverse-on-surface">{money(summary.total)}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-inverse-on-surface/15 pt-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-inverse-on-surface/60">Still owed</div>
+                <div className="text-[11px] text-inverse-on-surface/40">Not counted in kept</div>
+              </div>
+              <div className="font-display text-xl font-bold text-inverse-primary/90">{money(income.stillOwed)}</div>
+            </div>
           </div>
 
-          <button className="btn-primary w-full" disabled={exporting} onClick={exportPdf}>
+          {/* Breakdown — stacked blocks, each with its own heading. Rendered only
+              when it has rows, so a period with just one side shows just that. */}
+          {summary.rows.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Expenses by category</h2>
+              <div className="card divide-y divide-outline-variant/40 p-0">
+                {summary.rows.map((r) => (
+                  <div key={r.category} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-on-background">{r.label}</div>
+                      <div className="text-xs text-on-surface-variant">
+                        {r.count} {r.count === 1 ? 'expense' : 'expenses'}
+                        {r.anyDeductible && <span className="text-paid"> · some marked deductible</span>}
+                      </div>
+                    </div>
+                    <div className="font-display font-bold text-on-background">{money(r.total)}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {income.byClient.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Income by client</h2>
+              <div className="card divide-y divide-outline-variant/40 p-0">
+                {income.byClient.map((c) => (
+                  <div key={c.client} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-on-background">{c.client}</div>
+                      <div className="text-xs text-on-surface-variant">
+                        {c.count} {c.count === 1 ? 'invoice paid' : 'invoices paid'}
+                      </div>
+                    </div>
+                    <div className="font-display font-bold text-on-background">{money(c.total)}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <button className="btn-primary w-full" disabled={exporting || summary.count === 0} onClick={exportPdf}>
             <Icon name="download" size={20} /> {exporting ? 'Building your PDF…' : 'Export PDF'}
           </button>
 
