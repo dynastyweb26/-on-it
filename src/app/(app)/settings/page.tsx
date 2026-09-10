@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
@@ -342,7 +343,7 @@ export default function Settings() {
       </div>
     </div>
   );
-  if (!p) return <p className="p-6 text-on-surface-variant">Loading…</p>;
+  if (!p) return <SettingsSkeleton />;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
   return (
