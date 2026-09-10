@@ -44,6 +44,7 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .eq('kind', 'invoice');
   const invoiceCount = count ?? 0;
 

@@ -6,8 +6,17 @@ import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import TutorialReference from '@/components/tutorial/TutorialReference';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
+import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import { createClient } from '@/lib/supabase/client';
+
+function getParentRoute(path: string): string | null {
+  if (path.startsWith('/invoices/') && path !== '/invoices') return '/invoices';
+  if (path === '/expenses') return '/dashboard';
+  if (path === '/summary') return '/dashboard';
+  if (path === '/vault') return '/settings';
+  return null;
+}
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
@@ -19,14 +28,32 @@ const TABS = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-const SWIPE_THRESHOLD = 60; // px of horizontal travel to switch tabs
+const SWIPE_THRESHOLD = 100; // raised from 60px of horizontal travel to switch tabs
+const MIN_VELOCITY = 0.35; // min px/ms velocity required so short slow flicks don't change tabs
+
+function isInsideHorizontalScrollable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  let current: HTMLElement | null = target;
+  while (current && current !== document.body) {
+    if (current.getAttribute('data-no-tab-swipe') === 'true') {
+      return true;
+    }
+    const style = window.getComputedStyle(current);
+    const overflowX = style.overflowX;
+    if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   // Instagram-style horizontal swipe between tabs. Touch only; vertical
   // scrolling always wins once the gesture is more vertical than horizontal.
-  const touch = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
+  const touch = useRef<{ x: number; y: number; time: number; vertical: boolean; ignored: boolean } | null>(null);
   // Two independent surfaces (do not merge — see closeReference):
   //   showFirstRun  — the gated 4-slide first-run carousel (auto-show once).
   //   showReference — the always-available "How On It works" reference doc.
@@ -82,36 +109,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
-    touch.current = { x: t.clientX, y: t.clientY, vertical: false };
+    const ignored = isInsideHorizontalScrollable(e.target);
+    touch.current = { x: t.clientX, y: t.clientY, time: Date.now(), vertical: false, ignored };
   }
   function onTouchMove(e: React.TouchEvent) {
     const s = touch.current;
-    if (!s || s.vertical) return;
+    if (!s || s.ignored || s.vertical) return;
     const t = e.touches[0];
-    if (Math.abs(t.clientY - s.y) > Math.abs(t.clientX - s.x) && Math.abs(t.clientY - s.y) > 10) {
+    const dx = Math.abs(t.clientX - s.x);
+    const dy = Math.abs(t.clientY - s.y);
+    if (dy >= dx || (dy > 10 && dy > dx)) {
       s.vertical = true; // scroll gesture — never hijack it
     }
   }
   function onTouchEnd(e: React.TouchEvent) {
     const s = touch.current;
     touch.current = null;
-    if (!s || s.vertical) return;
+    if (!s || s.ignored || s.vertical) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - s.x;
     const dy = t.clientY - s.y;
-    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
+    const dt = Math.max(1, Date.now() - s.time);
+    const velocity = Math.abs(dx) / dt;
+
+    if (Math.abs(dx) < SWIPE_THRESHOLD || velocity < MIN_VELOCITY || Math.abs(dx) <= Math.abs(dy)) return;
     const current = TABS.findIndex(({ href }) => path.startsWith(href));
     if (current === -1) return;
     const next = current + (dx < 0 ? 1 : -1);
     if (next >= 0 && next < TABS.length) router.push(TABS[next].href);
   }
 
+  const parentRoute = getParentRoute(path);
+
   return (
     <div className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-        <span className="font-display text-xl font-extrabold">
-          On It<span className="text-primary">.</span>
-        </span>
+        <div className="flex items-center gap-1">
+          {parentRoute && <BackButton parentHref={parentRoute} />}
+          <span className="font-display text-xl font-extrabold">
+            On It<span className="text-primary">.</span>
+          </span>
+        </div>
         <div className="flex items-center gap-1">
           {path.startsWith('/chat') && (
             <>

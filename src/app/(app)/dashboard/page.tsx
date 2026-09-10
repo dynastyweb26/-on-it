@@ -38,8 +38,8 @@ export default function Dashboard() {
 
   async function loadStats() {
     const [{ data: invs }, { data: exps }] = await Promise.all([
-      supabase.from('invoices').select('total, status, kind').eq('kind', 'invoice'),
-      supabase.from('expenses').select('amount, tax_deductible, spent_on'),
+      supabase.from('invoices').select('total, status, kind').eq('kind', 'invoice').is('deleted_at', null),
+      supabase.from('expenses').select('amount, tax_deductible, spent_on').is('deleted_at', null),
     ]);
     const paid = (invs ?? []).filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0);
     const outstanding = (invs ?? []).filter((i) => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0);

@@ -83,9 +83,10 @@ export default function TaxSummary() {
   useEffect(() => {
     (async () => {
       const [exp, inv] = await Promise.all([
-        supabase.from('expenses').select('amount, category, tax_deductible, spent_on'),
+        supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
         supabase.from('invoices')
           .select('total, client_name, status, paid_at, created_at')
+          .is('deleted_at', null)
           .eq('kind', 'invoice')
           .in('status', ['paid', 'sent', 'overdue']),
       ]);

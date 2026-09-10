@@ -6,6 +6,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import ExpensesSkeleton from '@/components/ExpensesSkeleton';
+import SwipeableRow from '@/components/SwipeableRow';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import UndoToast from '@/components/UndoToast';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
@@ -37,6 +40,9 @@ export default function Books() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({}); // storage path → signed URL
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ExpenseRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<ExpenseRow | null>(null);
 
   const load = useCallback(async () => {
     // spent_on is the user-facing date; created_at breaks ties so two expenses
@@ -44,6 +50,7 @@ export default function Books() {
     const { data } = await supabase
       .from('expenses')
       .select('id, amount, category, vendor, description, spent_on, receipt_url, tax_deductible')
+      .is('deleted_at', null)
       .order('spent_on', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(200);
@@ -82,6 +89,43 @@ export default function Books() {
     b.spent_on.localeCompare(a.spent_on) ||           // Tier 1: newest → oldest
     label(a).localeCompare(label(b)));                // Tier 2: vendor → description A→Z
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const target = deleteTarget;
+    const now = new Date().toISOString();
+    setRows((r) => r.filter((e) => e.id !== target.id));
+    setDeleteTarget(null);
+
+    const { error } = await supabase
+      .from('expenses')
+      .update({ deleted_at: now })
+      .eq('id', target.id);
+
+    setDeleting(false);
+    if (error) {
+      setRows((r) => [...r, target]);
+    } else {
+      setUndoTarget(target);
+    }
+  }
+
+  async function handleUndo() {
+    if (!undoTarget) return;
+    const target = undoTarget;
+    setUndoTarget(null);
+    setRows((r) => [...r, target]);
+
+    const { error } = await supabase
+      .from('expenses')
+      .update({ deleted_at: null })
+      .eq('id', target.id);
+
+    if (error) {
+      setRows((r) => r.filter((e) => e.id !== target.id));
+    }
+  }
+
   return (
     <div className="px-4 py-4">
       {loading ? (
@@ -104,49 +148,68 @@ export default function Books() {
               const label = e.vendor || e.description || 'Expense';
               const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
               return (
-                <div key={e.id} className="card flex items-center gap-3">
-                  {thumb ? (
-                    <button
-                      aria-label={`View the receipt from ${label}`}
-                      onClick={() => setLightbox(thumb)}
-                      className="shrink-0 transition active:scale-95"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={thumb}
-                        alt=""
-                        className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
-                      />
-                    </button>
-                  ) : (
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
-                      <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
-                    </span>
-                  )}
+                <SwipeableRow key={e.id} onDelete={() => setDeleteTarget(e)}>
+                  <div className="card flex items-center gap-3">
+                    {thumb ? (
+                      <button
+                        aria-label={`View the receipt from ${label}`}
+                        onClick={() => setLightbox(thumb)}
+                        className="shrink-0 transition active:scale-95"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumb}
+                          alt=""
+                          className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
+                        />
+                      </button>
+                    ) : (
+                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
+                        <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
+                      </span>
+                    )}
 
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{label}</div>
-                    <div className="text-xs text-on-surface-variant">
-                      {category} · {localDate(e.spent_on).toLocaleDateString()}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{label}</div>
+                      <div className="text-xs text-on-surface-variant">
+                        {category} · {localDate(e.spent_on).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <div className="font-display font-bold">{money(Number(e.amount))}</div>
+                      <button
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
+                        aria-pressed={e.tax_deductible}
+                        onClick={() => toggleDeductible(e.id, e.tax_deductible)}
+                      >
+                        {e.tax_deductible && <Icon name="check_circle" size={14} />}
+                        {e.tax_deductible ? 'deductible' : 'not deductible'}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="shrink-0 text-right">
-                    <div className="font-display font-bold">{money(Number(e.amount))}</div>
-                    <button
-                      className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
-                      aria-pressed={e.tax_deductible}
-                      onClick={() => toggleDeductible(e.id, e.tax_deductible)}
-                    >
-                      {e.tax_deductible && <Icon name="check_circle" size={14} />}
-                      {e.tax_deductible ? 'deductible' : 'not deductible'}
-                    </button>
-                  </div>
-                </div>
+                </SwipeableRow>
               );
             })}
           </div>
         </>
+      )}
+
+      <DeleteConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title={deleteTarget ? `${deleteTarget.vendor || deleteTarget.description || 'Expense'} ($${deleteTarget.amount})` : ''}
+        recordType="expense"
+        busy={deleting}
+      />
+
+      {undoTarget && (
+        <UndoToast
+          message="Expense deleted."
+          onUndo={handleUndo}
+          onDismiss={() => setUndoTarget(null)}
+        />
       )}
 
       {lightbox && (

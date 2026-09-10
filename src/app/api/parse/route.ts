@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
         .from('invoices')
         .select('id, invoice_number, total, client_name')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .ilike('client_name', result.client_name ?? '')
         .eq('total', total)
         .gte('created_at', new Date(Date.now() - 48 * 3600e3).toISOString());
