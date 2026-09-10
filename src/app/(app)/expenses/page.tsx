@@ -5,6 +5,7 @@
 // request per row.
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
+import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
@@ -83,66 +84,70 @@ export default function Books() {
 
   return (
     <div className="px-4 py-4">
-      {loading && <p className="mt-16 text-center text-on-surface-variant">Loading your books…</p>}
-
-      {!loading && rows.length === 0 && (
-        <div className="mt-16 text-center">
-          <Icon name="receipt_long" size={40} className="text-primary" />
-          <p className="mt-2 text-body-md text-on-surface-variant">
-            Snap a receipt in Chat, or just say &ldquo;spent 45 on gas at Shell.&rdquo;
-            <br />I&apos;ll file it here.
-          </p>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {sorted.map((e) => {
-          const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
-          const label = e.vendor || e.description || 'Expense';
-          const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
-          return (
-            <div key={e.id} className="card flex items-center gap-3">
-              {thumb ? (
-                <button
-                  aria-label={`View the receipt from ${label}`}
-                  onClick={() => setLightbox(thumb)}
-                  className="shrink-0 transition active:scale-95"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={thumb}
-                    alt=""
-                    className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
-                  />
-                </button>
-              ) : (
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
-                  <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
-                </span>
-              )}
-
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{label}</div>
-                <div className="text-xs text-on-surface-variant">
-                  {category} · {localDate(e.spent_on).toLocaleDateString()}
-                </div>
-              </div>
-
-              <div className="shrink-0 text-right">
-                <div className="font-display font-bold">{money(Number(e.amount))}</div>
-                <button
-                  className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
-                  aria-pressed={e.tax_deductible}
-                  onClick={() => toggleDeductible(e.id, e.tax_deductible)}
-                >
-                  {e.tax_deductible && <Icon name="check_circle" size={14} />}
-                  {e.tax_deductible ? 'deductible' : 'not deductible'}
-                </button>
-              </div>
+      {loading ? (
+        <ExpensesSkeleton />
+      ) : (
+        <>
+          {!loading && rows.length === 0 && (
+            <div className="mt-16 text-center">
+              <Icon name="receipt_long" size={40} className="text-primary" />
+              <p className="mt-2 text-body-md text-on-surface-variant">
+                Snap a receipt in Chat, or just say &ldquo;spent 45 on gas at Shell.&rdquo;
+                <br />I&apos;ll file it here.
+              </p>
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          <div className="space-y-2">
+            {sorted.map((e) => {
+              const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
+              const label = e.vendor || e.description || 'Expense';
+              const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
+              return (
+                <div key={e.id} className="card flex items-center gap-3">
+                  {thumb ? (
+                    <button
+                      aria-label={`View the receipt from ${label}`}
+                      onClick={() => setLightbox(thumb)}
+                      className="shrink-0 transition active:scale-95"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
+                      />
+                    </button>
+                  ) : (
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
+                      <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
+                    </span>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{label}</div>
+                    <div className="text-xs text-on-surface-variant">
+                      {category} · {localDate(e.spent_on).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <div className="font-display font-bold">{money(Number(e.amount))}</div>
+                    <button
+                      className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase ${e.tax_deductible ? 'text-paid' : 'text-on-surface-variant/60'}`}
+                      aria-pressed={e.tax_deductible}
+                      onClick={() => toggleDeductible(e.id, e.tax_deductible)}
+                    >
+                      {e.tax_deductible && <Icon name="check_circle" size={14} />}
+                      {e.tax_deductible ? 'deductible' : 'not deductible'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {lightbox && (
         <div

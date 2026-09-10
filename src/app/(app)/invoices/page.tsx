@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import InvoicesSkeleton from '@/components/InvoicesSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 
@@ -24,6 +25,7 @@ const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {
 export default function Invoices() {
   const supabase = createClient();
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid' | 'quote'>('all');
 
   useEffect(() => {
@@ -32,7 +34,10 @@ export default function Invoices() {
       .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
       .order('created_at', { ascending: false })
       .limit(200)
-      .then(({ data }) => setRows((data as Row[]) ?? []));
+      .then(({ data }) => {
+        setRows((data as Row[]) ?? []);
+        setLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,45 +74,51 @@ export default function Invoices() {
             onClick={() => setFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
         ))}
       </div>
-      {sorted.length === 0 && (
-        <p className="mt-16 text-center text-on-surface-variant">
-          Nothing here yet. Head to Chat and tell me about a job.
-        </p>
-      )}
-      <div className="space-y-4">
-        {sorted.map((r) => {
-          const converted = isConvertedQuote(r);
-          // A converted quote shows a "converted" chip (only the Quotes tab
-          // surfaces it) instead of its stale draft status.
-          const chip = converted
-            ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
-            : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
-          return (
-            <Link key={r.id} href={`/invoices/${r.id}`}
-              className="card block p-5 transition-transform active:scale-[0.98]">
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
-                  <div className="text-body-md text-on-surface-variant/70">
-                    {formatDocNumber(r.kind, r.invoice_number)}
-                    {' • '}{new Date(r.created_at).toLocaleDateString()}
+      {loading ? (
+        <InvoicesSkeleton />
+      ) : (
+        <>
+          {sorted.length === 0 && (
+            <p className="mt-16 text-center text-on-surface-variant">
+              Nothing here yet. Head to Chat and tell me about a job.
+            </p>
+          )}
+          <div className="space-y-4">
+            {sorted.map((r) => {
+              const converted = isConvertedQuote(r);
+              // A converted quote shows a "converted" chip (only the Quotes tab
+              // surfaces it) instead of its stale draft status.
+              const chip = converted
+                ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
+                : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
+              return (
+                <Link key={r.id} href={`/invoices/${r.id}`}
+                  className="card block p-5 transition-transform active:scale-[0.98]">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
+                      <div className="text-body-md text-on-surface-variant/70">
+                        {formatDocNumber(r.kind, r.invoice_number)}
+                        {' • '}{new Date(r.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span className={`status-chip shrink-0 ${chip.cls}`}>
+                      <Icon name={chip.icon} size={18} />
+                      {converted ? 'converted' : r.status}
+                    </span>
                   </div>
-                </div>
-                <span className={`status-chip shrink-0 ${chip.cls}`}>
-                  <Icon name={chip.icon} size={18} />
-                  {converted ? 'converted' : r.status}
-                </span>
-              </div>
-              <div className="flex items-end justify-between">
-                <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
-                  <Icon name="chevron_right" size={24} />
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                  <div className="flex items-end justify-between">
+                    <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                    <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
+                      <Icon name="chevron_right" size={24} />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

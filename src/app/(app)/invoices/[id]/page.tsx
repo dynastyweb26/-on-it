@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
+import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -78,7 +79,7 @@ export default function InvoiceDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (!inv || !profile) return <p className="p-6 text-on-surface-variant">Loading…</p>;
+  if (!inv || !profile) return <InvoiceDetailSkeleton />;
 
   // Per-ROW snapshot sentinel: a non-null snapshot template means this invoice was
   // finalized WITH the render snapshot, so use the snapshot for ALL ten fields —

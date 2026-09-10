@@ -90,6 +90,26 @@ body { @apply bg-background text-on-background font-body antialiased; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
+/* ---- Skeleton shimmer ---- */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #efe5d5 0%,
+    #dfd3bf 50%,
+    #efe5d5 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s infinite ease-in-out;
+}
+
 /* ---- Voice FAB pulse ---- */
 @keyframes onit-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.45); }
@@ -135,5 +155,9 @@ body { @apply bg-background text-on-background font-body antialiased; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .animate-skeleton-shimmer {
+    animation: none !important;
+    background: #efe5d5 !important;
+  }
   * { animation: none !important; transition: none !important; }
 }
