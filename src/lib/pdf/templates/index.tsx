@@ -46,7 +46,7 @@ export interface InvoiceRenderData {
 }
 
 const money = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // No-logo fallback: when the user has no logo, the business NAME is promoted
 // to display size so the header looks intentional, never missing. Montserrat

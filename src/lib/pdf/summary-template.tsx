@@ -30,7 +30,8 @@ export interface ExpenseSummaryData {
   count: number;
 }
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
 const INK = '#111111';       // black text (non-negotiable)
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
