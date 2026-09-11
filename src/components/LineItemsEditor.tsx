@@ -18,7 +18,8 @@ export interface EditableLineItem {
 
 type Field = 'description' | 'qty' | 'unit_price';
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 // qty: 0..100000, up to 2 decimals (fractional hours are legitimate).
 const clampQty = (n: number) => Math.min(100000, Math.max(0, Math.round(n * 100) / 100));
 // price: 0..10,000,000, snapped to cents.

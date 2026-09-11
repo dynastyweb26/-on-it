@@ -6,115 +6,26 @@ import { EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/expenses';
 
 export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 
-export type UnitBasis = 'unit' | 'area' | 'linear' | 'hour' | 'flat';
-
-export interface LineItem {
-  description: string;
-  spec?: string | null;
-  qty: number;
-  rate?: number;
-  unit_price: number; // legacy alias for rate
-  amount_basis?: 'unit' | 'extended';
-  unit_basis?: UnitBasis;
-  unit_qty?: number | null;
-  section_id?: string | null;
-  section?: string | null;
-  sort_order?: number;
-  original_description?: string | null;
-}
-
-/** Find common leading text prefix among 3 or more line items and hoist to subject */
-export function performSubjectHoisting(items: LineItem[]): { subject: string | null; items: LineItem[] } {
-  if (!items || items.length < 3) return { subject: null, items };
-
-  const cleaned = items.map((i) => (i.description || '').trim());
-  if (cleaned.some((d) => !d)) return { subject: null, items };
-
-  let commonPrefix = cleaned[0];
-
-  for (let i = 1; i < cleaned.length; i++) {
-    while (!cleaned[i].toLowerCase().startsWith(commonPrefix.toLowerCase())) {
-      commonPrefix = commonPrefix.slice(0, -1);
-      if (!commonPrefix) break;
-    }
-  }
-
-  if (commonPrefix.includes(',')) {
-    commonPrefix = commonPrefix.slice(0, commonPrefix.lastIndexOf(',')).trim();
-  } else {
-    commonPrefix = commonPrefix.replace(/[\s,\-·•:]+[^\s,\-·•:]*$/, '').trim();
-  }
-
-  if (commonPrefix.length >= 4) {
-    const updatedItems = items.map((item) => {
-      let desc = item.description.trim();
-      if (desc.toLowerCase().startsWith(commonPrefix.toLowerCase())) {
-        desc = desc.slice(commonPrefix.length).replace(/^[\s,\-·•:]+/, '').trim();
-      }
-      return { ...item, description: desc || commonPrefix };
-    });
-    return { subject: commonPrefix, items: updatedItems };
-  }
-
-  return { subject: null, items };
-}
-
-/** Compute the extended dollar amount for a line item deterministically in code. */
-export function calculateLineAmount(item: {
-  qty: number;
-  rate?: number;
-  unit_price?: number;
-  amount_basis?: 'unit' | 'extended';
-  unit_basis?: UnitBasis;
-  unit_qty?: number | null;
-}): number {
-  const qty = Number(item.qty ?? 0);
-  const unitPrice = Number(item.unit_price ?? item.rate ?? 0);
-  const unitBasis = item.unit_basis ?? 'unit';
-  const unitQty = Number(item.unit_qty ?? 1);
-
-  if (item.amount_basis === 'extended') {
-    return Math.round((item.rate ?? (unitPrice * qty)) * 100) / 100;
-  }
-
-  if (unitBasis === 'area' || unitBasis === 'linear' || unitBasis === 'hour') {
-    return Math.round(qty * (unitQty || 1) * unitPrice * 100) / 100;
-  }
-  return Math.round(qty * unitPrice * 100) / 100;
-}
-
-export type TurnIntent = 'create' | 'amend' | 'query' | 'undo';
-
-export function classifyTurnIntent(input: string, hasDraft: boolean): TurnIntent {
-  const trimmed = input.trim().toLowerCase();
-  if (/^\s*(undo|revert|go back|take that back)\b/i.test(trimmed)) {
-    return 'undo';
-  }
-  if (!hasDraft) {
-    return 'create';
-  }
-  if (/^\s*(what|how much|show|list|tell me|who|when|view|check)\b/i.test(trimmed) && !/\b(change|add|delete|remove|make|update|double|set)\b/i.test(trimmed)) {
-    return 'query';
-  }
-  if (/\b(new invoice|new quote|start over|different job|another customer)\b/i.test(trimmed)) {
-    return 'create';
-  }
-  return 'amend';
-}
-
+export interface LineItem { description: string; qty: number; unit_price: number; }
 export interface ExtractResult {
   intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
+  // True only when the user's message THIS turn explicitly named the document
+  // type. When false, intent was re-derived by the model with no naming cue, so
+  // the client keeps the in-progress draft's intent instead of letting a bare
+  // "send it" flip a quote to an invoice.
   intent_explicit: boolean;
   client_name: string | null;
+  // Contact details, captured only if the user volunteers them. They never gate
+  // `ready` and the model never chases them — the client-side confirmation gate
+  // is what surfaces them when they're missing.
   client_address: string | null;
   client_phone: string | null;
   line_items: LineItem[];
-  subject?: string | null;
-  rate_basis_label?: string | null;
-  terms?: string | null;
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
   notes: string | null;
+  // The same four fields the receipt-vision route returns, so a spoken expense
+  // and a photographed one land on the identical confirmation card.
   expense: {
     amount: number | null;
     category: ExpenseCategory | null;
@@ -134,16 +45,12 @@ Rules:
 - First message of a new job: the "reply" FIELD (not your raw output) must begin with exactly "On it!" (no emoji, ever), then ask for ONE missing thing at a time. "On it!" goes INSIDE the JSON reply string — never as leading text before the JSON.
 - Never use emojis anywhere in your replies.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
-- Line items output schema: every line item MUST include "description" (string, verbatim, no summarizing), "spec" (string or null), "qty" (number), "rate" (number), "amount_basis" ("unit" or "extended"), "unit_basis" ("unit", "area", "linear", "hour", or "flat"), "unit_qty" (number or null), and "section" (string or null).
-- amount_basis: You MUST declare whether the figure in "rate" is per single unit ("unit") or already extended across the quantity ("extended"). Do not omit amount_basis.
 - intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
 - If the user says a total price for the whole job, make it one line item.
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
 - Line item descriptions: rephrase what the user said into clean, professional wording — strip filler ("um", "like", "a buncha") and possessives ("his front door" -> "front door"), and write it as a short noun phrase ("fixed the leaky faucet upstairs" -> "Repaired leaking faucet, upstairs"). Rephrasing is ALL you may do. "Never invent" applies in full here: do NOT add materials, tools, measurements, extra scope, or a second service the user did not state, and do NOT sharpen a vague description into a specific one ("cleaned up the yard a bit" -> "Yard cleanup", never "Comprehensive debris removal"; "unclogged the toilet" -> "Unclogged toilet", never adding an inspection).
 - Capitalization: always sentence case — capitalize the first letter. Capitalize proper nouns correctly even when the user dictated them lowercase: brand names, place and city names, street names, product names ("repaired the gate at 45 maple avenue" -> "Repaired gate, 45 Maple Avenue"; "hauled junk from home depot" keeps "Home Depot").
-- Preserve the specific object and any stated quantity or location that carries information — these are billable specifics ("installed 3 blinds in the master bedroom" stays "Installed 3 blinds in master bedroom", never "Blind installation"; a street, city, or brand is real information, keep it). Identifiers such as W1, W3, Unit 2, Bay 4 are load-bearing and MUST be preserved in description.
-- Never merge distinct lines. Two source rows produce two output rows. If two rows share a description but differ in any field (spec, dimension, qty, rate), keep them as separate line items.
-- But a vague placeholder reference that carries no information ("the new place", "over there", "his spot") may be dropped ("drove her couch across town to the new place" -> "Drove couch across town"). Never invent an address to replace a vague one. Drop personal descriptors about the customer that are not the work ("changed a bulb for the old lady" -> "Replaced light bulb").
+- Preserve the specific object and any stated quantity or location that carries information — these are billable specifics ("installed 3 blinds in the master bedroom" stays "Installed 3 blinds in master bedroom", never "Blind installation"; a street, city, or brand is real information, keep it). But a vague placeholder reference that carries no information ("the new place", "over there", "his spot") may be dropped ("drove her couch across town to the new place" -> "Drove couch across town"). Never invent an address to replace a vague one. Drop personal descriptors about the customer that are not the work ("changed a bulb for the old lady" -> "Replaced light bulb").
 - due_date: fill it ONLY if the user volunteers one ("due in 2 weeks" → compute from today). Otherwise leave it null — the app sets a due date automatically. NEVER ask the user for a due date and never include due_date in "missing".
 - client_address and client_phone: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field.
 
@@ -176,7 +83,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"spec":string|null,"qty":number,"rate":number,"amount_basis":"unit"|"extended","unit_basis":"unit"|"area"|"linear"|"hour"|"flat","unit_qty":number|null,"section":string|null}],"subject":string|null,"rate_basis_label":string|null,"terms":string|null,"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -186,6 +93,12 @@ Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boole
       { role: 'user', content: contextMsg },
       { role: 'assistant', content: 'Understood. Send the conversation.' },
       ...history,
+      // Prefill the reply with '{' so the model CANNOT emit leading prose. The
+      // ambiguous-intent rule tells it to ask a question, and a small model
+      // would sometimes answer that as a bare sentence with no JSON at all
+      // ("Did you pay…") — unrecoverable by any after-the-fact strip. Forcing
+      // the turn to open on '{' makes that structurally impossible; the
+      // question goes inside the reply field where it belongs.
       { role: 'assistant', content: '{' },
     ],
   });
@@ -195,14 +108,22 @@ Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boole
     .map((b) => b.text)
     .join('');
 
+  // Re-prepend the '{' the API stripped, then parse (see json-guard.ts).
   try {
     return parseJsonObject(text, { assistantPrefill: true }) as ExtractResult;
   } catch (e) {
+    // Fail safe. Even prefilled, a small model can occasionally emit something
+    // unparseable — but the user must never see a 500 for an ambiguous phrase.
+    // Return a graceful clarifier as a well-formed result instead of throwing.
     console.error('extract: unparseable model output, using clarify fallback', e);
     return clarifyFallback();
   }
 }
 
+/** A valid ExtractResult that asks the user to say a little more. Used when the
+ *  model's output can't be parsed, so the route returns 200 + a question rather
+ *  than a 500. intent=question / ready=false → chat shows it as a plain reply,
+ *  no preview card, no expense insert. */
 function clarifyFallback(): ExtractResult {
   return {
     intent: 'question',
@@ -211,9 +132,6 @@ function clarifyFallback(): ExtractResult {
     client_address: null,
     client_phone: null,
     line_items: [],
-    subject: null,
-    rate_basis_label: null,
-    terms: null,
     tax_rate: null,
     due_date: null,
     notes: null,

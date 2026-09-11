@@ -13,7 +13,8 @@ import { docNoun, formatDocNumber } from '@/lib/documents';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
