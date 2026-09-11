@@ -64,6 +64,39 @@ export async function POST(req: NextRequest) {
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
+    // Normalize and validate line items
+    let hasInvalidLineItem = false;
+    if (Array.isArray(result.line_items)) {
+      const normalizedItems: { description: string; qty: number; unit_price: number }[] = [];
+
+      for (const rawItem of result.line_items) {
+        const itemObj = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
+        const description = String(itemObj.description ?? '').trim();
+        const qty = Number(itemObj.qty ?? 1);
+        const unit_price = Number(itemObj.unit_price ?? itemObj.rate ?? itemObj.price ?? itemObj.amount);
+
+        if (!Number.isFinite(qty) || !Number.isFinite(unit_price)) {
+          hasInvalidLineItem = true;
+          break;
+        }
+
+        normalizedItems.push({ description, qty, unit_price });
+      }
+
+      if (hasInvalidLineItem) {
+        console.error('Parse line items normalization failed. Raw model line_items:', JSON.stringify(result.line_items));
+        result.ready = false;
+        result.line_items = [];
+        result.reply = "I couldn't quite read the amounts on that job. Could you try rephrasing the prices?";
+      } else {
+        result.line_items = normalizedItems;
+      }
+    }
+
+    if (result.tax_rate != null && !Number.isFinite(Number(result.tax_rate))) {
+      result.tax_rate = null;
+    }
+
     // Duplicate detection: same client + same total in the last 48h
     let duplicateWarning: string | null = null;
     if (user && result.ready && result.intent !== 'expense') {

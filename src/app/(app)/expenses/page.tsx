@@ -9,7 +9,8 @@ import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 /** yyyy-mm-dd read as LOCAL — `new Date('2026-07-12')` is UTC midnight and
  *  renders as the 11th for anyone behind UTC. */

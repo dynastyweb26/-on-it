@@ -20,7 +20,8 @@ import {
 import { elementToPdf, summaryFilename, shareInvoice } from '@/lib/pdf/generate';
 import { ExpenseSummaryTemplate, DISCLAIMER, type ExpenseSummaryData } from '@/lib/pdf/summary-template';
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 /** yyyy-mm-dd → "Jan 1, 2026" (local, no UTC day-shift). */
 function prettyDate(iso: string): string {

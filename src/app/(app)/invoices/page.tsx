@@ -11,7 +11,8 @@ interface Row {
   total: number; status: string; created_at: string; due_date: string | null;
   converted_from: string | null;
 }
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // Status chips (§2): semantic containers, ALWAYS icon + text.
 const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {

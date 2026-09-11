@@ -7,7 +7,8 @@ import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // The old chips (Gas / Materials / Meals / Phone / Insurance) predate the
 // category CHECK and would now be rejected on save. Same eight values as the

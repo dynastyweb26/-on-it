@@ -38,7 +38,8 @@ interface Profile {
   venmo_username: string | null;
 }
 
-const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+const money = (n: number) =>
+  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // The document kind a draft renders as: 'quote' or 'invoice', handled
@@ -680,8 +681,11 @@ export default function Chat() {
     if (!draft || !profile) return null;
     const items = (draft.line_items ?? []) as LineItem[];
     const subtotal = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
+    if (!Number.isFinite(subtotal)) return null;
     const taxRate = draft.tax_rate ?? 0;
     const taxAmount = Math.round(subtotal * taxRate) / 100;
+    const total = subtotal + taxAmount;
+    if (!Number.isFinite(total)) return null;
     return {
       kind: docKind(draft),
       invoiceNumber,
@@ -716,6 +720,9 @@ export default function Chat() {
   function confirmSummary(): string {
     const items = (draft?.line_items ?? []) as LineItem[];
     const total = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
+    if (!Number.isFinite(total)) {
+      return "Something went wrong reading the amounts. Please try rephrasing the prices.";
+    }
     const kind = docKind(draft);
     const who = draft?.client_name ?? 'this client';
     const out: string[] = [`Here's your ${kind} for ${who}: ${money(total)}.`];
@@ -1466,6 +1473,7 @@ export default function Chat() {
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
   const previewTotal = previewItems.reduce((s, li) => s + li.qty * li.unit_price, 0);
+  const isValidTotal = Number.isFinite(previewTotal);
 
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
@@ -1529,14 +1537,19 @@ export default function Chat() {
               <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
               <span className="font-display text-numeric-xl tracking-tight text-on-background">{money(previewTotal)}</span>
             </div>
-            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={() => finalize()}>
+            {!isValidTotal && (
+              <p className="mt-2 text-xs font-semibold text-error">
+                Something went wrong reading the amounts. Try rephrasing the prices.
+              </p>
+            )}
+            <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
               <Icon name="attach_file" size={18} />
               {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
             </button>
             {/* Quiet secondary exit: download the PDF without sending. Saves the
                 draft (sendable later); does not mark sent or archive. */}
             <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
-              disabled={phase !== null}
+              disabled={phase !== null || !isValidTotal}
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} /> Download without sending
             </button>
