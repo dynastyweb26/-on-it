@@ -21,11 +21,32 @@ export function summaryFilename(periodLabel: string, business: string) {
   return `Expense-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
-/** el = the rendered template node (794px wide). */
+/** Wait for every <img> inside the node to finish decoding. html2canvas does not
+ *  wait, so a slow logo (Supabase storage) rasterizes as a blank box. decode()
+ *  rejects on a broken image — we swallow that so one bad logo can't block the
+ *  whole document. */
+async function awaitImages(el: HTMLElement): Promise<void> {
+  const imgs = Array.from(el.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map((img) =>
+      img.complete && img.naturalWidth > 0
+        ? Promise.resolve()
+        : img.decode().catch(() => undefined)
+    )
+  );
+}
+
+/** el = the rendered template node (794px wide).
+ *  PNG, not JPEG: these documents are flat color with fine text, often on a
+ *  near-black background — exactly the case where JPEG rings around every
+ *  glyph. PNG is lossless and compresses flat areas well. scale 3 (not 2)
+ *  captures above the 794px layout width so text edges stay crisp when the
+ *  viewer zooms. */
 export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
+  await awaitImages(el);
+  const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
   const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 794, 1123);
+  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
 
   // Tappable payment links: templates mark elements with data-pdf-link.
   // Positions are measured against the live DOM and normalized to PDF
