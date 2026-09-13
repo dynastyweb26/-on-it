@@ -217,6 +217,11 @@ export default function InvoiceDetail() {
   // description change, records the AI's original wording the first time a line is
   // edited — never overwriting an original already captured from a chat edit,
   // since the first AI output is the training signal.
+  async function applyNotes(notes: string) {
+    setInv({ ...inv, notes });
+    await supabase.from('invoices').update({ notes }).eq('id', id);
+  }
+
   async function applyDeposit(deposit_type: DepositType, deposit_value: number) {
     const totals = calculateInvoiceTotals(
       inv.line_items ?? [],
@@ -352,7 +357,7 @@ export default function InvoiceDetail() {
           </div>
           <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
           {isDraft && (
-            <div className="mt-3 border-t border-outline-variant/30 pt-3">
+            <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
                 <div className="flex items-center gap-1.5">
@@ -384,6 +389,20 @@ export default function InvoiceDetail() {
                     />
                   )}
                 </div>
+              </div>
+              <div>
+                <label htmlFor="notes-input" className="block text-xs font-semibold text-on-surface-variant mb-1">
+                  Notes
+                </label>
+                <textarea
+                  id="notes-input"
+                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
+                  rows={2}
+                  maxLength={400}
+                  placeholder="Deposit due before materials are ordered. 3-5 day lead time."
+                  value={inv.notes ?? ''}
+                  onChange={(e) => void applyNotes(e.target.value)}
+                />
               </div>
             </div>
           )}

@@ -1508,6 +1508,13 @@ export default function Chat() {
     }
   }
 
+  function applyDraftNotes(notes: string) {
+    if (draft) {
+      setDraftHistory((prev) => [...prev.slice(-19), draft]);
+      setDraft({ ...draft, notes } as any);
+    }
+  }
+
   function undoLastEdit() {
     if (draftHistory.length === 0) return;
     const previous = draftHistory[draftHistory.length - 1];
@@ -1566,7 +1573,7 @@ export default function Chat() {
             )}
             <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
 
-            <div className="mt-3 border-t border-outline-variant/30 pt-2.5">
+            <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
                 <div className="flex items-center gap-1.5">
@@ -1598,6 +1605,19 @@ export default function Chat() {
                     />
                   )}
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                  Notes
+                </label>
+                <textarea
+                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
+                  rows={2}
+                  maxLength={400}
+                  placeholder="Deposit due before materials are ordered. 3-5 day lead time."
+                  value={draft.notes ?? ''}
+                  onChange={(e) => applyDraftNotes(e.target.value)}
+                />
               </div>
             </div>
 
