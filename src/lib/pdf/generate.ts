@@ -150,29 +150,76 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   offscreenContainer.style.top = '0px';
   document.body.appendChild(offscreenContainer);
 
-  const computedBg = getComputedStyle(el).backgroundColor || '#FFFFFF';
-  const computedColor = getComputedStyle(el).color || '#000000';
+  const getEffectiveBgAndColor = (node: HTMLElement) => {
+    const child = (node.firstElementChild || node) as HTMLElement;
+
+    let bg = node.style.backgroundColor || node.style.background || child.style.backgroundColor || child.style.background;
+    let color = node.style.color || child.style.color;
+    let fontFamily = node.style.fontFamily || child.style.fontFamily;
+
+    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
+      bg = getComputedStyle(node).backgroundColor;
+      if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
+        bg = getComputedStyle(child).backgroundColor;
+      }
+    }
+
+    if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
+      color = getComputedStyle(node).color;
+      if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
+        color = getComputedStyle(child).color;
+      }
+    }
+
+    if (!fontFamily) {
+      fontFamily = getComputedStyle(node).fontFamily || getComputedStyle(child).fontFamily;
+    }
+
+    const effectiveBg = (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') ? bg : '#FFFFFF';
+    const effectiveColor = (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') ? color : '#000000';
+
+    return { bg: effectiveBg, color: effectiveColor, fontFamily: fontFamily || "'Helvetica Neue', Arial, sans-serif" };
+  };
+
+  const { bg: computedBg, color: computedColor, fontFamily: computedFont } = getEffectiveBgAndColor(el);
+
+  const businessName = el.querySelector('[data-pdf-business-name]')?.textContent?.trim() || '';
+  const docNounStr = el.querySelector('[data-pdf-doc-noun]')?.textContent?.trim() || '';
+  const docNumStr = el.querySelector('[data-pdf-doc-number]')?.textContent?.trim() || '';
+  const docMark = (docNounStr && docNumStr) ? `${docNounStr} ${docNumStr}` : (docNounStr || docNumStr || 'INVOICE');
 
   for (let p = 0; p < totalPages; p++) {
-    const pageNode = document.createElement('div');
-    pageNode.style.width = '794px';
-    pageNode.style.minHeight = '1123px';
-    pageNode.style.height = '1123px';
-    pageNode.style.boxSizing = 'border-box';
-    pageNode.style.position = 'relative';
-    pageNode.style.overflow = 'hidden';
-    pageNode.style.backgroundColor = computedBg;
-    pageNode.style.color = computedColor;
-    pageNode.style.fontFamily = getComputedStyle(el).fontFamily;
-    pageNode.style.padding = p === 0 ? '56px' : '48px 56px';
-
     const range = pageRowRanges[p];
 
     if (p === 0) {
-      // Page 1: Clone el content
+      // Page 1: Clone el content cleanly at full 794x1123 size
+      const pageNode = document.createElement('div');
+      pageNode.style.width = '794px';
+      pageNode.style.height = '1123px';
+      pageNode.style.boxSizing = 'border-box';
+      pageNode.style.position = 'relative';
+      pageNode.style.overflow = 'hidden';
+      pageNode.style.backgroundColor = computedBg;
+      pageNode.style.color = computedColor;
+      pageNode.style.fontFamily = computedFont;
+      pageNode.style.padding = '0px';
+
       const clone = el.cloneNode(true) as HTMLElement;
-      clone.style.minHeight = '1000px';
-      clone.style.padding = '0px';
+      clone.style.width = '794px';
+      clone.style.minHeight = '1123px';
+      clone.style.height = '1123px';
+      clone.style.boxSizing = 'border-box';
+      clone.style.backgroundColor = computedBg;
+      clone.style.color = computedColor;
+
+      if (clone.firstElementChild) {
+        const templateRoot = clone.firstElementChild as HTMLElement;
+        templateRoot.style.width = '794px';
+        templateRoot.style.minHeight = '1123px';
+        templateRoot.style.height = '1123px';
+        templateRoot.style.boxSizing = 'border-box';
+        templateRoot.style.backgroundColor = computedBg;
+      }
 
       // Hide rows not belonging to Page 1
       const cloneTable = clone.querySelector('table');
@@ -193,10 +240,8 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
             b.remove();
           }
         });
-      }
 
-      // Add Page 1 of M indicator
-      if (totalPages > 1) {
+        // Add Page 1 of M indicator
         const pageInd = document.createElement('div');
         pageInd.style.position = 'absolute';
         pageInd.style.right = '56px';
@@ -208,9 +253,22 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       }
 
       pageNode.appendChild(clone);
+      offscreenContainer.appendChild(pageNode);
+      pageNodes.push(pageNode);
     } else {
       // Page 2+: Build continuation page
-      // 1. Continuation Header
+      const pageNode = document.createElement('div');
+      pageNode.style.width = '794px';
+      pageNode.style.height = '1123px';
+      pageNode.style.boxSizing = 'border-box';
+      pageNode.style.position = 'relative';
+      pageNode.style.overflow = 'hidden';
+      pageNode.style.backgroundColor = computedBg;
+      pageNode.style.color = computedColor;
+      pageNode.style.fontFamily = computedFont;
+      pageNode.style.padding = '48px 56px';
+
+      // 1. Continuation Header (Business name + document number only, ~50% masthead height)
       const contHeader = document.createElement('div');
       contHeader.style.display = 'flex';
       contHeader.style.justifyContent = 'space-between';
@@ -219,18 +277,21 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       contHeader.style.marginBottom = '20px';
       contHeader.style.borderBottom = `1px solid ${computedColor}33`;
 
-      const businessNameText = el.querySelector('h1, h2, div')?.textContent?.trim() || '';
-      const docTypeMarkText = el.querySelector('[style*="letter-spacing"]')?.textContent?.trim() || '';
-
       const leftHead = document.createElement('div');
-      leftHead.style.fontWeight = '700';
-      leftHead.style.fontSize = '14px';
-      leftHead.textContent = businessNameText;
+      leftHead.style.fontWeight = '800';
+      leftHead.style.fontSize = '16px';
+      leftHead.style.lineHeight = '1.2';
+      leftHead.style.color = computedColor;
+      leftHead.textContent = businessName;
 
       const rightHead = document.createElement('div');
       rightHead.style.fontSize = '12px';
+      rightHead.style.fontWeight = '700';
+      rightHead.style.letterSpacing = '0.08em';
+      rightHead.style.textTransform = 'uppercase';
       rightHead.style.opacity = '0.8';
-      rightHead.textContent = docTypeMarkText;
+      rightHead.style.color = computedColor;
+      rightHead.textContent = docMark;
 
       contHeader.appendChild(leftHead);
       contHeader.appendChild(rightHead);
@@ -277,7 +338,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         }
       }
 
-      // Ledger special case (PDF-SPEC 6.5 & 9.4): drop payment rail on pages 2+, single column flow
+      // Ledger special case (PDF-SPEC 6.5 & 9.4): drop payment rail on pages 2+
       pageNode.querySelectorAll('[data-pdf-block="ledger-rail"]').forEach((rail) => rail.remove());
 
       // 4. Page N of M Indicator
@@ -289,10 +350,10 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       pageInd.style.opacity = '0.7';
       pageInd.textContent = `Page ${p + 1} of ${totalPages}`;
       pageNode.appendChild(pageInd);
-    }
 
-    offscreenContainer.appendChild(pageNode);
-    pageNodes.push(pageNode);
+      offscreenContainer.appendChild(pageNode);
+      pageNodes.push(pageNode);
+    }
   }
 
   // Render each page into jsPDF
@@ -303,7 +364,15 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       pdf.addPage([794, 1123]);
     }
     const pageNode = pageNodes[p];
-    const canvas = await html2canvas(pageNode, { scale: 3, useCORS: true, backgroundColor: null });
+    const canvas = await html2canvas(pageNode, {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: computedBg,
+      width: 794,
+      height: 1123,
+      windowWidth: 794,
+      windowHeight: 1123,
+    });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
     addPageLinks(pdf, pageNode);
   }

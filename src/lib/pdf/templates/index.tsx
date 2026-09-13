@@ -308,7 +308,7 @@ const Branding = ({ t }: { t: BrandTheme }) => (
 const Meta = ({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) => (
   <div style={{ fontSize: 13, lineHeight: 1.8 }}>
     <div>
-      <b style={{ color: t.accentInk }}>{docNoun(d.kind)}</b> {formatDocNumber(d.kind, d.invoiceNumber)}
+      <b style={{ color: t.accentInk }} data-pdf-doc-noun="true">{docNoun(d.kind)}</b> <span data-pdf-doc-number="true">{formatDocNumber(d.kind, d.invoiceNumber)}</span>
     </div>
     <div><b style={{ color: t.accentInk }}>Date</b> {d.issuedDate}</div>
     {d.dueDate && <div><b style={{ color: t.accentInk }}>{d.kind === 'quote' ? 'Valid until' : 'Due'}</b> {d.dueDate}</div>}
@@ -373,6 +373,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         )}
         <div style={{ minWidth: 0, textAlign: 'left' }}>
           <div
+            data-pdf-business-name="true"
             style={{
               fontSize: d.logoUrl ? 28 : 38,
               fontWeight: 800,
@@ -553,7 +554,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24 }}>
         <div style={{ minWidth: 0 }}>
           {d.logoUrl && <img src={d.logoUrl} style={{ height: 96, marginBottom: 10, display: 'block' }} alt="" />}
-          <div style={{ fontSize: d.logoUrl ? 28 : 34, fontWeight: 900, lineHeight: 1.05, letterSpacing: 0.5, color: ink }}>{d.businessName}</div>
+          <div data-pdf-business-name="true" style={{ fontSize: d.logoUrl ? 28 : 34, fontWeight: 900, lineHeight: 1.05, letterSpacing: 0.5, color: ink }}>{d.businessName}</div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
@@ -589,6 +590,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ background: t.primary, color: onColor(t.primary), padding: '40px 56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div
+            data-pdf-business-name="true"
             style={{
               fontSize: d.logoUrl ? 34 : 44,
               fontWeight: d.logoUrl ? 900 : 800,
@@ -661,6 +663,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         )}
         <div>
           <div
+            data-pdf-business-name="true"
             style={{
               fontSize: d.logoUrl ? 26 : 36,
               fontWeight: 800,
