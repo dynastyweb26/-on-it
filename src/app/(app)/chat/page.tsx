@@ -21,6 +21,7 @@ import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
+import { recordParseCorrection } from '@/lib/parse-corrections';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -559,6 +560,10 @@ export default function Chat() {
       });
       // The duplicate warning is now a passive card badge (see duplicateHint),
       // not a spoken/blocking reply — so the reply is always the normal one.
+      if (data.action === 'undo') {
+        handleUndo();
+        return { reply: 'Reverted to previous document version.', ready: Boolean(draft) };
+      }
       const reply: string = data.reply ?? 'Say that again?';
       setMessages((m) => emitResult(m, aMsg(reply), retryId));
       // Text renders first (above); speech is additive and follows the input
@@ -621,11 +626,14 @@ export default function Chat() {
         // the document type this turn (intent_explicit false), keep the
         // in-progress draft's intent so a bare "send it" or "just make it"
         // can't silently flip a quote into an invoice.
-        setDraft((prev) =>
-          data.intent_explicit === false && prev?.intent
+        setDraft((prev) => {
+          if (prev) {
+            setDraftHistory((h) => [...h, prev]);
+          }
+          return data.intent_explicit === false && prev?.intent
             ? { ...data, intent: prev.intent }
-            : data
-        );
+            : data;
+        });
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
         // A stale row was never sent, so clear the sent flag too.
@@ -693,7 +701,7 @@ export default function Chat() {
       logoUrl: profile.logo_url,
       websiteUrl: profile.website_url,
       slogan: profile.slogan,
-      clientName: draft.client_name ?? 'Client',
+      clientName: (draft.client_name ?? '').trim(),
       clientAddress: draft.client_address ?? null,
       clientPhone: draft.client_phone ?? null,
       lineItems: items,
@@ -811,6 +819,11 @@ export default function Chat() {
     setPhase('building');
     try {
     if (!draft) return;
+
+    if (!draft.client_name || !draft.client_name.trim()) {
+      setMessages((m) => [...m, aMsg("Customer name is required before sending or downloading. Please state who this document is for.")]);
+      return;
+    }
 
     // ── Confirmation gate ─────────────────────────────────────
     // Never build straight through. The first attempt summarizes what we have,
@@ -1004,7 +1017,7 @@ export default function Chat() {
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
         const kind = docKind(draft);
-        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
+        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name?.trim()} is sent.`), retryId);
         return;
       }
 
@@ -1475,11 +1488,31 @@ export default function Chat() {
   const previewTotal = previewItems.reduce((s, li) => s + li.qty * li.unit_price, 0);
   const isValidTotal = Number.isFinite(previewTotal);
 
+  const [draftHistory, setDraftHistory] = useState<Partial<ExtractResult>[]>([]);
+
+  const handleUndo = () => {
+    if (draftHistory.length > 0) {
+      const prev = draftHistory[draftHistory.length - 1];
+      setDraftHistory((h) => h.slice(0, -1));
+      setDraft(prev);
+      setMessages((m) => [...m, aMsg('Reverted to the previous version.')]);
+    } else {
+      setMessages((m) => [...m, aMsg('Nothing to undo.')]);
+    }
+  };
+
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
   // the saved row on send (buildRenderData recomputes subtotal/tax/total from
   // line_items), and "Change something" / a re-parse can still replace it.
   function applyDraftLineItems(items: LineItem[]) {
+    if (draft?.line_items) {
+      recordParseCorrection({
+        modelOutput: { line_items: draft.line_items },
+        correctedOutput: { line_items: items },
+        correctionType: 'manual_edit',
+      });
+    }
     setDraft((d) => (d ? { ...d, line_items: items } : d));
   }
 
@@ -1553,11 +1586,16 @@ export default function Chat() {
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} /> Download without sending
             </button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={() => send('Actually, let me change something')}>
-              Change something
-            </button>
+            <div className="mt-1 flex items-center justify-between text-sm text-on-surface-variant">
+              {draftHistory.length > 0 && (
+                <button type="button" className="underline disabled:opacity-40" disabled={phase !== null} onClick={handleUndo}>
+                  Undo last edit
+                </button>
+              )}
+              <button type="button" className="underline disabled:opacity-40 ml-auto" disabled={phase !== null} onClick={() => send('Actually, let me change something')}>
+                Change something
+              </button>
+            </div>
           </div>
         )}
 
@@ -1676,6 +1714,28 @@ export default function Chat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
+            }}
+            onPaste={(e) => {
+              const html = e.clipboardData?.getData('text/html');
+              if (html && html.includes('<table')) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const table = doc.querySelector('table');
+                if (table) {
+                  const rows = Array.from(table.querySelectorAll('tr'));
+                  const parsedLines: string[] = [];
+                  rows.forEach((row) => {
+                    const cells = Array.from(row.querySelectorAll('th, td')).map((c) => c.textContent?.trim() || '');
+                    if (cells.some(Boolean)) {
+                      parsedLines.push(cells.join('\t'));
+                    }
+                  });
+                  if (parsedLines.length > 0) {
+                    e.preventDefault();
+                    setInput(parsedLines.join('\n'));
+                  }
+                }
+              }
             }}
           />
           <button

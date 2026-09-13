@@ -12,6 +12,7 @@ import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
+import { recordParseCorrection } from '@/lib/parse-corrections';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -230,6 +231,11 @@ export default function InvoiceDetail() {
     const taxAmount = Math.round(subtotal * taxRate) / 100;
     const total = subtotal + taxAmount;
     const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
+    recordParseCorrection({
+      modelOutput: { line_items: prev },
+      correctedOutput: { line_items: merged },
+      correctionType: 'manual_edit',
+    });
     setInv({ ...inv, line_items: merged, subtotal, tax_amount: taxAmount, total });
     const { error } = await supabase.from('invoices')
       .update({ line_items: merged, subtotal, tax_amount: taxAmount, total })

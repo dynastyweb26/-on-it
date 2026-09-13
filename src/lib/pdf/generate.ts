@@ -8,7 +8,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { docPrefix } from '@/lib/documents';
 
-const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '').slice(0, 24) || 'Client';
+const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '').slice(0, 24) || 'Customer';
 
 export function invoiceFilename(kind: string, no: number, client: string, business: string, date = new Date()) {
   const d = date.toISOString().slice(0, 10);
@@ -23,13 +23,48 @@ export function summaryFilename(periodLabel: string, business: string) {
 
 /** el = the rendered template node (794px wide). */
 export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
   const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 794, 1123);
+
+  const pageHeight = 1123;
+  const totalHeight = canvas.height / 2; // canvas scale is 2
+  const pageCount = Math.max(1, Math.ceil(totalHeight / pageHeight));
+
+  for (let page = 0; page < pageCount; page++) {
+    if (page > 0) pdf.addPage([794, 1123]);
+
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = Math.min(canvas.height - page * pageHeight * 2, pageHeight * 2);
+
+    const ctx = pageCanvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(
+        canvas,
+        0,
+        page * pageHeight * 2,
+        canvas.width,
+        pageCanvas.height,
+        0,
+        0,
+        canvas.width,
+        pageCanvas.height
+      );
+    }
+
+    pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 794, pageCanvas.height / 2);
+
+    // Footer "Page N of M"
+    if (pageCount > 1) {
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`Page ${page + 1} of ${pageCount}`, 794 / 2, 1123 - 20, { align: 'center' });
+    }
+  }
 
   // Tappable payment links: templates mark elements with data-pdf-link.
-  // Positions are measured against the live DOM and normalized to PDF
-  // coordinates, so on-screen scale() transforms don't skew the boxes.
   const elRect = el.getBoundingClientRect();
   if (elRect.width > 0) {
     const ratio = 794 / elRect.width;
@@ -37,13 +72,20 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       const url = node.dataset.pdfLink;
       if (!url) return;
       const r = node.getBoundingClientRect();
-      pdf.link(
-        (r.left - elRect.left) * ratio,
-        (r.top - elRect.top) * ratio,
-        r.width * ratio,
-        r.height * ratio,
-        { url }
-      );
+      const topPos = (r.top - elRect.top) * ratio;
+      const targetPage = Math.floor(topPos / pageHeight);
+      const pageTop = topPos % pageHeight;
+
+      if (targetPage < pageCount) {
+        pdf.setPage(targetPage + 1);
+        pdf.link(
+          (r.left - elRect.left) * ratio,
+          pageTop,
+          r.width * ratio,
+          r.height * ratio,
+          { url }
+        );
+      }
     });
   }
 

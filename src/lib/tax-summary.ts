@@ -164,7 +164,7 @@ export function summarizeIncome(invoices: InvoiceLite[], period: Period): Income
     if (inv.status === 'paid') {
       if (!inPeriod(localDay(inv.paid_at))) continue;
       broughtIn += amt;
-      const name = inv.client_name || 'Client';
+      const name = inv.client_name || 'Unnamed Customer';
       const cur = byClient.get(name) ?? { client: name, count: 0, total: 0 };
       cur.count += 1;
       cur.total += amt;

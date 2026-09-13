@@ -18,6 +18,7 @@ import React from 'react';
 import { BrandTheme, onColor } from '@/lib/colors';
 import { websiteHref } from '@/lib/url';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { formatDate } from '@/lib/dates';
 import type { LineItem } from '@/lib/ai';
 
 export interface InvoiceRenderData {
@@ -27,6 +28,8 @@ export interface InvoiceRenderData {
   logoUrl?: string | null;
   websiteUrl?: string | null;
   slogan?: string | null;
+  subject?: string | null;
+  rateBasisLabel?: string | null;
   clientName: string;
   clientAddress?: string | null;
   clientPhone?: string | null;
@@ -36,6 +39,7 @@ export interface InvoiceRenderData {
   taxAmount: number;
   total: number;
   notes?: string | null;
+  terms?: string | null;
   issuedDate: string;
   dueDate?: string | null;
   paid?: boolean; // drives the Ledger stamp: DUE / QUOTE / PAID
@@ -200,38 +204,64 @@ const Row = ({ label, value }: { label: string; value: string }) => (
 );
 
 function ItemsTable({ d, t, rounded = false }: { d: InvoiceRenderData; t: BrandTheme; rounded?: boolean }) {
+  const hasSpec = d.lineItems.some((li) => Boolean(li.spec));
+  const hasUnitQty = d.lineItems.some((li) => li.unit_basis === 'area' || li.unit_basis === 'linear');
+
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 16 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
       <thead>
         <tr style={{ background: t.primary, color: onColor(t.primary) }}>
-          {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
-            <th
-              key={h}
-              style={{
-                textAlign: i === 0 ? 'left' : 'right',
-                padding: '10px 12px',
-                fontSize: 12,
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-                borderRadius: rounded ? (i === 0 ? '10px 0 0 10px' : i === 3 ? '0 10px 10px 0' : 0) : 0,
-              }}
-            >
-              {h}
-            </th>
-          ))}
+          <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>ITEM / DESCRIPTION</th>
+          {hasSpec && <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>SIZE / DETAIL</th>}
+          <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>QTY</th>
+          {hasUnitQty && (
+            <>
+              <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>SQ FT EA</th>
+              <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>SQ FT</th>
+            </>
+          )}
+          <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>RATE</th>
+          <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>AMOUNT</th>
         </tr>
       </thead>
       <tbody>
-        {d.lineItems.map((li, i) => (
-          <tr key={i} style={{ borderBottom: `1px solid ${t.accent}33` }}>
-            <td style={{ padding: '12px' }}>{li.description}</td>
-            <td style={{ padding: '12px', textAlign: 'right' }}>{li.qty}</td>
-            <td style={{ padding: '12px', textAlign: 'right' }}>{money(li.unit_price)}</td>
-            <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>
-              {money(li.qty * li.unit_price)}
-            </td>
-          </tr>
-        ))}
+        {d.lineItems.map((li, i) => {
+          const uQty = li.unit_qty ?? 1;
+          const totalUQty = li.qty * uQty;
+          const amt = (li.unit_basis === 'area' || li.unit_basis === 'linear')
+            ? li.qty * uQty * li.unit_price
+            : li.qty * li.unit_price;
+
+          const prevSection = i > 0 ? d.lineItems[i - 1].section : null;
+          const showSectionHeader = Boolean(li.section && li.section !== prevSection);
+
+          const colSpan = 3 + (hasSpec ? 1 : 0) + (hasUnitQty ? 2 : 0);
+
+          return (
+            <React.Fragment key={i}>
+              {showSectionHeader && (
+                <tr style={{ background: `${t.accent}15` }}>
+                  <td colSpan={colSpan} style={{ padding: '8px 12px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', color: t.primary }}>
+                    {li.section}
+                  </td>
+                </tr>
+              )}
+              <tr style={{ borderBottom: `1px solid ${t.accent}33` }}>
+                <td style={{ padding: '12px' }}>{li.description}</td>
+                {hasSpec && <td style={{ padding: '12px', opacity: 0.85 }}>{li.spec || '—'}</td>}
+                <td style={{ padding: '12px', textAlign: 'right' }}>{li.qty}</td>
+                {hasUnitQty && (
+                  <>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>{li.unit_qty != null ? li.unit_qty : '—'}</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>{li.unit_basis === 'area' || li.unit_basis === 'linear' ? totalUQty : '—'}</td>
+                  </>
+                )}
+                <td style={{ padding: '12px', textAlign: 'right' }}>{money(li.unit_price)}</td>
+                <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>{money(amt)}</td>
+              </tr>
+            </React.Fragment>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -255,8 +285,8 @@ const Meta = ({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) => (
     <div>
       <b style={{ color: t.accent }}>{docNoun(d.kind)}</b> {formatDocNumber(d.kind, d.invoiceNumber)}
     </div>
-    <div><b style={{ color: t.accent }}>Date</b> {d.issuedDate}</div>
-    {d.dueDate && <div><b style={{ color: t.accent }}>Due</b> {d.dueDate}</div>}
+    <div><b style={{ color: t.accent }}>Date</b> {formatDate(d.issuedDate)}</div>
+    {d.dueDate && <div><b style={{ color: t.accent }}>Due</b> {formatDate(d.dueDate)}</div>}
   </div>
 );
 
@@ -266,7 +296,7 @@ const Meta = ({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) => (
 // quote can never be mistaken for a bill. Shared by Classic / Industrial /
 // Friendly; Ledger keeps its own rotated stamp.
 function DocTypeMark({ d, t, align = 'left', size = 22 }: {
-  d: InvoiceRenderData; t: BrandTheme; align?: 'left' | 'center'; size?: number;
+  d: InvoiceRenderData; t: BrandTheme; align?: 'left' | 'center' | 'right'; size?: number;
 }) {
   const isQuote = d.kind === 'quote';
   return (
@@ -320,53 +350,72 @@ const Website = ({ url, t, style }: { url?: string | null; t: BrandTheme; style?
 /* ── 1. CLASSIC ─────────────────────────────────────────────── */
 function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   return (
-    <div style={{ ...PAGE, background: t.background, color: t.text, padding: 56 }}>
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        {d.logoUrl && <img src={d.logoUrl} style={{ height: 128, marginBottom: 12 }} alt="" />}
-        <div
-          style={{
-            fontSize: d.logoUrl ? 30 : 42,
-            fontWeight: 800,
-            color: t.primary === t.background ? t.text : t.primary,
-            ...(d.logoUrl ? {} : { fontFamily: MONTSERRAT, letterSpacing: -0.5, marginBottom: 4 }),
-          }}
-        >
-          {d.businessName}
+    <div style={{ ...PAGE, background: t.background, color: t.text, padding: 56, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div>
+        {/* Top Header Single Horizontal Band */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {d.logoUrl && <img src={d.logoUrl} style={{ height: 64, objectFit: 'contain' }} alt="" />}
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 800, fontFamily: MONTSERRAT, color: t.primary === t.background ? t.text : t.primary }}>
+                {d.businessName}
+              </div>
+              {d.slogan && <div style={{ color: t.accent, fontStyle: 'italic', fontSize: 13 }}>{d.slogan}</div>}
+              <Website url={d.websiteUrl} t={t} style={{ fontSize: 12 }} />
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <DocTypeMark d={d} t={t} align="right" size={20} />
+            <Meta d={d} t={t} />
+          </div>
         </div>
-        {d.slogan && <div style={{ color: t.accent, fontStyle: 'italic', fontSize: 14 }}>{d.slogan}</div>}
-        <Website url={d.websiteUrl} t={t} style={{ fontSize: 13 }} />
-      </div>
-      <div style={{ height: 3, background: t.accent, margin: '24px 0' }} />
-      <DocTypeMark d={d} t={t} align="center" size={24} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, marginBottom: 32 }}>
-        <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: t.accent, fontWeight: 700 }}>
-            {d.kind === 'quote' ? 'Prepared for' : 'Billed to'}
+
+        <div style={{ height: 2, background: t.accent, margin: '20px 0' }} />
+
+        {/* Subject & Rate-basis badge */}
+        {(d.subject || d.rateBasisLabel) && (
+          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            {d.subject && <div style={{ fontSize: 16, fontWeight: 800, color: t.primary }}>{d.subject}</div>}
+            {d.rateBasisLabel && (
+              <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 4, background: t.accent, color: onColor(t.accent) }}>
+                {d.rateBasisLabel}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div style={{ fontSize: 13, lineHeight: 1.8, marginBottom: 24 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: t.accent, fontWeight: 700 }}>
+            {d.kind === 'quote' ? 'PREPARED FOR' : 'BILLED TO'}
           </div>
           <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
           {d.clientPhone && <div>{d.clientPhone}</div>}
         </div>
-        <Meta d={d} t={t} />
+
+        <ItemsTable d={d} t={t} />
       </div>
-      <ItemsTable d={d} t={t} />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-        <Totals d={d} t={t} />
-      </div>
-      {/* Option A: PaymentBlock on its own full-width row. Notes keeps its exact
-          styling and right-side placement, now on its own line below. */}
-      <div style={{ marginTop: 48 }}>
-        <PaymentBlock d={d} t={t} />
-      </div>
-      {d.notes && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-          <div style={{ fontSize: 12, maxWidth: 300, opacity: 0.85 }}>{d.notes}</div>
+
+      {/* Bottom Anchored Slack Area */}
+      <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <Totals d={d} t={t} />
         </div>
-      )}
-      <div style={{ position: 'absolute', bottom: 40, left: 56, right: 56, textAlign: 'center', fontSize: 12, color: t.accent }}>
-        Thank you for your business.
+
+        <PaymentBlock d={d} t={t} />
+
+        {d.terms && (
+          <div style={{ marginTop: 16, fontSize: 11, color: t.text, opacity: 0.8, borderTop: `1px solid ${t.accent}33`, paddingTop: 8 }}>
+            <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>TERMS: </span>
+            {d.terms}
+          </div>
+        )}
+
+        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: t.accent }}>
+          Thank you for your business.
+        </div>
+        <Branding t={t} />
       </div>
-      <Branding t={t} />
     </div>
   );
 }
@@ -528,8 +577,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
           <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
-          <div style={{ fontSize: 12, marginTop: 8 }}><span style={eyebrow}>Issued</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.issuedDate}</span></div>
-          {d.dueDate && <div style={{ fontSize: 12, marginTop: 2 }}><span style={eyebrow}>Due</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.dueDate}</span></div>}
+          <div style={{ fontSize: 12, marginTop: 8 }}><span style={eyebrow}>Issued</span>&nbsp; <span style={{ fontFamily: MONO }}>{formatDate(d.issuedDate)}</span></div>
+          {d.dueDate && <div style={{ fontSize: 12, marginTop: 2 }}><span style={eyebrow}>Due</span>&nbsp; <span style={{ fontFamily: MONO }}>{formatDate(d.dueDate)}</span></div>}
         </div>
       </div>
 
@@ -585,7 +634,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       }}>
         <span style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
         <span style={{ fontSize: 14, letterSpacing: 3 }}>
-          {formatDocNumber(d.kind, d.invoiceNumber)}&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
+          {formatDocNumber(d.kind, d.invoiceNumber)}&nbsp;&nbsp;·&nbsp;&nbsp;{formatDate(d.issuedDate)}{d.dueDate ? `  ·  DUE ${formatDate(d.dueDate)}` : ''}
         </span>
       </div>
       <div style={{ padding: '36px 56px' }}>

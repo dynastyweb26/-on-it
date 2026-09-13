@@ -105,6 +105,48 @@ export function darkenForWhite(hex: string): string {
  *  background is set; else the most-saturated brand pick; else a neutral warm
  *  charcoal when the user has no brand colors at all. Whatever it lands on is
  *  darkened so it's legible on white (gold, lime, sky would otherwise vanish). */
+export interface DerivedPalette {
+  bg: string;
+  surface: string;
+  text: string;
+  textMuted: string;
+  accent: string;
+  accentText: string;
+  rule: string;
+  tableHeaderBg: string;
+  tableHeaderText: string;
+}
+
+export function derivePalette(accentHex: string, mode: 'dark' | 'light'): DerivedPalette {
+  const isDarkMode = mode === 'dark';
+  const bg = isDarkMode ? '#0d0d0d' : '#ffffff';
+  const surface = isDarkMode ? '#1a1a1a' : '#f8f6f0';
+  const text = isDarkMode ? '#f2f2f2' : '#1a1a1a';
+  const textMuted = isDarkMode ? '#a6a6a6' : '#666666';
+
+  let accent = accentHex;
+  if (!isDarkMode) {
+    accent = darkenForWhite(accentHex);
+  }
+
+  const accentText = onColor(accentHex);
+  const rule = accent;
+  const tableHeaderBg = surface;
+  const tableHeaderText = text;
+
+  return {
+    bg,
+    surface,
+    text,
+    textMuted,
+    accent,
+    accentText,
+    rule,
+    tableHeaderBg,
+    tableHeaderText,
+  };
+}
+
 export function accentForWhite(brandColors: string[] | null | undefined, background: string | null): string {
   const colors = brandColors ?? [];
   let base: string | null = null;

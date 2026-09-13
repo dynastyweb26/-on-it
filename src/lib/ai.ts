@@ -6,7 +6,87 @@ import { EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/expenses';
 
 export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 
-export interface LineItem { description: string; qty: number; unit_price: number; }
+export type UnitBasis = 'unit' | 'area' | 'linear' | 'hour' | 'flat';
+
+export interface LineItem {
+  description: string;
+  spec?: string | null;
+  qty: number;
+  rate?: number;
+  unit_price: number; // legacy alias for rate
+  amount_basis?: 'unit' | 'extended';
+  unit_basis?: UnitBasis;
+  unit_qty?: number | null;
+  section_id?: string | null;
+  section?: string | null;
+  sort_order?: number;
+  original_description?: string | null;
+}
+
+/** Compute the extended dollar amount for a line item deterministically in code. */
+export function calculateLineAmount(item: {
+  qty: number;
+  rate?: number;
+  unit_price?: number;
+  amount_basis?: 'unit' | 'extended';
+  unit_basis?: UnitBasis;
+  unit_qty?: number | null;
+}): number {
+  const qty = Number(item.qty ?? 0);
+  const unitPrice = Number(item.unit_price ?? item.rate ?? 0);
+  const unitBasis = item.unit_basis ?? 'unit';
+  const unitQty = Number(item.unit_qty ?? 1);
+
+  if (item.amount_basis === 'extended') {
+    return Math.round((item.rate ?? (unitPrice * qty)) * 100) / 100;
+  }
+
+  if (unitBasis === 'area' || unitBasis === 'linear' || unitBasis === 'hour') {
+    return Math.round(qty * (unitQty || 1) * unitPrice * 100) / 100;
+  }
+  return Math.round(qty * unitPrice * 100) / 100;
+}
+export type TurnIntent = 'create' | 'amend' | 'query' | 'undo';
+
+export function performSubjectHoisting(items: LineItem[]): { subject: string | null; line_items: LineItem[] } {
+  if (!items || items.length < 3) return { subject: null, line_items: items };
+
+  const firstDesc = items[0].description || '';
+  const commaIdx = firstDesc.indexOf(',');
+  if (commaIdx <= 0) return { subject: null, line_items: items };
+
+  const prefix = firstDesc.slice(0, commaIdx).trim();
+  if (prefix.length < 3) return { subject: null, line_items: items };
+
+  const allSharePrefix = items.every((li) => (li.description || '').startsWith(prefix));
+  if (!allSharePrefix) return { subject: null, line_items: items };
+
+  const updatedItems = items.map((li) => {
+    let desc = (li.description || '').slice(prefix.length).trim();
+    if (desc.startsWith(',')) desc = desc.slice(1).trim();
+    return { ...li, description: desc };
+  });
+
+  return { subject: prefix, line_items: updatedItems };
+}
+
+export function classifyTurnIntent(userText: string, hasCurrentDocument: boolean): TurnIntent {
+  const text = userText.trim().toLowerCase();
+  if (/^\s*(undo|revert|go back|take that back)\b/i.test(text)) {
+    return 'undo';
+  }
+  if (/^\s*(what is|how much|show|why is|read|tell me|who is)\b/i.test(text) && hasCurrentDocument) {
+    return 'query';
+  }
+  if (hasCurrentDocument) {
+    if (/^\s*(new|start over|different job|another job|fresh)\b/i.test(text)) {
+      return 'create';
+    }
+    return 'amend';
+  }
+  return 'create';
+}
+
 export interface ExtractResult {
   intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
   // True only when the user's message THIS turn explicitly named the document
@@ -21,6 +101,9 @@ export interface ExtractResult {
   client_address: string | null;
   client_phone: string | null;
   line_items: LineItem[];
+  subject?: string | null;
+  rate_basis_label?: string | null;
+  terms?: string | null;
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
   notes: string | null;
@@ -45,6 +128,8 @@ Rules:
 - First message of a new job: the "reply" FIELD (not your raw output) must begin with exactly "On it!" (no emoji, ever), then ask for ONE missing thing at a time. "On it!" goes INSIDE the JSON reply string — never as leading text before the JSON.
 - Never use emojis anywhere in your replies.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
+- Line items output schema: every line item MUST include "description" (string, verbatim, no summarizing), "spec" (string or null), "qty" (number), "rate" (number), "amount_basis" ("unit" or "extended"), "unit_basis" ("unit", "area", "linear", "hour", or "flat"), "unit_qty" (number or null), and "section" (string or null).
+- amount_basis: You MUST declare whether the figure in "rate" is per single unit ("unit") or already extended across the quantity ("extended"). Do not omit amount_basis.
 - intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
 - If the user says a total price for the whole job, make it one line item.
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
@@ -83,7 +168,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"spec":string|null,"qty":number,"rate":number,"amount_basis":"unit"|"extended","unit_basis":"unit"|"area"|"linear"|"hour"|"flat","unit_qty":number|null,"section":string|null}],"subject":string|null,"rate_basis_label":string|null,"terms":string|null,"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -132,6 +217,9 @@ function clarifyFallback(): ExtractResult {
     client_address: null,
     client_phone: null,
     line_items: [],
+    subject: null,
+    rate_basis_label: null,
+    terms: null,
     tax_rate: null,
     due_date: null,
     notes: null,
