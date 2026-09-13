@@ -10,6 +10,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 
@@ -95,7 +96,7 @@ export default function InvoiceDetail() {
   const backgroundColor = snapped ? inv.background_color : profile.background_color;
   const theme = backgroundColor && brandColors?.length >= 2
     ? buildTheme(brandColors, backgroundColor)
-    : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017' };
+    : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
   const rd: InvoiceRenderData = {
@@ -216,6 +217,32 @@ export default function InvoiceDetail() {
   // description change, records the AI's original wording the first time a line is
   // edited — never overwriting an original already captured from a chat edit,
   // since the first AI output is the training signal.
+  async function applyDeposit(deposit_type: DepositType, deposit_value: number) {
+    const totals = calculateInvoiceTotals(
+      inv.line_items ?? [],
+      Number(inv.tax_rate ?? 0),
+      deposit_type,
+      deposit_value
+    );
+    setInv({
+      ...inv,
+      deposit_type,
+      deposit_value,
+      subtotal: totals.subtotal,
+      tax_amount: totals.taxAmount,
+      total: totals.total,
+    });
+    await supabase.from('invoices')
+      .update({
+        deposit_type,
+        deposit_value,
+        subtotal: totals.subtotal,
+        tax_amount: totals.taxAmount,
+        total: totals.total,
+      })
+      .eq('id', id);
+  }
+
   async function applyLineItems(newItems: LineItemRow[]) {
     const prev = (inv.line_items ?? []) as LineItemRow[];
     const merged = newItems.map((li, i) => {
@@ -225,14 +252,27 @@ export default function InvoiceDetail() {
       }
       return li;
     });
-    const subtotal = merged.reduce((s, li) => s + Number(li.qty) * Number(li.unit_price), 0);
-    const taxRate = Number(inv.tax_rate);
-    const taxAmount = Math.round(subtotal * taxRate) / 100;
-    const total = subtotal + taxAmount;
+    const totals = calculateInvoiceTotals(
+      merged,
+      Number(inv.tax_rate),
+      inv.deposit_type ?? 'none',
+      Number(inv.deposit_value ?? 0)
+    );
     const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
-    setInv({ ...inv, line_items: merged, subtotal, tax_amount: taxAmount, total });
+    setInv({
+      ...inv,
+      line_items: merged,
+      subtotal: totals.subtotal,
+      tax_amount: totals.taxAmount,
+      total: totals.total,
+    });
     const { error } = await supabase.from('invoices')
-      .update({ line_items: merged, subtotal, tax_amount: taxAmount, total })
+      .update({
+        line_items: merged,
+        subtotal: totals.subtotal,
+        tax_amount: totals.taxAmount,
+        total: totals.total,
+      })
       .eq('id', id);
     if (error) {
       console.error('line item update failed', error);
@@ -311,6 +351,42 @@ export default function InvoiceDetail() {
             {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a value to edit</span>}
           </div>
           <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
+          {isDraft && (
+            <div className="mt-3 border-t border-outline-variant/30 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none"
+                    value={inv.deposit_type ?? 'none'}
+                    onChange={(e) => {
+                      const dt = e.target.value as DepositType;
+                      const val = dt === 'none' ? 0 : (inv.deposit_value ?? (dt === 'percentage' ? 40 : 100));
+                      void applyDeposit(dt, val);
+                    }}
+                  >
+                    <option value="none">None</option>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed ($)</option>
+                  </select>
+                  {(inv.deposit_type === 'percentage' || inv.deposit_type === 'fixed') && (
+                    <input
+                      type="number"
+                      min="0"
+                      max={inv.deposit_type === 'percentage' ? 100 : 1000000}
+                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
+                      value={inv.deposit_value ?? ''}
+                      placeholder={inv.deposit_type === 'percentage' ? '40' : '100'}
+                      onChange={(e) => {
+                        const v = Math.max(0, Number(e.target.value) || 0);
+                        void applyDeposit(inv.deposit_type as DepositType, v);
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className="overflow-hidden rounded-card border border-outline-variant">

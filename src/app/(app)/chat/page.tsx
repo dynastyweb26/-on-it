@@ -22,6 +22,7 @@ import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
@@ -226,6 +227,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>(null);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
+  const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
@@ -314,6 +316,7 @@ export default function Chat() {
   function applyStoredChat(stored: StoredChat) {
     setMessages(stored.messages);
     setDraft(stored.draft);
+    setDraftHistory([]);
     setReady(Boolean(stored.ready));
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
@@ -468,6 +471,7 @@ export default function Chat() {
       }
       setMessages([GREETING]);
       setDraft(null);
+      setDraftHistory([]);
       setReady(false);
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
@@ -621,11 +625,14 @@ export default function Chat() {
         // the document type this turn (intent_explicit false), keep the
         // in-progress draft's intent so a bare "send it" or "just make it"
         // can't silently flip a quote into an invoice.
-        setDraft((prev) =>
-          data.intent_explicit === false && prev?.intent
+        setDraft((prev) => {
+          if (prev) {
+            setDraftHistory((hist) => [...hist.slice(-19), prev]);
+          }
+          return data.intent_explicit === false && prev?.intent
             ? { ...data, intent: prev.intent }
-            : data
-        );
+            : data;
+        });
         // Draft content may have changed — any previously inserted-but-unsent
         // row is now stale; force the next finalize to insert a fresh one (B1).
         // A stale row was never sent, so clear the sent flag too.
@@ -675,7 +682,7 @@ export default function Chat() {
   const theme: BrandTheme | null =
     profile?.background_color && profile.brand_colors.length >= 2
       ? buildTheme(profile.brand_colors, profile.background_color)
-      : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017' };
+      : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
 
   function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {
     if (!draft || !profile) return null;
@@ -786,6 +793,7 @@ export default function Chat() {
     finalizeSentRef.current = false;
     setConvoId(genId());
     setDraft(null);
+    setDraftHistory([]);
     setReady(false);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
@@ -1472,15 +1480,39 @@ export default function Chat() {
   }
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
-  const previewTotal = previewItems.reduce((s, li) => s + li.qty * li.unit_price, 0);
-  const isValidTotal = Number.isFinite(previewTotal);
+  const previewDepositType = ((draft as any)?.deposit_type as DepositType) ?? 'none';
+  const previewDepositValue = Number((draft as any)?.deposit_value ?? 0);
+  const previewTotals = calculateInvoiceTotals(
+    previewItems,
+    draft?.tax_rate ?? 0,
+    previewDepositType,
+    previewDepositValue
+  );
+  const isValidTotal = Number.isFinite(previewTotals.total);
 
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
   // the saved row on send (buildRenderData recomputes subtotal/tax/total from
   // line_items), and "Change something" / a re-parse can still replace it.
   function applyDraftLineItems(items: LineItem[]) {
+    if (draft) {
+      setDraftHistory((prev) => [...prev.slice(-19), draft]);
+    }
     setDraft((d) => (d ? { ...d, line_items: items } : d));
+  }
+
+  function applyDraftDeposit(type: DepositType, value: number) {
+    if (draft) {
+      setDraftHistory((prev) => [...prev.slice(-19), draft]);
+      setDraft({ ...draft, deposit_type: type, deposit_value: value } as any);
+    }
+  }
+
+  function undoLastEdit() {
+    if (draftHistory.length === 0) return;
+    const previous = draftHistory[draftHistory.length - 1];
+    setDraftHistory((prev) => prev.slice(0, -1));
+    setDraft(previous);
   }
 
   return (
@@ -1533,9 +1565,67 @@ export default function Chat() {
               </div>
             )}
             <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
-            <div className="mt-2 flex items-end justify-between border-t border-outline-variant pt-3">
-              <span className="pb-2 text-label-lg font-semibold uppercase text-on-surface-variant">Total</span>
-              <span className="font-display text-numeric-xl tracking-tight text-on-background">{money(previewTotal)}</span>
+
+            <div className="mt-3 border-t border-outline-variant/30 pt-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none"
+                    value={(draft as any).deposit_type ?? 'none'}
+                    onChange={(e) => {
+                      const dt = e.target.value as DepositType;
+                      const val = dt === 'none' ? 0 : ((draft as any).deposit_value ?? (dt === 'percentage' ? 40 : 100));
+                      applyDraftDeposit(dt, val);
+                    }}
+                  >
+                    <option value="none">None</option>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed ($)</option>
+                  </select>
+                  {((draft as any).deposit_type === 'percentage' || (draft as any).deposit_type === 'fixed') && (
+                    <input
+                      type="number"
+                      min="0"
+                      max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
+                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
+                      value={(draft as any).deposit_value ?? ''}
+                      placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
+                      onChange={(e) => {
+                        const v = Math.max(0, Number(e.target.value) || 0);
+                        applyDraftDeposit((draft as any).deposit_type as DepositType, v);
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
+              {previewTotals.depositAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>Project total</span>
+                    <span>{money(previewTotals.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
+                    <span>{money(previewTotals.depositAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-on-surface-variant font-medium">
+                    <span>Remaining balance</span>
+                    <span>{money(previewTotals.remaining)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-end justify-between pt-1">
+                <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
+                  {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
+                </span>
+                <span className="font-display text-numeric-xl tracking-tight text-on-background">
+                  {money(previewTotals.amountDueNow)}
+                </span>
+              </div>
             </div>
             {!isValidTotal && (
               <p className="mt-2 text-xs font-semibold text-error">
@@ -1553,11 +1643,24 @@ export default function Chat() {
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} /> Download without sending
             </button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={() => send('Actually, let me change something')}>
-              Change something
-            </button>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                disabled={phase !== null || draftHistory.length === 0}
+                onClick={undoLastEdit}
+              >
+                Undo last edit
+              </button>
+              <button
+                type="button"
+                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                disabled={phase !== null}
+                onClick={() => send('Actually, let me change something')}
+              >
+                Change something
+              </button>
+            </div>
           </div>
         )}
 

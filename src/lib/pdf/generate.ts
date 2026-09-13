@@ -36,37 +36,280 @@ async function awaitImages(el: HTMLElement): Promise<void> {
   );
 }
 
+/** Measures data-pdf-link nodes in pageEl and attaches jsPDF link annotations to the active page */
+function addPageLinks(pdf: jsPDF, pageEl: HTMLElement) {
+  const elRect = pageEl.getBoundingClientRect();
+  if (elRect.width <= 0) return;
+  const ratio = 794 / elRect.width;
+  pageEl.querySelectorAll<HTMLElement>('[data-pdf-link]').forEach((node) => {
+    const url = node.dataset.pdfLink;
+    if (!url) return;
+    const r = node.getBoundingClientRect();
+    pdf.link(
+      (r.left - elRect.left) * ratio,
+      (r.top - elRect.top) * ratio,
+      r.width * ratio,
+      r.height * ratio,
+      { url }
+    );
+  });
+}
+
 /** el = the rendered template node (794px wide).
- *  PNG, not JPEG: these documents are flat color with fine text, often on a
- *  near-black background — exactly the case where JPEG rings around every
- *  glyph. PNG is lossless and compresses flat areas well. scale 3 (not 2)
- *  captures above the 794px layout width so text edges stay crisp when the
- *  viewer zooms. */
+ *  PNG, not JPEG: flat color with fine text, often on near-black background.
+ *  scale: 3 for crisp text edges.
+ *  backgroundColor: null so templates paint their own background.
+ *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
+ *  preserving split-free table rows and page-specific link annotations. */
 export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
   await awaitImages(el);
-  const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
-  const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
 
-  // Tappable payment links: templates mark elements with data-pdf-link.
-  // Positions are measured against the live DOM and normalized to PDF
-  // coordinates, so on-screen scale() transforms don't skew the boxes.
-  const elRect = el.getBoundingClientRect();
-  if (elRect.width > 0) {
-    const ratio = 794 / elRect.width;
-    el.querySelectorAll<HTMLElement>('[data-pdf-link]').forEach((node) => {
-      const url = node.dataset.pdfLink;
-      if (!url) return;
-      const r = node.getBoundingClientRect();
-      pdf.link(
-        (r.left - elRect.left) * ratio,
-        (r.top - elRect.top) * ratio,
-        r.width * ratio,
-        r.height * ratio,
-        { url }
-      );
-    });
+  const fullHeight = el.scrollHeight || el.offsetHeight;
+  const table = el.querySelector('table');
+  const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+
+  // Single-page fast path: height fits in A4 or no expandable table rows
+  if (fullHeight <= 1125 || rows.length <= 1) {
+    const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
+    const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
+    addPageLinks(pdf, el);
+    const blob = pdf.output('blob');
+    return new File([blob], filename, { type: 'application/pdf' });
   }
+
+  // ── Multi-page DOM Block Partitioning ──────────────────────────
+  const rowHeights = rows.map((r) => (r as HTMLElement).offsetHeight || 36);
+  const tableHeader = table?.querySelector('thead') as HTMLElement | null;
+  const tableHeaderHeight = tableHeader ? tableHeader.offsetHeight : 32;
+
+  // Measure top content (masthead + meta) and bottom content
+  const tableTop = table ? (table as HTMLElement).offsetTop : 200;
+  const tableHeight = table ? (table as HTMLElement).offsetHeight : 300;
+  const bottomHeight = Math.max(200, fullHeight - (tableTop + tableHeight));
+
+  const page1Capacity = Math.max(200, 1060 - tableTop - tableHeaderHeight);
+  const continuationCapacity = Math.max(300, 1040 - 80 - tableHeaderHeight); // continuation header ~80px
+
+  // Partition row indices into pages
+  const pageRowRanges: { start: number; end: number }[] = [];
+  let currentRow = 0;
+  const totalRows = rows.length;
+
+  // Page 1 rows
+  let p1Height = 0;
+  let p1End = 0;
+  while (p1End < totalRows && p1Height + rowHeights[p1End] <= page1Capacity) {
+    p1Height += rowHeights[p1End];
+    p1End++;
+  }
+  // Enforce orphan rule: if only 1 row left for Page 2+, pull one back unless Page 1 needs it
+  if (p1End === totalRows - 1 && p1End > 2) {
+    p1End--;
+  }
+  // Enforce widow rule: min 2 rows on Page 1 if any rows exist
+  if (p1End < 2 && totalRows >= 2) {
+    p1End = Math.min(2, totalRows);
+  }
+  pageRowRanges.push({ start: 0, end: p1End });
+  currentRow = p1End;
+
+  // Pages 2+
+  while (currentRow < totalRows) {
+    let pHeight = 0;
+    let pEnd = currentRow;
+    const isLastPageAttempt = pEnd < totalRows;
+    const capacity = continuationCapacity - (isLastPageAttempt ? bottomHeight / 2 : 0);
+
+    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
+      pHeight += rowHeights[pEnd];
+      pEnd++;
+    }
+
+    if (pEnd === currentRow) {
+      // At least one row per page
+      pEnd = currentRow + 1;
+    }
+
+    // Widow/orphan check
+    if (pEnd === totalRows - 1 && pEnd - currentRow > 1) {
+      pEnd--;
+    }
+
+    pageRowRanges.push({ start: currentRow, end: pEnd });
+    currentRow = pEnd;
+  }
+
+  const totalPages = pageRowRanges.length;
+
+  // ── Build DOM Node per Page ───────────────────────────────────
+  const pageNodes: HTMLElement[] = [];
+  const offscreenContainer = document.createElement('div');
+  offscreenContainer.style.position = 'fixed';
+  offscreenContainer.style.left = '-9999px';
+  offscreenContainer.style.top = '0px';
+  document.body.appendChild(offscreenContainer);
+
+  const computedBg = getComputedStyle(el).backgroundColor || '#FFFFFF';
+  const computedColor = getComputedStyle(el).color || '#000000';
+
+  for (let p = 0; p < totalPages; p++) {
+    const pageNode = document.createElement('div');
+    pageNode.style.width = '794px';
+    pageNode.style.minHeight = '1123px';
+    pageNode.style.height = '1123px';
+    pageNode.style.boxSizing = 'border-box';
+    pageNode.style.position = 'relative';
+    pageNode.style.overflow = 'hidden';
+    pageNode.style.backgroundColor = computedBg;
+    pageNode.style.color = computedColor;
+    pageNode.style.fontFamily = getComputedStyle(el).fontFamily;
+    pageNode.style.padding = p === 0 ? '56px' : '48px 56px';
+
+    const range = pageRowRanges[p];
+
+    if (p === 0) {
+      // Page 1: Clone el content
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.style.minHeight = '1000px';
+      clone.style.padding = '0px';
+
+      // Hide rows not belonging to Page 1
+      const cloneTable = clone.querySelector('table');
+      if (cloneTable) {
+        const cloneRows = Array.from(cloneTable.querySelectorAll('tbody tr'));
+        cloneRows.forEach((r, idx) => {
+          if (idx < range.start || idx >= range.end) {
+            r.remove();
+          }
+        });
+      }
+
+      // If more pages exist, remove bottom trailing blocks from Page 1 using data-pdf-block
+      if (totalPages > 1) {
+        clone.querySelectorAll('[data-pdf-block]').forEach((b) => {
+          // Keep ledger rail on page 1 if present
+          if (b.getAttribute('data-pdf-block') !== 'ledger-rail') {
+            b.remove();
+          }
+        });
+      }
+
+      // Add Page 1 of M indicator
+      if (totalPages > 1) {
+        const pageInd = document.createElement('div');
+        pageInd.style.position = 'absolute';
+        pageInd.style.right = '56px';
+        pageInd.style.bottom = '14px';
+        pageInd.style.fontSize = '11px';
+        pageInd.style.opacity = '0.7';
+        pageInd.textContent = `Page 1 of ${totalPages}`;
+        clone.appendChild(pageInd);
+      }
+
+      pageNode.appendChild(clone);
+    } else {
+      // Page 2+: Build continuation page
+      // 1. Continuation Header
+      const contHeader = document.createElement('div');
+      contHeader.style.display = 'flex';
+      contHeader.style.justifyContent = 'space-between';
+      contHeader.style.alignItems = 'center';
+      contHeader.style.paddingBottom = '12px';
+      contHeader.style.marginBottom = '20px';
+      contHeader.style.borderBottom = `1px solid ${computedColor}33`;
+
+      const businessNameText = el.querySelector('h1, h2, div')?.textContent?.trim() || '';
+      const docTypeMarkText = el.querySelector('[style*="letter-spacing"]')?.textContent?.trim() || '';
+
+      const leftHead = document.createElement('div');
+      leftHead.style.fontWeight = '700';
+      leftHead.style.fontSize = '14px';
+      leftHead.textContent = businessNameText;
+
+      const rightHead = document.createElement('div');
+      rightHead.style.fontSize = '12px';
+      rightHead.style.opacity = '0.8';
+      rightHead.textContent = docTypeMarkText;
+
+      contHeader.appendChild(leftHead);
+      contHeader.appendChild(rightHead);
+      pageNode.appendChild(contHeader);
+
+      // 2. Table with repeated header and assigned rows
+      if (table) {
+        const pageTable = document.createElement('table');
+        pageTable.style.width = '100%';
+        pageTable.style.borderCollapse = 'collapse';
+        pageTable.style.fontSize = '15px';
+
+        if (tableHeader) {
+          pageTable.appendChild(tableHeader.cloneNode(true));
+        }
+
+        const tbody = document.createElement('tbody');
+        for (let rIdx = range.start; rIdx < range.end; rIdx++) {
+          if (rows[rIdx]) {
+            tbody.appendChild(rows[rIdx].cloneNode(true));
+          }
+        }
+        pageTable.appendChild(tbody);
+        pageNode.appendChild(pageTable);
+      }
+
+      // 3. Final Page: clone trailing blocks (Totals, PaymentBlock, Notes)
+      if (p === totalPages - 1) {
+        const trailingBlocks = Array.from(el.querySelectorAll('[data-pdf-block]')).filter(
+          (b) => b.getAttribute('data-pdf-block') !== 'ledger-rail'
+        );
+
+        if (trailingBlocks.length > 0) {
+          const trailingWrapper = document.createElement('div');
+          trailingWrapper.style.marginTop = '24px';
+          trailingWrapper.style.display = 'flex';
+          trailingWrapper.style.flexDirection = 'column';
+          trailingWrapper.style.gap = '20px';
+
+          trailingBlocks.forEach((block) => {
+            trailingWrapper.appendChild(block.cloneNode(true));
+          });
+          pageNode.appendChild(trailingWrapper);
+        }
+      }
+
+      // Ledger special case (PDF-SPEC 6.5 & 9.4): drop payment rail on pages 2+, single column flow
+      pageNode.querySelectorAll('[data-pdf-block="ledger-rail"]').forEach((rail) => rail.remove());
+
+      // 4. Page N of M Indicator
+      const pageInd = document.createElement('div');
+      pageInd.style.position = 'absolute';
+      pageInd.style.right = '56px';
+      pageInd.style.bottom = '14px';
+      pageInd.style.fontSize = '11px';
+      pageInd.style.opacity = '0.7';
+      pageInd.textContent = `Page ${p + 1} of ${totalPages}`;
+      pageNode.appendChild(pageInd);
+    }
+
+    offscreenContainer.appendChild(pageNode);
+    pageNodes.push(pageNode);
+  }
+
+  // Render each page into jsPDF
+  const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
+
+  for (let p = 0; p < pageNodes.length; p++) {
+    if (p > 0) {
+      pdf.addPage([794, 1123]);
+    }
+    const pageNode = pageNodes[p];
+    const canvas = await html2canvas(pageNode, { scale: 3, useCORS: true, backgroundColor: null });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
+    addPageLinks(pdf, pageNode);
+  }
+
+  // Cleanup offscreen container
+  offscreenContainer.remove();
 
   const blob = pdf.output('blob');
   return new File([blob], filename, { type: 'application/pdf' });
