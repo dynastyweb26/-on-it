@@ -944,6 +944,13 @@ export default function Chat() {
           tax_rate: rd0.taxRate,
           tax_amount: rd0.taxAmount,
           total: rd0.total,
+          // Persist the deposit the user set on the card. These come from the same
+          // buildRenderData helper the preview uses, so the stored row, the PDF, and
+          // the card can never disagree. Without this the invoice lands with the
+          // deposit columns NULL even though "40%" was selected.
+          deposit_type: rd0.depositType ?? 'none',
+          deposit_value: rd0.depositValue ?? null,
+          deposit_amount: rd0.depositAmount ?? null,
           notes: rd0.notes,
           due_date: rd0.dueDate,
           status: 'draft', // becomes 'sent' only after a real share (B1)
