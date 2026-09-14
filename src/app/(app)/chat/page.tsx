@@ -684,7 +684,7 @@ export default function Chat() {
       ? buildTheme(profile.brand_colors, profile.background_color)
       : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
 
-  function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {
+    function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {
     if (!draft || !profile) return null;
     const items = (draft.line_items ?? []) as LineItem[];
     const subtotal = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
@@ -693,6 +693,16 @@ export default function Chat() {
     const taxAmount = Math.round(subtotal * taxRate) / 100;
     const total = subtotal + taxAmount;
     if (!Number.isFinite(total)) return null;
+
+    // Deposit: the draft stores deposit_type / deposit_value (snake_case, DB
+    // column names); InvoiceRenderData reads camelCase and needs the derived
+    // figures too. Run them through the SAME helper the card preview uses, so
+    // the document can never show a different number than the screen did.
+    const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
+    const depositValue = Number((draft as any).deposit_value ?? 0);
+    const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
+    const hasDeposit = totals.depositAmount > 0;
+
     return {
       kind: docKind(draft),
       invoiceNumber,
@@ -705,7 +715,12 @@ export default function Chat() {
       clientPhone: draft.client_phone ?? null,
       lineItems: items,
       subtotal, taxRate, taxAmount,
-      total: subtotal + taxAmount,
+      total,
+      depositType: hasDeposit ? (depositType as 'percentage' | 'fixed') : 'none',
+      depositValue: hasDeposit ? depositValue : undefined,
+      depositAmount: hasDeposit ? totals.depositAmount : undefined,
+      remaining: hasDeposit ? totals.remaining : undefined,
+      amountDueNow: totals.amountDueNow,
       notes: draft.notes ?? null,
       issuedDate: new Date().toLocaleDateString(),
       // No stated due date → default to issue date + 30 days. The AI never
