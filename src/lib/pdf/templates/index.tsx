@@ -18,6 +18,7 @@ import React from 'react';
 import { BrandTheme, onColor } from '@/lib/colors';
 import { websiteHref } from '@/lib/url';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { calculateInvoiceTotals, money } from '@/lib/financials';
 import type { LineItem } from '@/lib/ai';
 
 export interface InvoiceRenderData {
@@ -43,10 +44,13 @@ export interface InvoiceRenderData {
   paypalMe?: string | null;
   cashappTag?: string | null;
   venmoUsername?: string | null;
+  depositType?: string | null;
+  depositValue?: number | null;
+  depositAmount?: number | null;
+  amountPaid?: number | null;
+  lastPaymentDate?: string | null;
 }
 
-const money = (n: number) =>
-  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // No-logo fallback: when the user has no logo, the business NAME is promoted
 // to display size so the header looks intentional, never missing. Montserrat
@@ -170,24 +174,76 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 }
 
 function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
+  const totals = calculateInvoiceTotals(
+    d.lineItems ?? [],
+    d.taxRate ?? 0,
+    d.depositType ?? 'none',
+    d.depositValue ?? 0,
+    d.amountPaid ?? 0
+  );
+
+  const hasDeposit = totals.depositAmount > 0;
+  const amountPaid = d.amountPaid ?? 0;
+  const hasPayments = amountPaid > 0;
+
+  let dominantLabel = 'TOTAL DUE';
+  if (d.kind === 'quote') {
+    dominantLabel = 'QUOTED TOTAL';
+  } else if (totals.paymentStage === 'paid' || d.paid) {
+    dominantLabel = 'PAID IN FULL';
+  } else if (totals.paymentStage === 'deposit_paid' || totals.paymentStage === 'partial') {
+    dominantLabel = 'BALANCE DUE';
+  } else if (hasDeposit) {
+    dominantLabel = 'DEPOSIT DUE NOW';
+  }
+
+  const paymentReceivedLabel = hasDeposit && amountPaid >= totals.depositAmount ? 'Deposit received' : 'Payment received';
+
   return (
-    <div style={{ width: 260 }}>
+    <div data-pdf-block="totals" style={{ width: 300 }}>
       <Row label="Subtotal" value={money(d.subtotal)} />
       {d.taxRate > 0 && <Row label={`Tax (${d.taxRate}%)`} value={money(d.taxAmount)} />}
+
+      {hasDeposit && (
+        <>
+          <div style={{ borderTop: `1px solid ${t.accent}33`, margin: '4px 0' }} />
+          <Row label="Project total" value={money(d.total)} />
+          <Row
+            label={d.depositType === 'percentage' || d.depositType === 'percent' ? `${d.depositValue}% deposit required` : 'Deposit required'}
+            value={money(totals.depositAmount)}
+          />
+          <Row label="Balance due" value={money(totals.balanceAfterDeposit)} />
+        </>
+      )}
+
+      {hasPayments && (
+        <>
+          <div style={{ borderTop: `1px solid ${t.accent}33`, margin: '4px 0' }} />
+          <Row
+            label={`${paymentReceivedLabel}${d.lastPaymentDate ? ` (${d.lastPaymentDate})` : ''}`}
+            value={money(amountPaid)}
+          />
+        </>
+      )}
+
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
+          alignItems: 'center',
           padding: '10px 14px',
           marginTop: 6,
           background: t.accent,
           color: onColor(t.accent),
           fontWeight: 800,
           fontSize: 18,
+          borderRadius: 4,
         }}
       >
-        <span>{d.kind === 'quote' ? 'Quoted total' : 'Total due'}</span>
-        <span style={{ fontSize: 26 }}>{money(d.total)}</span>
+        <span style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 14 }}>{dominantLabel}</span>
+        <span style={{ fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>
+          {money(totals.paymentStage === 'paid' || d.paid ? (amountPaid > 0 ? amountPaid : d.total) : totals.dueNow)}
+        </span>
       </div>
     </div>
   );

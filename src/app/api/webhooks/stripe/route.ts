@@ -92,7 +92,9 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.user_id ?? session.client_reference_id ?? undefined;
+        const invoiceId = session.metadata?.invoice_id;
         const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+
         // Link the customer id immediately even before the subscription events land.
         if (userId && customerId) {
           const supabase = adminClient();
@@ -100,11 +102,33 @@ export async function POST(req: NextRequest) {
             .from('profiles').update({ stripe_customer_id: customerId }).eq('id', userId);
           if (error) throw error;
         }
+
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id
           );
           await applySubscription(sub, userId);
+        } else if (invoiceId && userId) {
+          const supabase = adminClient();
+          const amount = (session.amount_total ?? 0) / 100;
+          if (amount > 0) {
+            const { error: payErr } = await supabase.from('invoice_payments').insert({
+              invoice_id: invoiceId,
+              user_id: userId,
+              amount,
+              method: 'card',
+              stripe_event_id: event.id,
+              note: 'Stripe Checkout',
+            });
+
+            if (payErr) {
+              if (payErr.code === '23505') {
+                console.log('stripe webhook idempotency: event already processed', event.id);
+              } else {
+                throw payErr;
+              }
+            }
+          }
         }
         break;
       }

@@ -5,14 +5,14 @@ import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
+import { calculateInvoiceTotals, money } from '@/lib/financials';
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
-  total: number; status: string; created_at: string; due_date: string | null;
+  total: number; line_items?: any[]; tax_rate?: number; deposit_type?: string; deposit_value?: number; amount_paid?: number;
+  status: string; created_at: string; due_date: string | null;
   converted_from: string | null;
 }
-const money = (n: number) =>
-  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // Status chips (§2): semantic containers, ALWAYS icon + text.
 const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {
@@ -32,7 +32,7 @@ export default function Invoices() {
   useEffect(() => {
     supabase
       .from('invoices')
-      .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
+      .select('id, kind, invoice_number, client_name, total, line_items, tax_rate, deposit_type, deposit_value, amount_paid, status, created_at, due_date, converted_from')
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data }) => {
@@ -87,11 +87,25 @@ export default function Invoices() {
           <div className="space-y-4">
             {sorted.map((r) => {
               const converted = isConvertedQuote(r);
-              // A converted quote shows a "converted" chip (only the Quotes tab
-              // surfaces it) instead of its stale draft status.
+              const totals = calculateInvoiceTotals(
+                r.line_items ?? [],
+                Number(r.tax_rate ?? 0),
+                r.deposit_type,
+                Number(r.deposit_value ?? 0),
+                Number(r.amount_paid ?? 0)
+              );
+              const isPartial = r.kind === 'invoice' && (totals.paymentStage === 'partial' || totals.paymentStage === 'deposit_paid');
+
               const chip = converted
-                ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
-                : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
+                ? { cls: 'bg-sent-container text-sent', icon: 'sync', label: 'converted' }
+                : isPartial
+                ? { cls: 'bg-amber-100 text-amber-900 font-bold', icon: 'pie_chart', label: 'PARTIAL' }
+                : STATUS_CHIP[r.status]
+                ? { ...STATUS_CHIP[r.status], label: r.status }
+                : { ...STATUS_CHIP.draft, label: r.status };
+
+              const headlineAmount = isPartial ? totals.dueNow : totals.total;
+
               return (
                 <Link key={r.id} href={`/invoices/${r.id}`}
                   className="card block p-5 transition-transform active:scale-[0.98]">
@@ -103,13 +117,20 @@ export default function Invoices() {
                         {' • '}{new Date(r.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <span className={`status-chip shrink-0 ${chip.cls}`}>
+                    <span className={`status-chip shrink-0 uppercase ${chip.cls}`}>
                       <Icon name={chip.icon} size={18} />
-                      {converted ? 'converted' : r.status}
+                      {chip.label}
                     </span>
                   </div>
                   <div className="flex items-end justify-between">
-                    <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                    <div>
+                      <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(headlineAmount)}</div>
+                      {isPartial && (
+                        <div className="text-xs font-medium text-on-surface-variant/80">
+                          Remaining of {money(totals.total)}
+                        </div>
+                      )}
+                    </div>
                     <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
                       <Icon name="chevron_right" size={24} />
                     </span>
