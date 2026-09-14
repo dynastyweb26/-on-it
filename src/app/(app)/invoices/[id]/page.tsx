@@ -108,24 +108,6 @@ export default function InvoiceDetail() {
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
-  const rd: InvoiceRenderData = {
-    kind: inv.kind, invoiceNumber: inv.invoice_number,
-    businessName: snapped ? inv.business_name : profile.business_name,
-    logoUrl: snapped ? inv.logo_url : profile.logo_url,
-    websiteUrl: snapped ? inv.website_url : profile.website_url,
-    slogan: snapped ? inv.slogan : profile.slogan,
-    clientName: inv.client_name, clientAddress: inv.client_address ?? null,
-    clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
-    subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
-    taxAmount: Number(inv.tax_amount), total: Number(inv.total),
-    notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
-    dueDate: inv.due_date, paid: inv.status === 'paid',
-    zelle, // live — Zelle is never snapshotted, in either case
-    cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,
-    paypalMe: snapped ? inv.paypal_me : profile.paypal_me,
-    venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
-  };
-
   // amount_paid is kept in sync by the invoice_payments trigger; all deposit and
   // payment math (depositAmount, dueNow, credit, paymentStage) comes from the
   // financial engine — the single source of truth — never recomputed here.
@@ -137,6 +119,35 @@ export default function InvoiceDetail() {
     Number(inv.deposit_value ?? 0),
     amountPaid,
   );
+  // Most recent payment date (payments are ordered newest-first) for the PDF's
+  // payment-received line.
+  const paymentDate = payments.length ? new Date(payments[0].paid_at).toLocaleDateString() : null;
+
+  const rd: InvoiceRenderData = {
+    kind: inv.kind, invoiceNumber: inv.invoice_number,
+    businessName: snapped ? inv.business_name : profile.business_name,
+    logoUrl: snapped ? inv.logo_url : profile.logo_url,
+    websiteUrl: snapped ? inv.website_url : profile.website_url,
+    slogan: snapped ? inv.slogan : profile.slogan,
+    clientName: inv.client_name, clientAddress: inv.client_address ?? null,
+    clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
+    subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
+    taxAmount: Number(inv.tax_amount), total: Number(inv.total),
+    depositType: (inv.deposit_type ?? 'none') as DepositType,
+    depositValue: Number(inv.deposit_value ?? 0),
+    depositAmount: totals.depositAmount,
+    remaining: totals.remaining,
+    amountDueNow: totals.dueNow,
+    paymentsReceived: amountPaid,
+    paymentDate,
+    paymentStage: totals.paymentStage,
+    notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
+    dueDate: inv.due_date, paid: inv.status === 'paid',
+    zelle, // live — Zelle is never snapshotted, in either case
+    cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,
+    paypalMe: snapped ? inv.paypal_me : profile.paypal_me,
+    venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
+  };
 
   async function viewPdf() {
     if (!vaultPath) return;

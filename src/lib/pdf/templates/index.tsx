@@ -19,6 +19,7 @@ import { BrandTheme, onColor } from '@/lib/colors';
 import { websiteHref } from '@/lib/url';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import type { LineItem } from '@/lib/ai';
+import type { PaymentStage } from '@/lib/financials';
 
 export interface InvoiceRenderData {
   kind: 'invoice' | 'quote';
@@ -35,11 +36,13 @@ export interface InvoiceRenderData {
   taxRate: number;
   taxAmount: number;
   total: number;
-  depositType?: 'percentage' | 'fixed' | 'none';
+  depositType?: 'percentage' | 'percent' | 'fixed' | 'none';
   depositValue?: number;
   depositAmount?: number;
   remaining?: number;
   paymentsReceived?: number;
+  paymentDate?: string | null; // date of the most recent recorded payment
+  paymentStage?: PaymentStage;
   amountDueNow?: number;
   notes?: string | null;
   issuedDate: string;
@@ -53,6 +56,20 @@ export interface InvoiceRenderData {
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
+
+// The dominant totals-block label follows paymentStage: an unpaid invoice with a
+// deposit reads DEPOSIT DUE NOW; once a deposit or part-payment lands it becomes
+// BALANCE DUE; fully paid reads PAID IN FULL. Otherwise the plain total.
+function dominantLabel(d: InvoiceRenderData): string {
+  const stage = d.paymentStage ?? 'unpaid';
+  if (stage === 'paid') return 'Paid in full';
+  if (stage === 'deposit_paid' || stage === 'partial') return 'Balance due';
+  if ((d.depositAmount ?? 0) > 0) return 'Deposit due now';
+  return d.kind === 'quote' ? 'Quoted total' : 'Total due';
+}
+
+const isPercentDeposit = (d: InvoiceRenderData) =>
+  d.depositType === 'percentage' || d.depositType === 'percent';
 
 const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
 
@@ -197,17 +214,7 @@ function Notes({ notes, t, align = 'left' }: { notes?: string | null; t: BrandTh
 
 function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   const hasDeposit = (d.depositAmount ?? 0) > 0;
-  const isQuote = d.kind === 'quote';
-
-  let dominantLabel = isQuote ? 'Quoted total' : 'Total due';
-  if (hasDeposit) {
-    dominantLabel = 'Deposit due now';
-  } else if (d.paid) {
-    dominantLabel = 'Paid in full';
-  } else if ((d.paymentsReceived ?? 0) > 0) {
-    dominantLabel = 'Balance due';
-  }
-
+  const received = d.paymentsReceived ?? 0;
   const dominantAmount = d.amountDueNow ?? (hasDeposit ? d.depositAmount! : d.total);
 
   return (
@@ -220,11 +227,15 @@ function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ borderTop: `1px solid ${t.accent}33`, margin: '4px 0' }} />
           <Row label="Project total" value={money(d.total)} />
           <Row
-            label={d.depositType === 'percentage' ? `${d.depositValue}% deposit required` : 'Deposit required'}
+            label={isPercentDeposit(d) ? `${d.depositValue}% deposit required` : 'Deposit required'}
             value={money(d.depositAmount!)}
           />
           <Row label="Remaining balance" value={money(d.remaining ?? (d.total - d.depositAmount!))} />
         </>
+      )}
+
+      {received > 0 && (
+        <Row label={`Payment received${d.paymentDate ? ` · ${d.paymentDate}` : ''}`} value={money(received)} />
       )}
 
       <div
@@ -241,7 +252,7 @@ function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           borderRadius: 4,
         }}
       >
-        <span style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 14 }}>{dominantLabel}</span>
+        <span style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 14 }}>{dominantLabel(d)}</span>
         <span style={{ fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>{money(dominantAmount)}</span>
       </div>
     </div>
@@ -475,7 +486,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
 
       <div style={{ background: t.accent, color: onColor(t.accent), padding: '20px 24px', marginTop: 22 }}>
         <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
-          {(d.depositAmount ?? 0) > 0 ? 'Deposit due now' : isInvoice ? 'Amount due' : 'Quoted total'}
+          {dominantLabel(d)}
         </div>
         <div style={{ fontSize: 50, fontWeight: 800, lineHeight: 1.05, marginTop: 4, fontFamily: MONO }}>
           {money(d.amountDueNow ?? ((d.depositAmount ?? 0) > 0 ? d.depositAmount! : d.total))}
@@ -518,7 +529,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
                 <span>Project total</span><span style={{ fontFamily: MONO }}>{money(d.total)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
-                <span>{d.depositType === 'percentage' ? `${d.depositValue}% deposit required` : 'Deposit required'}</span>
+                <span>{isPercentDeposit(d) ? `${d.depositValue}% deposit required` : 'Deposit required'}</span>
                 <span style={{ fontFamily: MONO }}>{money(d.depositAmount!)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
@@ -526,9 +537,15 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
               </div>
             </>
           )}
+          {(d.paymentsReceived ?? 0) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
+              <span>Payment received{d.paymentDate ? ` · ${d.paymentDate}` : ''}</span>
+              <span style={{ fontFamily: MONO }}>{money(d.paymentsReceived!)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 4px', fontWeight: 800 }}>
             <span style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: 1 }}>
-              {(d.depositAmount ?? 0) > 0 ? 'Deposit due now' : isInvoice ? 'Total due' : 'Quoted'}
+              {dominantLabel(d)}
             </span>
             <span style={{ fontSize: 20, color: t.accent, fontFamily: MONO }}>
               {money(d.amountDueNow ?? ((d.depositAmount ?? 0) > 0 ? d.depositAmount! : d.total))}
