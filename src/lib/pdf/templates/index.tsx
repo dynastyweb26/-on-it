@@ -223,7 +223,7 @@ function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             label={d.depositType === 'percentage' ? `${d.depositValue}% deposit required` : 'Deposit required'}
             value={money(d.depositAmount!)}
           />
-          <Row label="Remaining balance" value={money(d.remaining ?? (d.total - d.depositAmount!))} />
+          <Row label="Balance due" value={money(d.remaining ?? (d.total - d.depositAmount!))} />
         </>
       )}
 

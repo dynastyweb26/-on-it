@@ -157,9 +157,30 @@ export default function InvoiceDetail() {
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
-  async function markPaid() {
-    await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
-    setInv({ ...inv, status: 'paid' });
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [customAmount, setCustomAmount] = useState('');
+
+  async function recordPayment(newAmountPaid: number) {
+    if (newAmountPaid <= 0 || newAmountPaid > Number(inv.total)) return;
+    const isPaidInFull = newAmountPaid >= Number(inv.total);
+    const paidAt = isPaidInFull ? new Date().toISOString() : inv.paid_at;
+    const newStatus = isPaidInFull ? 'paid' : inv.status === 'draft' ? 'draft' : 'sent';
+
+    setInv({
+      ...inv,
+      amount_paid: newAmountPaid,
+      paid_at: paidAt,
+      status: newStatus,
+    });
+
+    await supabase
+      .from('invoices')
+      .update({
+        amount_paid: newAmountPaid,
+        paid_at: paidAt,
+        status: newStatus,
+      })
+      .eq('id', id);
   }
 
   async function resend() {
@@ -172,7 +193,18 @@ export default function InvoiceDetail() {
     // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
     // invoice fabricate history — so it's gated on the draft→sent transition.
     const patch: Record<string, unknown> = { status: 'sent', sent_at: new Date().toISOString() };
-    if (inv.status !== 'sent') Object.assign(patch, renderSnapshot(profile));
+    if (inv.status !== 'sent') {
+      Object.assign(patch, renderSnapshot(profile));
+      if (inv.deposit_amount == null) {
+        const depTotals = calculateInvoiceTotals(
+          inv.line_items ?? [],
+          Number(inv.tax_rate ?? 0),
+          inv.deposit_type ?? 'none',
+          Number(inv.deposit_value ?? 0)
+        );
+        patch.deposit_amount = depTotals.depositAmount;
+      }
+    }
     await supabase.from('invoices').update(patch).eq('id', id);
     setInv({ ...inv, ...patch });
     setBusy(false);
@@ -300,11 +332,31 @@ export default function InvoiceDetail() {
           </div>
           <div className="font-display text-xl font-bold text-primary">{money(Number(inv.total))}</div>
         </div>
-        <div className="mt-3 flex gap-2">
-          {inv.status !== 'paid' && inv.kind === 'invoice' && (
-            <button className="chip flex items-center gap-1.5 border-paid text-paid" onClick={markPaid}>
-              <Icon name="check_circle" size={18} /> Mark paid
-            </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {inv.kind === 'invoice' && Number(inv.amount_paid ?? 0) < Number(inv.total) && (
+            <select
+              className="chip border-paid text-paid bg-surface-container-lowest font-semibold outline-none cursor-pointer"
+              value=""
+              onChange={(e) => {
+                const val = e.target.value;
+                const depositAmt = Number(inv.deposit_amount ?? 0);
+                const totalAmt = Number(inv.total ?? 0);
+                if (val === 'deposit') {
+                  void recordPayment(depositAmt);
+                } else if (val === 'full') {
+                  void recordPayment(totalAmt);
+                } else if (val === 'other') {
+                  setShowOtherInput(true);
+                }
+              }}
+            >
+              <option value="" disabled>Record payment</option>
+              {Number(inv.deposit_amount ?? 0) > 0 && Number(inv.amount_paid ?? 0) < Number(inv.deposit_amount) && (
+                <option value="deposit">Deposit paid ({money(Number(inv.deposit_amount))})</option>
+              )}
+              <option value="full">Paid in full ({money(Number(inv.total))})</option>
+              <option value="other">Other amount…</option>
+            </select>
           )}
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
@@ -336,6 +388,46 @@ export default function InvoiceDetail() {
             </button>
           )}
         </div>
+        {inv.kind === 'invoice' && showOtherInput && (
+          <div className="mt-3 flex items-center gap-2 border-t border-outline-variant/30 pt-3">
+            <span className="text-xs font-semibold text-on-surface-variant">Payment amount:</span>
+            <input
+              type="number"
+              min="0.01"
+              max={Number(inv.total) - Number(inv.amount_paid ?? 0)}
+              step="0.01"
+              className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
+              placeholder={money(Number(inv.total) - Number(inv.amount_paid ?? 0))}
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+            />
+            <button
+              className="chip border-primary text-primary text-xs"
+              disabled={!customAmount || Number(customAmount) <= 0 || Number(customAmount) > (Number(inv.total) - Number(inv.amount_paid ?? 0))}
+              onClick={() => {
+                const addAmt = Number(customAmount);
+                const currentPaid = Number(inv.amount_paid ?? 0);
+                const maxPayable = Number(inv.total) - currentPaid;
+                if (addAmt > 0 && addAmt <= maxPayable) {
+                  void recordPayment(currentPaid + addAmt);
+                  setShowOtherInput(false);
+                  setCustomAmount('');
+                }
+              }}
+            >
+              Save
+            </button>
+            <button
+              className="chip text-xs text-on-surface-variant"
+              onClick={() => {
+                setShowOtherInput(false);
+                setCustomAmount('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         {inv.kind === 'invoice' && (
           <div className="mt-3 flex items-center gap-2">
             <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>

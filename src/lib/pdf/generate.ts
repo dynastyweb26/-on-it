@@ -183,7 +183,15 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
 
   const { bg: computedBg, color: computedColor, fontFamily: computedFont } = getEffectiveBgAndColor(el);
 
-  const businessName = el.querySelector('[data-pdf-business-name]')?.textContent?.trim() || '';
+  const businessNameEl = el.querySelector('[data-pdf-business-name]');
+  let businessName = '';
+  if (businessNameEl) {
+    businessName = Array.from(businessNameEl.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent)
+      .join('')
+      .trim() || businessNameEl.textContent?.trim() || '';
+  }
   const docNounStr = el.querySelector('[data-pdf-doc-noun]')?.textContent?.trim() || '';
   const docNumStr = el.querySelector('[data-pdf-doc-number]')?.textContent?.trim() || '';
   const docMark = (docNounStr && docNumStr) ? `${docNounStr} ${docNumStr}` : (docNounStr || docNumStr || 'INVOICE');

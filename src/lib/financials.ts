@@ -2,7 +2,7 @@
 // Derived numeric values and arithmetic calculations MUST always be computed in code,
 // never by the AI model orinline across separate components.
 
-export type DepositType = 'percentage' | 'fixed' | 'none';
+export type DepositType = 'percentage' | 'percent' | 'fixed' | 'none';
 
 export interface FinancialLineItem {
   qty: number;
@@ -69,7 +69,7 @@ export function calculateInvoiceTotals(
   const total = roundCurrency(subtotal + taxAmount);
 
   let depositAmount = 0;
-  if (depositType === 'percentage' && Number.isFinite(depositValue) && depositValue > 0) {
+  if ((depositType === 'percentage' || depositType === 'percent') && Number.isFinite(depositValue) && depositValue > 0) {
     depositAmount = roundCurrency((total * depositValue) / 100);
   } else if (depositType === 'fixed' && Number.isFinite(depositValue) && depositValue > 0) {
     depositAmount = roundCurrency(Math.min(depositValue, total));

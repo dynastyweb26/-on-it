@@ -920,8 +920,6 @@ export default function Chat() {
           client_id: client?.id ?? null,
           kind: rd0.kind,
           client_name: rd0.clientName,
-          // Snapshot contact onto the row — a later change to the client record
-          // must not rewrite what this invoice actually went out with.
           client_address: rd0.clientAddress ?? null,
           client_phone: rd0.clientPhone ?? null,
           line_items: lineItemsForInsert,
@@ -931,12 +929,9 @@ export default function Chat() {
           total: rd0.total,
           notes: rd0.notes,
           due_date: rd0.dueDate,
+          deposit_type: previewDepositType,
+          deposit_value: previewDepositValue,
           status: 'draft', // becomes 'sent' only after a real share (B1)
-          // Server-side idempotency key, unique per draft (the conversation id).
-          // A resumed finalize whose local pendingInvoice was lost re-inserts
-          // with the SAME key and hits the (user_id, finalize_key) unique index
-          // instead of burning a second number — we read the existing row back
-          // below. This is the durable guarantee a client-only guard can't give.
           finalize_key: convoId || null,
         }).select('id, invoice_number').single();
 
@@ -1066,8 +1061,15 @@ export default function Chat() {
       // This is the first (and only) send of a freshly-created invoice — the
       // finalizeSentRef guard above prevents a resumed re-finalize. Zelle is not
       // snapshotted (see renderSnapshot).
+      // Freeze deposit_amount on send
+      const frozenDepositAmount = previewTotals.depositAmount;
       await supabase.from('invoices')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          deposit_amount: frozenDepositAmount,
+          ...renderSnapshot(profile),
+        })
         .eq('id', invoiceId);
       // Record the sent step BEFORE the archive (which can hang): a suspend now
       // must resume into the idempotent finish above, never a re-share.
