@@ -70,4 +70,6 @@ end $$;
 drop trigger if exists lock_deposit_terms on public.invoices;
 create trigger lock_deposit_terms
   before update on public.invoices
-  for each row execute function public.lock_deposit_terms();
+  for each row
+  when (old.amount_paid > 0)
+  execute function public.lock_deposit_terms();
