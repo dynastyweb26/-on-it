@@ -232,11 +232,14 @@ export default function InvoiceDetail() {
     void fetchPayments();
   }
 
-  async function resend() {
+  async function resend(isBalanceRequest = false) {
     if (!printRef.current) return;
     setBusy(true);
     const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
-    await shareInvoice(file, inv.client_name, docNoun(inv.kind));
+    // A balance request re-sends the SAME invoice through the SAME path — no new
+    // token, no second invoice — with copy that leads with the balance due.
+    const leadText = isBalanceRequest ? `Balance due ${money(totals.dueNow)}` : docNoun(inv.kind);
+    await shareInvoice(file, inv.client_name, leadText);
     // First send (e.g. a converted quote→invoice draft) captures the render
     // snapshot from the current profile. A RE-send of an already-sent invoice
     // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
@@ -396,9 +399,14 @@ export default function InvoiceDetail() {
               <Icon name="check_circle" size={18} /> Mark paid
             </button>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
+          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
+          {amountPaid > 0 && totals.dueNow > 0 && (
+            <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
+              <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}
+            </button>
+          )}
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
             <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
           </button>
