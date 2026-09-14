@@ -10,7 +10,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
 import { defaultDueDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
-import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
+import { calculateInvoiceTotals } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 
@@ -63,6 +63,14 @@ export default function InvoiceDetail() {
             .maybeSingle();
           setConvertedFrom(src ?? null);
         }
+        // Payments ledger history
+        const { data: pList } = await supabase
+          .from('invoice_payments')
+          .select('*')
+          .eq('invoice_id', i.id)
+          .order('paid_at', { ascending: false });
+        setPayments(pList ?? []);
+
         // archived PDF from the Vault (uploaded at finalize time)
         const { data: doc } = await supabase
           .from('vault_documents')
@@ -96,7 +104,7 @@ export default function InvoiceDetail() {
   const backgroundColor = snapped ? inv.background_color : profile.background_color;
   const theme = backgroundColor && brandColors?.length >= 2
     ? buildTheme(brandColors, backgroundColor)
-    : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
+    : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
   const rd: InvoiceRenderData = {
@@ -157,54 +165,78 @@ export default function InvoiceDetail() {
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
-  const [showOtherInput, setShowOtherInput] = useState(false);
-  const [customAmount, setCustomAmount] = useState('');
+  const [payments, setPayments] = useState<any[]>([]);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'other'>('zelle');
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
+  const [customPayAmount, setCustomPayAmount] = useState('');
 
-  async function recordPayment(newAmountPaid: number) {
-    if (newAmountPaid <= 0 || newAmountPaid > Number(inv.total)) return;
-    const isPaidInFull = newAmountPaid >= Number(inv.total);
-    const paidAt = isPaidInFull ? new Date().toISOString() : inv.paid_at;
-    const newStatus = isPaidInFull ? 'paid' : inv.status === 'draft' ? 'draft' : 'sent';
-
-    setInv({
-      ...inv,
-      amount_paid: newAmountPaid,
-      paid_at: paidAt,
-      status: newStatus,
-    });
-
-    await supabase
-      .from('invoices')
-      .update({
-        amount_paid: newAmountPaid,
-        paid_at: paidAt,
-        status: newStatus,
-      })
-      .eq('id', id);
+  async function fetchPayments() {
+    const { data: pList } = await supabase
+      .from('invoice_payments')
+      .select('*')
+      .eq('invoice_id', id)
+      .order('paid_at', { ascending: false });
+    setPayments(pList ?? []);
   }
 
-  async function resend() {
+  async function handleDeletePayment(paymentId: string) {
+    const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+    if (error) {
+      console.error('delete payment failed', error);
+      return;
+    }
+    setDeletingPaymentId(null);
+    const { data: updatedInv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (updatedInv) setInv(updatedInv);
+    void fetchPayments();
+  }
+
+  async function handleRecordPayment(amountToRecord: number) {
+    if (amountToRecord <= 0) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const paidAtIso = payDate ? new Date(payDate).toISOString() : new Date().toISOString();
+
+    const { error } = await supabase.from('invoice_payments').insert({
+      invoice_id: id,
+      user_id: user.id,
+      amount: amountToRecord,
+      method: payMethod,
+      paid_at: paidAtIso,
+    });
+
+    if (error) {
+      console.error('record payment failed', error);
+      return;
+    }
+
+    const { data: updatedInv } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (updatedInv) setInv(updatedInv);
+    setPayMode('none');
+    setCustomPayAmount('');
+    void fetchPayments();
+  }
+
+  async function resend(isBalanceRequest = false) {
     if (!printRef.current) return;
     setBusy(true);
-    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
-    await shareInvoice(file, inv.client_name, docNoun(inv.kind));
-    // First send (e.g. a converted quote→invoice draft) captures the render
-    // snapshot from the current profile. A RE-send of an already-sent invoice
-    // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
-    // invoice fabricate history — so it's gated on the draft→sent transition.
+    const totals = calculateInvoiceTotals(
+      inv.line_items ?? [],
+      Number(inv.tax_rate ?? 0),
+      inv.deposit_type ?? 'none',
+      Number(inv.deposit_value ?? 0),
+      Number(inv.amount_paid ?? 0)
+    );
+    const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+    const file = await elementToPdf(printRef.current, filename);
+    const leadText = isBalanceRequest ? `Balance due ${money(totals.dueNow)}` : docNoun(inv.kind);
+    await shareInvoice(file, inv.client_name, leadText);
+
     const patch: Record<string, unknown> = { status: 'sent', sent_at: new Date().toISOString() };
-    if (inv.status !== 'sent') {
-      Object.assign(patch, renderSnapshot(profile));
-      if (inv.deposit_amount == null) {
-        const depTotals = calculateInvoiceTotals(
-          inv.line_items ?? [],
-          Number(inv.tax_rate ?? 0),
-          inv.deposit_type ?? 'none',
-          Number(inv.deposit_value ?? 0)
-        );
-        patch.deposit_amount = depTotals.depositAmount;
-      }
-    }
+    if (inv.status !== 'sent') Object.assign(patch, renderSnapshot(profile));
     await supabase.from('invoices').update(patch).eq('id', id);
     setInv({ ...inv, ...patch });
     setBusy(false);
@@ -249,37 +281,6 @@ export default function InvoiceDetail() {
   // description change, records the AI's original wording the first time a line is
   // edited — never overwriting an original already captured from a chat edit,
   // since the first AI output is the training signal.
-  async function applyNotes(notes: string) {
-    setInv({ ...inv, notes });
-    await supabase.from('invoices').update({ notes }).eq('id', id);
-  }
-
-  async function applyDeposit(deposit_type: DepositType, deposit_value: number) {
-    const totals = calculateInvoiceTotals(
-      inv.line_items ?? [],
-      Number(inv.tax_rate ?? 0),
-      deposit_type,
-      deposit_value
-    );
-    setInv({
-      ...inv,
-      deposit_type,
-      deposit_value,
-      subtotal: totals.subtotal,
-      tax_amount: totals.taxAmount,
-      total: totals.total,
-    });
-    await supabase.from('invoices')
-      .update({
-        deposit_type,
-        deposit_value,
-        subtotal: totals.subtotal,
-        tax_amount: totals.taxAmount,
-        total: totals.total,
-      })
-      .eq('id', id);
-  }
-
   async function applyLineItems(newItems: LineItemRow[]) {
     const prev = (inv.line_items ?? []) as LineItemRow[];
     const merged = newItems.map((li, i) => {
@@ -289,27 +290,14 @@ export default function InvoiceDetail() {
       }
       return li;
     });
-    const totals = calculateInvoiceTotals(
-      merged,
-      Number(inv.tax_rate),
-      inv.deposit_type ?? 'none',
-      Number(inv.deposit_value ?? 0)
-    );
+    const subtotal = merged.reduce((s, li) => s + Number(li.qty) * Number(li.unit_price), 0);
+    const taxRate = Number(inv.tax_rate);
+    const taxAmount = Math.round(subtotal * taxRate) / 100;
+    const total = subtotal + taxAmount;
     const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
-    setInv({
-      ...inv,
-      line_items: merged,
-      subtotal: totals.subtotal,
-      tax_amount: totals.taxAmount,
-      total: totals.total,
-    });
+    setInv({ ...inv, line_items: merged, subtotal, tax_amount: taxAmount, total });
     const { error } = await supabase.from('invoices')
-      .update({
-        line_items: merged,
-        subtotal: totals.subtotal,
-        tax_amount: totals.taxAmount,
-        total: totals.total,
-      })
+      .update({ line_items: merged, subtotal, tax_amount: taxAmount, total })
       .eq('id', id);
     if (error) {
       console.error('line item update failed', error);
@@ -338,29 +326,42 @@ export default function InvoiceDetail() {
               className="chip border-paid text-paid bg-surface-container-lowest font-semibold outline-none cursor-pointer"
               value=""
               onChange={(e) => {
-                const val = e.target.value;
-                const depositAmt = Number(inv.deposit_amount ?? 0);
-                const totalAmt = Number(inv.total ?? 0);
+                const val = e.target.value as 'deposit' | 'full' | 'other';
+                setPayMode(val);
                 if (val === 'deposit') {
-                  void recordPayment(depositAmt);
+                  const depAmt = Number(inv.deposit_amount ?? 0);
+                  const currentPaid = Number(inv.amount_paid ?? 0);
+                  setCustomPayAmount(String(Math.max(0, depAmt - currentPaid)));
                 } else if (val === 'full') {
-                  void recordPayment(totalAmt);
+                  const totalAmt = Number(inv.total ?? 0);
+                  const currentPaid = Number(inv.amount_paid ?? 0);
+                  setCustomPayAmount(String(Math.max(0, totalAmt - currentPaid)));
                 } else if (val === 'other') {
-                  setShowOtherInput(true);
+                  setCustomPayAmount('');
                 }
               }}
             >
               <option value="" disabled>Record payment</option>
               {Number(inv.deposit_amount ?? 0) > 0 && Number(inv.amount_paid ?? 0) < Number(inv.deposit_amount) && (
-                <option value="deposit">Deposit paid ({money(Number(inv.deposit_amount))})</option>
+                <option value="deposit">
+                  Deposit paid ({money(Math.max(0, Number(inv.deposit_amount) - Number(inv.amount_paid ?? 0)))})
+                </option>
               )}
-              <option value="full">Paid in full ({money(Number(inv.total))})</option>
+              <option value="full">
+                Paid in full ({money(Math.max(0, Number(inv.total) - Number(inv.amount_paid ?? 0)))})
+              </option>
               <option value="other">Other amount…</option>
             </select>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
+          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend(false)}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
+          {Number(inv.amount_paid ?? 0) > 0 &&
+           calculateInvoiceTotals(inv.line_items ?? [], Number(inv.tax_rate ?? 0), inv.deposit_type ?? 'none', Number(inv.deposit_value ?? 0), Number(inv.amount_paid ?? 0)).dueNow > 0 && (
+            <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
+              <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}
+            </button>
+          )}
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
             <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
           </button>
@@ -388,44 +389,57 @@ export default function InvoiceDetail() {
             </button>
           )}
         </div>
-        {inv.kind === 'invoice' && showOtherInput && (
-          <div className="mt-3 flex items-center gap-2 border-t border-outline-variant/30 pt-3">
-            <span className="text-xs font-semibold text-on-surface-variant">Payment amount:</span>
-            <input
-              type="number"
-              min="0.01"
-              max={Number(inv.total) - Number(inv.amount_paid ?? 0)}
-              step="0.01"
-              className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
-              placeholder={money(Number(inv.total) - Number(inv.amount_paid ?? 0))}
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-            />
-            <button
-              className="chip border-primary text-primary text-xs"
-              disabled={!customAmount || Number(customAmount) <= 0 || Number(customAmount) > (Number(inv.total) - Number(inv.amount_paid ?? 0))}
-              onClick={() => {
-                const addAmt = Number(customAmount);
-                const currentPaid = Number(inv.amount_paid ?? 0);
-                const maxPayable = Number(inv.total) - currentPaid;
-                if (addAmt > 0 && addAmt <= maxPayable) {
-                  void recordPayment(currentPaid + addAmt);
-                  setShowOtherInput(false);
-                  setCustomAmount('');
-                }
-              }}
-            >
-              Save
-            </button>
-            <button
-              className="chip text-xs text-on-surface-variant"
-              onClick={() => {
-                setShowOtherInput(false);
-                setCustomAmount('');
-              }}
-            >
-              Cancel
-            </button>
+        {inv.kind === 'invoice' && payMode !== 'none' && (
+          <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              <span className="font-semibold text-on-surface-variant">Method:</span>
+              <select
+                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 font-semibold text-on-surface outline-none"
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value as any)}
+              >
+                <option value="zelle">Zelle</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+              <span className="font-semibold text-on-surface-variant ml-2">Date:</span>
+              <input
+                type="date"
+                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs outline-none"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-on-surface-variant">Amount:</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
+                placeholder="0.00"
+                value={customPayAmount}
+                onChange={(e) => setCustomPayAmount(e.target.value)}
+              />
+              <button
+                className="chip border-primary text-primary text-xs"
+                disabled={!customPayAmount || Number(customPayAmount) <= 0}
+                onClick={() => void handleRecordPayment(Number(customPayAmount))}
+              >
+                Save Payment
+              </button>
+              <button
+                className="chip text-xs text-on-surface-variant"
+                onClick={() => {
+                  setPayMode('none');
+                  setCustomPayAmount('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
         {inv.kind === 'invoice' && (
@@ -441,6 +455,51 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
+      {payments.length > 0 && (
+        <div className="card mb-4 p-4">
+          <div className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant mb-3">
+            Payment History
+          </div>
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div key={p.id} className="flex items-center justify-between border-b border-outline-variant/30 pb-2 text-xs">
+                <div>
+                  <span className="font-bold text-on-background">{money(Number(p.amount))}</span>
+                  <span className="ml-2 text-on-surface-variant uppercase font-medium">({p.method})</span>
+                  <span className="ml-2 text-on-surface-variant/70">
+                    {new Date(p.paid_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {deletingPaymentId === p.id ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-error">Delete?</span>
+                    <button
+                      className="chip border-error text-error py-0.5 px-2 text-xs"
+                      onClick={() => void handleDeletePayment(p.id)}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      className="chip text-xs py-0.5 px-2 text-on-surface-variant"
+                      onClick={() => setDeletingPaymentId(null)}
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="text-error opacity-70 hover:opacity-100 p-1"
+                    title="Delete payment"
+                    onClick={() => setDeletingPaymentId(p.id)}
+                  >
+                    <Icon name="delete" size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {Array.isArray(inv.line_items) && inv.line_items.length > 0 && (
         <div className="card mb-4">
           <div className="mb-2 flex items-center justify-between">
@@ -448,56 +507,6 @@ export default function InvoiceDetail() {
             {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a value to edit</span>}
           </div>
           <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
-          {isDraft && (
-            <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
-                <div className="flex items-center gap-1.5">
-                  <select
-                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none"
-                    value={inv.deposit_type ?? 'none'}
-                    onChange={(e) => {
-                      const dt = e.target.value as DepositType;
-                      const val = dt === 'none' ? 0 : (inv.deposit_value ?? (dt === 'percentage' ? 40 : 100));
-                      void applyDeposit(dt, val);
-                    }}
-                  >
-                    <option value="none">None</option>
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed ($)</option>
-                  </select>
-                  {(inv.deposit_type === 'percentage' || inv.deposit_type === 'fixed') && (
-                    <input
-                      type="number"
-                      min="0"
-                      max={inv.deposit_type === 'percentage' ? 100 : 1000000}
-                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
-                      value={inv.deposit_value ?? ''}
-                      placeholder={inv.deposit_type === 'percentage' ? '40' : '100'}
-                      onChange={(e) => {
-                        const v = Math.max(0, Number(e.target.value) || 0);
-                        void applyDeposit(inv.deposit_type as DepositType, v);
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-              <div>
-                <label htmlFor="notes-input" className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Notes
-                </label>
-                <textarea
-                  id="notes-input"
-                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
-                  rows={2}
-                  maxLength={400}
-                  placeholder="Deposit due before materials are ordered. 3-5 day lead time."
-                  value={inv.notes ?? ''}
-                  onChange={(e) => void applyNotes(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
         </div>
       )}
       <div className="overflow-hidden rounded-card border border-outline-variant">

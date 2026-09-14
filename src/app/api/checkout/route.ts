@@ -6,10 +6,11 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { calculateInvoiceTotals } from '@/lib/financials';
 
-// No meaningful body — the price is server-side. Validate anyway (security
-// pattern): reject anything that isn't an object / empty body.
-const CheckoutBody = z.object({}).nullish();
+const CheckoutBody = z.object({
+  invoice_id: z.string().uuid().optional(),
+}).nullish();
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -20,13 +21,69 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
 
-  if (!CheckoutBody.safeParse(await req.json().catch(() => ({})) ).success) {
+  const bodyParsed = CheckoutBody.safeParse(await req.json().catch(() => ({})));
+  if (!bodyParsed.success) {
     return NextResponse.json({ error: 'invalid request' }, { status: 400 });
   }
+  const invoiceId = bodyParsed.data?.invoice_id;
 
   const stripe = getStripe();
   const price = process.env.STRIPE_PRICE_ID_MONTHLY;
-  // Dormant path: billing not configured yet (no keys tonight).
+
+  if (invoiceId) {
+    if (!stripe) {
+      return NextResponse.json(
+        { error: 'billing_not_configured', message: 'Payments aren’t live yet — hang tight, we’ll let you know.' },
+        { status: 503 }
+      );
+    }
+
+    const { data: inv } = await supabase
+      .from('invoices')
+      .select('*, line_items')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!inv) {
+      return NextResponse.json({ error: 'invoice_not_found' }, { status: 404 });
+    }
+
+    const totals = calculateInvoiceTotals(
+      inv.line_items ?? [],
+      Number(inv.tax_rate ?? 0),
+      inv.deposit_type,
+      Number(inv.deposit_value ?? 0),
+      Number(inv.amount_paid ?? 0)
+    );
+
+    if (totals.dueNow <= 0) {
+      return NextResponse.json(
+        { error: 'paid_in_full', message: 'This invoice is already paid in full.' },
+        { status: 400 }
+      );
+    }
+
+    const origin = req.nextUrl.origin;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: { name: `Payment for Invoice #${inv.invoice_number}` },
+          unit_amount: Math.round(totals.dueNow * 100),
+        },
+        quantity: 1,
+      }],
+      client_reference_id: inv.id,
+      metadata: { invoice_id: inv.id, user_id: inv.user_id },
+      success_url: `${origin}/invoices/${inv.id}?paid=1`,
+      cancel_url: `${origin}/invoices/${inv.id}`,
+    });
+
+    return NextResponse.json({ url: session.url, amount: totals.dueNow });
+  }
+
+  // Dormant path for subscriptions: billing not configured yet (no keys tonight).
   if (!stripe || !price) {
     return NextResponse.json(
       { error: 'billing_not_configured', message: 'Payments aren’t live yet — hang tight, we’ll let you know.' },

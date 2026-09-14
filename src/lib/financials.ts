@@ -1,8 +1,9 @@
 // ═══ ON IT — Financial Calculations Engine ═══
 // Derived numeric values and arithmetic calculations MUST always be computed in code,
-// never by the AI model orinline across separate components.
+// never by the AI model or inline across separate components.
 
 export type DepositType = 'percentage' | 'percent' | 'fixed' | 'none';
+export type PaymentStage = 'unpaid' | 'deposit_paid' | 'partial' | 'paid';
 
 export interface FinancialLineItem {
   qty: number;
@@ -14,8 +15,12 @@ export interface FinancialTotals {
   taxAmount: number;
   total: number;
   depositAmount: number;
-  remaining: number;
-  amountDueNow: number;
+  balanceAfterDeposit: number;
+  dueNow: number;
+  credit: number;
+  paymentStage: PaymentStage;
+  amountDueNow: number; // alias of dueNow
+  remaining: number; // alias of balanceAfterDeposit
 }
 
 /** Formats a numeric amount as USD currency, returning '$—' for non-finite values. */
@@ -29,23 +34,25 @@ export function money(n: number): string {
   });
 }
 
-/** Round to 2 decimal places to prevent floating point drift. */
-export function roundCurrency(amount: number): number {
-  if (!Number.isFinite(amount)) return 0;
-  return Math.round((amount + Number.EPSILON) * 100) / 100;
+/** Round half away from zero at two decimal places. */
+export function round2(num: number): number {
+  if (!Number.isFinite(num)) return 0;
+  const sign = num < 0 ? -1 : 1;
+  const abs = Math.abs(num);
+  return sign * (Math.round(abs * 100 + Number.EPSILON) / 100);
 }
 
 /** Compute the line item total: qty * unit_price */
 export function calculateLineAmount(qty: number, unitPrice: number): number {
   const q = Number.isFinite(qty) ? qty : 0;
   const p = Number.isFinite(unitPrice) ? unitPrice : 0;
-  return roundCurrency(q * p);
+  return round2(q * p);
 }
 
 /** Compute total subtotal from array of line items */
 export function calculateSubtotal(items: FinancialLineItem[]): number {
   if (!Array.isArray(items)) return 0;
-  return roundCurrency(
+  return round2(
     items.reduce((sum, item) => sum + calculateLineAmount(item.qty, item.unit_price), 0)
   );
 }
@@ -53,40 +60,63 @@ export function calculateSubtotal(items: FinancialLineItem[]): number {
 /** Compute tax amount from subtotal and percentage tax rate */
 export function calculateTaxAmount(subtotal: number, taxRate: number): number {
   const rate = Number.isFinite(taxRate) && taxRate > 0 ? taxRate : 0;
-  return roundCurrency(subtotal * (rate / 100));
+  return round2(subtotal * (rate / 100));
 }
 
-/** Compute full totals including subtotal, tax, total, deposit, remaining balance, and amount due now */
+/** Single source of truth for invoice financial derivations. */
 export function calculateInvoiceTotals(
   items: FinancialLineItem[],
   taxRate: number = 0,
-  depositType: DepositType = 'none',
+  depositType: DepositType | string | null = 'none',
   depositValue: number = 0,
-  paymentsReceived: number = 0
+  amountPaid: number = 0
 ): FinancialTotals {
   const subtotal = calculateSubtotal(items);
   const taxAmount = calculateTaxAmount(subtotal, taxRate);
-  const total = roundCurrency(subtotal + taxAmount);
+  const total = round2(subtotal + taxAmount);
+  const paid = Number.isFinite(amountPaid) ? Math.max(0, amountPaid) : 0;
+  const val = Number.isFinite(depositValue) ? depositValue : 0;
 
-  let depositAmount = 0;
-  if ((depositType === 'percentage' || depositType === 'percent') && Number.isFinite(depositValue) && depositValue > 0) {
-    depositAmount = roundCurrency((total * depositValue) / 100);
-  } else if (depositType === 'fixed' && Number.isFinite(depositValue) && depositValue > 0) {
-    depositAmount = roundCurrency(Math.min(depositValue, total));
+  // Collapse dual 'percent' / 'percentage' spelling to 'percentage', keeping 'percent' accepted on read.
+  const normalizedDepositType =
+    depositType === 'percent' || depositType === 'percentage'
+      ? 'percentage'
+      : depositType === 'fixed'
+      ? 'fixed'
+      : 'none';
+
+  let rawDeposit = 0;
+  if (normalizedDepositType === 'percentage' && val > 0) {
+    rawDeposit = round2((total * val) / 100);
+  } else if (normalizedDepositType === 'fixed' && val > 0) {
+    rawDeposit = round2(val);
   }
 
-  const remaining = roundCurrency(total - depositAmount);
+  const depositAmount = Math.max(0, Math.min(rawDeposit, total));
+  const balanceAfterDeposit = round2(total - depositAmount);
 
-  // Assertion: depositAmount + remaining must equal total
-  if (roundCurrency(depositAmount + remaining) !== total) {
-    console.warn(`Deposit math imbalance: deposit ${depositAmount} + remaining ${remaining} != total ${total}`);
+  let dueNow = 0;
+  if (total <= 0) {
+    dueNow = 0;
+  } else if (paid >= total) {
+    dueNow = 0;
+  } else if (depositAmount > 0 && paid < depositAmount) {
+    dueNow = round2(depositAmount - paid);
+  } else {
+    dueNow = round2(total - paid);
   }
 
-  let amountDueNow = total;
-  if (Number.isFinite(paymentsReceived) && paymentsReceived > 0) {
-    amountDueNow = Math.max(0, roundCurrency(total - paymentsReceived));
-  } else if (depositType !== 'none' && depositAmount > 0) {
-    amountDueNow = depositAmount;
+  const credit = Math.max(0, round2(paid - total));
+
+  let paymentStage: PaymentStage = 'unpaid';
+  if (paid <= 0) {
+    paymentStage = 'unpaid';
+  } else if (paid >= total) {
+    paymentStage = 'paid';
+  } else if (depositAmount > 0 && paid >= depositAmount) {
+    paymentStage = 'deposit_paid';
+  } else {
+    paymentStage = 'partial';
   }
 
   return {
@@ -94,7 +124,11 @@ export function calculateInvoiceTotals(
     taxAmount,
     total,
     depositAmount,
-    remaining,
-    amountDueNow,
+    balanceAfterDeposit,
+    dueNow,
+    credit,
+    paymentStage,
+    amountDueNow: dueNow,
+    remaining: balanceAfterDeposit,
   };
 }
