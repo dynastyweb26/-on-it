@@ -41,6 +41,9 @@ export default function InvoiceDetail() {
   const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'other'>('zelle');
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [payAmount, setPayAmount] = useState('');
+  // The invoice_payments ledger rows for this invoice (payment history).
+  const [payments, setPayments] = useState<any[]>([]);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -77,6 +80,7 @@ export default function InvoiceDetail() {
           .limit(1)
           .maybeSingle();
         setVaultPath(doc?.storage_path ?? null);
+        void fetchPayments();
         try {
           const z = await (await fetch('/api/zelle?full=1')).json();
           if (z?.value) setZelle(z.value);
@@ -202,6 +206,30 @@ export default function InvoiceDetail() {
     if (updated) setInv(updated);
     setPayMode('none');
     setPayAmount('');
+    void fetchPayments();
+  }
+
+  async function fetchPayments() {
+    const { data } = await supabase
+      .from('invoice_payments')
+      .select('*')
+      .eq('invoice_id', id)
+      .order('paid_at', { ascending: false });
+    setPayments(data ?? []);
+  }
+
+  // Delete a ledger row (behind a confirm step). The trigger recomputes
+  // invoices.amount_paid from what remains, so we refetch the invoice after.
+  async function handleDeletePayment(paymentId: string) {
+    const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+    if (error) {
+      console.error('delete payment failed', error);
+      return;
+    }
+    setDeletingPaymentId(null);
+    const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (updated) setInv(updated);
+    void fetchPayments();
   }
 
   async function resend() {
@@ -461,6 +489,46 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
+      {payments.length > 0 && (
+        <div className="card mb-4">
+          <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+            Payment history
+          </div>
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 text-xs last:border-0 last:pb-0"
+              >
+                <div>
+                  <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
+                  <span className="ml-2 font-medium uppercase text-on-surface-variant">{p.method}</span>
+                  <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
+                </div>
+                {deletingPaymentId === p.id ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-error">Delete?</span>
+                    <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
+                      Yes
+                    </button>
+                    <button className="chip px-2 py-0.5 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="p-1 text-error opacity-70 hover:opacity-100"
+                    title="Delete payment"
+                    onClick={() => setDeletingPaymentId(p.id)}
+                  >
+                    <Icon name="delete" size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {Array.isArray(inv.line_items) && inv.line_items.length > 0 && (
         <div className="card mb-4">
           <div className="mb-2 flex items-center justify-between">
