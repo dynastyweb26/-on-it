@@ -200,11 +200,6 @@ export default function InvoiceDetail() {
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
-  async function markPaid() {
-    await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
-    setInv({ ...inv, status: 'paid' });
-  }
-
   // Record a payment as a row in the invoice_payments ledger. The DB trigger
   // recomputes invoices.amount_paid from the ledger — we never write amount_paid
   // directly — so we refetch the invoice afterward to pick up the new total.
@@ -415,11 +410,6 @@ export default function InvoiceDetail() {
               <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
               <option value="other">Other amount…</option>
             </select>
-          )}
-          {inv.status !== 'paid' && inv.kind === 'invoice' && (
-            <button className="chip flex items-center gap-1.5 border-paid text-paid" onClick={markPaid}>
-              <Icon name="check_circle" size={18} /> Mark paid
-            </button>
           )}
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
