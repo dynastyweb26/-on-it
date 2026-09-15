@@ -39,7 +39,6 @@ export default function InvoiceDetail() {
   const [profile, setProfile] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [zelle, setZelle] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
   const [converting, setConverting] = useState(false);
@@ -85,15 +84,6 @@ export default function InvoiceDetail() {
             .maybeSingle();
           setConvertedFrom(src ?? null);
         }
-        // archived PDF from the Vault (uploaded at finalize time)
-        const { data: doc } = await supabase
-          .from('vault_documents')
-          .select('storage_path')
-          .eq('invoice_id', i.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        setVaultPath(doc?.storage_path ?? null);
         void fetchPayments();
         try {
           const z = await (await fetch('/api/zelle?full=1')).json();
@@ -163,34 +153,32 @@ export default function InvoiceDetail() {
     venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
   };
 
+  // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
+  // popup blockers only allow window.open synchronously inside the click gesture,
+  // so open the tab first and point it at the blob once the PDF is ready.
   async function viewPdf() {
-    if (!vaultPath) return;
-    const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    if (!printRef.current) return;
+    const w = window.open('', '_blank');
+    const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+    const file = await elementToPdf(printRef.current, filename);
+    const url = URL.createObjectURL(file);
+    if (w) w.location.href = url;
+    else window.open(url, '_blank'); // the synchronous open was blocked; try once more
+    // Release the blob after the tab has had time to load it.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  // Download the PDF (never marks sent). Prefer the archived as-sent PDF from the
-  // Vault when one exists — that's the exact file the client received — by signing
-  // its URL with a download disposition. Fall back to re-rendering the current
-  // template (snapshot-aware) only when there is no archive (upload failed at
-  // finalize, or the invoice was never sent).
+  // View and Download both render the CURRENT state of the invoice fresh from rd,
+  // so a recorded payment (balance due, payment-received line) is always shown.
+  // The exact as-sent copy is preserved in the Vault (reachable from the Vault
+  // page) and is never read, modified, or re-uploaded here. Neither marks sent.
   async function downloadInvoice() {
-    if (downloading) return;
+    if (downloading || !printRef.current) return;
     setDownloading(true);
     try {
       const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
-      if (vaultPath) {
-        const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300, { download: filename });
-        if (data?.signedUrl) {
-          const a = document.createElement('a');
-          a.href = data.signedUrl;
-          a.rel = 'noopener';
-          a.click();
-        }
-      } else if (printRef.current) {
-        const file = await elementToPdf(printRef.current, filename);
-        downloadFile(file);
-      }
+      const file = await elementToPdf(printRef.current, filename);
+      downloadFile(file);
     } finally {
       setDownloading(false);
     }
@@ -435,11 +423,9 @@ export default function InvoiceDetail() {
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
             <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
           </button>
-          {vaultPath && (
-            <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
-              <Icon name="preview" size={18} /> View PDF
-            </button>
-          )}
+          <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
+            <Icon name="preview" size={18} /> View PDF
+          </button>
           {inv.kind === 'quote' && !convertedTo && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary"
               disabled={converting} onClick={convertToInvoice}>
