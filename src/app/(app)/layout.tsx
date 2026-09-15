@@ -6,8 +6,18 @@ import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import TutorialReference from '@/components/tutorial/TutorialReference';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
+import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import { createClient } from '@/lib/supabase/client';
+
+// Secondary routes (not primary tabs) get a Back button to their parent.
+function getParentRoute(path: string): string | null {
+  if (path.startsWith('/invoices/') && path !== '/invoices') return '/invoices';
+  if (path === '/expenses') return '/dashboard';
+  if (path === '/summary') return '/dashboard';
+  if (path === '/vault') return '/settings';
+  return null;
+}
 
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
@@ -127,12 +137,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (next >= 0 && next < TABS.length) router.push(TABS[next].href);
   }
 
+  const parentRoute = getParentRoute(path);
+
   return (
     <div className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-        <span className="font-display text-xl font-extrabold">
-          On It<span className="text-primary">.</span>
-        </span>
+        <div className="flex items-center gap-1">
+          {parentRoute && <BackButton parentHref={parentRoute} />}
+          <span className="font-display text-xl font-extrabold">
+            On It<span className="text-primary">.</span>
+          </span>
+        </div>
         <div className="flex items-center gap-1">
           {path.startsWith('/chat') && (
             <>
