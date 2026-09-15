@@ -23,7 +23,7 @@ import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
-import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
+import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 
@@ -40,8 +40,6 @@ interface Profile {
   venmo_username: string | null;
 }
 
-const money = (n: number) =>
-  Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // The document kind a draft renders as: 'quote' or 'invoice', handled
@@ -769,13 +767,22 @@ export default function Chat() {
    *  no lists. */
   function confirmSummary(): string {
     const items = (draft?.line_items ?? []) as LineItem[];
-    const total = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
-    if (!Number.isFinite(total)) {
+    if (items.some((li) => !Number.isFinite(li.qty) || !Number.isFinite(li.unit_price))) {
       return "Something went wrong reading the amounts. Please try rephrasing the prices.";
     }
+    // Single source of truth: tax + deposit, same helper the preview card uses.
+    // Deposit lives on the draft as snake_case DB columns (see renderData).
+    const taxRate = draft?.tax_rate ?? 0;
+    const depositType = ((draft as any)?.deposit_type as DepositType) ?? 'none';
+    const depositValue = Number((draft as any)?.deposit_value ?? 0);
+    const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
     const kind = docKind(draft);
     const who = draft?.client_name ?? 'this client';
-    const out: string[] = [`Here's your ${kind} for ${who}: ${money(total)}.`];
+    const out: string[] = [
+      totals.depositAmount > 0
+        ? `Here's your ${kind} for ${who}: ${money(totals.total)} total, ${money(totals.depositAmount)} deposit due now.`
+        : `Here's your ${kind} for ${who}: ${money(totals.total)}.`,
+    ];
 
     const saved: string[] = [];
     if (prefilled.address && draft?.client_address) saved.push(`the address ${draft.client_address}`);
