@@ -13,6 +13,8 @@ import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import UndoToast from '@/components/UndoToast';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -58,10 +60,13 @@ export default function InvoiceDetail() {
   const [payments, setPayments] = useState<any[]>([]);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [undoDelete, setUndoDelete] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const { data: i } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+      const { data: i } = await supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
       setInv(i);
       if (i) {
         const { data: p } = await supabase.from('profiles').select('*').eq('id', i.user_id).maybeSingle();
@@ -73,6 +78,7 @@ export default function InvoiceDetail() {
             .select('id, invoice_number')
             .eq('converted_from', i.id)
             .eq('kind', 'invoice')
+            .is('deleted_at', null)
             .maybeSingle();
           setConvertedTo(conv ?? null);
         }
@@ -82,6 +88,7 @@ export default function InvoiceDetail() {
             .from('invoices')
             .select('id, invoice_number')
             .eq('id', i.converted_from)
+            .is('deleted_at', null)
             .maybeSingle();
           setConvertedFrom(src ?? null);
         }
@@ -378,6 +385,26 @@ export default function InvoiceDetail() {
 
   const isDraft = inv.status === 'draft';
 
+  // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
+  async function handleDelete() {
+    setDeleting(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('invoices').update({ deleted_at: now }).eq('id', id);
+    setDeleting(false);
+    setShowDeleteModal(false);
+    if (!error) {
+      setUndoDelete(true);
+    }
+  }
+
+  async function handleUndo() {
+    setUndoDelete(false);
+    const { error } = await supabase.from('invoices').update({ deleted_at: null }).eq('id', id);
+    if (error) {
+      router.push('/invoices');
+    }
+  }
+
   return (
     <div className="px-4 py-4">
       <div className="card mb-4">
@@ -443,6 +470,10 @@ export default function InvoiceDetail() {
               <Icon name="request_quote" size={18} /> From {formatDocNumber('quote', convertedFrom.invoice_number)}
             </button>
           )}
+          <button className="chip flex items-center gap-1.5 border-error text-error"
+            onClick={() => setShowDeleteModal(true)}>
+            <Icon name="delete" size={18} /> Delete
+          </button>
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {inv.kind === 'invoice' && payMode !== 'none' && (
@@ -615,6 +646,27 @@ export default function InvoiceDetail() {
         </div>
       </div>
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title={`${inv.client_name} (${formatDocNumber(inv.kind, inv.invoice_number)})`}
+        recordType={inv.kind === 'quote' ? 'quote' : 'invoice'}
+        status={inv.status}
+        busy={deleting}
+      />
+
+      {undoDelete && (
+        <UndoToast
+          message={`${inv.kind === 'quote' ? 'Quote' : 'Invoice'} deleted.`}
+          onUndo={handleUndo}
+          onDismiss={() => {
+            setUndoDelete(false);
+            router.push('/invoices');
+          }}
+        />
+      )}
     </div>
   );
 }
