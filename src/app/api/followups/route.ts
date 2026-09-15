@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { adminClient } from '@/lib/supabase/admin';
+import { money, roundCurrency } from '@/lib/financials';
 
 export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { data: due } = await supabase
     .from('invoices')
-    .select('id, user_id, client_name, total, invoice_number')
+    .select('id, user_id, client_name, total, amount_paid, invoice_number')
     .is('deleted_at', null)
     .in('status', ['sent', 'overdue'])
     .or(`last_nudge_at.is.null,last_nudge_at.lt.${cutoff}`)
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
   for (const inv of due ?? []) {
+    // Nag for what's actually still owed, not the full total: a partially-paid
+    // invoice should show its remaining balance. Fully-covered rows are skipped.
+    const balance = roundCurrency((inv.total ?? 0) - (inv.amount_paid ?? 0));
+    if (balance <= 0) continue;
+
     const { data: subs } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
@@ -41,7 +47,7 @@ export async function GET(req: NextRequest) {
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           JSON.stringify({
             title: `${inv.client_name} hasn't paid yet`,
-            body: `Invoice #${inv.invoice_number} — $${inv.total}. Tap to resend or mark paid.`,
+            body: `Invoice #${inv.invoice_number}: ${money(balance)} still due. Tap to view.`,
             url: `/invoices/${inv.id}`,
           })
         );
