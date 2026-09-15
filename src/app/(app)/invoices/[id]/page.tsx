@@ -382,7 +382,7 @@ export default function InvoiceDetail() {
               {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} · {inv.status}
             </div>
           </div>
-          <div className="font-display text-xl font-bold text-primary">{money(Number(inv.total))}</div>
+          <div className="font-display text-xl font-bold text-primary">{money(totals.dueNow)}</div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {inv.kind === 'invoice' && totals.dueNow > 0 && (
