@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
+import SwipeableRow from '@/components/SwipeableRow';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import UndoToast from '@/components/UndoToast';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 
@@ -28,11 +31,15 @@ export default function Invoices() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid' | 'quote'>('all');
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<Row | null>(null);
 
   useEffect(() => {
     supabase
       .from('invoices')
       .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data }) => {
@@ -67,6 +74,43 @@ export default function Invoices() {
     b.created_at.localeCompare(a.created_at) ||        // Tier 1: newest → oldest
     a.client_name.localeCompare(b.client_name));       // Tier 2: client name A→Z
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const target = deleteTarget;
+    const now = new Date().toISOString();
+    setRows((r) => r.filter((row) => row.id !== target.id));
+    setDeleteTarget(null);
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({ deleted_at: now })
+      .eq('id', target.id);
+
+    setDeleting(false);
+    if (error) {
+      setRows((r) => [...r, target]);
+    } else {
+      setUndoTarget(target);
+    }
+  }
+
+  async function handleUndo() {
+    if (!undoTarget) return;
+    const target = undoTarget;
+    setUndoTarget(null);
+    setRows((r) => [...r, target]);
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({ deleted_at: null })
+      .eq('id', target.id);
+
+    if (error) {
+      setRows((r) => r.filter((row) => row.id !== target.id));
+    }
+  }
+
   return (
     <div className="px-4 py-4">
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
@@ -93,32 +137,52 @@ export default function Invoices() {
                 ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
                 : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
               return (
-                <Link key={r.id} href={`/invoices/${r.id}`}
-                  className="card block p-5 transition-transform active:scale-[0.98]">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
-                      <div className="text-body-md text-on-surface-variant/70">
-                        {formatDocNumber(r.kind, r.invoice_number)}
-                        {' • '}{new Date(r.created_at).toLocaleDateString()}
+                <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
+                  <Link href={`/invoices/${r.id}`}
+                    className="card block p-5 transition-transform active:scale-[0.98]">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
+                        <div className="text-body-md text-on-surface-variant/70">
+                          {formatDocNumber(r.kind, r.invoice_number)}
+                          {' • '}{new Date(r.created_at).toLocaleDateString()}
+                        </div>
                       </div>
+                      <span className={`status-chip shrink-0 ${chip.cls}`}>
+                        <Icon name={chip.icon} size={18} />
+                        {converted ? 'converted' : r.status}
+                      </span>
                     </div>
-                    <span className={`status-chip shrink-0 ${chip.cls}`}>
-                      <Icon name={chip.icon} size={18} />
-                      {converted ? 'converted' : r.status}
-                    </span>
-                  </div>
-                  <div className="flex items-end justify-between">
-                    <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
-                    <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
-                      <Icon name="chevron_right" size={24} />
-                    </span>
-                  </div>
-                </Link>
+                    <div className="flex items-end justify-between">
+                      <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                      <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
+                        <Icon name="chevron_right" size={24} />
+                      </span>
+                    </div>
+                  </Link>
+                </SwipeableRow>
               );
             })}
           </div>
         </>
+      )}
+
+      <DeleteConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title={deleteTarget ? `${deleteTarget.client_name} (${formatDocNumber(deleteTarget.kind, deleteTarget.invoice_number)})` : ''}
+        recordType={(deleteTarget?.kind as 'invoice' | 'quote') ?? 'invoice'}
+        status={deleteTarget?.status}
+        busy={deleting}
+      />
+
+      {undoTarget && (
+        <UndoToast
+          message={`${undoTarget.kind === 'quote' ? 'Quote' : 'Invoice'} deleted.`}
+          onUndo={handleUndo}
+          onDismiss={() => setUndoTarget(null)}
+        />
       )}
     </div>
   );
