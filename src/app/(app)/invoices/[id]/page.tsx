@@ -57,6 +57,7 @@ export default function InvoiceDetail() {
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -158,14 +159,22 @@ export default function InvoiceDetail() {
   // so open the tab first and point it at the blob once the PDF is ready.
   async function viewPdf() {
     if (!printRef.current) return;
+    setPdfError(null);
     const w = window.open('', '_blank');
-    const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
-    const file = await elementToPdf(printRef.current, filename);
-    const url = URL.createObjectURL(file);
-    if (w) w.location.href = url;
-    else window.open(url, '_blank'); // the synchronous open was blocked; try once more
-    // Release the blob after the tab has had time to load it.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    try {
+      const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+      const file = await elementToPdf(printRef.current, filename);
+      const url = URL.createObjectURL(file);
+      if (w) w.location.href = url;
+      else window.open(url, '_blank'); // the synchronous open was blocked; try once more
+      // Release the blob after the tab has had time to load it.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      // Render failed — don't strand the blank tab we opened, and tell the user.
+      console.error('view pdf failed', e);
+      w?.close();
+      setPdfError("Couldn't open the PDF. Please try again.");
+    }
   }
 
   // View and Download both render the CURRENT state of the invoice fresh from rd,
@@ -445,6 +454,7 @@ export default function InvoiceDetail() {
             </button>
           )}
         </div>
+        {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {inv.kind === 'invoice' && payMode !== 'none' && (
           <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-xs">
