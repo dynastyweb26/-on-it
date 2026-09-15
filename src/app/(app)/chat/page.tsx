@@ -237,6 +237,15 @@ export default function Chat() {
   // sign-in prompt (audit A3).
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Render-only fail-safe for the restore skeleton. If getSession() hangs (a
+  // documented stall — settings/page.tsx carries an 8s timeout for the same
+  // call), the mount effect's `setHydrated(true)` never runs and the message
+  // list, gated on `hydrated`, would sit on the skeleton forever. After 4s we
+  // stop showing the skeleton and render whatever messages we have (the
+  // greeting, or a restored convo if it arrived). This NEVER sets `hydrated`, so
+  // the persist and resume effects keep waiting for a real restore — we never
+  // write a greeting payload over the user's saved conversation.
+  const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
   const [convoId, setConvoId] = useState('');
@@ -407,6 +416,15 @@ export default function Chat() {
     window.addEventListener('onit-history', openHistory);
     return () => { cancelled = true; window.removeEventListener('onit-history', openHistory); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Render-only skeleton timeout (see skeletonTimedOut). Independent of the
+  // restore effect so a hung getSession() can't take the timer down with it.
+  // Deliberately does not touch `hydrated` — persistence still waits for a real
+  // restore. Cleared on unmount.
+  useEffect(() => {
+    const t = setTimeout(() => setSkeletonTimedOut(true), 4000);
+    return () => clearTimeout(t);
   }, []);
 
   // persist on every change so nothing is lost when the browser suspends us
@@ -1563,7 +1581,7 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {!hydrated ? <ChatRestoreSkeleton /> : messages.map((m) =>
+        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) =>
           m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
             // beneath it. Same icon-button styling as the receipt buttons.
