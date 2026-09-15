@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const { data: due } = await supabase
     .from('invoices')
     .select('id, user_id, client_name, total, invoice_number')
+    .is('deleted_at', null)
     .in('status', ['sent', 'overdue'])
     .or(`last_nudge_at.is.null,last_nudge_at.lt.${cutoff}`)
     .lt('sent_at', cutoff)
