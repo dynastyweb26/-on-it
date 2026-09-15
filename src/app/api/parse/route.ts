@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { extract, type ExtractResult } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
-import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
+import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -99,40 +99,62 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Server-owned money narration ──────────────────────────────
-    // The model is instructed never to state amounts, but enforce it in code so
-    // the spoken/rendered reply can never contradict the real bill. When the
-    // result has line items, strip any sentence in the reply that contains a
-    // "$" amount, then append one deterministic sentence built from
-    // calculateInvoiceTotals (result's line_items + tax_rate; deposit from the
-    // incoming draft, which is where deposit_type/value live). No line items
-    // (questions, expenses, not-yet-ready) → leave the reply untouched.
+    // The model is instructed never to state amounts; enforce it in code so the
+    // spoken/rendered reply can never contradict the real bill. When the result
+    // has line items we ALWAYS strip any sentence containing a "$" amount. We
+    // only PREPEND our own deterministic, draft-neutral money sentence when this
+    // turn actually moved the figure — otherwise a plain question turn ("What's
+    // the address?") would get a redundant total read back every time.
+    // Deposit lives only on the draft (deposit_type/value); the result never
+    // carries it, so it's read from the draft for both totals below.
     if (Array.isArray(result.line_items) && result.line_items.length > 0) {
       const depositType = ((draft as Record<string, unknown> | null)?.deposit_type as DepositType) ?? 'none';
       const depositValue = Number((draft as Record<string, unknown> | null)?.deposit_value ?? 0);
+
       const totals = calculateInvoiceTotals(
         result.line_items,
         result.tax_rate ?? 0,
         depositType,
         depositValue
       );
-      const kind = result.intent === 'quote' ? 'quote' : 'invoice';
-      const who = result.client_name ?? 'this client';
+
+      // Totals of the draft as it arrived, to detect whether the numbers moved.
+      const draftItems = Array.isArray((draft as Record<string, unknown> | null)?.line_items)
+        ? ((draft as Record<string, unknown>).line_items as unknown as FinancialLineItem[])
+        : [];
+      const prevTotals = calculateInvoiceTotals(
+        draftItems,
+        Number((draft as Record<string, unknown> | null)?.tax_rate ?? 0),
+        depositType,
+        depositValue
+      );
+      const changed =
+        totals.total !== prevTotals.total ||
+        totals.depositAmount !== prevTotals.depositAmount;
+
+      // Draft-neutral: no "Here's your", no client name (see confirmSummary,
+      // which keeps its own wording — it runs after the document exists).
       const moneySentence =
         totals.depositAmount > 0
-          ? `Here's your ${kind} for ${who}: ${money(totals.total)} total, ${money(totals.depositAmount)} deposit due now.`
-          : `Here's your ${kind} for ${who}: ${money(totals.total)}.`;
+          ? `Total: ${money(totals.total)}, ${money(totals.depositAmount)} deposit due now.`
+          : `Total: ${money(totals.total)}.`;
 
-      // Split into sentences on terminators followed by whitespace (so the
-      // decimal point inside "$1,500.00" never splits a number), drop any
-      // sentence that carries a "$" amount, and re-join. If nothing survives,
-      // the deterministic sentence stands alone.
+      // Split on a terminator followed by whitespace (so the decimal point in
+      // "$1,500.00" never splits a number), drop any sentence with a "$" amount.
       const stripped = (result.reply ?? '')
         .split(/(?<=[.!?])\s+/)
         .filter((s) => !/\$\s?\d/.test(s))
         .join(' ')
         .trim();
 
-      result.reply = stripped ? `${stripped} ${moneySentence}` : moneySentence;
+      if (changed) {
+        // Money sentence FIRST so a trailing question in the prose stays last.
+        result.reply = stripped ? `${moneySentence} ${stripped}` : moneySentence;
+      } else {
+        // No change: keep the prose. Fall back to the money sentence only if
+        // stripping emptied the reply, so we never emit an empty bubble.
+        result.reply = stripped || moneySentence;
+      }
     }
 
     // Duplicate detection: same client + same total in the last 48h
