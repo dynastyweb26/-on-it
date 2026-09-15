@@ -9,6 +9,8 @@ import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
+import DateDivider from '@/components/DateDivider';
+import { groupByPeriod } from '@/lib/date-groups';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
@@ -82,6 +84,11 @@ export default function Books() {
     b.spent_on.localeCompare(a.spent_on) ||           // Tier 1: newest → oldest
     label(a).localeCompare(label(b)));                // Tier 2: vendor → description A→Z
 
+  // Week dividers with a running subtotal. Weeks are clamped to their month, so
+  // each week's subtotal stays within one month and rolls up to the monthly
+  // total on the summary page (see date-groups). Books shows the subtotal.
+  const groups = groupByPeriod(sorted, (e) => e.spent_on, (e) => Number(e.amount), 'week');
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -135,47 +142,54 @@ export default function Books() {
             </div>
           )}
 
-          <div className="space-y-2">
-            {sorted.map((e) => {
-              const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
-              const label = e.vendor || e.description || 'Expense';
-              const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
-              return (
-                <SwipeableRow key={e.id} onDelete={() => setDeleteTarget(e)}>
-                  <div className="card flex items-center gap-3">
-                    {thumb ? (
-                      <button
-                        aria-label={`View the receipt from ${label}`}
-                        onClick={() => setLightbox(thumb)}
-                        className="shrink-0 transition active:scale-95"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={thumb}
-                          alt=""
-                          className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
-                        />
-                      </button>
-                    ) : (
-                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
-                        <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
-                      </span>
-                    )}
+          <div>
+            {groups.map((g) => (
+              <div key={g.key}>
+                <DateDivider label={g.label} subtotal={g.subtotal} />
+                <div className="space-y-2">
+                  {g.items.map((e) => {
+                    const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
+                    const label = e.vendor || e.description || 'Expense';
+                    const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
+                    return (
+                      <SwipeableRow key={e.id} onDelete={() => setDeleteTarget(e)}>
+                        <div className="card flex items-center gap-3">
+                          {thumb ? (
+                            <button
+                              aria-label={`View the receipt from ${label}`}
+                              onClick={() => setLightbox(thumb)}
+                              className="shrink-0 transition active:scale-95"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={thumb}
+                                alt=""
+                                className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
+                              />
+                            </button>
+                          ) : (
+                            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
+                              <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
+                            </span>
+                          )}
 
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{label}</div>
-                      <div className="text-xs text-on-surface-variant">
-                        {category} · {localDate(e.spent_on).toLocaleDateString()}
-                      </div>
-                    </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">{label}</div>
+                            <div className="text-xs text-on-surface-variant">
+                              {category} · {localDate(e.spent_on).toLocaleDateString()}
+                            </div>
+                          </div>
 
-                    <div className="shrink-0 text-right">
-                      <div className="font-display font-bold">{money(Number(e.amount))}</div>
-                    </div>
-                  </div>
-                </SwipeableRow>
-              );
-            })}
+                          <div className="shrink-0 text-right">
+                            <div className="font-display font-bold">{money(Number(e.amount))}</div>
+                          </div>
+                        </div>
+                      </SwipeableRow>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}
