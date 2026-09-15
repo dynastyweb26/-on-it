@@ -17,6 +17,20 @@ import PaywallModal from '@/components/PaywallModal';
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
+// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. Format
+// today for the picker, and convert a picked value to a timestamp from its parts
+// as a LOCAL date (not UTC) — so a payment entered on the 14th is stored and
+// shown as the 14th instead of slipping to the 13th when local midnight crosses
+// the UTC offset.
+const localDateString = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const localDateToIso = (ymd: string): string => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toISOString();
+};
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const supabase = createClient();
@@ -25,7 +39,6 @@ export default function InvoiceDetail() {
   const [profile, setProfile] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [zelle, setZelle] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
   const [converting, setConverting] = useState(false);
@@ -36,6 +49,15 @@ export default function InvoiceDetail() {
   // we can link back to it.
   const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  // Record-payment entry (a ledger insert, never a direct amount_paid write).
+  const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
+  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'other'>('zelle');
+  const [payDate, setPayDate] = useState(() => localDateString(new Date()));
+  const [payAmount, setPayAmount] = useState('');
+  // The invoice_payments ledger rows for this invoice (payment history).
+  const [payments, setPayments] = useState<any[]>([]);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -63,15 +85,7 @@ export default function InvoiceDetail() {
             .maybeSingle();
           setConvertedFrom(src ?? null);
         }
-        // archived PDF from the Vault (uploaded at finalize time)
-        const { data: doc } = await supabase
-          .from('vault_documents')
-          .select('storage_path')
-          .eq('invoice_id', i.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        setVaultPath(doc?.storage_path ?? null);
+        void fetchPayments();
         try {
           const z = await (await fetch('/api/zelle?full=1')).json();
           if (z?.value) setZelle(z.value);
@@ -99,6 +113,21 @@ export default function InvoiceDetail() {
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
+  // amount_paid is kept in sync by the invoice_payments trigger; all deposit and
+  // payment math (depositAmount, dueNow, credit, paymentStage) comes from the
+  // financial engine — the single source of truth — never recomputed here.
+  const amountPaid = Number(inv.amount_paid ?? 0);
+  const totals = calculateInvoiceTotals(
+    inv.line_items ?? [],
+    Number(inv.tax_rate ?? 0),
+    (inv.deposit_type ?? 'none') as DepositType,
+    Number(inv.deposit_value ?? 0),
+    amountPaid,
+  );
+  // Most recent payment date (payments are ordered newest-first) for the PDF's
+  // payment-received line.
+  const paymentDate = payments.length ? new Date(payments[0].paid_at).toLocaleDateString() : null;
+
   const rd: InvoiceRenderData = {
     kind: inv.kind, invoiceNumber: inv.invoice_number,
     businessName: snapped ? inv.business_name : profile.business_name,
@@ -109,6 +138,14 @@ export default function InvoiceDetail() {
     clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
+    depositType: (inv.deposit_type ?? 'none') as DepositType,
+    depositValue: Number(inv.deposit_value ?? 0),
+    depositAmount: totals.depositAmount,
+    remaining: totals.remaining,
+    amountDueNow: totals.dueNow,
+    paymentsReceived: amountPaid,
+    paymentDate,
+    paymentStage: totals.paymentStage,
     notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
     dueDate: inv.due_date, paid: inv.status === 'paid',
     zelle, // live — Zelle is never snapshotted, in either case
@@ -117,34 +154,40 @@ export default function InvoiceDetail() {
     venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
   };
 
+  // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
+  // popup blockers only allow window.open synchronously inside the click gesture,
+  // so open the tab first and point it at the blob once the PDF is ready.
   async function viewPdf() {
-    if (!vaultPath) return;
-    const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    if (!printRef.current) return;
+    setPdfError(null);
+    const w = window.open('', '_blank');
+    try {
+      const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+      const file = await elementToPdf(printRef.current, filename);
+      const url = URL.createObjectURL(file);
+      if (w) w.location.href = url;
+      else window.open(url, '_blank'); // the synchronous open was blocked; try once more
+      // Release the blob after the tab has had time to load it.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      // Render failed — don't strand the blank tab we opened, and tell the user.
+      console.error('view pdf failed', e);
+      w?.close();
+      setPdfError("Couldn't open the PDF. Please try again.");
+    }
   }
 
-  // Download the PDF (never marks sent). Prefer the archived as-sent PDF from the
-  // Vault when one exists — that's the exact file the client received — by signing
-  // its URL with a download disposition. Fall back to re-rendering the current
-  // template (snapshot-aware) only when there is no archive (upload failed at
-  // finalize, or the invoice was never sent).
+  // View and Download both render the CURRENT state of the invoice fresh from rd,
+  // so a recorded payment (balance due, payment-received line) is always shown.
+  // The exact as-sent copy is preserved in the Vault (reachable from the Vault
+  // page) and is never read, modified, or re-uploaded here. Neither marks sent.
   async function downloadInvoice() {
-    if (downloading) return;
+    if (downloading || !printRef.current) return;
     setDownloading(true);
     try {
       const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
-      if (vaultPath) {
-        const { data } = await supabase.storage.from('vault').createSignedUrl(vaultPath, 300, { download: filename });
-        if (data?.signedUrl) {
-          const a = document.createElement('a');
-          a.href = data.signedUrl;
-          a.rel = 'noopener';
-          a.click();
-        }
-      } else if (printRef.current) {
-        const file = await elementToPdf(printRef.current, filename);
-        downloadFile(file);
-      }
+      const file = await elementToPdf(printRef.current, filename);
+      downloadFile(file);
     } finally {
       setDownloading(false);
     }
@@ -157,16 +200,63 @@ export default function InvoiceDetail() {
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
-  async function markPaid() {
-    await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
-    setInv({ ...inv, status: 'paid' });
+  // Record a payment as a row in the invoice_payments ledger. The DB trigger
+  // recomputes invoices.amount_paid from the ledger — we never write amount_paid
+  // directly — so we refetch the invoice afterward to pick up the new total.
+  async function recordPayment(amount: number) {
+    if (!(amount > 0)) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
+    const { error } = await supabase.from('invoice_payments').insert({
+      invoice_id: id,
+      user_id: user.id,
+      amount,
+      method: payMethod,
+      paid_at: paidAtIso,
+    });
+    if (error) {
+      console.error('record payment failed', error);
+      return;
+    }
+    const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (updated) setInv(updated);
+    setPayMode('none');
+    setPayAmount('');
+    void fetchPayments();
   }
 
-  async function resend() {
+  async function fetchPayments() {
+    const { data } = await supabase
+      .from('invoice_payments')
+      .select('*')
+      .eq('invoice_id', id)
+      .order('paid_at', { ascending: false });
+    setPayments(data ?? []);
+  }
+
+  // Delete a ledger row (behind a confirm step). The trigger recomputes
+  // invoices.amount_paid from what remains, so we refetch the invoice after.
+  async function handleDeletePayment(paymentId: string) {
+    const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+    if (error) {
+      console.error('delete payment failed', error);
+      return;
+    }
+    setDeletingPaymentId(null);
+    const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (updated) setInv(updated);
+    void fetchPayments();
+  }
+
+  async function resend(isBalanceRequest = false) {
     if (!printRef.current) return;
     setBusy(true);
     const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
-    await shareInvoice(file, inv.client_name, docNoun(inv.kind));
+    // A balance request re-sends the SAME invoice through the SAME path — no new
+    // token, no second invoice — with copy that leads with the balance due.
+    const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
+    await shareInvoice(file, inv.client_name, leadText);
     // First send (e.g. a converted quote→invoice draft) captures the render
     // snapshot from the current profile. A RE-send of an already-sent invoice
     // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
@@ -298,25 +388,43 @@ export default function InvoiceDetail() {
               {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} · {inv.status}
             </div>
           </div>
-          <div className="font-display text-xl font-bold text-primary">{money(Number(inv.total))}</div>
+          <div className="font-display text-xl font-bold text-primary">{money(totals.dueNow)}</div>
         </div>
-        <div className="mt-3 flex gap-2">
-          {inv.status !== 'paid' && inv.kind === 'invoice' && (
-            <button className="chip flex items-center gap-1.5 border-paid text-paid" onClick={markPaid}>
-              <Icon name="check_circle" size={18} /> Mark paid
-            </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {inv.kind === 'invoice' && totals.dueNow > 0 && (
+            <select
+              className="chip border-paid text-paid bg-surface-container-lowest font-semibold outline-none cursor-pointer"
+              value=""
+              onChange={(e) => {
+                const mode = e.target.value as 'deposit' | 'full' | 'other';
+                setPayMode(mode);
+                if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
+                else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
+                else setPayAmount('');
+              }}
+            >
+              <option value="" disabled>Record payment</option>
+              {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
+                <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
+              )}
+              <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
+              <option value="other">Other amount…</option>
+            </select>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={resend}>
+          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
+          {amountPaid > 0 && totals.balanceRemaining > 0 && (
+            <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
+              <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}
+            </button>
+          )}
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
             <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
           </button>
-          {vaultPath && (
-            <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
-              <Icon name="preview" size={18} /> View PDF
-            </button>
-          )}
+          <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
+            <Icon name="preview" size={18} /> View PDF
+          </button>
           {inv.kind === 'quote' && !convertedTo && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary"
               disabled={converting} onClick={convertToInvoice}>
@@ -336,6 +444,57 @@ export default function InvoiceDetail() {
             </button>
           )}
         </div>
+        {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
+        {inv.kind === 'invoice' && payMode !== 'none' && (
+          <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-on-surface-variant">Method</span>
+              <select
+                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 font-semibold text-on-surface outline-none"
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
+              >
+                <option value="zelle">Zelle</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+              <span className="ml-2 font-semibold text-on-surface-variant">Date</span>
+              <input
+                type="date"
+                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 outline-none"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-on-surface-variant">Amount</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
+                placeholder="0.00"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+              />
+              <button
+                className="chip border-primary text-primary text-xs"
+                disabled={!(Number(payAmount) > 0)}
+                onClick={() => void recordPayment(Number(payAmount))}
+              >
+                Save payment
+              </button>
+              <button
+                className="chip text-xs text-on-surface-variant"
+                onClick={() => { setPayMode('none'); setPayAmount(''); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {inv.kind === 'invoice' && (
           <div className="mt-3 flex items-center gap-2">
             <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>
@@ -349,6 +508,46 @@ export default function InvoiceDetail() {
           </div>
         )}
       </div>
+      {payments.length > 0 && (
+        <div className="card mb-4">
+          <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+            Payment history
+          </div>
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 text-xs last:border-0 last:pb-0"
+              >
+                <div>
+                  <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
+                  <span className="ml-2 font-medium uppercase text-on-surface-variant">{p.method}</span>
+                  <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
+                </div>
+                {deletingPaymentId === p.id ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-error">Delete?</span>
+                    <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
+                      Yes
+                    </button>
+                    <button className="chip px-2 py-0.5 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="p-1 text-error opacity-70 hover:opacity-100"
+                    title="Delete payment"
+                    onClick={() => setDeletingPaymentId(p.id)}
+                  >
+                    <Icon name="delete" size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {Array.isArray(inv.line_items) && inv.line_items.length > 0 && (
         <div className="card mb-4">
           <div className="mb-2 flex items-center justify-between">

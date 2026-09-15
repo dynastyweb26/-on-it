@@ -2,7 +2,11 @@
 // Derived numeric values and arithmetic calculations MUST always be computed in code,
 // never by the AI model orinline across separate components.
 
-export type DepositType = 'percentage' | 'fixed' | 'none';
+// 'percent' is the DB spelling; 'percentage' is the UI spelling. Both mean the same thing.
+export type DepositType = 'percentage' | 'percent' | 'fixed' | 'none';
+
+// Where the money stands relative to the deposit and the total.
+export type PaymentStage = 'unpaid' | 'partial' | 'deposit_paid' | 'paid';
 
 export interface FinancialLineItem {
   qty: number;
@@ -16,6 +20,10 @@ export interface FinancialTotals {
   depositAmount: number;
   remaining: number;
   amountDueNow: number;
+  dueNow: number;
+  balanceRemaining: number;
+  credit: number;
+  paymentStage: PaymentStage;
 }
 
 /** Formats a numeric amount as USD currency, returning '$—' for non-finite values. */
@@ -56,25 +64,37 @@ export function calculateTaxAmount(subtotal: number, taxRate: number): number {
   return roundCurrency(subtotal * (rate / 100));
 }
 
-/** Compute full totals including subtotal, tax, total, deposit, remaining balance, and amount due now */
+/**
+ * Compute full totals: subtotal, tax, total, deposit, balance-after-deposit, plus
+ * the payment-aware fields — dueNow (what to collect right now), credit (overpayment),
+ * and paymentStage. This is the single source of truth: no caller re-derives any of it.
+ *
+ * @param amountPaid running total from the invoice_payments ledger (invoices.amount_paid)
+ */
 export function calculateInvoiceTotals(
   items: FinancialLineItem[],
   taxRate: number = 0,
   depositType: DepositType = 'none',
   depositValue: number = 0,
-  paymentsReceived: number = 0
+  amountPaid: number = 0
 ): FinancialTotals {
   const subtotal = calculateSubtotal(items);
   const taxAmount = calculateTaxAmount(subtotal, taxRate);
   const total = roundCurrency(subtotal + taxAmount);
+  const paid = Number.isFinite(amountPaid) ? Math.max(0, amountPaid) : 0;
 
+  // depositAmount: none/null → 0; percentage/percent → total × value/100; fixed → value.
+  // Then clamp to [0, total] so a deposit never exceeds the bill or goes negative.
   let depositAmount = 0;
-  if (depositType === 'percentage' && Number.isFinite(depositValue) && depositValue > 0) {
-    depositAmount = roundCurrency((total * depositValue) / 100);
-  } else if (depositType === 'fixed' && Number.isFinite(depositValue) && depositValue > 0) {
-    depositAmount = roundCurrency(Math.min(depositValue, total));
+  const value = Number.isFinite(depositValue) ? depositValue : 0;
+  if (depositType === 'percentage' || depositType === 'percent') {
+    depositAmount = roundCurrency((total * value) / 100);
+  } else if (depositType === 'fixed') {
+    depositAmount = value;
   }
+  depositAmount = roundCurrency(Math.min(Math.max(depositAmount, 0), Math.max(total, 0)));
 
+  // balanceAfterDeposit — by subtraction, never by percentage, so pennies never drift.
   const remaining = roundCurrency(total - depositAmount);
 
   // Assertion: depositAmount + remaining must equal total
@@ -82,11 +102,35 @@ export function calculateInvoiceTotals(
     console.warn(`Deposit math imbalance: deposit ${depositAmount} + remaining ${remaining} != total ${total}`);
   }
 
-  let amountDueNow = total;
-  if (Number.isFinite(paymentsReceived) && paymentsReceived > 0) {
-    amountDueNow = Math.max(0, roundCurrency(total - paymentsReceived));
-  } else if (depositType !== 'none' && depositAmount > 0) {
-    amountDueNow = depositAmount;
+  // dueNow — what the customer owes right now.
+  let dueNow: number;
+  if (total <= 0) {
+    dueNow = 0;
+  } else if (paid >= total) {
+    dueNow = 0;
+  } else if (depositAmount > 0 && paid < depositAmount) {
+    dueNow = roundCurrency(depositAmount - paid);
+  } else {
+    dueNow = roundCurrency(total - paid);
+  }
+
+  // balanceRemaining — the full amount still owed against the total (never
+  // negative). Unlike dueNow, this is always total − paid, even when the deposit
+  // is what's "due now": it's the figure "paid in full" and "request balance" mean.
+  const balanceRemaining = roundCurrency(Math.max(0, total - paid));
+
+  // credit — money received beyond the total. Never negative.
+  const credit = roundCurrency(Math.max(0, paid - total));
+
+  let paymentStage: PaymentStage;
+  if (paid <= 0) {
+    paymentStage = 'unpaid';
+  } else if (paid >= total) {
+    paymentStage = 'paid';
+  } else if (depositAmount > 0 && paid >= depositAmount) {
+    paymentStage = 'deposit_paid';
+  } else {
+    paymentStage = 'partial';
   }
 
   return {
@@ -95,6 +139,10 @@ export function calculateInvoiceTotals(
     total,
     depositAmount,
     remaining,
-    amountDueNow,
+    amountDueNow: dueNow, // kept for back-compat; identical to dueNow
+    dueNow,
+    balanceRemaining,
+    credit,
+    paymentStage,
   };
 }
