@@ -94,8 +94,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (result.tax_rate != null && !Number.isFinite(Number(result.tax_rate))) {
-      result.tax_rate = null;
+    // tax_rate is a percent (8 = 8%). Drop a non-finite or out-of-range value
+    // rather than trust it — no fraction→percent guessing here (a real 0.5%
+    // lives in (0,1) and must not be multiplied). The prompt is what keeps the
+    // model emitting percents; this only bounds the result.
+    if (result.tax_rate != null) {
+      const rate = Number(result.tax_rate);
+      result.tax_rate = Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : null;
     }
 
     // ── Server-owned money narration ──────────────────────────────
