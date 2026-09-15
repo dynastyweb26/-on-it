@@ -260,7 +260,7 @@ export const SLIDES: Slide[] = [
     id: 'books',
     tab: 'books',
     headline: 'Books adds it all up',
-    body: "Money collected, what's still owed, what you've spent, and what's tax-deductible — totaled for you and updated as you work.",
+    body: "Money collected, what's still owed, and what you've spent — totaled for you and updated as you work.",
     spotlight: 'totals',
     mock: (
       <MockShell active="books">
@@ -274,7 +274,6 @@ export const SLIDES: Slide[] = [
             <MiniStat label="Collected" value="$4,050" icon="check_circle" iconCls="bg-paid-container text-paid" tone="text-paid" />
             <MiniStat label="Still owed" value="$900" icon="pending" iconCls="bg-primary-fixed text-primary" tone="text-primary" />
             <MiniStat label="Spent" value="$870" icon="shopping_cart" iconCls="bg-error-container text-error" tone="text-error" />
-            <MiniStat label="Deductible" value="$610" icon="receipt_long" iconCls="bg-secondary-container text-on-surface" tone="text-on-surface" />
           </div>
         </div>
       </MockShell>
@@ -290,7 +289,6 @@ export const SLIDES: Slide[] = [
       <MockShell active="books">
         <div className="grid grid-cols-2 gap-2">
           <MiniStat label="Spent" value="$8,940" icon="shopping_cart" iconCls="bg-error-container text-error" tone="text-error" />
-          <MiniStat label="Deductible" value="$6,120" icon="receipt_long" iconCls="bg-secondary-container text-on-surface" tone="text-on-surface" />
         </div>
         <div className="mt-2 space-y-2">
           <div className="btn-primary min-h-0 w-full py-2 text-[13px]">
@@ -300,7 +298,7 @@ export const SLIDES: Slide[] = [
             See all expenses <Icon name="arrow_forward" size={14} />
           </div>
           <div data-spotlight="taxsummary" className="btn-outline min-h-0 w-full py-2 text-[13px] text-primary">
-            <Icon name="receipt_long" size={14} /> Tax summary
+            <Icon name="receipt_long" size={14} /> Expense summary
           </div>
         </div>
       </MockShell>

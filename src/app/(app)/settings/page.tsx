@@ -624,7 +624,7 @@ export default function Settings() {
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Records</h2>
         <p className="text-sm text-on-surface-variant">Your expenses by category for tax time — view it or export a PDF.</p>
         <button className="btn-outline w-full text-primary" onClick={() => router.push('/summary')}>
-          <Icon name="receipt_long" size={18} /> Tax summary
+          <Icon name="receipt_long" size={18} /> Expense summary
         </button>
       </section>
 

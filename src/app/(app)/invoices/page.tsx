@@ -6,6 +6,9 @@ import InvoicesSkeleton from '@/components/InvoicesSkeleton';
 import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
+import DateDivider from '@/components/DateDivider';
+import { groupByPeriod } from '@/lib/date-groups';
+import { localDay } from '@/lib/tax-summary';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 
@@ -74,6 +77,13 @@ export default function Invoices() {
     b.created_at.localeCompare(a.created_at) ||        // Tier 1: newest → oldest
     a.client_name.localeCompare(b.client_name));       // Tier 2: client name A→Z
 
+  // Month dividers, grouped by CREATION date (every invoice has one; unpaid
+  // ones have no paid date). No subtotal — a monthly figure here would be
+  // ambiguous (invoiced vs collected); the summary page answers the money
+  // question. localDay converts the created_at timestamp to the local day the
+  // row displays, so a row never lands under the wrong month near midnight.
+  const groups = groupByPeriod(sorted, (r) => localDay(r.created_at), (r) => Number(r.total), 'month');
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -128,41 +138,48 @@ export default function Invoices() {
               Nothing here yet. Head to Chat and tell me about a job.
             </p>
           )}
-          <div className="space-y-4">
-            {sorted.map((r) => {
-              const converted = isConvertedQuote(r);
-              // A converted quote shows a "converted" chip (only the Quotes tab
-              // surfaces it) instead of its stale draft status.
-              const chip = converted
-                ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
-                : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
-              return (
-                <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
-                  <Link href={`/invoices/${r.id}`}
-                    className="card block p-5 transition-transform active:scale-[0.98]">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
-                        <div className="text-body-md text-on-surface-variant/70">
-                          {formatDocNumber(r.kind, r.invoice_number)}
-                          {' • '}{new Date(r.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <span className={`status-chip shrink-0 ${chip.cls}`}>
-                        <Icon name={chip.icon} size={18} />
-                        {converted ? 'converted' : r.status}
-                      </span>
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
-                      <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
-                        <Icon name="chevron_right" size={24} />
-                      </span>
-                    </div>
-                  </Link>
-                </SwipeableRow>
-              );
-            })}
+          <div>
+            {groups.map((g) => (
+              <div key={g.key}>
+                <DateDivider label={g.label} />
+                <div className="space-y-4">
+                  {g.items.map((r) => {
+                    const converted = isConvertedQuote(r);
+                    // A converted quote shows a "converted" chip (only the Quotes tab
+                    // surfaces it) instead of its stale draft status.
+                    const chip = converted
+                      ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
+                      : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
+                    return (
+                      <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
+                        <Link href={`/invoices/${r.id}`}
+                          className="card block p-5 transition-transform active:scale-[0.98]">
+                          <div className="mb-4 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
+                              <div className="text-body-md text-on-surface-variant/70">
+                                {formatDocNumber(r.kind, r.invoice_number)}
+                                {' • '}{new Date(r.created_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <span className={`status-chip shrink-0 ${chip.cls}`}>
+                              <Icon name={chip.icon} size={18} />
+                              {converted ? 'converted' : r.status}
+                            </span>
+                          </div>
+                          <div className="flex items-end justify-between">
+                            <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                            <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
+                              <Icon name="chevron_right" size={24} />
+                            </span>
+                          </div>
+                        </Link>
+                      </SwipeableRow>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

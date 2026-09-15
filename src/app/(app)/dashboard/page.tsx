@@ -1,6 +1,6 @@
 'use client';
 // ═══ Books — the money screen ═══
-// One glance: money in, money out, what's still owed, tax-deductible total.
+// One glance: money in, money out, what's still owed.
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
@@ -14,22 +14,16 @@ const money = (n: number) =>
 // category CHECK and would now be rejected on save. Same eight values as the
 // chat card, so a quick-add and a receipt file identically.
 
-// Recordkeeping framing only — never tax advice. Exact wording is locked.
-const DEDUCTIBLE_TIP =
-  'Common examples pros deduct: fuel between jobs, materials, tools, part of your phone bill. We track it — your tax preparer decides what qualifies.';
-
 export default function Dashboard() {
   const supabase = createClient();
-  const [stats, setStats] = useState({ paid: 0, outstanding: 0, spent: 0, deductible: 0, count: 0 });
+  const [stats, setStats] = useState({ paid: 0, outstanding: 0, spent: 0, count: 0 });
   const [showForm, setShowForm] = useState(false);
 
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
   const [detail, setDetail] = useState('');        // optional note (normal chips) OR required text (Other)
   const [showNote, setShowNote] = useState(false); // "Add a note" reveal, normal chips only
-  const [deductible, setDeductible] = useState(true);
   const [spentOn, setSpentOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [showTip, setShowTip] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Field-level errors (replaces the old combined message)
@@ -40,13 +34,12 @@ export default function Dashboard() {
   async function loadStats() {
     const [{ data: invs }, { data: exps }] = await Promise.all([
       supabase.from('invoices').select('total, status, kind').eq('kind', 'invoice').is('deleted_at', null),
-      supabase.from('expenses').select('amount, tax_deductible, spent_on').is('deleted_at', null),
+      supabase.from('expenses').select('amount, spent_on').is('deleted_at', null),
     ]);
     const paid = (invs ?? []).filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0);
     const outstanding = (invs ?? []).filter((i) => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0);
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    const deductibleTotal = (exps ?? []).filter((e) => e.tax_deductible).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({ paid, outstanding, spent, deductible: deductibleTotal, count: invs?.length ?? 0 });
+    setStats({ paid, outstanding, spent, count: invs?.length ?? 0 });
   }
 
   useEffect(() => {
@@ -56,8 +49,7 @@ export default function Dashboard() {
 
   function resetForm() {
     setAmount(''); setCategory(''); setDetail(''); setShowNote(false);
-    setDeductible(true); setSpentOn(new Date().toISOString().slice(0, 10));
-    setShowTip(false);
+    setSpentOn(new Date().toISOString().slice(0, 10));
     setAmountError(''); setCategoryError(''); setDetailError('');
   }
 
@@ -99,7 +91,6 @@ export default function Dashboard() {
         description,
         amount: value,
         category,
-        tax_deductible: deductible,
         spent_on: spentOn,
       });
       if (error) { setAmountError(error.message); return; }
@@ -128,7 +119,6 @@ export default function Dashboard() {
         <Stat label="Collected" value={money(stats.paid)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
         <Stat label="Still owed" value={money(stats.outstanding)} tone="text-primary" icon="pending" iconCls="bg-primary-fixed text-primary" />
         <Stat label="Spent" value={money(stats.spent)} tone="text-error" icon="shopping_cart" iconCls="bg-error-container text-error" />
-        <Stat label="Deductible" value={money(stats.deductible)} tone="text-on-surface" icon="receipt_long" iconCls="bg-secondary-container text-on-surface" />
       </div>
 
       <button className="btn-primary w-full" onClick={() => setShowForm(true)}>
@@ -138,7 +128,7 @@ export default function Dashboard() {
         See all expenses <Icon name="arrow_forward" size={18} />
       </a>
       <a href="/summary" className="btn-outline w-full text-primary">
-        <Icon name="receipt_long" size={18} /> Tax summary
+        <Icon name="receipt_long" size={18} /> Expense summary
       </a>
 
       {showForm && (
@@ -212,36 +202,6 @@ export default function Dashboard() {
                   {detailError && <p className="mt-1 text-sm text-error">{detailError}</p>}
                 </div>
               )}
-
-              <div className="rounded-input border border-outline-variant/60 bg-surface-container px-4 py-3">
-                <div className="flex min-h-touch items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm">
-                    Tax deductible
-                    <button
-                      aria-label="What counts as deductible?"
-                      className="grid h-6 w-6 place-items-center"
-                      onClick={() => setShowTip((v) => !v)}
-                    >
-                      <Icon name="help" size={20} className="text-on-surface-variant" />
-                    </button>
-                  </span>
-                  <button
-                    role="switch" aria-checked={deductible} aria-label="Tax deductible"
-                    onClick={() => setDeductible(!deductible)}
-                    className={`relative h-8 w-14 rounded-full transition-colors ${deductible ? 'bg-primary-container' : 'bg-outline-variant'}`}
-                  >
-                    <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all ${deductible ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-                {showTip && (
-                  <>
-                    <div className="fixed inset-0 z-[60]" onClick={() => setShowTip(false)} />
-                    <div className="relative z-[61] mt-3 rounded-input bg-surface-container-low p-3 text-sm text-on-surface-variant shadow-card">
-                      {DEDUCTIBLE_TIP}
-                    </div>
-                  </>
-                )}
-              </div>
 
               <input
                 type="date" className="input"

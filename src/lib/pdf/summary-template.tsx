@@ -105,11 +105,6 @@ export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; a
             <tr key={i} style={{ borderTop: `1px solid ${accent}59` /* (3) thin separators */ }}>
               <td style={{ padding: '12px 0', color: INK }}>
                 {r.label}
-                {r.anyDeductible && (
-                  <span style={{ fontSize: 10, color: MUTED, marginLeft: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    · some marked deductible
-                  </span>
-                )}
               </td>
               <td style={{ padding: '12px 0', textAlign: 'right', color: INK }}>{r.count}</td>
               <td style={{ padding: '12px 0', textAlign: 'right', color: INK, fontWeight: 600 }}>{money(r.total)}</td>
