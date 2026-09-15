@@ -70,6 +70,27 @@ you touch the relevant area, re-verify rather than trusting this line._
 | retry on failure message | **Done** | `Failure` type (`chat/page.tsx:30`) on `Msg.failed`; failed messages render an icon retry button (`:1504-1519`); `retry()` (`:1128`) re-runs `send`/`finalize` and replaces the failed bubble in place (`emitResult`, `:68`). |
 | migration 003 applied | **Done** | Applied via the Supabase SQL Editor on 2026-09-07. File: `supabase/migrations/003_relax_website_check.sql` — drops the http(s):// check, re-adds a `char_length(...) <= 200`-only constraint, so bare domains (e.g. `vtcprojects.com`) are accepted. |
 
+## Open — logged 2026-09-15 (product review)
+
+_Newly logged this date. Items marked "verified 2026-09-15" were confirmed in
+code during that audit; the rest are reported symptoms not yet code-verified —
+re-verify before acting, per the note under Invariants._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Protected pages with no signed-out redirect | **Open (UX only)** | `dashboard`, `invoices`, `invoices/[id]`, `expenses`, `vault` have no mount-time auth guard — a signed-out user sees an empty shell instead of being sent to `/login`. RLS protects the data regardless (`dashboard/page.tsx:95` `getUser()` is inside the log-expense handler, not a guard). Guarded pages for contrast: `chat`, `settings`, `summary`, `onboarding`, `reset-password`. Verified 2026-09-15. |
+| Narration total disagrees with the card | **Open (unverified)** | Spoken/narrated total reads $1,684.50 while the invoice card shows $2,351.00. Reported 2026-09-15; root cause not yet located (candidate: narration string vs. card total derive from different fields). |
+| Chat-requested deposits become line items | **Open (unverified)** | A deposit requested in chat is added as an invoice line item instead of being handled as a deposit / amount due now. Reported 2026-09-15. |
+| PDF date format mismatch | **Open (unverified)** | The PDF mixes date formats within one document (e.g. `9/13/2026` vs. `2026-10-13`). Reported 2026-09-15. |
+| Request-balance PDFs never archived to the Vault | **Open (unverified)** | Balance-request PDFs are generated but not written to the Vault archive like other invoice PDFs. Reported 2026-09-15. |
+| Header: show project total as a subline under "due now" | **Open (enhancement)** | The header shows the due-now amount; add the full project total as a subline beneath it. Reported 2026-09-15. |
+| `enforce_free_invoice_limit` counts soft-deleted rows | **Open** | `20260724154509_enforce_free_invoice_cap.sql:73-75` counts all `kind='invoice'` rows for the user with no `deleted_at is null` guard; `deleted_at` was added later (`20260905000000_soft_delete`), so soft-deleted invoices still count toward the free cap. Verified 2026-09-15. |
+| Nine duplicate `money()` helpers | **Open** | Nine `money()` definitions: one canonical export (`src/lib/financials.ts:30`) plus eight inline copies — `chat/page.tsx:42`, `dashboard/page.tsx:10`, `expenses/page.tsx:12`, `invoices/page.tsx:14`, `invoices/[id]/page.tsx:17`, `summary/page.tsx:23`, `pdf/summary-template.tsx:33`, `pdf/templates/index.tsx:57`. Consolidate onto `financials.money()`. Verified 2026-09-15. |
+| Dead space on the final PDF page | **Open (unverified)** | The last page of the generated PDF carries excess trailing whitespace. Reported 2026-09-15. |
+| Public card payment route | **Open (deferred)** | No public card-payment endpoint exists yet; deferred. Adjacent to the unbuilt pay page `/pay/[token]` (Features) and the unused `get_public_invoice` backend (Extras) — dedupe with those if they are treated as one workstream. Reported 2026-09-15. |
+| Unmerged work to port | **Open** | Not yet merged to `main`: soft-delete + back nav (Jules `2ef8490`), date dividers + deductible removal, loading skeletons, PDF fonts + PNG. Reported 2026-09-15; confirm each branch before porting. |
+| Delete test invoice INV-0016 from Cyril's account | **Open (manual, live DB)** | One-time cleanup: remove test invoice `INV-0016` from Cyril's account once soft-delete ships. Live-DB action, not code. Reported 2026-09-15. |
+
 ## Extras — incomplete things found in passing (not on the list)
 
 - **Middleware deleted** (see the middleware Bug row) — the inert root `middleware.ts` was removed rather than fixed after the relocation caused a signed-in login loop twice. No server-side auth gating runs; RLS is the sole boundary (audited intact).
