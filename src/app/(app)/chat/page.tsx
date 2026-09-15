@@ -984,6 +984,10 @@ export default function Chat() {
           // suspend that lost pendingInvoice). Read it back and continue with it,
           // rather than erroring or creating a duplicate.
           if (insErr?.code === '23505' && convoId) {
+            // NOT filtered by deleted_at on purpose: this recovers from a
+            // finalize_key unique-violation, so it must still match a
+            // soft-deleted row already holding this key — otherwise we'd mint a
+            // duplicate invoice number for the same finalize.
             const { data: existing } = await supabase
               .from('invoices')
               .select('id, invoice_number')
@@ -1156,6 +1160,7 @@ export default function Chat() {
         .from('invoices')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', profile.id)
+        .is('deleted_at', null)
         .eq('kind', 'invoice');
       if (count !== 1) return; // only the very first invoice
       if (await getPushSubscription()) return; // already on
@@ -1236,6 +1241,7 @@ export default function Chat() {
       .from('expenses')
       .select('id, amount, vendor, spent_on')
       .eq('user_id', profile.id)
+      .is('deleted_at', null)
       .eq('receipt_hash', hash)
       .maybeSingle();
     // A failed lookup must not block a legitimate save — the unique index is
