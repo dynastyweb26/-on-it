@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -364,13 +365,22 @@ export default function Chat() {
       } catch {
         if (cancelled) return; // unresolved — storageNsRef stays null
       }
-      dropLegacyChatStorage(); // one-time cleanup of pre-namespacing keys
-      // Restore an in-progress conversation (mobile tab suspends wipe React
-      // state) now that we know whose namespace to read — before, and
-      // independent of, the server auth check below. Nothing (or a stale/
-      // malformed payload) → start a fresh conversation.
-      if (!restoreFromStore()) setConvoId(genId());
-      setHydrated(true);
+      // Restore is best-effort, but hydration MUST complete no matter what:
+      // the message list is gated on `hydrated`, so if this block threw and
+      // left it false the UI would sit on the restore skeleton forever. The
+      // helpers below are each already internally try/catch-guarded (localStorage
+      // blocked in private mode, corrupt JSON, v3 payloads); the finally is a
+      // belt-and-braces guarantee that no future change here can strand the UI.
+      try {
+        dropLegacyChatStorage(); // one-time cleanup of pre-namespacing keys
+        // Restore an in-progress conversation (mobile tab suspends wipe React
+        // state) now that we know whose namespace to read — before, and
+        // independent of, the server auth check below. Nothing (or a stale/
+        // malformed payload) → start a fresh conversation.
+        if (!restoreFromStore()) setConvoId(genId());
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
 
       // Auth/profile gating is a separate concern from restore and uses
       // getUser() (server-validated). A slow or failed call here no longer
@@ -1553,7 +1563,7 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m) =>
+        {!hydrated ? <ChatRestoreSkeleton /> : messages.map((m) =>
           m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
             // beneath it. Same icon-button styling as the receipt buttons.
