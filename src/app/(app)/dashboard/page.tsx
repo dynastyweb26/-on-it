@@ -4,6 +4,7 @@
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
+import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
@@ -17,6 +18,11 @@ const money = (n: number) =>
 export default function Dashboard() {
   const supabase = createClient();
   const [stats, setStats] = useState({ paid: 0, outstanding: 0, spent: 0, count: 0 });
+  // Initial-load only: without it the totals flash $0.00 / "0 invoices created"
+  // before real data arrives, reading as an empty account. Cleared in finally so
+  // no path can hang it true. The post-save refresh (loadStats) never toggles it,
+  // so adding an expense doesn't re-flash the skeleton.
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
   const [amount, setAmount] = useState('');
@@ -43,7 +49,9 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    void loadStats();
+    (async () => {
+      try { await loadStats(); } finally { setLoading(false); }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -105,21 +113,27 @@ export default function Dashboard() {
   const net = stats.paid - stats.spent;
   return (
     <div className="space-y-3 px-4 py-4">
-      {/* The ONE deliberately dark element on this screen (§8) */}
-      <div className="rounded-card bg-inverse-surface p-6 shadow-card-raised">
-        <div className="text-label-lg font-semibold uppercase tracking-widest text-inverse-primary/80">
-          Net (all time)
-        </div>
-        <div className={`font-display text-numeric-xl tracking-tight ${net >= 0 ? 'text-inverse-primary' : 'text-error-container'}`}>
-          {money(net)}
-        </div>
-        <div className="mt-1 text-xs text-inverse-on-surface/60">{stats.count} invoices created</div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label="Collected" value={money(stats.paid)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
-        <Stat label="Still owed" value={money(stats.outstanding)} tone="text-primary" icon="pending" iconCls="bg-primary-fixed text-primary" />
-        <Stat label="Spent" value={money(stats.spent)} tone="text-error" icon="shopping_cart" iconCls="bg-error-container text-error" />
-      </div>
+      {loading ? (
+        <BooksTotalsSkeleton />
+      ) : (
+        <>
+          {/* The ONE deliberately dark element on this screen (§8) */}
+          <div className="rounded-card bg-inverse-surface p-6 shadow-card-raised">
+            <div className="text-label-lg font-semibold uppercase tracking-widest text-inverse-primary/80">
+              Net (all time)
+            </div>
+            <div className={`font-display text-numeric-xl tracking-tight ${net >= 0 ? 'text-inverse-primary' : 'text-error-container'}`}>
+              {money(net)}
+            </div>
+            <div className="mt-1 text-xs text-inverse-on-surface/60">{stats.count} invoices created</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="Collected" value={money(stats.paid)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
+            <Stat label="Still owed" value={money(stats.outstanding)} tone="text-primary" icon="pending" iconCls="bg-primary-fixed text-primary" />
+            <Stat label="Spent" value={money(stats.spent)} tone="text-error" icon="shopping_cart" iconCls="bg-error-container text-error" />
+          </div>
+        </>
+      )}
 
       <button className="btn-primary w-full" onClick={() => setShowForm(true)}>
         <Icon name="add" size={22} /> Add expense
