@@ -60,7 +60,7 @@ you touch the relevant area, re-verify rather than trusting this line._
 | tutorial walkthrough cards | **Done** | `src/components/tutorial/` — `FirstRunTutorial.tsx`, `SlideCarousel.tsx`, `TutorialReference.tsx`, `slides.tsx`, `persistence.ts`; auto-show gated on onboarded + version in `layout.tsx:53-64`. |
 | recurring invoices | **Open** | No implementation. "recurring" appears only in subscription billing copy (`settings/page.tsx:605`, `PaywallModal.tsx:118`). |
 | signature capture | **Open** | No implementation. "signature" appears only in Stripe webhook verification (`api/webhooks/stripe/route.ts`). |
-| pay page `/pay/[token]` | **Open** | No `/pay` route exists. Backend scaffolding is present but **unused**: `get_public_invoice(text,text)` and the invoice token (`gen_invoice_token`) in migration `20260901120000_payment_methods_and_public_invoice.sql`; no app code calls either. |
+| pay page `/pay/[token]` + public card payment route | **Open (deferred)** | No `/pay` route exists and no public card-payment endpoint exists; both deferred. Backend scaffolding is present but **unused**: `get_public_invoice(text,text)` and the invoice token (`gen_invoice_token`) in migration `20260901120000_payment_methods_and_public_invoice.sql`; no app code calls either. |
 
 ## Verify
 
@@ -87,7 +87,6 @@ re-verify before acting, per the note under Invariants._
 | `enforce_free_invoice_limit` counts soft-deleted rows | **Open** | `20260724154509_enforce_free_invoice_cap.sql:73-75` counts all `kind='invoice'` rows for the user with no `deleted_at is null` guard; `deleted_at` was added later (`20260905000000_soft_delete`), so soft-deleted invoices still count toward the free cap. Verified 2026-09-15. |
 | Nine duplicate `money()` helpers | **Open** | Nine `money()` definitions: one canonical export (`src/lib/financials.ts:30`) plus eight inline copies — `chat/page.tsx:42`, `dashboard/page.tsx:10`, `expenses/page.tsx:12`, `invoices/page.tsx:14`, `invoices/[id]/page.tsx:17`, `summary/page.tsx:23`, `pdf/summary-template.tsx:33`, `pdf/templates/index.tsx:57`. Consolidate onto `financials.money()`. Verified 2026-09-15. |
 | Dead space on the final PDF page | **Open (unverified)** | The last page of the generated PDF carries excess trailing whitespace. Reported 2026-09-15. |
-| Public card payment route | **Open (deferred)** | No public card-payment endpoint exists yet; deferred. Adjacent to the unbuilt pay page `/pay/[token]` (Features) and the unused `get_public_invoice` backend (Extras) — dedupe with those if they are treated as one workstream. Reported 2026-09-15. |
 | Unmerged work to port | **Open** | Not yet merged to `main`: soft-delete + back nav (Jules `2ef8490`), date dividers + deductible removal, loading skeletons, PDF fonts + PNG. Reported 2026-09-15; confirm each branch before porting. |
 | Delete test invoice INV-0016 from Cyril's account | **Open (manual, live DB)** | One-time cleanup: remove test invoice `INV-0016` from Cyril's account once soft-delete ships. Live-DB action, not code. Reported 2026-09-15. |
 

@@ -84,22 +84,31 @@ Applied:
 
 ## 6. Auth middleware coverage
 
-`middleware.ts` protects (redirect → `/login` if no user):
+> **UPDATE 2026-09-15:** `middleware.ts` was **deleted** after it caused two
+> production login loops. It never actually gated routes: the file sat at the
+> repo root, where Next.js (a `src/` app) never loaded it, so it was inert;
+> relocating it into `src/` to make it run bounced signed-in users back to
+> `/login` twice and was reverted both times. **RLS is the only server-side
+> auth boundary.** The per-page `/login` redirects described below are
+> client-side UX, not a security gate. The rest of this section is retained as
+> the 2026-07-06 snapshot and should be read in light of this note.
+
+Intended middleware coverage at audit time (redirect → `/login` if no user):
 `/dashboard, /invoices, /expenses, /vault, /settings, /onboarding`.
 
-- **Matcher excludes `api/`** — middleware does not run on API routes; each does
+- **Matcher excluded `api/`** — middleware would not run on API routes; each does
   its own auth (parse/transcribe are intentionally guest-open).
 - `/chat` intentionally public (guest parses). `/i/[token]` public (redemption).
-- `/invoices/[id]` covered by the `/invoices` prefix. ✅
+- `/invoices/[id]` covered by the `/invoices` prefix.
 
 **Settings "infinite loading when unauthenticated" — root cause identified:**
-Middleware *does* guard `/settings`, but the guard fails when a **stale/expired
-session cookie** is present: `supabase.auth.getUser()` in middleware can pass
-while the client-side `getUser()` then returns null. The Settings page effect
-does `if (!user) return;` **without redirecting**, leaving `p === null` forever →
-the `if (!p) return <Loading…>` spinner never resolves. Fix in Item 4: (a) make
-the guard robust, and (b) client pages must redirect to `/login` on a null user
-rather than hang. Same pattern exists on other client pages that early-return.
+The root cause was always client-side, not the middleware (which, per the note
+above, never ran): `supabase.auth.getUser()` in the Settings page returns null
+for a signed-out user, and the effect did `if (!user) return;` **without
+redirecting**, leaving `p === null` forever → the `if (!p) return <Loading…>`
+spinner never resolves. Fix in Item 4: client pages must redirect to `/login` on
+a null user rather than hang. Same pattern existed on other client pages that
+early-return.
 
 ## 7. Security headers / CSP
 
@@ -155,7 +164,7 @@ hardening precedes their merge:
 | Route | Auth | Client | Notes for hardening |
 |---|---|---|---|
 | `/api/checkout` | session | session | Rate-limit (checkout spam); zod not needed (no body) but validate origin |
-| `/api/webhooks/stripe` | **Stripe signature** | **service-role** ✅ | Legitimate service-role case (no user session). Must stay OUT of middleware auth + public. Verify signature before body use (already does). |
+| `/api/webhooks/stripe` | **Stripe signature** | **service-role** ✅ | Legitimate service-role case (no user session). Auth is the Stripe signature only — no session gate (there is no middleware; see §6). Verify signature before body use (already does). |
 | `/api/billing-portal` | session | session | Rate-limit |
 | `/api/account/delete` | session + typed confirm | **service-role** ✅ | Justified (storage + auth admin API). Rate-limit hard (already 3/min); zod the confirm body |
 | `/api/access` | session | session | Read-only; fine |
