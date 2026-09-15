@@ -17,6 +17,20 @@ import PaywallModal from '@/components/PaywallModal';
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
+// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. Format
+// today for the picker, and convert a picked value to a timestamp from its parts
+// as a LOCAL date (not UTC) — so a payment entered on the 14th is stored and
+// shown as the 14th instead of slipping to the 13th when local midnight crosses
+// the UTC offset.
+const localDateString = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const localDateToIso = (ymd: string): string => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toISOString();
+};
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const supabase = createClient();
@@ -39,7 +53,7 @@ export default function InvoiceDetail() {
   // Record-payment entry (a ledger insert, never a direct amount_paid write).
   const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
   const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'other'>('zelle');
-  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payDate, setPayDate] = useState(() => localDateString(new Date()));
   const [payAmount, setPayAmount] = useState('');
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
@@ -201,7 +215,7 @@ export default function InvoiceDetail() {
     if (!(amount > 0)) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const paidAtIso = payDate ? new Date(payDate).toISOString() : new Date().toISOString();
+    const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
     const { error } = await supabase.from('invoice_payments').insert({
       invoice_id: id,
       user_id: user.id,
