@@ -21,12 +21,32 @@ const TABS = [
 
 const SWIPE_THRESHOLD = 60; // px of horizontal travel to switch tabs
 
+// A touch that starts inside a horizontal scroller — or anything opting out via
+// data-no-tab-swipe="true" (e.g. a SwipeableRow) — must not also trigger the
+// tab swipe, or a left-swipe-to-delete would change tabs at the same time.
+function isInsideHorizontalScrollable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  let current: HTMLElement | null = target;
+  while (current && current !== document.body) {
+    if (current.getAttribute('data-no-tab-swipe') === 'true') {
+      return true;
+    }
+    const style = window.getComputedStyle(current);
+    const overflowX = style.overflowX;
+    if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   // Instagram-style horizontal swipe between tabs. Touch only; vertical
   // scrolling always wins once the gesture is more vertical than horizontal.
-  const touch = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
+  const touch = useRef<{ x: number; y: number; vertical: boolean; ignored: boolean } | null>(null);
   // Two independent surfaces (do not merge — see closeReference):
   //   showFirstRun  — the gated 4-slide first-run carousel (auto-show once).
   //   showReference — the always-available "How On It works" reference doc.
@@ -82,11 +102,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
-    touch.current = { x: t.clientX, y: t.clientY, vertical: false };
+    const ignored = isInsideHorizontalScrollable(e.target);
+    touch.current = { x: t.clientX, y: t.clientY, vertical: false, ignored };
   }
   function onTouchMove(e: React.TouchEvent) {
     const s = touch.current;
-    if (!s || s.vertical) return;
+    if (!s || s.ignored || s.vertical) return;
     const t = e.touches[0];
     if (Math.abs(t.clientY - s.y) > Math.abs(t.clientX - s.x) && Math.abs(t.clientY - s.y) > 10) {
       s.vertical = true; // scroll gesture — never hijack it
@@ -95,7 +116,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   function onTouchEnd(e: React.TouchEvent) {
     const s = touch.current;
     touch.current = null;
-    if (!s || s.vertical) return;
+    if (!s || s.ignored || s.vertical) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - s.x;
     const dy = t.clientY - s.y;
