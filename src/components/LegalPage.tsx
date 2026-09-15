@@ -1,7 +1,7 @@
 // Shared shell for the public legal pages (/terms, /privacy). Reachable without
-// a session — these routes live outside the (app) group and are not in the
-// middleware PROTECTED list. The document's own "# Title" and "**Last updated**"
-// lines render at the top, so the date is visible immediately.
+// a session — these routes live outside the (app) group and have no auth guard.
+// The document's own "# Title" and "**Last updated**" lines render at the top,
+// so the date is visible immediately.
 import Link from 'next/link';
 import Markdown from '@/components/Markdown';
 

@@ -26,9 +26,10 @@ Inventory and report, stop for review before fixing anything:
 - Which Supabase client each route uses: user-session vs service-role. Flag every
   service-role usage and whether it's justified (webhooks/admin only).
 - Current rate limiting: confirm none exists, or document what does.
-- Auth middleware: which routes are protected, which are public, any gaps (the
-  known Settings "infinite loading when unauthenticated" bug is a symptom — check
-  middleware matcher coverage).
+- Server-side auth: RLS is the only server-side boundary (there is no
+  route-gating middleware — see the Item 4 note; the inert `middleware.ts` was
+  deleted 2026-09-15). Which routes are public, and any gaps (the known Settings
+  "infinite loading when unauthenticated" bug is a client-side symptom).
 - Security headers / CSP: present or absent.
 - Input validation library in use (zod?) and where it's applied vs missing.
 
@@ -94,10 +95,17 @@ EmailJS invoice-send is similarly abusable for spam.
 
 ## Item 4 — Auth middleware + headers
 
+> **UPDATE 2026-09-15:** the middleware half of this item was abandoned.
+> `middleware.ts` was inert (repo root, never loaded) and every attempt to make
+> it run looped signed-in users back to `/login`; it was **deleted 2026-09-15**
+> after two production login loops. **RLS is the only server-side auth
+> boundary**; unauthenticated redirects are handled client-side, per page, as
+> UX. Only the security-headers work below was carried out.
+
 **Spec:**
-- Fix the middleware matcher so every authenticated route is actually protected;
-  unauthenticated access redirects to /login cleanly (this resolves the Settings
-  infinite-loading symptom at the root, not just the symptom).
+- ~~Fix the middleware matcher so every authenticated route is actually
+  protected~~ (dropped — see the note above; no route-gating middleware exists).
+  Unauthenticated access redirects to /login as client-side UX on each page.
 - Confirm public routes stay public: /login, /i/[token] referral links, legal
   pages, the Stripe webhook.
 - Add security headers (next.config): X-Frame-Options or frame-ancestors CSP,

@@ -7,10 +7,11 @@
 // THE BUG THIS FIXES: the session cookies verifyOtp() produces must ride the
 // SAME response we redirect with. Cookies written via cookies() from
 // next/headers do NOT propagate onto a NextResponse.redirect() we construct
-// ourselves — so the redirect carried no Set-Cookie, middleware saw no session
-// on the (protected) landing page, and bounced a freshly-confirmed user to
-// /login in signup mode. Here the Supabase client writes into a collector and
-// we attach those cookies to the exact redirect response we return.
+// ourselves — so the redirect carried no Set-Cookie, the browser never
+// persisted the session, and the landing page's own auth check bounced a
+// freshly-confirmed user to /login in signup mode. Here the Supabase client
+// writes into a collector and we attach those cookies to the exact redirect
+// response we return.
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { type EmailOtpType } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';

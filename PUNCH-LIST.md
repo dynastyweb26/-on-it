@@ -16,21 +16,18 @@ you touch the relevant area, re-verify rather than trusting this line._
    overwritten by a parse. Enforced by `intent_explicit` (`src/lib/ai.ts`) +
    the functional `setDraft` merge in `chat/page.tsx` that keeps the prior
    intent when `intent_explicit` is false. (`11f5c4a`, `6f2dd00`)
-2. **RLS is the auth boundary; middleware is defense-in-depth.** Row-level
-   security on every user-data table (owner-only, scoped to `auth.uid()`) is
-   what actually protects data — verified intact by policy review + anonymous
-   REST probes. Middleware is a second layer, not the boundary. Both are
-   verified, never assumed.
-3. **Middleware must be tested against a signed-in session, not just cookieless
-   requests.** A cookieless request 307s to `/login` and looks fine while the
-   signed-in path still loops or hangs — the cookieless 307 passing is not proof
-   the gate works. Any middleware change is verified with a real session.
+2. **RLS is the sole server-side auth boundary.** Row-level security on every
+   user-data table (owner-only, scoped to `auth.uid()`) is what actually
+   protects data — verified intact by policy review + anonymous REST probes.
+   There is no server-side route-gating middleware (the inert one was deleted;
+   see the middleware Bug row). The per-page client redirects to `/login` are
+   UX only, not a security boundary. RLS is verified, never assumed.
 
 ## Bugs
 
 | Item | Status | Evidence |
 |---|---|---|
-| middleware cookie write-back | **Open (reverted)** | `middleware.ts` lives at the repo **root**, but the app is under `src/`, so Next.js never loads it — the relocation fix `c2daaa4` was reverted by `8392ada`. The cookie write-back itself is present in source (`middleware.ts:16-22`, `setAll` writes request + response cookies) but is **inert** because the middleware never runs. Consequence: no server-side auth gate; RLS is the only boundary (audited intact). |
+| middleware cookie write-back | **Resolved (deleted)** | The root `middleware.ts` was inert (Next.js loads `src/middleware.ts` only) and relocating it into `src/` caused a signed-in login loop twice (`c2daaa4`→`8392ada`, `2734494`→`353190a`). Per the audit decision (option B), the file was **deleted** rather than fixed: it secured nothing (RLS is the boundary, audited intact), nothing server-side depended on it (every API route calls `getUser()` itself; no server components read the session), and the client guards + RLS cover it. No server-side route gating exists. |
 | summary getUser stall | **Open** | `src/app/(app)/summary/page.tsx:52-53` gates on the network `getUser()` with **no** `getSession()` fast-path and **no** timeout — the same stall settings had. The settings fix (`09dcc22`) was never ported here. |
 | settings unauthenticated loading | **Done** | `09dcc22` — `src/app/(app)/settings/page.tsx` added a local `getSession()` fast-path that redirects a signed-out user to `/login` instantly instead of hanging on "Loading…". |
 | duplicate warning loop | **Done** | Resolved by making the warning non-blocking (`71ed4c1`): the server's `duplicateWarning` signal (unchanged, `src/app/api/parse/route.ts`) renders as a passive gold badge — "Similar invoice sent recently" — on the still-actionable invoice card. No turn is spent and no confirmation is asked, so there is no loop to re-fire. The earlier ack-based approach (`dupAcked` / `finalize` bypass / `pending`) was superseded and removed as dead code in the follow-up cleanup. |
@@ -63,7 +60,7 @@ you touch the relevant area, re-verify rather than trusting this line._
 | tutorial walkthrough cards | **Done** | `src/components/tutorial/` — `FirstRunTutorial.tsx`, `SlideCarousel.tsx`, `TutorialReference.tsx`, `slides.tsx`, `persistence.ts`; auto-show gated on onboarded + version in `layout.tsx:53-64`. |
 | recurring invoices | **Open** | No implementation. "recurring" appears only in subscription billing copy (`settings/page.tsx:605`, `PaywallModal.tsx:118`). |
 | signature capture | **Open** | No implementation. "signature" appears only in Stripe webhook verification (`api/webhooks/stripe/route.ts`). |
-| pay page `/pay/[token]` | **Open** | No `/pay` route exists. Backend scaffolding is present but **unused**: `get_public_invoice(text,text)` and the invoice token (`gen_invoice_token`) in migration `20260901120000_payment_methods_and_public_invoice.sql`; no app code calls either. |
+| pay page `/pay/[token]` + public card payment route | **Open (deferred)** | No `/pay` route exists and no public card-payment endpoint exists; both deferred. Backend scaffolding is present but **unused**: `get_public_invoice(text,text)` and the invoice token (`gen_invoice_token`) in migration `20260901120000_payment_methods_and_public_invoice.sql`; no app code calls either. |
 
 ## Verify
 
@@ -73,9 +70,29 @@ you touch the relevant area, re-verify rather than trusting this line._
 | retry on failure message | **Done** | `Failure` type (`chat/page.tsx:30`) on `Msg.failed`; failed messages render an icon retry button (`:1504-1519`); `retry()` (`:1128`) re-runs `send`/`finalize` and replaces the failed bubble in place (`emitResult`, `:68`). |
 | migration 003 applied | **Done** | Applied via the Supabase SQL Editor on 2026-09-07. File: `supabase/migrations/003_relax_website_check.sql` — drops the http(s):// check, re-adds a `char_length(...) <= 200`-only constraint, so bare domains (e.g. `vtcprojects.com`) are accepted. |
 
+## Open — logged 2026-09-15 (product review)
+
+_Newly logged this date. Items marked "verified 2026-09-15" were confirmed in
+code during that audit; the rest are reported symptoms not yet code-verified —
+re-verify before acting, per the note under Invariants._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Protected pages with no signed-out redirect | **Open (UX only)** | `dashboard`, `invoices`, `invoices/[id]`, `expenses`, `vault` have no mount-time auth guard — a signed-out user sees an empty shell instead of being sent to `/login`. RLS protects the data regardless (`dashboard/page.tsx:95` `getUser()` is inside the log-expense handler, not a guard). Guarded pages for contrast: `chat`, `settings`, `summary`, `onboarding`, `reset-password`. Verified 2026-09-15. |
+| Narration total disagrees with the card | **Open (unverified)** | Spoken/narrated total reads $1,684.50 while the invoice card shows $2,351.00. Reported 2026-09-15; root cause not yet located (candidate: narration string vs. card total derive from different fields). |
+| Chat-requested deposits become line items | **Open (unverified)** | A deposit requested in chat is added as an invoice line item instead of being handled as a deposit / amount due now. Reported 2026-09-15. |
+| PDF date format mismatch | **Open (unverified)** | The PDF mixes date formats within one document (e.g. `9/13/2026` vs. `2026-10-13`). Reported 2026-09-15. |
+| Request-balance PDFs never archived to the Vault | **Open (unverified)** | Balance-request PDFs are generated but not written to the Vault archive like other invoice PDFs. Reported 2026-09-15. |
+| Header: show project total as a subline under "due now" | **Open (enhancement)** | The header shows the due-now amount; add the full project total as a subline beneath it. Reported 2026-09-15. |
+| `enforce_free_invoice_limit` counts soft-deleted rows | **Open** | `20260724154509_enforce_free_invoice_cap.sql:73-75` counts all `kind='invoice'` rows for the user with no `deleted_at is null` guard; `deleted_at` was added later (`20260905000000_soft_delete`), so soft-deleted invoices still count toward the free cap. Verified 2026-09-15. |
+| Nine duplicate `money()` helpers | **Open** | Nine `money()` definitions: one canonical export (`src/lib/financials.ts:30`) plus eight inline copies — `chat/page.tsx:42`, `dashboard/page.tsx:10`, `expenses/page.tsx:12`, `invoices/page.tsx:14`, `invoices/[id]/page.tsx:17`, `summary/page.tsx:23`, `pdf/summary-template.tsx:33`, `pdf/templates/index.tsx:57`. Consolidate onto `financials.money()`. Verified 2026-09-15. |
+| Dead space on the final PDF page | **Open (unverified)** | The last page of the generated PDF carries excess trailing whitespace. Reported 2026-09-15. |
+| Unmerged work to port | **Open** | Not yet merged to `main`: soft-delete + back nav (Jules `2ef8490`), date dividers + deductible removal, loading skeletons, PDF fonts + PNG. Reported 2026-09-15; confirm each branch before porting. |
+| Delete test invoice INV-0016 from Cyril's account | **Open (manual, live DB)** | One-time cleanup: remove test invoice `INV-0016` from Cyril's account once soft-delete ships. Live-DB action, not code. Reported 2026-09-15. |
+
 ## Extras — incomplete things found in passing (not on the list)
 
-- **Inert middleware** (see Bug 1) — root vs `src/` placement means no server-side auth gating runs in dev or prod. Highest-impact of anything here; RLS is currently the only auth boundary.
+- **Middleware deleted** (see the middleware Bug row) — the inert root `middleware.ts` was removed rather than fixed after the relocation caused a signed-in login loop twice. No server-side auth gating runs; RLS is the sole boundary (audited intact).
 - **Stripe Connect stub** — `settings/page.tsx` renders a disabled "Coming soon" button; comment: "Layout only; no Stripe connect logic yet."
 - **Dead ref/TODO** — `chat/page.tsx:287`: `// TODO: sessionRef unused — per-message source replaced the speak gate.`
 - **Unused public-invoice backend** — `get_public_invoice` + invoice token in migration `20260901120000` have no caller (tie-in to the missing pay page).

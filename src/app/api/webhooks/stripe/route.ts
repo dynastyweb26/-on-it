@@ -1,6 +1,6 @@
 // POST /api/webhooks/stripe — subscription lifecycle → profiles access.
 // Server-to-server (no user session) → the service-role admin client is the
-// legitimate, audited use here. Outside middleware (matcher excludes /api/).
+// legitimate, audited use here. No user session is involved.
 //
 // runtime = 'nodejs': signature verification needs the RAW body (req.text(),
 // byte-for-byte — never req.json(), never zod) and node crypto.
