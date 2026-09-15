@@ -263,7 +263,7 @@ export default function InvoiceDetail() {
     const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
     // A balance request re-sends the SAME invoice through the SAME path — no new
     // token, no second invoice — with copy that leads with the balance due.
-    const leadText = isBalanceRequest ? `Balance due ${money(totals.dueNow)}` : docNoun(inv.kind);
+    const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
     await shareInvoice(file, inv.client_name, leadText);
     // First send (e.g. a converted quote→invoice draft) captures the render
     // snapshot from the current profile. A RE-send of an already-sent invoice
@@ -407,7 +407,7 @@ export default function InvoiceDetail() {
                 const mode = e.target.value as 'deposit' | 'full' | 'other';
                 setPayMode(mode);
                 if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
-                else if (mode === 'full') setPayAmount(String(totals.dueNow));
+                else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
                 else setPayAmount('');
               }}
             >
@@ -415,7 +415,7 @@ export default function InvoiceDetail() {
               {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
                 <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
               )}
-              <option value="full">Paid in full ({money(totals.dueNow)})</option>
+              <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
               <option value="other">Other amount…</option>
             </select>
           )}
@@ -427,7 +427,7 @@ export default function InvoiceDetail() {
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
-          {amountPaid > 0 && totals.dueNow > 0 && (
+          {amountPaid > 0 && totals.balanceRemaining > 0 && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
               <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}
             </button>

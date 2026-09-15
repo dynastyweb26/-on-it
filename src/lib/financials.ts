@@ -21,6 +21,7 @@ export interface FinancialTotals {
   remaining: number;
   amountDueNow: number;
   dueNow: number;
+  balanceRemaining: number;
   credit: number;
   paymentStage: PaymentStage;
 }
@@ -113,6 +114,11 @@ export function calculateInvoiceTotals(
     dueNow = roundCurrency(total - paid);
   }
 
+  // balanceRemaining — the full amount still owed against the total (never
+  // negative). Unlike dueNow, this is always total − paid, even when the deposit
+  // is what's "due now": it's the figure "paid in full" and "request balance" mean.
+  const balanceRemaining = roundCurrency(Math.max(0, total - paid));
+
   // credit — money received beyond the total. Never negative.
   const credit = roundCurrency(Math.max(0, paid - total));
 
@@ -135,6 +141,7 @@ export function calculateInvoiceTotals(
     remaining,
     amountDueNow: dueNow, // kept for back-compat; identical to dueNow
     dueNow,
+    balanceRemaining,
     credit,
     paymentStage,
   };
