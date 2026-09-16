@@ -24,6 +24,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { getResend, emailFrom } from '@/lib/email/resend';
 import { trialReminderEmail } from '@/lib/email/trial-reminder';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ function fmtAmount(unitAmount: number | null | undefined, currency: string | nul
 }
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

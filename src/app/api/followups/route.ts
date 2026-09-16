@@ -5,9 +5,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { adminClient } from '@/lib/supabase/admin';
 import { money, roundCurrency } from '@/lib/financials';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
