@@ -17,6 +17,73 @@ const ParseBody = z.object({
   draft: z.record(z.string(), z.unknown()).nullish(),
 });
 
+// Word-number pieces, enough for spoken tax rates ("eight", "twenty five",
+// "half a percent", "eight and a quarter"). Anything we can't parse returns
+// null and simply yields no correction — the match gate makes that safe.
+const WORD_UNIT: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+};
+const WORD_TENS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const WORD_FRAC: Record<string, number> = { half: 0.5, quarter: 0.25 };
+
+/** Parse a trailing run of number words into a value, or null. Scans the tail
+ *  contiguously — an unrecognized word resets, so only the words adjacent to the
+ *  percent term count ("charge her eight percent" → 8). */
+function wordsToNumber(tokens: string[]): number | null {
+  let total = 0;
+  let matched = false;
+  for (const w of tokens) {
+    if (w in WORD_TENS) { total += WORD_TENS[w]; matched = true; }
+    else if (w in WORD_UNIT) { total += WORD_UNIT[w]; matched = true; }
+    else if (w in WORD_FRAC) { total += WORD_FRAC[w]; matched = true; }
+    else if (w === 'and' || w === 'a' || w === 'an') { /* connector — keep run */ }
+    else { total = 0; matched = false; } // gap → the number isn't adjacent
+  }
+  return matched ? total : null;
+}
+
+/** The number immediately before the percent term at the tail of `pre`, as a
+ *  value plus where it starts within `pre` (for deposit/tax context checks). */
+function numberFromTail(pre: string): { value: number; startInPre: number } | null {
+  const dm = pre.match(/(\d+(?:\.\d+)?)\s*$/);
+  if (dm) return { value: parseFloat(dm[1]), startInPre: dm.index ?? 0 };
+  const wm = pre.match(/([a-z][a-z\s-]*?)\s*$/);
+  if (!wm) return null;
+  const value = wordsToNumber(wm[1].split(/[\s-]+/).filter(Boolean).slice(-5));
+  return value == null ? null : { value, startInPre: wm.index ?? 0 };
+}
+
+/** Percent rates the user actually stated for TAX in one message. Skips a
+ *  percentage tied to a deposit ("40 percent deposit", "deposit of 40%") unless
+ *  a tax cue sits right by it, so a deposit + tax in the same message resolves
+ *  to just the tax figure. Values are whole-number percents (8, 8.25, 0.5). */
+function statedTaxRates(text: string): number[] {
+  const lower = ` ${text.toLowerCase().replace(/,/g, ' ')} `;
+  const out: number[] = [];
+  const re = /%|percent|per\s?cent/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(lower)) !== null) {
+    const preStart = Math.max(0, m.index - 30);
+    const pre = lower.slice(preStart, m.index);
+    const parsed = numberFromTail(pre);
+    if (!parsed || parsed.value < 0 || parsed.value > 100) continue;
+
+    const numStart = preStart + parsed.startInPre;
+    const beforeNum = lower.slice(Math.max(0, numStart - 12), numStart);
+    const post = lower.slice(m.index + m[0].length, m.index + m[0].length + 14);
+    const taxSignal = /\btax\b/.test(post) || /\btax\b/.test(beforeNum);
+    const depositSignal = /\bdeposit\b/.test(post) || /\bdeposit\b/.test(beforeNum);
+    if (depositSignal && !taxSignal) continue;
+
+    out.push(parsed.value);
+  }
+  return out;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -101,6 +168,18 @@ export async function POST(req: NextRequest) {
     if (result.tax_rate != null) {
       const rate = Number(result.tax_rate);
       result.tax_rate = Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : null;
+    }
+
+    // Fraction rescue: the prompt says tax_rate is a percent, but the model
+    // still sometimes returns 0.08 for "8 percent". Correct it ONLY when the
+    // fraction, ×100, equals a tax rate the user actually stated in their latest
+    // message (within 0.001) — never a blanket ×100 (a real 0.5% must survive),
+    // and never a deposit percentage. When nothing matches, leave it alone.
+    if (result.tax_rate != null) {
+      const latestUser = [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
+      const stated = statedTaxRates(latestUser);
+      const match = stated.find((s) => Math.abs(result.tax_rate! * 100 - s) <= 0.001);
+      if (match != null) result.tax_rate = match;
     }
 
     // ── Server-owned money narration ──────────────────────────────
