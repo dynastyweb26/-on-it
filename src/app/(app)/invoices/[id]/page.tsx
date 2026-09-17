@@ -259,22 +259,27 @@ export default function InvoiceDetail() {
   async function resend(isBalanceRequest = false) {
     if (!printRef.current) return;
     setBusy(true);
-    const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
-    // A balance request re-sends the SAME invoice through the SAME path — no new
-    // token, no second invoice — with copy that leads with the balance due.
-    const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
-    await shareInvoice(file, inv.client_name, leadText);
-    // Always bump sent_at. Only a genuine first send (draft → sent) flips the
-    // status and captures the render snapshot from the current profile. A resend
-    // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
-    // would regress a 'paid' invoice (the ledger trigger only reconciles on a
-    // payments-row change, so it would stay 'sent') — and must NOT re-snapshot,
-    // which would overwrite the historical record with the current profile.
-    const patch: Record<string, unknown> = { sent_at: new Date().toISOString() };
-    if (inv.status === 'draft') Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
-    await supabase.from('invoices').update(patch).eq('id', id);
-    setInv({ ...inv, ...patch });
-    setBusy(false);
+    // try/finally so a thrown elementToPdf or DB error (or any failure after
+    // setBusy(true)) can't strand the card with its action buttons disabled.
+    try {
+      const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
+      // A balance request re-sends the SAME invoice through the SAME path — no new
+      // token, no second invoice — with copy that leads with the balance due.
+      const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
+      await shareInvoice(file, inv.client_name, leadText);
+      // Always bump sent_at. Only a genuine first send (draft → sent) flips the
+      // status and captures the render snapshot from the current profile. A resend
+      // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
+      // would regress a 'paid' invoice (the ledger trigger only reconciles on a
+      // payments-row change, so it would stay 'sent') — and must NOT re-snapshot,
+      // which would overwrite the historical record with the current profile.
+      const patch: Record<string, unknown> = { sent_at: new Date().toISOString() };
+      if (inv.status === 'draft') Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
+      await supabase.from('invoices').update(patch).eq('id', id);
+      setInv({ ...inv, ...patch });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function convertToInvoice() {
