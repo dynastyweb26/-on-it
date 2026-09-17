@@ -1897,6 +1897,51 @@ export default function Chat() {
     setPendingChange(null);
   }
 
+  // ── Revise a locked, sent, unpaid invoice (Commit C) ────────
+  // Opens a NEW draft invoice in a fresh conversation, seeded from the original's
+  // content plus a "Revises INV-XXXX" note. The original row is never touched —
+  // this inserts a brand-new invoice (next number) on its first save because the
+  // conversation (and thus finalize_key) is fresh and the link is cleared. Only
+  // offered when status is 'sent' and amount_paid is 0; paid/partly-paid stays
+  // fully locked (a revision then would be a credit/refund — see PUNCH-LIST). We
+  // deliberately do NOT re-archive the current conversation: the original is
+  // already a real sent invoice (and, if reached via history, already has its
+  // finalized entry, which pushHistory would otherwise overwrite by id).
+  function reviseInvoice() {
+    if (!draft) return;
+    const kind = docKind(draft);
+    const originalNo = pendingInvoiceRef.current?.no ?? null;
+    const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
+    const reviseNote = `Revises ${label}`;
+    const existingNotes = (draft.notes ?? '').trim();
+    // Spread copies line items, tax, client, due date, and the deposit fields
+    // (which ride on the draft as snake_case); reset intent_explicit and append
+    // the revision note.
+    const seed: Partial<ExtractResult> = {
+      ...draft,
+      intent: kind,
+      intent_explicit: false,
+      notes: existingNotes ? `${existingNotes}\n${reviseNote}` : reviseNote,
+    };
+    // The seed's line items are copied, not freshly AI-parsed — no original text
+    // to record on the new invoice's first save.
+    originalDescriptionsRef.current = [];
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setConvoId(genId());
+    setDraftHistory([]);
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
+    setPendingChange(null);
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
+    setFinished(false);
+    setMessages([GREETING, aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`)]);
+    setDraft(seed);
+    setReady(true);
+    setDuplicateHint(false);
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -2049,11 +2094,28 @@ export default function Chat() {
               </div>
             </div>
             {locked ? (
-              // Read-only (Commit B): the invoice has left 'draft'. No send /
-              // download / edit affordances. A sent-but-unpaid invoice gains a
-              // "Revise" action in Commit C; paid/partly-paid stays fully locked.
-              <div className="mt-3 border-t border-outline-variant/30 pt-3 text-center text-sm text-on-surface-variant">
-                This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} is locked. Start a new one to make changes.
+              // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
+              // unpaid invoice offers "Revise" (opens an editable copy as a new
+              // invoice — Commit C); once any payment has landed it stays fully
+              // locked (a revision would be a credit/refund — see PUNCH-LIST).
+              <div className="mt-3 border-t border-outline-variant/30 pt-3">
+                {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
+                  <>
+                    <p className="text-center text-sm text-on-surface-variant">
+                      This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} was sent, so it&apos;s locked.
+                    </p>
+                    <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+                      <Icon name="edit" size={18} /> Revise
+                    </button>
+                    <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                      Opens an editable copy as a new {docKind(draft) === 'quote' ? 'quote' : 'invoice'}. The original stays as it was.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-on-surface-variant">
+                    {lockBadgeText(linkedStatus, linkedAmountPaid)}. Start a new invoice to make changes.
+                  </p>
+                )}
               </div>
             ) : (
               <>
