@@ -79,6 +79,79 @@ function wouldReplaceInvoice(
   return nameChanged || replacedAllItems;
 }
 
+// A linked row is locked once it leaves 'draft' (Commit B). null = not yet
+// linked / status unknown = not locked (a fresh draft must stay editable).
+function isLockedStatus(status: string | null): boolean {
+  return status != null && status !== 'draft';
+}
+
+// Short read-only badge for a locked card. Paid and partly-paid read distinctly
+// so the user knows money has landed; a sent-but-unpaid invoice just reads sent.
+function lockBadgeText(status: string | null, amountPaid: number): string {
+  if (amountPaid > 0) return status === 'paid' ? 'Paid — locked' : 'Payment received — locked';
+  return 'Sent — locked';
+}
+
+// The refusal shown when the user tries to edit a locked invoice from chat.
+function lockEditNotice(status: string | null, amountPaid: number): string {
+  if (amountPaid > 0) {
+    return status === 'paid'
+      ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
+      : "A payment has been received on that invoice, so it's locked. Start a new invoice for any changes.";
+  }
+  return "That invoice was already sent, so it's locked. Start a new invoice, or tap Revise on the card to edit a copy.";
+}
+
+// Rebuild a chat draft from a saved invoice row (Commit B). Finalized
+// conversations store draft:null in history, so a locked card reopened from
+// history is reconstructed from the DB row. Deposit columns ride on the draft as
+// snake_case, read elsewhere via `as any`.
+function draftFromRow(row: {
+  kind?: string | null;
+  client_name?: string | null;
+  client_address?: string | null;
+  client_phone?: string | null;
+  line_items?: unknown;
+  tax_rate?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+  deposit_type?: string | null;
+  deposit_value?: number | null;
+}): Partial<ExtractResult> {
+  const d: Record<string, unknown> = {
+    intent: row.kind === 'quote' ? 'quote' : 'invoice',
+    intent_explicit: false,
+    client_name: row.client_name ?? null,
+    client_address: row.client_address ?? null,
+    client_phone: row.client_phone ?? null,
+    line_items: Array.isArray(row.line_items) ? row.line_items : [],
+    tax_rate: row.tax_rate ?? null,
+    due_date: row.due_date ?? null,
+    notes: row.notes ?? null,
+    deposit_type: row.deposit_type ?? 'none',
+    deposit_value: row.deposit_value ?? null,
+  };
+  return d as Partial<ExtractResult>;
+}
+
+// Editable-field fingerprint: two drafts with the same fingerprint are the same
+// document content (Commit B lock check — an incoming parse that matches the
+// locked draft is a no-op question, not an edit, so it isn't refused).
+function draftFingerprint(d: Partial<ExtractResult> | null): string {
+  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price]);
+  return JSON.stringify({
+    name: (d?.client_name ?? '').trim(),
+    addr: (d?.client_address ?? '').trim(),
+    phone: (d?.client_phone ?? '').trim(),
+    items,
+    tax: d?.tax_rate ?? null,
+    depType: (d as any)?.deposit_type ?? 'none',
+    depVal: (d as any)?.deposit_value ?? null,
+    notes: d?.notes ?? null,
+    due: d?.due_date ?? null,
+  });
+}
+
 // Every message carries a stable id so the transcript renders by id (not array
 // index) and a specific message can be replaced in place (retry). Factories
 // stamp the id in one spot; `extra` is the seam for per-message fields.
@@ -260,6 +333,12 @@ export default function Chat() {
   // draft awaiting the decision. Null when there's nothing pending.
   const [pendingChange, setPendingChange] =
     useState<{ no: number; kind: 'quote' | 'invoice'; draft: Partial<ExtractResult> } | null>(null);
+  // Live status of the linked saved invoice (Commit B). Fetched on restore,
+  // history open, and at save time so the card knows if it has left 'draft'. A
+  // non-draft, non-null status locks the card read-only; amount_paid decides the
+  // paid/partly-paid copy (and, in Commit C, whether Revise is offered).
+  const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
+  const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
@@ -365,6 +444,27 @@ export default function Chat() {
     setConvoId(stored.id ?? genId());
     setFinished(false);
     appliedUpdatedAtRef.current = stored.updatedAt;
+    // Commit B: the linked invoice may have been sent or paid in another session
+    // since this draft was suspended. Read its live status so the restored card
+    // locks if it has left 'draft'. Fire-and-forget; null id clears the lock.
+    void loadLinkedStatus(stored.pendingInvoice?.id ?? null);
+  }
+
+  // Read the linked invoice's live status + amount_paid into state (Commit B).
+  // Scoped by RLS to the caller's own rows; a soft-deleted row is treated as no
+  // link. Failures leave the lock state unchanged rather than falsely unlocking.
+  async function loadLinkedStatus(id: string | null | undefined) {
+    if (!id) { setLinkedStatus(null); setLinkedAmountPaid(0); return; }
+    try {
+      const { data } = await supabase
+        .from('invoices')
+        .select('status, amount_paid')
+        .eq('id', id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      setLinkedStatus((data?.status as string) ?? null);
+      setLinkedAmountPaid(Number(data?.amount_paid ?? 0));
+    } catch { /* keep prior lock state on a transient failure */ }
   }
 
   // Shared restore: re-read the namespaced store and apply it when it's newer
@@ -533,6 +633,9 @@ export default function Chat() {
       setReady(false);
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
+      setPendingChange(null);
+      setLinkedStatus(null);
+      setLinkedAmountPaid(0);
       pendingInvoiceRef.current = null;
       finalizeSentRef.current = false;
       discardExpense();
@@ -687,6 +790,16 @@ export default function Chat() {
           data.intent_explicit === false && draft?.intent
             ? { ...data, intent: draft.intent }
             : data;
+
+        // Commit B lock: the linked invoice has left 'draft' (sent/paid) and is
+        // read-only. Refuse a chat edit that would change it — but let a no-op
+        // parse (a question that reproduces the same draft) through silently, so
+        // "what's the total?" still works. Revising is offered on the card.
+        if (pendingInvoiceRef.current && isLockedStatus(linkedStatus) && draft
+          && draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid))]);
+          return { reply, ready: isReady };
+        }
 
         // Change guard (Commit A): one conversation = one invoice. Once a row is
         // linked (first save done), a parse that would change the client or
@@ -899,6 +1012,9 @@ export default function Chat() {
     setReady(false);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
+    setPendingChange(null);
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
     setRenderData(null);
     setFinished(true); // clears the persisted conversation
     try {
@@ -1086,7 +1202,7 @@ export default function Chat() {
             // duplicate invoice number for the same finalize.
             const { data: existing } = await supabase
               .from('invoices')
-              .select('id, invoice_number')
+              .select('id, invoice_number, status, amount_paid')
               .eq('user_id', profile.id)
               .eq('finalize_key', convoId)
               .maybeSingle();
@@ -1102,9 +1218,16 @@ export default function Chat() {
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
-            // Persist the current draft onto the recovered row so a reload
-            // between an edit and the save doesn't drop that edit. (Commit B adds
-            // the non-draft guard; within a live conversation this row is a draft.)
+            // Persist the current draft onto the recovered row so a reload between
+            // an edit and the save doesn't drop that edit — but only while it's a
+            // draft (Commit B). If it was sent/paid elsewhere, lock instead of
+            // overwriting.
+            if (isLockedStatus((existing.status as string) ?? null)) {
+              setLinkedStatus((existing.status as string) ?? null);
+              setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
+              setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
+              return;
+            }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
             console.error('invoice insert failed', insErr);
@@ -1123,6 +1246,11 @@ export default function Chat() {
         invoiceId = newId;
         no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // Freshly persisted as a draft — mirror that into the lock state so the
+        // card stays editable (Commit B). A 23505-recovered non-draft row already
+        // returned above, so reaching here means the row is a draft.
+        setLinkedStatus('draft');
+        setLinkedAmountPaid(0);
         // The row exists but isn't marked sent yet, and setting a ref fires no
         // persist effect. Write now so a suspend while the share sheet is open
         // resumes with the row + progress intact.
@@ -1130,8 +1258,24 @@ export default function Chat() {
       } else {
         // ── UPDATE: a later save of the same conversation's draft (Commit A) —
         // the core P1 fix. Edits after the first save now reach the DB. Only the
-        // draft columns move; identity is pinned by lock_document_identity, and
-        // Commit B refuses this update when the linked row is no longer a draft.
+        // draft columns move; identity is pinned by lock_document_identity.
+        //
+        // Commit B hard guard: read the live status at save time — the row may
+        // have been sent or paid in another session since this card opened. If it
+        // has left 'draft', refuse the write and lock the card. This is the real
+        // backstop (the DB has no draft-only trigger yet — see PUNCH-LIST); the
+        // read-only UI is the courtesy layer in front of it.
+        const { data: live } = await supabase
+          .from('invoices')
+          .select('status, amount_paid')
+          .eq('id', invoiceId)
+          .maybeSingle();
+        if (live && isLockedStatus((live.status as string) ?? null)) {
+          setLinkedStatus((live.status as string) ?? null);
+          setLinkedAmountPaid(Number(live.amount_paid ?? 0));
+          setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
+          return; // outer finally clears phase; the locked card stays put
+        }
         const { error: updErr } = await supabase.from('invoices')
           .update(draftCols)
           .eq('id', invoiceId);
@@ -1620,13 +1764,44 @@ export default function Chat() {
       });
     }
     setMessages(entry.messages);
-    setDraft(entry.draft);
-    setReady(Boolean(entry.ready) && !entry.finalized);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
-    setFinished(entry.finalized); // finalized ones stay read-only until a new message
+    setPendingChange(null);
     setConvoId(entry.id);
     setShowHistory(false);
+    // Default to the stored draft; the DB re-link below overrides it for a
+    // locked (sent/paid) invoice so the read-only card + Revise can show.
+    setDraft(entry.draft);
+    setReady(Boolean(entry.ready) && !entry.finalized);
+    setFinished(entry.finalized); // finalized ones stay read-only until a new message
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
+
+    // Commit B: re-link this conversation to its saved invoice (finalize_key =
+    // convoId) and read its live status. A sent/paid invoice reopens as a locked,
+    // read-only card, rebuilt from the row since finalized history stores no draft.
+    void (async () => {
+      try {
+        const { data: row } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, line_items, tax_rate, notes, due_date, deposit_type, deposit_value')
+          .eq('finalize_key', entry.id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (!row?.id) return; // no saved row — plain draft/finalized entry as set above
+        pendingInvoiceRef.current = { id: row.id as string, no: row.invoice_number as number };
+        setLinkedStatus((row.status as string) ?? null);
+        setLinkedAmountPaid(Number(row.amount_paid ?? 0));
+        if (isLockedStatus((row.status as string) ?? null)) {
+          setDraft(draftFromRow(row));
+          setDraftHistory([]);
+          setReady(true);
+          setFinished(false); // show the locked card, not the read-only transcript tail
+        }
+      } catch { /* leave the stored-draft view in place on a fetch failure */ }
+    })();
   }
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
@@ -1639,6 +1814,8 @@ export default function Chat() {
     previewDepositValue
   );
   const isValidTotal = Number.isFinite(previewTotals.total);
+  // Commit B: the linked invoice has left 'draft' — the card is read-only.
+  const locked = isLockedStatus(linkedStatus);
 
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
@@ -1711,6 +1888,8 @@ export default function Chat() {
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setFinished(false);
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
@@ -1760,21 +1939,29 @@ export default function Chat() {
               <Icon name="description" size={18} />
               {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
-            {duplicateHint && (
+            {locked && (
+              // Read-only: the linked invoice has left 'draft' (sent/paid).
+              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                <Icon name="lock" size={16} filled />
+                {lockBadgeText(linkedStatus, linkedAmountPaid)}
+              </div>
+            )}
+            {duplicateHint && !locked && (
               // Passive indicator only — the card stays fully actionable below.
               <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
                 <Icon name="error" size={16} filled />
                 Similar invoice sent recently
               </div>
             )}
-            <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
+            <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
 
             <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
                 <div className="flex items-center gap-1.5">
                   <select
-                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none"
+                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
+                    disabled={locked}
                     value={(draft as any).deposit_type ?? 'none'}
                     onChange={(e) => {
                       const dt = e.target.value as DepositType;
@@ -1791,7 +1978,8 @@ export default function Chat() {
                       type="number"
                       min="0"
                       max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
-                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
+                      disabled={locked}
+                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
                       value={(draft as any).deposit_value ?? ''}
                       placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
                       onChange={(e) => {
@@ -1807,9 +1995,10 @@ export default function Chat() {
                   Notes
                 </label>
                 <textarea
-                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
+                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none disabled:opacity-50"
                   rows={2}
                   maxLength={400}
+                  disabled={locked}
                   placeholder="Deposit due before materials are ordered. 3-5 day lead time."
                   value={draft.notes ?? ''}
                   onChange={(e) => applyDraftNotes(e.target.value)}
@@ -1859,40 +2048,51 @@ export default function Chat() {
                 </span>
               </div>
             </div>
-            {!isValidTotal && (
-              <p className="mt-2 text-xs font-semibold text-error">
-                Something went wrong reading the amounts. Try rephrasing the prices.
-              </p>
+            {locked ? (
+              // Read-only (Commit B): the invoice has left 'draft'. No send /
+              // download / edit affordances. A sent-but-unpaid invoice gains a
+              // "Revise" action in Commit C; paid/partly-paid stays fully locked.
+              <div className="mt-3 border-t border-outline-variant/30 pt-3 text-center text-sm text-on-surface-variant">
+                This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} is locked. Start a new one to make changes.
+              </div>
+            ) : (
+              <>
+                {!isValidTotal && (
+                  <p className="mt-2 text-xs font-semibold text-error">
+                    Something went wrong reading the amounts. Try rephrasing the prices.
+                  </p>
+                )}
+                <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
+                  <Icon name="attach_file" size={18} />
+                  {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+                </button>
+                {/* Quiet secondary exit: download the PDF without sending. Saves the
+                    draft (sendable later); does not mark sent or archive. */}
+                <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+                  disabled={phase !== null || !isValidTotal}
+                  onClick={() => finalize(false, undefined, 'download')}>
+                  <Icon name="download" size={18} /> Download without sending
+                </button>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                    disabled={phase !== null || draftHistory.length === 0}
+                    onClick={undoLastEdit}
+                  >
+                    Undo last edit
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                    disabled={phase !== null}
+                    onClick={() => send('Actually, let me change something')}
+                  >
+                    Change something
+                  </button>
+                </div>
+              </>
             )}
-            <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
-              <Icon name="attach_file" size={18} />
-              {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
-            </button>
-            {/* Quiet secondary exit: download the PDF without sending. Saves the
-                draft (sendable later); does not mark sent or archive. */}
-            <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
-              disabled={phase !== null || !isValidTotal}
-              onClick={() => finalize(false, undefined, 'download')}>
-              <Icon name="download" size={18} /> Download without sending
-            </button>
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                disabled={phase !== null || draftHistory.length === 0}
-                onClick={undoLastEdit}
-              >
-                Undo last edit
-              </button>
-              <button
-                type="button"
-                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => send('Actually, let me change something')}
-              >
-                Change something
-              </button>
-            </div>
           </div>
         )}
 
