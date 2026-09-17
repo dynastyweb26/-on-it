@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
-import { defaultDueDate } from '@/lib/dates';
+import { defaultDueDate, formatDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
@@ -153,8 +153,8 @@ export default function InvoiceDetail() {
     paymentsReceived: amountPaid,
     paymentDate,
     paymentStage: totals.paymentStage,
-    notes: inv.notes, issuedDate: new Date(inv.created_at).toLocaleDateString(),
-    dueDate: inv.due_date, paid: inv.status === 'paid',
+    notes: inv.notes, issuedDate: formatDate(inv.created_at),
+    dueDate: formatDate(inv.due_date), paid: inv.status === 'paid',
     zelle, // live — Zelle is never snapshotted, in either case
     cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,
     paypalMe: snapped ? inv.paypal_me : profile.paypal_me,
