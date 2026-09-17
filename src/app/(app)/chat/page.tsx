@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
-import { docNoun } from '@/lib/documents';
+import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
@@ -54,6 +54,104 @@ function docKind(draft: Partial<ExtractResult> | null | undefined): 'quote' | 'i
   return 'invoice';
 }
 
+// Change-guard heuristic (Commit A): would applying `next` over the linked draft
+// `prev` amount to a different document rather than an edit of the same one? True
+// when the client name changes, or when every incoming line item is new (none of
+// their descriptions match a current one). Conservative — it only raises the
+// "update or start new?" question; it never mutates state. A single-line typo fix
+// to the client name is the one false trigger, and it is safe (asks, never rewrites).
+function wouldReplaceInvoice(
+  prev: Partial<ExtractResult>,
+  next: Partial<ExtractResult>,
+): boolean {
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  const prevName = norm(prev.client_name);
+  const nextName = norm(next.client_name);
+  const nameChanged = Boolean(prevName) && Boolean(nextName) && prevName !== nextName;
+
+  const prevItems = (prev.line_items ?? []) as LineItem[];
+  const nextItems = (next.line_items ?? []) as LineItem[];
+  const replacedAllItems =
+    prevItems.length > 0 &&
+    nextItems.length > 0 &&
+    nextItems.every((n) => !prevItems.some((p) => norm(p.description) === norm(n.description)));
+
+  return nameChanged || replacedAllItems;
+}
+
+// A linked row is locked once it leaves 'draft' (Commit B). null = not yet
+// linked / status unknown = not locked (a fresh draft must stay editable).
+function isLockedStatus(status: string | null): boolean {
+  return status != null && status !== 'draft';
+}
+
+// Short read-only badge for a locked card. Paid and partly-paid read distinctly
+// so the user knows money has landed; a sent-but-unpaid invoice just reads sent.
+function lockBadgeText(status: string | null, amountPaid: number): string {
+  if (amountPaid > 0) return status === 'paid' ? 'Paid — locked' : 'Payment received — locked';
+  return 'Sent — locked';
+}
+
+// The refusal shown when the user tries to edit a locked invoice from chat.
+function lockEditNotice(status: string | null, amountPaid: number): string {
+  if (amountPaid > 0) {
+    return status === 'paid'
+      ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
+      : "A payment has been received on that invoice, so it's locked. Start a new invoice for any changes.";
+  }
+  return "That invoice was already sent, so it's locked. Start a new invoice, or tap Revise on the card to edit a copy.";
+}
+
+// Rebuild a chat draft from a saved invoice row (Commit B). Finalized
+// conversations store draft:null in history, so a locked card reopened from
+// history is reconstructed from the DB row. Deposit columns ride on the draft as
+// snake_case, read elsewhere via `as any`.
+function draftFromRow(row: {
+  kind?: string | null;
+  client_name?: string | null;
+  client_address?: string | null;
+  client_phone?: string | null;
+  line_items?: unknown;
+  tax_rate?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+  deposit_type?: string | null;
+  deposit_value?: number | null;
+}): Partial<ExtractResult> {
+  const d: Record<string, unknown> = {
+    intent: row.kind === 'quote' ? 'quote' : 'invoice',
+    intent_explicit: false,
+    client_name: row.client_name ?? null,
+    client_address: row.client_address ?? null,
+    client_phone: row.client_phone ?? null,
+    line_items: Array.isArray(row.line_items) ? row.line_items : [],
+    tax_rate: row.tax_rate ?? null,
+    due_date: row.due_date ?? null,
+    notes: row.notes ?? null,
+    deposit_type: row.deposit_type ?? 'none',
+    deposit_value: row.deposit_value ?? null,
+  };
+  return d as Partial<ExtractResult>;
+}
+
+// Editable-field fingerprint: two drafts with the same fingerprint are the same
+// document content (Commit B lock check — an incoming parse that matches the
+// locked draft is a no-op question, not an edit, so it isn't refused).
+function draftFingerprint(d: Partial<ExtractResult> | null): string {
+  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price]);
+  return JSON.stringify({
+    name: (d?.client_name ?? '').trim(),
+    addr: (d?.client_address ?? '').trim(),
+    phone: (d?.client_phone ?? '').trim(),
+    items,
+    tax: d?.tax_rate ?? null,
+    depType: (d as any)?.deposit_type ?? 'none',
+    depVal: (d as any)?.deposit_value ?? null,
+    notes: d?.notes ?? null,
+    due: d?.due_date ?? null,
+  });
+}
+
 // Every message carries a stable id so the transcript renders by id (not array
 // index) and a specific message can be replaced in place (retry). Factories
 // stamp the id in one spot; `extra` is the seam for per-message fields.
@@ -79,8 +177,11 @@ const HISTORY_MAX = 5;
 // build is discarded on load rather than rehydrated into a broken draft. (v1
 // was the original unversioned shape. v3 added finalizeSent — finalize
 // step-completion, so a resumed finalize skips steps that already ran. v4 added
-// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.)
-const STORE_VERSION = 4;
+// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.
+// v5 added linkedStatus/linkedAmountPaid so a sent, locked conversation survives
+// a reload as a locked card; v3/v4 entries lack them and simply restore unlocked
+// until the DB status re-fetch runs — migrated, not dropped.)
+const STORE_VERSION = 5;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -141,6 +242,13 @@ interface StoredChat {
   // resumed finalize (suspend between "mark sent" and the reset) reads this and
   // finishes idempotently instead of re-sharing, re-marking, and re-archiving.
   finalizeSent?: boolean;
+  // Live lock state of the linked invoice (Commit B/C), persisted so a sent,
+  // locked conversation restores as a locked card with Revise after a reload —
+  // and refuses further edits — instead of resurrecting an editable draft. The
+  // DB status re-fetch on restore is still authoritative; these give an instant,
+  // flash-free lock before it resolves. Absent on v3/v4 payloads.
+  linkedStatus?: string | null;
+  linkedAmountPaid?: number;
   updatedAt: number;
 }
 
@@ -173,7 +281,7 @@ function loadStoredChat(ns: string): StoredChat | null {
     // genuinely older/unrecognized shapes (< 3) are dropped — their fields
     // predate too much to rehydrate safely. The persist effect rewrites the
     // migrated payload as the current version on the next change.
-    if (parsed.version !== STORE_VERSION && parsed.version !== 3) return null;
+    if (parsed.version !== STORE_VERSION && parsed.version !== 4 && parsed.version !== 3) return null;
     // Stale — a job left untouched past the TTL isn't "current" anymore.
     if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
@@ -228,6 +336,19 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
+  // Change guard (Commit A): a parse that would rewrite the linked saved invoice
+  // (different client, or all line items replaced) is held here instead of
+  // applied, so the user can choose "update this one" vs "start a new invoice".
+  // { no } is the linked invoice number for the prompt; { draft } is the merged
+  // draft awaiting the decision. Null when there's nothing pending.
+  const [pendingChange, setPendingChange] =
+    useState<{ no: number; kind: 'quote' | 'invoice'; draft: Partial<ExtractResult> } | null>(null);
+  // Live status of the linked saved invoice (Commit B). Fetched on restore,
+  // history open, and at save time so the card knows if it has left 'draft'. A
+  // non-draft, non-null status locks the card read-only; amount_paid decides the
+  // paid/partly-paid copy (and, in Commit C, whether Revise is offered).
+  const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
+  const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
@@ -331,8 +452,37 @@ export default function Chat() {
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
     finalizeSentRef.current = Boolean(stored.finalizeSent);
     setConvoId(stored.id ?? genId());
-    setFinished(false);
+    // Restore the lock state up front (v5+) so a sent conversation shows its
+    // locked card and refuses edits immediately on reload — no flash of an
+    // editable card before the DB re-fetch below resolves. A locked convo is
+    // already archived to history, so mark it finished to prevent re-archiving as
+    // a draft; an unlocked one stays live (finished=false).
+    const restoredStatus = stored.linkedStatus ?? null;
+    setLinkedStatus(restoredStatus);
+    setLinkedAmountPaid(Number(stored.linkedAmountPaid ?? 0));
+    setFinished(isLockedStatus(restoredStatus));
     appliedUpdatedAtRef.current = stored.updatedAt;
+    // Commit B: the linked invoice may have been sent or paid in another session
+    // since this draft was suspended. Re-read its live status (authoritative) so
+    // the restored card locks if it has left 'draft'. Fire-and-forget.
+    void loadLinkedStatus(stored.pendingInvoice?.id ?? null);
+  }
+
+  // Read the linked invoice's live status + amount_paid into state (Commit B).
+  // Scoped by RLS to the caller's own rows; a soft-deleted row is treated as no
+  // link. Failures leave the lock state unchanged rather than falsely unlocking.
+  async function loadLinkedStatus(id: string | null | undefined) {
+    if (!id) { setLinkedStatus(null); setLinkedAmountPaid(0); return; }
+    try {
+      const { data } = await supabase
+        .from('invoices')
+        .select('status, amount_paid')
+        .eq('id', id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      setLinkedStatus((data?.status as string) ?? null);
+      setLinkedAmountPaid(Number(data?.amount_paid ?? 0));
+    } catch { /* keep prior lock state on a transient failure */ }
   }
 
   // Shared restore: re-read the namespaced store and apply it when it's newer
@@ -431,7 +581,11 @@ export default function Chat() {
     const ns = storageNsRef.current;
     if (!ns) return;
     try {
-      if (finished || messages.length < 2) {
+      // A sent, locked conversation IS persisted even though it's "finished", so
+      // a reload restores the locked card + Revise and keeps refusing edits. A
+      // finished-but-unlocked convo (e.g. a new-chat reset) is cleared as before.
+      const locked = isLockedStatus(linkedStatus);
+      if ((finished && !locked) || messages.length < 2) {
         localStorage.removeItem(chatKey(ns));
       } else {
         // Twin of the explicit write in finalize() after the row is inserted —
@@ -442,13 +596,15 @@ export default function Chat() {
           id: convoId, messages, draft, ready,
           pendingInvoice: pendingInvoiceRef.current,
           finalizeSent: finalizeSentRef.current,
+          linkedStatus,
+          linkedAmountPaid,
           updatedAt: Date.now(),
         };
         localStorage.setItem(chatKey(ns), JSON.stringify(payload));
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, hydrated, finished, convoId]);
+  }, [messages, draft, ready, hydrated, finished, convoId, linkedStatus, linkedAmountPaid]);
 
   // Recover a conversation the OS dropped behind an app switch. Two triggers,
   // one shared restore (restoreFromStore):
@@ -501,6 +657,9 @@ export default function Chat() {
       setReady(false);
       setAwaitingConfirm(false);
       setPrefilled({ address: false, phone: false });
+      setPendingChange(null);
+      setLinkedStatus(null);
+      setLinkedAmountPaid(0);
       pendingInvoiceRef.current = null;
       finalizeSentRef.current = false;
       discardExpense();
@@ -546,6 +705,22 @@ export default function Chat() {
       setMessages(next);
       setInput('');
     }
+
+    // Locked conversation (Commit B/C, live flow): the linked invoice has left
+    // 'draft' — most commonly it was just sent, and finishFinalize now KEEPS the
+    // conversation linked and locked instead of resetting it. Refuse any further
+    // message here so /api/parse is never called and no new card is rebuilt from
+    // the prior transcript (the reported near-duplicate #21 bug). Revise makes an
+    // editable copy; a new chat starts a new job. Runs before setFinished(false)
+    // so the sent conversation stays marked finished (not re-archived as a draft).
+    if (pendingInvoiceRef.current && isLockedStatus(linkedStatus)) {
+      const label = formatDocNumber(docKind(draft), pendingInvoiceRef.current.no);
+      setMessages((m) => [...m, aMsg(
+        `${label} is sent and locked. Tap Revise to change it, or start a new chat for a new job.`
+      )]);
+      return null;
+    }
+
     setFinished(false); // a new message means a live conversation again
 
     // ── Confirmation gate ─────────────────────────────────────
@@ -651,19 +826,50 @@ export default function Chat() {
         // the document type this turn (intent_explicit false), keep the
         // in-progress draft's intent so a bare "send it" or "just make it"
         // can't silently flip a quote into an invoice.
+        const mergedDraft: Partial<ExtractResult> =
+          data.intent_explicit === false && draft?.intent
+            ? { ...data, intent: draft.intent }
+            : data;
+
+        // Commit B lock: the linked invoice has left 'draft' (sent/paid) and is
+        // read-only. Refuse a chat edit that would change it — but let a no-op
+        // parse (a question that reproduces the same draft) through silently, so
+        // "what's the total?" still works. Revising is offered on the card.
+        if (pendingInvoiceRef.current && isLockedStatus(linkedStatus) && draft
+          && draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid))]);
+          return { reply, ready: isReady };
+        }
+
+        // Change guard (Commit A): one conversation = one invoice. Once a row is
+        // linked (first save done), a parse that would change the client or
+        // replace every line item is most likely a NEW job spoken into the same
+        // chat — applying it would rewrite the saved invoice. Hold it and ask;
+        // the buttons (below the card) resolve it. The heuristic only raises the
+        // question — it never rotates the conversation or drops the link itself.
+        if (pendingInvoiceRef.current && draft && wouldReplaceInvoice(draft, mergedDraft)) {
+          setPendingChange({
+            no: pendingInvoiceRef.current.no,
+            kind: docKind(draft),
+            draft: mergedDraft,
+          });
+          setMessages((m) => [...m, aMsg(
+            `This would change ${formatDocNumber(docKind(draft), pendingInvoiceRef.current!.no)}. Update it, or start a new invoice?`
+          )]);
+          // Leave the current draft/card untouched until the user decides.
+          return { reply, ready: isReady };
+        }
+
         setDraft((prev) => {
           if (prev) {
             setDraftHistory((hist) => [...hist.slice(-19), prev]);
           }
-          return data.intent_explicit === false && prev?.intent
-            ? { ...data, intent: prev.intent }
-            : data;
+          return mergedDraft;
         });
-        // Draft content may have changed — any previously inserted-but-unsent
-        // row is now stale; force the next finalize to insert a fresh one (B1).
-        // A stale row was never sent, so clear the sent flag too.
-        pendingInvoiceRef.current = null;
-        finalizeSentRef.current = false;
+        // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
+        // conversation = one invoice, so an ordinary edit keeps the link and the
+        // next finalize UPDATES the same row (the P1 fix). A genuinely new
+        // document comes only from the new-chat button or the change guard above.
         // Only a real parse result moves the card in or out of "ready". A
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
@@ -713,20 +919,19 @@ export default function Chat() {
     function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {
     if (!draft || !profile) return null;
     const items = (draft.line_items ?? []) as LineItem[];
-    const subtotal = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
-    if (!Number.isFinite(subtotal)) return null;
     const taxRate = draft.tax_rate ?? 0;
-    const taxAmount = Math.round(subtotal * taxRate) / 100;
-    const total = subtotal + taxAmount;
-    if (!Number.isFinite(total)) return null;
 
-    // Deposit: the draft stores deposit_type / deposit_value (snake_case, DB
-    // column names); InvoiceRenderData reads camelCase and needs the derived
-    // figures too. Run them through the SAME helper the card preview uses, so
-    // the document can never show a different number than the screen did.
+    // One math path for card, saved row, and PDF (Jules F4). subtotal, tax, and
+    // total all come from calculateInvoiceTotals — the SAME helper the preview
+    // card (previewTotals) and Commit E's Subtotal/Tax rows use — instead of a
+    // second inline formula that could drift a sub-cent from what's on screen.
+    // The draft stores deposit_type / deposit_value (snake_case DB columns);
+    // InvoiceRenderData reads camelCase and needs the derived figures too.
     const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
     const depositValue = Number((draft as any).deposit_value ?? 0);
     const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
+    const { subtotal, taxAmount, total } = totals;
+    if (!Number.isFinite(subtotal) || !Number.isFinite(total)) return null;
     const hasDeposit = totals.depositAmount > 0;
 
     return {
@@ -811,6 +1016,8 @@ export default function Chat() {
         id: convoId, messages, draft, ready,
         pendingInvoice: pendingInvoiceRef.current,
         finalizeSent: finalizeSentRef.current,
+        linkedStatus,
+        linkedAmountPaid,
         updatedAt: Date.now(),
       };
       localStorage.setItem(chatKey(ns), JSON.stringify(payload));
@@ -818,10 +1025,12 @@ export default function Chat() {
     } catch { /* storage blocked — the persist effect retries on the next change */ }
   }
 
-  // Shared completion tail: append the done message, archive the finished
-  // conversation to history, clear finalize progress (row + sent flag), and
-  // reset to a clean slate. Used by a normal finalize and by an idempotent
-  // resume that finds the invoice already sent.
+  // Shared completion tail: append the done message and archive the finished
+  // conversation to history. It no longer resets the chat — one conversation =
+  // one invoice, so after a send the conversation STAYS linked to its now-sent
+  // row and shows a locked card (with Revise). Any further message is refused in
+  // send(). Used by a normal finalize and by an idempotent resume that finds the
+  // invoice already sent.
   function finishFinalize(doneMsg: Msg, retryId?: string) {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
@@ -830,6 +1039,8 @@ export default function Chat() {
     // so neither the transcript nor the archived history keeps a dead error.
     const archived = emitResult(messages, doneMsg, retryId);
     setMessages(archived);
+    // Archive to history as sent. draft:null / ready:false is what the history
+    // list stores; reopening rebuilds the locked card from the DB row (Commit B).
     pushHistory(storageNsRef.current ?? 'guest', {
       id: convoId || genId(),
       title: convoTitle(messages, draft),
@@ -839,20 +1050,25 @@ export default function Chat() {
       draft: null,
       ready: false,
     });
-    pendingInvoiceRef.current = null;
+    // KEEP the link and the draft: pendingInvoiceRef, convoId, and draft stay so
+    // the conversation shows the sent invoice as a locked, read-only card with
+    // Revise — the fix for the post-send near-duplicate. finalizeSent is cleared
+    // (the send is done; the lock, not this flag, guards against re-finalize).
     finalizeSentRef.current = false;
-    setConvoId(genId());
-    setDraft(null);
-    setDraftHistory([]);
-    setReady(false);
+    setDraftHistory([]);            // no undo on a sent card
+    setReady(true);                 // show the (locked) card
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
+    setPendingChange(null);
+    setLinkedStatus('sent');        // locks the card; enables Revise (unpaid)
+    setLinkedAmountPaid(0);
     setRenderData(null);
-    setFinished(true); // clears the persisted conversation
-    try {
-      const ns = storageNsRef.current;
-      if (ns) localStorage.removeItem(chatKey(ns));
-    } catch { /* ignore */ }
+    // finished=true keeps this conversation from being re-archived as a draft by
+    // a later new-chat / history-open. It is NOT cleared from storage: because
+    // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
+    // restores the locked card + Revise and keeps refusing edits (v5 StoredChat).
+    // The "New chat" button still resets to a fresh conversation.
+    setFinished(true);
   }
 
   // `internal` is true when send() delegates here after an affirmative — it has
@@ -920,74 +1136,81 @@ export default function Chat() {
 
     try {
       // ── 1. Persist the invoice as a DRAFT (not "sent" until it actually is).
-      //    A retry after a cancel/failure reuses the stashed row rather than
-      //    inserting a second one (B1). buildRenderData reuses the stashed
-      //    number so the retried PDF keeps the same invoice number.
+      //    First save INSERTS; every later save in the same conversation UPDATES
+      //    that same row in place, so an edit made after the first Download/Send
+      //    actually reaches the DB (the P1 bug fix). The row is identified by
+      //    pendingInvoiceRef, which now survives ordinary edits — one conversation
+      //    = one invoice; a new document comes only from the new-chat button or
+      //    the change guard. buildRenderData(no) reuses the stashed number.
       let invoiceId = pendingInvoiceRef.current?.id ?? null;
       let no = pendingInvoiceRef.current?.no ?? null;
 
+      // buildRenderData needs a number to shape the payload; on the first insert
+      // the real number is trigger-assigned and read back, so a 0 placeholder is
+      // fine there. invoice_number is never written from here (pinned by
+      // lock_document_identity on update, trigger-assigned on insert).
+      const rd0 = buildRenderData(no ?? 0);
+      if (!rd0) throw new Error('incomplete');
+
+      // Remember contact on the client record for next time (idempotent upsert),
+      // for both a fresh insert and an edit — a corrected address is stored too.
+      // Only write a field we have: omitting a column leaves any stored value
+      // intact, so an invoice that didn't restate the address never wipes one.
+      const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
+        user_id: profile.id,
+        name: rd0.clientName,
+      };
+      if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
+      if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
+      const { data: client } = await supabase
+        .from('clients')
+        .upsert(clientRow, { onConflict: 'user_id,name' })
+        .select('id').single();
+
+      // Record the AI's original wording on any line whose description the user
+      // edited; an unedited line carries no original_description (null is the
+      // positive signal). rd0.lineItems preserves draft order, so it aligns with
+      // the parse-time snapshot. line_items stays writable while the row is a
+      // draft (lock_line_items carve-out) and pins once it leaves draft.
+      const lineItemsForSave = rd0.lineItems.map((li, idx) => {
+        const original = originalDescriptionsRef.current[idx];
+        return original != null && original !== li.description
+          ? { ...li, original_description: original }
+          : li;
+      });
+
+      // Shared draft-column payload for both insert and update — one source
+      // (buildRenderData) so the stored row, the card, and the PDF can never
+      // disagree. Excludes identity (invoice_number/kind — pinned by
+      // lock_document_identity) and status (managed by the send step below).
+      const draftCols = {
+        client_name: rd0.clientName,
+        // Snapshot contact onto the row — a later change to the client record
+        // must not rewrite what this invoice actually went out with.
+        client_address: rd0.clientAddress ?? null,
+        client_phone: rd0.clientPhone ?? null,
+        line_items: lineItemsForSave,
+        subtotal: rd0.subtotal,
+        tax_rate: rd0.taxRate,
+        tax_amount: rd0.taxAmount,
+        total: rd0.total,
+        deposit_type: rd0.depositType ?? 'none',
+        deposit_value: rd0.depositValue ?? null,
+        deposit_amount: rd0.depositAmount ?? null,
+        notes: rd0.notes,
+        due_date: rd0.dueDate,
+      };
+
       if (!invoiceId) {
-        // The document number is assigned server-side by the assign_document_number
-        // trigger from the counter matching this row's kind (invoice vs quote) and
-        // read back below — the client never sends it, so it can't be forged and
-        // the invoice sequence only advances when a real invoice row is inserted.
-        // buildRenderData needs a number to shape the payload's other fields; the
-        // placeholder here is replaced with the assigned number after the insert.
-        const rd0 = buildRenderData(0);
-        if (!rd0) throw new Error('incomplete');
-
-        // Remember contact on the client record for next time. Only write a
-        // field when we actually have it: omitting a column leaves any stored
-        // value intact, so an invoice that didn't restate the address never
-        // wipes one the client already has on file.
-        const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
-          user_id: profile.id,
-          name: rd0.clientName,
-        };
-        if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
-        if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
-        const { data: client } = await supabase
-          .from('clients')
-          .upsert(clientRow, { onConflict: 'user_id,name' })
-          .select('id').single();
-
-        // Record the AI's original wording on any line whose description the
-        // user edited before sending; an unedited line carries no
-        // original_description (null is the positive signal). rd0.lineItems
-        // preserves draft order, so it aligns with the parse-time snapshot.
-        // The column is pinned server-side after insert (lock_line_items).
-        const lineItemsForInsert = rd0.lineItems.map((li, idx) => {
-          const original = originalDescriptionsRef.current[idx];
-          return original != null && original !== li.description
-            ? { ...li, original_description: original }
-            : li;
-        });
-
-        // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
-        // share, no "Sent!". Keep draft + ready so the user can retry.
+        // ── INSERT: first save of this conversation's invoice. The number is
+        // assigned server-side by assign_document_number and read back — the
+        // client never sends it, so it can't be forged and the sequence only
+        // advances on a real insert.
         const { data: saved, error: insErr } = await supabase.from('invoices').insert({
           user_id: profile.id,
           client_id: client?.id ?? null,
           kind: rd0.kind,
-          client_name: rd0.clientName,
-          // Snapshot contact onto the row — a later change to the client record
-          // must not rewrite what this invoice actually went out with.
-          client_address: rd0.clientAddress ?? null,
-          client_phone: rd0.clientPhone ?? null,
-          line_items: lineItemsForInsert,
-          subtotal: rd0.subtotal,
-          tax_rate: rd0.taxRate,
-          tax_amount: rd0.taxAmount,
-          total: rd0.total,
-          // Persist the deposit the user set on the card. These come from the same
-          // buildRenderData helper the preview uses, so the stored row, the PDF, and
-          // the card can never disagree. Without this the invoice lands with the
-          // deposit columns NULL even though "40%" was selected.
-          deposit_type: rd0.depositType ?? 'none',
-          deposit_value: rd0.depositValue ?? null,
-          deposit_amount: rd0.depositAmount ?? null,
-          notes: rd0.notes,
-          due_date: rd0.dueDate,
+          ...draftCols,
           status: 'draft', // becomes 'sent' only after a real share (B1)
           // Server-side idempotency key, unique per draft (the conversation id).
           // A resumed finalize whose local pendingInvoice was lost re-inserts
@@ -1014,10 +1237,12 @@ export default function Chat() {
             setShowPaywall(true);
             return; // draft + ready untouched — upgrade, then tap send again
           }
-          // 23505 on finalize_key: a prior/concurrent finalize for THIS draft
-          // already inserted the row (the idempotency guard firing across a
-          // suspend that lost pendingInvoice). Read it back and continue with it,
-          // rather than erroring or creating a duplicate.
+          // 23505 on finalize_key: THIS conversation's row already exists (the
+          // idempotency guard firing across a suspend/reload that lost
+          // pendingInvoice). finalize_key = convoId and one conversation = one
+          // invoice, so the recovered row is ALWAYS this conversation's own
+          // invoice — never a different document. Read it back, then UPDATE it
+          // with the current draft so edits made before the reload still land.
           if (insErr?.code === '23505' && convoId) {
             // NOT filtered by deleted_at on purpose: this recovers from a
             // finalize_key unique-violation, so it must still match a
@@ -1025,7 +1250,7 @@ export default function Chat() {
             // duplicate invoice number for the same finalize.
             const { data: existing } = await supabase
               .from('invoices')
-              .select('id, invoice_number')
+              .select('id, invoice_number, status, amount_paid')
               .eq('user_id', profile.id)
               .eq('finalize_key', convoId)
               .maybeSingle();
@@ -1041,6 +1266,17 @@ export default function Chat() {
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
+            // Persist the current draft onto the recovered row so a reload between
+            // an edit and the save doesn't drop that edit — but only while it's a
+            // draft (Commit B). If it was sent/paid elsewhere, lock instead of
+            // overwriting.
+            if (isLockedStatus((existing.status as string) ?? null)) {
+              setLinkedStatus((existing.status as string) ?? null);
+              setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
+              setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
+              return;
+            }
+            await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
             console.error('invoice insert failed', insErr);
             if (!retryId) setMessages((m) => [...m, aMsg(
@@ -1058,10 +1294,53 @@ export default function Chat() {
         invoiceId = newId;
         no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // Freshly persisted as a draft — mirror that into the lock state so the
+        // card stays editable (Commit B). A 23505-recovered non-draft row already
+        // returned above, so reaching here means the row is a draft.
+        setLinkedStatus('draft');
+        setLinkedAmountPaid(0);
         // The row exists but isn't marked sent yet, and setting a ref fires no
         // persist effect. Write now so a suspend while the share sheet is open
         // resumes with the row + progress intact.
         persistProgress();
+      } else {
+        // ── UPDATE: a later save of the same conversation's draft (Commit A) —
+        // the core P1 fix. Edits after the first save now reach the DB. Only the
+        // draft columns move; identity is pinned by lock_document_identity.
+        //
+        // Commit B hard guard: read the live status at save time — the row may
+        // have been sent or paid in another session since this card opened. If it
+        // has left 'draft', refuse the write and lock the card. This is the real
+        // backstop (the DB has no draft-only trigger yet — see PUNCH-LIST); the
+        // read-only UI is the courtesy layer in front of it.
+        const { data: live } = await supabase
+          .from('invoices')
+          .select('status, amount_paid')
+          .eq('id', invoiceId)
+          .maybeSingle();
+        if (live && isLockedStatus((live.status as string) ?? null)) {
+          setLinkedStatus((live.status as string) ?? null);
+          setLinkedAmountPaid(Number(live.amount_paid ?? 0));
+          setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
+          return; // outer finally clears phase; the locked card stays put
+        }
+        const { error: updErr } = await supabase.from('invoices')
+          .update(draftCols)
+          .eq('id', invoiceId);
+        traceTurn(turnIdRef.current, 'finalize', {
+          updateId: invoiceId,
+          error: updErr ? (updErr.code ?? updErr.message ?? String(updErr)) : null,
+        });
+        if (updErr) {
+          console.error('invoice update failed', updErr);
+          if (!retryId) setMessages((m) => [...m, aMsg(
+            navigator.onLine
+              ? "Couldn't save your changes just now. Your draft is safe."
+              : "You're offline — your changes didn't save. Your draft is safe.",
+            { failed: { op: 'finalize' } },
+          )]);
+          return;
+        }
       }
 
       // Invariant after step 1: the row exists. Narrows the nullable locals for
@@ -1533,13 +1812,44 @@ export default function Chat() {
       });
     }
     setMessages(entry.messages);
-    setDraft(entry.draft);
-    setReady(Boolean(entry.ready) && !entry.finalized);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
-    setFinished(entry.finalized); // finalized ones stay read-only until a new message
+    setPendingChange(null);
     setConvoId(entry.id);
     setShowHistory(false);
+    // Default to the stored draft; the DB re-link below overrides it for a
+    // locked (sent/paid) invoice so the read-only card + Revise can show.
+    setDraft(entry.draft);
+    setReady(Boolean(entry.ready) && !entry.finalized);
+    setFinished(entry.finalized); // finalized ones stay read-only until a new message
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
+
+    // Commit B: re-link this conversation to its saved invoice (finalize_key =
+    // convoId) and read its live status. A sent/paid invoice reopens as a locked,
+    // read-only card, rebuilt from the row since finalized history stores no draft.
+    void (async () => {
+      try {
+        const { data: row } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, line_items, tax_rate, notes, due_date, deposit_type, deposit_value')
+          .eq('finalize_key', entry.id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (!row?.id) return; // no saved row — plain draft/finalized entry as set above
+        pendingInvoiceRef.current = { id: row.id as string, no: row.invoice_number as number };
+        setLinkedStatus((row.status as string) ?? null);
+        setLinkedAmountPaid(Number(row.amount_paid ?? 0));
+        if (isLockedStatus((row.status as string) ?? null)) {
+          setDraft(draftFromRow(row));
+          setDraftHistory([]);
+          setReady(true);
+          setFinished(false); // show the locked card, not the read-only transcript tail
+        }
+      } catch { /* leave the stored-draft view in place on a fetch failure */ }
+    })();
   }
 
   const previewItems = (draft?.line_items ?? []) as LineItem[];
@@ -1552,6 +1862,8 @@ export default function Chat() {
     previewDepositValue
   );
   const isValidTotal = Number.isFinite(previewTotals.total);
+  // Commit B: the linked invoice has left 'draft' — the card is read-only.
+  const locked = isLockedStatus(linkedStatus);
 
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
@@ -1583,6 +1895,99 @@ export default function Chat() {
     const previous = draftHistory[draftHistory.length - 1];
     setDraftHistory((prev) => prev.slice(0, -1));
     setDraft(previous);
+  }
+
+  // ── Change guard resolvers (Commit A) ───────────────────────
+  // "Update this one": apply the held draft as a normal edit. The link is kept,
+  // so the next finalize UPDATES the same row.
+  function resolvePendingChangeUpdate() {
+    if (!pendingChange) return;
+    const next = pendingChange.draft;
+    setDraft((prev) => {
+      if (prev) setDraftHistory((hist) => [...hist.slice(-19), prev]);
+      return next;
+    });
+    setReady(true);
+    setAwaitingConfirm(false);
+    setPendingChange(null);
+  }
+
+  // "Start a new invoice": same reset as the header new-chat button (archive the
+  // current conversation, fresh convoId, cleared link), then seed the new
+  // conversation with the held draft so the user lands on the new card.
+  function resolvePendingChangeNew() {
+    if (!pendingChange) return;
+    const seed = pendingChange.draft;
+    if (!finished && messages.length >= 2) {
+      pushHistory(storageNsRef.current ?? 'guest', {
+        id: convoId || genId(),
+        title: convoTitle(messages, draft),
+        date: Date.now(),
+        finalized: false,
+        messages,
+        draft,
+        ready,
+      });
+    }
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setConvoId(genId());
+    setDraftHistory([]);
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
+    setFinished(false);
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
+    setMessages([GREETING]);
+    setDraft(seed);
+    setReady(true);
+    setDuplicateHint(false);
+    setPendingChange(null);
+  }
+
+  // ── Revise a locked, sent, unpaid invoice (Commit C) ────────
+  // Opens a NEW draft invoice in a fresh conversation, seeded from the original's
+  // content plus a "Revises INV-XXXX" note. The original row is never touched —
+  // this inserts a brand-new invoice (next number) on its first save because the
+  // conversation (and thus finalize_key) is fresh and the link is cleared. Only
+  // offered when status is 'sent' and amount_paid is 0; paid/partly-paid stays
+  // fully locked (a revision then would be a credit/refund — see PUNCH-LIST). We
+  // deliberately do NOT re-archive the current conversation: the original is
+  // already a real sent invoice (and, if reached via history, already has its
+  // finalized entry, which pushHistory would otherwise overwrite by id).
+  function reviseInvoice() {
+    if (!draft) return;
+    const kind = docKind(draft);
+    const originalNo = pendingInvoiceRef.current?.no ?? null;
+    const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
+    const reviseNote = `Revises ${label}`;
+    const existingNotes = (draft.notes ?? '').trim();
+    // Spread copies line items, tax, client, due date, and the deposit fields
+    // (which ride on the draft as snake_case); reset intent_explicit and append
+    // the revision note.
+    const seed: Partial<ExtractResult> = {
+      ...draft,
+      intent: kind,
+      intent_explicit: false,
+      notes: existingNotes ? `${existingNotes}\n${reviseNote}` : reviseNote,
+    };
+    // The seed's line items are copied, not freshly AI-parsed — no original text
+    // to record on the new invoice's first save.
+    originalDescriptionsRef.current = [];
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setConvoId(genId());
+    setDraftHistory([]);
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
+    setPendingChange(null);
+    setLinkedStatus(null);
+    setLinkedAmountPaid(0);
+    setFinished(false);
+    setMessages([GREETING, aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`)]);
+    setDraft(seed);
+    setReady(true);
+    setDuplicateHint(false);
   }
 
   return (
@@ -1627,21 +2032,29 @@ export default function Chat() {
               <Icon name="description" size={18} />
               {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
             </div>
-            {duplicateHint && (
+            {locked && (
+              // Read-only: the linked invoice has left 'draft' (sent/paid).
+              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                <Icon name="lock" size={16} filled />
+                {lockBadgeText(linkedStatus, linkedAmountPaid)}
+              </div>
+            )}
+            {duplicateHint && !locked && (
               // Passive indicator only — the card stays fully actionable below.
               <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
                 <Icon name="error" size={16} filled />
                 Similar invoice sent recently
               </div>
             )}
-            <LineItemsEditor items={previewItems} editable onChange={applyDraftLineItems} />
+            <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
 
             <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
                 <div className="flex items-center gap-1.5">
                   <select
-                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none"
+                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
+                    disabled={locked}
                     value={(draft as any).deposit_type ?? 'none'}
                     onChange={(e) => {
                       const dt = e.target.value as DepositType;
@@ -1658,7 +2071,8 @@ export default function Chat() {
                       type="number"
                       min="0"
                       max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
-                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
+                      disabled={locked}
+                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
                       value={(draft as any).deposit_value ?? ''}
                       placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
                       onChange={(e) => {
@@ -1674,9 +2088,10 @@ export default function Chat() {
                   Notes
                 </label>
                 <textarea
-                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
+                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none disabled:opacity-50"
                   rows={2}
                   maxLength={400}
+                  disabled={locked}
                   placeholder="Deposit due before materials are ordered. 3-5 day lead time."
                   value={draft.notes ?? ''}
                   onChange={(e) => applyDraftNotes(e.target.value)}
@@ -1685,6 +2100,22 @@ export default function Chat() {
             </div>
 
             <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
+              {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
+                  Values from calculateInvoiceTotals (single source of truth);
+                  mirrors the PDF Totals block. No editable tax field here — tax
+                  is set via chat / the detail page only. */}
+              {(draft.tax_rate ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>Subtotal</span>
+                    <span>{money(previewTotals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>Tax ({draft.tax_rate}%)</span>
+                    <span>{money(previewTotals.taxAmount)}</span>
+                  </div>
+                </>
+              )}
               {previewTotals.depositAmount > 0 && (
                 <>
                   <div className="flex justify-between text-xs text-on-surface-variant">
@@ -1710,40 +2141,88 @@ export default function Chat() {
                 </span>
               </div>
             </div>
-            {!isValidTotal && (
-              <p className="mt-2 text-xs font-semibold text-error">
-                Something went wrong reading the amounts. Try rephrasing the prices.
-              </p>
+            {locked ? (
+              // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
+              // unpaid invoice offers "Revise" (opens an editable copy as a new
+              // invoice — Commit C); once any payment has landed it stays fully
+              // locked (a revision would be a credit/refund — see PUNCH-LIST).
+              <div className="mt-3 border-t border-outline-variant/30 pt-3">
+                {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
+                  <>
+                    <p className="text-center text-sm text-on-surface-variant">
+                      This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} was sent, so it&apos;s locked.
+                    </p>
+                    <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+                      <Icon name="edit" size={18} /> Revise
+                    </button>
+                    <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                      Opens an editable copy as a new {docKind(draft) === 'quote' ? 'quote' : 'invoice'}. The original stays as it was.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-on-surface-variant">
+                    {lockBadgeText(linkedStatus, linkedAmountPaid)}. Start a new invoice to make changes.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                {!isValidTotal && (
+                  <p className="mt-2 text-xs font-semibold text-error">
+                    Something went wrong reading the amounts. Try rephrasing the prices.
+                  </p>
+                )}
+                <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
+                  <Icon name="attach_file" size={18} />
+                  {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+                </button>
+                {/* Quiet secondary exit: download the PDF without sending. Saves the
+                    draft (sendable later); does not mark sent or archive. */}
+                <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+                  disabled={phase !== null || !isValidTotal}
+                  onClick={() => finalize(false, undefined, 'download')}>
+                  <Icon name="download" size={18} /> Download without sending
+                </button>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                    disabled={phase !== null || draftHistory.length === 0}
+                    onClick={undoLastEdit}
+                  >
+                    Undo last edit
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+                    disabled={phase !== null}
+                    onClick={() => send('Actually, let me change something')}
+                  >
+                    Change something
+                  </button>
+                </div>
+              </>
             )}
-            <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
-              <Icon name="attach_file" size={18} />
-              {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+          </div>
+        )}
+
+        {pendingChange && (
+          // Change guard (Commit A): the parse would rewrite the linked invoice.
+          // Ask before touching it — the current card above stays as it was.
+          <div className="card border-primary-container/50">
+            <p className="text-body-md">
+              This would change {formatDocNumber(pendingChange.kind, pendingChange.no)}. Update it, or start a new invoice?
+            </p>
+            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={resolvePendingChangeUpdate}>
+              Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
             </button>
-            {/* Quiet secondary exit: download the PDF without sending. Saves the
-                draft (sendable later); does not mark sent or archive. */}
-            <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
-              disabled={phase !== null || !isValidTotal}
-              onClick={() => finalize(false, undefined, 'download')}>
-              <Icon name="download" size={18} /> Download without sending
+            <button
+              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={phase !== null}
+              onClick={resolvePendingChangeNew}
+            >
+              Start a new invoice
             </button>
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                disabled={phase !== null || draftHistory.length === 0}
-                onClick={undoLastEdit}
-              >
-                Undo last edit
-              </button>
-              <button
-                type="button"
-                className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => send('Actually, let me change something')}
-              >
-                Change something
-              </button>
-            </div>
           </div>
         )}
 
