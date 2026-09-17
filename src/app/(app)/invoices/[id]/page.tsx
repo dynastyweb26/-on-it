@@ -274,7 +274,7 @@ export default function InvoiceDetail() {
       // A balance request re-sends the SAME invoice through the SAME path — no new
       // token, no second invoice — with copy that leads with the balance due.
       const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
-      await shareInvoice(file, inv.client_name, leadText);
+      const outcome = await shareInvoice(file, inv.client_name, leadText);
       // Always bump sent_at. Only a genuine first send (draft → sent) flips the
       // status and captures the render snapshot from the current profile. A resend
       // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
@@ -285,6 +285,31 @@ export default function InvoiceDetail() {
       if (inv.status === 'draft') Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
       await supabase.from('invoices').update(patch).eq('id', id);
       setInv({ ...inv, ...patch });
+
+      // Archive the balance-request PDF to the Vault, the same way a chat Send
+      // archives an invoice. A normal "Share PDF" resends the ORIGINAL document,
+      // which was already archived on its first send — re-archiving it would just
+      // duplicate the row — so only a balance request gets its own entry. It is a
+      // distinct document (it leads with the balance due), distinguished by title
+      // and storage path since doc_type is a fixed enum with no balance value;
+      // invoice_id ties it to the parent so a soft delete still hides it. Skip a
+      // cancelled share (nothing was sent) and keep it best-effort — a storage
+      // hiccup must not undo the share the user just confirmed.
+      if (isBalanceRequest && outcome !== 'cancelled') {
+        try {
+          const path = `${inv.user_id}/balance-${file.name}`;
+          await supabase.storage.from('vault').upload(path, file, { upsert: true });
+          await supabase.from('vault_documents').insert({
+            user_id: inv.user_id,
+            title: `Balance request — ${file.name}`,
+            doc_type: inv.kind,
+            storage_path: path,
+            invoice_id: inv.id,
+          });
+        } catch (archiveErr) {
+          console.error('vault archive (balance request) failed', archiveErr);
+        }
+      }
     } finally {
       setBusy(false);
     }
