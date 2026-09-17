@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
-import { docNoun } from '@/lib/documents';
+import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
 import { defaultDueDate } from '@/lib/dates';
@@ -52,6 +52,31 @@ function docKind(draft: Partial<ExtractResult> | null | undefined): 'quote' | 'i
   if (intent === 'invoice') return 'invoice';
   console.error('docKind: unexpected draft.intent, falling back to invoice:', intent);
   return 'invoice';
+}
+
+// Change-guard heuristic (Commit A): would applying `next` over the linked draft
+// `prev` amount to a different document rather than an edit of the same one? True
+// when the client name changes, or when every incoming line item is new (none of
+// their descriptions match a current one). Conservative — it only raises the
+// "update or start new?" question; it never mutates state. A single-line typo fix
+// to the client name is the one false trigger, and it is safe (asks, never rewrites).
+function wouldReplaceInvoice(
+  prev: Partial<ExtractResult>,
+  next: Partial<ExtractResult>,
+): boolean {
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  const prevName = norm(prev.client_name);
+  const nextName = norm(next.client_name);
+  const nameChanged = Boolean(prevName) && Boolean(nextName) && prevName !== nextName;
+
+  const prevItems = (prev.line_items ?? []) as LineItem[];
+  const nextItems = (next.line_items ?? []) as LineItem[];
+  const replacedAllItems =
+    prevItems.length > 0 &&
+    nextItems.length > 0 &&
+    nextItems.every((n) => !prevItems.some((p) => norm(p.description) === norm(n.description)));
+
+  return nameChanged || replacedAllItems;
 }
 
 // Every message carries a stable id so the transcript renders by id (not array
@@ -228,6 +253,13 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
+  // Change guard (Commit A): a parse that would rewrite the linked saved invoice
+  // (different client, or all line items replaced) is held here instead of
+  // applied, so the user can choose "update this one" vs "start a new invoice".
+  // { no } is the linked invoice number for the prompt; { draft } is the merged
+  // draft awaiting the decision. Null when there's nothing pending.
+  const [pendingChange, setPendingChange] =
+    useState<{ no: number; kind: 'quote' | 'invoice'; draft: Partial<ExtractResult> } | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
@@ -651,19 +683,40 @@ export default function Chat() {
         // the document type this turn (intent_explicit false), keep the
         // in-progress draft's intent so a bare "send it" or "just make it"
         // can't silently flip a quote into an invoice.
+        const mergedDraft: Partial<ExtractResult> =
+          data.intent_explicit === false && draft?.intent
+            ? { ...data, intent: draft.intent }
+            : data;
+
+        // Change guard (Commit A): one conversation = one invoice. Once a row is
+        // linked (first save done), a parse that would change the client or
+        // replace every line item is most likely a NEW job spoken into the same
+        // chat — applying it would rewrite the saved invoice. Hold it and ask;
+        // the buttons (below the card) resolve it. The heuristic only raises the
+        // question — it never rotates the conversation or drops the link itself.
+        if (pendingInvoiceRef.current && draft && wouldReplaceInvoice(draft, mergedDraft)) {
+          setPendingChange({
+            no: pendingInvoiceRef.current.no,
+            kind: docKind(draft),
+            draft: mergedDraft,
+          });
+          setMessages((m) => [...m, aMsg(
+            `This would change ${formatDocNumber(docKind(draft), pendingInvoiceRef.current!.no)}. Update it, or start a new invoice?`
+          )]);
+          // Leave the current draft/card untouched until the user decides.
+          return { reply, ready: isReady };
+        }
+
         setDraft((prev) => {
           if (prev) {
             setDraftHistory((hist) => [...hist.slice(-19), prev]);
           }
-          return data.intent_explicit === false && prev?.intent
-            ? { ...data, intent: prev.intent }
-            : data;
+          return mergedDraft;
         });
-        // Draft content may have changed — any previously inserted-but-unsent
-        // row is now stale; force the next finalize to insert a fresh one (B1).
-        // A stale row was never sent, so clear the sent flag too.
-        pendingInvoiceRef.current = null;
-        finalizeSentRef.current = false;
+        // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
+        // conversation = one invoice, so an ordinary edit keeps the link and the
+        // next finalize UPDATES the same row (the P1 fix). A genuinely new
+        // document comes only from the new-chat button or the change guard above.
         // Only a real parse result moves the card in or out of "ready". A
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
@@ -919,74 +972,81 @@ export default function Chat() {
 
     try {
       // ── 1. Persist the invoice as a DRAFT (not "sent" until it actually is).
-      //    A retry after a cancel/failure reuses the stashed row rather than
-      //    inserting a second one (B1). buildRenderData reuses the stashed
-      //    number so the retried PDF keeps the same invoice number.
+      //    First save INSERTS; every later save in the same conversation UPDATES
+      //    that same row in place, so an edit made after the first Download/Send
+      //    actually reaches the DB (the P1 bug fix). The row is identified by
+      //    pendingInvoiceRef, which now survives ordinary edits — one conversation
+      //    = one invoice; a new document comes only from the new-chat button or
+      //    the change guard. buildRenderData(no) reuses the stashed number.
       let invoiceId = pendingInvoiceRef.current?.id ?? null;
       let no = pendingInvoiceRef.current?.no ?? null;
 
+      // buildRenderData needs a number to shape the payload; on the first insert
+      // the real number is trigger-assigned and read back, so a 0 placeholder is
+      // fine there. invoice_number is never written from here (pinned by
+      // lock_document_identity on update, trigger-assigned on insert).
+      const rd0 = buildRenderData(no ?? 0);
+      if (!rd0) throw new Error('incomplete');
+
+      // Remember contact on the client record for next time (idempotent upsert),
+      // for both a fresh insert and an edit — a corrected address is stored too.
+      // Only write a field we have: omitting a column leaves any stored value
+      // intact, so an invoice that didn't restate the address never wipes one.
+      const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
+        user_id: profile.id,
+        name: rd0.clientName,
+      };
+      if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
+      if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
+      const { data: client } = await supabase
+        .from('clients')
+        .upsert(clientRow, { onConflict: 'user_id,name' })
+        .select('id').single();
+
+      // Record the AI's original wording on any line whose description the user
+      // edited; an unedited line carries no original_description (null is the
+      // positive signal). rd0.lineItems preserves draft order, so it aligns with
+      // the parse-time snapshot. line_items stays writable while the row is a
+      // draft (lock_line_items carve-out) and pins once it leaves draft.
+      const lineItemsForSave = rd0.lineItems.map((li, idx) => {
+        const original = originalDescriptionsRef.current[idx];
+        return original != null && original !== li.description
+          ? { ...li, original_description: original }
+          : li;
+      });
+
+      // Shared draft-column payload for both insert and update — one source
+      // (buildRenderData) so the stored row, the card, and the PDF can never
+      // disagree. Excludes identity (invoice_number/kind — pinned by
+      // lock_document_identity) and status (managed by the send step below).
+      const draftCols = {
+        client_name: rd0.clientName,
+        // Snapshot contact onto the row — a later change to the client record
+        // must not rewrite what this invoice actually went out with.
+        client_address: rd0.clientAddress ?? null,
+        client_phone: rd0.clientPhone ?? null,
+        line_items: lineItemsForSave,
+        subtotal: rd0.subtotal,
+        tax_rate: rd0.taxRate,
+        tax_amount: rd0.taxAmount,
+        total: rd0.total,
+        deposit_type: rd0.depositType ?? 'none',
+        deposit_value: rd0.depositValue ?? null,
+        deposit_amount: rd0.depositAmount ?? null,
+        notes: rd0.notes,
+        due_date: rd0.dueDate,
+      };
+
       if (!invoiceId) {
-        // The document number is assigned server-side by the assign_document_number
-        // trigger from the counter matching this row's kind (invoice vs quote) and
-        // read back below — the client never sends it, so it can't be forged and
-        // the invoice sequence only advances when a real invoice row is inserted.
-        // buildRenderData needs a number to shape the payload's other fields; the
-        // placeholder here is replaced with the assigned number after the insert.
-        const rd0 = buildRenderData(0);
-        if (!rd0) throw new Error('incomplete');
-
-        // Remember contact on the client record for next time. Only write a
-        // field when we actually have it: omitting a column leaves any stored
-        // value intact, so an invoice that didn't restate the address never
-        // wipes one the client already has on file.
-        const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
-          user_id: profile.id,
-          name: rd0.clientName,
-        };
-        if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
-        if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
-        const { data: client } = await supabase
-          .from('clients')
-          .upsert(clientRow, { onConflict: 'user_id,name' })
-          .select('id').single();
-
-        // Record the AI's original wording on any line whose description the
-        // user edited before sending; an unedited line carries no
-        // original_description (null is the positive signal). rd0.lineItems
-        // preserves draft order, so it aligns with the parse-time snapshot.
-        // The column is pinned server-side after insert (lock_line_items).
-        const lineItemsForInsert = rd0.lineItems.map((li, idx) => {
-          const original = originalDescriptionsRef.current[idx];
-          return original != null && original !== li.description
-            ? { ...li, original_description: original }
-            : li;
-        });
-
-        // A1: HANDLE the insert result. If it fails, stop here — no PDF, no
-        // share, no "Sent!". Keep draft + ready so the user can retry.
+        // ── INSERT: first save of this conversation's invoice. The number is
+        // assigned server-side by assign_document_number and read back — the
+        // client never sends it, so it can't be forged and the sequence only
+        // advances on a real insert.
         const { data: saved, error: insErr } = await supabase.from('invoices').insert({
           user_id: profile.id,
           client_id: client?.id ?? null,
           kind: rd0.kind,
-          client_name: rd0.clientName,
-          // Snapshot contact onto the row — a later change to the client record
-          // must not rewrite what this invoice actually went out with.
-          client_address: rd0.clientAddress ?? null,
-          client_phone: rd0.clientPhone ?? null,
-          line_items: lineItemsForInsert,
-          subtotal: rd0.subtotal,
-          tax_rate: rd0.taxRate,
-          tax_amount: rd0.taxAmount,
-          total: rd0.total,
-          // Persist the deposit the user set on the card. These come from the same
-          // buildRenderData helper the preview uses, so the stored row, the PDF, and
-          // the card can never disagree. Without this the invoice lands with the
-          // deposit columns NULL even though "40%" was selected.
-          deposit_type: rd0.depositType ?? 'none',
-          deposit_value: rd0.depositValue ?? null,
-          deposit_amount: rd0.depositAmount ?? null,
-          notes: rd0.notes,
-          due_date: rd0.dueDate,
+          ...draftCols,
           status: 'draft', // becomes 'sent' only after a real share (B1)
           // Server-side idempotency key, unique per draft (the conversation id).
           // A resumed finalize whose local pendingInvoice was lost re-inserts
@@ -1013,10 +1073,12 @@ export default function Chat() {
             setShowPaywall(true);
             return; // draft + ready untouched — upgrade, then tap send again
           }
-          // 23505 on finalize_key: a prior/concurrent finalize for THIS draft
-          // already inserted the row (the idempotency guard firing across a
-          // suspend that lost pendingInvoice). Read it back and continue with it,
-          // rather than erroring or creating a duplicate.
+          // 23505 on finalize_key: THIS conversation's row already exists (the
+          // idempotency guard firing across a suspend/reload that lost
+          // pendingInvoice). finalize_key = convoId and one conversation = one
+          // invoice, so the recovered row is ALWAYS this conversation's own
+          // invoice — never a different document. Read it back, then UPDATE it
+          // with the current draft so edits made before the reload still land.
           if (insErr?.code === '23505' && convoId) {
             // NOT filtered by deleted_at on purpose: this recovers from a
             // finalize_key unique-violation, so it must still match a
@@ -1040,6 +1102,10 @@ export default function Chat() {
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
+            // Persist the current draft onto the recovered row so a reload
+            // between an edit and the save doesn't drop that edit. (Commit B adds
+            // the non-draft guard; within a live conversation this row is a draft.)
+            await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
             console.error('invoice insert failed', insErr);
             if (!retryId) setMessages((m) => [...m, aMsg(
@@ -1061,6 +1127,28 @@ export default function Chat() {
         // persist effect. Write now so a suspend while the share sheet is open
         // resumes with the row + progress intact.
         persistProgress();
+      } else {
+        // ── UPDATE: a later save of the same conversation's draft (Commit A) —
+        // the core P1 fix. Edits after the first save now reach the DB. Only the
+        // draft columns move; identity is pinned by lock_document_identity, and
+        // Commit B refuses this update when the linked row is no longer a draft.
+        const { error: updErr } = await supabase.from('invoices')
+          .update(draftCols)
+          .eq('id', invoiceId);
+        traceTurn(turnIdRef.current, 'finalize', {
+          updateId: invoiceId,
+          error: updErr ? (updErr.code ?? updErr.message ?? String(updErr)) : null,
+        });
+        if (updErr) {
+          console.error('invoice update failed', updErr);
+          if (!retryId) setMessages((m) => [...m, aMsg(
+            navigator.onLine
+              ? "Couldn't save your changes just now. Your draft is safe."
+              : "You're offline — your changes didn't save. Your draft is safe.",
+            { failed: { op: 'finalize' } },
+          )]);
+          return;
+        }
       }
 
       // Invariant after step 1: the row exists. Narrows the nullable locals for
@@ -1584,6 +1672,52 @@ export default function Chat() {
     setDraft(previous);
   }
 
+  // ── Change guard resolvers (Commit A) ───────────────────────
+  // "Update this one": apply the held draft as a normal edit. The link is kept,
+  // so the next finalize UPDATES the same row.
+  function resolvePendingChangeUpdate() {
+    if (!pendingChange) return;
+    const next = pendingChange.draft;
+    setDraft((prev) => {
+      if (prev) setDraftHistory((hist) => [...hist.slice(-19), prev]);
+      return next;
+    });
+    setReady(true);
+    setAwaitingConfirm(false);
+    setPendingChange(null);
+  }
+
+  // "Start a new invoice": same reset as the header new-chat button (archive the
+  // current conversation, fresh convoId, cleared link), then seed the new
+  // conversation with the held draft so the user lands on the new card.
+  function resolvePendingChangeNew() {
+    if (!pendingChange) return;
+    const seed = pendingChange.draft;
+    if (!finished && messages.length >= 2) {
+      pushHistory(storageNsRef.current ?? 'guest', {
+        id: convoId || genId(),
+        title: convoTitle(messages, draft),
+        date: Date.now(),
+        finalized: false,
+        messages,
+        draft,
+        ready,
+      });
+    }
+    pendingInvoiceRef.current = null;
+    finalizeSentRef.current = false;
+    setConvoId(genId());
+    setDraftHistory([]);
+    setAwaitingConfirm(false);
+    setPrefilled({ address: false, phone: false });
+    setFinished(false);
+    setMessages([GREETING]);
+    setDraft(seed);
+    setReady(true);
+    setDuplicateHint(false);
+    setPendingChange(null);
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -1759,6 +1893,26 @@ export default function Chat() {
                 Change something
               </button>
             </div>
+          </div>
+        )}
+
+        {pendingChange && (
+          // Change guard (Commit A): the parse would rewrite the linked invoice.
+          // Ask before touching it — the current card above stays as it was.
+          <div className="card border-primary-container/50">
+            <p className="text-body-md">
+              This would change {formatDocNumber(pendingChange.kind, pendingChange.no)}. Update it, or start a new invoice?
+            </p>
+            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={resolvePendingChangeUpdate}>
+              Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
+            </button>
+            <button
+              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={phase !== null}
+              onClick={resolvePendingChangeNew}
+            >
+              Start a new invoice
+            </button>
           </div>
         )}
 
