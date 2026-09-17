@@ -638,11 +638,19 @@ export default function InvoiceDetail() {
           )}
         </div>
       )}
+      {/* Visible preview — presentational only. html2canvas mis-renders (overlapping
+          glyphs, collapsed spacing) when the captured node sits under a CSS
+          transform, so this scaled node must NOT carry the capture ref. */}
       <div className="overflow-hidden rounded-card border border-outline-variant">
         <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
-          <div ref={printRef}>
-            <InvoiceTemplate template={template} data={rd} theme={theme} />
-          </div>
+          <InvoiceTemplate template={template} data={rd} theme={theme} />
+        </div>
+      </div>
+      {/* Offscreen capture source — natural scale, no transform. Mirrors the chat
+          finalize path so both produce identical clean PDFs. */}
+      <div style={{ position: 'fixed', left: -9999, top: 0 }}>
+        <div ref={printRef}>
+          <InvoiceTemplate template={template} data={rd} theme={theme} />
         </div>
       </div>
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}

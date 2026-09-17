@@ -62,6 +62,12 @@ function addPageLinks(pdf: jsPDF, pageEl: HTMLElement) {
  *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
  *  preserving split-free table rows and page-specific link annotations. */
 export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
+  // Wait for web fonts before capture: html2canvas snapshots synchronously and
+  // uses fallback-font metrics if the display font isn't ready yet, which
+  // collapses letter spacing. Guarded — document.fonts is absent in older envs.
+  if (typeof document !== 'undefined' && document.fonts?.ready) {
+    await document.fonts.ready;
+  }
   await awaitImages(el);
 
   const fullHeight = el.scrollHeight || el.offsetHeight;
