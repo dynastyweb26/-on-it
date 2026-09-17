@@ -264,12 +264,14 @@ export default function InvoiceDetail() {
     // token, no second invoice — with copy that leads with the balance due.
     const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
     await shareInvoice(file, inv.client_name, leadText);
-    // First send (e.g. a converted quote→invoice draft) captures the render
-    // snapshot from the current profile. A RE-send of an already-sent invoice
-    // must NOT re-snapshot — that would overwrite the record, or for a pre-fix
-    // invoice fabricate history — so it's gated on the draft→sent transition.
-    const patch: Record<string, unknown> = { status: 'sent', sent_at: new Date().toISOString() };
-    if (inv.status !== 'sent') Object.assign(patch, renderSnapshot(profile));
+    // Always bump sent_at. Only a genuine first send (draft → sent) flips the
+    // status and captures the render snapshot from the current profile. A resend
+    // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
+    // would regress a 'paid' invoice (the ledger trigger only reconciles on a
+    // payments-row change, so it would stay 'sent') — and must NOT re-snapshot,
+    // which would overwrite the historical record with the current profile.
+    const patch: Record<string, unknown> = { sent_at: new Date().toISOString() };
+    if (inv.status === 'draft') Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
     await supabase.from('invoices').update(patch).eq('id', id);
     setInv({ ...inv, ...patch });
     setBusy(false);
