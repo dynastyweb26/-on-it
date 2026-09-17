@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
@@ -31,6 +32,7 @@ const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {
 
 export default function Invoices() {
   const supabase = createClient();
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid' | 'quote'>('all');
@@ -39,16 +41,24 @@ export default function Invoices() {
   const [undoTarget, setUndoTarget] = useState<Row | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('invoices')
-      .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(200)
-      .then(({ data }) => {
-        setRows((data as Row[]) ?? []);
-        setLoading(false);
-      });
+    (async () => {
+      // Signed-out guard — redirect UX only; RLS is the real boundary. Same
+      // pattern as summary/settings: getSession() is a no-network local read so
+      // the decision can't hang on a stalled getUser(). Middleware only refreshes
+      // the cookie; it never redirects.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/login'); return; }
+      const { data } = await supabase
+        .from('invoices')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      setRows((data as Row[]) ?? []);
+      setLoading(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

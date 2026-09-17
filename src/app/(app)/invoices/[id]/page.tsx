@@ -66,6 +66,14 @@ export default function InvoiceDetail() {
 
   useEffect(() => {
     (async () => {
+      // Signed-out guard — redirect UX only; RLS is the real boundary. Same
+      // pattern as summary/settings: getSession() is a no-network local read so
+      // the decision can't hang on a stalled getUser(). Middleware only refreshes
+      // the cookie; it never redirects.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/login'); return; }
       const { data: i } = await supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
       setInv(i);
       if (i) {
