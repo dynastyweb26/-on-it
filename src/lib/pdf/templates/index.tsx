@@ -218,7 +218,13 @@ function Totals({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   const dominantAmount = d.amountDueNow ?? (hasDeposit ? d.depositAmount! : d.total);
 
   return (
-    <div data-pdf-block="totals" style={{ width: 300 }}>
+    // marginLeft:auto right-aligns the block via its own style, not the parent's.
+    // The multi-page PDF builder clones this data-pdf-block onto the final
+    // continuation page inside a column-flex wrapper that does NOT carry the
+    // template's `justifyContent:'flex-end'`; without a self-contained alignment
+    // the 300px block fell to the left on page 2 while page 1 stayed right. An
+    // auto margin right-aligns it in both the page-1 row and the page-2 column.
+    <div data-pdf-block="totals" style={{ width: 300, marginLeft: 'auto' }}>
       <Row label="Subtotal" value={money(d.subtotal)} />
       {d.taxRate > 0 && <Row label={`Tax (${d.taxRate}%)`} value={money(d.taxAmount)} />}
 
@@ -514,7 +520,10 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-        <div style={{ width: 300, borderTop: rule, paddingTop: 10 }}>
+        {/* marginLeft:auto keeps this block right-aligned by its own style, to
+            match the shared Totals component (consistency; Ledger's totals are
+            not paginated to a continuation page). */}
+        <div style={{ width: 300, marginLeft: 'auto', borderTop: rule, paddingTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
             <span>Subtotal</span><span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
           </div>
