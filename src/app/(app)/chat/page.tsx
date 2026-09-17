@@ -1685,6 +1685,22 @@ export default function Chat() {
             </div>
 
             <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
+              {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
+                  Values from calculateInvoiceTotals (single source of truth);
+                  mirrors the PDF Totals block. No editable tax field here — tax
+                  is set via chat / the detail page only. */}
+              {(draft.tax_rate ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>Subtotal</span>
+                    <span>{money(previewTotals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-on-surface-variant">
+                    <span>Tax ({draft.tax_rate}%)</span>
+                    <span>{money(previewTotals.taxAmount)}</span>
+                  </div>
+                </>
+              )}
               {previewTotals.depositAmount > 0 && (
                 <>
                   <div className="flex justify-between text-xs text-on-surface-variant">
