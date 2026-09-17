@@ -430,7 +430,16 @@ export default function InvoiceDetail() {
               {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} · {inv.status}
             </div>
           </div>
-          <div className="font-display text-xl font-bold text-primary">{money(totals.dueNow)}</div>
+          <div className="text-right">
+            <div className="font-display text-xl font-bold text-primary">{money(totals.dueNow)}</div>
+            {/* The headline is what's due right now (a deposit, or the balance
+                after payments). Show the full project total beneath it so it's
+                never hidden — but only when it differs, so a plain unpaid
+                invoice (dueNow === total) doesn't read the same figure twice. */}
+            {totals.total !== totals.dueNow && (
+              <div className="text-xs text-on-surface-variant">Total {money(totals.total)}</div>
+            )}
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {inv.kind === 'invoice' && totals.dueNow > 0 && (
