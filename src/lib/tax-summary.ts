@@ -121,20 +121,27 @@ export interface ExpenseLite {
 // number matches what actually landed in the bank. Outstanding (sent/overdue)
 // is surfaced separately and never summed into net. Quotes and draft/void
 // invoices are not money and are excluded upstream (query filter).
+// A single payment from the invoice_payments ledger, with its invoice's client
+// name embedded. Income is cash basis: it is these rows, bucketed by paid_at.
+export interface PaymentLite {
+  amount: number | string;
+  paid_at?: string | null;     // timestamptz — when the cash arrived
+  client_name: string;
+}
+
+// A sent/overdue invoice, for the as-of-now outstanding balance only.
 export interface InvoiceLite {
   total: number | string;
-  client_name: string;
-  status: string;              // 'paid' | 'sent' | 'overdue'
-  paid_at?: string | null;     // timestamptz — when cash arrived
-  created_at?: string | null;  // timestamptz — when the invoice was raised
+  status: string;                    // 'sent' | 'overdue'
+  amount_paid?: number | string | null;
 }
 
 export interface ClientTotal { client: string; count: number; total: number; }
 
 export interface IncomeSummary {
-  broughtIn: number;       // paid invoices whose paid_at falls in the period (cash basis)
-  stillOwed: number;       // sent/overdue invoices anchored to created_at (excluded from net)
-  byClient: ClientTotal[]; // paid invoices grouped by client, total desc
+  broughtIn: number;       // Σ ledger payments whose paid_at falls in the period (cash basis)
+  stillOwed: number;       // as-of-now Σ max(0, total - amount_paid) over sent/overdue (not in net)
+  byClient: ClientTotal[]; // in-period payments grouped by client, total desc
 }
 
 /** Local yyyy-mm-dd of an ISO timestamp (invoices store timestamptz), so it
@@ -145,34 +152,38 @@ export function localDay(ts?: string | null): string {
   return isNaN(d.getTime()) ? '' : ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
-/** The date that anchors an invoice to a period: when cash arrived (paid_at) for
- *  a paid invoice — cash basis — otherwise when it was raised (created_at). Used
- *  to make the period list data-driven over income as well as expenses. */
-export function invoiceRecordDate(inv: InvoiceLite): string {
-  return localDay(inv.status === 'paid' ? inv.paid_at : inv.created_at);
-}
-
-export function summarizeIncome(invoices: InvoiceLite[], period: Period): IncomeSummary {
+/** Cash-basis income for a period. broughtIn and byClient come from the payments
+ *  ledger, bucketed by each payment's paid_at, so a deposit and the balance land
+ *  in whichever periods they were actually paid. stillOwed is a snapshot AS OF
+ *  NOW — the unpaid remainder of every sent/overdue invoice — and is deliberately
+ *  independent of the selected period. */
+export function summarizeIncome(
+  payments: PaymentLite[],
+  outstanding: InvoiceLite[],
+  period: Period,
+): IncomeSummary {
   const inPeriod = (day: string) =>
     day !== '' && (period.granularity === 'all' || (day >= period.start && day <= period.end));
-  let broughtIn = 0;
-  let stillOwed = 0;
-  const byClient = new Map<string, ClientTotal>();
 
-  for (const inv of invoices) {
-    const amt = Number(inv.total) || 0;
-    if (inv.status === 'paid') {
-      if (!inPeriod(localDay(inv.paid_at))) continue;
-      broughtIn += amt;
-      const name = inv.client_name || 'Client';
-      const cur = byClient.get(name) ?? { client: name, count: 0, total: 0 };
-      cur.count += 1;
-      cur.total += amt;
-      byClient.set(name, cur);
-    } else if (inv.status === 'sent' || inv.status === 'overdue') {
-      if (inPeriod(localDay(inv.created_at))) stillOwed += amt;
-    }
+  let broughtIn = 0;
+  const byClient = new Map<string, ClientTotal>();
+  for (const p of payments) {
+    if (!inPeriod(localDay(p.paid_at))) continue;
+    const amt = Number(p.amount) || 0;
+    broughtIn += amt;
+    const name = p.client_name || 'Client';
+    const cur = byClient.get(name) ?? { client: name, count: 0, total: 0 };
+    cur.count += 1; // number of payments received, not invoices
+    cur.total += amt;
+    byClient.set(name, cur);
   }
+
+  // As of now, ignore the period: the current unpaid balance of sent/overdue.
+  let stillOwed = 0;
+  for (const inv of outstanding) {
+    stillOwed += Math.max(0, (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0));
+  }
+
   return { broughtIn, stillOwed, byClient: [...byClient.values()].sort((a, b) => b.total - a.total) };
 }
 
