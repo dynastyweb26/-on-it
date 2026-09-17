@@ -4,6 +4,7 @@
 // thumbnails are signed URLs, batch-signed in one round trip rather than one
 // request per row.
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import SwipeableRow from '@/components/SwipeableRow';
@@ -38,6 +39,7 @@ const SIGNED_URL_TTL = 3600;
 
 export default function Books() {
   const supabase = createClient();
+  const router = useRouter();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({}); // storage path → signed URL
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,20 @@ export default function Books() {
     ));
   }, [supabase]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    (async () => {
+      // Signed-out guard — redirect UX only; RLS is the real boundary. Same
+      // pattern as summary/settings: getSession() is a no-network local read so
+      // the decision can't hang on a stalled getUser(). Middleware only refreshes
+      // the cookie; it never redirects.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/login'); return; }
+      void load();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
   // Same ordering as the invoices list: newest first, then name A→Z. Tier 1 is
   // spent_on (the displayed expense date, matching the invoices list's use of its

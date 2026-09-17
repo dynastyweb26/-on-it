@@ -3,6 +3,7 @@
 // One glance: money in, money out, what's still owed.
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import { createClient } from '@/lib/supabase/client';
@@ -17,6 +18,7 @@ const money = (n: number) =>
 
 export default function Dashboard() {
   const supabase = createClient();
+  const router = useRouter();
   const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0 });
   // Initial-load only: without it the totals flash $0.00 / "0 invoices created"
   // before real data arrives, reading as an empty account. Cleared in finally so
@@ -60,6 +62,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
+      // Signed-out guard — redirect UX only; RLS is the real boundary. Same
+      // pattern as summary/settings: getSession() is a no-network local read so
+      // the decision can't hang on a stalled getUser(). Middleware only refreshes
+      // the cookie; it never redirects.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/login'); return; }
       try { await loadStats(); } finally { setLoading(false); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

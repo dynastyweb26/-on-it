@@ -1,17 +1,29 @@
 'use client';
 // ═══ The Vault ═══ Every PDF and receipt, searchable, forever.
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 
 export default function Vault() {
   const supabase = createClient();
+  const router = useRouter();
   const [docs, setDocs] = useState<any[]>([]);
   const [q, setQ] = useState('');
 
   useEffect(() => {
-    supabase.from('vault_documents').select('*').order('created_at', { ascending: false }).limit(300)
-      .then(({ data }) => setDocs(data ?? []));
+    (async () => {
+      // Signed-out guard — redirect UX only; RLS is the real boundary. Same
+      // pattern as summary/settings: getSession() is a no-network local read so
+      // the decision can't hang on a stalled getUser(). Middleware only refreshes
+      // the cookie; it never redirects.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/login'); return; }
+      const { data } = await supabase.from('vault_documents').select('*').order('created_at', { ascending: false }).limit(300);
+      setDocs(data ?? []);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
