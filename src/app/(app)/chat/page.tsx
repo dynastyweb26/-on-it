@@ -681,6 +681,22 @@ export default function Chat() {
       setMessages(next);
       setInput('');
     }
+
+    // Locked conversation (Commit B/C, live flow): the linked invoice has left
+    // 'draft' — most commonly it was just sent, and finishFinalize now KEEPS the
+    // conversation linked and locked instead of resetting it. Refuse any further
+    // message here so /api/parse is never called and no new card is rebuilt from
+    // the prior transcript (the reported near-duplicate #21 bug). Revise makes an
+    // editable copy; a new chat starts a new job. Runs before setFinished(false)
+    // so the sent conversation stays marked finished (not re-archived as a draft).
+    if (pendingInvoiceRef.current && isLockedStatus(linkedStatus)) {
+      const label = formatDocNumber(docKind(draft), pendingInvoiceRef.current.no);
+      setMessages((m) => [...m, aMsg(
+        `${label} is sent and locked. Tap Revise to change it, or start a new chat for a new job.`
+      )]);
+      return null;
+    }
+
     setFinished(false); // a new message means a live conversation again
 
     // ── Confirmation gate ─────────────────────────────────────
@@ -983,10 +999,12 @@ export default function Chat() {
     } catch { /* storage blocked — the persist effect retries on the next change */ }
   }
 
-  // Shared completion tail: append the done message, archive the finished
-  // conversation to history, clear finalize progress (row + sent flag), and
-  // reset to a clean slate. Used by a normal finalize and by an idempotent
-  // resume that finds the invoice already sent.
+  // Shared completion tail: append the done message and archive the finished
+  // conversation to history. It no longer resets the chat — one conversation =
+  // one invoice, so after a send the conversation STAYS linked to its now-sent
+  // row and shows a locked card (with Revise). Any further message is refused in
+  // send(). Used by a normal finalize and by an idempotent resume that finds the
+  // invoice already sent.
   function finishFinalize(doneMsg: Msg, retryId?: string) {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
@@ -995,6 +1013,8 @@ export default function Chat() {
     // so neither the transcript nor the archived history keeps a dead error.
     const archived = emitResult(messages, doneMsg, retryId);
     setMessages(archived);
+    // Archive to history as sent. draft:null / ready:false is what the history
+    // list stores; reopening rebuilds the locked card from the DB row (Commit B).
     pushHistory(storageNsRef.current ?? 'guest', {
       id: convoId || genId(),
       title: convoTitle(messages, draft),
@@ -1004,19 +1024,24 @@ export default function Chat() {
       draft: null,
       ready: false,
     });
-    pendingInvoiceRef.current = null;
+    // KEEP the link and the draft: pendingInvoiceRef, convoId, and draft stay so
+    // the conversation shows the sent invoice as a locked, read-only card with
+    // Revise — the fix for the post-send near-duplicate. finalizeSent is cleared
+    // (the send is done; the lock, not this flag, guards against re-finalize).
     finalizeSentRef.current = false;
-    setConvoId(genId());
-    setDraft(null);
-    setDraftHistory([]);
-    setReady(false);
+    setDraftHistory([]);            // no undo on a sent card
+    setReady(true);                 // show the (locked) card
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setPendingChange(null);
-    setLinkedStatus(null);
+    setLinkedStatus('sent');        // locks the card; enables Revise (unpaid)
     setLinkedAmountPaid(0);
     setRenderData(null);
-    setFinished(true); // clears the persisted conversation
+    // finished=true keeps this conversation from being re-archived as a draft by
+    // a later new-chat / history-open, and stops the persist effect rewriting it.
+    // A reload starts fresh; the sent invoice remains in the DB and in history
+    // (reopen re-links and re-locks). The live card stays put until then.
+    setFinished(true);
     try {
       const ns = storageNsRef.current;
       if (ns) localStorage.removeItem(chatKey(ns));
