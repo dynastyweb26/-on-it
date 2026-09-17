@@ -81,10 +81,20 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-const cashAppUrl = (tag: string) => `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
-const payPalUrl = (handle: string) =>
-  `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
-const venmoUrl = (handle: string) => `https://venmo.com/u/${handle.replace(/^@/, '')}`;
+// SECURITY: Sanitize and encode payment handles before constructing payment URLs
+// to prevent protocol override, path traversal, or parameter injection.
+const cashAppUrl = (tag: string) => {
+  const clean = tag.replace(/^(https?:\/\/)?(www\.)?cash\.app\/\$?/i, '').replace(/^[\$/]+/, '').trim();
+  return `https://cash.app/$${encodeURIComponent(clean)}`;
+};
+const payPalUrl = (handle: string) => {
+  const clean = handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '').trim();
+  return `https://paypal.me/${encodeURIComponent(clean)}`;
+};
+const venmoUrl = (handle: string) => {
+  const clean = handle.replace(/^(https?:\/\/)?(www\.)?venmo\.com\/u\//i, '').replace(/^[@/]+/, '').trim();
+  return `https://venmo.com/u/${encodeURIComponent(clean)}`;
+};
 
 const PAY_COLOR = { cashapp: '#00D632', paypal: '#003087', venmo: '#008CFF', zelle: '#6D1ED4' } as const;
 type PayKind = keyof typeof PAY_COLOR;
