@@ -14,8 +14,8 @@ import { createClient } from '@/lib/supabase/client';
 import { accentForWhite } from '@/lib/colors';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
-  summarizeIncome, invoiceRecordDate,
-  type Granularity, type Period, type ExpenseLite, type InvoiceLite,
+  summarizeIncome, localDay,
+  type Granularity, type Period, type ExpenseLite, type InvoiceLite, type PaymentLite,
 } from '@/lib/tax-summary';
 import { elementToPdf, summaryFilename, shareInvoice } from '@/lib/pdf/generate';
 import { ExpenseSummaryTemplate, DISCLAIMER, type ExpenseSummaryData } from '@/lib/pdf/summary-template';
@@ -43,7 +43,8 @@ export default function TaxSummary() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [expenses, setExpenses] = useState<ExpenseLite[] | null>(null); // null = loading
-  const [invoices, setInvoices] = useState<InvoiceLite[] | null>(null);
+  const [payments, setPayments] = useState<PaymentLite[] | null>(null); // income, cash basis
+  const [owed, setOwed] = useState<InvoiceLite[] | null>(null);         // sent/overdue, as-of-now
   const [selected, setSelected] = useState<Period | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportData, setExportData] = useState<ExpenseSummaryData | null>(null);
@@ -78,27 +79,45 @@ export default function TaxSummary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch every expense and every money-bearing invoice once; period switching
-  // is a client-side filter from here. Quotes and draft/void invoices are not
-  // money, so the invoice query excludes them.
+  // Fetch expenses, the payments ledger (income, cash basis), and the currently
+  // outstanding invoices once; period switching is a client-side filter from
+  // here. Income comes from invoice_payments bucketed by paid_at; outstanding is
+  // a live snapshot of sent/overdue invoices. Quotes and soft-deleted invoices
+  // are excluded on both.
   useEffect(() => {
     (async () => {
-      const [exp, inv] = await Promise.all([
+      const [exp, pay, owe] = await Promise.all([
         supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
+        supabase.from('invoice_payments')
+          .select('amount, paid_at, invoices!inner(client_name, kind, deleted_at)')
+          .eq('invoices.kind', 'invoice')
+          .is('invoices.deleted_at', null),
         supabase.from('invoices')
-          .select('total, client_name, status, paid_at, created_at')
+          .select('total, amount_paid, status')
           .is('deleted_at', null)
           .eq('kind', 'invoice')
-          .in('status', ['paid', 'sent', 'overdue']),
+          .in('status', ['sent', 'overdue']),
       ]);
       const eRows = (exp.data ?? []) as ExpenseLite[];
-      const iRows = (inv.data ?? []) as InvoiceLite[];
+      // Supabase embeds a to-one relation as an object (older shapes: an array);
+      // handle both so client_name resolves either way.
+      const pRows: PaymentLite[] = ((pay.data ?? []) as Array<Record<string, unknown>>).map((r) => {
+        const emb = r.invoices as { client_name?: string } | Array<{ client_name?: string }> | null;
+        const inv = Array.isArray(emb) ? emb[0] : emb;
+        return {
+          amount: r.amount as number | string,
+          paid_at: (r.paid_at as string | null) ?? null,
+          client_name: inv?.client_name ?? 'Client',
+        };
+      });
+      const oRows = (owe.data ?? []) as InvoiceLite[];
       setExpenses(eRows);
-      setInvoices(iRows);
-      // Data-driven periods span both expenses and income.
+      setPayments(pRows);
+      setOwed(oRows);
+      // Data-driven periods span expenses (spent_on) and income (payment paid_at).
       const recordDates = [
         ...eRows.map((r) => r.spent_on ?? ''),
-        ...iRows.map(invoiceRecordDate),
+        ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
       // Default to the most recent year that has records (the tax-relevant
       // year-to-date view), or all-time when there's nothing yet.
@@ -109,8 +128,8 @@ export default function TaxSummary() {
 
   const dates = useMemo(() => [
     ...(expenses ?? []).map((e) => e.spent_on ?? ''),
-    ...(invoices ?? []).map(invoiceRecordDate),
-  ].filter(Boolean), [expenses, invoices]);
+    ...(payments ?? []).map((p) => localDay(p.paid_at)),
+  ].filter(Boolean), [expenses, payments]);
 
   const sheetPeriods = useMemo(
     () => (sheetView === 'root' ? [] : availablePeriods(sheetView, dates)),
@@ -130,9 +149,9 @@ export default function TaxSummary() {
 
   const income = useMemo(
     () => (selected
-      ? summarizeIncome(invoices ?? [], selected)
+      ? summarizeIncome(payments ?? [], owed ?? [], selected)
       : { broughtIn: 0, stillOwed: 0, byClient: [] as { client: string; count: number; total: number }[] }),
-    [invoices, selected]
+    [payments, owed, selected]
   );
 
   const kept = income.broughtIn - summary.total;
@@ -178,7 +197,7 @@ export default function TaxSummary() {
     }
   }
 
-  const loading = expenses === null || invoices === null || selected === null;
+  const loading = expenses === null || payments === null || owed === null || selected === null;
 
   return (
     <div className="space-y-4 px-4 py-4">
@@ -237,7 +256,7 @@ export default function TaxSummary() {
 
             <div className="flex items-center justify-between border-t border-inverse-on-surface/15 pt-4">
               <div>
-                <div className="text-xs uppercase tracking-wide text-inverse-on-surface/60">Still owed</div>
+                <div className="text-xs uppercase tracking-wide text-inverse-on-surface/60">Still owed (as of today)</div>
                 <div className="text-[11px] text-inverse-on-surface/40">Not counted in kept</div>
               </div>
               <div className="font-display text-xl font-bold text-inverse-primary/90">{money(income.stillOwed)}</div>
@@ -274,7 +293,7 @@ export default function TaxSummary() {
                     <div className="min-w-0">
                       <div className="truncate font-medium text-on-background">{c.client}</div>
                       <div className="text-xs text-on-surface-variant">
-                        {c.count} {c.count === 1 ? 'invoice paid' : 'invoices paid'}
+                        {c.count} {c.count === 1 ? 'payment received' : 'payments received'}
                       </div>
                     </div>
                     <div className="font-display font-bold text-on-background">{money(c.total)}</div>

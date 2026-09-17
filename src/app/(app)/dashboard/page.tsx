@@ -17,7 +17,7 @@ const money = (n: number) =>
 
 export default function Dashboard() {
   const supabase = createClient();
-  const [stats, setStats] = useState({ paid: 0, outstanding: 0, spent: 0, count: 0 });
+  const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0 });
   // Initial-load only: without it the totals flash $0.00 / "0 invoices created"
   // before real data arrives, reading as an empty account. Cleared in finally so
   // no path can hang it true. The post-save refresh (loadStats) never toggles it,
@@ -39,13 +39,23 @@ export default function Dashboard() {
 
   async function loadStats() {
     const [{ data: invs }, { data: exps }] = await Promise.all([
-      supabase.from('invoices').select('total, status, kind').eq('kind', 'invoice').is('deleted_at', null),
+      supabase.from('invoices').select('total, status, amount_paid, kind').eq('kind', 'invoice').is('deleted_at', null),
       supabase.from('expenses').select('amount, spent_on').is('deleted_at', null),
     ]);
-    const paid = (invs ?? []).filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.total), 0);
-    const outstanding = (invs ?? []).filter((i) => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + Number(i.total), 0);
+    // Cash basis (Jules F2). "Collected" is money actually received — the sum of
+    // amount_paid, which the invoice_payments ledger keeps in sync — not the face
+    // value of 'paid' invoices (which ignored deposits and partial payments).
+    // "Still owed" is the unpaid remainder of sent/overdue invoices, so a deposit
+    // already collected is counted once (in collected) and not again here.
+    const rows = invs ?? [];
+    const collected = rows
+      .filter((i) => i.status !== 'draft')
+      .reduce((s, i) => s + Number(i.amount_paid ?? 0), 0);
+    const outstanding = rows
+      .filter((i) => ['sent', 'overdue'].includes(i.status))
+      .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({ paid, outstanding, spent, count: invs?.length ?? 0 });
+    setStats({ collected, outstanding, spent, count: rows.length });
   }
 
   useEffect(() => {
@@ -110,7 +120,7 @@ export default function Dashboard() {
     }
   }
 
-  const net = stats.paid - stats.spent;
+  const net = stats.collected - stats.spent;
   return (
     <div className="space-y-3 px-4 py-4">
       {loading ? (
@@ -128,7 +138,7 @@ export default function Dashboard() {
             <div className="mt-1 text-xs text-inverse-on-surface/60">{stats.count} invoices created</div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Collected" value={money(stats.paid)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
+            <Stat label="Collected" value={money(stats.collected)} tone="text-paid" icon="check_circle" iconCls="bg-paid-container text-paid" />
             <Stat label="Still owed" value={money(stats.outstanding)} tone="text-primary" icon="pending" iconCls="bg-primary-fixed text-primary" />
             <Stat label="Spent" value={money(stats.spent)} tone="text-error" icon="shopping_cart" iconCls="bg-error-container text-error" />
           </div>
