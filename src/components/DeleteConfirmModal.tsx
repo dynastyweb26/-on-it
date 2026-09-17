@@ -80,6 +80,12 @@ export default function DeleteConfirmModal({
           )}
         </p>
 
+        {recordType === 'invoice' && (
+          <p className="mt-2 text-xs text-on-surface-variant/80">
+            On the free plan this still counts toward your invoice limit — deleting it won&apos;t free up a slot.
+          </p>
+        )}
+
         {requiresTypedConfirm && (
           <div className="mt-4 space-y-1">
             <label htmlFor="delete-confirm-input" className="text-xs font-semibold text-on-surface-variant">

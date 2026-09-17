@@ -21,8 +21,23 @@ export default function Vault() {
       if (!session) { router.replace('/login'); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace('/login'); return; }
-      const { data } = await supabase.from('vault_documents').select('*').order('created_at', { ascending: false }).limit(300);
-      setDocs(data ?? []);
+      // Embed the parent invoice's deleted_at so a soft-deleted invoice's
+      // archived PDF drops out of the Vault. vault_documents has no deleted_at
+      // of its own, and invoice_id survives a soft delete (only a hard DELETE
+      // would null it via ON DELETE SET NULL), so we filter on the parent.
+      // Receipts and other docs have invoice_id null (no embed) and always stay.
+      const { data } = await supabase
+        .from('vault_documents')
+        .select('*, invoices(deleted_at)')
+        .order('created_at', { ascending: false })
+        .limit(300);
+      const visible = (data ?? []).filter((d: any) => {
+        // Supabase embeds a to-one relation as an object (older shapes: an
+        // array); handle both. No parent → keep (receipt/other).
+        const inv = Array.isArray(d.invoices) ? d.invoices[0] : d.invoices;
+        return !inv || inv.deleted_at == null;
+      });
+      setDocs(visible);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
