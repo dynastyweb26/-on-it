@@ -622,9 +622,9 @@ export default function Settings() {
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Records</h2>
-        <p className="text-sm text-on-surface-variant">Your expenses by category for tax time — view it or export a PDF.</p>
-        <button className="btn-outline w-full text-primary" onClick={() => router.push('/summary')}>
-          <Icon name="receipt_long" size={18} /> Expense summary
+        <p className="text-sm text-on-surface-variant">Every invoice and receipt, archived automatically — search and reopen any PDF.</p>
+        <button className="btn-outline w-full text-primary" onClick={() => router.push('/vault')}>
+          <Icon name="folder" size={18} /> Vault
         </button>
       </section>
 
