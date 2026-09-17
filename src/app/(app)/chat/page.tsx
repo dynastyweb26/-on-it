@@ -713,20 +713,19 @@ export default function Chat() {
     function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {
     if (!draft || !profile) return null;
     const items = (draft.line_items ?? []) as LineItem[];
-    const subtotal = items.reduce((s, li) => s + li.qty * li.unit_price, 0);
-    if (!Number.isFinite(subtotal)) return null;
     const taxRate = draft.tax_rate ?? 0;
-    const taxAmount = Math.round(subtotal * taxRate) / 100;
-    const total = subtotal + taxAmount;
-    if (!Number.isFinite(total)) return null;
 
-    // Deposit: the draft stores deposit_type / deposit_value (snake_case, DB
-    // column names); InvoiceRenderData reads camelCase and needs the derived
-    // figures too. Run them through the SAME helper the card preview uses, so
-    // the document can never show a different number than the screen did.
+    // One math path for card, saved row, and PDF (Jules F4). subtotal, tax, and
+    // total all come from calculateInvoiceTotals — the SAME helper the preview
+    // card (previewTotals) and Commit E's Subtotal/Tax rows use — instead of a
+    // second inline formula that could drift a sub-cent from what's on screen.
+    // The draft stores deposit_type / deposit_value (snake_case DB columns);
+    // InvoiceRenderData reads camelCase and needs the derived figures too.
     const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
     const depositValue = Number((draft as any).deposit_value ?? 0);
     const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
+    const { subtotal, taxAmount, total } = totals;
+    if (!Number.isFinite(subtotal) || !Number.isFinite(total)) return null;
     const hasDeposit = totals.depositAmount > 0;
 
     return {
