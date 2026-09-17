@@ -177,8 +177,11 @@ const HISTORY_MAX = 5;
 // build is discarded on load rather than rehydrated into a broken draft. (v1
 // was the original unversioned shape. v3 added finalizeSent — finalize
 // step-completion, so a resumed finalize skips steps that already ran. v4 added
-// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.)
-const STORE_VERSION = 4;
+// Msg.id; a v3 entry is migrated in loadStoredChat, not dropped — see there.
+// v5 added linkedStatus/linkedAmountPaid so a sent, locked conversation survives
+// a reload as a locked card; v3/v4 entries lack them and simply restore unlocked
+// until the DB status re-fetch runs — migrated, not dropped.)
+const STORE_VERSION = 5;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -239,6 +242,13 @@ interface StoredChat {
   // resumed finalize (suspend between "mark sent" and the reset) reads this and
   // finishes idempotently instead of re-sharing, re-marking, and re-archiving.
   finalizeSent?: boolean;
+  // Live lock state of the linked invoice (Commit B/C), persisted so a sent,
+  // locked conversation restores as a locked card with Revise after a reload —
+  // and refuses further edits — instead of resurrecting an editable draft. The
+  // DB status re-fetch on restore is still authoritative; these give an instant,
+  // flash-free lock before it resolves. Absent on v3/v4 payloads.
+  linkedStatus?: string | null;
+  linkedAmountPaid?: number;
   updatedAt: number;
 }
 
@@ -271,7 +281,7 @@ function loadStoredChat(ns: string): StoredChat | null {
     // genuinely older/unrecognized shapes (< 3) are dropped — their fields
     // predate too much to rehydrate safely. The persist effect rewrites the
     // migrated payload as the current version on the next change.
-    if (parsed.version !== STORE_VERSION && parsed.version !== 3) return null;
+    if (parsed.version !== STORE_VERSION && parsed.version !== 4 && parsed.version !== 3) return null;
     // Stale — a job left untouched past the TTL isn't "current" anymore.
     if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > STORE_TTL_MS) return null;
     if (!Array.isArray(parsed.messages) || parsed.messages.length < 2) return null;
@@ -442,11 +452,19 @@ export default function Chat() {
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
     finalizeSentRef.current = Boolean(stored.finalizeSent);
     setConvoId(stored.id ?? genId());
-    setFinished(false);
+    // Restore the lock state up front (v5+) so a sent conversation shows its
+    // locked card and refuses edits immediately on reload — no flash of an
+    // editable card before the DB re-fetch below resolves. A locked convo is
+    // already archived to history, so mark it finished to prevent re-archiving as
+    // a draft; an unlocked one stays live (finished=false).
+    const restoredStatus = stored.linkedStatus ?? null;
+    setLinkedStatus(restoredStatus);
+    setLinkedAmountPaid(Number(stored.linkedAmountPaid ?? 0));
+    setFinished(isLockedStatus(restoredStatus));
     appliedUpdatedAtRef.current = stored.updatedAt;
     // Commit B: the linked invoice may have been sent or paid in another session
-    // since this draft was suspended. Read its live status so the restored card
-    // locks if it has left 'draft'. Fire-and-forget; null id clears the lock.
+    // since this draft was suspended. Re-read its live status (authoritative) so
+    // the restored card locks if it has left 'draft'. Fire-and-forget.
     void loadLinkedStatus(stored.pendingInvoice?.id ?? null);
   }
 
@@ -563,7 +581,11 @@ export default function Chat() {
     const ns = storageNsRef.current;
     if (!ns) return;
     try {
-      if (finished || messages.length < 2) {
+      // A sent, locked conversation IS persisted even though it's "finished", so
+      // a reload restores the locked card + Revise and keeps refusing edits. A
+      // finished-but-unlocked convo (e.g. a new-chat reset) is cleared as before.
+      const locked = isLockedStatus(linkedStatus);
+      if ((finished && !locked) || messages.length < 2) {
         localStorage.removeItem(chatKey(ns));
       } else {
         // Twin of the explicit write in finalize() after the row is inserted —
@@ -574,13 +596,15 @@ export default function Chat() {
           id: convoId, messages, draft, ready,
           pendingInvoice: pendingInvoiceRef.current,
           finalizeSent: finalizeSentRef.current,
+          linkedStatus,
+          linkedAmountPaid,
           updatedAt: Date.now(),
         };
         localStorage.setItem(chatKey(ns), JSON.stringify(payload));
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, hydrated, finished, convoId]);
+  }, [messages, draft, ready, hydrated, finished, convoId, linkedStatus, linkedAmountPaid]);
 
   // Recover a conversation the OS dropped behind an app switch. Two triggers,
   // one shared restore (restoreFromStore):
@@ -992,6 +1016,8 @@ export default function Chat() {
         id: convoId, messages, draft, ready,
         pendingInvoice: pendingInvoiceRef.current,
         finalizeSent: finalizeSentRef.current,
+        linkedStatus,
+        linkedAmountPaid,
         updatedAt: Date.now(),
       };
       localStorage.setItem(chatKey(ns), JSON.stringify(payload));
@@ -1038,14 +1064,11 @@ export default function Chat() {
     setLinkedAmountPaid(0);
     setRenderData(null);
     // finished=true keeps this conversation from being re-archived as a draft by
-    // a later new-chat / history-open, and stops the persist effect rewriting it.
-    // A reload starts fresh; the sent invoice remains in the DB and in history
-    // (reopen re-links and re-locks). The live card stays put until then.
+    // a later new-chat / history-open. It is NOT cleared from storage: because
+    // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
+    // restores the locked card + Revise and keeps refusing edits (v5 StoredChat).
+    // The "New chat" button still resets to a fresh conversation.
     setFinished(true);
-    try {
-      const ns = storageNsRef.current;
-      if (ns) localStorage.removeItem(chatKey(ns));
-    } catch { /* ignore */ }
   }
 
   // `internal` is true when send() delegates here after an affirmative — it has
