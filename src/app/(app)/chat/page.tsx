@@ -15,7 +15,7 @@ import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush } from '@/lib/push';
-import { defaultDueDate } from '@/lib/dates';
+import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
 import { speak, primeSpeech } from '@/lib/tts';
@@ -953,10 +953,13 @@ export default function Chat() {
       remaining: hasDeposit ? totals.remaining : undefined,
       amountDueNow: totals.amountDueNow,
       notes: draft.notes ?? null,
-      issuedDate: new Date().toLocaleDateString(),
+      // Both dates go through formatDate() so issued and due read as one format
+      // (M/D/YYYY) on the PDF — Jules F8. These are display strings; the ISO
+      // due_date written to the DB is set separately in finalize().
+      issuedDate: formatDate(new Date()),
       // No stated due date → default to issue date + 30 days. The AI never
       // asks for one; the user can still edit it on the invoice detail page.
-      dueDate: draft.due_date ?? defaultDueDate(),
+      dueDate: formatDate(draft.due_date ?? defaultDueDate()),
       cashappTag: profile.cashapp_tag,
       paypalMe: profile.paypal_me,
       venmoUsername: profile.venmo_username,
@@ -1198,7 +1201,9 @@ export default function Chat() {
         deposit_value: rd0.depositValue ?? null,
         deposit_amount: rd0.depositAmount ?? null,
         notes: rd0.notes,
-        due_date: rd0.dueDate,
+        // rd0.dueDate is now a formatted display string (M/D/YYYY, Jules F8);
+        // the DB column is a `date`, so write the raw ISO value instead.
+        due_date: draft?.due_date ?? defaultDueDate(),
       };
 
       if (!invoiceId) {
