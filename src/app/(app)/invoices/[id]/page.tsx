@@ -578,13 +578,22 @@ export default function InvoiceDetail() {
         {inv.kind === 'invoice' && (
           <div className="mt-3 flex items-center gap-2">
             <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>
-            <input
-              id="due-date"
-              type="date"
-              className="input h-auto flex-1 py-2 text-sm"
-              value={inv.due_date ?? ''}
-              onChange={(e) => void setDueDate(e.target.value)}
-            />
+            {/* Editable only while a draft — the due date is pinned once the
+                invoice is sent (lock_sent_invoice_fields), and letting the input
+                accept a change it can't persist would silently no-op. */}
+            {isDraft ? (
+              <input
+                id="due-date"
+                type="date"
+                className="input h-auto flex-1 py-2 text-sm"
+                value={inv.due_date ?? ''}
+                onChange={(e) => void setDueDate(e.target.value)}
+              />
+            ) : (
+              <span className="flex-1 py-2 text-sm text-on-surface">
+                {inv.due_date ? formatDate(inv.due_date) : '—'}
+              </span>
+            )}
           </div>
         )}
       </div>
