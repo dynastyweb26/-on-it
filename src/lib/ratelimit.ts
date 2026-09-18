@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'access';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -27,6 +27,7 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // Irreversible + does Stripe/Storage/auth work — the tightest bucket. A real
   // user deletes once; a few retries after a transient failure is the ceiling.
   delete_account: { tokens: 3,  window: '60 s' },
+  access:         { tokens: 20, window: '60 s' }, // access check spam guard
 };
 
 let redis: Redis | null = null;
