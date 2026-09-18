@@ -24,6 +24,14 @@ export interface ExtractResult {
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
   notes: string | null;
+  // Deposit the user explicitly asked for, as structured fields (not a line
+  // item or a note). Reported for what THIS message said: null when a deposit
+  // wasn't mentioned (the client keeps the draft's), 'none' when the user
+  // declined/removed one (the client clears it), or 'percentage'/'fixed' with
+  // deposit_value when stated. 'percentage' is the only percent spelling (the
+  // UI/DB spelling; 'percent' fails the DB check constraint).
+  deposit_type: 'percentage' | 'fixed' | 'none' | null;
+  deposit_value: number | null;     // percent (0–100) for 'percentage'; dollars for 'fixed'; null otherwise
   // The same four fields the receipt-vision route returns, so a spoken expense
   // and a photographed one land on the identical confirmation card.
   expense: {
@@ -47,14 +55,15 @@ Rules:
 - NEVER state a dollar amount, price, subtotal, tax, deposit, or total in your reply — no "$" figures at all. The app computes and speaks every money figure itself, so any number you write would risk contradicting the real total. Your reply describes the job in words and asks for what's missing; it never quotes the bill.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
 - intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
-- If the user says a total price for the whole job, make it one line item.
+- If the user says a total price for the whole job, make it one line item. But a deposit, down payment, or money "up front" is NOT a line item and NOT the job price — route it to the deposit fields (see the deposit rule). "Fence job is 1000, 500 down" → one $1000 line item plus deposit_type "fixed", deposit_value 500 (never a $500 line item).
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
 - Line item descriptions: rephrase what the user said into clean, professional wording — strip filler ("um", "like", "a buncha") and possessives ("his front door" -> "front door"), and write it as a short noun phrase ("fixed the leaky faucet upstairs" -> "Repaired leaking faucet, upstairs"). Rephrasing is ALL you may do. "Never invent" applies in full here: do NOT add materials, tools, measurements, extra scope, or a second service the user did not state, and do NOT sharpen a vague description into a specific one ("cleaned up the yard a bit" -> "Yard cleanup", never "Comprehensive debris removal"; "unclogged the toilet" -> "Unclogged toilet", never adding an inspection).
 - Capitalization: always sentence case — capitalize the first letter. Capitalize proper nouns correctly even when the user dictated them lowercase: brand names, place and city names, street names, product names ("repaired the gate at 45 maple avenue" -> "Repaired gate, 45 Maple Avenue"; "hauled junk from home depot" keeps "Home Depot").
 - Preserve the specific object and any stated quantity or location that carries information — these are billable specifics ("installed 3 blinds in the master bedroom" stays "Installed 3 blinds in master bedroom", never "Blind installation"; a street, city, or brand is real information, keep it). But a vague placeholder reference that carries no information ("the new place", "over there", "his spot") may be dropped ("drove her couch across town to the new place" -> "Drove couch across town"). Never invent an address to replace a vague one. Drop personal descriptors about the customer that are not the work ("changed a bulb for the old lady" -> "Replaced light bulb").
 - tax_rate: a PERCENT number, never a fraction ("8 percent tax" → 8, "8.25%" → 8.25, "half a percent" → 0.5). Never divide by 100 and never return a decimal like 0.08. Set it ONLY when the user states a tax rate; otherwise leave it null. Never invent or assume a rate, and never ask for one.
 - due_date: fill it ONLY if the user volunteers one ("due in 2 weeks" → compute from today). Otherwise leave it null — the app sets a due date automatically. NEVER ask the user for a due date and never include due_date in "missing".
-- notes: capture any note, policy, deposit terms, lead time, or special instruction volunteered by the user ("add a note that a 40% deposit is due before materials are ordered" → "40% deposit due before materials are ordered"). Leave null if not said (never empty string, never invented text). Extracting a note MUST NEVER alter document intent.
+- notes: capture any note, policy, lead time, or special instruction volunteered by the user. Do NOT put a deposit amount here — a deposit is a structured field (see the deposit rule below), not a note. A note that only sets a payment condition tied to the deposit is fine as English ("a note that materials are ordered once the deposit clears"), but the deposit figure itself belongs in deposit_type/deposit_value. Leave notes null when not mentioned this message (the app keeps any note already on the draft). Set notes to an empty string "" ONLY when the user explicitly removes the note ("drop the note", "no note"). Never invent note text. Extracting a note MUST NEVER alter document intent.
+- deposit: when the user explicitly asks for a deposit, down payment, money up front, or a retainer, set it as structured fields — NEVER as a line item and NEVER as note text. deposit_type is "percentage" for a percent ("40% deposit", "40 percent down" → deposit_type "percentage", deposit_value 40) or "fixed" for a dollar amount ("500 down", "half up front on a stated total is a fixed dollar figure", "$500 deposit" → deposit_type "fixed", deposit_value 500). Use exactly the spelling "percentage" (never "percent"). Set deposit_type "none" and deposit_value null ONLY when the user explicitly declines or removes a deposit ("no deposit", "actually no deposit", "remove the deposit"). When the user does not mention a deposit at all this message, set deposit_type null and deposit_value null — do NOT restate a deposit already on the draft; the app keeps it. "half up front" means deposit_type "percentage", deposit_value 50. Never invent a deposit the user didn't state.
 - client_address and client_phone: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field.
 
 INVOICE OR EXPENSE — decide this first, before anything else:
@@ -86,7 +95,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -138,6 +147,8 @@ function clarifyFallback(): ExtractResult {
     tax_rate: null,
     due_date: null,
     notes: null,
+    deposit_type: null,
+    deposit_value: null,
     expense: null,
     missing: [],
     reply: "Sorry, I didn't quite catch that. Could you say a little more? Like whether you paid for that, or you're charging someone for it.",

@@ -182,6 +182,32 @@ export async function POST(req: NextRequest) {
       if (match != null) result.tax_rate = match;
     }
 
+    // Deposit normalization. The model returns deposit_type null when a deposit
+    // wasn't mentioned (client keeps the draft's), 'none' when the user declined
+    // it (client clears it), or 'percentage'/'fixed' + deposit_value when stated.
+    // Bound it: a stated type needs a usable value (percentage 0<v<=100, fixed
+    // v>0) or it's downgraded to null (unstated — never guess). 'percentage' is
+    // the only percent spelling accepted (the DB check rejects 'percent').
+    {
+      const dt = result.deposit_type;
+      if (dt === 'none') {
+        result.deposit_value = null;
+      } else if (dt === 'percentage' || dt === 'fixed') {
+        const v = Number(result.deposit_value);
+        const ok = Number.isFinite(v) && v > 0 && (dt === 'fixed' || v <= 100);
+        if (ok) {
+          result.deposit_value = v;
+        } else {
+          result.deposit_type = null;
+          result.deposit_value = null;
+        }
+      } else {
+        // null, undefined, or any unexpected value → unstated.
+        result.deposit_type = null;
+        result.deposit_value = null;
+      }
+    }
+
     // ── Server-owned money narration ──────────────────────────────
     // The model is instructed never to state amounts; enforce it in code so the
     // spoken/rendered reply can never contradict the real bill. When the result
@@ -192,8 +218,22 @@ export async function POST(req: NextRequest) {
     // Deposit lives only on the draft (deposit_type/value); the result never
     // carries it, so it's read from the draft for both totals below.
     if (Array.isArray(result.line_items) && result.line_items.length > 0) {
-      const depositType = ((draft as Record<string, unknown> | null)?.deposit_type as DepositType) ?? 'none';
-      const depositValue = Number((draft as Record<string, unknown> | null)?.deposit_value ?? 0);
+      // Prior (draft) deposit vs. the deposit that applies after this turn. The
+      // result now carries a deposit when the user stated or declined one; when
+      // it left deposit_type null the deposit is unchanged, so fall back to the
+      // draft's. Using the new deposit for `totals` and the draft's for
+      // `prevTotals` lets a deposit-only change (no line-item edit) register as
+      // moved, so the "deposit due now" sentence is spoken.
+      const draftDepType = ((draft as Record<string, unknown> | null)?.deposit_type as DepositType) ?? 'none';
+      const draftDepValue = Number((draft as Record<string, unknown> | null)?.deposit_value ?? 0);
+      const depositType: DepositType =
+        result.deposit_type === 'none' ? 'none'
+          : (result.deposit_type === 'percentage' || result.deposit_type === 'fixed') ? result.deposit_type
+          : draftDepType;
+      const depositValue =
+        result.deposit_type === 'none' ? 0
+          : (result.deposit_type === 'percentage' || result.deposit_type === 'fixed') ? Number(result.deposit_value ?? 0)
+          : draftDepValue;
 
       const totals = calculateInvoiceTotals(
         result.line_items,
@@ -209,8 +249,8 @@ export async function POST(req: NextRequest) {
       const prevTotals = calculateInvoiceTotals(
         draftItems,
         Number((draft as Record<string, unknown> | null)?.tax_rate ?? 0),
-        depositType,
-        depositValue
+        draftDepType,
+        draftDepValue
       );
       const changed =
         totals.total !== prevTotals.total ||
