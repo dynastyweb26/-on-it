@@ -27,7 +27,13 @@ export async function GET(req: NextRequest) {
     .is('deleted_at', null)
     .in('status', ['sent', 'overdue'])
     .or(`last_nudge_at.is.null,last_nudge_at.lt.${cutoff}`)
-    .lt('sent_at', cutoff)
+    // Dun on first_sent_at, not sent_at: a resend bumps sent_at, which would
+    // push an unpaid invoice back out of the 2-day window and silence the nudge.
+    // first_sent_at is write-once (migration 20260918000006) and backfilled from
+    // sent_at. Fall back to sent_at only for a legacy sent row where first_sent_at
+    // is null (backfill skips rows with a null sent_at); if both are null the row
+    // isn't dunned, matching the prior sent_at-only behavior.
+    .or(`first_sent_at.lt.${cutoff},and(first_sent_at.is.null,sent_at.lt.${cutoff})`)
     .limit(200);
 
   let sent = 0;
