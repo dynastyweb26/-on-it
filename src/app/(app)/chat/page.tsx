@@ -31,7 +31,7 @@ import type { ExtractResult, LineItem } from '@/lib/ai';
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat'; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -715,8 +715,12 @@ export default function Chat() {
     // so the sent conversation stays marked finished (not re-archived as a draft).
     if (pendingInvoiceRef.current && isLockedStatus(linkedStatus)) {
       const label = formatDocNumber(docKind(draft), pendingInvoiceRef.current.no);
+      // "Revise" is a real button on the card; make "New chat" a real control too
+      // (action: 'new-chat' renders the button below the bubble) so the user
+      // isn't sent hunting for the header compose icon. It fires the same reset.
       setMessages((m) => [...m, aMsg(
-        `${label} is sent and locked. Tap Revise to change it, or start a new chat for a new job.`
+        `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
+        { action: 'new-chat' }
       )]);
       return null;
     }
@@ -2014,6 +2018,24 @@ export default function Chat() {
                   onClick={() => retry(m)}
                 >
                   <Icon name="refresh" size={20} />
+                </button>
+              </div>
+            </div>
+          ) : m.action === 'new-chat' ? (
+            // Locked-conversation refusal: the bubble plus a tappable "New chat"
+            // control that fires the same reset as the header compose icon
+            // (onit-new-chat), so "start a new job" isn't prose the user has to
+            // act on by hunting for the header button.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                  {m.content}
+                </div>
+                <button
+                  className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 py-2 text-label-lg font-semibold text-primary transition active:scale-95"
+                  onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+                >
+                  <Icon name="edit_square" size={18} /> New chat
                 </button>
               </div>
             </div>

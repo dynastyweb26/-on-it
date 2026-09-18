@@ -120,25 +120,41 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   pageRowRanges.push({ start: 0, end: p1End });
   currentRow = p1End;
 
-  // Pages 2+
+  // Pages 2+. Pack each continuation page to the FULL continuation capacity.
+  // The previous code reserved bottomHeight/2 on EVERY continuation page via an
+  // `isLastPageAttempt` flag that was always true (pEnd starts at currentRow,
+  // which is < totalRows on entry), so every page under-filled and the document
+  // trailed off into a sparse, mostly-empty final page. Now the reservation
+  // applies only to the page that actually carries the trailing blocks.
   while (currentRow < totalRows) {
     let pHeight = 0;
     let pEnd = currentRow;
-    const isLastPageAttempt = pEnd < totalRows;
-    const capacity = continuationCapacity - (isLastPageAttempt ? bottomHeight / 2 : 0);
 
-    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
+    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= continuationCapacity) {
       pHeight += rowHeights[pEnd];
       pEnd++;
     }
 
     if (pEnd === currentRow) {
-      // At least one row per page
+      // At least one row per page (a single row taller than the page).
       pEnd = currentRow + 1;
+      pHeight = rowHeights[currentRow] || 0;
     }
 
-    // Widow/orphan check
-    if (pEnd === totalRows - 1 && pEnd - currentRow > 1) {
+    if (pEnd === totalRows) {
+      // This page consumes the last row, so the trailing blocks (Totals,
+      // Payment, Notes) get appended beneath its rows. Guarantee a full
+      // bottomHeight of room so they can't overlap the table or be clipped by
+      // the page's overflow:hidden. If the packed rows leave too little, pull
+      // rows back (keeping at least one) so they spill onto a fresh final page
+      // that does have room for the block.
+      while (pEnd > currentRow + 1 && continuationCapacity - pHeight < bottomHeight) {
+        pEnd--;
+        pHeight -= rowHeights[pEnd];
+      }
+    } else if (pEnd === totalRows - 1 && pEnd - currentRow > 1) {
+      // Not the last page: keep the widow guard so the next page never carries a
+      // lone orphan row sitting by itself above the totals block.
       pEnd--;
     }
 
