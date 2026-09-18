@@ -830,10 +830,43 @@ export default function Chat() {
         // the document type this turn (intent_explicit false), keep the
         // in-progress draft's intent so a bare "send it" or "just make it"
         // can't silently flip a quote into an invoice.
-        const mergedDraft: Partial<ExtractResult> =
+        // Intent preservation (as before): keep the in-progress draft's intent
+        // when the user didn't name a document type this turn.
+        const base: Partial<ExtractResult> =
           data.intent_explicit === false && draft?.intent
             ? { ...data, intent: draft.intent }
-            : data;
+            : { ...data };
+
+        // Card-set fields the parse result doesn't reliably carry. The model
+        // reports these ONLY for what THIS message said, so we merge rather than
+        // replace — otherwise the whole-draft swap silently wiped a deposit or
+        // note set on the card the moment the next chat message parsed.
+        //   deposit_type: null → not mentioned, keep the draft's; 'none' → the
+        //     user declined a deposit, clear it; 'percentage'/'fixed' + a value
+        //     > 0 → stated, set it. (A bare type with no usable value is treated
+        //     as unstated — never guess, and never let a model echo of the
+        //     draft's type without its value zero out the amount.)
+        //   notes: null → not mentioned, keep; '' → explicitly removed, clear;
+        //     any other string → set.
+        const dDepType = (data as { deposit_type?: unknown }).deposit_type;
+        const dDepVal = Number((data as { deposit_value?: unknown }).deposit_value);
+        const depositStated =
+          dDepType === 'percentage' || dDepType === 'fixed'
+            ? Number.isFinite(dDepVal) && dDepVal > 0
+            : dDepType === 'none';
+        const mergedDraft = {
+          ...base,
+          deposit_type: depositStated
+            ? (dDepType as DepositType)
+            : (((draft as { deposit_type?: DepositType } | null)?.deposit_type) ?? 'none'),
+          deposit_value: depositStated
+            ? (dDepType === 'none' ? null : dDepVal)
+            : (((draft as { deposit_value?: number | null } | null)?.deposit_value) ?? null),
+          notes:
+            data.notes == null
+              ? (draft?.notes ?? null)
+              : (typeof data.notes === 'string' && data.notes.trim() === '' ? null : data.notes),
+        } as Partial<ExtractResult>;
 
         // Commit B lock: the linked invoice has left 'draft' (sent/paid) and is
         // read-only. Refuse a chat edit that would change it — but let a no-op
