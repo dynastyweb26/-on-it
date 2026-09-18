@@ -493,13 +493,13 @@ export default function Settings() {
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {TEMPLATES.map((t) => (
-            <button key={t} className={`chip ${p.invoice_template === t ? 'chip-selected' : ''}`}
+            <button key={t} className={`chip shrink-0 ${p.invoice_template === t ? 'chip-selected' : ''}`}
               onClick={() => save({ invoice_template: t })}>{TEMPLATE_LABELS[t]}</button>
           ))}
         </div>
-        <div className="grid grid-cols-10 gap-2">
+        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
           {PALETTE.map(({ hex, name }) => {
             const sel = p.brand_colors?.includes(hex);
             return (
@@ -527,7 +527,7 @@ export default function Settings() {
           </div>
         )}
         {theme && (
-          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 240 }}>
+          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 1123 * 0.36 }}>
             <div style={{ transform: 'scale(0.36)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
               <InvoiceTemplate template={p.invoice_template} theme={theme} data={{
                 kind: 'invoice', invoiceNumber: 1, businessName: p.business_name,
