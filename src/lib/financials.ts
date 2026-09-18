@@ -2,8 +2,7 @@
 // Derived numeric values and arithmetic calculations MUST always be computed in code,
 // never by the AI model orinline across separate components.
 
-// 'percent' is the DB spelling; 'percentage' is the UI spelling. Both mean the same thing.
-export type DepositType = 'percentage' | 'percent' | 'fixed' | 'none';
+export type DepositType = 'percentage' | 'fixed' | 'none';
 
 // Where the money stands relative to the deposit and the total.
 export type PaymentStage = 'unpaid' | 'partial' | 'deposit_paid' | 'paid';
@@ -87,7 +86,7 @@ export function calculateInvoiceTotals(
   // Then clamp to [0, total] so a deposit never exceeds the bill or goes negative.
   let depositAmount = 0;
   const value = Number.isFinite(depositValue) ? depositValue : 0;
-  if (depositType === 'percentage' || depositType === 'percent') {
+  if (depositType === 'percentage') {
     depositAmount = roundCurrency((total * value) / 100);
   } else if (depositType === 'fixed') {
     depositAmount = value;

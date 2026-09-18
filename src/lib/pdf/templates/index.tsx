@@ -36,7 +36,7 @@ export interface InvoiceRenderData {
   taxRate: number;
   taxAmount: number;
   total: number;
-  depositType?: 'percentage' | 'percent' | 'fixed' | 'none';
+  depositType?: 'percentage' | 'fixed' | 'none';
   depositValue?: number;
   depositAmount?: number;
   remaining?: number;
@@ -69,7 +69,7 @@ function dominantLabel(d: InvoiceRenderData): string {
 }
 
 const isPercentDeposit = (d: InvoiceRenderData) =>
-  d.depositType === 'percentage' || d.depositType === 'percent';
+  d.depositType === 'percentage';
 
 const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
 
