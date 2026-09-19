@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -27,6 +27,11 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // Irreversible + does Stripe/Storage/auth work — the tightest bucket. A real
   // user deletes once; a few retries after a transient failure is the ceiling.
   delete_account: { tokens: 3,  window: '60 s' },
+  // Public, unauthenticated pay page (/pay/[token]) — keyed by IP. A real client
+  // opens/refreshes their invoice a handful of times; 30/min is generous for that
+  // while throttling token-enumeration / scraping from a single source. The
+  // 128-bit token is the real guessing defense; this caps the attempt rate.
+  pay_view:       { tokens: 30, window: '60 s' },
 };
 
 let redis: Redis | null = null;
