@@ -41,6 +41,11 @@ interface PublicInvoiceRow {
   invoice_number: number;
   kind: string | null;
   line_items: { description?: string; qty?: unknown; unit_price?: unknown }[] | null;
+  // subtotal/tax_rate/tax_amount added by 20260918000009; absent (undefined)
+  // until that migration is applied — the model degrades to no breakdown.
+  subtotal: number | string | null;
+  tax_rate: number | string | null;
+  tax_amount: number | string | null;
   total: number | string | null;
   deposit_type: string | null;
   deposit_value: number | string | null;
@@ -110,6 +115,9 @@ function Notice({ icon, title, body }: { icon: string; title: string; body: stri
 
 function buildModel(row: PublicInvoiceRow): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
+  const subtotal = num(row.subtotal);
+  const taxRate = num(row.tax_rate);
+  const taxAmount = num(row.tax_amount);
   const total = num(row.total);
   const paid = Math.max(0, num(row.amount_paid));
   const depositAmount = Math.min(Math.max(num(row.deposit_amount), 0), Math.max(total, 0));
@@ -166,6 +174,13 @@ function buildModel(row: PublicInvoiceRow): PayModel {
     docNumber: formatDocNumber(kind, row.invoice_number),
     noun: docNoun(kind),
     lineItems,
+    subtotal,
+    taxRate,
+    taxAmount,
+    // Show the Subtotal/Tax/Total breakdown only when there's tax to reconcile
+    // (also the graceful fallback when 20260918000009 isn't applied yet: the
+    // fields are absent → taxAmount 0 → no breakdown, current behavior).
+    showTaxBreakdown: taxAmount > 0,
     total,
     primaryLabel,
     primaryAmount,

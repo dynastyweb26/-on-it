@@ -40,6 +40,10 @@ export interface PayModel {
   docNumber: string; // e.g. "INV-0007"
   noun: string; // "Invoice" | "Quote"
   lineItems: PayLineItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  showTaxBreakdown: boolean; // true when there's tax to reconcile against the items
   total: number;
   primaryLabel: string; // "Total due" | "Deposit due now" | "Balance due" | "Paid in full"
   primaryAmount: number;
@@ -126,6 +130,24 @@ export default function PayView({ model }: { model: PayModel }) {
           model.fullyPaid ? 'bg-paid-container' : 'bg-surface-container-lowest'
         }`}
       >
+        {/* Money breakdown — reconciles the line items with the total (matches
+            the PDF). Shown only when there's tax to explain. */}
+        {model.showTaxBreakdown ? (
+          <div className="mb-4 space-y-1 border-b border-outline-variant pb-4 text-left">
+            <div className="flex items-center justify-between text-body-md text-on-surface-variant">
+              <span>Subtotal</span>
+              <span>{money(model.subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-body-md text-on-surface-variant">
+              <span>Tax{model.taxRate > 0 ? ` (${model.taxRate}%)` : ''}</span>
+              <span>{money(model.taxAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-body-md font-display text-on-background">
+              <span>Total</span>
+              <span>{money(model.total)}</span>
+            </div>
+          </div>
+        ) : null}
         <p className="text-label-lg uppercase tracking-wide text-on-surface-variant">
           {model.primaryLabel}
         </p>
