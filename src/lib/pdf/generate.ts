@@ -421,11 +421,18 @@ export function downloadFile(file: File): void {
 /** Native share sheet — the locked send mechanism (no Twilio).
  *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
  *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
- *  share error falls through to a download so the user still gets their file. */
-export async function shareInvoice(file: File, clientName: string, noun = 'Invoice'): Promise<'shared' | 'downloaded' | 'cancelled'> {
+ *  share error falls through to a download so the user still gets their file.
+ *
+ *  `url` (optional) is the public pay link (/pay/<token>). When present it rides
+ *  the Web Share payload alongside the PDF file, so the client can both keep the
+ *  document and tap through to pay. It is dropped on the download fallback (a
+ *  saved file can't carry a link) — the caller still shows/copies it separately. */
+export async function shareInvoice(file: File, clientName: string, noun = 'Invoice', url?: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: file.name, text: `${noun} for ${clientName}` });
+      const shareData: ShareData = { files: [file], title: file.name, text: `${noun} for ${clientName}` };
+      if (url) shareData.url = url;
+      await navigator.share(shareData);
       return 'shared';
     } catch (err) {
       // User dismissed the sheet → cancel (don't download, don't mark sent).
