@@ -911,6 +911,16 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
+        // iOS swallowed-first-tap fix: the composer keeps focus (soft keyboard
+        // up) through the parse, so the first tap on "Looks right — send it" is
+        // spent dismissing the keyboard — and with interactiveWidget:
+        // 'resizes-content' that dismissal resizes the viewport and shifts the
+        // button out from under the finger between touchstart and the synthesized
+        // click, so the click misses and finalize never runs (desktop has no soft
+        // keyboard, hence unaffected). Dismiss the keyboard NOW, when the
+        // actionable card appears, so the viewport is settled before the user
+        // taps. The deliberate two-tap confirm gate is untouched.
+        if (isReady) (document.activeElement as HTMLElement | null)?.blur?.();
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
