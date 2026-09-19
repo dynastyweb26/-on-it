@@ -1431,7 +1431,21 @@ export default function Chat() {
       }
 
       // ── 4. Share — only now is anything actually sent.
-      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind));
+      // Attach the public pay link so the client can pay online, not just receive
+      // a PDF. Built from window.location.origin so a preview deploy links back to
+      // itself (never a hardcoded host). Invoices only — a quote isn't payable. The
+      // row is persisted above; its public_token was stamped by set_invoice_token
+      // on insert. The send marks it 'sent' just below, before the client opens it.
+      let payUrl: string | undefined;
+      if (rd.kind === 'invoice') {
+        const { data: tok } = await supabase
+          .from('invoices')
+          .select('public_token')
+          .eq('id', invoiceId)
+          .maybeSingle();
+        if (tok?.public_token) payUrl = `${window.location.origin}/pay/${tok.public_token}`;
+      }
+      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
 
       // B1: cancelling the share sheet is a normal choice, not an error. The
       // row stays a draft; the stashed id + draft survive so a retry reuses
