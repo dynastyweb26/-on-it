@@ -1354,7 +1354,7 @@ export default function Chat() {
             }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
-            emitDiag(`finalize exit: insert failed (${insErr.code ?? insErr.message})`);
+            emitDiag(`finalize exit: insert failed (${insErr?.code ?? insErr?.message})`);
             console.error('invoice insert failed', insErr);
             if (!retryId) setMessages((m) => [...m, aMsg(
               navigator.onLine
