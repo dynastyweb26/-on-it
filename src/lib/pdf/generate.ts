@@ -432,16 +432,7 @@ export function downloadFile(file: File): void {
  *  navigator.canShare actually approves for that EXACT payload. The link matters
  *  more than the attachment for an invoice (the pay page shows the full document),
  *  so link-only is preferred over downloading when the combo is refused. */
-export async function shareInvoice(
-  file: File,
-  clientName: string,
-  noun = 'Invoice',
-  url?: string,
-  // TEMPORARY DIAGNOSTIC: called with a human-readable note for each attempt so
-  // the caller can surface WHY a share failed (we can't read a phone console).
-  // Remove once the phone share issue is pinned down.
-  onDiag?: (info: string) => void,
-): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareInvoice(file: File, clientName: string, noun = 'Invoice', url?: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const text = `${noun} for ${clientName}`;
   const canShare = (data: ShareData) =>
     typeof navigator !== 'undefined' && !!navigator.canShare?.(data);
@@ -449,36 +440,26 @@ export async function shareInvoice(
   // Best payload first. With a pay link: try PDF+link, then fall back to the link
   // alone (never a silent download while a link can still be shared). Without one
   // (e.g. a quote): PDF only, unchanged from before.
-  const attempts: { label: string; data: ShareData }[] = url
+  const attempts: ShareData[] = url
     ? [
-        { label: 'files+url', data: { files: [file], title: file.name, text, url } },
-        { label: 'url-only', data: { title: file.name, text, url } },
+        { files: [file], title: file.name, text, url },
+        { title: file.name, text, url },
       ]
-    : [{ label: 'files-only', data: { files: [file], title: file.name, text } }];
+    : [{ files: [file], title: file.name, text }];
 
-  for (const { label, data } of attempts) {
-    if (!canShare(data)) {
-      onDiag?.(`${label}: canShare=false`);
-      continue; // platform won't take this exact payload
-    }
+  for (const data of attempts) {
+    if (!canShare(data)) continue; // platform won't take this exact payload
     try {
       await navigator.share(data);
       return 'shared';
     } catch (err) {
       // User dismissed the sheet → a real cancel: don't retry, don't download.
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        onDiag?.(`${label}: cancelled (AbortError)`);
-        return 'cancelled';
-      }
-      // Any other error (e.g. activation expired, or canShare lied about the
-      // combo) → record it, then try the next, simpler payload / the download.
-      const name = err instanceof Error ? err.name : 'Error';
-      const message = err instanceof Error ? err.message : String(err);
-      onDiag?.(`${label}: threw ${name}: ${message}`);
+      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      // Any other error (e.g. canShare lied about the combo) → try the next,
+      // simpler payload, then the download below.
     }
   }
 
-  onDiag?.('all attempts failed → download');
   downloadFile(file);
   return 'downloaded';
 }

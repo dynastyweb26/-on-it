@@ -1430,14 +1430,10 @@ export default function Chat() {
       setRenderData(rd);
       await new Promise((r) => setTimeout(r, 350)); // let the template paint
       if (!printRef.current) throw new Error('render failed');
-      // TEMP DIAG: time the PDF build — the suspected cause of the phone share
-      // fallback is this step outlasting the transient-activation window.
-      const tPdf0 = performance.now();
       const file = await elementToPdf(
         printRef.current,
         invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
       );
-      const pdfMs = Math.round(performance.now() - tPdf0);
 
       // Download-only exit (Commit 3): hand over the PDF without sending. The
       // draft row was created above and stashed in pendingInvoiceRef, so it shows
@@ -1446,10 +1442,6 @@ export default function Chat() {
       // Vault — the archive/snapshot only happen on a real send. The card stays so
       // the user can still send.
       if (mode === 'download') {
-        // TEMP DIAG: mark the download-button path so it's distinguishable from a
-        // share fallback on a phone (both produce a download). If a send tap is
-        // mis-landing here, this line — not a SHARE DIAG — will appear.
-        setMessages((m) => [...m, aMsg(`SHARE DIAG — download-button path (mode=download) · pdf=${pdfMs}ms`)]);
         downloadFile(file);
         setRenderData(null);
         setMessages((m) => [...m, aMsg('Downloaded — it’s saved as a draft. Tap send whenever you’re ready.')]);
@@ -1468,22 +1460,7 @@ export default function Chat() {
         rd.kind === 'invoice' && publicToken
           ? `${window.location.origin}/pay/${publicToken}`
           : undefined;
-
-      // TEMP DIAG: capture activation state right before share() and each
-      // attempt's result, then surface it in-chat (we can't read a phone
-      // console). navigator.userActivation is Chromium-only; undefined on iOS
-      // WebKit is itself a data point. Remove this block once the cause is fixed.
-      const ua = (navigator as unknown as { userActivation?: { isActive?: boolean; hasBeenActive?: boolean } }).userActivation;
-      const diags: string[] = [
-        `pdf=${pdfMs}ms`,
-        `activation.isActive=${ua ? String(ua.isActive) : 'n/a'}`,
-        `hasBeenActive=${ua ? String(ua.hasBeenActive) : 'n/a'}`,
-      ];
-      const outcome = await shareInvoice(
-        file, rd.clientName, docNoun(rd.kind), payUrl,
-        (info) => diags.push(info),
-      );
-      setMessages((m) => [...m, aMsg(`SHARE DIAG — ${outcome} · ${diags.join(' · ')}`)]);
+      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
 
       // B1: cancelling the share sheet is a normal choice, not an error. The
       // row stays a draft; the stashed id + draft survive so a retry reuses
