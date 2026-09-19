@@ -1417,88 +1417,138 @@ export default function Chat() {
       const rd = buildRenderData(no);
       if (!rd) throw new Error('incomplete');
 
-      // Zelle is encrypted at rest — the server route is the only reader
+      // The public pay link (invoices only — a quote isn't payable). Available
+      // now from the public_token captured during the persist step above, so it
+      // needs NO await here. Origin-relative so a preview deploy links to itself.
+      const payUrl =
+        rd.kind === 'invoice' && publicToken
+          ? `${window.location.origin}/pay/${publicToken}`
+          : undefined;
+
+      // ── 3. SHARE FIRST (invoice send): call share() with the link BEFORE the
+      // slow PDF build, while the tap's user activation is still fresh. The PDF
+      // render (html2canvas + font loading) takes seconds on a phone and outlasts
+      // the transient-activation window, so sharing AFTER it throws
+      // NotAllowedError and silently degrades to a download — the whole bug. The
+      // pay page shows the full invoice, so the link alone is a complete send; the
+      // PDF is still built below for the Vault (and as the share payload for a
+      // quote, or a platform without link-share support).
+      let outcome: 'shared' | 'downloaded' | 'cancelled' | null = null;
+      if (
+        mode === 'send' && payUrl &&
+        typeof navigator !== 'undefined' && navigator.canShare?.({ url: payUrl })
+      ) {
+        try {
+          await navigator.share({
+            title: docNoun(rd.kind),
+            text: `${docNoun(rd.kind)} for ${rd.clientName}`,
+            url: payUrl,
+          });
+          outcome = 'shared';
+        } catch (err) {
+          // Dismissed the sheet → a normal choice, not a send. Leave the draft
+          // (stashed id survives) and keep the card so a retry reuses it.
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
+            return;
+          }
+          // Any other error → fall back to the file-based share after the PDF
+          // builds (outcome stays null).
+        }
+      }
+
+      // The link send succeeded → mark it SENT now, BEFORE the PDF build, so the
+      // client's link resolves (the pay page requires status <> 'draft') even if
+      // the render below fails. renderSnapshot pins identity as-sent; Zelle is not
+      // snapshotted (see renderSnapshot).
+      if (outcome === 'shared') {
+        await supabase.from('invoices')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
+          .eq('id', invoiceId);
+        finalizeSentRef.current = true;
+        persistProgress();
+      }
+
+      // Zelle is encrypted at rest — the server route is the only reader.
       try {
         const z = await (await fetch('/api/zelle?full=1')).json();
         if (z?.value) rd.zelle = z.value;
       } catch { /* invoice simply prints without Zelle */ }
 
-      // ── 3. Render offscreen → PDF.
-      setRenderData(rd);
-      await new Promise((r) => setTimeout(r, 350)); // let the template paint
-      if (!printRef.current) throw new Error('render failed');
-      const file = await elementToPdf(
-        printRef.current,
-        invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
-      );
+      // ── 4. Render offscreen → PDF (for the Vault archive, the download exit,
+      // and the fallback share). If the link was already shared, a render failure
+      // only costs the Vault copy — the send is complete — so swallow it and
+      // finish. Otherwise the PDF IS the deliverable, so let it fail the turn.
+      let file: File | null = null;
+      try {
+        setRenderData(rd);
+        await new Promise((r) => setTimeout(r, 350)); // let the template paint
+        if (!printRef.current) throw new Error('render failed');
+        file = await elementToPdf(
+          printRef.current,
+          invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
+        );
+      } catch (pdfErr) {
+        if (outcome !== 'shared') throw pdfErr;
+        console.error('vault PDF render failed (invoice already sent via link)', pdfErr);
+      }
 
       // Download-only exit (Commit 3): hand over the PDF without sending. The
       // draft row was created above and stashed in pendingInvoiceRef, so it shows
       // in the invoices list as a draft and a later "send" reuses the SAME row and
       // number (no duplicate). Deliberately NOT marked sent and NOT archived to the
       // Vault — the archive/snapshot only happen on a real send. The card stays so
-      // the user can still send.
+      // the user can still send. (mode==='download' never link-shares above.)
       if (mode === 'download') {
-        downloadFile(file);
+        if (file) downloadFile(file);
         setRenderData(null);
         setMessages((m) => [...m, aMsg('Downloaded — it’s saved as a draft. Tap send whenever you’re ready.')]);
         return;
       }
 
-      // ── 4. Share — only now is anything actually sent.
-      // Build the pay link SYNCHRONOUSLY from the token captured during the
-      // insert/update above — there must be NO await between the user's tap and
-      // navigator.share, or the browser drops the transient user activation and
-      // share() throws NotAllowedError (a stray fetch here was the regression).
-      // Origin-relative so a preview deploy links to itself; invoices only — a
-      // quote isn't payable. The send marks it 'sent' just below, before the
-      // client opens it.
-      const payUrl =
-        rd.kind === 'invoice' && publicToken
-          ? `${window.location.origin}/pay/${publicToken}`
-          : undefined;
-      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
-
-      // B1: cancelling the share sheet is a normal choice, not an error. The
-      // row stays a draft; the stashed id + draft survive so a retry reuses
-      // the SAME invoice. No alarming message.
-      if (outcome === 'cancelled') {
-        setRenderData(null);
-        setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
-        return;
+      // ── 5. Fallback share: a quote (no link), or a platform where the link
+      // share wasn't available / failed. Shares the PDF file (with the link
+      // attached when there is one) or downloads it. Skipped when the link send
+      // above already succeeded.
+      if (outcome === null) {
+        if (!file) throw new Error('render failed');
+        outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
+        // B1: cancelling the share sheet is a normal choice, not an error. The
+        // row stays a draft; the stashed id + draft survive so a retry reuses
+        // the SAME invoice. No alarming message.
+        if (outcome === 'cancelled') {
+          setRenderData(null);
+          setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
+          return;
+        }
+        // Shared/downloaded for real → mark it sent (the link path marked it
+        // above). renderSnapshot pins identity as-sent.
+        await supabase.from('invoices')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
+          .eq('id', invoiceId);
+        finalizeSentRef.current = true;
+        persistProgress();
       }
 
-      // ── 5. Shared/downloaded for real → NOW mark it sent, then archive.
-      // Capture the render snapshot from the profile AS SENT (template, theme,
-      // identity, handles) so later Settings changes don't rewrite this invoice.
-      // This is the first (and only) send of a freshly-created invoice — the
-      // finalizeSentRef guard above prevents a resumed re-finalize. Zelle is not
-      // snapshotted (see renderSnapshot).
-      await supabase.from('invoices')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
-        .eq('id', invoiceId);
-      // Record the sent step BEFORE the archive (which can hang): a suspend now
-      // must resume into the idempotent finish above, never a re-share.
-      finalizeSentRef.current = true;
-      persistProgress();
+      // ── 6. Archive in the Vault (best-effort — a storage hiccup, or a failed
+      // render on the link path, must not undo the send we just confirmed).
+      if (file) {
+        try {
+          const path = `${profile.id}/${file.name}`;
+          await supabase.storage.from('vault').upload(path, file, { upsert: true });
+          await supabase.from('vault_documents').insert({
+            user_id: profile.id,
+            title: file.name,
+            doc_type: rd.kind,
+            storage_path: path,
+            invoice_id: invoiceId,
+          });
+        } catch (archiveErr) { console.error('vault archive failed', archiveErr); }
+      }
 
-      // Archive in the Vault (best-effort — a storage hiccup must not undo the
-      // send we just confirmed).
-      try {
-        const path = `${profile.id}/${file.name}`;
-        await supabase.storage.from('vault').upload(path, file, { upsert: true });
-        await supabase.from('vault_documents').insert({
-          user_id: profile.id,
-          title: file.name,
-          doc_type: rd.kind,
-          storage_path: path,
-          invoice_id: invoiceId,
-        });
-      } catch (archiveErr) { console.error('vault archive failed', archiveErr); }
-
-      const done = outcome === 'shared'
-        ? `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`
-        : `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`;
+      const done = outcome === 'downloaded'
+        ? `Downloaded! Send it to ${rd.clientName} however you like. I'll keep an eye on it.`
+        : `Sent! I'll nudge you if ${rd.clientName} hasn't paid in 2 days.`;
       // Append the done message, archive to history, and reset to a clean slate
       // (also clears pendingInvoice + finalizeSent so nothing replays). On a
       // retry the done message replaces the failed bubble instead of appending.
