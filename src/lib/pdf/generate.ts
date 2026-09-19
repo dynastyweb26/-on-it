@@ -420,26 +420,46 @@ export function downloadFile(file: File): void {
 
 /** Native share sheet — the locked send mechanism (no Twilio).
  *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
- *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
- *  share error falls through to a download so the user still gets their file.
+ *  failure and NOT a send — the caller leaves the invoice unsent. Only when NO
+ *  attempt can open a sheet does it fall through to a download so the user still
+ *  gets their file.
  *
- *  `url` (optional) is the public pay link (/pay/<token>). When present it rides
- *  the Web Share payload alongside the PDF file, so the client can both keep the
- *  document and tap through to pay. It is dropped on the download fallback (a
- *  saved file can't carry a link) — the caller still shows/copies it separately. */
+ *  `url` (optional) is the public pay link (/pay/<token>). Some platforms refuse
+ *  a payload with BOTH files and a url (Brave on iOS, notably) — and the old code
+ *  only asked canShare about the file, so it entered the try, share() threw on the
+ *  files+url combo, and every send silently degraded to a download. So we build an
+ *  ordered list of payloads (PDF+link → link-only → PDF-only) and only attempt one
+ *  navigator.canShare actually approves for that EXACT payload. The link matters
+ *  more than the attachment for an invoice (the pay page shows the full document),
+ *  so link-only is preferred over downloading when the combo is refused. */
 export async function shareInvoice(file: File, clientName: string, noun = 'Invoice', url?: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
-  if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
+  const text = `${noun} for ${clientName}`;
+  const canShare = (data: ShareData) =>
+    typeof navigator !== 'undefined' && !!navigator.canShare?.(data);
+
+  // Best payload first. With a pay link: try PDF+link, then fall back to the link
+  // alone (never a silent download while a link can still be shared). Without one
+  // (e.g. a quote): PDF only, unchanged from before.
+  const attempts: ShareData[] = url
+    ? [
+        { files: [file], title: file.name, text, url },
+        { title: file.name, text, url },
+      ]
+    : [{ files: [file], title: file.name, text }];
+
+  for (const data of attempts) {
+    if (!canShare(data)) continue; // platform won't take this exact payload
     try {
-      const shareData: ShareData = { files: [file], title: file.name, text: `${noun} for ${clientName}` };
-      if (url) shareData.url = url;
-      await navigator.share(shareData);
+      await navigator.share(data);
       return 'shared';
     } catch (err) {
-      // User dismissed the sheet → cancel (don't download, don't mark sent).
+      // User dismissed the sheet → a real cancel: don't retry, don't download.
       if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
-      /* any other share error — fall through to download */
+      // Any other error (e.g. canShare lied about the combo) → try the next,
+      // simpler payload, then the download below.
     }
   }
+
   downloadFile(file);
   return 'downloaded';
 }
