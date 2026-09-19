@@ -420,19 +420,74 @@ export function downloadFile(file: File): void {
 
 /** Native share sheet — the locked send mechanism (no Twilio).
  *  'cancelled' means the user dismissed the share sheet: a normal choice, not a
- *  failure and NOT a send — the caller leaves the invoice unsent. Any OTHER
- *  share error falls through to a download so the user still gets their file. */
-export async function shareInvoice(file: File, clientName: string, noun = 'Invoice'): Promise<'shared' | 'downloaded' | 'cancelled'> {
-  if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
+ *  failure and NOT a send — the caller leaves the invoice unsent. Only when NO
+ *  attempt can open a sheet does it fall through to a download so the user still
+ *  gets their file.
+ *
+ *  `url` (optional) is the public pay link (/pay/<token>). Some platforms refuse
+ *  a payload with BOTH files and a url (Brave on iOS, notably) — and the old code
+ *  only asked canShare about the file, so it entered the try, share() threw on the
+ *  files+url combo, and every send silently degraded to a download. So we build an
+ *  ordered list of payloads (PDF+link → link-only → PDF-only) and only attempt one
+ *  navigator.canShare actually approves for that EXACT payload. The link matters
+ *  more than the attachment for an invoice (the pay page shows the full document),
+ *  so link-only is preferred over downloading when the combo is refused. */
+export async function shareInvoice(
+  file: File,
+  clientName: string,
+  noun = 'Invoice',
+  url?: string,
+  // TEMPORARY DIAGNOSTIC: called with a human-readable note for each attempt so
+  // the caller can surface WHY a share failed (we can't read a phone console).
+  // Remove once the phone share issue is pinned down.
+  onDiag?: (info: string) => void,
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const text = `${noun} for ${clientName}`;
+  const canShare = (data: ShareData) =>
+    typeof navigator !== 'undefined' && !!navigator.canShare?.(data);
+
+  // Best payload first. With a pay link: try PDF+link, then fall back to the link
+  // alone (never a silent download while a link can still be shared). Without one
+  // (e.g. a quote): PDF only, unchanged from before.
+  const attempts: { label: string; data: ShareData }[] = url
+    ? [
+        { label: 'files+url', data: { files: [file], title: file.name, text, url } },
+        { label: 'url-only', data: { title: file.name, text, url } },
+      ]
+    : [{ label: 'files-only', data: { files: [file], title: file.name, text } }];
+
+  const logDiag = (msg: string) => {
+    const formatted = msg.startsWith('DIAG:') ? msg : `DIAG: ${msg}`;
     try {
-      await navigator.share({ files: [file], title: file.name, text: `${noun} for ${clientName}` });
+      console.log(formatted);
+      if (typeof document !== 'undefined') document.title = formatted;
+    } catch { /* ignore */ }
+    onDiag?.(msg);
+  };
+
+  for (const { label, data } of attempts) {
+    if (!canShare(data)) {
+      logDiag(`${label}: canShare=false`);
+      continue; // platform won't take this exact payload
+    }
+    try {
+      await navigator.share(data);
       return 'shared';
     } catch (err) {
-      // User dismissed the sheet → cancel (don't download, don't mark sent).
-      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
-      /* any other share error — fall through to download */
+      // User dismissed the sheet → a real cancel: don't retry, don't download.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        logDiag(`${label}: cancelled (AbortError)`);
+        return 'cancelled';
+      }
+      // Any other error (e.g. activation expired, or canShare lied about the
+      // combo) → record it, then try the next, simpler payload / the download.
+      const name = err instanceof Error ? err.name : 'Error';
+      const message = err instanceof Error ? err.message : String(err);
+      logDiag(`${label}: threw ${name}: ${message}`);
     }
   }
+
+  logDiag('all attempts failed → download');
   downloadFile(file);
   return 'downloaded';
 }

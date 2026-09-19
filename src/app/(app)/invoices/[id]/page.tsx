@@ -61,6 +61,7 @@ export default function InvoiceDetail() {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
   const [undoDelete, setUndoDelete] = useState(false);
 
@@ -274,7 +275,15 @@ export default function InvoiceDetail() {
       // A balance request re-sends the SAME invoice through the SAME path — no new
       // token, no second invoice — with copy that leads with the balance due.
       const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
-      const outcome = await shareInvoice(file, inv.client_name, leadText);
+      // Attach the public pay link (invoices only — quotes aren't payable). inv
+      // carries public_token (select '*'); resend flips a draft to 'sent' just
+      // below, so the link resolves by the time the client opens it. Origin-
+      // relative so a preview deploy links to itself.
+      const payUrl =
+        inv.kind === 'invoice' && inv.public_token
+          ? `${window.location.origin}/pay/${inv.public_token}`
+          : undefined;
+      const outcome = await shareInvoice(file, inv.client_name, leadText, payUrl);
       // Always bump sent_at. Only a genuine first send (draft → sent) flips the
       // status and captures the render snapshot from the current profile. A resend
       // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
@@ -312,6 +321,20 @@ export default function InvoiceDetail() {
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Copy the public pay link to the clipboard. Origin-relative so it matches the
+  // deployment the business is on (preview or prod). Only offered for a non-draft
+  // invoice (a draft's /pay page wouldn't resolve).
+  async function copyPayLink() {
+    if (!inv?.public_token) return;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/pay/${inv.public_token}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — no-op; the PDF share still carries the link */
     }
   }
 
@@ -490,6 +513,11 @@ export default function InvoiceDetail() {
           <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
             <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
           </button>
+          {inv.kind === 'invoice' && !isDraft && inv.public_token && (
+            <button className="chip flex items-center gap-1.5" onClick={copyPayLink}>
+              <Icon name={linkCopied ? 'check' : 'link'} size={18} /> {linkCopied ? 'Copied' : 'Copy pay link'}
+            </button>
+          )}
           {amountPaid > 0 && totals.balanceRemaining > 0 && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
               <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}

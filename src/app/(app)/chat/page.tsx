@@ -434,6 +434,20 @@ export default function Chat() {
   // updatedAt of the payload we last wrote/applied, so a visibilitychange
   // restore is a no-op when nothing actually changed while we were hidden.
   const appliedUpdatedAtRef = useRef<number>(0);
+
+  // Diagnostic logging helper for on-screen, console, and document title output
+  function emitDiag(text: string) {
+    const formatted = text.startsWith('DIAG:') ? text : `DIAG: ${text}`;
+    try {
+      console.log(formatted);
+      if (typeof document !== 'undefined') {
+        document.title = formatted;
+      }
+    } catch { /* ignore DOM/console errors */ }
+    try {
+      setMessages((m) => [...m, aMsg(formatted)]);
+    } catch { /* ignore state update errors so output is never swallowed */ }
+  }
   // Current turn's trace id (one per user message), held in a ref so finalize()
   // and finishFinalize() log under the same id as the send() that started the
   // turn. See src/lib/trace.ts — silent unless NEXT_PUBLIC_TRACE === 'true'.
@@ -1116,7 +1130,11 @@ export default function Chat() {
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send') {
-    if (!internal && phase) return;
+    emitDiag(`finalize enter: mode=${mode}, awaitingConfirm=${awaitingConfirm}, internal=${internal}, phase=${phase}`);
+    if (!internal && phase) {
+      emitDiag('finalize early exit: !internal && phase');
+      return;
+    }
     // A direct card tap (not delegated from a send()) is its own user action:
     // mint a fresh turn id so this finalize and finishFinalize trace under their
     // own id instead of inheriting the previous send()'s turn. An internal call
@@ -1124,7 +1142,10 @@ export default function Chat() {
     if (!internal) turnIdRef.current = newTurnId();
     setPhase('building');
     try {
-    if (!draft) return;
+    if (!draft) {
+      emitDiag('finalize exit: !draft');
+      return;
+    }
 
     // ── Confirmation gate ─────────────────────────────────────
     // Never build straight through. The first attempt summarizes what we have,
@@ -1135,6 +1156,7 @@ export default function Chat() {
     // send-confirmation gate. It still creates the draft + renders below, then
     // downloads without sharing/marking-sent (see the mode branch after render).
     if (mode === 'send' && !awaitingConfirm) {
+      emitDiag('finalize exit: confirm gate (awaitingConfirm was false)');
       setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
       return;
@@ -1147,9 +1169,11 @@ export default function Chat() {
     //    nudge (mirrors the parse route's 401 copy), THEN route to login.
     if (!profile) {
       if (!profileLoaded) {
+        emitDiag('finalize exit: !profile (profileLoaded=false)');
         setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
       }
+      emitDiag('finalize exit: !profile (guest login redirect)');
       setMessages((m) => [...m, aMsg("Let's save your work — sign in to send this invoice.")]);
       setPhase('redirecting'); // leave set: keep the card disabled through the redirect
       setTimeout(() => router.push('/login'), 1600);
@@ -1168,6 +1192,7 @@ export default function Chat() {
       try {
         const gate = await (await fetch('/api/access')).json();
         if (gate && gate.hasAccess === false) {
+          emitDiag('finalize exit: paywall gate (hasAccess=false)');
           setShowPaywall(true);
           return;
         }
@@ -1184,6 +1209,11 @@ export default function Chat() {
       //    the change guard. buildRenderData(no) reuses the stashed number.
       let invoiceId = pendingInvoiceRef.current?.id ?? null;
       let no = pendingInvoiceRef.current?.no ?? null;
+      // The row's public pay token, captured from whichever persistence await runs
+      // below (insert / 23505-recovery / update) — NEVER a fresh fetch right before
+      // the share, which would sit between the user's tap and navigator.share and
+      // drop the transient user activation (share() then throws NotAllowedError).
+      let publicToken: string | null = null;
 
       // buildRenderData needs a number to shape the payload; on the first insert
       // the real number is trigger-assigned and read back, so a 0 placeholder is
@@ -1260,7 +1290,7 @@ export default function Chat() {
           // instead of burning a second number — we read the existing row back
           // below. This is the durable guarantee a client-only guard can't give.
           finalize_key: convoId || null,
-        }).select('id, invoice_number').single();
+        }).select('id, invoice_number, public_token').single();
 
         // Point 3: the Supabase insert result — row id, or the error code.
         traceTurn(turnIdRef.current, 'finalize', {
@@ -1276,6 +1306,7 @@ export default function Chat() {
           // boundary and fires even if the gate failed open or was bypassed —
           // surface the paywall, never a generic error.
           if (insErr?.hint === 'PAYWALL_LIMIT') {
+            emitDiag('finalize exit: insert PAYWALL_LIMIT');
             setShowPaywall(true);
             return; // draft + ready untouched — upgrade, then tap send again
           }
@@ -1292,11 +1323,12 @@ export default function Chat() {
             // duplicate invoice number for the same finalize.
             const { data: existing } = await supabase
               .from('invoices')
-              .select('id, invoice_number, status, amount_paid')
+              .select('id, invoice_number, status, amount_paid, public_token')
               .eq('user_id', profile.id)
               .eq('finalize_key', convoId)
               .maybeSingle();
             if (!existing?.id) {
+              emitDiag('finalize exit: 23505 conflict but no matching row');
               console.error('invoice insert conflict but no matching row', insErr);
               if (!retryId) setMessages((m) => [...m, aMsg(
                 navigator.onLine
@@ -1308,11 +1340,13 @@ export default function Chat() {
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
+            publicToken = (existing.public_token as string) ?? null;
             // Persist the current draft onto the recovered row so a reload between
             // an edit and the save doesn't drop that edit — but only while it's a
             // draft (Commit B). If it was sent/paid elsewhere, lock instead of
             // overwriting.
             if (isLockedStatus((existing.status as string) ?? null)) {
+              emitDiag('finalize exit: 23505 row is locked');
               setLinkedStatus((existing.status as string) ?? null);
               setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
               setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
@@ -1320,6 +1354,7 @@ export default function Chat() {
             }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
+            emitDiag(`finalize exit: insert failed (${insErr.code ?? insErr.message})`);
             console.error('invoice insert failed', insErr);
             if (!retryId) setMessages((m) => [...m, aMsg(
               navigator.onLine
@@ -1332,6 +1367,7 @@ export default function Chat() {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
+          publicToken = (saved.public_token as string) ?? null;
         }
         invoiceId = newId;
         no = newNo;
@@ -1357,15 +1393,17 @@ export default function Chat() {
         // read-only UI is the courtesy layer in front of it.
         const { data: live } = await supabase
           .from('invoices')
-          .select('status, amount_paid')
+          .select('status, amount_paid, public_token')
           .eq('id', invoiceId)
           .maybeSingle();
         if (live && isLockedStatus((live.status as string) ?? null)) {
+          emitDiag('finalize exit: update target row is locked');
           setLinkedStatus((live.status as string) ?? null);
           setLinkedAmountPaid(Number(live.amount_paid ?? 0));
           setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
           return; // outer finally clears phase; the locked card stays put
         }
+        publicToken = (live?.public_token as string) ?? null;
         const { error: updErr } = await supabase.from('invoices')
           .update(draftCols)
           .eq('id', invoiceId);
@@ -1374,6 +1412,7 @@ export default function Chat() {
           error: updErr ? (updErr.code ?? updErr.message ?? String(updErr)) : null,
         });
         if (updErr) {
+          emitDiag(`finalize exit: update failed (${updErr.code ?? updErr.message})`);
           console.error('invoice update failed', updErr);
           if (!retryId) setMessages((m) => [...m, aMsg(
             navigator.onLine
@@ -1393,6 +1432,7 @@ export default function Chat() {
       // (finalizeSent persisted across the suspend). The share already happened —
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
+        emitDiag('finalize exit: finalizeSentRef is true (idempotent resume)');
         const kind = docKind(draft);
         finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
         return;
@@ -1400,7 +1440,10 @@ export default function Chat() {
 
       // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
-      if (!rd) throw new Error('incomplete');
+      if (!rd) {
+        emitDiag('finalize throw: buildRenderData returned null');
+        throw new Error('incomplete');
+      }
 
       // Zelle is encrypted at rest — the server route is the only reader
       try {
@@ -1411,11 +1454,18 @@ export default function Chat() {
       // ── 3. Render offscreen → PDF.
       setRenderData(rd);
       await new Promise((r) => setTimeout(r, 350)); // let the template paint
-      if (!printRef.current) throw new Error('render failed');
+      if (!printRef.current) {
+        emitDiag('finalize throw: printRef.current is null');
+        throw new Error('render failed');
+      }
+      // TEMP DIAG: time the PDF build — the suspected cause of the phone share
+      // fallback is this step outlasting the transient-activation window.
+      const tPdf0 = performance.now();
       const file = await elementToPdf(
         printRef.current,
         invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
       );
+      const pdfMs = Math.round(performance.now() - tPdf0);
 
       // Download-only exit (Commit 3): hand over the PDF without sending. The
       // draft row was created above and stashed in pendingInvoiceRef, so it shows
@@ -1424,6 +1474,7 @@ export default function Chat() {
       // Vault — the archive/snapshot only happen on a real send. The card stays so
       // the user can still send.
       if (mode === 'download') {
+        emitDiag('finalize exit: mode === download');
         downloadFile(file);
         setRenderData(null);
         setMessages((m) => [...m, aMsg('Downloaded — it’s saved as a draft. Tap send whenever you’re ready.')]);
@@ -1431,7 +1482,34 @@ export default function Chat() {
       }
 
       // ── 4. Share — only now is anything actually sent.
-      const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind));
+      // Build the pay link SYNCHRONOUSLY from the token captured during the
+      // insert/update above — there must be NO await between the user's tap and
+      // navigator.share, or the browser drops the transient user activation and
+      // share() throws NotAllowedError (a stray fetch here was the regression).
+      // Origin-relative so a preview deploy links to itself; invoices only — a
+      // quote isn't payable. The send marks it 'sent' just below, before the
+      // client opens it.
+      const payUrl =
+        rd.kind === 'invoice' && publicToken
+          ? `${window.location.origin}/pay/${publicToken}`
+          : undefined;
+
+      // TEMP DIAG: capture activation state right before share() and each
+      // attempt's result, then surface it in-chat (we can't read a phone
+      // console). navigator.userActivation is Chromium-only; undefined on iOS
+      // WebKit is itself a data point. Remove this block once the cause is fixed.
+      const ua = (navigator as unknown as { userActivation?: { isActive?: boolean; hasBeenActive?: boolean } }).userActivation;
+      const diags: string[] = [
+        `pdf=${pdfMs}ms`,
+        `activation.isActive=${ua ? String(ua.isActive) : 'n/a'}`,
+        `hasBeenActive=${ua ? String(ua.hasBeenActive) : 'n/a'}`,
+      ];
+      emitDiag('finalize: calling shareInvoice() now');
+      const outcome = await shareInvoice(
+        file, rd.clientName, docNoun(rd.kind), payUrl,
+        (info) => diags.push(info),
+      );
+      emitDiag(`SHARE DIAG — ${outcome} · ${diags.join(' · ')}`);
 
       // B1: cancelling the share sheet is a normal choice, not an error. The
       // row stays a draft; the stashed id + draft survive so a retry reuses
@@ -1482,6 +1560,8 @@ export default function Chat() {
       // invoice goes out. One-time; skipped if already subscribed.
       if (rd.kind === 'invoice') void maybeOfferReminders();
     } catch (e) {
+      const errMessage = e instanceof Error ? e.message : String(e);
+      emitDiag(`finalize outer catch: ${errMessage}`);
       console.error(e);
       // A row may already exist as a draft (stashed) — the retry reuses it, so
       // the draft is genuinely safe and no duplicate is created. A repeat
