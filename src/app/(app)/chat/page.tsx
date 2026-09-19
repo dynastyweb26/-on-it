@@ -416,6 +416,15 @@ export default function Chat() {
   // and restored on mount, so a send that resumes after a suspend/reload reuses
   // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
+  // Pre-built invoice PDF for the synchronous file-share on press 2 (Option B).
+  // Built in the background on press 1 (and rebuilt on card edits) so the send
+  // tap can call navigator.share({ files:[file] }) with NOTHING awaited between
+  // the tap and share() — the fix for the user-activation failures. `signature`
+  // ties the file to the exact draft it was built from; a mismatch (or no file)
+  // makes press 2 fall back to the link share, never a download.
+  const preBuiltRef = useRef<{ file: File; signature: string; token: string; id: string; no: number } | null>(null);
+  const preBuildIdRef = useRef(0);            // latest-wins guard across overlapping builds
+  const preBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // edit debounce
   // The AI's original line-item descriptions from the latest parse, captured
   // BEFORE any inline edit. On send we record original_description on a line
   // only when the shipped text differs (passive training data; an unedited line
@@ -656,6 +665,8 @@ export default function Chat() {
       setDraftHistory([]);
       setReady(false);
       setAwaitingConfirm(false);
+      preBuiltRef.current = null;
+      preBuildIdRef.current++; // invalidate any in-flight prepare's stash
       setPrefilled({ address: false, phone: false });
       setPendingChange(null);
       setLinkedStatus(null);
@@ -1102,6 +1113,8 @@ export default function Chat() {
     // Revise — the fix for the post-send near-duplicate. finalizeSent is cleared
     // (the send is done; the lock, not this flag, guards against re-finalize).
     finalizeSentRef.current = false;
+    preBuiltRef.current = null;     // the send is done; drop the pre-built file
+    preBuildIdRef.current++;        // invalidate any in-flight prepare's stash
     setDraftHistory([]);            // no undo on a sent card
     setReady(true);                 // show the (locked) card
     setAwaitingConfirm(false);
@@ -1122,14 +1135,58 @@ export default function Chat() {
   // already claimed the turn (phase set), so we skip the direct-entry guard to
   // avoid self-blocking. A direct card tap passes nothing → guard applies. Phase
   // is cleared in the one outer finally (unless a redirect path left it set).
-  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' = 'send') {
+  // A stable fingerprint of everything the invoice PDF renders from, so a
+  // pre-built file can be matched to the current on-screen draft. If they differ
+  // at send time the file is stale and press 2 falls back to the link share.
+  const draftSignature = (d: NonNullable<typeof draft>): string => {
+    const r = d as Record<string, unknown>;
+    return JSON.stringify({
+      kind: docKind(d),
+      no: pendingInvoiceRef.current?.no ?? null,
+      client: [r.client_name ?? null, r.client_address ?? null, r.client_phone ?? null],
+      items: r.line_items ?? null,
+      tax: r.tax_rate ?? null,
+      depType: r.deposit_type ?? null,
+      depVal: r.deposit_value ?? null,
+      notes: r.notes ?? null,
+      due: r.due_date ?? null,
+    });
+  };
+
+  // Keep the pre-built PDF in sync with card-control edits (deposit/notes) made
+  // while awaiting the confirm press. Chat-message edits reset awaitingConfirm and
+  // re-run the confirm gate (which re-prepares), so this only covers edits that
+  // don't reset it. Debounced; the build is latest-wins guarded, and it defers
+  // while another build/turn holds `phase`.
+  useEffect(() => {
+    if (!awaitingConfirm || !ready || !draft || docKind(draft) !== 'invoice') return;
+    if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
+    if (preBuiltRef.current && preBuiltRef.current.signature === draftSignature(draft)) return;
+    if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current);
+    preBuildTimerRef.current = setTimeout(() => {
+      if (phase !== null) return; // a build/turn is in flight; a later edit re-fires
+      void finalize(true, undefined, 'prepare');
+    }, 400);
+    return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, awaitingConfirm, ready, linkedStatus, phase]);
+
+  // mode 'prepare' (Option B): a background pre-build kicked off on press 1 —
+  // it runs the SAME persist + PDF build as a send but, instead of sharing,
+  // stashes the File in preBuiltRef for press 2 to attach synchronously. It never
+  // shares, marks sent, or shows an error toast (failures fall back silently).
+  async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (!internal && phase) return;
+    // A background prepare must never run against an already-sent/locked convo.
+    if (mode === 'prepare' && (finalizeSentRef.current || isLockedStatus(linkedStatus))) return;
     // A direct card tap (not delegated from a send()) is its own user action:
     // mint a fresh turn id so this finalize and finishFinalize trace under their
     // own id instead of inheriting the previous send()'s turn. An internal call
     // already carries the id from the send() that delegated here.
     if (!internal) turnIdRef.current = newTurnId();
     setPhase('building');
+    // Latest-wins id for this build; a newer prepare supersedes an older one's stash.
+    const buildId = mode === 'prepare' ? ++preBuildIdRef.current : 0;
     try {
     if (!draft) return;
 
@@ -1144,7 +1201,65 @@ export default function Chat() {
     if (mode === 'send' && !awaitingConfirm) {
       setMessages((m) => [...m, aMsg(confirmSummary())]);
       setAwaitingConfirm(true);
+      // Press 1 of the confirm: kick off the background PRE-BUILD (persist draft →
+      // token → PDF with the pay link → stash the File) AFTER this call fully
+      // returns, so its phase lifecycle doesn't collide with ours. Press 2 then
+      // attaches the file with a synchronous share. Fire-and-forget.
+      setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 0);
       return;
+    }
+
+    // ── Press 2 fast path: attach the PRE-BUILT PDF via a SYNCHRONOUS share.
+    // There must be NOTHING awaited between the tap and navigator.share() — the
+    // pre-build already did all the slow work, so the tap's user activation is
+    // still valid. A stale/absent file (signature mismatch, unfinished build) or
+    // a non-abort share error falls through to the link-share path below — never
+    // a download.
+    if (
+      mode === 'send' && profile && preBuiltRef.current &&
+      preBuiltRef.current.signature === draftSignature(draft) &&
+      typeof navigator !== 'undefined' && navigator.canShare?.({ files: [preBuiltRef.current.file] })
+    ) {
+      const pb = preBuiltRef.current;
+      let shared = false;
+      try {
+        await navigator.share({
+          files: [pb.file],
+          title: pb.file.name,
+          text: `${docNoun(docKind(draft))} for ${draft.client_name ?? 'your client'}`,
+        });
+        shared = true;
+      } catch (err) {
+        // Dismissed → a normal choice, not a send. Leave the draft; keep the card.
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
+          return;
+        }
+        // Non-abort error → drop the stale file and fall through to link share.
+        preBuiltRef.current = null;
+      }
+      if (shared) {
+        // The row was already persisted (and matches, per the signature) during
+        // prepare, so just mark it sent and archive the pre-built file. These
+        // awaits are AFTER share — activation no longer matters.
+        await supabase.from('invoices')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
+          .eq('id', pb.id);
+        finalizeSentRef.current = true;
+        persistProgress();
+        try {
+          const path = `${profile.id}/${pb.file.name}`;
+          await supabase.storage.from('vault').upload(path, pb.file, { upsert: true });
+          await supabase.from('vault_documents').insert({
+            user_id: profile.id, title: pb.file.name, doc_type: docKind(draft),
+            storage_path: path, invoice_id: pb.id,
+          });
+        } catch (archiveErr) { console.error('vault archive failed', archiveErr); }
+        preBuiltRef.current = null;
+        finishFinalize(aMsg(`Sent! I'll nudge you if ${draft.client_name ?? 'your client'} hasn't paid in 2 days.`), retryId);
+        if (docKind(draft) === 'invoice') void maybeOfferReminders();
+        return;
+      }
     }
 
     // A3 / B2: no profile in hand — decide WHY before doing anything.
@@ -1310,7 +1425,7 @@ export default function Chat() {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              if (!retryId) setMessages((m) => [...m, aMsg(
+              if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
                 navigator.onLine
                   ? "Couldn't save that invoice just now. Your draft is safe."
                   : "You're offline — the invoice didn't send. Your draft is safe.",
@@ -1328,13 +1443,13 @@ export default function Chat() {
             if (isLockedStatus((existing.status as string) ?? null)) {
               setLinkedStatus((existing.status as string) ?? null);
               setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
-              setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
+              if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
               return;
             }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
             console.error('invoice insert failed', insErr);
-            if (!retryId) setMessages((m) => [...m, aMsg(
+            if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
               navigator.onLine
                 ? "Couldn't save that invoice just now. Your draft is safe."
                 : "You're offline — the invoice didn't send. Your draft is safe.",
@@ -1377,7 +1492,7 @@ export default function Chat() {
         if (live && isLockedStatus((live.status as string) ?? null)) {
           setLinkedStatus((live.status as string) ?? null);
           setLinkedAmountPaid(Number(live.amount_paid ?? 0));
-          setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
+          if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
           return; // outer finally clears phase; the locked card stays put
         }
         publicToken = (live?.public_token as string) ?? null;
@@ -1390,7 +1505,7 @@ export default function Chat() {
         });
         if (updErr) {
           console.error('invoice update failed', updErr);
-          if (!retryId) setMessages((m) => [...m, aMsg(
+          if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
             navigator.onLine
               ? "Couldn't save your changes just now. Your draft is safe."
               : "You're offline — your changes didn't save. Your draft is safe.",
@@ -1430,7 +1545,7 @@ export default function Chat() {
       // marks the invoice sent so its pay page resolves. A Download stays a draft
       // (no usable pay page), so leave rd.payUrl unset there and the block stays
       // link-free until the draft is later sent.
-      if (mode === 'send') rd.payUrl = payUrl ?? null;
+      if (mode !== 'download') rd.payUrl = payUrl ?? null;
 
       // ── 3. SHARE FIRST (invoice send): call share() with the link BEFORE the
       // slow PDF build, while the tap's user activation is still fresh. The PDF
@@ -1496,8 +1611,22 @@ export default function Chat() {
           invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
         );
       } catch (pdfErr) {
-        if (outcome !== 'shared') throw pdfErr;
-        console.error('vault PDF render failed (invoice already sent via link)', pdfErr);
+        // A prepare render failure is silent (no file → press 2 falls back to the
+        // link share). A send render failure after a successful link share only
+        // costs the Vault copy. Otherwise the PDF is the deliverable → fail.
+        if (outcome !== 'shared' && mode !== 'prepare') throw pdfErr;
+        console.error('PDF render failed', pdfErr);
+      }
+
+      // PREPARE mode: stash the freshly built file for press 2's synchronous
+      // share, then stop — no share, no mark-sent, no archive. Latest-wins: skip
+      // the stash if a newer prepare has already superseded this build.
+      if (mode === 'prepare') {
+        if (file && buildId === preBuildIdRef.current) {
+          preBuiltRef.current = { file, signature: draftSignature(draft), token: publicToken ?? '', id: invoiceId, no };
+        }
+        setRenderData(null);
+        return;
       }
 
       // Download-only exit (Commit 3): hand over the PDF without sending. The
@@ -1569,7 +1698,8 @@ export default function Chat() {
       // A row may already exist as a draft (stashed) — the retry reuses it, so
       // the draft is genuinely safe and no duplicate is created. A repeat
       // failure of a retry leaves the existing failed bubble and its button.
-      if (!retryId) setMessages((m) => [...m, aMsg(
+      // A background prepare fails silently (press 2 falls back to link share).
+      if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
         navigator.onLine
           ? "Couldn't finish that one. Your draft is safe."
           : "You're offline — the invoice didn't send. Your draft is safe.",
