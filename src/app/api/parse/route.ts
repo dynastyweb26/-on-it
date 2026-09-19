@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       content:
         m.role === 'user'
           ? `<user_input>${sanitizeForAI(m.content)}</user_input>`
-          : m.content.slice(0, 1000),
+          : sanitizeForAI(m.content).slice(0, 1000),
     }));
 
   try {
