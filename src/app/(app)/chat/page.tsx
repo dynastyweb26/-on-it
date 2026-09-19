@@ -1184,6 +1184,11 @@ export default function Chat() {
       //    the change guard. buildRenderData(no) reuses the stashed number.
       let invoiceId = pendingInvoiceRef.current?.id ?? null;
       let no = pendingInvoiceRef.current?.no ?? null;
+      // The row's public pay token, captured from whichever persistence await runs
+      // below (insert / 23505-recovery / update) — NEVER a fresh fetch right before
+      // the share, which would sit between the user's tap and navigator.share and
+      // drop the transient user activation (share() then throws NotAllowedError).
+      let publicToken: string | null = null;
 
       // buildRenderData needs a number to shape the payload; on the first insert
       // the real number is trigger-assigned and read back, so a 0 placeholder is
@@ -1260,7 +1265,7 @@ export default function Chat() {
           // instead of burning a second number — we read the existing row back
           // below. This is the durable guarantee a client-only guard can't give.
           finalize_key: convoId || null,
-        }).select('id, invoice_number').single();
+        }).select('id, invoice_number, public_token').single();
 
         // Point 3: the Supabase insert result — row id, or the error code.
         traceTurn(turnIdRef.current, 'finalize', {
@@ -1292,7 +1297,7 @@ export default function Chat() {
             // duplicate invoice number for the same finalize.
             const { data: existing } = await supabase
               .from('invoices')
-              .select('id, invoice_number, status, amount_paid')
+              .select('id, invoice_number, status, amount_paid, public_token')
               .eq('user_id', profile.id)
               .eq('finalize_key', convoId)
               .maybeSingle();
@@ -1308,6 +1313,7 @@ export default function Chat() {
             }
             newId = existing.id as string;
             newNo = existing.invoice_number as number;
+            publicToken = (existing.public_token as string) ?? null;
             // Persist the current draft onto the recovered row so a reload between
             // an edit and the save doesn't drop that edit — but only while it's a
             // draft (Commit B). If it was sent/paid elsewhere, lock instead of
@@ -1332,6 +1338,7 @@ export default function Chat() {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
+          publicToken = (saved.public_token as string) ?? null;
         }
         invoiceId = newId;
         no = newNo;
@@ -1357,7 +1364,7 @@ export default function Chat() {
         // read-only UI is the courtesy layer in front of it.
         const { data: live } = await supabase
           .from('invoices')
-          .select('status, amount_paid')
+          .select('status, amount_paid, public_token')
           .eq('id', invoiceId)
           .maybeSingle();
         if (live && isLockedStatus((live.status as string) ?? null)) {
@@ -1366,6 +1373,7 @@ export default function Chat() {
           setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
           return; // outer finally clears phase; the locked card stays put
         }
+        publicToken = (live?.public_token as string) ?? null;
         const { error: updErr } = await supabase.from('invoices')
           .update(draftCols)
           .eq('id', invoiceId);
@@ -1431,20 +1439,17 @@ export default function Chat() {
       }
 
       // ── 4. Share — only now is anything actually sent.
-      // Attach the public pay link so the client can pay online, not just receive
-      // a PDF. Built from window.location.origin so a preview deploy links back to
-      // itself (never a hardcoded host). Invoices only — a quote isn't payable. The
-      // row is persisted above; its public_token was stamped by set_invoice_token
-      // on insert. The send marks it 'sent' just below, before the client opens it.
-      let payUrl: string | undefined;
-      if (rd.kind === 'invoice') {
-        const { data: tok } = await supabase
-          .from('invoices')
-          .select('public_token')
-          .eq('id', invoiceId)
-          .maybeSingle();
-        if (tok?.public_token) payUrl = `${window.location.origin}/pay/${tok.public_token}`;
-      }
+      // Build the pay link SYNCHRONOUSLY from the token captured during the
+      // insert/update above — there must be NO await between the user's tap and
+      // navigator.share, or the browser drops the transient user activation and
+      // share() throws NotAllowedError (a stray fetch here was the regression).
+      // Origin-relative so a preview deploy links to itself; invoices only — a
+      // quote isn't payable. The send marks it 'sent' just below, before the
+      // client opens it.
+      const payUrl =
+        rd.kind === 'invoice' && publicToken
+          ? `${window.location.origin}/pay/${publicToken}`
+          : undefined;
       const outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
 
       // B1: cancelling the share sheet is a normal choice, not an error. The
