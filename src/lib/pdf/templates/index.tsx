@@ -52,6 +52,11 @@ export interface InvoiceRenderData {
   paypalMe?: string | null;
   cashappTag?: string | null;
   venmoUsername?: string | null;
+  // Public pay-page link for THIS invoice (<origin>/pay/<public_token>). When
+  // set, the whole "How to pay" block (and the Ledger rail) is one silent,
+  // unstyled tappable annotation to it — no per-row app links. Omitted for
+  // drafts (no usable pay page) and quotes.
+  payUrl?: string | null;
 }
 
 const money = (n: number) =>
@@ -81,11 +86,6 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-const cashAppUrl = (tag: string) => `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
-const payPalUrl = (handle: string) =>
-  `https://paypal.me/${handle.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
-const venmoUrl = (handle: string) => `https://venmo.com/u/${handle.replace(/^@/, '')}`;
-
 const PAY_COLOR = { cashapp: '#00D632', paypal: '#003087', venmo: '#008CFF', zelle: '#6D1ED4' } as const;
 type PayKind = keyof typeof PAY_COLOR;
 
@@ -114,31 +114,28 @@ function PayMark({ kind }: { kind: PayKind }) {
   );
 }
 
-function InstrIcon({ kind, color }: { kind: 'phone' | 'external' | 'bank'; color: string }) {
-  const box: React.CSSProperties = { width: 20, height: 20, flex: '0 0 auto', display: 'block' };
-  const s = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  if (kind === 'phone')
-    return (<svg viewBox="0 0 24 24" style={box}><rect x="6" y="3" width="12" height="18" rx="2.5" {...s} /><line x1="10" y1="18" x2="14" y2="18" {...s} /></svg>);
-  if (kind === 'external')
-    return (<svg viewBox="0 0 24 24" style={box}><path d="M14 4h6v6" {...s} /><path d="M20 4l-8.5 8.5" {...s} /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...s} /></svg>);
-  return (<svg viewBox="0 0 24 24" style={box}><path d="M3 9.5l9-5.5 9 5.5" {...s} /><line x1="4" y1="21" x2="20" y2="21" {...s} /><line x1="6.5" y1="10" x2="6.5" y2="18" {...s} /><line x1="10" y1="10" x2="10" y2="18" {...s} /><line x1="17.5" y1="10" x2="17.5" y2="18" {...s} /></svg>);
-}
-
 function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  const rows: { kind: PayKind; method: string; detail: string; url?: string; instruction: string; icon: 'phone' | 'external' | 'bank' }[] = [];
+  const rows: { kind: PayKind; method: string; detail: string }[] = [];
   if (d.cashappTag)
-    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to pay', icon: 'phone' });
+    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}` });
   if (d.paypalMe)
-    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to pay', icon: 'external' });
+    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}` });
   if (d.venmoUsername)
-    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to pay', icon: 'external' });
+    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}` });
   if (d.zelle)
-    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: 'Send from your bank app', icon: 'bank' });
+    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   if (!rows.length) return null;
 
   const border = `1px solid ${t.rule}`;
+  // The whole block silently links to the pay page when payUrl is set (invoice,
+  // non-draft): data-pdf-link on the outer div → one jsPDF annotation over the
+  // rectangle (addPageLinks in generate.ts). No per-row app links, no underline,
+  // no link icon — the handles keep their brand colour (branding, not a link
+  // cue) and one quiet line tells the client the block is tappable. Nothing here
+  // opens PayPal/Venmo/Cash App directly; those live only on the pay page.
+  const link = d.payUrl || undefined;
   return (
-    <div data-pdf-block="payment" style={{ width: '100%' }}>
+    <div data-pdf-block="payment" data-pdf-link={link} style={{ width: '100%' }}>
       <div style={{ color: t.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800, fontSize: 15, marginBottom: 10 }}>
         How to pay
       </div>
@@ -148,20 +145,13 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div key={r.method} style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
             <PayMark kind={r.kind} />
             <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>{r.method}</div>
-            <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
-              {r.url ? (
-                <span data-pdf-link={r.url} style={{ color, textDecoration: 'underline' }}>{r.detail}</span>
-              ) : (
-                <span style={{ color }}>{r.detail}</span>
-              )}
-            </div>
-            <div style={{ flex: '0 0 auto', width: 182, display: 'flex', alignItems: 'center', gap: 8, borderLeft: border, paddingLeft: 14 }}>
-              <InstrIcon kind={r.icon} color={color} />
-              <span style={{ fontSize: 13, color: t.muted, lineHeight: 1.25, whiteSpace: 'nowrap' }}>{r.instruction}</span>
-            </div>
+            <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color }}>{r.detail}</div>
           </div>
         );
       })}
+      {link && (
+        <div style={{ fontSize: 13, color: t.muted, marginTop: 4 }}>Tap anywhere to pay online.</div>
+      )}
     </div>
   );
 }
@@ -445,34 +435,39 @@ const SLAB = "Rockwell, 'Roboto Slab', 'Times New Roman', Times, serif";
 const MONO = "'Courier New', Courier, monospace";
 
 function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
-  const rows: { kind: PayKind; method: string; detail: string; url?: string; instruction: string }[] = [];
+  const rows: { kind: PayKind; method: string; detail: string }[] = [];
   if (d.cashappTag)
-    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}`, url: cashAppUrl(d.cashappTag), instruction: 'Tap to pay' });
+    rows.push({ kind: 'cashapp', method: 'Cash App', detail: `$${d.cashappTag.replace(/^\$/, '')}` });
   if (d.paypalMe)
-    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}`, url: payPalUrl(d.paypalMe), instruction: 'Tap to pay' });
+    rows.push({ kind: 'paypal', method: 'PayPal', detail: `paypal.me/${d.paypalMe}` });
   if (d.venmoUsername)
-    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}`, url: venmoUrl(d.venmoUsername), instruction: 'Tap to pay' });
+    rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}` });
   if (d.zelle)
-    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle, instruction: 'Send from your bank app' });
+    rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   if (!rows.length) return null;
 
+  // Whole rail silently links to the pay page (same rule as PaymentBlock) — no
+  // per-row app links, no link cue; the handles keep their colour.
+  const link = d.payUrl || undefined;
   return (
-    <div data-pdf-block="ledger-rail">
+    <div data-pdf-block="ledger-rail" data-pdf-link={link}>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: t.accent }}>
         Payment methods
       </div>
       <div style={{ borderBottom: `1px solid ${t.accent}`, marginTop: 8, marginBottom: 18 }} />
       {rows.map((r) => (
-        <div key={r.method} data-pdf-link={r.url}
+        <div key={r.method}
           style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 18 }}>
           <PayMark kind={r.kind} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{r.method}</div>
             <div style={{ fontSize: 13, color: t.text, wordBreak: 'break-all', marginTop: 2, fontFamily: MONO }}>{r.detail}</div>
-            <div style={{ fontSize: 12, color: t.accent, marginTop: 2 }}>{r.instruction}</div>
           </div>
         </div>
       ))}
+      {link && (
+        <div style={{ fontSize: 12, color: t.accent }}>Tap anywhere to pay online.</div>
+      )}
     </div>
   );
 }

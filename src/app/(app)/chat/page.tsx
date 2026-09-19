@@ -1425,6 +1425,13 @@ export default function Chat() {
           ? `${window.location.origin}/pay/${publicToken}`
           : undefined;
 
+      // Embed the pay link into the PDF itself (the whole "How to pay" block
+      // becomes one silent tappable annotation) — but only on a real SEND, which
+      // marks the invoice sent so its pay page resolves. A Download stays a draft
+      // (no usable pay page), so leave rd.payUrl unset there and the block stays
+      // link-free until the draft is later sent.
+      if (mode === 'send') rd.payUrl = payUrl ?? null;
+
       // ── 3. SHARE FIRST (invoice send): call share() with the link BEFORE the
       // slow PDF build, while the tap's user activation is still fresh. The PDF
       // render (html2canvas + font loading) takes seconds on a phone and outlasts

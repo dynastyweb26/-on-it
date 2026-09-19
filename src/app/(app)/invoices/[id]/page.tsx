@@ -168,6 +168,13 @@ export default function InvoiceDetail() {
     cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,
     paypalMe: snapped ? inv.paypal_me : profile.paypal_me,
     venmoUsername: snapped ? inv.venmo_username : profile.venmo_username,
+    // Embed the pay link into the PDF's "How to pay" block (one silent tappable
+    // annotation) for a non-draft invoice only — a draft/quote has no usable pay
+    // page, so leave it null and the block stays link-free.
+    payUrl:
+      inv.kind === 'invoice' && inv.status !== 'draft' && inv.public_token && typeof window !== 'undefined'
+        ? `${window.location.origin}/pay/${inv.public_token}`
+        : null,
   };
 
   // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
