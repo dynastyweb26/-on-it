@@ -161,12 +161,17 @@ function buildModel(row: PublicInvoiceRow): PayModel {
     };
   });
 
-  const handles = {
-    paypalMe: clean(row.paypal_me),
-    cashappTag: clean(row.cashapp_tag),
-    venmoUsername: clean(row.venmo_username),
-    zelle: clean(row.zelle),
-  };
+  // A fully-paid invoice exposes NO payment methods — strip the handles from the
+  // model entirely (not just hide them in the view), so a paid invoice's page
+  // payload carries no Zelle/PayPal/Cash App/Venmo at all.
+  const handles = fullyPaid
+    ? { paypalMe: null, cashappTag: null, venmoUsername: null, zelle: null }
+    : {
+        paypalMe: clean(row.paypal_me),
+        cashappTag: clean(row.cashapp_tag),
+        venmoUsername: clean(row.venmo_username),
+        zelle: clean(row.zelle),
+      };
 
   return {
     businessName: clean(row.business_name) ?? 'This business',
