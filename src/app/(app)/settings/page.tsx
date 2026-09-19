@@ -347,7 +347,7 @@ export default function Settings() {
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
   return (
-    <div className="space-y-4 px-4 py-4">
+    <div className="space-y-4 px-4 py-4 overflow-x-hidden">
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -493,18 +493,18 @@ export default function Settings() {
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
           {TEMPLATES.map((t) => (
-            <button key={t} className={`chip ${p.invoice_template === t ? 'chip-selected' : ''}`}
+            <button key={t} className={`chip shrink-0 ${p.invoice_template === t ? 'chip-selected' : ''}`}
               onClick={() => save({ invoice_template: t })}>{TEMPLATE_LABELS[t]}</button>
           ))}
         </div>
-        <div className="grid grid-cols-10 gap-2">
+        <div className="grid grid-cols-5 justify-items-start gap-2">
           {PALETTE.map(({ hex, name }) => {
             const sel = p.brand_colors?.includes(hex);
             return (
               <button key={hex} title={name}
-                className={`aspect-square rounded-full border ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
+                className={`h-8 w-8 rounded-full border ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
                 style={{ background: hex }}
                 onClick={() => {
                   const cur: string[] = p.brand_colors ?? [];
@@ -527,7 +527,7 @@ export default function Settings() {
           </div>
         )}
         {theme && (
-          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 240 }}>
+          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 1123 * 0.36 }}>
             <div style={{ transform: 'scale(0.36)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
               <InvoiceTemplate template={p.invoice_template} theme={theme} data={{
                 kind: 'invoice', invoiceNumber: 1, businessName: p.business_name,
