@@ -1436,6 +1436,10 @@ export default function Chat() {
       // Vault — the archive/snapshot only happen on a real send. The card stays so
       // the user can still send.
       if (mode === 'download') {
+        // TEMP DIAG: mark the download-button path so it's distinguishable from a
+        // share fallback on a phone (both produce a download). If a send tap is
+        // mis-landing here, this line — not a SHARE DIAG — will appear.
+        setMessages((m) => [...m, aMsg(`SHARE DIAG — download-button path (mode=download) · pdf=${pdfMs}ms`)]);
         downloadFile(file);
         setRenderData(null);
         setMessages((m) => [...m, aMsg('Downloaded — it’s saved as a draft. Tap send whenever you’re ready.')]);
