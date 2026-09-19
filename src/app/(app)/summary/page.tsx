@@ -352,7 +352,7 @@ export default function TaxSummary() {
                 <div className="mb-2 flex items-center gap-1">
                   <button
                     aria-label="Back"
-                    className="grid h-9 w-9 place-items-center rounded-full text-on-surface-variant active:scale-90 transition-transform"
+                    className="grid h-11 w-11 place-items-center rounded-full text-on-surface-variant active:scale-90 transition-transform"
                     onClick={() => setSheetView('root')}
                   >
                     <Icon name="arrow_back" size={22} />

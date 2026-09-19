@@ -38,7 +38,7 @@ export default function UndoToast({ message, onUndo, onDismiss }: UndoToastProps
         <button
           type="button"
           onClick={onUndo}
-          className="inline-flex items-center gap-1 rounded-full bg-primary-container px-3 py-1 text-xs font-bold uppercase text-on-background transition active:scale-95"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-full bg-primary-container px-4 text-xs font-bold uppercase text-on-background transition active:scale-95"
         >
           <Icon name="undo" size={16} />
           Undo
@@ -48,7 +48,7 @@ export default function UndoToast({ message, onUndo, onDismiss }: UndoToastProps
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="grid h-8 w-8 place-items-center rounded-full text-inverse-on-surface/60 transition active:scale-90"
+            className="grid h-11 w-11 place-items-center rounded-full text-inverse-on-surface/60 transition active:scale-90"
           >
             <Icon name="close" size={18} />
           </button>

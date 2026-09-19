@@ -86,7 +86,7 @@ export default function InstallBanner() {
         <button
           onClick={dismiss}
           aria-label="Dismiss install banner"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
         >
           <Icon name="close" size={20} />
         </button>

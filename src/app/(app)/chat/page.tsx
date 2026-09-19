@@ -2046,7 +2046,7 @@ export default function Chat() {
                 </div>
                 <button
                   aria-label="Retry"
-                  className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                  className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
                   disabled={phase !== null}
                   onClick={() => retry(m)}
                 >
@@ -2113,7 +2113,7 @@ export default function Chat() {
                 <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
                 <div className="flex items-center gap-1.5">
                   <select
-                    className="rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
+                    className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
                     disabled={locked}
                     value={(draft as any).deposit_type ?? 'none'}
                     onChange={(e) => {
@@ -2132,7 +2132,7 @@ export default function Chat() {
                       min="0"
                       max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
                       disabled={locked}
-                      className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
+                      className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
                       value={(draft as any).deposit_value ?? ''}
                       placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
                       onChange={(e) => {
@@ -2354,7 +2354,7 @@ export default function Chat() {
             <div className="flex shrink-0 flex-col gap-1.5">
               <button
                 aria-label="Take a receipt photo"
-                className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
                 disabled={phase !== null}
                 onClick={() => cameraRef.current?.click()}
               >
@@ -2362,7 +2362,7 @@ export default function Chat() {
               </button>
               <button
                 aria-label="Upload receipt from gallery"
-                className="grid h-9 w-9 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
                 disabled={phase !== null}
                 onClick={() => galleryRef.current?.click()}
               >
