@@ -168,28 +168,9 @@ export default function PayView({ model }: { model: PayModel }) {
         ) : null}
       </section>
 
-      {/* Line items */}
-      {model.lineItems.length > 0 ? (
-        <section className="mt-6 rounded-card bg-surface-container-lowest p-4 shadow-card">
-          <ul className="divide-y divide-outline-variant">
-            {model.lineItems.map((li, i) => (
-              <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-body-md text-on-background">{li.description || 'Item'}</p>
-                  {li.qty !== 1 ? (
-                    <p className="text-body-md text-on-surface-variant">
-                      {li.qty} × {money(li.unitPrice)}
-                    </p>
-                  ) : null}
-                </div>
-                <p className="shrink-0 text-body-md text-on-background">{money(li.amount)}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {/* Payment methods — how to pay. Hidden once fully paid. */}
+      {/* Payment methods — how to pay. Placed ABOVE the (uncapped) line items so
+          the client sees how to pay without scrolling past a long itemisation.
+          Hidden once fully paid. */}
       {!model.fullyPaid ? (
         <section className="mt-6">
           <h2 className="mb-3 text-label-lg uppercase tracking-wide text-on-surface-variant">How to pay</h2>
@@ -237,6 +218,27 @@ export default function PayView({ model }: { model: PayModel }) {
               </p>
             </div>
           )}
+        </section>
+      ) : null}
+
+      {/* Line items — reference itemisation, beneath the amount and how-to-pay. */}
+      {model.lineItems.length > 0 ? (
+        <section className="mt-6 rounded-card bg-surface-container-lowest p-4 shadow-card">
+          <ul className="divide-y divide-outline-variant">
+            {model.lineItems.map((li, i) => (
+              <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="truncate text-body-md text-on-background">{li.description || 'Item'}</p>
+                  {li.qty !== 1 ? (
+                    <p className="text-body-md text-on-surface-variant">
+                      {li.qty} × {money(li.unitPrice)}
+                    </p>
+                  ) : null}
+                </div>
+                <p className="shrink-0 text-body-md text-on-background">{money(li.amount)}</p>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
