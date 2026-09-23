@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { RING_A, RING_B, RING_CLIP } from '@/components/splash/ring-paths';
 import { whenAppReady } from '@/lib/splash-gate';
 
-const REVEAL_MS = 850; // the mark locks at 800ms; the exit may start from here
+const REVEAL_MS = 1500; // white by 1000ms, then held; the exit may start from here
 const READY_CAP_MS = 2500; // longest we wait for the screen after the reveal
 const FAILSAFE_MS = 6000; // matches the CSS failsafe delay in globals.css
 const EXIT_MS = 380;

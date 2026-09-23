@@ -178,9 +178,10 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
    4s timebase to the 1.7s cut — Converge 2s→0.6s (×0.3), Type 1s→0.5s (×0.5):
      0–600ms   three gold arcs converge on separate paths and lock
                (export PIECES t: [.05,1.85] [.2,1.95] [.35,2] → below)
-     600–800ms rings gold → white as the gradient tile scales in (export Mark)
+     600–1000ms rings gold → white as the gradient tile scales in (export Mark)
+     1000–1500ms hold the locked mark; 1500ms+ the flight (Splash.tsx)
    The export's Hold scene and its "mark slides left" / typed wordmark are
-   dropped (portrait, no wordmark). The exit starts at ~850ms (Splash.tsx).
+   dropped (portrait, no wordmark).
    Resting state = the LOCKED mark; the motion only exists under
    no-preference, so reduced motion shows the locked mark with no converge.
    Translate offsets are % of the mark box = the export's mark-unit offsets
@@ -247,15 +248,15 @@ html[data-splash=""] .onit-splash {
   }
   /* the handover: arcs visible until 600ms, whole mark from 600ms */
   .onit-splash-arcs { animation: onit-splash-handover-out 600ms steps(1, end) both; }
-  /* whole mark: appears at the lock, then gold→white (easeInOutCubic, 600–800ms) */
+  /* whole mark: appears at the lock, then gold→white (easeInOutCubic, 600–1000ms) */
   .onit-splash-whole {
     animation: onit-splash-handover-in 600ms steps(1, end) both,
-      onit-splash-white 200ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both;
+      onit-splash-white 400ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both;
   }
   .onit-splash-tile {
     will-change: transform, opacity;
-    animation: onit-splash-tile-in 200ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both,
-      onit-splash-tile-grow 200ms cubic-bezier(0.33, 1, 0.68, 1) 600ms both;
+    animation: onit-splash-tile-in 400ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both,
+      onit-splash-tile-grow 400ms cubic-bezier(0.33, 1, 0.68, 1) 600ms both;
   }
 }
 @keyframes onit-splash-handover-out { from { opacity: 1; } to { opacity: 0; } }
