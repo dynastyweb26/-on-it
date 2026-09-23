@@ -94,6 +94,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ backgroundColor: '#fff8f0', colorScheme: 'light' }}
     >
       <head>
+        {/* Splash gate (components/Splash.tsx): decides BEFORE first paint whether
+            this load gets the splash — only the session's first cold start
+            (sessionStorage onit_splash_shown); storage blocked → skip it rather
+            than replay it on every load. Sets html[data-splash] (CSS shows the
+            server-rendered splash) and the reveal's t0. Must be synchronous: a
+            deferred script would run after first paint and flash the splash on
+            repeat launches. Fails open — no JS, or React rewriting <html>, drops
+            the attribute and the app simply shows. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(!sessionStorage.getItem('onit_splash_shown')){sessionStorage.setItem('onit_splash_shown','1');" +
+              "document.documentElement.setAttribute('data-splash','');window.__onitSplashT0=performance.now();}}catch(e){}",
+          }}
+        />
         {/* icons-loading: hides icon text (globals.css) ONLY while the icon font
             is confirmed not yet loaded, and clears it when the font settles
             (loaded → glyphs; failed → names) or after an 8s failsafe.

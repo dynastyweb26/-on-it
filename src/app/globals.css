@@ -170,11 +170,101 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* Splash: icon fades/scales in (§10 white-icon spec — motion minimal) */
-@keyframes splash-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to   { opacity: 1; transform: scale(1); }
+/* ---- Splash: brand logo reveal (components/Splash.tsx) ----
+   Server-rendered, CSS-driven so it plays from first paint without waiting for
+   hydration. Hidden unless the head script in layout.tsx set html[data-splash]
+   (first cold start of the session only).
+   Motion, ported from the design export (logo-reveal.jsx) and retimed from its
+   4s timebase to the 1.7s cut — Converge 2s→0.6s (×0.3), Type 1s→0.5s (×0.5):
+     0–600ms   three gold arcs converge on separate paths and lock
+               (export PIECES t: [.05,1.85] [.2,1.95] [.35,2] → below)
+     600–800ms rings gold → white as the gradient tile scales in (export Mark)
+   The export's Hold scene and its "mark slides left" / typed wordmark are
+   dropped (portrait, no wordmark). The exit starts at ~850ms (Splash.tsx).
+   Resting state = the LOCKED mark; the motion only exists under
+   no-preference, so reduced motion shows the locked mark with no converge.
+   Translate offsets are % of the mark box = the export's mark-unit offsets
+   (x/1024), so the path scales with the mark. */
+.onit-splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  place-items: center;
+  overflow: hidden;
+  background: #fff8f0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+html[data-splash] .onit-splash { display: grid; }
+/* JS-never-loads failsafe: before the client controller takes over
+   (data-splash="" → "live"), the splash dissolves by itself at 6s and stops
+   catching taps, revealing the app with its own skeleton. !important plus the
+   higher specificity beats the global reduced-motion kill below, so this
+   still fires with reduced motion on. */
+html[data-splash=""] .onit-splash {
+  animation: onit-splash-failsafe 300ms ease 6s forwards !important;
+}
+@keyframes onit-splash-failsafe { to { opacity: 0; visibility: hidden; } }
+
+.onit-splash-mark { position: relative; width: min(40vw, 180px); aspect-ratio: 1; }
+.onit-splash-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.onit-splash-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.onit-splash-tile, .onit-splash-arc { transform-origin: 50% 50%; }
+/* The split arcs only exist while converging (gold). At 600ms — every piece
+   has locked by then — they hand over, in one frame, to the unsplit whole
+   mark, which then turns white. Resting state: arcs hidden, whole mark white. */
+.onit-splash-arc { fill: #d4af37; }
+.onit-splash-arcs { opacity: 0; }
+.onit-splash-whole { fill: #fff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .onit-splash-arc { will-change: transform, opacity; }
+  /* move (easeOutCubic over the piece's range) + fade-in (first 135ms of it) */
+  .onit-splash-arc-1 {
+    animation: onit-splash-arc-1 540ms cubic-bezier(0.33, 1, 0.68, 1) 15ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 15ms both;
+  }
+  .onit-splash-arc-2 {
+    animation: onit-splash-arc-2 525ms cubic-bezier(0.33, 1, 0.68, 1) 60ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 60ms both;
+  }
+  .onit-splash-arc-3 {
+    animation: onit-splash-arc-3 495ms cubic-bezier(0.33, 1, 0.68, 1) 105ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 105ms both;
+  }
+  /* the handover: arcs visible until 600ms, whole mark from 600ms */
+  .onit-splash-arcs { animation: onit-splash-handover-out 600ms steps(1, end) both; }
+  /* whole mark: appears at the lock, then gold→white (easeInOutCubic, 600–800ms) */
+  .onit-splash-whole {
+    animation: onit-splash-handover-in 600ms steps(1, end) both,
+      onit-splash-white 200ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both;
+  }
+  .onit-splash-tile {
+    will-change: transform, opacity;
+    animation: onit-splash-tile-in 200ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both,
+      onit-splash-tile-grow 200ms cubic-bezier(0.33, 1, 0.68, 1) 600ms both;
+  }
+}
+@keyframes onit-splash-handover-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes onit-splash-handover-in { from { opacity: 0; } to { opacity: 1; } }
+/* export PIECES.from: translate(x y) rotate(rot) scale(s), then the squash
+   rotate(-28) scale(1 sq) rotate(28), all about the mark centre */
+@keyframes onit-splash-arc-1 {
+  from { transform: translate(-87.890625%, -54.6875%) rotate(-150deg) scale(0.7) rotate(-28deg) scale(1, 1.8) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-2 {
+  from { transform: translate(-68.359375%, 76.171875%) rotate(160deg) scale(1.45) rotate(-28deg) scale(1, 0.35) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-3 {
+  from { transform: translate(107.421875%, -41.015625%) rotate(110deg) scale(0.6) rotate(-28deg) scale(1, 1.6) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-in { from { opacity: 0; } }
+@keyframes onit-splash-white { from { fill: #d4af37; } }
+@keyframes onit-splash-tile-in { from { opacity: 0; } }
+@keyframes onit-splash-tile-grow { from { transform: scale(0.9); } }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-skeleton-shimmer {
