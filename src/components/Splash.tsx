@@ -26,6 +26,41 @@ const FAILSAFE_MS = 6000; // matches the CSS failsafe delay in globals.css
 const EXIT_MS = 380;
 const EXIT_REDUCED_MS = 150;
 
+const FLIGHT_MS = 600;
+const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+
+// The flight (exit on /chat): the tile fades, the white rings shrink and travel
+// on a slight curve onto the mic button, easing out as they land, and fade as
+// they arrive; the cream backdrop fades during the flight so the app — mic
+// button included — is revealed underneath. Transform/opacity only. Resolves
+// when the rings land.
+function fly(el: HTMLElement, target: DOMRect): Promise<unknown> {
+  const mark = el.querySelector<HTMLElement>('.onit-splash-mark');
+  const tile = el.querySelector<SVGElement>('.onit-splash-tile');
+  const rings = el.querySelector<SVGElement>('.onit-splash-whole');
+  const backdrop = el.querySelector<HTMLElement>('.onit-splash-backdrop');
+  if (!mark || !tile || !rings || !backdrop) return Promise.resolve();
+  const from = mark.getBoundingClientRect();
+  const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
+  const x1 = target.left + target.width / 2, y1 = target.top + target.height / 2;
+  const scale = (target.width * 0.8) / from.width; // rings land just inside the button
+  // Quadratic curve, control point bowed sideways by 18% of the distance.
+  const dx = x1 - x0, dy = y1 - y0;
+  const cx = x0 + dx / 2 - dy * 0.18, cy = y0 + dy / 2 + dx * 0.18;
+  const frames: Keyframe[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const p = easeOutCubic(i / 16);
+    const x = (1 - p) ** 2 * x0 + 2 * (1 - p) * p * cx + p ** 2 * x1;
+    const y = (1 - p) ** 2 * y0 + 2 * (1 - p) * p * cy + p ** 2 * y1;
+    frames.push({ offset: i / 16, transform: `translate(${x - x0}px, ${y - y0}px) scale(${1 + (scale - 1) * p})` });
+  }
+  mark.style.willChange = 'transform';
+  tile.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: 'ease-out', fill: 'forwards' });
+  backdrop.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, easing: 'ease-out', fill: 'forwards' });
+  rings.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: FLIGHT_MS, fill: 'forwards' });
+  return mark.animate(frames, { duration: FLIGHT_MS, easing: 'linear', fill: 'forwards' }).finished;
+}
+
 declare global {
   interface Window { __onitSplashT0?: number }
 }
@@ -65,6 +100,11 @@ export default function Splash() {
       // every CSS transition/animation under prefers-reduced-motion, so a
       // transitionend-based exit never fires there and the splash is stuck
       // forever. WAAPI animations aren't affected by that rule.
+      const target = document.querySelector<HTMLElement>('[data-splash-target]');
+      const t = target?.getBoundingClientRect();
+      const onScreen = !!t && t.width > 0 && t.bottom > 0 && t.top < window.innerHeight;
+      if (!reduced && onScreen) { fly(el, t).then(finish, finish); return; }
+      // Reduced motion, or no mic button on screen (not /chat): plain fade.
       el.animate([{ opacity: 1 }, { opacity: 0 }], {
         duration: reduced ? EXIT_REDUCED_MS : EXIT_MS,
         easing: 'ease',

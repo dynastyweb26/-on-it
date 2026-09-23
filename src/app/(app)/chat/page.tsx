@@ -2616,6 +2616,9 @@ export default function Chat() {
           />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
+            // The splash's white rings fly onto this button on a cold start
+            // (components/Splash.tsx measures it at runtime).
+            data-splash-target=""
             className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40 ${recording ? 'voice-listening' : ''}`}
             disabled={phase !== null}
             onClick={micTap}
