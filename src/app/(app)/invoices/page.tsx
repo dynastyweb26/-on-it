@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
 import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
@@ -22,7 +23,7 @@ const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
 // Status chips (§2): semantic containers, ALWAYS icon + text.
-const STATUS_CHIP: Record<string, { cls: string; icon: string }> = {
+const STATUS_CHIP: Record<string, { cls: string; icon: IconName }> = {
   paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
   sent: { cls: 'bg-sent-container text-sent', icon: 'send' },
   overdue: { cls: 'bg-error-container text-on-error-container', icon: 'warning' },
@@ -158,7 +159,7 @@ export default function Invoices() {
                     // A converted quote shows a "converted" chip (only the Quotes tab
                     // surfaces it) instead of its stale draft status.
                     const chip = converted
-                      ? { cls: 'bg-sent-container text-sent', icon: 'sync' }
+                      ? { cls: 'bg-sent-container text-sent', icon: 'sync' as const }
                       : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
                     return (
                       <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>

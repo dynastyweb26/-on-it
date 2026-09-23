@@ -12,12 +12,13 @@
    no persistence state, so it opens clean for a deferred-auth guest. */
 import { useLayoutEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import { SlideMock } from '@/components/tutorial/mocks';
 import { slidesForTab, type SlideTab } from '@/components/tutorial/slides';
 
 // Reference tabs, in nav order. Icons match the app's bottom nav (Design
 // Standard §4): Chat mic, Invoices description, Books payments.
-const TABS: { key: SlideTab; label: string; icon: string }[] = [
+const TABS: { key: SlideTab; label: string; icon: IconName }[] = [
   { key: 'chat', label: 'Chat', icon: 'mic' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
   { key: 'books', label: 'Books', icon: 'payments' },

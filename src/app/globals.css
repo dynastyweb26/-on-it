@@ -6,7 +6,14 @@
    this file holds the base layer + the handful of stateful classes from
    tokens.css (ring, pulse, glass, icon defaults). */
 
-html { -webkit-tap-highlight-color: transparent; }
+/* Explicit cream canvas on BOTH html and body (also inlined on <html> in
+   layout.tsx) so no frame can paint black or white, and color-scheme: light so
+   OS dark mode can't force a dark canvas. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  background-color: #fff8f0;
+  color-scheme: light;
+}
 body { @apply bg-background text-on-background font-body antialiased; }
 
 @layer base {
@@ -125,8 +132,12 @@ body { @apply bg-background text-on-background font-body antialiased; }
   -webkit-backdrop-filter: blur(20px);
 }
 /* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
+/* Self-hosted subset via next/font/local (layout.tsx). No generic fallback
+   family: a fallback would render the ligature name as text. */
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined', sans-serif;
+  font-family: var(--font-symbols);
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
   font-weight: normal;
   font-style: normal;
   line-height: 1;

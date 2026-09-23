@@ -7,8 +7,9 @@
    Checkout; the 503 dormant response is shown inline as a notice. */
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 
-const BENEFITS: { icon: string; text: string }[] = [
+const BENEFITS: { icon: IconName; text: string }[] = [
   { icon: 'all_inclusive', text: 'Unlimited invoices & quotes' },
   { icon: 'mic', text: 'Voice-to-invoice, hands free' },
   { icon: 'notifications', text: 'Reminders when invoices go unpaid' },

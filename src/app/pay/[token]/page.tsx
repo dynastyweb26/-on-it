@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/ratelimit';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { roundCurrency, calculateLineAmount } from '@/lib/financials';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Notice({ icon, title, body }: { icon: string; title: string; body: string }) {
+function Notice({ icon, title, body }: { icon: IconName; title: string; body: string }) {
   return (
     <Shell>
       <Icon name={icon} size={48} className="text-on-surface-variant" />

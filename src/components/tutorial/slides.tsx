@@ -18,6 +18,7 @@
    hex). Every Expenses/Tax slide passes active="books" to MockShell so the mock
    tab bar shows Books highlighted — the user sees where in the app it lives. */
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import { MockShell, MockBubble, MockComposer, MiniStat } from '@/components/tutorial/mocks';
 
 // A slide's home tab, matching app nav. Drives the reference doc's grouping.
@@ -231,11 +232,11 @@ export const SLIDES: Slide[] = [
           <div className="card p-3">
             <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Recent expenses</div>
             <div className="space-y-2">
-              {[
+              {([
                 { icon: 'shopping_cart', label: 'Supplies', vendor: 'Supply house', amount: '$40.00' },
                 { icon: 'local_gas_station', label: 'Fuel', vendor: 'Shell', amount: '$45.00' },
                 { icon: 'build', label: 'Tools', vendor: 'Hardware store', amount: '$120.00' },
-              ].map((e) => (
+              ] satisfies { icon: IconName; label: string; vendor: string; amount: string }[]).map((e) => (
                 <div key={e.label} className="flex items-center gap-2">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-error-container text-error">
                     <Icon name={e.icon} size={14} />
