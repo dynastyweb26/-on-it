@@ -67,6 +67,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ backgroundColor: '#fff8f0', colorScheme: 'light' }}
     >
       <head>
+        {/* icons-ready: un-hides icon text (globals.css) once the icon font
+            settles — loaded → glyphs; failed → names, the only thing left to
+            show. 8s failsafe so a hung load can never leave icons blank forever.
+            type="module" = deferred: never blocks parsing. Inline is allowed by
+            the CSP's script-src 'unsafe-inline'. */}
+        <script
+          type="module"
+          dangerouslySetInnerHTML={{
+            __html:
+              "const d=document.documentElement,ok=()=>d.classList.add('icons-ready');" +
+              'setTimeout(ok,8000);' +
+              `document.fonts?document.fonts.load(${JSON.stringify(`24px ${symbols.style.fontFamily}`)}).then(ok,ok):ok();`,
+          }}
+        />
         {/* Chrome fires `beforeinstallprompt` very early — often before React
             hydrates and the /install hook can attach its listener. This head
             script runs during parse, captures the event, prevents the mini-

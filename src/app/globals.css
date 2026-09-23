@@ -149,6 +149,11 @@ body { @apply bg-background text-on-background font-body antialiased; }
   direction: ltr;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+/* Until the icon font has settled (loaded, failed, or the 8s failsafe — see
+   the icons-ready script in layout.tsx), icon text is transparent, so a late
+   font never shows ligature names ("mic") once the ~3s font-display: block
+   period runs out. Controls keep their aria-labels either way. */
+html:not(.icons-ready) .material-symbols-outlined { color: transparent; }
 .material-symbols-outlined.icon-fill {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
