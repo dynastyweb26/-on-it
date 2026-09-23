@@ -190,12 +190,12 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
   position: fixed;
   inset: 0;
   z-index: 9999;
-  place-items: center;
   overflow: hidden;
-  background: #fff8f0;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-html[data-splash] .onit-splash { display: grid; }
+html[data-splash] .onit-splash { display: block; }
+/* Cream backdrop as its own layer so the flight (Splash.tsx) can fade it out
+   while the mark is still travelling. */
+.onit-splash-backdrop { position: absolute; inset: 0; background: #fff8f0; }
 /* JS-never-loads failsafe: before the client controller takes over
    (data-splash="" → "live"), the splash dissolves by itself at 6s and stops
    catching taps, revealing the app with its own skeleton. !important plus the
@@ -206,7 +206,20 @@ html[data-splash=""] .onit-splash {
 }
 @keyframes onit-splash-failsafe { to { opacity: 0; visibility: hidden; } }
 
-.onit-splash-mark { position: relative; width: min(40vw, 180px); aspect-ratio: 1; }
+/* Mark centre at 45% of the viewport height (optical centre, slightly above
+   true centre). Centred with margins, not a transform, so the flight owns
+   transform. In an iOS PWA with status-bar-style "default" the viewport starts
+   below the status bar, so plain centring sat ~53-55% down the screen. */
+.onit-splash-mark {
+  --mark: min(40vw, 180px);
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  top: 45dvh;
+  width: var(--mark);
+  height: var(--mark);
+  margin: calc(var(--mark) / -2) 0 0 calc(var(--mark) / -2);
+}
 .onit-splash-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .onit-splash-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .onit-splash-tile, .onit-splash-arc { transform-origin: 50% 50%; }

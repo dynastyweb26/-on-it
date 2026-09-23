@@ -93,6 +93,7 @@ export default function Splash() {
   if (done) return null;
   return (
     <div ref={ref} className="onit-splash" aria-hidden>
+      <div className="onit-splash-backdrop" />
       <div className="onit-splash-mark">
         {/* Gold rounded tile, radius 22% of the mark box — the app icon's own
             gradient, not the export's flat #d4af37, so the mark matches the OS
