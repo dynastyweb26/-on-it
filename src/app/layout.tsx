@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Montserrat, Inter } from 'next/font/google';
 import localFont from 'next/font/local';
 import Splash from '@/components/Splash';
+import launchScreens from '@/lib/launch-screens.json';
 import './globals.css';
 
 // Warm Premium dual-font strategy (Design Standard §3):
@@ -26,6 +27,23 @@ const symbols = localFont({
   adjustFontFallback: false,
 });
 
+// iOS launch screens: plain cream PNGs (scripts/build-launch-images.mjs) so an
+// installed-PWA cold start goes cream → cream first paint, never black. iOS
+// ignores the manifest's background_color, so without these it shows a blank
+// (black) screen until first paint. One exact-match link per device and
+// orientation; device-width/height are the PORTRAIT values in both, as iOS
+// reports them. No catch-all: an unlisted device gets iOS's own blank screen
+// rather than a wrong-sized, stretched image.
+const startupImage = launchScreens.screens.flatMap(({ w, h, dpr }) =>
+  (['portrait', 'landscape'] as const).map((orientation) => {
+    const [pw, ph] = orientation === 'portrait' ? [w * dpr, h * dpr] : [h * dpr, w * dpr];
+    return {
+      url: `/splash/launch-${pw}x${ph}.png`,
+      media: `(device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${dpr}) and (orientation: ${orientation})`,
+    };
+  }),
+);
+
 export const metadata: Metadata = {
   title: 'On It — Invoices done by talking',
   description: 'Speak your job. Get a branded invoice. Get paid.',
@@ -36,6 +54,15 @@ export const metadata: Metadata = {
       { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
     ],
     apple: '/icons/apple-icon-180.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'On It',
+    // 'default' = the status bar keeps its own opaque area, as today. Not
+    // 'black-translucent': that draws the page under the clock, and the app
+    // header has no safe-area-inset-top padding.
+    statusBarStyle: 'default',
+    startupImage,
   },
 };
 export const viewport: Viewport = {
