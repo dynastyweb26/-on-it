@@ -19,7 +19,7 @@ export default function Icon({
       aria-hidden
       className={`material-symbols-outlined select-none ${filled ? 'icon-fill' : ''} ${className}`}
       // Fixed square box: if the ligature name ever renders as text (font
-      // late or failed — see the icons-ready script in app/layout.tsx), it is
+      // late or failed — see the icons-loading script in app/layout.tsx), it is
       // clipped to the glyph's footprint instead of reflowing the layout.
       style={{ fontSize: size, width: size, height: size, overflow: 'hidden' }}
     >

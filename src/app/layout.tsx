@@ -67,18 +67,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ backgroundColor: '#fff8f0', colorScheme: 'light' }}
     >
       <head>
-        {/* icons-ready: un-hides icon text (globals.css) once the icon font
-            settles — loaded → glyphs; failed → names, the only thing left to
-            show. 8s failsafe so a hung load can never leave icons blank forever.
+        {/* icons-loading: hides icon text (globals.css) ONLY while the icon font
+            is confirmed not yet loaded, and clears it when the font settles
+            (loaded → glyphs; failed → names) or after an 8s failsafe.
+            DELIBERATELY INVERTED — icons are visible by default. The earlier
+            hidden-by-default + "icons-ready" version left blank buttons on
+            Safari first load: one script failure (no JS, CSP, React rewriting
+            <html> on a hydration error, a stale element ref) killed both the
+            reveal and its failsafe. Now every failure drops the class and lands
+            on visible icons. Removal re-reads document.documentElement rather
+            than a captured ref for the same reason.
             type="module" = deferred: never blocks parsing. Inline is allowed by
             the CSP's script-src 'unsafe-inline'. */}
         <script
           type="module"
           dangerouslySetInnerHTML={{
             __html:
-              "const d=document.documentElement,ok=()=>d.classList.add('icons-ready');" +
-              'setTimeout(ok,8000);' +
-              `document.fonts?document.fonts.load(${JSON.stringify(`24px ${symbols.style.fontFamily}`)}).then(ok,ok):ok();`,
+              `const f=${JSON.stringify(`24px ${symbols.style.fontFamily}`)};` +
+              "if(document.fonts&&!document.fonts.check(f)){document.documentElement.classList.add('icons-loading');" +
+              "const done=()=>document.documentElement.classList.remove('icons-loading');" +
+              'setTimeout(done,8000);document.fonts.load(f).then(done,done);}',
           }}
         />
         {/* Chrome fires `beforeinstallprompt` very early — often before React
