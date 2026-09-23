@@ -7,10 +7,15 @@
 // (cream html background) exactly on every device. Without them iOS shows a
 // black/blank screen for ~0.5s on an installed-PWA cold start.
 //
-// Pure Node (zlib), no dependencies. Images are 1-bit palette PNGs with a
-// single palette entry = the launch colour, so every pixel is exactly that
-// colour and each file is a few hundred bytes. No colour-profile chunks: PNG
-// without them is sRGB, the same space as the CSS hex, so no shift.
+// Pure Node (zlib), no dependencies. Images are plain 8-bit RGB PNGs — the
+// format every PWA asset generator emits. (They were 1-bit palette PNGs at
+// first: valid, and decoded correctly in browsers, but an iPhone 16 still
+// showed black, so we match the known-good format rather than risk iOS's
+// launch-screen pipeline being stricter than WebKit's decoder.) Optimized the
+// way a PNG optimizer would for a solid fill: Sub filter on row 0, Up filter
+// on every other row, so nearly every filtered byte is 0 and deflate level 9
+// collapses it. No colour-profile chunks: PNG without them is sRGB, the same
+// space as the CSS hex, so no shift.
 //
 // Usage: npm run launch:build
 import { deflateSync } from 'node:zlib';
@@ -48,15 +53,20 @@ function solidPng(width, height) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 1; // bit depth 1
-  ihdr[9] = 3; // colour type 3: indexed
+  ihdr[8] = 8; // bit depth 8
+  ihdr[9] = 2; // colour type 2: truecolour RGB
   // compression 0, filter 0, interlace 0 (already zeroed)
-  // Each scanline: filter byte 0 + ceil(width/8) bytes of index 0 → all palette[0].
-  const raw = Buffer.alloc((1 + Math.ceil(width / 8)) * height);
+  // Scanline = filter byte + width*3 bytes. Row 0, Sub (1): first pixel raw,
+  // every later byte is the delta from the pixel to its left = 0. Rows 1+,
+  // Up (2): delta from the row above = all 0. Decodes to a solid fill.
+  const stride = 1 + width * 3;
+  const raw = Buffer.alloc(stride * height); // zero-filled
+  raw[0] = 1;
+  raw[1] = rgb[0]; raw[2] = rgb[1]; raw[3] = rgb[2];
+  for (let y = 1; y < height; y++) raw[y * stride] = 2;
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
-    chunk('PLTE', Buffer.from(rgb)),
     chunk('IDAT', deflateSync(raw, { level: 9 })),
     chunk('IEND', Buffer.alloc(0)),
   ]);
