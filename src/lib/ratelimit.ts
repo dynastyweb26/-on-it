@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -32,6 +32,8 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // while throttling token-enumeration / scraping from a single source. The
   // 128-bit token is the real guessing defense; this caps the attempt rate.
   pay_view:       { tokens: 30, window: '60 s' },
+  // Access status check — throttles excessive client polling and protects DB read queries.
+  access:         { tokens: 30, window: '60 s' },
 };
 
 let redis: Redis | null = null;
