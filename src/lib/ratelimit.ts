@@ -143,6 +143,9 @@ const DAILY_USER_CAP: Partial<Record<RateRoute, number>> = {
   // invoices needs, but a hard wall against a single account running up an
   // unbounded AssemblyAI + Anthropic bill now that nothing gates on tier.
   transcribe: 150,
+  // ~50 receipt vision scans/day per account. Prevents automated accounts or
+  // runaway scripts from running up expensive Anthropic Vision API bills.
+  parse_receipt: 50,
 };
 
 /**

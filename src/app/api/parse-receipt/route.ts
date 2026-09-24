@@ -10,7 +10,7 @@ import { MODEL } from '@/lib/ai';
 import { parseJsonObject } from '@/lib/json-guard';
 import { sanitizeField } from '@/lib/sanitize';
 import { EXPENSE_CATEGORIES } from '@/lib/expenses';
-import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier, reserveUserDaily } from '@/lib/ratelimit';
 
 // The client compresses to <900 KB; anything much past that didn't come from
 // our pipeline. Bounds the vision bill and the request body alike.
@@ -78,6 +78,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { authRequired: true, reply: "Sign in first and I'll read that receipt and save it for you." },
       { status: 401 }
+    );
+  }
+
+  // Signed-in daily ceiling for Vision AI requests: caps total daily Anthropic
+  // Vision spend per account. Fails open on Redis outage.
+  if (!(await reserveUserDaily('parse_receipt', user.id))) {
+    return NextResponse.json(
+      { reply: "That's today's receipt limit — it resets tomorrow. You can enter details manually in the meantime." },
+      { status: 429 }
     );
   }
 
