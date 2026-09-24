@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
@@ -253,7 +254,7 @@ export default function Dashboard() {
 }
 
 function Stat({ label, value, tone, icon, iconCls }: {
-  label: string; value: string; tone: string; icon: string; iconCls: string;
+  label: string; value: string; tone: string; icon: IconName; iconCls: string;
 }) {
   return (
     <div className="card p-5">

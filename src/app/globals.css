@@ -6,7 +6,14 @@
    this file holds the base layer + the handful of stateful classes from
    tokens.css (ring, pulse, glass, icon defaults). */
 
-html { -webkit-tap-highlight-color: transparent; }
+/* Explicit cream canvas on BOTH html and body (also inlined on <html> in
+   layout.tsx) so no frame can paint black or white, and color-scheme: light so
+   OS dark mode can't force a dark canvas. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  background-color: #fff8f0;
+  color-scheme: light;
+}
 body { @apply bg-background text-on-background font-body antialiased; }
 
 @layer base {
@@ -125,8 +132,12 @@ body { @apply bg-background text-on-background font-body antialiased; }
   -webkit-backdrop-filter: blur(20px);
 }
 /* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
+/* Self-hosted subset via next/font/local (layout.tsx). No generic fallback
+   family: a fallback would render the ligature name as text. */
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined', sans-serif;
+  font-family: var(--font-symbols);
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
   font-weight: normal;
   font-style: normal;
   line-height: 1;
@@ -138,6 +149,17 @@ body { @apply bg-background text-on-background font-body antialiased; }
   direction: ltr;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+/* Icon text is VISIBLE by default and hidden only while the icon font is
+   confirmed to be loading (html.icons-loading, set/cleared by the script in
+   layout.tsx), so a late font doesn't show ligature names ("mic") once the ~3s
+   font-display: block period runs out.
+   DELIBERATELY INVERTED — do not "simplify" to hidden-by-default +
+   html.icons-ready: that shipped once and left blank buttons on Safari first
+   load, because any failure of the script (no JS, CSP, React rewriting <html>
+   on a hydration error) kept icons transparent forever. With this shape every
+   failure mode loses the class and lands on visible icons. Controls keep their
+   aria-labels either way. */
+html.icons-loading .material-symbols-outlined { color: transparent; }
 .material-symbols-outlined.icon-fill {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
@@ -148,11 +170,115 @@ body { @apply bg-background text-on-background font-body antialiased; }
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* Splash: icon fades/scales in (§10 white-icon spec — motion minimal) */
-@keyframes splash-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to   { opacity: 1; transform: scale(1); }
+/* ---- Splash: brand logo reveal (components/Splash.tsx) ----
+   Server-rendered, CSS-driven so it plays from first paint without waiting for
+   hydration. Hidden unless the head script in layout.tsx set html[data-splash]
+   (first cold start of the session only).
+   Motion, ported from the design export (logo-reveal.jsx) and retimed from its
+   4s timebase to the 1.7s cut — Converge 2s→0.6s (×0.3), Type 1s→0.5s (×0.5):
+     0–600ms   three gold arcs converge on separate paths and lock
+               (export PIECES t: [.05,1.85] [.2,1.95] [.35,2] → below)
+     600–1000ms rings gold → white as the gradient tile scales in (export Mark)
+     1000–1500ms hold the locked mark; 1500ms+ the flight (Splash.tsx)
+   The export's Hold scene and its "mark slides left" / typed wordmark are
+   dropped (portrait, no wordmark).
+   Resting state = the LOCKED mark; the motion only exists under
+   no-preference, so reduced motion shows the locked mark with no converge.
+   Translate offsets are % of the mark box = the export's mark-unit offsets
+   (x/1024), so the path scales with the mark. */
+.onit-splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
 }
+html[data-splash] .onit-splash { display: block; }
+/* Cream backdrop as its own layer so the flight (Splash.tsx) can fade it out
+   while the mark is still travelling. */
+.onit-splash-backdrop { position: absolute; inset: 0; background: #fff8f0; }
+/* JS-never-loads failsafe: before the client controller takes over
+   (data-splash="" → "live"), the splash dissolves by itself at 6s and stops
+   catching taps, revealing the app with its own skeleton. !important plus the
+   higher specificity beats the global reduced-motion kill below, so this
+   still fires with reduced motion on. */
+html[data-splash=""] .onit-splash {
+  animation: onit-splash-failsafe 300ms ease 6s forwards !important;
+}
+@keyframes onit-splash-failsafe { to { opacity: 0; visibility: hidden; } }
+
+/* Mark centre at 45% of the viewport height (optical centre, slightly above
+   true centre). Centred with margins, not a transform, so the flight owns
+   transform. In an iOS PWA with status-bar-style "default" the viewport starts
+   below the status bar, so plain centring sat ~53-55% down the screen. */
+.onit-splash-mark {
+  --mark: min(40vw, 180px);
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  top: 45dvh;
+  width: var(--mark);
+  height: var(--mark);
+  margin: calc(var(--mark) / -2) 0 0 calc(var(--mark) / -2);
+}
+.onit-splash-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.onit-splash-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.onit-splash-tile, .onit-splash-arc { transform-origin: 50% 50%; }
+/* The split arcs only exist while converging (gold). At 600ms — every piece
+   has locked by then — they hand over, in one frame, to the unsplit whole
+   mark, which then turns white. Resting state: arcs hidden, whole mark white. */
+.onit-splash-arc { fill: #d4af37; }
+.onit-splash-arcs { opacity: 0; }
+.onit-splash-whole { fill: #fff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .onit-splash-arc { will-change: transform, opacity; }
+  /* move (easeOutCubic over the piece's range) + fade-in (first 135ms of it) */
+  .onit-splash-arc-1 {
+    animation: onit-splash-arc-1 540ms cubic-bezier(0.33, 1, 0.68, 1) 15ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 15ms both;
+  }
+  .onit-splash-arc-2 {
+    animation: onit-splash-arc-2 525ms cubic-bezier(0.33, 1, 0.68, 1) 60ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 60ms both;
+  }
+  .onit-splash-arc-3 {
+    animation: onit-splash-arc-3 495ms cubic-bezier(0.33, 1, 0.68, 1) 105ms both,
+      onit-splash-arc-in 135ms cubic-bezier(0.33, 1, 0.68, 1) 105ms both;
+  }
+  /* the handover: arcs visible until 600ms, whole mark from 600ms */
+  .onit-splash-arcs { animation: onit-splash-handover-out 600ms steps(1, end) both; }
+  /* whole mark: appears at the lock, then gold→white (easeInOutCubic, 600–1000ms) */
+  .onit-splash-whole {
+    animation: onit-splash-handover-in 600ms steps(1, end) both,
+      onit-splash-white 400ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both;
+  }
+  .onit-splash-tile {
+    will-change: transform, opacity;
+    animation: onit-splash-tile-in 400ms cubic-bezier(0.65, 0, 0.35, 1) 600ms both,
+      onit-splash-tile-grow 400ms cubic-bezier(0.33, 1, 0.68, 1) 600ms both;
+  }
+}
+@keyframes onit-splash-handover-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes onit-splash-handover-in { from { opacity: 0; } to { opacity: 1; } }
+/* export PIECES.from: translate(x y) rotate(rot) scale(s), then the squash
+   rotate(-28) scale(1 sq) rotate(28), all about the mark centre */
+@keyframes onit-splash-arc-1 {
+  from { transform: translate(-87.890625%, -54.6875%) rotate(-150deg) scale(0.7) rotate(-28deg) scale(1, 1.8) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-2 {
+  from { transform: translate(-68.359375%, 76.171875%) rotate(160deg) scale(1.45) rotate(-28deg) scale(1, 0.35) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-3 {
+  from { transform: translate(107.421875%, -41.015625%) rotate(110deg) scale(0.6) rotate(-28deg) scale(1, 1.6) rotate(28deg); }
+  to { transform: translate(0, 0) rotate(0deg) scale(1) rotate(-28deg) scale(1, 1) rotate(28deg); }
+}
+@keyframes onit-splash-arc-in { from { opacity: 0; } }
+@keyframes onit-splash-white { from { fill: #d4af37; } }
+@keyframes onit-splash-tile-in { from { opacity: 0; } }
+@keyframes onit-splash-tile-grow { from { transform: scale(0.9); } }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-skeleton-shimmer {

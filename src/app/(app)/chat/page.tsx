@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
+import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
@@ -574,6 +575,21 @@ export default function Chat() {
     return () => { cancelled = true; window.removeEventListener('onit-history', openHistory); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Splash gate (lib/splash-gate): on a cold start the splash stays up until
+  // this screen has its critical data — the conversation restored AND auth/
+  // profile resolved — so it exits onto real content, not the skeleton. The
+  // hold is advisory: Splash caps the wait, and unmount (e.g. the /onboarding
+  // redirect) releases it.
+  const releaseSplashRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const release = holdSplash();
+    releaseSplashRef.current = release;
+    return release;
+  }, []);
+  useEffect(() => {
+    if (hydrated && profileLoaded) releaseSplashRef.current?.();
+  }, [hydrated, profileLoaded]);
 
   // Render-only skeleton timeout (see skeletonTimedOut). Independent of the
   // restore effect so a hung getSession() can't take the timer down with it.
@@ -2600,6 +2616,9 @@ export default function Chat() {
           />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
+            // The splash's white rings fly onto this button on a cold start
+            // (components/Splash.tsx measures it at runtime).
+            data-splash-target=""
             className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40 ${recording ? 'voice-listening' : ''}`}
             disabled={phase !== null}
             onClick={micTap}

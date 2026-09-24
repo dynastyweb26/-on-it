@@ -9,12 +9,13 @@
    about. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 
 // The real bottom-nav tabs. `active` is the tab the mock screen sits on; a
 // slide about Expenses or Tax passes 'books' so the user sees where in the app
 // the feature lives (§ the tab bar is part of "this is a real screen").
 export type TabKey = 'chat' | 'invoices' | 'books' | 'settings';
-const MOCK_TABS: { key: TabKey; label: string; icon: string }[] = [
+const MOCK_TABS: { key: TabKey; label: string; icon: IconName }[] = [
   { key: 'chat', label: 'Chat', icon: 'mic' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
   { key: 'books', label: 'Books', icon: 'payments' },
@@ -102,7 +103,7 @@ export function MockComposer({ captureId, micId }: { captureId?: string; micId?:
 
 /** A scaled-down Books stat tile, matching the dashboard's Stat. */
 export function MiniStat({ label, value, icon, iconCls, tone }: {
-  label: string; value: string; icon: string; iconCls: string; tone: string;
+  label: string; value: string; icon: IconName; iconCls: string; tone: string;
 }) {
   return (
     <div className="card p-3">
@@ -153,8 +154,8 @@ export function Spotlight({ target, containerRef, active, pulse = true }: {
     const el = c.querySelector<HTMLElement>(`[data-spotlight="${target}"]`);
     if (el) ro.observe(el);
     window.addEventListener('resize', measure);
-    // Icons load from the Material Symbols stylesheet after first paint and
-    // change the target's size — re-measure once they're ready.
+    // The icon font (display: block) may land after first paint and change the
+    // target's size — re-measure once it's ready.
     const t = setTimeout(measure, 300);
     if (typeof document !== 'undefined' && document.fonts?.ready) {
       document.fonts.ready.then(measure).catch(() => {});

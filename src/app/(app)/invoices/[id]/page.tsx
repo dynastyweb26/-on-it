@@ -662,6 +662,7 @@ export default function InvoiceDetail() {
                   <button
                     className="p-1 text-error opacity-70 hover:opacity-100"
                     title="Delete payment"
+                    aria-label="Delete payment"
                     onClick={() => setDeletingPaymentId(p.id)}
                   >
                     <Icon name="delete" size={16} />

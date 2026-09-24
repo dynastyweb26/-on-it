@@ -6,6 +6,7 @@ import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import TutorialReference from '@/components/tutorial/TutorialReference';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import { createClient } from '@/lib/supabase/client';
@@ -22,7 +23,7 @@ function getParentRoute(path: string): string | null {
 // 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
 // each invoice's detail page) but is no longer in primary navigation.
 // Icons: Design Standard §4 canonical assignments.
-const TABS = [
+const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: '/chat', label: 'Chat', icon: 'mic' },
   { href: '/invoices', label: 'Invoices', icon: 'description' },
   { href: '/dashboard', label: 'Books', icon: 'payments' },
