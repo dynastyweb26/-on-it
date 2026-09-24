@@ -18,10 +18,15 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 // next must be a relative path on our own origin — no open redirect. Rejects
 // protocol-relative ('//host'), schemes, and backslashes; new URL(next, origin)
-// then pins it to our origin as a second guard.
+// then pins it to our origin as a second guard. Length is capped at 200 chars to
+// prevent DoS or memory/URL inflation via oversized redirect targets.
 const RELATIVE_PATH = /^\/[A-Za-z0-9\-._~/]*$/;
+const MAX_NEXT_LEN = 200;
+
 function safeNext(raw: string | null): string {
-  if (raw && !raw.startsWith('//') && RELATIVE_PATH.test(raw)) return raw;
+  if (raw && raw.length <= MAX_NEXT_LEN && !raw.startsWith('//') && RELATIVE_PATH.test(raw)) {
+    return raw;
+  }
   return '/chat';
 }
 
