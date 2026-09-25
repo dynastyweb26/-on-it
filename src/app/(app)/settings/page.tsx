@@ -105,6 +105,10 @@ export default function Settings() {
   const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
+  // Stripe Connect: busy covers both the onboarding redirect and a status
+  // refresh; notice carries the 503/failure message inline (billing pattern).
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [connectNotice, setConnectNotice] = useState('');
   // Account deletion: a two-step, typed-confirmation flow kept well away from
   // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -150,6 +154,20 @@ export default function Settings() {
         settle();
         setAuthStuck(false); // late resolve after a timeout: recover and render
         setP(data);
+
+        // Stripe Connect return trip. ?connect=refresh means the Account Link
+        // expired or was reused — get a fresh one (Stripe's documented flow).
+        // ?connect=return means the seller left onboarding, finished or not —
+        // re-read the status. Also re-read on any load while setup is
+        // incomplete, so a finished-elsewhere onboarding shows up. The param is
+        // dropped from the URL first so a reload can't loop the redirect.
+        const connectParam = new URLSearchParams(window.location.search).get('connect');
+        if (connectParam) router.replace('/settings');
+        if (connectParam === 'refresh') {
+          void startConnect();
+        } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
+          void refreshConnect();
+        }
 
         try {
           const res = await fetch('/api/zelle');
@@ -295,6 +313,48 @@ export default function Settings() {
     }
   }
 
+  // Stripe Connect onboarding → Stripe-hosted Account Link. Creates the Standard
+  // account on first use server-side; resumes it after. 503 dormant message
+  // shows inline, same as billing.
+  async function startConnect() {
+    if (connectBusy) return;
+    setConnectBusy(true);
+    setConnectNotice('');
+    try {
+      const res = await fetch('/api/connect/onboard', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (data?.url) { window.location.href = data.url; return; }
+      setConnectNotice(data?.message ?? 'Stripe isn’t available right now — try again shortly.');
+    } catch {
+      setConnectNotice('Stripe isn’t available right now — try again shortly.');
+    } finally {
+      setConnectBusy(false);
+    }
+  }
+
+  // Re-read the connected account's status from Stripe (server mirrors it onto
+  // the profile) and merge it into local state. Silent on failure: the card
+  // just keeps showing the last known state.
+  async function refreshConnect() {
+    setConnectBusy(true);
+    try {
+      const res = await fetch('/api/connect/status', { method: 'POST' });
+      if (!res.ok) return;
+      const s = await res.json();
+      if (!s?.connected) return;
+      setP((prev: any) => prev && ({
+        ...prev,
+        stripe_charges_enabled: s.chargesEnabled,
+        stripe_details_submitted: s.detailsSubmitted,
+        stripe_payouts_enabled: s.payoutsEnabled,
+      }));
+    } catch {
+      /* keep last known state */
+    } finally {
+      setConnectBusy(false);
+    }
+  }
+
   // Permanent: deletes the account, all records, and uploaded files, and cancels
   // any live subscription server-side. Only fires on an exact "DELETE" match.
   async function confirmDelete() {
@@ -392,21 +452,70 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* ── Block 1 — Stripe, its own cream-tinted card ───────────────
-          Layout only; no Stripe connect logic yet. Button stays disabled. */}
+      {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
+          Three states from the profile's mirrored Stripe status:
+            not connected            → Connect (creates the Standard account)
+            connected, can't charge  → Finish setup (resumes onboarding)
+            charges enabled          → Connected + the card-payments opt-in
+          The stripe_* columns are server-written only; the switch saves
+          card_payments_enabled through the normal save() path. */}
       <section className="card space-y-3" style={{ background: '#fff8f0' }}>
         <div className="flex items-center gap-3">
           <BrandMark src="/brands/stripe.svg" color="#635BFF" />
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
+              {p.stripe_account_id && (
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${p.stripe_charges_enabled ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {p.stripe_charges_enabled ? 'Connected' : 'Setup incomplete'}
+                </span>
+              )}
+            </div>
             <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
           </div>
-          <button type="button" disabled
-            className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white pointer-events-none"
-            style={{ background: '#5f09b2' }}>
-            Coming soon
-          </button>
+          {!p.stripe_charges_enabled && (
+            <button type="button" disabled={connectBusy} onClick={startConnect}
+              className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white disabled:opacity-60"
+              style={{ background: '#5f09b2' }}>
+              {connectBusy ? 'Opening…' : p.stripe_account_id ? 'Finish setup' : 'Connect'}
+            </button>
+          )}
         </div>
+        {p.stripe_account_id && !p.stripe_charges_enabled && (
+          <p className="font-body text-sm text-on-surface-variant">
+            {p.stripe_details_submitted
+              ? 'Stripe is reviewing your details. Card payments turn on once they approve your account.'
+              : 'Finish setting up your Stripe account to start taking card payments.'}
+          </p>
+        )}
+        {p.stripe_charges_enabled && (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-body text-sm text-on-surface-variant">
+                Let clients pay invoices by card. Money goes straight to your Stripe account; Stripe’s card fees apply.
+              </p>
+              <button
+                role="switch"
+                aria-checked={Boolean(p.card_payments_enabled)}
+                aria-label="Accept card payments"
+                onClick={() => save({ card_payments_enabled: !p.card_payments_enabled })}
+                className={`relative h-8 w-14 shrink-0 rounded-full transition-colors
+                  ${p.card_payments_enabled ? 'bg-primary-container' : 'bg-outline-variant'}`}
+              >
+                <span
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
+                    ${p.card_payments_enabled ? 'left-7' : 'left-1'}`}
+                />
+              </button>
+            </div>
+            {!p.stripe_payouts_enabled && (
+              <p className="font-body text-sm text-on-surface-variant">
+                Payouts are paused until Stripe has everything it needs. Check your Stripe dashboard.
+              </p>
+            )}
+          </>
+        )}
+        {connectNotice && <p className="font-body text-sm text-on-surface-variant">{connectNotice}</p>}
       </section>
 
       {/* ── Block 2 — PayPal / Cash App / Venmo, one card, three rows ──
