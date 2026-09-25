@@ -232,6 +232,11 @@ export default function Settings() {
     setP({ ...p, ...patch });               // optimistic
     const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
     if (error) {
+      // Keep the evidence: which columns were sent and Supabase's code/message
+      // (e.g. 42501 permission denied). No values — they can be personal data.
+      console.error('settings save failed', JSON.stringify({
+        columns: Object.keys(patch), code: error.code, message: error.message, details: error.details, hint: error.hint,
+      }));
       setP(prev);                           // revert — the write did not land
       setSaveFailed(true);
       setTimeout(() => setSaveFailed(false), 2500);
