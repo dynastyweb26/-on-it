@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import SettingsSkeleton from '@/components/SettingsSkeleton';
@@ -109,6 +109,8 @@ export default function Settings() {
   // refresh; notice carries the 503/failure message inline (billing pattern).
   const [connectBusy, setConnectBusy] = useState(false);
   const [connectNotice, setConnectNotice] = useState('');
+  // Synchronous in-flight guard for startConnect (see there).
+  const connectInFlight = useRef(false);
   // Account deletion: a two-step, typed-confirmation flow kept well away from
   // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -317,18 +319,31 @@ export default function Settings() {
   // account on first use server-side; resumes it after. 503 dormant message
   // shows inline, same as billing.
   async function startConnect() {
-    if (connectBusy) return;
+    // Ref, not state: two taps in the same frame both see connectBusy=false
+    // (state hasn't re-rendered yet), which is how one tap became several POSTs.
+    if (connectInFlight.current) return;
+    connectInFlight.current = true;
     setConnectBusy(true);
     setConnectNotice('');
+    let redirecting = false;
     try {
       const res = await fetch('/api/connect/onboard', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
-      if (data?.url) { window.location.href = data.url; return; }
+      if (data?.url) {
+        // Leaving for Stripe: stay busy/disabled until the page unloads, so a
+        // tap during navigation can't fire a second onboarding request.
+        redirecting = true;
+        window.location.href = data.url;
+        return;
+      }
       setConnectNotice(data?.message ?? 'Stripe isn’t available right now — try again shortly.');
     } catch {
       setConnectNotice('Stripe isn’t available right now — try again shortly.');
     } finally {
-      setConnectBusy(false);
+      if (!redirecting) {
+        connectInFlight.current = false;
+        setConnectBusy(false);
+      }
     }
   }
 
