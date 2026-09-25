@@ -10,7 +10,10 @@ import Stripe from 'stripe';
 export const STRIPE_API_VERSION = '2026-06-24.dahlia' as const;
 
 export function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
+  // Trimmed: a pasted value with a trailing newline/space becomes an invalid
+  // Authorization header, which Node rejects before the request leaves — the
+  // SDK then reports it as a StripeConnectionError, not an auth error.
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) return null;
   return new Stripe(key, { apiVersion: STRIPE_API_VERSION });
 }

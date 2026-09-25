@@ -68,7 +68,8 @@ async function applySubscription(sub: Stripe.Subscription, explicitUserId?: stri
 
 export async function POST(req: NextRequest) {
   const stripe = getStripe();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  // Trimmed: stray whitespace from a pasted env value would fail every signature check.
+  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   // Dormant path: no keys tonight. Return 503 cleanly, never throw.
   if (!stripe || !secret) {
     return NextResponse.json({ error: 'billing_not_configured' }, { status: 503 });

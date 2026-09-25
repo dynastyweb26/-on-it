@@ -18,7 +18,7 @@ import { adminClient } from '@/lib/supabase/admin';
  * (the same dormant contract as checkout/billing-portal) when this is false.
  */
 export function connectEnabled(): boolean {
-  return process.env.STRIPE_CONNECT_ENABLED === 'true';
+  return process.env.STRIPE_CONNECT_ENABLED?.trim() === 'true';
 }
 
 export interface ConnectStatus {

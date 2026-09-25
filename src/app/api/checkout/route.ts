@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
 
   const stripe = getStripe();
-  const price = process.env.STRIPE_PRICE_ID_MONTHLY;
+  const price = process.env.STRIPE_PRICE_ID_MONTHLY?.trim(); // stray env whitespace → invalid price id
   // Dormant path: billing not configured yet (no keys tonight).
   if (!stripe || !price) {
     return NextResponse.json(
