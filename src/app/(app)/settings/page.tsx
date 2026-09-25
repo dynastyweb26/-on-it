@@ -468,10 +468,13 @@ export default function Settings() {
       </section>
 
       {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
-          Three states from the profile's mirrored Stripe status:
-            not connected            → Connect (creates the Standard account)
-            connected, can't charge  → Finish setup (resumes onboarding)
-            charges enabled          → Connected + the card-payments opt-in
+          Four states from the profile's mirrored Stripe status:
+            not connected                        → Connect (creates the account)
+            can't charge, seller owes a due item → Finish setup (resumes onboarding)
+            can't charge, nothing due from them  → In review, no button; Stripe is
+                                                   verifying. Status is re-read on
+                                                   every load until it flips.
+            charges enabled                      → Connected + the card-payments opt-in
           The stripe_* columns are server-written only; the switch saves
           card_payments_enabled through the normal save() path. */}
       <section className="card space-y-3" style={{ background: '#fff8f0' }}>
@@ -482,13 +485,15 @@ export default function Settings() {
               <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
               {p.stripe_account_id && (
                 <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${p.stripe_charges_enabled ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
-                  {p.stripe_charges_enabled ? 'Connected' : 'Setup incomplete'}
+                  {p.stripe_charges_enabled ? 'Connected' : p.stripe_details_submitted ? 'In review' : 'Setup incomplete'}
                 </span>
               )}
             </div>
             <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
           </div>
-          {!p.stripe_charges_enabled && (
+          {/* Action only when the seller has something to do: not yet connected,
+              or a requirement is currently/past due on them. Never while in review. */}
+          {!p.stripe_charges_enabled && (!p.stripe_account_id || !p.stripe_details_submitted) && (
             <button type="button" disabled={connectBusy} onClick={startConnect}
               className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white disabled:opacity-60"
               style={{ background: '#5f09b2' }}>
@@ -499,7 +504,7 @@ export default function Settings() {
         {p.stripe_account_id && !p.stripe_charges_enabled && (
           <p className="font-body text-sm text-on-surface-variant">
             {p.stripe_details_submitted
-              ? 'Stripe is reviewing your details. Card payments turn on once they approve your account.'
+              ? 'Stripe is reviewing your account. Card payments turn on once they approve it.'
               : 'Finish setting up your Stripe account to start taking card payments.'}
           </p>
         )}
