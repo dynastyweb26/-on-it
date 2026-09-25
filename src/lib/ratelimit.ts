@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -34,6 +34,13 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   pay_view:       { tokens: 30, window: '60 s' },
   // Access status check — throttles excessive client polling and protects DB read queries.
   access:         { tokens: 30, window: '60 s' },
+  // Stripe Connect: onboard creates an account / Account Link (Stripe API
+  // calls); status re-reads the account. A seller clicks these a few times.
+  connect_onboard: { tokens: 5,  window: '60 s' },
+  connect_status:  { tokens: 10, window: '60 s' },
+  // GET /api/connect/status — the Connect on/off probe Settings makes on every
+  // load. Signed-out capable, so keyed by IP; no Stripe call, no DB read.
+  connect_config:  { tokens: 30, window: '60 s' },
 };
 
 let redis: Redis | null = null;
