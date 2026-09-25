@@ -1,6 +1,7 @@
 // POST /api/connect/onboard — start (or resume) Stripe Connect onboarding.
-// Creates the seller's Standard account on first use, then returns a
-// Stripe-hosted Account Link. The client redirects to it (fetch → location,
+// Creates the seller's connected account (Accounts v2, merchant
+// configuration, full Stripe Dashboard) on first use, then returns a
+// Stripe-hosted onboarding link. The client redirects to it (fetch → location,
 // same as checkout — CSP form-action is 'self').
 //
 // User request → session client for the read; the account id write goes
@@ -18,13 +19,30 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/server';
-import { connectEnabled } from '@/lib/stripe/connect';
+import {
+  ACCOUNT_INCLUDE,
+  accountIdempotencyKey,
+  connectEnabled,
+  stripeErrorLog,
+} from '@/lib/stripe/connect';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
 
 // No meaningful body — validate anyway (security pattern).
 const OnboardBody = z.object({}).nullish();
+
+// The name Stripe shows for the account: business name, else the user's full
+// name (auth metadata, if a provider ever sets it — email sign-up doesn't),
+// else their email.
+function displayName(
+  businessName: string | null | undefined,
+  meta: Record<string, unknown> | undefined,
+  email: string | undefined
+): string | undefined {
+  const pick = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  return pick(businessName) ?? pick(meta?.full_name) ?? pick(meta?.name) ?? pick(email);
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -60,14 +78,28 @@ export async function POST(req: NextRequest) {
     let accountId: string | null = profile.stripe_account_id ?? null;
 
     if (!accountId) {
-      const account = await stripe.accounts.create(
+      const account = await stripe.v2.core.accounts.create(
         {
-          type: 'standard',
-          email: user.email ?? undefined,
-          business_profile: profile.business_name ? { name: profile.business_name } : undefined,
+          display_name: displayName(profile.business_name, user.user_metadata, user.email),
+          contact_email: user.email ?? undefined,
+          // On It is US-only (Zelle / Cash App / Venmo, USD).
+          identity: { country: 'us' },
+          // Full Stripe Dashboard — the v2 equivalent of a Standard account.
+          dashboard: 'full',
+          defaults: {
+            responsibilities: {
+              fees_collector: 'stripe', // Stripe bills its fees to the seller; no application fee
+              losses_collector: 'stripe', // Stripe owns negative balances, as with Standard
+            },
+          },
+          configuration: {
+            // Merchant of record → direct charges.
+            merchant: { capabilities: { card_payments: { requested: true } } },
+          },
+          include: ACCOUNT_INCLUDE,
           metadata: { user_id: user.id },
         },
-        { idempotencyKey: `connect-account-${user.id}` }
+        { idempotencyKey: accountIdempotencyKey(user.id) }
       );
 
       const admin = adminClient();
@@ -93,21 +125,23 @@ export async function POST(req: NextRequest) {
     }
 
     const origin = req.nextUrl.origin;
-    const link = await stripe.accountLinks.create({
+    const link = await stripe.v2.core.accountLinks.create({
       account: accountId,
-      type: 'account_onboarding',
-      // refresh_url: the link expired or was reused — Settings re-requests one.
-      refresh_url: `${origin}/settings?connect=refresh`,
-      // return_url: the seller left onboarding (finished OR not) — Settings
-      // re-reads the account status; this is not proof of completion.
-      return_url: `${origin}/settings?connect=return`,
+      use_case: {
+        type: 'account_onboarding',
+        account_onboarding: {
+          configurations: ['merchant'],
+          // refresh_url: the link expired or was reused — Settings re-requests one.
+          refresh_url: `${origin}/settings?connect=refresh`,
+          // return_url: the seller left onboarding (finished OR not) — Settings
+          // re-reads the account status; this is not proof of completion.
+          return_url: `${origin}/settings?connect=return`,
+        },
+      },
     });
     return NextResponse.json({ url: link.url });
   } catch (e) {
-    // detail: the SDK attaches the underlying Node error on connection failures
-    // (e.g. an invalid header), which type/message alone don't reveal.
-    const err = e as { type?: string; code?: string; message?: string; detail?: { message?: string } };
-    console.error('connect onboard error', JSON.stringify({ type: err?.type, code: err?.code, message: err?.message, detail: err?.detail?.message }));
+    console.error('connect onboard error', stripeErrorLog(e));
     return NextResponse.json(
       { error: 'onboard failed', message: 'We couldn’t reach Stripe just now. Please try again.' },
       { status: 500 }

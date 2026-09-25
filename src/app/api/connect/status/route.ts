@@ -1,7 +1,7 @@
 // POST /api/connect/status — re-read the seller's connected account from
-// Stripe and mirror its status onto the profile. Called by Settings on return
-// from onboarding and on load while setup is incomplete. POST (not GET)
-// because it writes.
+// Stripe (Accounts v2) and mirror its status onto the profile. Called by
+// Settings on return from onboarding and on load while setup is incomplete.
+// POST (not GET) because it writes.
 //
 // The account id comes from the caller's own profile (session client, RLS),
 // never from the request body, so a user can only refresh their own account.
@@ -11,7 +11,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
-import { connectEnabled, statusFromAccount, writeConnectStatus } from '@/lib/stripe/connect';
+import {
+  ACCOUNT_INCLUDE,
+  capabilityStatuses,
+  connectEnabled,
+  statusFromV2Account,
+  stripeErrorLog,
+  writeConnectStatus,
+} from '@/lib/stripe/connect';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -38,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile, error: readErr } = await supabase
     .from('profiles')
-    .select('stripe_account_id')
+    .select('stripe_account_id, stripe_charges_enabled')
     .eq('id', user.id)
     .maybeSingle();
   if (readErr || !profile) {
@@ -49,8 +56,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
-    const status = statusFromAccount(account);
+    const account = await stripe.v2.core.accounts.retrieve(profile.stripe_account_id, {
+      include: ACCOUNT_INCLUDE,
+    });
+
+    // Until the account is Connected, log the raw capability statuses so the
+    // v2 mapping can be checked against what Stripe actually returns. Statuses
+    // only: no requirement details, no account or personal info.
+    if (!profile.stripe_charges_enabled) {
+      console.log('connect status capabilities', JSON.stringify(capabilityStatuses(account)));
+    }
+
+    const status = statusFromV2Account(account);
     await writeConnectStatus(user.id, status);
     return NextResponse.json({
       connected: true,
@@ -59,10 +76,7 @@ export async function POST(req: NextRequest) {
       payoutsEnabled: status.payoutsEnabled,
     });
   } catch (e) {
-    // detail: the SDK attaches the underlying Node error on connection failures
-    // (e.g. an invalid header), which type/message alone don't reveal.
-    const err = e as { type?: string; code?: string; message?: string; detail?: { message?: string } };
-    console.error('connect status error', JSON.stringify({ type: err?.type, code: err?.code, message: err?.message, detail: err?.detail?.message }));
+    console.error('connect status error', stripeErrorLog(e));
     return NextResponse.json({ error: 'status failed' }, { status: 500 });
   }
 }
