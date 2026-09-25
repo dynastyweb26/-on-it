@@ -104,8 +104,10 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ url: link.url });
   } catch (e) {
-    const err = e as { type?: string; code?: string; message?: string };
-    console.error('connect onboard error', JSON.stringify({ type: err?.type, code: err?.code, message: err?.message }));
+    // detail: the SDK attaches the underlying Node error on connection failures
+    // (e.g. an invalid header), which type/message alone don't reveal.
+    const err = e as { type?: string; code?: string; message?: string; detail?: { message?: string } };
+    console.error('connect onboard error', JSON.stringify({ type: err?.type, code: err?.code, message: err?.message, detail: err?.detail?.message }));
     return NextResponse.json(
       { error: 'onboard failed', message: 'We couldn’t reach Stripe just now. Please try again.' },
       { status: 500 }
