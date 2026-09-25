@@ -22,3 +22,15 @@ Pre-deploy checklist (every push/deploy):
   migration that adds a profiles column also adds it to that snippet's
   privileged or safe list.
 - Never infer migration state from local files — ask the user to verify with SQL.
+
+Deploy workflow:
+- Preview (every feature/fix branch): from the repo root on the branch, run the
+  global CLI `vercel` (not `npx`, never `--prod`), then as the LAST step
+  `vercel alias set <new-deployment-url> onit-dynastyweb-preview.vercel.app`
+  so the installed preview PWA follows the new build. Verify the deployment
+  is Ready before aliasing.
+- Production = merge to `main` (`--no-ff`) + `git push origin main`. The
+  Vercel GitHub integration builds production on every push to `main`.
+  Do NOT run `vercel --prod` — it creates a duplicate production build.
+- Only merge/push to `main` after the preview passes and the user confirms.
+  Any push to `main` is a production deploy, including docs-only commits.
