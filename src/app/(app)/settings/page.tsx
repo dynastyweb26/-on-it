@@ -111,6 +111,10 @@ export default function Settings() {
   const [connectNotice, setConnectNotice] = useState('');
   // Synchronous in-flight guard for startConnect (see there).
   const connectInFlight = useRef(false);
+  // Is Connect switched on in this deployment (GET /api/connect/status)?
+  // null = not known yet. Anything but a confirmed true renders the disabled
+  // "Coming soon" card — fail closed on error / rate limit.
+  const [connectOn, setConnectOn] = useState<boolean | null>(null);
   // Account deletion: a two-step, typed-confirmation flow kept well away from
   // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -163,12 +167,22 @@ export default function Settings() {
         // re-read the status. Also re-read on any load while setup is
         // incomplete, so a finished-elsewhere onboarding shows up. The param is
         // dropped from the URL first so a reload can't loop the redirect.
+        // All of it is skipped unless the server says Connect is on here.
         const connectParam = new URLSearchParams(window.location.search).get('connect');
         if (connectParam) router.replace('/settings');
-        if (connectParam === 'refresh') {
-          void startConnect();
-        } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
-          void refreshConnect();
+        let on = false;
+        try {
+          const c = await fetch('/api/connect/status', { method: 'GET' });
+          on = c.ok && (await c.json())?.enabled === true;
+        } catch { /* stays off */ }
+        if (!active) return;
+        setConnectOn(on);
+        if (on) {
+          if (connectParam === 'refresh') {
+            void startConnect();
+          } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
+            void refreshConnect();
+          }
         }
 
         try {
@@ -476,7 +490,27 @@ export default function Settings() {
                                                    every load until it flips.
             charges enabled                      → Connected + the card-payments opt-in
           The stripe_* columns are server-written only; the switch saves
-          card_payments_enabled through the normal save() path. */}
+          card_payments_enabled through the normal save() path.
+          Gated on connectOn: unless GET /api/connect/status confirms Connect
+          is switched on in this deployment (STRIPE_CONNECT_ENABLED), render
+          the original disabled "Coming soon" card instead — no tappable
+          Connect, no stored-account state, no card switch. */}
+      {connectOn !== true ? (
+      <section className="card space-y-3" style={{ background: '#fff8f0' }}>
+        <div className="flex items-center gap-3">
+          <BrandMark src="/brands/stripe.svg" color="#635BFF" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
+            <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
+          </div>
+          <button type="button" disabled
+            className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white pointer-events-none"
+            style={{ background: '#5f09b2' }}>
+            Coming soon
+          </button>
+        </div>
+      </section>
+      ) : (
       <section className="card space-y-3" style={{ background: '#fff8f0' }}>
         <div className="flex items-center gap-3">
           <BrandMark src="/brands/stripe.svg" color="#635BFF" />
@@ -537,6 +571,7 @@ export default function Settings() {
         )}
         {connectNotice && <p className="font-body text-sm text-on-surface-variant">{connectNotice}</p>}
       </section>
+      )}
 
       {/* ── Block 2 — PayPal / Cash App / Venmo, one card, three rows ──
           Wiring UNCHANGED: per-field save() on blur (PayPal strips/validates),

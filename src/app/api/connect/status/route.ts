@@ -25,6 +25,19 @@ export const runtime = 'nodejs';
 
 const StatusBody = z.object({}).nullish();
 
+// GET — is Connect switched on in this environment? Settings asks before
+// rendering the Stripe card and shows the disabled "Coming soon" state unless
+// this says enabled. Deliberately signed-out and data-free: it reports only
+// the deployment's Connect switch (+ key presence), touches no profile and
+// never calls Stripe. IP rate-limited. No NEXT_PUBLIC_ flag — the server's
+// STRIPE_CONNECT_ENABLED stays the single source of truth.
+export async function GET(req: NextRequest) {
+  if (!(await rateLimit('connect_config', rateIdentifier(req)))) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
+  return NextResponse.json({ enabled: Boolean(getStripe()) && connectEnabled() });
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
