@@ -12,3 +12,23 @@ export function websiteHref(value: string | null | undefined): string | null {
   if (!v) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
+
+/**
+ * Payment deep link URL builders. User-supplied handles are sanitized using
+ * domain/symbol stripping and encodeURIComponent to prevent URL parameter
+ * injection, path traversal, or unescaped characters in deep links.
+ */
+export function cashAppUrl(tag: string): string {
+  const clean = tag.trim().replace(/^(https?:\/\/)?(www\.)?cash\.app\/\$?/i, '').replace(/^\$+/, '').replace(/[/?#].*$/, '');
+  return `https://cash.app/$${encodeURIComponent(clean)}`;
+}
+
+export function payPalUrl(handle: string): string {
+  const clean = handle.trim().replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '').replace(/[/?#].*$/, '');
+  return `https://paypal.me/${encodeURIComponent(clean)}`;
+}
+
+export function venmoUrl(handle: string): string {
+  const clean = handle.trim().replace(/^(https?:\/\/)?(www\.)?venmo\.com\/(u\/)?/i, '').replace(/^[@/]+/, '').replace(/[/?#].*$/, '');
+  return `https://venmo.com/u/${encodeURIComponent(clean)}`;
+}

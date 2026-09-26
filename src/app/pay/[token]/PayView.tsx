@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
+import { cashAppUrl, payPalUrl, venmoUrl } from '@/lib/url';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Read-only public pay page view. Receives a fully-shaped, already-whitelisted
@@ -9,16 +10,6 @@ import { money } from '@/lib/financials';
 // get_public_invoice RPC). This component NEVER fetches and holds no secrets —
 // its only client behavior is copy-to-clipboard for the payment handles.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Handle → deep link. Mirrors src/lib/pdf/templates/index.tsx:84-87, where the
-// PDF footer builds the same links. Kept local so this read-only page doesn't
-// pull in the PDF render module; consolidate into a shared helper in a later
-// branch (tracked in PUNCH-LIST).
-const cashAppUrl = (tag: string) =>
-  `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
-const payPalUrl = (h: string) =>
-  `https://paypal.me/${h.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
-const venmoUrl = (h: string) => `https://venmo.com/u/${h.replace(/^@/, '')}`;
 
 export interface PayHandles {
   paypalMe: string | null;
