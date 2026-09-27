@@ -141,7 +141,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const parentRoute = getParentRoute(path);
 
   return (
-    <div className="mx-auto flex h-dvh max-w-lg flex-col">
+    // data-app-shell: locks document scroll while the shell is mounted (globals.css).
+    <div data-app-shell="" className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
         <div className="flex items-center gap-1">
           {parentRoute && <BackButton parentHref={parentRoute} />}

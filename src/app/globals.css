@@ -16,6 +16,21 @@ html {
 }
 body { @apply bg-background text-on-background font-body antialiased; }
 
+/* App shell only ((app)/layout.tsx, data-app-shell): the document must never
+   scroll. The shell is h-dvh and holds all scrolling itself (main, or the chat
+   list), but a swipe that began on non-scrolling chrome (the bottom nav) made
+   iOS scroll/rubber-band the DOCUMENT, and iOS then kept routing gestures to
+   it — the chat list got none until remount (the "freeze", found with the
+   ?debug=scroll overlay). Scoped with :has() because the pages outside the
+   shell (login, onboarding, pay, legal, install, reset-password) grow past
+   the viewport and rely on normal page scroll. */
+html:has([data-app-shell]),
+html:has([data-app-shell]) body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 @layer base {
   h1, h2, h3 { @apply font-display; }
 }
