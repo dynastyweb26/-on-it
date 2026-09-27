@@ -84,6 +84,17 @@ function statedTaxRates(text: string): number[] {
   return out;
 }
 
+// A client_name that is a role or pronoun, not a name. The WHOLE value must be
+// one of these words (optionally after an article/possessive), so a real name
+// that happens to follow "the" survives ("the Johnsons", "The Home Depot").
+// Words that are also real first names (Guy, Man…) only count with an article.
+const GENERIC_BARE = /^(?:client|customer|homeowner|home owner|owner|tenant|landlord|someone|somebody|person|him|her|them|unknown|n\/?a|none|tbd|name|client name|customer name)s?$/i;
+const GENERIC_WITH_ARTICLE = /^(?:the|a|an|my|our|this|that|some)\s+(?:client|customer|homeowner|home owner|owner|tenant|landlord|person|guy|lady|man|woman|gentleman|family)s?$/i;
+function isGenericClientName(name: string): boolean {
+  const s = name.trim().replace(/^["'“‘]+|["'”’.,!?]+$/g, '').replace(/\s+/g, ' ');
+  return !s || GENERIC_BARE.test(s) || GENERIC_WITH_ARTICLE.test(s);
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -158,6 +169,30 @@ export async function POST(req: NextRequest) {
         result.reply = "I couldn't quite read the amounts on that job. Could you try rephrasing the prices?";
       } else {
         result.line_items = normalizedItems;
+      }
+    }
+
+    // Client name guard (invoice/quote). The prompt forbids placeholders, but
+    // the model has still returned the literal word "client" when no name was
+    // given. Enforce it in code: an empty or generic name is missing. A real
+    // name already on the draft is kept (so "send it to the client" can't wipe
+    // "Maria"); otherwise the name is cleared, the document is not ready, and
+    // the reply asks for it. An invalid-amounts reply above is left standing.
+    if (result.intent === 'invoice' || result.intent === 'quote') {
+      const name = typeof result.client_name === 'string' ? result.client_name.trim() : '';
+      if (!name || isGenericClientName(name)) {
+        const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
+        const draftName = typeof draftNameRaw === 'string' ? draftNameRaw.trim() : '';
+        if (draftName && !isGenericClientName(draftName)) {
+          result.client_name = draftName;
+        } else {
+          result.client_name = null;
+          result.ready = false;
+          result.missing = Array.from(new Set([...(Array.isArray(result.missing) ? result.missing : []), 'client_name']));
+          if (!hasInvalidLineItem) {
+            result.reply = /^\s*on it!/i.test(result.reply ?? '') ? "On it! Who's this for?" : "Who's this for?";
+          }
+        }
       }
     }
 
