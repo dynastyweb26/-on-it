@@ -95,6 +95,23 @@ function isGenericClientName(name: string): boolean {
   return !s || GENERIC_BARE.test(s) || GENERIC_WITH_ARTICLE.test(s);
 }
 
+// Reserved for real parse failures (a price present but unreadable). Compared
+// against the previous assistant message so it's never sent twice in a row.
+const AMOUNTS_UNREADABLE = "I couldn't quite read the amounts on that job. Could you try rephrasing the prices?";
+
+// The question for a job described without a price. A short noun phrase reads
+// naturally as "the car wash"; a verb phrase ("Repaired leaking faucet") or a
+// long description gets a neutral form that still names the job.
+function priceQuestion(description: string): string {
+  const d = description.trim().replace(/[.!?]+$/, '');
+  const lower = d.charAt(0).toLowerCase() + d.slice(1);
+  const words = d.split(/\s+/);
+  const verbPhrase = /(?:ed|ing)$/i.test(words[0] ?? '');
+  return !verbPhrase && words.length <= 4
+    ? `How much for the ${lower}?`
+    : `Got it: ${lower}. How much should I charge for that?`;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -143,32 +160,63 @@ export async function POST(req: NextRequest) {
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
-    // Normalize and validate line items
+    // Normalize and validate line items. Each item is one of:
+    //   priced    — a finite price (a "$20" / "1,200" string is cleaned first)
+    //   priceless — a description with NO price yet ("Car wash"): valid partial
+    //               state, kept on the draft with unit_price null so the next
+    //               turn ("$20") fills it in; the price goes into `missing`
+    //   invalid   — a price that is present but unreadable, or a bad qty: a
+    //               real parse failure
+    // A priceless item used to count as invalid: the reply was always "couldn't
+    // read the amounts", the items were wiped, and repeating the job looped.
     let hasInvalidLineItem = false;
+    let pricelessItem: string | null = null; // first item still needing a price
     if (Array.isArray(result.line_items)) {
-      const normalizedItems: { description: string; qty: number; unit_price: number }[] = [];
+      const normalizedItems: { description: string; qty: number; unit_price: number | null }[] = [];
 
       for (const rawItem of result.line_items) {
         const itemObj = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
         const description = String(itemObj.description ?? '').trim();
-        const qty = Number(itemObj.qty ?? 1);
-        const unit_price = Number(itemObj.unit_price ?? itemObj.rate ?? itemObj.price ?? itemObj.amount);
+        const qty = itemObj.qty == null || itemObj.qty === '' ? 1 : Number(itemObj.qty);
+        const rawPrice = [itemObj.unit_price, itemObj.rate, itemObj.price, itemObj.amount]
+          .find((v) => v != null && v !== '');
 
-        if (!Number.isFinite(qty) || !Number.isFinite(unit_price)) {
+        if (!Number.isFinite(qty)) {
           hasInvalidLineItem = true;
           break;
         }
-
+        if (rawPrice === undefined) {
+          if (!description) continue; // an empty item carries nothing — drop it
+          pricelessItem ??= description;
+          normalizedItems.push({ description, qty, unit_price: null });
+          continue;
+        }
+        const unit_price = typeof rawPrice === 'number' ? rawPrice : Number(String(rawPrice).replace(/[$,\s]/g, ''));
+        if (!Number.isFinite(unit_price)) {
+          hasInvalidLineItem = true;
+          break;
+        }
         normalizedItems.push({ description, qty, unit_price });
       }
 
       if (hasInvalidLineItem) {
         console.error('Parse line items normalization failed. Raw model line_items:', JSON.stringify(result.line_items));
         result.ready = false;
-        result.line_items = [];
-        result.reply = "I couldn't quite read the amounts on that job. Could you try rephrasing the prices?";
+        // Keep what the draft already had instead of wiping the items.
+        const draftItems = (draft as Record<string, unknown> | null)?.line_items;
+        result.line_items = (Array.isArray(draftItems) ? draftItems : []) as ExtractResult['line_items'];
+        // The generic message never repeats twice in a row — a second failure
+        // asks a direct question instead.
+        const lastAssistant = [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+        result.reply = lastAssistant.trim() === AMOUNTS_UNREADABLE
+          ? 'How much did you charge? Just the number is fine, like 150.'
+          : AMOUNTS_UNREADABLE;
       } else {
-        result.line_items = normalizedItems;
+        result.line_items = normalizedItems as ExtractResult['line_items'];
+        if (pricelessItem) {
+          result.ready = false;
+          result.missing = Array.from(new Set([...(Array.isArray(result.missing) ? result.missing : []), 'price']));
+        }
       }
     }
 
@@ -193,6 +241,12 @@ export async function POST(req: NextRequest) {
             result.reply = /^\s*on it!/i.test(result.reply ?? '') ? "On it! Who's this for?" : "Who's this for?";
           }
         }
+      }
+      // One question at a time, name first: only once a real name is in hand
+      // does a priceless job get its price question.
+      if (pricelessItem && !hasInvalidLineItem && result.client_name) {
+        const q = priceQuestion(pricelessItem);
+        result.reply = /^\s*on it!/i.test(result.reply ?? '') ? `On it! ${q}` : q;
       }
     }
 
@@ -252,7 +306,9 @@ export async function POST(req: NextRequest) {
     // the address?") would get a redundant total read back every time.
     // Deposit lives only on the draft (deposit_type/value); the result never
     // carries it, so it's read from the draft for both totals below.
-    if (Array.isArray(result.line_items) && result.line_items.length > 0) {
+    // Skipped while any item still lacks a price: there's no real total to read
+    // back yet (it would say "$0.00"), and the reply is the price question.
+    if (Array.isArray(result.line_items) && result.line_items.length > 0 && !pricelessItem && !hasInvalidLineItem) {
       // Prior (draft) deposit vs. the deposit that applies after this turn. The
       // result now carries a deposit when the user stated or declined one; when
       // it left deposit_type null the deposit is unchanged, so fall back to the
