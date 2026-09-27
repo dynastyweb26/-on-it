@@ -156,7 +156,7 @@ You agree to defend and indemnify us against any claim, loss, or expense (includ
 
 ## 13. Termination
 
-You can stop using On It at any time. To have your account and data deleted, email us at brandon@dynastyweb.co and we'll take care of it.
+You can stop using On It at any time. You can delete your account and data yourself in the app (Settings → Delete account), or email us at brandon@dynastyweb.co and we'll take care of it.
 
 We can suspend or terminate your account if you violate these terms, if we're required to by law, or if we discontinue the service. If we discontinue the service entirely, we'll give you reasonable notice and a chance to export your data.
 

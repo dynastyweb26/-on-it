@@ -39,7 +39,9 @@ Transcription happens on our servers, not on your phone. Please keep in mind tha
 
 We don't store your customers' names, email addresses, or billing details from Stripe. Data Stripe collects from you and your customers is governed by Stripe's privacy policy (https://stripe.com/privacy).
 
-**Your Zelle handle.** If you choose to add a Zelle phone number or email so customers can pay you directly, we store it encrypted. On It does not connect to your Zelle account, read your payment notifications, or move money — the handle is simply printed on your invoices so your customers know where to send payment.
+**Your payment handles (Zelle, Venmo, PayPal, Cash App).** If you add a Zelle phone number or email, a Venmo username, a PayPal.me username, or a Cash App $cashtag so customers can pay you directly, we store them; your Zelle handle is stored encrypted. On It does not connect to any of these accounts, read your payment notifications, or move money — the handles are simply shown on your invoices so your customers know where to send payment.
+
+**Invoice payment pages are visible to anyone with the link.** Each invoice you send has its own private link to a payment page. Anyone who has that link — not only the customer you sent it to — can see your business name and logo, the invoice number, line items and amounts, and the payment handles you've added, including your Zelle handle. The page does not show your customer's name or contact details, and it stops showing your payment handles once the invoice is paid in full. Share invoice links only with the people you're billing.
 
 ---
 
@@ -105,7 +107,7 @@ We use your customers' email addresses only to deliver the invoices you create. 
 
 We keep your account and records for as long as your account is open.
 
-**Deleting your account.** On It does not currently have a self-service delete button. To close your account and have your data removed, email us at brandon@dynastyweb.co and we will do it for you. We aim to complete deletion requests within 30 days.
+**Deleting your account.** You can delete your account yourself in the app: **Settings → Delete account**. Deletion takes effect immediately and also cancels any active subscription. If you can't get into the app, email us at brandon@dynastyweb.co and we'll do it for you; we aim to complete emailed requests within 30 days.
 
 When we delete an account, we remove your profile, your customer records, your invoices, your expenses, your uploaded documents and receipts, and your stored Zelle handle.
 
@@ -116,8 +118,6 @@ Some information is retained after deletion:
 - **Your Stripe account.** If you connected a Stripe account, it belongs to you and stays with Stripe; deleting your On It account removes our record of it but does not close it. Manage or close it with Stripe.
 - **Transcription and AI processing.** Content previously sent to AssemblyAI or Anthropic for processing is subject to their retention policies, which we do not control.
 
-We're working on a self-service deletion option in the app. Until then, email works and we'll handle it.
-
 ---
 
 ## 7. Your choices
@@ -125,7 +125,7 @@ We're working on a self-service deletion option in the app. Until then, email wo
 You can:
 
 - **See and edit** your business profile, invoices, expenses, and customer records at any time in the app
-- **Delete your account** by emailing brandon@dynastyweb.co, which removes your data as described above
+- **Delete your account** in the app (Settings → Delete account), or by emailing brandon@dynastyweb.co, which removes your data as described above
 - **Cancel your subscription** at any time through the billing portal in Settings
 - **Ask us questions** about your data at brandon@dynastyweb.co
 
