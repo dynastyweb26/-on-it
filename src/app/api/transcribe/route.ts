@@ -103,7 +103,14 @@ export async function POST(req: NextRequest) {
       // above already reserved on attempt; that one is deliberately stricter.)
       if (!user) {
         const guestCount = Number(req.cookies.get(GUEST_TX_COOKIE)?.value ?? 0);
-        res.cookies.set(GUEST_TX_COOKIE, String(guestCount + 1), { httpOnly: true, sameSite: 'lax' });
+        // SECURITY: httpOnly prevents client JS reading/modifying guest usage count;
+        // sameSite: 'lax' guards against cross-site request forgery cookie tampering;
+        // path: '/' ensures cookie applies across all routes consistently.
+        res.cookies.set(GUEST_TX_COOKIE, String(guestCount + 1), {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+        });
       }
       return res;
     }
