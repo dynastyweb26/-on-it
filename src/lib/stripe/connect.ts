@@ -107,6 +107,49 @@ export async function writeConnectStatus(userId: string, status: ConnectStatus):
   if (error) throw error;
 }
 
+/**
+ * Webhook variant: no user in hand, only the account id Stripe reported.
+ * Updates whichever profile holds that account (0 rows if none — e.g. an
+ * account On It never stored, or one already disconnected). Throws on DB
+ * failure so the webhook returns 500 and Stripe retries.
+ */
+export async function writeConnectStatusByAccount(status: ConnectStatus): Promise<number> {
+  const { data, error } = await adminClient()
+    .from('profiles')
+    .update({
+      stripe_charges_enabled: status.chargesEnabled,
+      stripe_details_submitted: status.detailsSubmitted,
+      stripe_payouts_enabled: status.payoutsEnabled,
+    })
+    .eq('stripe_account_id', status.accountId)
+    .select('id');
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/**
+ * The seller disconnected On It from their Stripe account (deauthorized), or
+ * the account was closed. Forget it entirely: clear the id and every mirrored
+ * flag, and switch card payments off so the pay page stops offering cards.
+ * Recorded card payments in invoice_payments are untouched. Throws on DB
+ * failure.
+ */
+export async function clearConnectAccount(accountId: string): Promise<number> {
+  const { data, error } = await adminClient()
+    .from('profiles')
+    .update({
+      stripe_account_id: null,
+      stripe_charges_enabled: false,
+      stripe_details_submitted: false,
+      stripe_payouts_enabled: false,
+      card_payments_enabled: false,
+    })
+    .eq('stripe_account_id', accountId)
+    .select('id');
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
 /** Error fields worth logging from a Stripe SDK error (no request payloads). */
 export function stripeErrorLog(e: unknown) {
   const err = e as { type?: string; code?: string; message?: string; detail?: { message?: string } };

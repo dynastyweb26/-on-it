@@ -66,3 +66,38 @@ join pg_namespace n on n.oid = c.relnamespace
 cross join (values ('anon'), ('authenticated')) r(role)
 where n.nspname = 'public' and c.relkind = 'r'
 order by truncate desc, c.relname, r.role;
+
+-- ═══ invoice_payments (Stripe-sourced rows locked — 20260926000000) ═══
+-- The lock on Stripe-sourced ledger rows is RLS, not column grants:
+-- authenticated keeps table-level INSERT/UPDATE/DELETE on invoice_payments
+-- (owner-scoped by policy), and the policies refuse any row whose
+-- stripe_checkout_session_id (or legacy stripe_event_id) is set.
+
+-- E. Policies. Expect exactly these four, and NO FOR ALL "own invoice payments":
+--      own invoice payments select  SELECT  qual: (auth.uid() = user_id)
+--      own invoice payments insert  INSERT  with_check: uid = user_id AND
+--        stripe_checkout_session_id IS NULL AND stripe_event_id IS NULL AND
+--        EXISTS (own invoice)
+--      own invoice payments update  UPDATE  qual: uid = user_id AND both NULL;
+--        with_check: same + EXISTS (own invoice)
+--      own invoice payments delete  DELETE  qual: uid = user_id AND both NULL
+select policyname, cmd, qual, with_check
+from pg_policies
+where schemaname = 'public' and tablename = 'invoice_payments'
+order by policyname;
+
+-- F. The column + its constraints. Expect a UNIQUE key on
+--    stripe_checkout_session_id (the webhook's ON CONFLICT target) and
+--    invoice_payments_stripe_session_chk (cs_ shape, <= 255 chars).
+select conname, pg_get_constraintdef(oid)
+from pg_constraint
+where conrelid = 'public.invoice_payments'::regclass
+  and pg_get_constraintdef(oid) ilike '%stripe_checkout_session_id%';
+
+-- G. Stripe-sourced rows are only ever written by the service role, so every
+--    one must belong to the invoice's owner. Expect 0.
+select count(*) as mismatched_stripe_rows
+from public.invoice_payments p
+join public.invoices i on i.id = p.invoice_id
+where p.stripe_checkout_session_id is not null
+  and p.user_id <> i.user_id;

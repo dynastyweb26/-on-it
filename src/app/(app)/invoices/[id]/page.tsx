@@ -647,8 +647,14 @@ export default function InvoiceDetail() {
                   <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
                   <span className="ml-2 font-medium uppercase text-on-surface-variant">{p.method}</span>
                   <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
+                  {p.stripe_checkout_session_id ? (
+                    <span className="ml-2 text-on-surface-variant/70">via Stripe</span>
+                  ) : null}
                 </div>
-                {deletingPaymentId === p.id ? (
+                {/* Stripe-sourced rows (paid on the pay page) are locked by RLS —
+                    a delete would silently match 0 rows — so they get no delete
+                    control. Refunds are handled in the seller's Stripe Dashboard. */}
+                {p.stripe_checkout_session_id || p.stripe_event_id ? null : deletingPaymentId === p.id ? (
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-error">Delete?</span>
                     <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
