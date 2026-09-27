@@ -520,7 +520,7 @@ export default function Settings() {
         <div className="flex items-center gap-3">
           <BrandMark src="/brands/stripe.svg" color="#635BFF" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
               {p.stripe_account_id && (
                 <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${p.stripe_charges_enabled ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
@@ -530,15 +530,6 @@ export default function Settings() {
             </div>
             <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
           </div>
-          {/* Action only when the seller has something to do: not yet connected,
-              or a requirement is currently/past due on them. Never while in review. */}
-          {!p.stripe_charges_enabled && (!p.stripe_account_id || !p.stripe_details_submitted) && (
-            <button type="button" disabled={connectBusy} onClick={startConnect}
-              className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white disabled:opacity-60"
-              style={{ background: '#5f09b2' }}>
-              {connectBusy ? 'Opening…' : p.stripe_account_id ? 'Finish setup' : 'Connect'}
-            </button>
-          )}
         </div>
         {p.stripe_account_id && !p.stripe_charges_enabled && (
           <p className="font-body text-sm text-on-surface-variant">
@@ -546,6 +537,17 @@ export default function Settings() {
               ? 'Stripe is reviewing your account. Card payments turn on once they approve it.'
               : 'Finish setting up your Stripe account to start taking card payments.'}
           </p>
+        )}
+        {/* Action only when the seller has something to do: not yet connected,
+            or a requirement is currently/past due on them. Never while in review.
+            Its own full-width row below the description, so it can't collide
+            with the title + status badge at phone width. */}
+        {!p.stripe_charges_enabled && (!p.stripe_account_id || !p.stripe_details_submitted) && (
+          <button type="button" disabled={connectBusy} onClick={startConnect}
+            className="w-full rounded-button px-4 py-3 font-body text-sm font-semibold text-white disabled:opacity-60"
+            style={{ background: '#5f09b2' }}>
+            {connectBusy ? 'Opening…' : p.stripe_account_id ? 'Finish setup' : 'Connect'}
+          </button>
         )}
         {p.stripe_charges_enabled && (
           <>
