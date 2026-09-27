@@ -300,30 +300,35 @@ export default function PayView({ model }: { model: PayModel }) {
         <section className="mt-6">
           <h2 className="mb-3 text-label-lg uppercase tracking-wide text-on-surface-variant">How to pay</h2>
 
-          {showCard ? (
-            <div className="mb-3">
-              {/* Gold as a FILL with dark text (.btn-primary) — brand rule. */}
-              <button
-                type="button"
-                onClick={payWithCard}
-                disabled={cardBusy}
-                className="btn-primary w-full"
-              >
-                <Icon name="payments" size={20} />
-                {cardBusy ? 'Opening secure checkout…' : `Pay ${money(model.primaryAmount)} with card`}
-              </button>
-              <p className="mt-2 flex items-center justify-center gap-1 text-body-md text-on-surface-variant">
-                <Icon name="lock" size={16} />
-                Secure checkout by Stripe
-              </p>
-              {cardError ? (
-                <p className="mt-2 text-center text-body-md text-error" role="alert">{cardError}</p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {model.hasHandles ? (
+          {showCard || model.hasHandles ? (
             <ul className="flex flex-col gap-3">
+              {/* Card — always the first row, same format as the handle rows.
+                  The only row with a 2px gold ring (#d4af37 = primary-container,
+                  used as a border, never as text). Action "Pay" is text-safe
+                  gold (#735c00 = primary) + a Material Symbol, like "Open". */}
+              {showCard ? (
+                <li className="flex items-center gap-3 rounded-card border-2 border-primary-container bg-surface-container-lowest p-3 shadow-card">
+                  <Icon name="payments" size={20} className="shrink-0 text-on-surface-variant" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-label-lg text-on-background">Card</p>
+                    <p className="truncate text-body-md text-on-surface-variant">Visa, Mastercard, Amex</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-on-surface-variant">
+                      <Icon name="lock" size={14} />
+                      Secure checkout by Stripe
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={payWithCard}
+                    disabled={cardBusy}
+                    aria-label={`Pay ${money(model.primaryAmount)} by card`}
+                    className="flex h-touch min-w-[56px] items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary disabled:opacity-60"
+                  >
+                    <Icon name="arrow_forward" size={20} />
+                    {cardBusy ? 'Opening…' : 'Pay'}
+                  </button>
+                </li>
+              ) : null}
               {methods.map((m) => (
                 <li
                   key={m.key}
@@ -365,6 +370,9 @@ export default function PayView({ model }: { model: PayModel }) {
                 Contact {model.businessName} directly to arrange payment.
               </p>
             </div>
+          ) : null}
+          {cardError ? (
+            <p className="mt-2 text-center text-body-md text-error" role="alert">{cardError}</p>
           ) : null}
         </section>
       ) : null}
