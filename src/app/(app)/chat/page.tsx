@@ -2326,7 +2326,8 @@ export default function Chat() {
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
   const invoiceCard = ready && draft ? (
-    <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
+    // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
+    <div data-no-tab-swipe="true" className="card border-primary-container/50 ring-1 ring-primary-container/30">
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
         <Icon name="description" size={18} />
         {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}

@@ -30,24 +30,30 @@ const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-const SWIPE_THRESHOLD = 60; // px of horizontal travel to switch tabs
+// A tab swipe needs this much horizontal travel AND must be clearly
+// horizontal (|dx| > 1.5 × |dy|); anything else is left to scrolling.
+const SWIPE_MIN_DX = 70;
+const SWIPE_RATIO = 1.5;
+// A navigation that never lands (no pathname change) stops blocking swipes
+// after this long, checked at the next touchstart — no timers.
+const NAV_GUARD_MS = 3000;
 
-// A touch that starts inside a horizontal scroller — or anything opting out via
-// data-no-tab-swipe="true" (e.g. a SwipeableRow) — must not also trigger the
-// tab swipe, or a left-swipe-to-delete would change tabs at the same time.
-function isInsideHorizontalScrollable(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  let current: HTMLElement | null = target;
-  while (current && current !== document.body) {
-    if (current.getAttribute('data-no-tab-swipe') === 'true') {
-      return true;
-    }
-    const style = window.getComputedStyle(current);
-    const overflowX = style.overflowX;
-    if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth) {
-      return true;
-    }
-    current = current.parentElement;
+function tabIndexOf(pathname: string): number {
+  return TABS.findIndex(({ href }) => pathname.startsWith(href));
+}
+
+// Where a gesture must NOT switch tabs: text entry, anything opting out via
+// data-no-tab-swipe="true" (a SwipeableRow's swipe-to-delete, the chat
+// invoice card), horizontal scrollers, and sheets/modals (fixed layers).
+function swipeBlockedAt(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  if (target.closest('input, textarea, select, [contenteditable="true"], [data-no-tab-swipe="true"]')) return true;
+  let el: Element | null = target;
+  while (el && el !== document.body) {
+    const style = window.getComputedStyle(el);
+    if (style.position === 'fixed') return true;
+    if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true;
+    el = el.parentElement;
   }
   return false;
 }
@@ -55,9 +61,15 @@ function isInsideHorizontalScrollable(target: EventTarget | null): boolean {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  // Instagram-style horizontal swipe between tabs. Touch only; vertical
-  // scrolling always wins once the gesture is more vertical than horizontal.
-  const touch = useRef<{ x: number; y: number; vertical: boolean; ignored: boolean } | null>(null);
+  // Instagram-style horizontal swipe between tabs. Touch only, one finger,
+  // decided once on touchend; vertical scrolling always wins once the gesture
+  // turns more vertical than horizontal. `from` is the tab the gesture STARTED
+  // on, read from the live URL at touchstart (never a render-time closure).
+  const gesture = useRef<{ id: number; x: number; y: number; from: number; vertical: boolean } | null>(null);
+  // A swipe's navigation is in flight until the pathname changes; new swipes
+  // are ignored meanwhile so one gesture can never chain into two tabs.
+  const navigating = useRef<number | null>(null); // start time, or null
+  useEffect(() => { navigating.current = null; }, [path]);
   // Two independent surfaces (do not merge — see closeReference):
   //   showFirstRun  — the gated 4-slide first-run carousel (auto-show once).
   //   showReference — the always-available "How On It works" reference doc.
@@ -112,30 +124,44 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   function onTouchStart(e: React.TouchEvent) {
+    gesture.current = null;
+    if (navigating.current !== null && Date.now() - navigating.current < NAV_GUARD_MS) return;
+    navigating.current = null;
+    if (e.touches.length !== 1) return; // multi-touch is never a tab swipe
+    const from = tabIndexOf(window.location.pathname);
+    if (from === -1 || swipeBlockedAt(e.target)) return;
     const t = e.touches[0];
-    const ignored = isInsideHorizontalScrollable(e.target);
-    touch.current = { x: t.clientX, y: t.clientY, vertical: false, ignored };
+    gesture.current = { id: t.identifier, x: t.clientX, y: t.clientY, from, vertical: false };
   }
   function onTouchMove(e: React.TouchEvent) {
-    const s = touch.current;
-    if (!s || s.ignored || s.vertical) return;
-    const t = e.touches[0];
-    if (Math.abs(t.clientY - s.y) > Math.abs(t.clientX - s.x) && Math.abs(t.clientY - s.y) > 10) {
-      s.vertical = true; // scroll gesture — never hijack it
-    }
+    const g = gesture.current;
+    if (!g || g.vertical) return;
+    if (e.touches.length !== 1) { gesture.current = null; return; }
+    const t = Array.from(e.touches).find((p) => p.identifier === g.id);
+    if (!t) return;
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) g.vertical = true; // scroll — never hijack it
   }
+  // The ONLY place a swipe navigates: once, at the end of the gesture.
   function onTouchEnd(e: React.TouchEvent) {
-    const s = touch.current;
-    touch.current = null;
-    if (!s || s.ignored || s.vertical) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - s.x;
-    const dy = t.clientY - s.y;
-    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
-    const current = TABS.findIndex(({ href }) => path.startsWith(href));
-    if (current === -1) return;
-    const next = current + (dx < 0 ? 1 : -1);
-    if (next >= 0 && next < TABS.length) router.push(TABS[next].href);
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g || g.vertical || navigating.current !== null) return;
+    const t = Array.from(e.changedTouches).find((p) => p.identifier === g.id);
+    if (!t) return;
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
+    if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) <= SWIPE_RATIO * Math.abs(dy)) return;
+    const next = g.from + (dx < 0 ? 1 : -1);
+    if (next < 0 || next >= TABS.length) return; // no wrap-around past Chat or Settings
+    // The tab under the gesture must still be current (nothing navigated mid-gesture).
+    if (tabIndexOf(window.location.pathname) !== g.from) return;
+    navigating.current = Date.now();
+    router.push(TABS[next].href);
+  }
+  function onTouchCancel() {
+    gesture.current = null; // iOS took the gesture (e.g. native scroll)
   }
 
   const parentRoute = getParentRoute(path);
@@ -194,6 +220,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
       >
         {children}
       </main>
