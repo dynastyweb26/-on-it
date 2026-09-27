@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -41,6 +41,10 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // GET /api/connect/status — the Connect on/off probe Settings makes on every
   // load. Signed-out capable, so keyed by IP; no Stripe call, no DB read.
   connect_config:  { tokens: 30, window: '60 s' },
+  // Public "Pay with card" (POST /api/pay/[token]/checkout) — keyed by IP.
+  // Each call creates a Stripe Checkout Session on a seller's account; a real
+  // client taps it once or twice. Tight on purpose.
+  pay_checkout:    { tokens: 10, window: '60 s' },
 };
 
 let redis: Redis | null = null;
