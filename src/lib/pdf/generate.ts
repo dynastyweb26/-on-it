@@ -171,6 +171,10 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   offscreenContainer.style.left = '-9999px';
   offscreenContainer.style.top = '0px';
   document.body.appendChild(offscreenContainer);
+  // Everything from here to the PDF output runs inside try/finally so a
+  // failed capture (html2canvas throwing mid-page) can't leave the offscreen
+  // container on the page. Body left at its original indent to keep the diff small.
+  try {
 
   const getEffectiveBgAndColor = (node: HTMLElement) => {
     const child = (node.firstElementChild || node) as HTMLElement;
@@ -399,11 +403,11 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     addPageLinks(pdf, pageNode);
   }
 
-  // Cleanup offscreen container
-  offscreenContainer.remove();
-
   const blob = pdf.output('blob');
   return new File([blob], filename, { type: 'application/pdf' });
+  } finally {
+    offscreenContainer.remove();
+  }
 }
 
 /** Trigger a browser download of a File without sending it anywhere. Used by the
