@@ -4,7 +4,7 @@
    invoice preview card → PDF → native share sheet → follow-up engine.
    Works for guests (5 free parses), saves for signed-in users.
    Text mode is silent. Tapping the mic opens full-screen voice mode.  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
@@ -257,6 +257,9 @@ interface StoredChat {
   // flash-free lock before it resolves. Absent on v3/v4 payloads.
   linkedStatus?: string | null;
   linkedAmountPaid?: number;
+  // Id of the message the card renders after (see cardAfterId). Optional:
+  // older payloads lack it and show the card after the last message.
+  cardAfterId?: string | null;
   updatedAt: number;
 }
 
@@ -268,6 +271,7 @@ interface HistoryEntry {
   messages: Msg[];
   draft: Partial<ExtractResult> | null;
   ready: boolean;
+  cardAfterId?: string | null;
 }
 
 // Backfill a stable id onto any message that lacks one. v3 payloads (and any
@@ -344,6 +348,11 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
+  // Where the invoice/quote card sits in the transcript: right after this
+  // message. Moved to the reply that last CHANGED the draft (or seeded the
+  // card); card-only edits, finalize and later chat don't move it, so newer
+  // messages render below the card. Null/stale → after the last message.
+  const [cardAfterId, setCardAfterId] = useState<string | null>(null);
   // Change guard (Commit A): a parse that would rewrite the linked saved invoice
   // (different client, or all line items replaced) is held here instead of
   // applied, so the user can choose "update this one" vs "start a new invoice".
@@ -468,6 +477,7 @@ export default function Chat() {
     setDraft(stored.draft);
     setDraftHistory([]);
     setReady(Boolean(stored.ready));
+    setCardAfterId(stored.cardAfterId ?? null);
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
@@ -634,13 +644,14 @@ export default function Chat() {
           finalizeSent: finalizeSentRef.current,
           linkedStatus,
           linkedAmountPaid,
+          cardAfterId,
           updatedAt: Date.now(),
         };
         localStorage.setItem(chatKey(ns), JSON.stringify(payload));
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
-  }, [messages, draft, ready, hydrated, finished, convoId, linkedStatus, linkedAmountPaid]);
+  }, [messages, draft, ready, hydrated, finished, convoId, linkedStatus, linkedAmountPaid, cardAfterId]);
 
   // Recover a conversation the OS dropped behind an app switch. Two triggers,
   // one shared restore (restoreFromStore):
@@ -684,13 +695,14 @@ export default function Chat() {
           title: convoTitle(messages, draft),
           date: Date.now(),
           finalized: false,
-          messages, draft, ready,
+          messages, draft, ready, cardAfterId,
         });
       }
       setMessages([GREETING]);
       setDraft(null);
       setDraftHistory([]);
       setReady(false);
+      setCardAfterId(null);
       setAwaitingConfirm(false);
       preBuiltRef.current = null;
       preBuildIdRef.current++; // invalidate any in-flight prepare's stash
@@ -707,7 +719,7 @@ export default function Chat() {
     window.addEventListener('onit-new-chat', onNewChat);
     return () => window.removeEventListener('onit-new-chat', onNewChat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, draft, ready, finished, convoId]);
+  }, [messages, draft, ready, finished, convoId, cardAfterId]);
 
   // Auto-scroll: follow new content only if the reader is already at the
   // bottom. It sets the list's own scrollTop, never scrollIntoView (which also
@@ -832,7 +844,8 @@ export default function Chat() {
       // The duplicate warning is now a passive card badge (see duplicateHint),
       // not a spoken/blocking reply — so the reply is always the normal one.
       const reply: string = data.reply ?? 'Say that again?';
-      setMessages((m) => emitResult(m, aMsg(reply), retryId));
+      const replyMsg = aMsg(reply);
+      setMessages((m) => emitResult(m, replyMsg, retryId));
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
       if (source === 'voice') {
@@ -966,6 +979,12 @@ export default function Chat() {
           }
           return mergedDraft;
         });
+        // The card moves under this reply when the reply changed the draft (or
+        // the card is appearing now). A no-op parse ("what's the total?") leaves
+        // it where it is.
+        if (!draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+          setCardAfterId(replyMsg.id);
+        }
         // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
         // conversation = one invoice, so an ordinary edit keeps the link and the
         // next finalize UPDATES the same row (the P1 fix). A genuinely new
@@ -1121,6 +1140,7 @@ export default function Chat() {
         finalizeSent: finalizeSentRef.current,
         linkedStatus,
         linkedAmountPaid,
+        cardAfterId,
         updatedAt: Date.now(),
       };
       localStorage.setItem(chatKey(ns), JSON.stringify(payload));
@@ -1152,6 +1172,7 @@ export default function Chat() {
       messages: archived,
       draft: null,
       ready: false,
+      cardAfterId,
     });
     // KEEP the link and the draft: pendingInvoiceRef, convoId, and draft stay so
     // the conversation shows the sent invoice as a locked, read-only card with
@@ -2109,9 +2130,11 @@ export default function Chat() {
         messages,
         draft,
         ready,
+        cardAfterId,
       });
     }
     setMessages(entry.messages);
+    setCardAfterId(entry.cardAfterId ?? null);
     setAwaitingConfirm(false);
     setPrefilled({ address: false, phone: false });
     setPendingChange(null);
@@ -2208,6 +2231,8 @@ export default function Chat() {
       return next;
     });
     setReady(true);
+    // Under the "This would change…" question the user just answered.
+    setCardAfterId(messages[messages.length - 1]?.id ?? null);
     setAwaitingConfirm(false);
     setPendingChange(null);
   }
@@ -2227,6 +2252,7 @@ export default function Chat() {
         messages,
         draft,
         ready,
+        cardAfterId,
       });
     }
     pendingInvoiceRef.current = null;
@@ -2241,6 +2267,7 @@ export default function Chat() {
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
+    setCardAfterId(GREETING.id);
     setDuplicateHint(false);
     setPendingChange(null);
   }
@@ -2284,11 +2311,199 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setFinished(false);
-    setMessages([GREETING, aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`)]);
+    const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
+    setMessages([GREETING, startMsg]);
     setDraft(seed);
     setReady(true);
+    setCardAfterId(startMsg.id);
     setDuplicateHint(false);
   }
+
+  // The invoice/quote card renders INSIDE the transcript, right after its
+  // anchor message (cardAfterId), so later messages land below it. A missing
+  // or stale anchor (older saved chats) falls back to the last message.
+  const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
+    ? cardAfterId
+    : messages[messages.length - 1]?.id ?? null;
+  const invoiceCard = ready && draft ? (
+    <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
+      <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
+        <Icon name="description" size={18} />
+        {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
+      </div>
+      {locked && (
+        // Read-only: the linked invoice has left 'draft' (sent/paid).
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
+          <Icon name="lock" size={16} filled />
+          {lockBadgeText(linkedStatus, linkedAmountPaid)}
+        </div>
+      )}
+      {duplicateHint && !locked && (
+        // Passive indicator only — the card stays fully actionable below.
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
+          <Icon name="error" size={16} filled />
+          Similar invoice sent recently
+        </div>
+      )}
+      <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
+
+      <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
+          <div className="flex items-center gap-1.5">
+            <select
+              className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
+              disabled={locked}
+              value={(draft as any).deposit_type ?? 'none'}
+              onChange={(e) => {
+                const dt = e.target.value as DepositType;
+                const val = dt === 'none' ? 0 : ((draft as any).deposit_value ?? (dt === 'percentage' ? 40 : 100));
+                applyDraftDeposit(dt, val);
+              }}
+            >
+              <option value="none">None</option>
+              <option value="percentage">Percentage (%)</option>
+              <option value="fixed">Fixed ($)</option>
+            </select>
+            {((draft as any).deposit_type === 'percentage' || (draft as any).deposit_type === 'fixed') && (
+              <input
+                type="number"
+                min="0"
+                max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
+                disabled={locked}
+                className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
+                value={(draft as any).deposit_value ?? ''}
+                placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0);
+                  applyDraftDeposit((draft as any).deposit_type as DepositType, v);
+                }}
+              />
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+            Notes
+          </label>
+          <textarea
+            className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none disabled:opacity-50"
+            rows={2}
+            maxLength={400}
+            disabled={locked}
+            placeholder="Deposit due before materials are ordered. 3-5 day lead time."
+            value={draft.notes ?? ''}
+            onChange={(e) => applyDraftNotes(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
+        {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
+            Values from calculateInvoiceTotals (single source of truth);
+            mirrors the PDF Totals block. No editable tax field here — tax
+            is set via chat / the detail page only. */}
+        {(draft.tax_rate ?? 0) > 0 && (
+          <>
+            <div className="flex justify-between text-xs text-on-surface-variant">
+              <span>Subtotal</span>
+              <span>{money(previewTotals.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-on-surface-variant">
+              <span>Tax ({draft.tax_rate}%)</span>
+              <span>{money(previewTotals.taxAmount)}</span>
+            </div>
+          </>
+        )}
+        {previewTotals.depositAmount > 0 && (
+          <>
+            <div className="flex justify-between text-xs text-on-surface-variant">
+              <span>Project total</span>
+              <span>{money(previewTotals.total)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-on-surface-variant">
+              <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
+              <span>{money(previewTotals.depositAmount)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-on-surface-variant font-medium">
+              <span>Remaining balance</span>
+              <span>{money(previewTotals.remaining)}</span>
+            </div>
+          </>
+        )}
+        <div className="flex items-end justify-between pt-1">
+          <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
+            {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
+          </span>
+          <span className="font-display text-numeric-xl tracking-tight text-on-background">
+            {money(previewTotals.amountDueNow)}
+          </span>
+        </div>
+      </div>
+      {locked ? (
+        // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
+        // unpaid invoice offers "Revise" (opens an editable copy as a new
+        // invoice — Commit C); once any payment has landed it stays fully
+        // locked (a revision would be a credit/refund — see PUNCH-LIST).
+        <div className="mt-3 border-t border-outline-variant/30 pt-3">
+          {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
+            <>
+              <p className="text-center text-sm text-on-surface-variant">
+                This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} was sent, so it&apos;s locked.
+              </p>
+              <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+                <Icon name="edit" size={18} /> Revise
+              </button>
+              <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                Opens an editable copy as a new {docKind(draft) === 'quote' ? 'quote' : 'invoice'}. The original stays as it was.
+              </p>
+            </>
+          ) : (
+            <p className="text-center text-sm text-on-surface-variant">
+              {lockBadgeText(linkedStatus, linkedAmountPaid)}. Start a new invoice to make changes.
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          {!isValidTotal && (
+            <p className="mt-2 text-xs font-semibold text-error">
+              Something went wrong reading the amounts. Try rephrasing the prices.
+            </p>
+          )}
+          <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
+            <Icon name="attach_file" size={18} />
+            {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+          </button>
+          {/* Quiet secondary exit: download the PDF without sending. Saves the
+              draft (sendable later); does not mark sent or archive. */}
+          <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+            disabled={phase !== null || !isValidTotal}
+            onClick={() => finalize(false, undefined, 'download')}>
+            <Icon name="download" size={18} /> Download without sending
+          </button>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={phase !== null || draftHistory.length === 0}
+              onClick={undoLastEdit}
+            >
+              Undo last edit
+            </button>
+            <button
+              type="button"
+              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={phase !== null}
+              onClick={() => send('Actually, let me change something')}
+            >
+              Change something
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -2301,7 +2516,8 @@ export default function Chat() {
         onScroll={onListScroll}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
       >
-        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) =>
+        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
+        <Fragment key={m.id}>{
           m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
             // beneath it. Same icon-button styling as the receipt buttons.
@@ -2349,188 +2565,10 @@ export default function Chat() {
                 {m.content}
               </div>
             </div>
-          )
-        )}
-
-        {ready && draft && (
-          <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
-            <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
-              <Icon name="description" size={18} />
-              {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
-            </div>
-            {locked && (
-              // Read-only: the linked invoice has left 'draft' (sent/paid).
-              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
-                <Icon name="lock" size={16} filled />
-                {lockBadgeText(linkedStatus, linkedAmountPaid)}
-              </div>
-            )}
-            {duplicateHint && !locked && (
-              // Passive indicator only — the card stays fully actionable below.
-              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
-                <Icon name="error" size={16} filled />
-                Similar invoice sent recently
-              </div>
-            )}
-            <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
-
-            <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-on-surface-variant">Deposit required</span>
-                <div className="flex items-center gap-1.5">
-                  <select
-                    className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold text-on-surface outline-none disabled:opacity-50"
-                    disabled={locked}
-                    value={(draft as any).deposit_type ?? 'none'}
-                    onChange={(e) => {
-                      const dt = e.target.value as DepositType;
-                      const val = dt === 'none' ? 0 : ((draft as any).deposit_value ?? (dt === 'percentage' ? 40 : 100));
-                      applyDraftDeposit(dt, val);
-                    }}
-                  >
-                    <option value="none">None</option>
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="fixed">Fixed ($)</option>
-                  </select>
-                  {((draft as any).deposit_type === 'percentage' || (draft as any).deposit_type === 'fixed') && (
-                    <input
-                      type="number"
-                      min="0"
-                      max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
-                      disabled={locked}
-                      className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
-                      value={(draft as any).deposit_value ?? ''}
-                      placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
-                      onChange={(e) => {
-                        const v = Math.max(0, Number(e.target.value) || 0);
-                        applyDraftDeposit((draft as any).deposit_type as DepositType, v);
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Notes
-                </label>
-                <textarea
-                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none disabled:opacity-50"
-                  rows={2}
-                  maxLength={400}
-                  disabled={locked}
-                  placeholder="Deposit due before materials are ordered. 3-5 day lead time."
-                  value={draft.notes ?? ''}
-                  onChange={(e) => applyDraftNotes(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
-              {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
-                  Values from calculateInvoiceTotals (single source of truth);
-                  mirrors the PDF Totals block. No editable tax field here — tax
-                  is set via chat / the detail page only. */}
-              {(draft.tax_rate ?? 0) > 0 && (
-                <>
-                  <div className="flex justify-between text-xs text-on-surface-variant">
-                    <span>Subtotal</span>
-                    <span>{money(previewTotals.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-on-surface-variant">
-                    <span>Tax ({draft.tax_rate}%)</span>
-                    <span>{money(previewTotals.taxAmount)}</span>
-                  </div>
-                </>
-              )}
-              {previewTotals.depositAmount > 0 && (
-                <>
-                  <div className="flex justify-between text-xs text-on-surface-variant">
-                    <span>Project total</span>
-                    <span>{money(previewTotals.total)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-on-surface-variant">
-                    <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
-                    <span>{money(previewTotals.depositAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-on-surface-variant font-medium">
-                    <span>Remaining balance</span>
-                    <span>{money(previewTotals.remaining)}</span>
-                  </div>
-                </>
-              )}
-              <div className="flex items-end justify-between pt-1">
-                <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
-                  {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
-                </span>
-                <span className="font-display text-numeric-xl tracking-tight text-on-background">
-                  {money(previewTotals.amountDueNow)}
-                </span>
-              </div>
-            </div>
-            {locked ? (
-              // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
-              // unpaid invoice offers "Revise" (opens an editable copy as a new
-              // invoice — Commit C); once any payment has landed it stays fully
-              // locked (a revision would be a credit/refund — see PUNCH-LIST).
-              <div className="mt-3 border-t border-outline-variant/30 pt-3">
-                {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
-                  <>
-                    <p className="text-center text-sm text-on-surface-variant">
-                      This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} was sent, so it&apos;s locked.
-                    </p>
-                    <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
-                      <Icon name="edit" size={18} /> Revise
-                    </button>
-                    <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                      Opens an editable copy as a new {docKind(draft) === 'quote' ? 'quote' : 'invoice'}. The original stays as it was.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-center text-sm text-on-surface-variant">
-                    {lockBadgeText(linkedStatus, linkedAmountPaid)}. Start a new invoice to make changes.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <>
-                {!isValidTotal && (
-                  <p className="mt-2 text-xs font-semibold text-error">
-                    Something went wrong reading the amounts. Try rephrasing the prices.
-                  </p>
-                )}
-                <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
-                  <Icon name="attach_file" size={18} />
-                  {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
-                </button>
-                {/* Quiet secondary exit: download the PDF without sending. Saves the
-                    draft (sendable later); does not mark sent or archive. */}
-                <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
-                  disabled={phase !== null || !isValidTotal}
-                  onClick={() => finalize(false, undefined, 'download')}>
-                  <Icon name="download" size={18} /> Download without sending
-                </button>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                    disabled={phase !== null || draftHistory.length === 0}
-                    onClick={undoLastEdit}
-                  >
-                    Undo last edit
-                  </button>
-                  <button
-                    type="button"
-                    className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
-                    disabled={phase !== null}
-                    onClick={() => send('Actually, let me change something')}
-                  >
-                    Change something
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+          )}
+          {m.id === cardAnchorId && invoiceCard}
+        </Fragment>
+        ))}
 
         {pendingChange && (
           // Change guard (Commit A): the parse would rewrite the linked invoice.
