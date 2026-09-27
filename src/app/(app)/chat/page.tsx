@@ -2585,7 +2585,9 @@ export default function Chat() {
         )}
       </div>
 
-      <div className="border-t border-outline-variant/40 bg-background px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Plain py-3: the composer sits ABOVE the bottom nav, which carries the
+          safe-area inset — padding here too would double the gap. */}
+      <div className="border-t border-outline-variant/40 bg-background px-3 py-3">
         {recording && (
           // Static "Listening" label doubles as the reduced-motion fallback
           // for the mic pulse (§ voice spec).
