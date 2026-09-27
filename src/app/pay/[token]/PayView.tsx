@@ -73,27 +73,89 @@ export interface PayModel {
   paidReturn: boolean; // arrived back from Stripe Checkout (?paid=1)
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false; // clipboard blocked — the value is on screen to copy manually
+  }
+}
+
+// Secondary Copy inside a tappable row (rows that also have Open). Its own
+// real <button>; stopPropagation so copying never triggers the row's Open.
+function CopyButton({ value, label, onCopied }: { value: string; label: string; onCopied: () => void }) {
   const [copied, setCopied] = useState(false);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
+  async function copy(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (await copyText(value)) {
       setCopied(true);
+      onCopied();
       setTimeout(() => setCopied(false), 1600);
-    } catch {
-      /* clipboard blocked — the value is on screen to copy manually */
     }
   }
   return (
     <button
       type="button"
       onClick={copy}
+      onKeyDown={(e) => e.stopPropagation()} // Enter/Space on Copy stays on Copy
       aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      className="flex h-touch min-w-[56px] items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary"
+      className="flex h-touch min-w-[56px] shrink-0 items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary active:bg-surface-container"
     >
       <Icon name={copied ? 'check' : 'content_copy'} size={20} />
       {copied ? 'Copied' : 'Copy'}
     </button>
+  );
+}
+
+// One "How to pay" row, tappable as a whole: the row IS the primary action
+// (Card → Pay, Cash App / PayPal / Venmo → Open, Zelle → Copy). A <li> with
+// role="button" rather than a <button>, because link rows nest a real Copy
+// button (a <button> can't contain another). Keyboard: focusable, Enter and
+// Space activate. ≥56px tall (h-touch), with a pressed state.
+function PayRow({
+  label,
+  onActivate,
+  busy = false,
+  ring = false,
+  children,
+}: {
+  label: string;
+  onActivate: () => void;
+  busy?: boolean;
+  ring?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      aria-disabled={busy || undefined}
+      onClick={() => { if (!busy) onActivate(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (!busy) onActivate();
+        }
+      }}
+      className={`flex min-h-touch cursor-pointer select-none items-center gap-3 rounded-card bg-surface-container-lowest p-3 shadow-card transition-transform active:scale-[0.99] active:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+        ring ? 'border-2 border-primary-container' : ''
+      } ${busy ? 'opacity-60' : ''}`}
+    >
+      {children}
+    </li>
+  );
+}
+
+// The right-side action label inside a row. Visual only — the row handles the
+// tap — in text-safe gold (#735c00) with a Material Symbol, like before.
+function RowAction({ icon, text }: { icon: 'arrow_forward' | 'open_in_new' | 'content_copy' | 'check'; text: string }) {
+  return (
+    <span aria-hidden className="flex h-touch min-w-[56px] shrink-0 items-center justify-center gap-1 px-3 text-label-lg text-primary">
+      <Icon name={icon} size={20} />
+      {text}
+    </span>
   );
 }
 
@@ -108,6 +170,14 @@ export default function PayView({ model }: { model: PayModel }) {
 
   const [cardBusy, setCardBusy] = useState(false);
   const [cardError, setCardError] = useState('');
+  // Bottom toast for copies ("Zelle copied"). One at a time; auto-hides.
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showToast(message: string) {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  }
   // Synchronous guard: two taps in one frame both see cardBusy=false.
   const cardInFlight = useRef(false);
 
@@ -307,7 +377,12 @@ export default function PayView({ model }: { model: PayModel }) {
                   used as a border, never as text). Action "Pay" is text-safe
                   gold (#735c00 = primary) + a Material Symbol, like "Open". */}
               {showCard ? (
-                <li className="flex items-center gap-3 rounded-card border-2 border-primary-container bg-surface-container-lowest p-3 shadow-card">
+                <PayRow
+                  label={`Pay ${money(model.primaryAmount)} by card`}
+                  onActivate={payWithCard}
+                  busy={cardBusy}
+                  ring
+                >
                   <Icon name="payments" size={20} className="shrink-0 text-on-surface-variant" />
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">Card</p>
@@ -317,47 +392,48 @@ export default function PayView({ model }: { model: PayModel }) {
                       Secure checkout by Stripe
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={payWithCard}
-                    disabled={cardBusy}
-                    aria-label={`Pay ${money(model.primaryAmount)} by card`}
-                    className="flex h-touch min-w-[56px] items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary disabled:opacity-60"
-                  >
-                    <Icon name="arrow_forward" size={20} />
-                    {cardBusy ? 'Opening…' : 'Pay'}
-                  </button>
-                </li>
+                  <RowAction icon="arrow_forward" text={cardBusy ? 'Opening…' : 'Pay'} />
+                </PayRow>
               ) : null}
-              {methods.map((m) => (
-                <li
-                  key={m.key}
-                  className="flex items-center gap-3 rounded-card bg-surface-container-lowest p-3 shadow-card"
-                >
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: m.color }}
-                    aria-hidden
-                  />
+              {methods.map((m) => {
+                const dot = (
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: m.color }} aria-hidden />
+                );
+                const text = (
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">{m.name}</p>
                     <p className="truncate text-body-md text-on-surface-variant">{m.value}</p>
                   </div>
-                  {m.url ? (
-                    <a
-                      href={m.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Open ${m.name}`}
-                      className="flex h-touch min-w-[56px] items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary"
-                    >
-                      <Icon name="open_in_new" size={20} />
-                      Open
-                    </a>
-                  ) : null}
-                  <CopyButton value={m.value} label={m.name} />
-                </li>
-              ))}
+                );
+                return m.url ? (
+                  // Link rows (Cash App / PayPal / Venmo): row → Open; Copy stays
+                  // its own button. window.open inside the tap keeps it a user
+                  // gesture; noopener matches the old <a rel="noopener">.
+                  <PayRow
+                    key={m.key}
+                    label={`Open ${m.name}`}
+                    onActivate={() => window.open(m.url!, '_blank', 'noopener,noreferrer')}
+                  >
+                    {dot}
+                    {text}
+                    <RowAction icon="open_in_new" text="Open" />
+                    <CopyButton value={m.value} label={m.name} onCopied={() => showToast(`${m.name} copied`)} />
+                  </PayRow>
+                ) : (
+                  // Zelle: no link — the row itself copies, with a toast.
+                  <PayRow
+                    key={m.key}
+                    label={`Copy ${m.name}`}
+                    onActivate={async () => {
+                      if (await copyText(m.value)) showToast(`${m.name} copied`);
+                    }}
+                  >
+                    {dot}
+                    {text}
+                    <RowAction icon="content_copy" text="Copy" />
+                  </PayRow>
+                );
+              })}
             </ul>
           ) : !model.cardAvailable ? (
             // No handles and no card — the business hasn't saved a way to pay.
@@ -396,6 +472,16 @@ export default function PayView({ model }: { model: PayModel }) {
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {toast ? (
+        <div
+          role="status"
+          className="fixed bottom-8 left-1/2 z-[90] flex -translate-x-1/2 items-center gap-2 rounded-card bg-inverse-surface px-4 py-3 text-body-md text-inverse-on-surface shadow-card-raised"
+        >
+          <Icon name="check" size={18} />
+          {toast}
+        </div>
       ) : null}
 
       <footer className="mt-auto pt-10 text-center">
