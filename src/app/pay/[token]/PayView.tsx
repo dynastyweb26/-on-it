@@ -378,7 +378,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   gold (#735c00 = primary) + a Material Symbol, like "Open". */}
               {showCard ? (
                 <PayRow
-                  label={`Pay ${money(model.primaryAmount)} by card`}
+                  label={`Pay ${money(model.primaryAmount)} by card or Cash App Pay`}
                   onActivate={payWithCard}
                   busy={cardBusy}
                   ring
@@ -386,7 +386,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   <Icon name="payments" size={20} className="shrink-0 text-on-surface-variant" />
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">Card</p>
-                    <p className="truncate text-body-md text-on-surface-variant">Visa, Mastercard, Amex</p>
+                    <p className="truncate text-body-md text-on-surface-variant">Card or Cash App Pay</p>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-on-surface-variant">
                       <Icon name="lock" size={14} />
                       Secure checkout by Stripe

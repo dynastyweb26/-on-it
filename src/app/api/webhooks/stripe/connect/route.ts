@@ -8,7 +8,8 @@
 // Handles:
 //   checkout.session.completed            (payment_status === 'paid' only)
 //   checkout.session.async_payment_succeeded
-//       → one method='card' row in invoice_payments, keyed by the Checkout
+//       → one ledger row (method 'card' or 'cashapp', read from the
+//         PaymentIntent's payment method) in invoice_payments, keyed by the Checkout
 //         Session id (ON CONFLICT DO NOTHING: replays and the completed/async
 //         pair are no-ops). Amount = session.amount_total / 100, i.e. what
 //         Stripe actually charged — never recomputed from the invoice.
@@ -42,9 +43,28 @@ export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Ledger method for a Stripe payment method type. The pay-page checkout only
+// allows card + cashapp; anything else is recorded as 'other' and logged.
+function ledgerMethod(pmType: string | undefined): 'card' | 'cashapp' | 'other' {
+  if (pmType === 'card') return 'card';
+  if (pmType === 'cashapp') return 'cashapp';
+  return 'other';
+}
+const METHOD_NOTE = { card: 'Paid by card (Stripe)', cashapp: 'Paid with Cash App Pay (Stripe)', other: 'Paid online (Stripe)' } as const;
+
+// Which payment method actually paid: the Checkout Session doesn't say, so
+// read the PaymentIntent (on the seller's account) with its PaymentMethod
+// expanded. Throws on Stripe failure → 500 → Stripe retries.
+async function paidMethodType(stripe: Stripe, account: string, session: Stripe.Checkout.Session): Promise<string | undefined> {
+  const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+  if (!piId) return undefined;
+  const pi = await stripe.paymentIntents.retrieve(piId, { expand: ['payment_method'] }, { stripeContext: account });
+  return typeof pi.payment_method === 'object' && pi.payment_method ? pi.payment_method.type : undefined;
+}
+
 // A paid Checkout Session on a seller's account → one ledger row.
 // Returns a short outcome string for the log line. Throws on DB failure.
-async function recordCardPayment(event: Stripe.Event, session: Stripe.Checkout.Session): Promise<string> {
+async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: Stripe.Checkout.Session): Promise<string> {
   const account = event.account;
   if (!account) return 'skip: no event.account (not a connected-account event)';
 
@@ -80,6 +100,15 @@ async function recordCardPayment(event: Stripe.Event, session: Stripe.Checkout.S
     return 'skip: event.account does not match invoice owner';
   }
 
+  // The real method (card vs Cash App Pay), only after the cross-check passes.
+  const pmType = await paidMethodType(stripe, account, session);
+  const method = ledgerMethod(pmType);
+  if (method === 'other') {
+    console.warn('stripe connect webhook: unexpected payment method type — recorded as other', JSON.stringify({
+      event: event.id, session: session.id, type: pmType ?? null,
+    }));
+  }
+
   // Idempotent insert: ON CONFLICT (stripe_checkout_session_id) DO NOTHING.
   // The ledger trigger recomputes invoices.amount_paid / status.
   const { data: inserted, error: insErr } = await admin
@@ -89,16 +118,16 @@ async function recordCardPayment(event: Stripe.Event, session: Stripe.Checkout.S
         invoice_id: invoice.id,
         user_id: invoice.user_id,
         amount,
-        method: 'card',
+        method,
         paid_at: new Date(event.created * 1000).toISOString(),
-        note: 'Paid by card (Stripe)',
+        note: METHOD_NOTE[method],
         stripe_checkout_session_id: session.id,
       },
       { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true }
     )
     .select('id');
   if (insErr) throw insErr;
-  return inserted && inserted.length ? `recorded ${amount}` : 'duplicate session — no-op';
+  return inserted && inserted.length ? `recorded ${amount} ${method}` : 'duplicate session — no-op';
 }
 
 export async function POST(req: NextRequest) {
@@ -125,7 +154,7 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed':
       case 'checkout.session.async_payment_succeeded': {
-        outcome = await recordCardPayment(event, event.data.object as Stripe.Checkout.Session);
+        outcome = await recordCardPayment(stripe, event, event.data.object as Stripe.Checkout.Session);
         break;
       }
       case 'account.application.deauthorized': {

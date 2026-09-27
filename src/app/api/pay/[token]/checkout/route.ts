@@ -167,9 +167,12 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
-        // Card only: connected accounts have Klarna, Cash App Pay, etc.
-        // enabled by default, and the ledger/UX here is built for cards.
-        payment_method_types: ['card'],
+        // Explicit allow-list: card + Cash App Pay only. Connected accounts
+        // have Klarna, Affirm, etc. enabled by default; the ledger records
+        // 'card' / 'cashapp' (webhook reads the PaymentIntent's method type).
+        // Both confirm immediately, so checkout.session.completed arrives
+        // with payment_status 'paid'.
+        payment_method_types: ['card', 'cashapp'],
         line_items: [
           {
             quantity: 1,
