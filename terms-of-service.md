@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: July 31, 2026**
+**Last updated: September 26, 2026**
 
 These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us") for use of On It. By creating an account, you agree to them.
 
@@ -46,7 +46,23 @@ Cancelling stops future charges. Your access continues until the end of the peri
 
 ---
 
-## 4. Your content, and your customers' information
+## 4. Getting paid by card or Cash App Pay (optional)
+
+You can choose to connect your own Stripe account to On It. If you do, your customers can pay your invoices by card or Cash App Pay from the invoice's payment page. Connecting is optional, and you can turn card payments off in Settings at any time.
+
+**Stripe processes these payments, not us.** When you connect, you open or link a Stripe account directly with Stripe and agree to Stripe's own terms, including the Stripe Services Agreement (https://stripe.com/legal/ssa). Your customers' payments are processed by Stripe under Stripe's terms and go directly into your Stripe account.
+
+**On It never holds, receives, or transfers your customers' money, and we take no fee on these payments.** Stripe charges its own processing fees to your Stripe account. Your On It subscription is separate and unaffected.
+
+**Refunds, disputes, and chargebacks are between you, your customer, and Stripe.** You handle them in your Stripe account. We can't issue refunds, reverse payments, or resolve disputes on your behalf, and we're not responsible for them.
+
+**What On It does.** When Stripe tells us a payment succeeded, we record it on the invoice — the amount, the method (card or Cash App Pay), and the date — so your records stay up to date. Refunds and disputes are not reflected in On It automatically; check your Stripe account for the full picture.
+
+**Disconnecting.** You can disconnect On It from your Stripe account through Stripe. When you do, card payments stop being offered on your invoices. Payments already recorded stay in your records.
+
+---
+
+## 5. Your content, and your customers' information
 
 Everything you put into On It — your business details, your invoices, your expense records, and the information you enter about your customers — remains yours. We don't claim ownership of it.
 
@@ -63,7 +79,7 @@ You are the one who decides what customer information goes into On It and what i
 
 ---
 
-## 5. AI-generated content
+## 6. AI-generated content
 
 On It uses AI to convert what you say or photograph into invoices and expense records. Speech is transcribed by AssemblyAI; invoice and receipt content is interpreted by Anthropic's Claude models. This is a convenience, not a guarantee.
 
@@ -73,7 +89,7 @@ On It uses AI to convert what you say or photograph into invoices and expense re
 
 ---
 
-## 6. Not professional advice
+## 7. Not professional advice
 
 On It produces summaries of your income and expenses, including a tax preparation summary.
 
@@ -83,7 +99,7 @@ Verify your numbers, and work with a qualified professional for anything that ma
 
 ---
 
-## 7. Acceptable use
+## 8. Acceptable use
 
 Don't use On It to:
 
@@ -99,7 +115,7 @@ We may suspend or terminate accounts that violate this section.
 
 ---
 
-## 8. Availability
+## 9. Availability
 
 We work to keep On It running, but we don't promise it will always be available or error-free. There will be downtime, some of it unplanned. Features may change or be discontinued.
 
@@ -107,7 +123,7 @@ We work to keep On It running, but we don't promise it will always be available 
 
 ---
 
-## 9. Disclaimer of warranties
+## 10. Disclaimer of warranties
 
 On It is provided "as is" and "as available," without warranties of any kind, express or implied, including any implied warranties of merchantability, fitness for a particular purpose, or non-infringement.
 
@@ -115,7 +131,7 @@ We don't warrant that the service will meet your needs, be uninterrupted, be sec
 
 ---
 
-## 10. Limitation of liability
+## 11. Limitation of liability
 
 To the fullest extent permitted by law:
 
@@ -127,7 +143,7 @@ Some jurisdictions don't allow certain limitations, so parts of this section may
 
 ---
 
-## 11. Indemnification
+## 12. Indemnification
 
 You agree to defend and indemnify us against any claim, loss, or expense (including reasonable legal fees) arising from:
 
@@ -138,17 +154,17 @@ You agree to defend and indemnify us against any claim, loss, or expense (includ
 
 ---
 
-## 12. Termination
+## 13. Termination
 
-You can stop using On It at any time. To have your account and data deleted, email us at brandon@dynastyweb.co and we'll take care of it.
+You can stop using On It at any time. You can delete your account and data yourself in the app (Settings → Delete account), or email us at brandon@dynastyweb.co and we'll take care of it.
 
 We can suspend or terminate your account if you violate these terms, if we're required to by law, or if we discontinue the service. If we discontinue the service entirely, we'll give you reasonable notice and a chance to export your data.
 
-Sections 4, 5, 6, 9, 10, 11, and 13 survive termination.
+Sections 4, 5, 6, 7, 10, 11, 12, and 14 survive termination.
 
 ---
 
-## 13. Governing law and disputes
+## 14. Governing law and disputes
 
 These terms are governed by the laws of the State of Texas, without regard to conflict of law rules.
 
@@ -156,13 +172,13 @@ Any dispute will be brought in the state or federal courts located in Kaufman Co
 
 ---
 
-## 14. Changes to these terms
+## 15. Changes to these terms
 
 We may update these terms. If we make material changes, we'll notify you in the app or by email before they take effect. Continuing to use On It after that means you accept the new terms.
 
 ---
 
-## 15. Everything else
+## 16. Everything else
 
 If any part of these terms is found unenforceable, the rest still applies. Our not enforcing a provision doesn't waive it. You can't transfer these terms to anyone else; we can transfer them as part of a sale or merger of the business.
 
@@ -170,6 +186,6 @@ These terms, together with our Privacy Policy, are the entire agreement between 
 
 ---
 
-## 16. Contact
+## 17. Contact
 
 **Email:** brandon@dynastyweb.co

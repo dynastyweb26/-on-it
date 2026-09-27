@@ -101,3 +101,24 @@ from public.invoice_payments p
 join public.invoices i on i.id = p.invoice_id
 where p.stripe_checkout_session_id is not null
   and p.user_id <> i.user_id;
+
+-- ═══ Public-invoice RPCs (pay page + card checkout — 20260926100000) ═══
+
+-- H. Neither RPC is callable by anon/authenticated (expect every can_execute
+--    false). get_public_invoice_checkout returns the seller's
+--    stripe_account_id, so it must stay service_role only.
+select fn.f as function, ro.r as role,
+  has_function_privilege(ro.r, fn.f, 'execute') as can_execute
+from (values ('public.get_public_invoice(text, text)'),
+             ('public.get_public_invoice_checkout(text)')) fn(f)
+cross join (values ('anon'), ('authenticated')) ro(r);
+
+-- I. Both SECURITY DEFINER with an empty search_path (expect prosecdef true,
+--    proconfig {search_path=""}), and the public one exposes no account id
+--    (expect result to end with "card_available boolean" and contain no
+--    "stripe_account_id").
+select proname, prosecdef, proconfig,
+  pg_get_function_result(oid) as result
+from pg_proc
+where proname in ('get_public_invoice', 'get_public_invoice_checkout')
+  and pronamespace = 'public'::regnamespace;

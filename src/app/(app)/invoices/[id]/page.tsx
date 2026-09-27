@@ -33,6 +33,16 @@ const localDateToIso = (ymd: string): string => {
   return new Date(y, m - 1, d).toISOString();
 };
 
+// Payment-history method label. Stripe-sourced rows (paid on the pay page)
+// read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
+const METHOD_LABELS: Record<string, string> = {
+  zelle: 'Zelle', cash: 'Cash', check: 'Check', card: 'Card', cashapp: 'Cash App', other: 'Other',
+};
+function paymentMethodLabel(method: string, viaStripe: boolean): string {
+  const base = METHOD_LABELS[method] ?? method;
+  return viaStripe ? `${base} (via Stripe)` : base;
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const supabase = createClient();
@@ -645,11 +655,8 @@ export default function InvoiceDetail() {
               >
                 <div>
                   <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
-                  <span className="ml-2 font-medium uppercase text-on-surface-variant">{p.method}</span>
+                  <span className="ml-2 font-medium text-on-surface-variant">{paymentMethodLabel(p.method, Boolean(p.stripe_checkout_session_id))}</span>
                   <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
-                  {p.stripe_checkout_session_id ? (
-                    <span className="ml-2 text-on-surface-variant/70">via Stripe</span>
-                  ) : null}
                 </div>
                 {/* Stripe-sourced rows (paid on the pay page) are locked by RLS —
                     a delete would silently match 0 rows — so they get no delete

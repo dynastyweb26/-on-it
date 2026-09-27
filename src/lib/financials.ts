@@ -145,3 +145,38 @@ export function calculateInvoiceTotals(
     paymentStage,
   };
 }
+
+export interface LedgerDue {
+  /** Deposit clamped to [0, total]. */
+  depositAmount: number;
+  /** amount_paid, floored at 0. */
+  paid: number;
+  /** What the client owes right now: the unpaid deposit while the deposit is
+   *  still short, else the unpaid balance. 0 once total is covered. */
+  dueNow: number;
+  fullyPaid: boolean;
+}
+
+/**
+ * Amount due now from an invoice's AUTHORITATIVE stored figures — total (tax
+ * already baked in), deposit_amount and the ledger-synced amount_paid — never
+ * recomputed from line items. Same dueNow rule as calculateInvoiceTotals.
+ *
+ * Shared by the public pay page (what it displays) and the card checkout route
+ * (what it charges), so the page and the charge can never disagree.
+ */
+export function dueNowFromLedger(total: number, depositAmount: number, amountPaid: number): LedgerDue {
+  const t = Number.isFinite(total) ? total : 0;
+  const paid = Math.max(0, Number.isFinite(amountPaid) ? amountPaid : 0);
+  const deposit = Math.min(Math.max(Number.isFinite(depositAmount) ? depositAmount : 0, 0), Math.max(t, 0));
+  const fullyPaid = t > 0 && paid >= t;
+
+  let dueNow = 0;
+  if (t > 0 && paid < t) {
+    dueNow =
+      deposit > 0 && paid < deposit
+        ? roundCurrency(deposit - paid)
+        : roundCurrency(t - paid);
+  }
+  return { depositAmount: deposit, paid, dueNow, fullyPaid };
+}

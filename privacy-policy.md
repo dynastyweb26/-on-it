@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: July 31, 2026**
+**Last updated: September 26, 2026**
 
 On It is an invoicing app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us"). This policy explains what information we collect, why, and what we do with it.
 
@@ -32,7 +32,16 @@ Transcription happens on our servers, not on your phone. Please keep in mind tha
 
 **Payment information.** If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store only a customer identifier, your subscription status, and renewal dates.
 
-**Your Zelle handle.** If you choose to add a Zelle phone number or email so customers can pay you directly, we store it encrypted. On It does not connect to your Zelle account, read your payment notifications, or move money — the handle is simply printed on your invoices so your customers know where to send payment.
+**Card and Cash App Pay payments through Stripe (optional).** If you connect your own Stripe account so customers can pay your invoices by card or Cash App Pay, Stripe collects your business and identity details directly during setup, and your customers enter their payment details directly on Stripe's checkout page. **We never see or store card numbers, bank account details, or Cash App credentials — yours or your customers'.** What we store:
+
+- Your Stripe account identifier, and status flags Stripe reports about it (for example, whether it can currently accept card payments and receive payouts), plus your own on/off setting for card payments
+- For each payment a customer makes through Stripe: the amount, the method (card or Cash App Pay), the date, and Stripe's checkout session identifier, so the payment appears on your invoice
+
+We don't store your customers' names, email addresses, or billing details from Stripe. Data Stripe collects from you and your customers is governed by Stripe's privacy policy (https://stripe.com/privacy).
+
+**Your payment handles (Zelle, Venmo, PayPal, Cash App).** If you add a Zelle phone number or email, a Venmo username, a PayPal.me username, or a Cash App $cashtag so customers can pay you directly, we store them; your Zelle handle is stored encrypted. On It does not connect to any of these accounts, read your payment notifications, or move money — the handles are simply shown on your invoices so your customers know where to send payment.
+
+**Invoice payment pages are visible to anyone with the link.** Each invoice you send has its own private link to a payment page. Anyone who has that link — not only the customer you sent it to — can see your business name and logo, the invoice number, line items and amounts, and the payment handles you've added, including your Zelle handle. The page does not show your customer's name or contact details, and it stops showing your payment handles once the invoice is paid in full. Share invoice links only with the people you're billing.
 
 ---
 
@@ -73,7 +82,7 @@ We use the following service providers, each of which handles some of your data 
 |---|---|---|
 | Supabase | Database, authentication, file storage | Account, business profile, customer details, invoices, expenses, uploaded images |
 | Vercel | Application hosting | Requests to the app; standard server logs |
-| Stripe | Payment processing | Your email, payment card details, subscription status |
+| Stripe | Payment processing: your On It subscription and, if you connect a Stripe account, your customers' card and Cash App Pay payments | Your email, payment card details, subscription status; your connected account's business details; your customers' payment details (collected by Stripe directly, never passed to us) |
 | Resend | Transactional email | Recipient addresses and email contents, including invoices sent to your customers |
 | Anthropic | Invoice and receipt parsing (Claude) | Invoice descriptions, receipt image contents |
 | AssemblyAI | Speech-to-text | Audio recorded through the microphone |
@@ -98,7 +107,7 @@ We use your customers' email addresses only to deliver the invoices you create. 
 
 We keep your account and records for as long as your account is open.
 
-**Deleting your account.** On It does not currently have a self-service delete button. To close your account and have your data removed, email us at brandon@dynastyweb.co and we will do it for you. We aim to complete deletion requests within 30 days.
+**Deleting your account.** You can delete your account yourself in the app: **Settings → Delete account**. Deletion takes effect immediately and also cancels any active subscription. If you can't get into the app, email us at brandon@dynastyweb.co and we'll do it for you; we aim to complete emailed requests within 30 days.
 
 When we delete an account, we remove your profile, your customer records, your invoices, your expenses, your uploaded documents and receipts, and your stored Zelle handle.
 
@@ -106,9 +115,8 @@ Some information is retained after deletion:
 
 - **Security logs.** We keep a record of account activity for security and fraud investigation.
 - **Payment records.** Stripe retains transaction records, and we retain enough billing history to meet tax and accounting obligations.
+- **Your Stripe account.** If you connected a Stripe account, it belongs to you and stays with Stripe; deleting your On It account removes our record of it but does not close it. Manage or close it with Stripe.
 - **Transcription and AI processing.** Content previously sent to AssemblyAI or Anthropic for processing is subject to their retention policies, which we do not control.
-
-We're working on a self-service deletion option in the app. Until then, email works and we'll handle it.
 
 ---
 
@@ -117,7 +125,7 @@ We're working on a self-service deletion option in the app. Until then, email wo
 You can:
 
 - **See and edit** your business profile, invoices, expenses, and customer records at any time in the app
-- **Delete your account** by emailing brandon@dynastyweb.co, which removes your data as described above
+- **Delete your account** in the app (Settings → Delete account), or by emailing brandon@dynastyweb.co, which removes your data as described above
 - **Cancel your subscription** at any time through the billing portal in Settings
 - **Ask us questions** about your data at brandon@dynastyweb.co
 
