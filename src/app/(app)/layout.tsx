@@ -200,7 +200,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           cover the tab bar or the chat input. Self-hides when installed/dismissed
           or when install isn't possible on this device. */}
       <InstallBanner />
-      <nav className="glass-nav flex justify-around border-t border-outline-variant/40 px-2 pb-[env(safe-area-inset-bottom)]">
+      <nav className="glass-nav flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
         {TABS.map(({ href, label, icon }) => {
           const active = path.startsWith(href);
           return (
