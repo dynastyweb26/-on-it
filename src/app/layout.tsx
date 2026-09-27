@@ -78,6 +78,12 @@ export const viewport: Viewport = {
   // list stays scrollable. iOS already lifts it via its own visual-viewport
   // behavior, so this is Android-focused and safe there.
   interactiveWidget: 'resizes-content',
+  // Without 'cover', iOS reports env(safe-area-inset-*) as 0, so the bottom
+  // nav's pb-[env(safe-area-inset-bottom)] did nothing and the tabs sat on the
+  // home indicator. Top inset stays 0: statusBarStyle 'default' keeps the
+  // status bar out of the viewport. Only elements AT the screen edge pad for
+  // the inset (the nav, bottom sheets) — never the chat composer above the nav.
+  viewportFit: 'cover',
   // Light-only app. Stops iOS/Android dark mode from giving the canvas a dark
   // default before (or instead of) our cream background.
   colorScheme: 'light',
