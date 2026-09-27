@@ -184,8 +184,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Reference doc — tabbed, always available from the pill. Never gated,
           never marks seen (see closeReference). */}
       {showReference && <TutorialReference onClose={closeReference} />}
+      {/* One scroll owner per screen. Chat owns its scrolling (the message list
+          between the header and the composer), so here main must NOT also be a
+          scroller: nested scroll containers let iOS hand a gesture to the
+          wrong one (the reversal "freeze"). Every other tab scrolls main. */}
       <main
-        className="min-h-0 flex-1 overflow-y-auto"
+        className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

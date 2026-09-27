@@ -4,7 +4,7 @@
    invoice preview card → PDF → native share sheet → follow-up engine.
    Works for guests (5 free parses), saves for signed-in users.
    Text mode is silent. Tapping the mic opens full-screen voice mode.  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
@@ -168,6 +168,13 @@ const uMsg = (content: string, source?: Msg['source']): Msg =>
 // entirely when retrying, leaving the existing message and its button intact).
 const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
   retryId ? list.map((m) => (m.id === retryId ? msg : m)) : [...list, msg];
+
+// Auto-scroll follows new content only while the reader is within this many px
+// of the bottom; scrolled up to read, they stay put.
+const NEAR_BOTTOM_PX = 120;
+// Layout effect in the browser (pin before paint, no one-frame jump); plain
+// effect during SSR, where React 18 warns on useLayoutEffect.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 // Mobile browsers suspend/kill background tabs constantly — persist the
 // conversation per-browser (and per-user, see chat-storage) so switching apps
@@ -408,7 +415,11 @@ export default function Chat() {
   const streamRef = useRef<MediaStream | null>(null);
   const recAbortRef = useRef(false);           // X pressed mid-record → drop the take
   const cancelSpeechRef = useRef<(() => void) | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // The message list is the chat screen's ONE scroll owner (the shell's main
+  // doesn't scroll on /chat). nearBottomRef: was the reader at the bottom as of
+  // the last scroll? Starts true so the first render lands on the latest.
+  const listRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
   const printRef = useRef<HTMLDivElement>(null);
   // A draft invoice row already inserted this session but not yet marked sent
   // (share pending / cancelled). A retry reuses it instead of inserting a
@@ -698,16 +709,31 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, draft, ready, finished, convoId]);
 
+  // Auto-scroll: follow new content only if the reader is already at the
+  // bottom. It sets the list's own scrollTop, never scrollIntoView (which also
+  // scrolls every scrollable ancestor, the page included), and is always
+  // instant: iOS swallows the first tap on a control while a SMOOTH scroll is
+  // in flight (the "Looks right — send it" needed-two-taps bug).
+  function onListScroll() {
+    const el = listRef.current;
+    if (el) nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+  }
+  function pinToBottom() {
+    const el = listRef.current;
+    if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
+  }
+  // New content: messages, the card (appearing or edited), prompts, the
+  // thinking row.
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, reminderPrompt]);
+  // The list itself shrinking (composer growing, Android keyboard) would hide
+  // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
-    // iOS swallows the first tap on a freshly-shown control when a SMOOTH
-    // (animated) scroll is still in progress — the tap interrupts the scroll
-    // instead of clicking, so the first press on "Looks right — send it" did
-    // nothing and only the second registered (desktop doesn't consume taps this
-    // way). When the actionable invoice card is present, scroll INSTANTLY so no
-    // animation is in flight for the tap to interrupt; keep smooth for ordinary
-    // chat messages.
-    bottomRef.current?.scrollIntoView({ behavior: ready ? 'auto' : 'smooth' });
-  }, [messages, ready]);
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(pinToBottom);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
@@ -736,6 +762,9 @@ export default function Chat() {
       ? messages.filter((m) => m.id !== retryId)
       : [...messages, uMsg(trimmed, source)];
     if (!retryId) {
+      // The reader just acted: follow their message and the reply to it, even
+      // if they had scrolled up.
+      nearBottomRef.current = true;
       setMessages(next);
       setInput('');
     }
@@ -2263,7 +2292,15 @@ export default function Chat() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
+          the end inside the list (its own bounce), instead of chaining to the
+          page, whose bounce would then grab the next gesture. Scoped here —
+          no global overscroll rule. */}
+      <div
+        ref={listRef}
+        onScroll={onListScroll}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
+      >
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) =>
           m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
@@ -2546,7 +2583,6 @@ export default function Chat() {
             {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <div className="border-t border-outline-variant/40 bg-background px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
