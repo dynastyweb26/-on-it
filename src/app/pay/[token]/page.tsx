@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/ratelimit';
 import { docNoun, formatDocNumber } from '@/lib/documents';
-import { roundCurrency, calculateLineAmount } from '@/lib/financials';
+import { roundCurrency, calculateLineAmount, dueNowFromLedger } from '@/lib/financials';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
@@ -120,20 +120,14 @@ function buildModel(row: PublicInvoiceRow): PayModel {
   const taxRate = num(row.tax_rate);
   const taxAmount = num(row.tax_amount);
   const total = num(row.total);
-  const paid = Math.max(0, num(row.amount_paid));
-  const depositAmount = Math.min(Math.max(num(row.deposit_amount), 0), Math.max(total, 0));
-  const fullyPaid = total > 0 && paid >= total;
-
   // due-now / balance are derived from the AUTHORITATIVE row.total (tax already
-  // baked in — get_public_invoice deliberately omits tax_rate/subtotal), never
-  // recomputed from line items. Mirrors calculateInvoiceTotals' dueNow rule.
-  let dueNow = 0;
-  if (total > 0 && paid < total) {
-    dueNow =
-      depositAmount > 0 && paid < depositAmount
-        ? roundCurrency(depositAmount - paid)
-        : roundCurrency(total - paid);
-  }
+  // baked in), never recomputed from line items. Shared with the card checkout
+  // route (dueNowFromLedger) so what's shown is exactly what's charged.
+  const { paid, depositAmount, dueNow, fullyPaid } = dueNowFromLedger(
+    total,
+    num(row.deposit_amount),
+    num(row.amount_paid)
+  );
 
   let primaryLabel: string;
   let primaryAmount: number;
