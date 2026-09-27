@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: July 31, 2026**
+**Last updated: September 26, 2026**
 
 On It is an invoicing app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us"). This policy explains what information we collect, why, and what we do with it.
 
@@ -31,6 +31,13 @@ Transcription happens on our servers, not on your phone. Please keep in mind tha
 **Photos and documents.** Receipt photos and any files you upload are stored in our file storage (provided by Supabase). We keep them for as long as your account exists — we do not automatically delete them after a period of time. You can remove individual files from within the app.
 
 **Payment information.** If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store only a customer identifier, your subscription status, and renewal dates.
+
+**Card and Cash App Pay payments through Stripe (optional).** If you connect your own Stripe account so customers can pay your invoices by card or Cash App Pay, Stripe collects your business and identity details directly during setup, and your customers enter their payment details directly on Stripe's checkout page. **We never see or store card numbers, bank account details, or Cash App credentials — yours or your customers'.** What we store:
+
+- Your Stripe account identifier, and status flags Stripe reports about it (for example, whether it can currently accept card payments and receive payouts), plus your own on/off setting for card payments
+- For each payment a customer makes through Stripe: the amount, the method (card or Cash App Pay), the date, and Stripe's checkout session identifier, so the payment appears on your invoice
+
+We don't store your customers' names, email addresses, or billing details from Stripe. Data Stripe collects from you and your customers is governed by Stripe's privacy policy (https://stripe.com/privacy).
 
 **Your Zelle handle.** If you choose to add a Zelle phone number or email so customers can pay you directly, we store it encrypted. On It does not connect to your Zelle account, read your payment notifications, or move money — the handle is simply printed on your invoices so your customers know where to send payment.
 
@@ -73,7 +80,7 @@ We use the following service providers, each of which handles some of your data 
 |---|---|---|
 | Supabase | Database, authentication, file storage | Account, business profile, customer details, invoices, expenses, uploaded images |
 | Vercel | Application hosting | Requests to the app; standard server logs |
-| Stripe | Payment processing | Your email, payment card details, subscription status |
+| Stripe | Payment processing: your On It subscription and, if you connect a Stripe account, your customers' card and Cash App Pay payments | Your email, payment card details, subscription status; your connected account's business details; your customers' payment details (collected by Stripe directly, never passed to us) |
 | Resend | Transactional email | Recipient addresses and email contents, including invoices sent to your customers |
 | Anthropic | Invoice and receipt parsing (Claude) | Invoice descriptions, receipt image contents |
 | AssemblyAI | Speech-to-text | Audio recorded through the microphone |
@@ -106,6 +113,7 @@ Some information is retained after deletion:
 
 - **Security logs.** We keep a record of account activity for security and fraud investigation.
 - **Payment records.** Stripe retains transaction records, and we retain enough billing history to meet tax and accounting obligations.
+- **Your Stripe account.** If you connected a Stripe account, it belongs to you and stays with Stripe; deleting your On It account removes our record of it but does not close it. Manage or close it with Stripe.
 - **Transcription and AI processing.** Content previously sent to AssemblyAI or Anthropic for processing is subject to their retention policies, which we do not control.
 
 We're working on a self-service deletion option in the app. Until then, email works and we'll handle it.
