@@ -13,6 +13,7 @@
 //   • invoice (not quote), status sent or overdue, not draft/deleted
 //   • seller has a connected account, charges enabled, and opted in
 //   • amount due now (dueNowFromLedger, shared with the page) > 0
+// An open session for the same invoice + amount is reused (double-pay guard).
 //
 // The webhook (/api/webhooks/stripe/connect) records the payment from
 // metadata.invoice_id and amount_total; this route writes nothing to the DB.
@@ -32,12 +33,64 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{1,32}$/;
 // No meaningful body — validate anyway (security pattern).
 const CheckoutBody = z.object({}).nullish();
 
-// Stripe requires expires_at 30 min – 24 h after creation. 30 min computed
-// here can land a few seconds under 30 by the time Stripe sees it, so add a
-// one-minute margin.
-const SESSION_TTL_SECONDS = 31 * 60;
+// Stripe requires expires_at 30 min – 24 h after creation.
+// Sessions are bucketed into 30-minute windows (see the double-pay guard
+// below); every session created in a window expires at windowStart + 61 min,
+// i.e. 31–61 min after creation — always inside Stripe's range, and
+// deterministic within the window so the idempotency key's params match.
+const WINDOW_SECONDS = 30 * 60;
+const EXPIRY_AFTER_WINDOW_START = 61 * 60;
+// An open session is reused only if it has at least this long left.
+const REUSE_MIN_REMAINING_SECONDS = 5 * 60;
 // Stripe's minimum charge in USD.
 const MIN_CENTS = 50;
+
+// ── Double-pay guard ─────────────────────────────────────────────────────
+// Two tabs (or two taps) must not produce two payable sessions for the same
+// balance. Three layers:
+//   1. Reuse: an OPEN session on the seller's account for this invoice AND
+//      this exact amount, with ≥5 min left, is returned instead of a new one.
+//      Opening one session in two tabs is safe — Stripe completes it once.
+//   2. Stale sessions are expired: an open session for this invoice at a
+//      DIFFERENT amount (the due-now changed, e.g. a deposit got paid) could
+//      overpay, so it's expired before a new one is created.
+//   3. Concurrent first clicks (both list, both find nothing) share one
+//      Stripe idempotency key per (invoice, amount, 30-min window), so Stripe
+//      returns the same session to both.
+// Residual: two sessions paid across a window boundary. The webhook records
+// both (unique per session), and the excess shows as credit (amount_paid >
+// total → calculateInvoiceTotals.credit). Refunds are the seller's call.
+async function findOrExpireOpenSessions(
+  stripe: NonNullable<ReturnType<typeof getStripe>>,
+  account: string,
+  invoiceId: string,
+  cents: number,
+  nowSec: number
+): Promise<string | null> {
+  const open = await stripe.checkout.sessions.list(
+    // Sessions live ≤ 61 min; look back a little further than that.
+    { status: 'open', limit: 100, created: { gte: nowSec - 2 * 60 * 60 } },
+    { stripeContext: account }
+  );
+  let reuse: string | null = null;
+  for (const s of open.data) {
+    if (s.metadata?.invoice_id !== invoiceId) continue;
+    const remaining = (s.expires_at ?? 0) - nowSec;
+    if (!reuse && s.amount_total === cents && remaining >= REUSE_MIN_REMAINING_SECONDS && s.url) {
+      reuse = s.url;
+      continue;
+    }
+    if (s.amount_total !== cents) {
+      // Stale amount — could overpay. Best effort: it may have just completed.
+      try {
+        await stripe.checkout.sessions.expire(s.id, {}, { stripeContext: account });
+      } catch (e) {
+        console.warn('pay checkout: could not expire stale session', stripeErrorLog(e));
+      }
+    }
+  }
+  return reuse;
+}
 
 interface CheckoutRow {
   invoice_id: string;
@@ -106,6 +159,11 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   const business = (row.business_name ?? '').trim() || 'Invoice';
 
   try {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const reused = await findOrExpireOpenSessions(stripe, row.stripe_account_id, row.invoice_id, cents, nowSec);
+    if (reused) return NextResponse.json({ url: reused });
+
+    const windowStart = nowSec - (nowSec % WINDOW_SECONDS);
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
@@ -125,13 +183,24 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         // The webhook's contract: which invoice this pays.
         metadata: { invoice_id: row.invoice_id },
         payment_intent_data: { metadata: { invoice_id: row.invoice_id } },
-        expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+        expires_at: windowStart + EXPIRY_AFTER_WINDOW_START,
         success_url: `${origin}/pay/${token}?paid=1`,
         cancel_url: `${origin}/pay/${token}`,
       },
       // Direct charge on the seller's account. No application_fee_amount.
-      { stripeContext: row.stripe_account_id }
+      // Idempotency (guard layer 3): same invoice + amount + window + origin →
+      // the same session. Params are deterministic within the window.
+      {
+        stripeContext: row.stripe_account_id,
+        idempotencyKey: `pay-${row.invoice_id}-${cents}-${windowStart}-${origin}`,
+      }
     );
+    // The idempotency key can hand back this window's earlier session. If it
+    // was already paid (webhook not landed yet, so dueNow hasn't dropped),
+    // don't start another payment.
+    if (session.status === 'complete') {
+      return refuse(409, 'payment_processing', 'A card payment for this invoice is already being confirmed. Refresh in a minute.');
+    }
     if (!session.url) throw new Error('checkout session has no url');
     return NextResponse.json({ url: session.url });
   } catch (e) {
