@@ -2,6 +2,7 @@ import 'server-only';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { adminClient } from '@/lib/supabase/admin';
+import { connectEnabled } from '@/lib/stripe/connect';
 import { rateLimit } from '@/lib/ratelimit';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { roundCurrency, calculateLineAmount, dueNowFromLedger } from '@/lib/financials';
@@ -57,6 +58,9 @@ interface PublicInvoiceRow {
   cashapp_tag: string | null;
   venmo_username: string | null;
   zelle: string | null;
+  // 20260926100000: display-only (account connected + charges enabled + seller
+  // opted in). Absent until that migration is applied → treated as false.
+  card_available?: boolean | null;
 }
 
 type FetchResult =
@@ -114,7 +118,7 @@ function Notice({ icon, title, body }: { icon: IconName; title: string; body: st
   );
 }
 
-function buildModel(row: PublicInvoiceRow): PayModel {
+function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
   const subtotal = num(row.subtotal);
   const taxRate = num(row.tax_rate);
@@ -189,10 +193,29 @@ function buildModel(row: PublicInvoiceRow): PayModel {
     fullyPaid,
     hasHandles: Object.values(handles).some(Boolean),
     handles,
+    // "Pay with card" is offered only when Connect is on in this deployment,
+    // the seller can take cards (card_available), and there's something
+    // payable now on a sent/overdue invoice. Display-only: the checkout route
+    // re-checks every one of these itself before creating a session.
+    cardAvailable:
+      connectEnabled() &&
+      row.card_available === true &&
+      kind === 'invoice' &&
+      (row.status === 'sent' || row.status === 'overdue') &&
+      !fullyPaid &&
+      dueNow > 0,
+    token,
+    paidReturn,
   };
 }
 
-export default async function PayPage({ params }: { params: { token: string } }) {
+export default async function PayPage({
+  params,
+  searchParams,
+}: {
+  params: { token: string };
+  searchParams?: { paid?: string };
+}) {
   // Rate-limit by IP (public route). rateIdentifier wants a NextRequest we don't
   // have in a server component, so derive the same ip:<addr> identifier from the
   // forwarded headers directly (matches clientIp()'s logic in ratelimit.ts).
@@ -241,5 +264,5 @@ export default async function PayPage({ params }: { params: { token: string } })
     );
   }
 
-  return <PayView model={buildModel(res.row)} />;
+  return <PayView model={buildModel(res.row, params.token, searchParams?.paid === '1')} />;
 }
