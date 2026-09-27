@@ -28,8 +28,13 @@ const venmoUrl = (h: string) => `https://venmo.com/u/${h.replace(/^@/, '')}`;
 // Before redirecting to Stripe we remember amount_paid; on return, the page
 // refreshes (re-runs the server RPC) until amount_paid rises above it.
 const baselineKey = (token: string) => `onit_pay_baseline_${token}`;
-const POLL_MS = 3000;
-const POLL_MAX = 20; // ~60s — within the pay_view limit (30/min per IP)
+// Every refresh re-runs the server page, which counts against pay_view (30/min
+// per IP). 4s × 15 = one minute of polling = 15 loads, plus the return load:
+// ~16/min, leaving headroom for a shared IP (household / carrier NAT). If the
+// limit ever trips, the server renders its "One moment" notice instead of this
+// view, so staying well under it matters.
+const POLL_MS = 4000;
+const POLL_MAX = 15;
 
 export interface PayHandles {
   paypalMe: string | null;
@@ -107,7 +112,10 @@ export default function PayView({ model }: { model: PayModel }) {
   const cardInFlight = useRef(false);
 
   const [cardReturn, setCardReturn] = useState<CardReturn>(model.paidReturn ? 'processing' : 'idle');
-  const polls = useRef(0);
+  // Poll counter as STATE, not a ref: each tick must re-run the effect below.
+  // A refresh that returns the same amount_paid changes none of the model deps,
+  // so a ref-only counter stopped polling after the first refresh.
+  const [polls, setPolls] = useState(0);
 
   // Back from Stripe: compare against the amount_paid remembered at checkout.
   // Re-evaluated on every refresh (model.amountPaid changes when the row lands).
@@ -127,16 +135,16 @@ export default function PayView({ model }: { model: PayModel }) {
       window.history.replaceState(null, '', `/pay/${model.token}`);
       return;
     }
-    if (polls.current >= POLL_MAX) {
+    if (polls >= POLL_MAX) {
       setCardReturn('slow');
       return;
     }
     const t = setTimeout(() => {
-      polls.current += 1;
       router.refresh(); // re-runs the server component → fresh RPC read
+      setPolls((n) => n + 1); // re-arms this effect for the next tick
     }, POLL_MS);
     return () => clearTimeout(t);
-  }, [model.paidReturn, model.amountPaid, model.fullyPaid, model.token, cardReturn, router]);
+  }, [model.paidReturn, model.amountPaid, model.fullyPaid, model.token, cardReturn, router, polls]);
 
   async function payWithCard() {
     if (cardInFlight.current) return;
