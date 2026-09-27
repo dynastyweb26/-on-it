@@ -57,7 +57,16 @@ export interface InvoiceRenderData {
   // unstyled tappable annotation to it — no per-row app links. Omitted for
   // drafts (no usable pay page) and quotes.
   payUrl?: string | null;
+  // The pro can take card / Cash App Pay on the pay page right now: Connect is
+  // on in this deployment AND their account is connected, charges enabled, and
+  // their card switch is on. Live (never snapshotted), like Zelle. Adds a first
+  // "Card or Cash App Pay — pay online" line to the How to pay block, shown
+  // only alongside payUrl (the block's link is how the client gets there).
+  cardAvailable?: boolean;
 }
+
+// Whether the PDF should show the card line: the capability AND a pay link.
+const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && d.payUrl);
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -124,7 +133,8 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}` });
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
-  if (!rows.length) return null;
+  const card = showCardLine(d);
+  if (!rows.length && !card) return null;
 
   const border = `1px solid ${t.rule}`;
   // The whole block silently links to the pay page when payUrl is set (invoice,
@@ -139,6 +149,15 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ color: t.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800, fontSize: 15, marginBottom: 10 }}>
         How to pay
       </div>
+      {/* Card line — first, same row format as the handles, neutral theme
+          colours (no brand mark: it's Stripe checkout, not a handle). Covered
+          by the block's single pay-page link; no link of its own. */}
+      {card && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
+          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
+        </div>
+      )}
       {rows.map((r) => {
         const color = PAY_COLOR[r.kind];
         return (
@@ -444,7 +463,8 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
     rows.push({ kind: 'venmo', method: 'Venmo', detail: `venmo.com/u/${d.venmoUsername.replace(/^@/, '')}` });
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
-  if (!rows.length) return null;
+  const card = showCardLine(d);
+  if (!rows.length && !card) return null;
 
   // Whole rail silently links to the pay page (same rule as PaymentBlock) — no
   // per-row app links, no link cue; the handles keep their colour.
@@ -455,6 +475,13 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         Payment methods
       </div>
       <div style={{ borderBottom: `1px solid ${t.accent}`, marginTop: 8, marginBottom: 18 }} />
+      {/* Card line — first, in the rail's own row style, no brand mark. */}
+      {card && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
+        </div>
+      )}
       {rows.map((r) => (
         <div key={r.method}
           style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 18 }}>

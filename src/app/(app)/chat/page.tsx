@@ -27,6 +27,7 @@ import LineItemsEditor from '@/components/LineItemsEditor';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
+import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 
 // A failed assistant message carries what it takes to re-run the operation in
 // place: the op, plus (for send) the user text to resend. finalize needs no
@@ -39,6 +40,9 @@ interface Profile {
   slogan: string | null; brand_colors: string[]; background_color: string | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  // Connect flags (select(*)) — for the PDF card line only.
+  stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
+  card_payments_enabled?: boolean | null;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -367,6 +371,9 @@ export default function Chat() {
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
   const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Connect on in this deployment? (PDF card line; fails closed.)
+  const [connectOn, setConnectOn] = useState(false);
+  useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
   // the fetch hasn't resolved yet (audit B2); only a true guest sees the
@@ -1082,6 +1089,8 @@ export default function Chat() {
       cashappTag: profile.cashapp_tag,
       paypalMe: profile.paypal_me,
       venmoUsername: profile.venmo_username,
+      // Live, like Zelle; the template shows it only when payUrl is set (send).
+      cardAvailable: cardAvailableFor(profile, connectOn),
     };
   }
 
