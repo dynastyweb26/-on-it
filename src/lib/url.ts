@@ -12,3 +12,21 @@ export function websiteHref(value: string | null | undefined): string | null {
   if (!v) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
+
+export function cashAppUrl(tag: string): string {
+  const clean = tag.replace(/^\$+/, '').trim();
+  return `https://cash.app/$${encodeURIComponent(clean)}`;
+}
+
+export function payPalUrl(handle: string): string {
+  const clean = handle
+    .replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '')
+    .replace(/^[@/]+/, '')
+    .trim();
+  return `https://paypal.me/${encodeURIComponent(clean)}`;
+}
+
+export function venmoUrl(handle: string): string {
+  const clean = handle.replace(/^[@/]+/, '').trim();
+  return `https://venmo.com/u/${encodeURIComponent(clean)}`;
+}

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
+import { cashAppUrl, payPalUrl, venmoUrl } from '@/lib/url';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public pay page view. Receives a fully-shaped, already-whitelisted model
@@ -12,16 +13,6 @@ import { money } from '@/lib/financials';
 // which POSTs /api/pay/[token]/checkout (the server decides the amount and
 // every gate) and follows the returned Stripe Checkout URL.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Handle → deep link. Mirrors src/lib/pdf/templates/index.tsx:84-87, where the
-// PDF footer builds the same links. Kept local so this read-only page doesn't
-// pull in the PDF render module; consolidate into a shared helper in a later
-// branch (tracked in PUNCH-LIST).
-const cashAppUrl = (tag: string) =>
-  `https://cash.app/${tag.startsWith('$') ? tag : `$${tag}`}`;
-const payPalUrl = (h: string) =>
-  `https://paypal.me/${h.replace(/^(https?:\/\/)?(www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '')}`;
-const venmoUrl = (h: string) => `https://venmo.com/u/${h.replace(/^@/, '')}`;
 
 // After a card payment, Stripe sends the client back to ?paid=1 — but the
 // ledger row is written by the webhook, which can land a few seconds later.
