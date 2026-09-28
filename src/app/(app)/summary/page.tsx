@@ -283,6 +283,20 @@ export default function TaxSummary() {
         <Icon name="expand_more" size={22} className="text-on-surface-variant" />
       </button>
 
+      {/* Two exports for the selected period, right under the period they
+          cover: expenses by category, and income by client with every payment
+          listed. Each is disabled when its side of the period is empty. */}
+      {!loading && hasData && (
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} onClick={() => exportPdf('expenses')}>
+            <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
+          </button>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} onClick={() => exportPdf('income')}>
+            <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="mt-16 text-center text-on-surface-variant">Adding it up…</p>
       ) : !hasData ? (
@@ -380,17 +394,6 @@ export default function TaxSummary() {
             </section>
           )}
 
-          {/* Two exports for the selected period: expenses by category, and
-              income by client with every payment listed. Each is disabled when
-              its side of the period is empty. */}
-          <div className="grid grid-cols-2 gap-3">
-            <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} onClick={() => exportPdf('expenses')}>
-              <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
-            </button>
-            <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} onClick={() => exportPdf('income')}>
-              <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
-            </button>
-          </div>
 
           <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">{DISCLAIMER}</p>
         </>
