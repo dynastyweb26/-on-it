@@ -15,10 +15,23 @@ import { accentForWhite } from '@/lib/colors';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
   summarizeIncome, localDay,
-  type Granularity, type Period, type ExpenseLite, type InvoiceLite, type PaymentLite,
+  type Granularity, type Period, type ExpenseLite, type InvoiceLite, type PaymentLite, type ClientTotal,
 } from '@/lib/tax-summary';
-import { elementToPdf, summaryFilename, shareInvoice } from '@/lib/pdf/generate';
-import { ExpenseSummaryTemplate, DISCLAIMER, type ExpenseSummaryData } from '@/lib/pdf/summary-template';
+import { elementToPdf, summaryFilename, incomeSummaryFilename, shareInvoice } from '@/lib/pdf/generate';
+import {
+  ExpenseSummaryTemplate, IncomeSummaryTemplate, DISCLAIMER,
+  type ExpenseSummaryData, type IncomeSummaryData,
+} from '@/lib/pdf/summary-template';
+import { formatDocNumber } from '@/lib/documents';
+
+// Long lists show this many rows, then a "See all N →" row that expands in
+// place (no nested scroll area).
+const PREVIEW_ROWS = 5;
+
+// What the offscreen render target is drawing for the PDF capture.
+type ExportDoc =
+  | { kind: 'expenses'; data: ExpenseSummaryData }
+  | { kind: 'income'; data: IncomeSummaryData };
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -46,8 +59,10 @@ export default function TaxSummary() {
   const [payments, setPayments] = useState<PaymentLite[] | null>(null); // income, cash basis
   const [owed, setOwed] = useState<InvoiceLite[] | null>(null);         // sent/overdue, as-of-now
   const [selected, setSelected] = useState<Period | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [exportData, setExportData] = useState<ExpenseSummaryData | null>(null);
+  const [exporting, setExporting] = useState<ExportDoc['kind'] | null>(null);
+  const [exportDoc, setExportDoc] = useState<ExportDoc | null>(null);
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [showAllIncome, setShowAllIncome] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Period sheet: open flag + which view (the granularity chooser, or one
@@ -89,7 +104,7 @@ export default function TaxSummary() {
       const [exp, pay, owe] = await Promise.all([
         supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
-          .select('amount, paid_at, invoices!inner(client_name, kind, deleted_at)')
+          .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
           .eq('invoices.kind', 'invoice')
           .is('invoices.deleted_at', null),
         supabase.from('invoices')
@@ -101,13 +116,17 @@ export default function TaxSummary() {
       const eRows = (exp.data ?? []) as ExpenseLite[];
       // Supabase embeds a to-one relation as an object (older shapes: an array);
       // handle both so client_name resolves either way.
+      type Emb = { client_name?: string; invoice_number?: number | null };
       const pRows: PaymentLite[] = ((pay.data ?? []) as Array<Record<string, unknown>>).map((r) => {
-        const emb = r.invoices as { client_name?: string } | Array<{ client_name?: string }> | null;
+        const emb = r.invoices as Emb | Emb[] | null;
         const inv = Array.isArray(emb) ? emb[0] : emb;
         return {
           amount: r.amount as number | string,
           paid_at: (r.paid_at as string | null) ?? null,
           client_name: inv?.client_name ?? 'Client',
+          method: (r.method as string | null) ?? null,
+          via_stripe: Boolean(r.stripe_checkout_session_id),
+          invoice_number: inv?.invoice_number ?? null,
         };
       });
       const oRows = (owe.data ?? []) as InvoiceLite[];
@@ -120,8 +139,13 @@ export default function TaxSummary() {
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
       // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet.
-      setSelected(availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
+      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // (the Books Net / Collected tiles) opens at All time, where Kept and
+      // Brought in equal the all-time figures the tiles show.
+      const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
+      setSelected(wantAll
+        ? allPeriod(recordDates)
+        : availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -150,7 +174,7 @@ export default function TaxSummary() {
   const income = useMemo(
     () => (selected
       ? summarizeIncome(payments ?? [], owed ?? [], selected)
-      : { broughtIn: 0, stillOwed: 0, byClient: [] as { client: string; count: number; total: number }[] }),
+      : { broughtIn: 0, stillOwed: 0, byClient: [] as ClientTotal[] }),
     [payments, owed, selected]
   );
 
@@ -170,38 +194,83 @@ export default function TaxSummary() {
   function openSheet() { setSheetView('root'); setSheetOpen(true); }
   function pick(p: Period) { setSelected(p); setSheetOpen(false); }
 
-  async function exportPdf() {
-    if (!profile || !selected || exporting || summary.count === 0) return;
-    setExporting(true);
+  const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
+
+  // Both PDFs share one flow: build the document data, let it paint offscreen,
+  // capture, share. Header fields are the same on both documents.
+  async function exportPdf(kind: ExportDoc['kind']) {
+    if (!profile || !selected || exporting) return;
+    if (kind === 'expenses' ? summary.count === 0 : incomeCount === 0) return;
+    setExporting(kind);
     try {
-      setExportData({
+      const header = {
         businessName: profile.business_name,
         logoUrl: profile.logo_url,
         periodLabel: selected.label, // literal label on the document, never "This Month"
         rangeStart: prettyDate(selected.start),
         rangeEnd: prettyDate(selected.end),
         generatedOn: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total, anyDeductible: r.anyDeductible })),
-        total: summary.total,
-        count: summary.count,
-      });
+      };
+      setExportDoc(kind === 'expenses'
+        ? {
+            kind,
+            data: {
+              ...header,
+              rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total, anyDeductible: r.anyDeductible })),
+              total: summary.total,
+              count: summary.count,
+            },
+          }
+        : {
+            kind,
+            data: {
+              ...header,
+              clients: income.byClient.map((c) => ({
+                client: c.client,
+                count: c.count,
+                total: c.total,
+                payments: c.payments.map((p) => ({
+                  date: p.day ? prettyDate(p.day) : '—',
+                  invoice: p.invoiceNumber != null ? formatDocNumber('invoice', p.invoiceNumber) : '—',
+                  method: p.method,
+                  amount: p.amount,
+                })),
+              })),
+              total: income.broughtIn,
+              count: incomeCount,
+            },
+          });
       await new Promise((r) => setTimeout(r, 350)); // let the document paint
       if (!printRef.current) throw new Error('render failed');
-      const file = await elementToPdf(printRef.current, summaryFilename(selected.label, profile.business_name));
-      await shareInvoice(file, profile.business_name);
+      const filename = kind === 'expenses'
+        ? summaryFilename(selected.label, profile.business_name)
+        : incomeSummaryFilename(selected.label, profile.business_name);
+      const file = await elementToPdf(printRef.current, filename);
+      await shareInvoice(file, profile.business_name, kind === 'expenses' ? 'Expense summary' : 'Income summary');
     } catch {
       /* share/download failed — the button re-enables so they can retry */
     } finally {
-      setExportData(null);
-      setExporting(false);
+      setExportDoc(null);
+      setExporting(null);
     }
   }
 
   const loading = expenses === null || payments === null || owed === null || selected === null;
 
+  // #income (the Books Collected tile): the section only exists once data has
+  // loaded, after the router's own hash handling has run, so scroll to it here,
+  // once. It scrolls the shell's <main> (the page itself never scrolls).
+  const incomeRef = useRef<HTMLElement>(null);
+  const scrolledToHash = useRef(false);
+  useEffect(() => {
+    if (loading || scrolledToHash.current || window.location.hash !== '#income') return;
+    scrolledToHash.current = true;
+    incomeRef.current?.scrollIntoView({ block: 'start' });
+  }, [loading]);
+
   return (
     <div className="space-y-4 px-4 py-4">
-      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Expense summary</h1>
+      <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books summary</h1>
 
       {/* Period selector — full-width trigger; taps open the two-step sheet. */}
       <button
@@ -213,6 +282,20 @@ export default function TaxSummary() {
         <span className="font-semibold text-on-background">{selected?.friendlyLabel ?? 'All time'}</span>
         <Icon name="expand_more" size={22} className="text-on-surface-variant" />
       </button>
+
+      {/* Two exports for the selected period, right under the period they
+          cover: expenses by category, and income by client with every payment
+          listed. Each is disabled when its side of the period is empty. */}
+      {!loading && hasData && (
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} onClick={() => exportPdf('expenses')}>
+            <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
+          </button>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} onClick={() => exportPdf('income')}>
+            <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="mt-16 text-center text-on-surface-variant">Adding it up…</p>
@@ -267,9 +350,12 @@ export default function TaxSummary() {
               when it has rows, so a period with just one side shows just that. */}
           {summary.rows.length > 0 && (
             <section className="space-y-2">
-              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Expenses by category</h2>
+              <h2 className="flex items-baseline justify-between px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+                <span>Expenses by category</span>
+                <span className="font-display normal-case tracking-normal text-on-background">{money(summary.total)}</span>
+              </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
-                {summary.rows.map((r) => (
+                {(showAllExpenses ? summary.rows : summary.rows.slice(0, PREVIEW_ROWS)).map((r) => (
                   <div key={r.category} className="flex items-center justify-between px-4 py-3">
                     <div className="min-w-0">
                       <div className="font-medium text-on-background">{r.label}</div>
@@ -280,15 +366,19 @@ export default function TaxSummary() {
                     <div className="font-display font-bold text-on-background">{money(r.total)}</div>
                   </div>
                 ))}
+                <SeeAllRow total={summary.rows.length} expanded={showAllExpenses} onToggle={() => setShowAllExpenses((v) => !v)} />
               </div>
             </section>
           )}
 
           {income.byClient.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Income by client</h2>
+            <section id="income" ref={incomeRef} className="scroll-mt-4 space-y-2">
+              <h2 className="flex items-baseline justify-between px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+                <span>Income by client</span>
+                <span className="font-display normal-case tracking-normal text-on-background">{money(income.broughtIn)}</span>
+              </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
-                {income.byClient.map((c) => (
+                {(showAllIncome ? income.byClient : income.byClient.slice(0, PREVIEW_ROWS)).map((c) => (
                   <div key={c.client} className="flex items-center justify-between px-4 py-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-on-background">{c.client}</div>
@@ -299,13 +389,11 @@ export default function TaxSummary() {
                     <div className="font-display font-bold text-on-background">{money(c.total)}</div>
                   </div>
                 ))}
+                <SeeAllRow total={income.byClient.length} expanded={showAllIncome} onToggle={() => setShowAllIncome((v) => !v)} />
               </div>
             </section>
           )}
 
-          <button className="btn-primary w-full" disabled={exporting || summary.count === 0} onClick={exportPdf}>
-            <Icon name="download" size={20} /> {exporting ? 'Building your PDF…' : 'Export PDF'}
-          </button>
 
           <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">{DISCLAIMER}</p>
         </>
@@ -380,13 +468,32 @@ export default function TaxSummary() {
       )}
 
       {/* Offscreen render target for the white/black PDF document */}
-      {exportData && (
+      {exportDoc && (
         <div style={{ position: 'fixed', left: -9999, top: 0 }}>
           <div ref={printRef}>
-            <ExpenseSummaryTemplate d={exportData} accent={accent} />
+            {exportDoc.kind === 'expenses'
+              ? <ExpenseSummaryTemplate d={exportDoc.data} accent={accent} />
+              : <IncomeSummaryTemplate d={exportDoc.data} accent={accent} />}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// "See all N →" / "Show less" — the last row of a long list, expanding it in
+// place. Renders nothing when the list already fits in the preview.
+function SeeAllRow({ total, expanded, onToggle }: { total: number; expanded: boolean; onToggle: () => void }) {
+  if (total <= PREVIEW_ROWS) return null;
+  return (
+    <button
+      className="flex min-h-touch w-full items-center justify-between px-4 py-3 text-left font-semibold text-primary active:bg-surface-container transition-colors"
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      <span>{expanded ? 'Show less' : `See all ${total}`}</span>
+      {/* expand_more flipped: expand_less isn't in the icon subset font */}
+      <Icon name={expanded ? 'expand_more' : 'arrow_forward'} size={20} className={expanded ? 'rotate-180' : ''} />
+    </button>
   );
 }

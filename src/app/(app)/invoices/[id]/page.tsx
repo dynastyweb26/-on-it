@@ -12,6 +12,9 @@ import { defaultDueDate, formatDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
+// Payment-history method label: Stripe-sourced rows (paid on the pay page)
+// read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
+import { paymentMethodLabel } from '@/lib/payment-methods';
 import PaywallModal from '@/components/PaywallModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
@@ -33,15 +36,6 @@ const localDateToIso = (ymd: string): string => {
   return new Date(y, m - 1, d).toISOString();
 };
 
-// Payment-history method label. Stripe-sourced rows (paid on the pay page)
-// read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
-const METHOD_LABELS: Record<string, string> = {
-  zelle: 'Zelle', cash: 'Cash', check: 'Check', card: 'Card', cashapp: 'Cash App', other: 'Other',
-};
-function paymentMethodLabel(method: string, viaStripe: boolean): string {
-  const base = METHOD_LABELS[method] ?? method;
-  return viaStripe ? `${base} (via Stripe)` : base;
-}
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
