@@ -74,8 +74,10 @@ export default function Invoices() {
     // Hide converted quotes from the main views so one job doesn't read as two
     // documents. They stay reachable under the Quotes tab.
     filter === 'all' ? !isConvertedQuote(r)
-    : filter === 'unpaid' ? ['sent', 'overdue'].includes(r.status)
-    : filter === 'paid' ? r.status === 'paid'
+    // Unpaid / Paid are money views: invoices only. A sent quote is not owed
+    // money (Books' "Still owed" excludes quotes too); it lives under Quotes.
+    : filter === 'unpaid' ? r.kind === 'invoice' && ['sent', 'overdue'].includes(r.status)
+    : filter === 'paid' ? r.kind === 'invoice' && r.status === 'paid'
     : r.kind === 'quote'
   );
   // One ordering for EVERY tab (All / Unpaid / Paid / Quotes): newest first, then
