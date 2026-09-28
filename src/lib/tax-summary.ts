@@ -12,6 +12,7 @@
 // defaults false and is user-toggled, so filtering on it would report ~$0.
 // Deductibility is surfaced as an indicator only, never used to gate the count.
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
+import { paymentMethodLabel } from '@/lib/payment-methods';
 
 export type Granularity = 'week' | 'month' | 'quarter' | 'year';
 
@@ -127,6 +128,9 @@ export interface PaymentLite {
   amount: number | string;
   paid_at?: string | null;     // timestamptz — when the cash arrived
   client_name: string;
+  method?: string | null;      // invoice_payments.method (zelle, cash, card, cashapp…)
+  via_stripe?: boolean;        // paid on the pay page (has a Checkout Session id)
+  invoice_number?: number | null;
 }
 
 // A sent/overdue invoice, for the as-of-now outstanding balance only.
@@ -136,7 +140,15 @@ export interface InvoiceLite {
   amount_paid?: number | string | null;
 }
 
-export interface ClientTotal { client: string; count: number; total: number; }
+/** One payment under its client, for the income list and the Income PDF. */
+export interface PaymentLine {
+  day: string;                  // local yyyy-mm-dd of paid_at
+  invoiceNumber: number | null;
+  method: string;               // display label, e.g. "Cash App (via Stripe)"
+  amount: number;
+}
+
+export interface ClientTotal { client: string; count: number; total: number; payments: PaymentLine[]; }
 
 export interface IncomeSummary {
   broughtIn: number;       // Σ ledger payments whose paid_at falls in the period (cash basis)
@@ -168,15 +180,24 @@ export function summarizeIncome(
   let broughtIn = 0;
   const byClient = new Map<string, ClientTotal>();
   for (const p of payments) {
-    if (!inPeriod(localDay(p.paid_at))) continue;
+    const day = localDay(p.paid_at);
+    if (!inPeriod(day)) continue;
     const amt = Number(p.amount) || 0;
     broughtIn += amt;
     const name = p.client_name || 'Client';
-    const cur = byClient.get(name) ?? { client: name, count: 0, total: 0 };
+    const cur = byClient.get(name) ?? { client: name, count: 0, total: 0, payments: [] };
     cur.count += 1; // number of payments received, not invoices
     cur.total += amt;
+    cur.payments.push({
+      day,
+      invoiceNumber: p.invoice_number ?? null,
+      method: paymentMethodLabel(p.method ?? 'other', Boolean(p.via_stripe)),
+      amount: amt,
+    });
     byClient.set(name, cur);
   }
+  // Each client's payments oldest → newest, the order they arrived.
+  for (const c of byClient.values()) c.payments.sort((a, b) => a.day.localeCompare(b.day));
 
   // As of now, ignore the period: the current unpaid balance of sent/overdue.
   let stillOwed = 0;

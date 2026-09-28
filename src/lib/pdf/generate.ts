@@ -21,6 +21,10 @@ export function summaryFilename(periodLabel: string, business: string) {
   return `Expense-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
+export function incomeSummaryFilename(periodLabel: string, business: string) {
+  return `Income-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+}
+
 /** Wait for every <img> inside the node to finish decoding. html2canvas does not
  *  wait, so a slow logo (Supabase storage) rasterizes as a blank box. decode()
  *  rejects on a broken image — we swallow that so one bad logo can't block the
