@@ -120,8 +120,13 @@ export default function TaxSummary() {
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
       // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet.
-      setSelected(availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
+      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // (the Books Net / Collected tiles) opens at All time, where Kept and
+      // Brought in equal the all-time figures the tiles show.
+      const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
+      setSelected(wantAll
+        ? allPeriod(recordDates)
+        : availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -199,6 +204,17 @@ export default function TaxSummary() {
 
   const loading = expenses === null || payments === null || owed === null || selected === null;
 
+  // #income (the Books Collected tile): the section only exists once data has
+  // loaded, after the router's own hash handling has run, so scroll to it here,
+  // once. It scrolls the shell's <main> (the page itself never scrolls).
+  const incomeRef = useRef<HTMLElement>(null);
+  const scrolledToHash = useRef(false);
+  useEffect(() => {
+    if (loading || scrolledToHash.current || window.location.hash !== '#income') return;
+    scrolledToHash.current = true;
+    incomeRef.current?.scrollIntoView({ block: 'start' });
+  }, [loading]);
+
   return (
     <div className="space-y-4 px-4 py-4">
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Expense summary</h1>
@@ -267,7 +283,10 @@ export default function TaxSummary() {
               when it has rows, so a period with just one side shows just that. */}
           {summary.rows.length > 0 && (
             <section className="space-y-2">
-              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Expenses by category</h2>
+              <h2 className="flex items-baseline justify-between px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+                <span>Expenses by category</span>
+                <span className="font-display normal-case tracking-normal text-on-background">{money(summary.total)}</span>
+              </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
                 {summary.rows.map((r) => (
                   <div key={r.category} className="flex items-center justify-between px-4 py-3">
@@ -285,8 +304,11 @@ export default function TaxSummary() {
           )}
 
           {income.byClient.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Income by client</h2>
+            <section id="income" ref={incomeRef} className="scroll-mt-4 space-y-2">
+              <h2 className="flex items-baseline justify-between px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+                <span>Income by client</span>
+                <span className="font-display normal-case tracking-normal text-on-background">{money(income.broughtIn)}</span>
+              </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
                 {income.byClient.map((c) => (
                   <div key={c.client} className="flex items-center justify-between px-4 py-3">

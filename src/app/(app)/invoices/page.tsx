@@ -17,8 +17,13 @@ import { formatDocNumber } from '@/lib/documents';
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
-  converted_from: string | null;
+  converted_from: string | null; amount_paid: number | null;
 }
+type Filter = 'all' | 'unpaid' | 'paid' | 'quote';
+const FILTERS: readonly Filter[] = ['all', 'unpaid', 'paid', 'quote'];
+const isFilter = (v: string | null): v is Filter => FILTERS.includes(v as Filter);
+// What an unpaid invoice still owes: the same formula as Books' "Still owed".
+const balanceDue = (r: Row) => Math.max(0, Number(r.total) - Number(r.amount_paid ?? 0));
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
@@ -36,12 +41,16 @@ export default function Invoices() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid' | 'quote'>('all');
+  const [filter, setFilter] = useState<Filter>('all');
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [undoTarget, setUndoTarget] = useState<Row | null>(null);
 
   useEffect(() => {
+    // ?filter=unpaid|paid|quote (e.g. from the Books "Still owed" tile). Read
+    // before the data arrives, while the skeleton shows, so no chip flicker.
+    const q = new URLSearchParams(window.location.search).get('filter');
+    if (isFilter(q)) setFilter(q);
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
       // pattern as summary/settings: getSession() is a no-network local read so
@@ -53,7 +62,7 @@ export default function Invoices() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
-        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -96,6 +105,15 @@ export default function Invoices() {
   // question. localDay converts the created_at timestamp to the local day the
   // row displays, so a row never lands under the wrong month near midnight.
   const groups = groupByPeriod(sorted, (r) => localDay(r.created_at), (r) => Number(r.total), 'month');
+  // Unpaid view total — equals Books' "Still owed" (same rows, same formula).
+  const unpaidTotal = filter === 'unpaid' ? sorted.reduce((s, r) => s + balanceDue(r), 0) : 0;
+
+  // A chip tap also updates the URL (replace, no new history entry), so Back
+  // from an invoice returns to the same filter.
+  function chooseFilter(f: Filter) {
+    setFilter(f);
+    router.replace(f === 'all' ? '/invoices' : `/invoices?filter=${f}`, { scroll: false });
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -137,15 +155,23 @@ export default function Invoices() {
   return (
     <div className="px-4 py-4">
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-        {(['all', 'unpaid', 'paid', 'quote'] as const).map((f) => (
+        {FILTERS.map((f) => (
           <button key={f} className={`chip shrink-0 capitalize ${filter === f ? 'chip-selected' : ''}`}
-            onClick={() => setFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
+            onClick={() => chooseFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
         ))}
       </div>
       {loading ? (
         <InvoicesSkeleton />
       ) : (
         <>
+          {filter === 'unpaid' && sorted.length > 0 && (
+            <div className="mb-2 flex items-baseline justify-between px-1">
+              <span className="text-label-lg font-semibold text-on-surface-variant">
+                Still owed · {sorted.length} {sorted.length === 1 ? 'invoice' : 'invoices'}
+              </span>
+              <span className="font-display text-xl font-bold text-on-background">{money(unpaidTotal)}</span>
+            </div>
+          )}
           {sorted.length === 0 && (
             <p className="mt-16 text-center text-on-surface-variant">
               Nothing here yet. Head to Chat and tell me about a job.
@@ -181,7 +207,16 @@ export default function Invoices() {
                             </span>
                           </div>
                           <div className="flex items-end justify-between">
-                            <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                            {/* On Unpaid, a part-paid invoice shows what it still
+                                owes (adds up to the header), with the full total. */}
+                            {filter === 'unpaid' && Number(r.amount_paid ?? 0) > 0 ? (
+                              <div>
+                                <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(balanceDue(r))}</div>
+                                <div className="text-body-md text-on-surface-variant/70">due of {money(r.total)}</div>
+                              </div>
+                            ) : (
+                              <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
+                            )}
                             <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
                               <Icon name="chevron_right" size={24} />
                             </span>
