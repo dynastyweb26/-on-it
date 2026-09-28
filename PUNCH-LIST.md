@@ -236,6 +236,17 @@ changes._
 | PDF offscreen container left on the page after a failed capture | **Fixed 2026-09-28** | `ab65209`: `elementToPdf`'s multi-page path removes its fixed offscreen container in a `finally` (`lib/pdf/generate.ts`). Failure path not reproducible on demand; typechecked. |
 | Camera button showed a picker instead of the camera | **Not a bug — verified 2026-09-28** | The camera input already has `capture="environment"` (gallery input omits it); the user confirmed it opens the rear camera directly. No change. |
 
+## Done — logged 2026-09-28 (Books dashboard + summary PDFs — branch `feat/books-dashboard`)
+
+_All verified by the user on device (preview) 2026-09-28 before merge. No DB
+changes._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Books tiles: number-first, tappable, totals match what they open | **Done + verified 2026-09-28** | `cc4655b`: Net hero (dark, cream number, "−$" when negative, no colored numbers) → `/summary?period=all`; one row of three tiles, no icon badges, whole dollars ($6,480 / $124k / $1.3M), muted label with a small dot, real links with a pressed state. Collected → `/summary?period=all#income`, and now sums the `invoice_payments` ledger with the SAME query as the summary, so the tile equals the income list. Still owed → `/invoices?filter=unpaid`, which gains a "Still owed · N invoices" total and per-row balance due on part-paid invoices, so the list adds up to the tile. Spent → `/expenses`. "See all expenses" removed; "Expense summary" → "Summary & PDFs". Invoices reads `?filter=` on load and chip taps update the URL (Back restores the filter). Known limit: the Invoices list loads the latest 200 documents. |
+| Unpaid / Paid filters showed quotes | **Fixed + verified 2026-09-28** | `9e114db`: both filters require `kind = 'invoice'`; a sent quote no longer appears under Unpaid (Books' Still owed already excluded quotes). |
+| Summary: Income PDF + two export buttons + top-5 lists | **Done + verified 2026-09-28** | `bec7ef5`: new Income Summary PDF grouped by client (each payment: date, invoice number, method incl. "(via Stripe)", amount; client subtotals; "Total received · N payments"), one table + `data-pdf-*` markers so long lists paginate (mock 60 payments → 3 pages, total/footer on the last page). Payments fetch adds method, Stripe origin and invoice number; method labels shared via `lib/payment-methods`. "Expenses PDF" / "Income PDF" buttons, each disabled when its side is empty; `97bf569` moves them under the period selector. Lists show the top 5 with "See all N →" (expands in place, no nested scroll). Page title "Books summary". Cosmetic: a client group that crosses a page break doesn't repeat the client name on the next page (its subtotal row is still named). |
+
 ## Extras — incomplete things found in passing (not on the list)
 
 - **Middleware restored as refresh-only** (see the middleware Bug row) — after the relocation loop (the dropped-cookie bug) got the file deleted, `src/middleware.ts` is back as a refresh-only `@supabase/ssr` updateSession with **no redirect branch**. No server-side route gating runs; RLS is the sole boundary (audited intact). Push check: `Test-Path src/middleware.ts` = True.
