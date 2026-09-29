@@ -13,6 +13,9 @@
 //         Session id (ON CONFLICT DO NOTHING: replays and the completed/async
 //         pair are no-ops). Amount = session.amount_total / 100, i.e. what
 //         Stripe actually charged — never recomputed from the invoice.
+//       → then a "payment received" push to the owner (lib/notify), deduped
+//         on the ledger row id so it goes out once however often Stripe
+//         delivers.
 //   account.application.deauthorized
 //       → the seller disconnected On It: clear the account + flags, card off.
 //   account.updated
@@ -38,6 +41,8 @@ import {
   statusFromV2Account,
   writeConnectStatusByAccount,
 } from '@/lib/stripe/connect';
+import { notify } from '@/lib/notify';
+import { roundCurrency } from '@/lib/financials';
 
 export const runtime = 'nodejs';
 
@@ -127,7 +132,64 @@ async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: S
     )
     .select('id');
   if (insErr) throw insErr;
-  return inserted && inserted.length ? `recorded ${amount} ${method}` : 'duplicate session — no-op';
+  const outcome = inserted && inserted.length ? `recorded ${amount} ${method}` : 'duplicate session — no-op';
+
+  // Payment-received push. Runs on EVERY delivery, not just the first insert:
+  // notify() claims `payment:<ledger row id>` in notification_log, so a retry
+  // after a crash between the insert and the push still sends, and the
+  // duplicate deliveries (retries, completed + async_payment_succeeded) find
+  // the key taken and send nothing. Only this Stripe path ever notifies: a
+  // manual "Record payment" (zelle/cash/check/other) never pushes. Never throws.
+  const paymentId = inserted?.[0]?.id ?? await ledgerRowId(admin, session.id);
+  if (paymentId) {
+    const pushed = await notifyPayment(admin, invoice.user_id, invoice.id, paymentId, amount, method);
+    return `${outcome}; push ${pushed}`;
+  }
+  return outcome;
+}
+
+// The ledger row for a Checkout Session (the duplicate-delivery path, where the
+// upsert returned nothing). Null on any failure — the push is best-effort.
+async function ledgerRowId(admin: ReturnType<typeof adminClient>, sessionId: string): Promise<string | null> {
+  const { data } = await admin
+    .from('invoice_payments').select('id').eq('stripe_checkout_session_id', sessionId).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+// Build the structured payment event from the invoice AFTER the ledger trigger
+// has recomputed amount_paid/status, then hand it to notify(). Returns a short
+// log fragment. Never throws.
+async function notifyPayment(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+  invoiceId: string,
+  paymentId: string,
+  amount: number,
+  method: 'card' | 'cashapp' | 'other',
+): Promise<string> {
+  try {
+    const { data: inv } = await admin
+      .from('invoices')
+      .select('invoice_number, client_name, total, amount_paid, status')
+      .eq('id', invoiceId)
+      .maybeSingle();
+    if (!inv) return 'skipped (invoice not found)';
+    const balanceRemaining = Math.max(0, roundCurrency(Number(inv.total ?? 0) - Number(inv.amount_paid ?? 0)));
+    const delivered = await notify(userId, {
+      type: 'payment_received',
+      paymentId,
+      invoiceId,
+      invoiceNumber: inv.invoice_number as number,
+      clientName: (inv.client_name as string) || 'Your client',
+      amount,
+      method,
+      balanceRemaining,
+      paidInFull: inv.status === 'paid' || balanceRemaining <= 0,
+    });
+    return `${delivered} device(s)`;
+  } catch {
+    return 'failed';
+  }
 }
 
 export async function POST(req: NextRequest) {
