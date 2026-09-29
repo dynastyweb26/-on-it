@@ -57,3 +57,23 @@ export async function notify(userId: string, event: NotifyEvent): Promise<number
     return 0;
   }
 }
+
+/** Test sends for the preview-only /api/push/test: the SAME renderer and
+ *  channel as a real event, but no dedupe (every tap sends) and logged as
+ *  event_type 'test' under a random key. Never throws. */
+export async function notifyTest(userId: string, event: NotifyEvent): Promise<number> {
+  try {
+    const admin = adminClient();
+    const { data: row } = await admin
+      .from('notification_log')
+      .insert({ user_id: userId, dedupe_key: `test:${crypto.randomUUID()}`, event_type: 'test' })
+      .select('id')
+      .single();
+    const delivered = await sendWebPush(userId, renderWebPush(event), OPTIONS[event.type]);
+    if (row?.id) await admin.from('notification_log').update({ delivered }).eq('id', row.id);
+    return delivered;
+  } catch (e) {
+    console.error('notify test: failed', (e as Error)?.message);
+    return 0;
+  }
+}

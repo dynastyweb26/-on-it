@@ -102,6 +102,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // What this device can do about push (install needed, blocked, …); read after
   // mount — it depends on window/navigator.
   const [pushAvail, setPushAvail] = useState<PushAvailability | null>(null);
+  // Preview-only test sender (/api/push/test answers 404 everywhere else).
+  const [pushTestOn, setPushTestOn] = useState(false);
+  const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
   // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
@@ -195,6 +198,10 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           if (active && a.ok) setAccess(await a.json());
         } catch { /* leave null → the section simply doesn't render */ }
         if (active) setPushAvail(pushAvailability());
+        try {
+          const t = await fetch('/api/push/test');
+          if (active) setPushTestOn(t.ok);
+        } catch { /* not available — the test row stays hidden */ }
         if (active) setPushOn(Boolean(await getPushSubscription()));
       } catch {
         // Auth/network failed (rejected) — don't hang; send to login.
@@ -314,6 +321,25 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
     } finally {
       setPushBusy(false);
       setPushAvail(pushAvailability()); // a "Don't Allow" just now shows as blocked
+    }
+  }
+
+  // Preview-only: fire a test notification at this user's own devices.
+  async function sendTestPush(body: Record<string, string>) {
+    setPushTestMsg('Sending…');
+    try {
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) setPushTestMsg(j.error ?? `Failed (${res.status})`);
+      else setPushTestMsg(j.delivered > 0
+        ? `Sent to ${j.delivered} device${j.delivered === 1 ? '' : 's'}.`
+        : 'No subscribed preview devices. Turn the switch on first.');
+    } catch {
+      setPushTestMsg('Failed to reach the server.');
     }
   }
 
@@ -840,6 +866,27 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         )}
         {!pushOn && pushAvail === 'unsupported' && (
           <p className="text-sm text-on-surface-variant">This browser can&apos;t show notifications.</p>
+        )}
+        {pushTestOn && (
+          // Preview only (the endpoint 404s elsewhere). Writes nothing: builds
+          // the event from your latest sent invoice and sends it to this
+          // environment's devices.
+          <div className="mt-2 space-y-2 border-t border-outline-variant/30 pt-3">
+            <p className="text-sm font-semibold text-on-surface">Send test notification (preview only)</p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['Paid in full', { type: 'payment', variant: 'full' }],
+                ['Partial payment', { type: 'payment', variant: 'partial' }],
+                ['Card payments paused', { type: 'connect_problem', problem: 'charges_paused' }],
+                ['Needs a detail', { type: 'connect_problem', problem: 'details_needed' }],
+                ['Payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
+                ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
+              ] as const).map(([label, body]) => (
+                <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
+              ))}
+            </div>
+            {pushTestMsg && <p className="text-sm text-on-surface-variant">{pushTestMsg}</p>}
+          </div>
         )}
       </section>
 
