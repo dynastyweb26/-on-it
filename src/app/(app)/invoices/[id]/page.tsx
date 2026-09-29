@@ -7,7 +7,9 @@ import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
-import { elementToPdf, invoiceFilename, shareInvoice, downloadFile } from '@/lib/pdf/generate';
+import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
+import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
+import type { BrandTheme } from '@/lib/colors';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
@@ -37,6 +39,46 @@ const localDateToIso = (ymd: string): string => {
   return new Date(y, m - 1, d).toISOString();
 };
 
+// Background builder for the SHARED PDF — the detail-page twin of the chat's
+// pre-build. Renders the share copy offscreen (natural scale, no transform, so
+// html2canvas captures cleanly) and builds the File once the render has been
+// stable for 400ms; a newer `sig` cancels the older build's result. The send
+// tap then shares the finished file synchronously. No DB writes here.
+function PrebuiltPdf({ sig, template, data, theme, filename, onBuilt }: {
+  sig: string;
+  template: TemplateKey;
+  data: InvoiceRenderData;
+  theme: BrandTheme;
+  filename: string;
+  onBuilt: (sig: string, file: File | null) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onBuiltRef = useRef(onBuilt);
+  onBuiltRef.current = onBuilt;
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      if (!ref.current) return;
+      try {
+        const file = await elementToPdf(ref.current, filename);
+        if (!cancelled) onBuiltRef.current(sig, file);
+      } catch (e) {
+        console.error('share PDF pre-build failed', e);
+        if (!cancelled) onBuiltRef.current(sig, null);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // sig covers every input (data, template, theme, filename, retry nonce).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
+  return (
+    <div style={{ position: 'fixed', left: -9999, top: 0 }}>
+      <div ref={ref}>
+        <InvoiceTemplate template={template} data={data} theme={theme} />
+      </div>
+    </div>
+  );
+}
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +110,12 @@ export default function InvoiceDetail() {
   const [payments, setPayments] = useState<any[]>([]);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
+  // was built from, or file=null when that build failed. The nonce forces a
+  // rebuild after a failure. shareError: a blocked/failed share, shown inline.
+  const [prebuilt, setPrebuilt] = useState<{ sig: string; file: File | null } | null>(null);
+  const [prebuildNonce, setPrebuildNonce] = useState(0);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
@@ -188,6 +236,24 @@ export default function InvoiceDetail() {
     cardAvailable: cardAvailableFor(profile, connectOn),
   };
 
+  // The SHARED copy carries the pay link even while the invoice is still a draft
+  // (a converted quote, or a chat draft that was only downloaded): sharing it IS
+  // the send, which flips it to 'sent' so the link resolves — the same rule as
+  // the chat send. View/Download keep rd, so a draft's copy stays link-free.
+  // Invoices only — a quote is never payable.
+  const shareUrl =
+    inv.kind === 'invoice' && inv.public_token && typeof window !== 'undefined'
+      ? `${window.location.origin}/pay/${inv.public_token}`
+      : null;
+  const shareRd: InvoiceRenderData = { ...rd, payUrl: shareUrl };
+  const shareFilename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
+  // Everything the shared PDF renders from; a change (Zelle arriving, a payment,
+  // an edit) moves it and PrebuiltPdf rebuilds.
+  const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce });
+  const shareReady = prebuilt?.sig === shareSig;
+  const shareFile = shareReady ? prebuilt!.file : null;
+  const shareLabel = (idle: string) => (busy ? 'Sending…' : !shareReady ? 'Preparing…' : idle);
+
   // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
   // popup blockers only allow window.open synchronously inside the click gesture,
   // so open the tab first and point it at the blob once the PDF is ready.
@@ -283,58 +349,78 @@ export default function InvoiceDetail() {
     void fetchPayments();
   }
 
-  async function resend(isBalanceRequest = false) {
-    if (!printRef.current) return;
+  // Share PDF / Request balance: the SAME one-tap send path as chat
+  // (lib/pdf/share.ts). The PDF is pre-built in the background (PrebuiltPdf
+  // below) and shared SYNCHRONOUSLY from the tap — nothing awaited before
+  // navigator.share(), so iOS keeps the tap's user activation. Until the file
+  // for the current render is ready the button reads "Preparing…". A failed
+  // build shows an error and the tap rebuilds (never a slow, activation-less
+  // share). A balance request re-sends the SAME file through the SAME path — no
+  // new token, no second invoice — with share text that leads with the balance.
+  function resend(isBalanceRequest = false) {
+    if (busy || !shareReady) return;
+    if (!shareFile) {
+      // The pre-build failed: rebuild on tap instead of sharing nothing.
+      setShareError(null);
+      setPrebuilt(null);
+      setPrebuildNonce((n) => n + 1);
+      return;
+    }
+    const lead = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
+    const file = shareFile;
+    void settleShare(sharePdf(file, shareText(lead, inv.client_name, shareUrl)), file, isBalanceRequest);
+  }
+
+  // After the one share call. A cancel is silent (no message, no status change;
+  // a draft stays a draft). A failure says so with the error name, keeping the
+  // file so the next tap re-shares it synchronously. A completed share (or a
+  // download where the platform has no file share) records the send.
+  async function settleShare(pending: Promise<ShareResult>, file: File, isBalanceRequest: boolean) {
     setBusy(true);
-    // try/finally so a thrown elementToPdf or DB error (or any failure after
-    // setBusy(true)) can't strand the card with its action buttons disabled.
+    setShareError(null);
+    // try/finally so a DB error can't strand the card with its buttons disabled.
     try {
-      const file = await elementToPdf(printRef.current, invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName));
-      // A balance request re-sends the SAME invoice through the SAME path — no new
-      // token, no second invoice — with copy that leads with the balance due.
-      const leadText = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
-      // Attach the public pay link (invoices only — quotes aren't payable). inv
-      // carries public_token (select '*'); resend flips a draft to 'sent' just
-      // below, so the link resolves by the time the client opens it. Origin-
-      // relative so a preview deploy links to itself.
-      const payUrl =
-        inv.kind === 'invoice' && inv.public_token
-          ? `${window.location.origin}/pay/${inv.public_token}`
-          : undefined;
-      const outcome = await shareInvoice(file, inv.client_name, leadText, payUrl);
+      const r = await pending;
+      if (r.status === 'cancelled') return;
+      if (r.status === 'failed') {
+        setShareError(`The share sheet didn't open (${r.name}). Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        return;
+      }
+      if (r.status === 'unsupported') downloadFile(file);
       // Always bump sent_at. Only a genuine first send (draft → sent) flips the
       // status and captures the render snapshot from the current profile. A resend
       // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
       // would regress a 'paid' invoice (the ledger trigger only reconciles on a
       // payments-row change, so it would stay 'sent') — and must NOT re-snapshot,
       // which would overwrite the historical record with the current profile.
+      const firstSend = inv.status === 'draft';
       const patch: Record<string, unknown> = { sent_at: new Date().toISOString() };
-      if (inv.status === 'draft') Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
+      if (firstSend) Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
       await supabase.from('invoices').update(patch).eq('id', id);
       setInv({ ...inv, ...patch });
 
-      // Archive the balance-request PDF to the Vault, the same way a chat Send
-      // archives an invoice. A normal "Share PDF" resends the ORIGINAL document,
-      // which was already archived on its first send — re-archiving it would just
-      // duplicate the row — so only a balance request gets its own entry. It is a
-      // distinct document (it leads with the balance due), distinguished by title
-      // and storage path since doc_type is a fixed enum with no balance value;
-      // invoice_id ties it to the parent so a soft delete still hides it. Skip a
-      // cancelled share (nothing was sent) and keep it best-effort — a storage
-      // hiccup must not undo the share the user just confirmed.
-      if (isBalanceRequest && outcome !== 'cancelled') {
+      // Archive to the Vault, the same way a chat send does (best-effort — a
+      // storage hiccup must not undo the share the user just confirmed):
+      //  - a FIRST send from here (a converted quote, or a chat draft that was
+      //    only downloaded) archives the document itself, as chat would have;
+      //  - a balance request archives its own copy, distinguished by title and
+      //    storage path since doc_type is a fixed enum with no balance value.
+      // A plain resend of an already-sent document isn't re-archived (its first
+      // send already was). invoice_id ties each row to the parent so a soft
+      // delete still hides it.
+      if (firstSend || isBalanceRequest) {
         try {
-          const path = `${inv.user_id}/balance-${file.name}`;
+          const path = isBalanceRequest ? `${inv.user_id}/balance-${file.name}` : `${inv.user_id}/${file.name}`;
           await supabase.storage.from('vault').upload(path, file, { upsert: true });
           await supabase.from('vault_documents').insert({
             user_id: inv.user_id,
-            title: `Balance request — ${file.name}`,
+            title: isBalanceRequest ? `Balance request — ${file.name}` : file.name,
             doc_type: inv.kind,
             storage_path: path,
             invoice_id: inv.id,
           });
         } catch (archiveErr) {
-          console.error('vault archive (balance request) failed', archiveErr);
+          console.error('vault archive failed', archiveErr);
         }
       }
     } finally {
@@ -528,8 +614,8 @@ export default function InvoiceDetail() {
               <option value="other">Other amount…</option>
             </select>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={busy} onClick={() => void resend()}>
-            <Icon name="attach_file" size={18} /> {busy ? 'Building…' : 'Share PDF'}
+          <button className="chip flex items-center gap-1.5" disabled={busy || !shareReady} onClick={() => resend()}>
+            <Icon name="attach_file" size={18} /> {shareLabel('Share PDF')}
           </button>
           {inv.kind === 'invoice' && !isDraft && inv.public_token && (
             <button className="chip flex items-center gap-1.5" onClick={copyPayLink}>
@@ -537,8 +623,8 @@ export default function InvoiceDetail() {
             </button>
           )}
           {amountPaid > 0 && totals.balanceRemaining > 0 && (
-            <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy} onClick={() => void resend(true)}>
-              <Icon name="send" size={18} /> {busy ? 'Building…' : 'Request balance'}
+            <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy || !shareReady} onClick={() => resend(true)}>
+              <Icon name="send" size={18} /> {shareLabel('Request balance')}
             </button>
           )}
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
@@ -571,6 +657,7 @@ export default function InvoiceDetail() {
           </button>
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
+        {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
         {inv.kind === 'invoice' && payMode !== 'none' && (
           <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -761,6 +848,17 @@ export default function InvoiceDetail() {
           <InvoiceTemplate template={template} data={rd} theme={theme} />
         </div>
       </div>
+      <PrebuiltPdf
+        sig={shareSig}
+        template={template}
+        data={shareRd}
+        theme={theme}
+        filename={shareFilename}
+        onBuilt={(sig, file) => {
+          setPrebuilt({ sig, file });
+          if (!file) setShareError("Couldn't prepare the PDF. Tap Share PDF to try again.");
+        }}
+      />
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
 
       <DeleteConfirmModal

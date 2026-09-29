@@ -65,8 +65,46 @@ export interface InvoiceRenderData {
   cardAvailable?: boolean;
 }
 
+// The pay link, invoices only. A quote is never payable, so it never carries a
+// link (or the card line that depends on one), whatever the caller passed.
+const payLink = (d: InvoiceRenderData): string | undefined =>
+  (d.kind === 'invoice' && d.payUrl) || undefined;
+
 // Whether the PDF should show the card line: the capability AND a pay link.
-const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && d.payUrl);
+const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && payLink(d));
+
+// Shown under "How to pay" on every quote, in place of any pay link.
+const QUOTE_PAY_NOTE = 'Payment options become active once this quote is converted to an invoice.';
+
+// Warm Premium primary button (ON-IT-DESIGN-STANDARD): gold FILL #d4af37 with
+// #1f1b13 text, pill, heavy weight. Fixed On It colours, not the pro's brand
+// theme: it's the pay-page CTA, the same gold as the pay page's card button,
+// and it reads on both light and dark template backgrounds.
+const PAY_BUTTON: React.CSSProperties = {
+  display: 'inline-block',
+  background: '#d4af37',
+  color: '#1f1b13',
+  borderRadius: 9999,
+  padding: '10px 26px',
+  fontSize: 16,
+  fontWeight: 800,
+  letterSpacing: '0.02em',
+  lineHeight: 1.2,
+};
+
+// "Pay online" button plus the full pay URL printed as text, so a printed copy
+// still gets the client there. Only on an invoice that carries a pay link (sent
+// invoices: the caller sets payUrl only then) — the same rule as the card line.
+// It sits inside the block's single pay-page annotation, so the button, the URL
+// and the method rows below are all tappable.
+function PayOnline({ url, t, stacked = false }: { url: string; t: BrandTheme; stacked?: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: stacked ? 'flex-start' : 'center', gap: stacked ? 8 : 14, marginBottom: stacked ? 18 : 10 }}>
+      <span style={PAY_BUTTON}>Pay online</span>
+      <span style={{ minWidth: 0, fontSize: 13, fontWeight: 600, color: t.text, wordBreak: 'break-all' }}>{url}</span>
+    </div>
+  );
+}
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -134,7 +172,8 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   const card = showCardLine(d);
-  if (!rows.length && !card) return null;
+  const isQuote = d.kind === 'quote';
+  if (!rows.length && !card && !isQuote && !payLink(d)) return null;
 
   const border = `1px solid ${t.rule}`;
   // The whole block silently links to the pay page when payUrl is set (invoice,
@@ -143,12 +182,18 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   // no link icon — the handles keep their brand colour (branding, not a link
   // cue) and one quiet line tells the client the block is tappable. Nothing here
   // opens PayPal/Venmo/Cash App directly; those live only on the pay page.
-  const link = d.payUrl || undefined;
+  const link = payLink(d);
   return (
     <div data-pdf-block="payment" data-pdf-link={link} style={{ width: '100%' }}>
       <div style={{ color: t.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800, fontSize: 15, marginBottom: 10 }}>
         How to pay
       </div>
+      {isQuote && (
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: rows.length ? 10 : 0 }}>
+          {QUOTE_PAY_NOTE}
+        </div>
+      )}
+      {link && <PayOnline url={link} t={t} />}
       {/* Card line — first, same row format as the handles, neutral theme
           colours (no brand mark: it's Stripe checkout, not a handle). Covered
           by the block's single pay-page link; no link of its own. */}
@@ -464,17 +509,18 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   const card = showCardLine(d);
-  if (!rows.length && !card) return null;
+  if (!rows.length && !card && !payLink(d)) return null;
 
   // Whole rail silently links to the pay page (same rule as PaymentBlock) — no
   // per-row app links, no link cue; the handles keep their colour.
-  const link = d.payUrl || undefined;
+  const link = payLink(d);
   return (
     <div data-pdf-block="ledger-rail" data-pdf-link={link}>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: t.accent }}>
         Payment methods
       </div>
       <div style={{ borderBottom: `1px solid ${t.accent}`, marginTop: 8, marginBottom: 18 }} />
+      {link && <PayOnline url={link} t={t} stacked />}
       {/* Card line — first, in the rail's own row style, no brand mark. */}
       {card && (
         <div style={{ marginBottom: 18 }}>
@@ -584,6 +630,15 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
         </div>
       </div>
+
+      {/* A quote has no payment rail (see the invoice-only rail below): say
+          when paying becomes possible instead. */}
+      {!isInvoice && (
+        <div style={{ marginTop: 24 }}>
+          <div style={eyebrow}>How to pay</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>{QUOTE_PAY_NOTE}</div>
+        </div>
+      )}
 
       {d.notes && (
         <div style={{ marginTop: 24 }}>
