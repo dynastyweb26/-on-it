@@ -13,6 +13,10 @@ Rules:
 - Prefer regenerating a whole file over a partial patch when the change touches meaningful logic.
 - Stack is Next.js App Router + Supabase + Vercel. Not Lovable.
 
+Testing rules:
+- Never tap Connect/Finish setup on the preview; preview and production share
+  the DB and a sandbox account id would overwrite production state.
+
 Pre-deploy checklist (every push/deploy):
 - Confirm the current git branch and the Vercel project name (`on-it`).
 - If the branch touches the database (any file under `supabase/`, or code that

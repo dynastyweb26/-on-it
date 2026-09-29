@@ -18,6 +18,7 @@ import { paymentMethodLabel } from '@/lib/payment-methods';
 import PaywallModal from '@/components/PaywallModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
+import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -43,6 +44,9 @@ export default function InvoiceDetail() {
   const router = useRouter();
   const [inv, setInv] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  // Connect on in this deployment? (PDF card line; fails closed.)
+  const [connectOn, setConnectOn] = useState(false);
+  useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [zelle, setZelle] = useState<string | null>(null);
@@ -179,6 +183,9 @@ export default function InvoiceDetail() {
       inv.kind === 'invoice' && inv.status !== 'draft' && inv.public_token && typeof window !== 'undefined'
         ? `${window.location.origin}/pay/${inv.public_token}`
         : null,
+    // Live (never snapshotted), like Zelle: can the pay page take card / Cash
+    // App Pay right now? Shown only with payUrl.
+    cardAvailable: cardAvailableFor(profile, connectOn),
   };
 
   // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
