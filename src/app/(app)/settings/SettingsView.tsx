@@ -6,7 +6,7 @@ import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
-import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
+import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 
@@ -99,6 +99,12 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // real subscription state, not a fire-and-forget button
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
+  // What this device can do about push (install needed, blocked, …); read after
+  // mount — it depends on window/navigator.
+  const [pushAvail, setPushAvail] = useState<PushAvailability | null>(null);
+  // Preview-only test sender (/api/push/test answers 404 everywhere else).
+  const [pushTestOn, setPushTestOn] = useState(false);
+  const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
   // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
@@ -191,6 +197,11 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           const a = await fetch('/api/access');
           if (active && a.ok) setAccess(await a.json());
         } catch { /* leave null → the section simply doesn't render */ }
+        if (active) setPushAvail(pushAvailability());
+        try {
+          const t = await fetch('/api/push/test');
+          if (active) setPushTestOn(t.ok);
+        } catch { /* not available — the test row stays hidden */ }
         if (active) setPushOn(Boolean(await getPushSubscription()));
       } catch {
         // Auth/network failed (rejected) — don't hang; send to login.
@@ -303,12 +314,32 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
     setPushBusy(true);
     try {
       if (pushOn) {
-        if (await unsubscribeFromPush(supabase)) setPushOn(false);
+        if (await unsubscribeFromPush()) setPushOn(false);
       } else {
-        if (await subscribeToPush(supabase, p.id)) setPushOn(true);
+        if (await subscribeToPush()) setPushOn(true);
       }
     } finally {
       setPushBusy(false);
+      setPushAvail(pushAvailability()); // a "Don't Allow" just now shows as blocked
+    }
+  }
+
+  // Preview-only: fire a test notification at this user's own devices.
+  async function sendTestPush(body: Record<string, string>) {
+    setPushTestMsg('Sending…');
+    try {
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) setPushTestMsg(j.error ?? `Failed (${res.status})`);
+      else setPushTestMsg(j.delivered > 0
+        ? `Sent to ${j.delivered} device${j.delivered === 1 ? '' : 's'}.`
+        : 'No subscribed preview devices. Turn the switch on first.');
+    } catch {
+      setPushTestMsg('Failed to reach the server.');
     }
   }
 
@@ -799,12 +830,19 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-on-surface-variant">Payment reminders when an invoice goes unpaid for 2 days.</p>
+          <div>
+            <p className="text-sm font-semibold text-on-surface">Payment alerts &amp; reminders</p>
+            <p className="text-sm text-on-surface-variant">
+              A ping when a client pays or Stripe needs something, and a nudge when an invoice sits unpaid for 2 days.
+            </p>
+          </div>
           <button
             role="switch"
             aria-checked={Boolean(pushOn)}
-            aria-label="Payment reminders"
-            disabled={pushBusy || pushOn === null}
+            aria-label="Payment alerts and reminders"
+            // Off and not usable here → can't be switched on (the hint below says
+            // why). If it's somehow on, it stays switchable so it can go off.
+            disabled={pushBusy || pushOn === null || (!pushOn && pushAvail !== 'ready')}
             onClick={togglePush}
             className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50
               ${pushOn ? 'bg-primary-container' : 'bg-outline-variant'}`}
@@ -815,10 +853,52 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             />
           </button>
         </div>
+        {!pushOn && pushAvail === 'needs-install' && (
+          <p className="text-sm text-on-surface-variant">
+            Add On It to your Home Screen to turn these on.{' '}
+            <a href="/install" className="text-primary underline">Show me how</a>
+          </p>
+        )}
+        {!pushOn && pushAvail === 'denied' && (
+          <p className="text-sm text-on-surface-variant">
+            Notifications are blocked for On It. Turn them on in your phone&apos;s Settings, under Notifications, then come back here.
+          </p>
+        )}
+        {!pushOn && pushAvail === 'unsupported' && (
+          <p className="text-sm text-on-surface-variant">This browser can&apos;t show notifications.</p>
+        )}
+        {pushTestOn && (
+          // Preview only (the endpoint 404s elsewhere). Writes nothing: builds
+          // the event from your latest sent invoice and sends it to this
+          // environment's devices.
+          <div className="mt-2 space-y-2 border-t border-outline-variant/30 pt-3">
+            <p className="text-sm font-semibold text-on-surface">Send test notification (preview only)</p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['Paid in full', { type: 'payment', variant: 'full' }],
+                ['Partial payment', { type: 'payment', variant: 'partial' }],
+                ['Card payments paused', { type: 'connect_problem', problem: 'charges_paused' }],
+                ['Needs a detail', { type: 'connect_problem', problem: 'details_needed' }],
+                ['Payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
+                ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
+              ] as const).map(([label, body]) => (
+                <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
+              ))}
+            </div>
+            {pushTestMsg && <p className="text-sm text-on-surface-variant">{pushTestMsg}</p>}
+          </div>
+        )}
       </section>
 
       <button className="w-full py-3 text-sm text-error underline"
-        onClick={async () => { clearChatStorage(p?.id); await supabase.auth.signOut(); router.push('/login'); }}>
+        onClick={async () => {
+          clearChatStorage(p?.id);
+          // Forget this device first (needs the session): a shared phone must
+          // not keep getting this account's payment alerts after sign-out.
+          await unsubscribeFromPush().catch(() => false);
+          await supabase.auth.signOut();
+          router.push('/login');
+        }}>
         Sign out
       </button>
 

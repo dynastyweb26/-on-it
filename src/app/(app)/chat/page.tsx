@@ -16,7 +16,7 @@ import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate'
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
-import { getPushSubscription, subscribeToPush } from '@/lib/push';
+import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
@@ -177,6 +177,8 @@ const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
 // Auto-scroll follows new content only while the reader is within this many px
 // of the bottom; scrolled up to read, they stay put.
 const NEAR_BOTTOM_PX = 120;
+// localStorage flag: the payment-alerts offer was answered (Yes or Not now).
+const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
 // effect during SSR, where React 18 warns on useLayoutEffect.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -388,7 +390,9 @@ export default function Chat() {
   // write a greeting payload over the user's saved conversation.
   const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
-  const [reminderPrompt, setReminderPrompt] = useState(false); // one-time, after first sent invoice
+  // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
+  // or 'install' (iPhone Safari tab: Home Screen hint). See maybeOfferReminders.
+  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
   const [convoId, setConvoId] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -1694,9 +1698,9 @@ export default function Chat() {
     finishFinalize(aMsg(downloaded
       ? `Downloaded! Send it to ${who} however you like. I'll keep an eye on it.`
       : `Sent! I'll nudge you if ${who} hasn't paid in 2 days.`), retryId);
-    // The right moment to ask about reminders: right after the FIRST invoice
-    // goes out. One-time; skipped if already subscribed.
-    if (docKind(draft) === 'invoice') void maybeOfferReminders();
+    // The right moment to ask about payment alerts: right after an invoice
+    // actually goes out. One-time; skipped if already subscribed.
+    if (docKind(draft) === 'invoice') void maybeOfferReminders(who);
   }
 
   // Re-run the operation behind a failed message, in place. The message's id is
@@ -1709,35 +1713,40 @@ export default function Chat() {
     else void finalize(false, msg.id);
   }
 
-  async function maybeOfferReminders() {
+  // Payment-alerts offer, shown once after a completed invoice send (never on
+  // load). Replaces the old "first invoice only" count check, which drafts now
+  // inflate (a card creates its draft row on render), so it could never fire.
+  // A new storage key, so people who dismissed the old reminders-only card are
+  // asked once about payment alerts. On an iPhone in a Safari tab (no web push
+  // there) it becomes a Home Screen hint instead; blocked or unsupported
+  // browsers get nothing.
+  async function maybeOfferReminders(clientName: string) {
     if (!profile) return;
     try {
-      if (localStorage.getItem('onit_reminder_prompted')) return;
-      const { count } = await supabase
-        .from('invoices')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .is('deleted_at', null)
-        .eq('kind', 'invoice');
-      if (count !== 1) return; // only the very first invoice
-      if (await getPushSubscription()) return; // already on
-      setReminderPrompt(true);
+      if (localStorage.getItem(ALERTS_PROMPTED_KEY)) return;
+      const avail = pushAvailability();
+      if (avail === 'unsupported' || avail === 'denied') return;
+      if (avail === 'ready' && (await getPushSubscription())) return; // already on
+      setReminderPrompt({ kind: avail === 'needs-install' ? 'install' : 'ask', client: clientName });
     } catch { /* never block the send flow */ }
   }
 
+  // Straight from the Yes tap: subscribeToPush() asks permission before
+  // anything else is awaited (the iOS gesture rule).
   async function enableReminders() {
-    if (!profile) return;
-    setReminderPrompt(false);
-    try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
-    const ok = await subscribeToPush(supabase, profile.id);
+    if (!profile || !reminderPrompt) return;
+    const who = reminderPrompt.client;
+    setReminderPrompt(null);
+    try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
+    const ok = await subscribeToPush();
     setMessages((m) => [...m, aMsg(ok
-      ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
-      : "Couldn't turn that on — you can enable reminders any time in Settings.")]);
+      ? `You're set. I'll ping you when ${who} pays, and nudge you if an invoice sits unpaid for 2 days.`
+      : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
   }
 
   function dismissReminders() {
-    setReminderPrompt(false);
-    try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
+    setReminderPrompt(null);
+    try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
   }
 
   // ── Receipt capture ─────────────────────────────────────────
@@ -2528,10 +2537,23 @@ export default function Chat() {
           />
         )}
 
-        {reminderPrompt && (
+        {reminderPrompt?.kind === 'ask' && (
           <div className="card border-primary-container/50">
-            <p className="text-body-md">Want me to remind you if they haven&apos;t paid in 2 days?</p>
-            <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Enable reminders</button>
+            <p className="text-body-md">Want a ping when {reminderPrompt.client} pays?</p>
+            <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
+              Not now
+            </button>
+          </div>
+        )}
+        {reminderPrompt?.kind === 'install' && (
+          // iPhone in a Safari tab: web push only exists for a Home Screen
+          // install, so point there instead of offering a switch that can't work.
+          <div className="card border-primary-container/50">
+            <p className="text-body-md">Add On It to your Home Screen to get payment alerts.</p>
+            <button className="btn-primary mt-3 w-full" onClick={() => { dismissReminders(); router.push('/install'); }}>
+              Show me how
+            </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now
             </button>

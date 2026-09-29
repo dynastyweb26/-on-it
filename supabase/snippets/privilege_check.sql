@@ -122,3 +122,39 @@ select proname, prosecdef, proconfig,
 from pg_proc
 where proname in ('get_public_invoice', 'get_public_invoice_checkout')
   and pronamespace = 'public'::regnamespace;
+
+-- ═══ push_subscriptions + notification_log (push phase 1 — 20260929000000) ═══
+
+-- J. push_subscriptions policies. Expect exactly three, and NO FOR ALL
+--    "own subscriptions":
+--      own subscriptions delete  DELETE  qual: (auth.uid() = user_id)
+--      own subscriptions insert  INSERT  with_check: (auth.uid() = user_id)
+--      own subscriptions select  SELECT  qual: (auth.uid() = user_id)
+select policyname, cmd, qual, with_check
+from pg_policies
+where schemaname = 'public' and tablename = 'push_subscriptions'
+order by policyname;
+
+-- K. Table privileges. Expect:
+--      notification_log    anon           sel f, ins f, upd f, del f, trunc f
+--      notification_log    authenticated  sel f, ins f, upd f, del f, trunc f
+--      push_subscriptions  anon           sel f, ins f, upd f, del f, trunc f
+--      push_subscriptions  authenticated  sel t, ins t, upd f, del t, trunc f
+select c.relname as table_name, r.role,
+  has_table_privilege(r.role, c.oid, 'SELECT')   as sel,
+  has_table_privilege(r.role, c.oid, 'INSERT')   as ins,
+  has_table_privilege(r.role, c.oid, 'UPDATE')   as upd,
+  has_table_privilege(r.role, c.oid, 'DELETE')   as del,
+  has_table_privilege(r.role, c.oid, 'TRUNCATE') as trunc
+from pg_class c
+cross join (values ('anon'), ('authenticated')) r(role)
+where c.oid in ('public.push_subscriptions'::regclass, 'public.notification_log'::regclass)
+order by c.relname, r.role;
+
+--    And notification_log is RLS-on with zero policies (service role only).
+--    Expect: relrowsecurity true, policies 0.
+select c.relname, c.relrowsecurity,
+  (select count(*) from pg_policies p
+    where p.schemaname = 'public' and p.tablename = c.relname) as policies
+from pg_class c
+where c.oid = 'public.notification_log'::regclass;

@@ -107,14 +107,49 @@ export async function writeConnectStatus(userId: string, status: ConnectStatus):
   if (error) throw error;
 }
 
+/** A status flag that THIS write turned from true to false — a push-worthy
+ *  account problem (see lib/notify). */
+export type ConnectFlagOff = {
+  userId: string;
+  problem: 'charges_paused' | 'details_needed' | 'payouts_paused';
+};
+
+const OFF_FLAGS = [
+  ['chargesEnabled', 'stripe_charges_enabled', 'charges_paused'],
+  ['detailsSubmitted', 'stripe_details_submitted', 'details_needed'],
+  ['payoutsEnabled', 'stripe_payouts_enabled', 'payouts_paused'],
+] as const;
+
 /**
  * Webhook variant: no user in hand, only the account id Stripe reported.
  * Updates whichever profile holds that account (0 rows if none — e.g. an
  * account On It never stored, or one already disconnected). Throws on DB
  * failure so the webhook returns 500 and Stripe retries.
+ *
+ * Also reports which flags this call turned OFF. Each off-flip is its own
+ * atomic compare-and-set (`set flag=false where flag=true`), so when Stripe
+ * delivers the same change twice at once (v1 account.updated + a v2 thin
+ * event) exactly one caller gets the row back, and a retry finds nothing left
+ * to flip. That is what keeps "Card payments are paused" to one push.
  */
-export async function writeConnectStatusByAccount(status: ConnectStatus): Promise<number> {
-  const { data, error } = await adminClient()
+export async function writeConnectStatusByAccount(
+  status: ConnectStatus,
+): Promise<{ rows: number; turnedOff: ConnectFlagOff[] }> {
+  const admin = adminClient();
+  const turnedOff: ConnectFlagOff[] = [];
+  for (const [key, column, problem] of OFF_FLAGS) {
+    if (status[key]) continue;
+    const { data: flipped, error: flipErr } = await admin
+      .from('profiles')
+      .update({ [column]: false })
+      .eq('stripe_account_id', status.accountId)
+      .eq(column, true)
+      .select('id');
+    if (flipErr) throw flipErr;
+    for (const r of flipped ?? []) turnedOff.push({ userId: r.id as string, problem });
+  }
+
+  const { data, error } = await admin
     .from('profiles')
     .update({
       stripe_charges_enabled: status.chargesEnabled,
@@ -124,7 +159,7 @@ export async function writeConnectStatusByAccount(status: ConnectStatus): Promis
     .eq('stripe_account_id', status.accountId)
     .select('id');
   if (error) throw error;
-  return data?.length ?? 0;
+  return { rows: data?.length ?? 0, turnedOff };
 }
 
 /**
@@ -133,8 +168,12 @@ export async function writeConnectStatusByAccount(status: ConnectStatus): Promis
  * flag, and switch card payments off so the pay page stops offering cards.
  * Recorded card payments in invoice_payments are untouched. Throws on DB
  * failure.
+ *
+ * Returns the ids of the profiles it cleared. The match is on the account id,
+ * which the update itself nulls, so a concurrent or retried delivery (v1
+ * deauthorized + v2 closed) clears — and notifies — only once.
  */
-export async function clearConnectAccount(accountId: string): Promise<number> {
+export async function clearConnectAccount(accountId: string): Promise<string[]> {
   const { data, error } = await adminClient()
     .from('profiles')
     .update({
@@ -147,7 +186,7 @@ export async function clearConnectAccount(accountId: string): Promise<number> {
     .eq('stripe_account_id', accountId)
     .select('id');
   if (error) throw error;
-  return data?.length ?? 0;
+  return (data ?? []).map((r) => r.id as string);
 }
 
 /** Error fields worth logging from a Stripe SDK error (no request payloads). */
