@@ -973,6 +973,18 @@ export default function Chat() {
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
+        // The card is appearing now (it wasn't up before this parse): post the
+        // non-blocking summary under it. A contact field counts as "saved" when
+        // the AI produced nothing for it and we filled it from the record above.
+        // Later edits don't repeat it; the card itself shows the changes.
+        if (isReady && !(ready && draft) && (mergedDraft.intent === 'invoice' || mergedDraft.intent === 'quote')) {
+          const summary = cardSummary(
+            mergedDraft,
+            aiAddress == null && !!mergedDraft.client_address,
+            aiPhone == null && !!mergedDraft.client_phone,
+          );
+          setMessages((m) => [...m, aMsg(summary)]);
+        }
       }
 
       // Expenses used to insert silently here, with the user never seeing what
@@ -1066,6 +1078,37 @@ export default function Chat() {
 
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
+
+  /** The card summary, posted once when the card first appears: what we have,
+   *  any contact pulled from the saved client record (so a stale one can be
+   *  caught), and what's still missing. Information only — it never gates the
+   *  send; the one-tap send works immediately. Plain sentences, no lists. */
+  function cardSummary(d: Partial<ExtractResult>, savedAddress: boolean, savedPhone: boolean): string {
+    const items = (d.line_items ?? []) as LineItem[];
+    const depositType = ((d as any).deposit_type as DepositType) ?? 'none';
+    const depositValue = Number((d as any).deposit_value ?? 0);
+    const totals = calculateInvoiceTotals(items, d.tax_rate ?? 0, depositType, depositValue);
+    const kind = docKind(d);
+    const who = d.client_name ?? 'this client';
+    const out: string[] = [
+      totals.depositAmount > 0
+        ? `Here's your ${kind} for ${who}: ${money(totals.total)} total, ${money(totals.depositAmount)} deposit due now.`
+        : `Here's your ${kind} for ${who}: ${money(totals.total)}.`,
+    ];
+
+    const saved: string[] = [];
+    if (savedAddress && d.client_address) saved.push(`the address ${d.client_address}`);
+    if (savedPhone && d.client_phone) saved.push(`the phone number ${d.client_phone}`);
+    if (saved.length) out.push(`I'm using ${saved.join(' and ')} from last time — tell me if that's changed.`);
+
+    const missing: string[] = [];
+    if (!d.client_address) missing.push('an address');
+    if (!d.client_phone) missing.push('a phone number');
+    if (missing.length) out.push(`I don't have ${missing.join(' or ')} yet — want to add ${missing.length > 1 ? 'either' : 'it'}?`);
+
+    out.push(`Say "send it" when you're ready, or tell me what to change.`);
+    return out.join(' ');
+  }
 
   // Write the current conversation + finalize progress (inserted row, sent flag)
   // to the store immediately. Called at the two points a ref changes without a
