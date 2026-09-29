@@ -464,7 +464,9 @@ export async function shareInvoice(file: File, clientName: string, noun = 'Invoi
       // User dismissed the sheet → a real cancel: don't retry, don't download.
       if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
       // Any other error (e.g. canShare lied about the combo) → try the next,
-      // simpler payload, then the download below.
+      // simpler payload, then the download below. Logged by name so a blocked
+      // share (NotAllowedError) is traceable instead of silent.
+      console.error('share attempt failed', err instanceof Error ? err.name : String(err), err);
     }
   }
 
