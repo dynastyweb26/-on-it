@@ -1223,11 +1223,9 @@ export default function Chat() {
         });
         shared = true;
       } catch (err) {
-        // Dismissed → a normal choice, not a send. Leave the draft; keep the card.
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
-          return;
-        }
+        // Dismissed → a normal choice, not a send: no message, no status change.
+        // The row stays a draft and the pre-built file stays for the next tap.
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         // Blocked or failed (NotAllowedError, TypeError, …): never a silent
         // reset. Log the name, say so, keep the draft and the pre-built file so
         // the next tap (or Retry) re-attempts the synchronous share.
@@ -1575,11 +1573,9 @@ export default function Chat() {
           outcome = 'shared';
         } catch (err) {
           // Dismissed the sheet → a normal choice, not a send. Leave the draft
-          // (stashed id survives) and keep the card so a retry reuses it.
-          if (err instanceof DOMException && err.name === 'AbortError') {
-            setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
-            return;
-          }
+          // (stashed id survives) and keep the card so a retry reuses it. Silent:
+          // no message, no status change.
+          if (err instanceof DOMException && err.name === 'AbortError') return;
           // Any other error → fall back to the file-based share after the PDF
           // builds (outcome stays null). Logged so a blocked share is traceable.
           console.error('link share failed', err instanceof Error ? err.name : String(err), err);
@@ -1659,10 +1655,9 @@ export default function Chat() {
         outcome = await shareInvoice(file, rd.clientName, docNoun(rd.kind), payUrl);
         // B1: cancelling the share sheet is a normal choice, not an error. The
         // row stays a draft; the stashed id + draft survive so a retry reuses
-        // the SAME invoice. No alarming message.
+        // the SAME invoice. Silent: no message, no status change.
         if (outcome === 'cancelled') {
           setRenderData(null);
-          setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
           return;
         }
         // Shared/downloaded for real → mark it sent (the link path marked it
