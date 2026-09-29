@@ -6,7 +6,7 @@ import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
-import { getPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
+import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 
@@ -99,6 +99,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // real subscription state, not a fire-and-forget button
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
+  // What this device can do about push (install needed, blocked, …); read after
+  // mount — it depends on window/navigator.
+  const [pushAvail, setPushAvail] = useState<PushAvailability | null>(null);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
   // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
@@ -191,6 +194,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           const a = await fetch('/api/access');
           if (active && a.ok) setAccess(await a.json());
         } catch { /* leave null → the section simply doesn't render */ }
+        if (active) setPushAvail(pushAvailability());
         if (active) setPushOn(Boolean(await getPushSubscription()));
       } catch {
         // Auth/network failed (rejected) — don't hang; send to login.
@@ -309,6 +313,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       }
     } finally {
       setPushBusy(false);
+      setPushAvail(pushAvailability()); // a "Don't Allow" just now shows as blocked
     }
   }
 
@@ -799,12 +804,19 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-on-surface-variant">Payment reminders when an invoice goes unpaid for 2 days.</p>
+          <div>
+            <p className="text-sm font-semibold text-on-surface">Payment alerts &amp; reminders</p>
+            <p className="text-sm text-on-surface-variant">
+              A ping when a client pays or Stripe needs something, and a nudge when an invoice sits unpaid for 2 days.
+            </p>
+          </div>
           <button
             role="switch"
             aria-checked={Boolean(pushOn)}
-            aria-label="Payment reminders"
-            disabled={pushBusy || pushOn === null}
+            aria-label="Payment alerts and reminders"
+            // Off and not usable here → can't be switched on (the hint below says
+            // why). If it's somehow on, it stays switchable so it can go off.
+            disabled={pushBusy || pushOn === null || (!pushOn && pushAvail !== 'ready')}
             onClick={togglePush}
             className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50
               ${pushOn ? 'bg-primary-container' : 'bg-outline-variant'}`}
@@ -815,6 +827,20 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             />
           </button>
         </div>
+        {!pushOn && pushAvail === 'needs-install' && (
+          <p className="text-sm text-on-surface-variant">
+            Add On It to your Home Screen to turn these on.{' '}
+            <a href="/install" className="text-primary underline">Show me how</a>
+          </p>
+        )}
+        {!pushOn && pushAvail === 'denied' && (
+          <p className="text-sm text-on-surface-variant">
+            Notifications are blocked for On It. Turn them on in your phone&apos;s Settings, under Notifications, then come back here.
+          </p>
+        )}
+        {!pushOn && pushAvail === 'unsupported' && (
+          <p className="text-sm text-on-surface-variant">This browser can&apos;t show notifications.</p>
+        )}
       </section>
 
       <button className="w-full py-3 text-sm text-error underline"

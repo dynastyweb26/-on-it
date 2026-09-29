@@ -6,6 +6,28 @@
 // route ties the device to whoever is signed in now and tags it with this
 // deployment's environment.
 
+/** What this device can do about push right now (synchronous, no prompt):
+ *   ready         — push works here; asking is allowed
+ *   needs-install — iPhone/iPad in a Safari tab: web push exists only for a
+ *                   Home Screen install (iOS 16.4+)
+ *   denied        — the user blocked notifications for On It
+ *   unsupported   — this browser has no web push at all */
+export type PushAvailability = 'ready' | 'needs-install' | 'denied' | 'unsupported';
+
+export function pushAvailability(): PushAvailability {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'unsupported';
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS reports as a Mac
+  const installed =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const capable = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if (!capable) return ios && !installed ? 'needs-install' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  return 'ready';
+}
+
 async function registration(): Promise<ServiceWorkerRegistration | null> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return null;
