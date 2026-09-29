@@ -212,15 +212,12 @@ const AFFIRMATIVE_WORDS = /^(?:y|ya|yes|yeah|yep|yup|sure|ok|okay|k|do it|go ahe
 // would break the whole-message "bare" match above.
 const INVOICE_SIGNAL = /\d|\b(?:but|instead|change|actually|wait)\b/i;
 
-const NEGATIVE = /^\s*(n|no|nope|nah|don'?t|do not|cancel|stop|never ?mind|leave it|forget it|skip|not now)\b/i;
-
 // Affirmative requires BOTH: (1) a bare affirmative from the allowlist, AND
 // (2) no invoice signal. Otherwise it is NOT affirmative.
 const isAffirmative = (t: string) => {
   const s = t.trim();
   return AFFIRMATIVE_WORDS.test(s) && !INVOICE_SIGNAL.test(s);
 };
-const isNegative = (t: string) => NEGATIVE.test(t.trim());
 
 // An expense already on file carrying the receipt image being offered again.
 interface ExistingReceipt {
@@ -399,13 +396,16 @@ export default function Chat() {
   // prompt — the card stays fully actionable, no confirmation required. Set from
   // the parse result on every turn, so it self-clears when the match goes away.
   const [duplicateHint, setDuplicateHint] = useState(false);
-  // Confirmation gate: after the first finalize attempt we show a summary and
-  // wait for an explicit go-ahead. `prefilled` tracks which contact fields came
-  // from the saved client record (vs. spoken this turn) so the summary can flag
-  // a possibly-stale address/phone. Both are ephemeral — a reload safely
-  // re-gates rather than sending straight through.
-  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
-  const [prefilled, setPrefilled] = useState<{ address: boolean; phone: boolean }>({ address: false, phone: false });
+  // Send readiness. There is no confirm step: one tap on "Looks right — send it"
+  // shares. The card's PDF is pre-built in the background as soon as the card
+  // renders (and rebuilt after every edit/undo), so that tap can call
+  // navigator.share() with nothing awaited. `prepState` is the outcome of the
+  // latest finished build, keyed by the draft signature it was built from:
+  // 'ready' enables the button for the synchronous share; 'failed' enables it
+  // for the slow path, so an error surfaces instead of the button hanging on
+  // "Preparing…". `preparing` serializes builds (never two DB writes in flight).
+  const [prepState, setPrepState] = useState<{ sig: string; status: 'ready' | 'failed' } | null>(null);
+  const [preparing, setPreparing] = useState(false);
   // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
@@ -453,6 +453,8 @@ export default function Chat() {
   const preBuiltRef = useRef<{ file: File; signature: string; token: string; id: string; no: number } | null>(null);
   const preBuildIdRef = useRef(0);            // latest-wins guard across overlapping builds
   const preBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // edit debounce
+  const preparingRef = useRef(false);         // a pre-build is in flight (sync guard)
+  const preparePromiseRef = useRef<Promise<void> | null>(null); // settles when it ends
   // The AI's original line-item descriptions from the latest parse, captured
   // BEFORE any inline edit. On send we record original_description on a line
   // only when the shipped text differs (passive training data; an unedited line
@@ -710,10 +712,8 @@ export default function Chat() {
       setDraftHistory([]);
       setReady(false);
       setCardAfterId(null);
-      setAwaitingConfirm(false);
       preBuiltRef.current = null;
       preBuildIdRef.current++; // invalidate any in-flight prepare's stash
-      setPrefilled({ address: false, phone: false });
       setPendingChange(null);
       setLinkedStatus(null);
       setLinkedAmountPaid(0);
@@ -809,23 +809,12 @@ export default function Chat() {
 
     setFinished(false); // a new message means a live conversation again
 
-    // ── Confirmation gate ─────────────────────────────────────
-    // A bare affirmative ("yes", "send it") is the explicit go-ahead — whether
-    // the preview card is up or we've already shown the confirm summary. Voice
-    // users just say it; no tap needed (decision: button + affirmative text).
-    if (draft && (ready || awaitingConfirm) && isAffirmative(trimmed)) {
+    // A bare affirmative ("yes", "send it") while the preview card is up sends
+    // it. Voice users just say it; no tap needed (decision: button + text).
+    if (draft && ready && isAffirmative(trimmed)) {
       await finalize(true); // internal: we already hold the turn, skip its guard
       return null;
     }
-    // "No" while we're waiting to confirm: stand down and invite edits.
-    if (awaitingConfirm && isNegative(trimmed)) {
-      setAwaitingConfirm(false);
-      setMessages((m) => [...m, aMsg("No rush — tell me what to change and I'll fix it up.")]);
-      return null;
-    }
-    // Anything else is fresh info: drop the confirm hold so the next send
-    // re-summarizes against the updated draft.
-    if (awaitingConfirm) setAwaitingConfirm(false);
 
     try {
       const res = await fetch('/api/parse', {
@@ -885,25 +874,6 @@ export default function Chat() {
             data.client_phone = aiPhone ?? known.phone ?? null;
           }
         }
-        // Mark each contact field record-sourced (so the confirm summary can
-        // flag a possibly-stale value) when the AI produced nothing for it and
-        // we filled from the record, OR it's an unchanged carry-over of a value
-        // that was already record-sourced. A value the AI newly produced —
-        // different from the prior draft — was spoken this turn, so not.
-        const prevAddress = draft?.client_address ?? null;
-        const prevPhone = draft?.client_phone ?? null;
-        setPrefilled((prev) => ({
-          address:
-            data.client_address == null ? false
-              : aiAddress == null ? true
-              : aiAddress === prevAddress ? prev.address
-              : false,
-          phone:
-            data.client_phone == null ? false
-              : aiPhone == null ? true
-              : aiPhone === prevPhone ? prev.phone
-              : false,
-        }));
         // Snapshot the AI's descriptions for THIS parse before the user can edit
         // them on the card, so finalize can tell edited from unedited (per line).
         originalDescriptionsRef.current = Array.isArray(data.line_items)
@@ -1097,43 +1067,6 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
 
-  /** The confirmation summary: what we have, any contact pulled from the saved
-   *  client record (surfaced so a stale one can be caught), what's still
-   *  missing, and how to proceed. Written to be spoken aloud — plain sentences,
-   *  no lists. */
-  function confirmSummary(): string {
-    const items = (draft?.line_items ?? []) as LineItem[];
-    if (items.some((li) => !Number.isFinite(li.qty) || !Number.isFinite(li.unit_price))) {
-      return "Something went wrong reading the amounts. Please try rephrasing the prices.";
-    }
-    // Single source of truth: tax + deposit, same helper the preview card uses.
-    // Deposit lives on the draft as snake_case DB columns (see renderData).
-    const taxRate = draft?.tax_rate ?? 0;
-    const depositType = ((draft as any)?.deposit_type as DepositType) ?? 'none';
-    const depositValue = Number((draft as any)?.deposit_value ?? 0);
-    const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
-    const kind = docKind(draft);
-    const who = draft?.client_name ?? 'this client';
-    const out: string[] = [
-      totals.depositAmount > 0
-        ? `Here's your ${kind} for ${who}: ${money(totals.total)} total, ${money(totals.depositAmount)} deposit due now.`
-        : `Here's your ${kind} for ${who}: ${money(totals.total)}.`,
-    ];
-
-    const saved: string[] = [];
-    if (prefilled.address && draft?.client_address) saved.push(`the address ${draft.client_address}`);
-    if (prefilled.phone && draft?.client_phone) saved.push(`the phone number ${draft.client_phone}`);
-    if (saved.length) out.push(`I'm using ${saved.join(' and ')} from last time — tell me if that's changed.`);
-
-    const missing: string[] = [];
-    if (!draft?.client_address) missing.push('an address');
-    if (!draft?.client_phone) missing.push('a phone number');
-    if (missing.length) out.push(`I don't have ${missing.join(' or ')} yet — want to add ${missing.length > 1 ? 'either' : 'it'}?`);
-
-    out.push(`Say "send it" when you're ready, or tell me what to change.`);
-    return out.join(' ');
-  }
-
   // Write the current conversation + finalize progress (inserted row, sent flag)
   // to the store immediately. Called at the two points a ref changes without a
   // state update — after the insert and after mark-sent — so a suspend right
@@ -1192,8 +1125,6 @@ export default function Chat() {
     preBuildIdRef.current++;        // invalidate any in-flight prepare's stash
     setDraftHistory([]);            // no undo on a sent card
     setReady(true);                 // show the (locked) card
-    setAwaitingConfirm(false);
-    setPrefilled({ address: false, phone: false });
     setPendingChange(null);
     setLinkedStatus('sent');        // locks the card; enables Revise (unpaid)
     setLinkedAmountPaid(0);
@@ -1228,68 +1159,55 @@ export default function Chat() {
     });
   };
 
-  // Keep the pre-built PDF in sync with card-control edits (deposit/notes) made
-  // while awaiting the confirm press. Chat-message edits reset awaitingConfirm and
-  // re-run the confirm gate (which re-prepares), so this only covers edits that
-  // don't reset it. Debounced; the build is latest-wins guarded, and it defers
-  // while another build/turn holds `phase`.
+  // Pre-build the card's PDF as soon as the card renders, and rebuild it after
+  // every edit/undo (any draft change moves the signature). Debounced; builds are
+  // serialized (`preparing`) and wait while a turn holds `phase` — a later change
+  // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
-    if (!awaitingConfirm || !ready || !draft || docKind(draft) !== 'invoice') return;
+    if (!ready || !draft || !profile) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
-    if (preBuiltRef.current && preBuiltRef.current.signature === draftSignature(draft)) return;
+    if (phase !== null || preparing) return;
+    if (prepState && prepState.sig === draftSignature(draft)) return;
     if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current);
-    preBuildTimerRef.current = setTimeout(() => {
-      if (phase !== null) return; // a build/turn is in flight; a later edit re-fires
-      void finalize(true, undefined, 'prepare');
-    }, 400);
+    preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, awaitingConfirm, ready, linkedStatus, phase]);
+  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState]);
 
-  // mode 'prepare' (Option B): a background pre-build kicked off on press 1 —
-  // it runs the SAME persist + PDF build as a send but, instead of sharing,
-  // stashes the File in preBuiltRef for press 2 to attach synchronously. It never
-  // shares, marks sent, or shows an error toast (failures fall back silently).
+  // mode 'prepare': the background pre-build above — it runs the SAME persist +
+  // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
+  // for the send tap to attach synchronously. It never shares, marks sent, posts
+  // a message, shows the paywall, or touches `phase` (so the composer stays
+  // usable); a failure just records prepState 'failed'.
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
-    if (!internal && phase) return;
-    // A background prepare must never run against an already-sent/locked convo.
-    if (mode === 'prepare' && (finalizeSentRef.current || isLockedStatus(linkedStatus))) return;
+    if (mode === 'prepare') {
+      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile) return;
+      preparingRef.current = true;
+      setPreparing(true);
+      // The DB row is about to be rewritten from the current draft, so an older
+      // stashed file may no longer match it. Drop it until this build lands.
+      preBuiltRef.current = null;
+    } else if (!internal && phase) return;
     // A direct card tap (not delegated from a send()) is its own user action:
     // mint a fresh turn id so this finalize and finishFinalize trace under their
     // own id instead of inheriting the previous send()'s turn. An internal call
     // already carries the id from the send() that delegated here.
     if (!internal) turnIdRef.current = newTurnId();
-    setPhase('building');
+    if (mode !== 'prepare') setPhase('building');
     // Latest-wins id for this build; a newer prepare supersedes an older one's stash.
     const buildId = mode === 'prepare' ? ++preBuildIdRef.current : 0;
+    let prepared = false;
+    let prepareDone: () => void = () => {};
+    if (mode === 'prepare') preparePromiseRef.current = new Promise<void>((r) => { prepareDone = r; });
     try {
     if (!draft) return;
 
-    // ── Confirmation gate ─────────────────────────────────────
-    // Never build straight through. The first attempt summarizes what we have,
-    // flags any contact pulled from the saved record, names what's missing, and
-    // waits for an explicit go-ahead. Cleared on any draft edit (see send) so a
-    // change re-summarizes.
-    // Download mode (Commit 3) is a secondary exit, not a send: skip the
-    // send-confirmation gate. It still creates the draft + renders below, then
-    // downloads without sharing/marking-sent (see the mode branch after render).
-    if (mode === 'send' && !awaitingConfirm) {
-      setMessages((m) => [...m, aMsg(confirmSummary())]);
-      setAwaitingConfirm(true);
-      // Press 1 of the confirm: kick off the background PRE-BUILD (persist draft →
-      // token → PDF with the pay link → stash the File) AFTER this call fully
-      // returns, so its phase lifecycle doesn't collide with ours. Press 2 then
-      // attaches the file with a synchronous share. Fire-and-forget.
-      setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 0);
-      return;
-    }
-
-    // ── Press 2 fast path: attach the PRE-BUILT PDF via a SYNCHRONOUS share.
+    // ── Fast path: attach the PRE-BUILT PDF via a SYNCHRONOUS share.
     // There must be NOTHING awaited between the tap and navigator.share() — the
     // pre-build already did all the slow work, so the tap's user activation is
-    // still valid. A stale/absent file (signature mismatch, unfinished build) or
-    // a non-abort share error falls through to the link-share path below — never
-    // a download.
+    // still valid (iOS drops it after async work, and share() then throws
+    // NotAllowedError). A stale/absent file (signature mismatch, unfinished
+    // build) skips to the slow path below; a share error stops here, visibly.
     if (
       mode === 'send' && profile && preBuiltRef.current &&
       preBuiltRef.current.signature === draftSignature(draft) &&
@@ -1310,8 +1228,16 @@ export default function Chat() {
           setMessages((m) => [...m, aMsg('All set when you are — tap send to share it whenever you’re ready.')]);
           return;
         }
-        // Non-abort error → drop the stale file and fall through to link share.
-        preBuiltRef.current = null;
+        // Blocked or failed (NotAllowedError, TypeError, …): never a silent
+        // reset. Log the name, say so, keep the draft and the pre-built file so
+        // the next tap (or Retry) re-attempts the synchronous share.
+        const name = err instanceof Error ? err.name : String(err);
+        console.error('share failed (pre-built file)', name, err);
+        if (!retryId) setMessages((m) => [...m, aMsg(
+          `The share sheet didn't open (${name}). Your draft is safe. Tap send to try again.`,
+          { failed: { op: 'finalize' } },
+        )]);
+        return;
       }
       if (shared) {
         // The row was already persisted (and matches, per the signature) during
@@ -1343,6 +1269,7 @@ export default function Chat() {
     //  - fetch resolved with no profile → a genuine guest: friendly sign-in
     //    nudge (mirrors the parse route's 401 copy), THEN route to login.
     if (!profile) {
+      if (mode === 'prepare') return;
       if (!profileLoaded) {
         setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
@@ -1361,11 +1288,15 @@ export default function Chat() {
     // server-side trigger enforces the same rules even if this gate is bypassed.
     // Fail OPEN if /api/access is unreachable — a transient blip must not block
     // a legitimate invoice (matches the rate-limiter's fail-open stance).
+    // A send/download that lands while a pre-build is mid-flight (typed "send
+    // it", Download) waits for it, so the two never write the row concurrently.
+    if (mode !== 'prepare' && preparePromiseRef.current) await preparePromiseRef.current;
+
     if (!pendingInvoiceRef.current) {
       try {
         const gate = await (await fetch('/api/access')).json();
         if (gate && gate.hasAccess === false) {
-          setShowPaywall(true);
+          if (mode !== 'prepare') setShowPaywall(true); // the send tap shows it
           return;
         }
       } catch { /* access check unreachable — fail open, allow the invoice */ }
@@ -1478,7 +1409,7 @@ export default function Chat() {
           // boundary and fires even if the gate failed open or was bypassed —
           // surface the paywall, never a generic error.
           if (insErr?.hint === 'PAYWALL_LIMIT') {
-            setShowPaywall(true);
+            if (mode !== 'prepare') setShowPaywall(true);
             return; // draft + ready untouched — upgrade, then tap send again
           }
           // 23505 on finalize_key: THIS conversation's row already exists (the
@@ -1650,7 +1581,8 @@ export default function Chat() {
             return;
           }
           // Any other error → fall back to the file-based share after the PDF
-          // builds (outcome stays null).
+          // builds (outcome stays null). Logged so a blocked share is traceable.
+          console.error('link share failed', err instanceof Error ? err.name : String(err), err);
         }
       }
 
@@ -1699,6 +1631,7 @@ export default function Chat() {
       if (mode === 'prepare') {
         if (file && buildId === preBuildIdRef.current) {
           preBuiltRef.current = { file, signature: draftSignature(draft), token: publicToken ?? '', id: invoiceId, no };
+          prepared = true;
         }
         setRenderData(null);
         return;
@@ -1782,7 +1715,20 @@ export default function Chat() {
       )]);
     }
     } finally {
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      if (mode === 'prepare') {
+        // Record the outcome against the draft this build ran on (read after the
+        // insert, so the signature carries the assigned number). A superseded
+        // build (new chat, send finished) records nothing.
+        if (draft && buildId === preBuildIdRef.current) {
+          setPrepState({ sig: draftSignature(draft), status: prepared ? 'ready' : 'failed' });
+        }
+        preparingRef.current = false;
+        preparePromiseRef.current = null;
+        prepareDone();
+        setPreparing(false);
+      } else {
+        setPhase((p) => (p === 'redirecting' ? p : null));
+      }
     }
   }
 
@@ -2144,8 +2090,6 @@ export default function Chat() {
     }
     setMessages(entry.messages);
     setCardAfterId(entry.cardAfterId ?? null);
-    setAwaitingConfirm(false);
-    setPrefilled({ address: false, phone: false });
     setPendingChange(null);
     setConvoId(entry.id);
     setShowHistory(false);
@@ -2194,6 +2138,13 @@ export default function Chat() {
     previewDepositValue
   );
   const isValidTotal = Number.isFinite(previewTotals.total);
+  // The send button waits ("Preparing…") until the pre-build for THIS exact
+  // draft has finished, so a tap is always the synchronous share. A guest has no
+  // pre-build (the tap routes to sign-in), so it is ready once the profile
+  // lookup has resolved.
+  const sendReady = !profileLoaded ? false
+    : !profile ? true
+    : !!draft && prepState?.sig === draftSignature(draft);
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
 
@@ -2242,7 +2193,6 @@ export default function Chat() {
     setReady(true);
     // Under the "This would change…" question the user just answered.
     setCardAfterId(messages[messages.length - 1]?.id ?? null);
-    setAwaitingConfirm(false);
     setPendingChange(null);
   }
 
@@ -2268,8 +2218,6 @@ export default function Chat() {
     finalizeSentRef.current = false;
     setConvoId(genId());
     setDraftHistory([]);
-    setAwaitingConfirm(false);
-    setPrefilled({ address: false, phone: false });
     setFinished(false);
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
@@ -2314,8 +2262,6 @@ export default function Chat() {
     finalizeSentRef.current = false;
     setConvoId(genId());
     setDraftHistory([]);
-    setAwaitingConfirm(false);
-    setPrefilled({ address: false, phone: false });
     setPendingChange(null);
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
@@ -2481,9 +2427,9 @@ export default function Chat() {
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
-          <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal} onClick={() => finalize()}>
+          <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal || !sendReady} onClick={() => finalize()}>
             <Icon name="attach_file" size={18} />
-            {phase === 'building' ? 'Building your PDF…' : 'Looks right — send it'}
+            {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
           </button>
           {/* Quiet secondary exit: download the PDF without sending. Saves the
               draft (sendable later); does not mark sent or archive. */}
