@@ -303,9 +303,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
     setPushBusy(true);
     try {
       if (pushOn) {
-        if (await unsubscribeFromPush(supabase)) setPushOn(false);
+        if (await unsubscribeFromPush()) setPushOn(false);
       } else {
-        if (await subscribeToPush(supabase, p.id)) setPushOn(true);
+        if (await subscribeToPush()) setPushOn(true);
       }
     } finally {
       setPushBusy(false);
@@ -818,7 +818,14 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       </section>
 
       <button className="w-full py-3 text-sm text-error underline"
-        onClick={async () => { clearChatStorage(p?.id); await supabase.auth.signOut(); router.push('/login'); }}>
+        onClick={async () => {
+          clearChatStorage(p?.id);
+          // Forget this device first (needs the session): a shared phone must
+          // not keep getting this account's payment alerts after sign-out.
+          await unsubscribeFromPush().catch(() => false);
+          await supabase.auth.signOut();
+          router.push('/login');
+        }}>
         Sign out
       </button>
 

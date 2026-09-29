@@ -1729,7 +1729,7 @@ export default function Chat() {
     if (!profile) return;
     setReminderPrompt(false);
     try { localStorage.setItem('onit_reminder_prompted', '1'); } catch { /* ignore */ }
-    const ok = await subscribeToPush(supabase, profile.id);
+    const ok = await subscribeToPush();
     setMessages((m) => [...m, aMsg(ok
       ? "You're set. If an invoice sits unpaid for 2 days, I'll give you a nudge."
       : "Couldn't turn that on — you can enable reminders any time in Settings.")]);

@@ -1,22 +1,20 @@
 // GET /api/followups — Vercel Cron target (see vercel.json).
 // Every run: find sent/unpaid invoices not nudged in 2+ days,
 // push a notification to the owner, stamp last_nudge_at.
+// Delivery goes through the shared web-push channel (lib/notify/webpush):
+// parallel sends under a 4s cap, only this environment's devices, and a
+// device is dropped only on 404/410 — not on any error, as before.
 import { NextRequest, NextResponse } from 'next/server';
-import webpush from 'web-push';
 import { adminClient } from '@/lib/supabase/admin';
 import { money, roundCurrency } from '@/lib/financials';
+import { formatDocNumber } from '@/lib/documents';
 import { verifyCronAuth } from '@/lib/cron-auth';
+import { sendWebPush } from '@/lib/notify/webpush';
 
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
-
-  webpush.setVapidDetails(
-    'mailto:dynastyweb26@gmail.com',
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
-  );
 
   const supabase = adminClient();
   const cutoff = new Date(Date.now() - 2 * 24 * 3600e3).toISOString();
@@ -43,26 +41,12 @@ export async function GET(req: NextRequest) {
     const balance = roundCurrency((inv.total ?? 0) - (inv.amount_paid ?? 0));
     if (balance <= 0) continue;
 
-    const { data: subs } = await supabase
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
-      .eq('user_id', inv.user_id);
-
-    for (const s of subs ?? []) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          JSON.stringify({
-            title: `${inv.client_name} hasn't paid yet`,
-            body: `Invoice #${inv.invoice_number}: ${money(balance)} still due. Tap to view.`,
-            url: `/invoices/${inv.id}`,
-          })
-        );
-        sent++;
-      } catch {
-        await supabase.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
-      }
-    }
+    sent += await sendWebPush(inv.user_id, {
+      title: `${inv.client_name} hasn't paid yet`,
+      body: `${formatDocNumber('invoice', inv.invoice_number)}: ${money(balance)} still due. Tap to view.`,
+      url: `/invoices/${inv.id}`,
+      tag: `reminder-${inv.id}`,
+    }, { ttl: 24 * 3600, urgency: 'normal' });
     await supabase.from('invoices').update({ last_nudge_at: new Date().toISOString() }).eq('id', inv.id);
   }
   return NextResponse.json({ checked: due?.length ?? 0, notifications: sent });
