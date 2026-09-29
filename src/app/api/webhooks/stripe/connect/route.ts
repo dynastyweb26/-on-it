@@ -42,6 +42,7 @@ import {
   writeConnectStatusByAccount,
 } from '@/lib/stripe/connect';
 import { notify } from '@/lib/notify';
+import { notifyConnectProblems } from '@/lib/notify/connect';
 import { roundCurrency } from '@/lib/financials';
 
 export const runtime = 'nodejs';
@@ -221,13 +222,17 @@ export async function POST(req: NextRequest) {
       }
       case 'account.application.deauthorized': {
         if (!event.account) { outcome = 'skip: no event.account'; break; }
-        outcome = `cleared ${await clearConnectAccount(event.account)} profile(s)`;
+        const cleared = await clearConnectAccount(event.account);
+        const pushed = await notifyConnectProblems(cleared.map((userId) => ({ userId, problem: 'disconnected' as const })), event.id);
+        outcome = `cleared ${cleared.length} profile(s); push ${pushed}`;
         break;
       }
       case 'account.updated': {
         if (!event.account) { outcome = 'skip: no event.account'; break; }
         const account = await stripe.v2.core.accounts.retrieve(event.account, { include: ACCOUNT_INCLUDE });
-        outcome = `status written to ${await writeConnectStatusByAccount(statusFromV2Account(account))} profile(s)`;
+        const { rows, turnedOff } = await writeConnectStatusByAccount(statusFromV2Account(account));
+        const pushed = await notifyConnectProblems(turnedOff, event.id);
+        outcome = `status written to ${rows} profile(s); ${turnedOff.length} flag(s) off; push ${pushed}`;
         break;
       }
       default:

@@ -27,6 +27,7 @@ import {
   statusFromV2Account,
   writeConnectStatusByAccount,
 } from '@/lib/stripe/connect';
+import { notifyConnectProblems } from '@/lib/notify/connect';
 
 export const runtime = 'nodejs';
 
@@ -65,9 +66,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, ignored: type });
     } else if (REFRESH_TYPES.has(type)) {
       const account = await stripe.v2.core.accounts.retrieve(accountId, { include: ACCOUNT_INCLUDE });
-      outcome = `status written to ${await writeConnectStatusByAccount(statusFromV2Account(account))} profile(s)`;
+      const { rows, turnedOff } = await writeConnectStatusByAccount(statusFromV2Account(account));
+      const pushed = await notifyConnectProblems(turnedOff, notification.id);
+      outcome = `status written to ${rows} profile(s); ${turnedOff.length} flag(s) off; push ${pushed}`;
     } else if (type === 'v2.core.account.closed') {
-      outcome = `cleared ${await clearConnectAccount(accountId)} profile(s)`;
+      const cleared = await clearConnectAccount(accountId);
+      const pushed = await notifyConnectProblems(cleared.map((userId) => ({ userId, problem: 'disconnected' as const })), notification.id);
+      outcome = `cleared ${cleared.length} profile(s); push ${pushed}`;
     } else {
       console.log('stripe connect v2 webhook:', type, 'ignored');
       return NextResponse.json({ received: true, ignored: type });
