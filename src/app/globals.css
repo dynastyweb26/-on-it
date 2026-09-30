@@ -394,6 +394,17 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }
 .onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
 
+/* ---- Tabs + selected ring (MOTION-SPEC.md §10) ---- */
+@keyframes onit-from-right { from { opacity: 0; transform: translateX(28px); } }
+@keyframes onit-from-left { from { opacity: 0; transform: translateX(-28px); } }
+.onit-from-right { animation: onit-from-right 280ms var(--ease-standard) both; }
+.onit-from-left { animation: onit-from-left 280ms var(--ease-standard) both; }
+/* The gold selection ring tightens in from a soft halo whenever something
+   becomes selected (the class is added on select, so it plays each time). */
+@keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }
+.chip-selected,
+.ring-gold-selected { animation: onit-ring-in 240ms var(--ease-standard) both; }
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {
