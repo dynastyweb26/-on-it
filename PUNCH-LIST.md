@@ -327,3 +327,16 @@ to._
 | Permission UX | **Built — pending verification** (`e95d796`) | After a completed invoice send: "Want a ping when {client} pays?" (Yes / Not now, key `onit_alerts_prompted`). On iPhone Safari (not installed): a Home Screen hint instead. Settings: "Payment alerts & reminders" with install / blocked / unsupported hints. |
 | Preview test sender | **Built** (`4e9fbf3`) | `/api/push/test` returns 404 in production and without `PUSH_TEST_ENABLED=1`. Session-gated, sends to own preview devices only, writes nothing to invoices or the ledger. Settings shows its buttons only when enabled. |
 | Android badge icon | **Open (cosmetic)** | `badge` uses the full-colour app icon, so Android shows a white square. Needs a monochrome transparent badge PNG. iOS ignores badge. |
+
+## Motion, batch A — logged 2026-09-30 (`feat/motion-a`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Motion tokens + shared keyframes | **Built — pending preview verification** (`6a4e8dd`) | `globals.css`: `--motion-*` durations, standard/emphasized/spring easings, one-shot `onit-rise` / `fade-in` / `chip-in` / `pop` / `bump` classes. Transform + opacity only; the existing reduced-motion rule turns them off. |
+| On It spinner (thinking row) | **Built — pending preview verification** (`3ed5bb8`) | `OnItSpinner` replaces the `graphic_eq` / `receipt_long` icon. Two swoosh arms (`public/icons/onit-spinner-arm-{a,b}.svg`) drawn as CSS masks in `currentColor`, each orbiting on its own curve so they part and re-lock every half turn. |
+| Invoice/quote card build-in + total count-up | **Built — pending preview verification** (`df44f43`) | `cardAnim` set only by live events (a parse that shows the card, a Revise seed), never by restores, and cleared by a timer so a remount doesn't replay. Line items stagger 70ms (first 8 only; the rest use `content-visibility`). `CountUpMoney` counts the total up after the rows; the send button fades in last. |
+| Lock on send | **Built — pending preview verification** (`932b307`) | After a completed send: the lock chip springs in, the padlock drops and settles, and the Revise section fades in at 400ms. |
+| Revise transition | **Built — pending preview verification** (`765a080`) | The locked card folds out (150ms), then the revision's draft card builds in. `revisingRef` drops repeat taps; reduced motion skips straight to the revision. Safe for 20+ item quotes (only 8 rows animate). |
+| Paid moment (invoice detail) | **Built — pending preview verification** (`a5a358f`) | Only when Record payment here moves the invoice to paid: a gold sweep crosses the header card, the status chip springs in, the amount bumps, and a 12ms vibrate plays (Android). Loading an already-paid invoice never plays it. |
+| Paid moment on the invoice list (pay-link payments) | **Open** | Needs per-invoice last-seen status. |
+| Batch B | **Open** | Failure/retry, receipt capture, Books count-up, tab pill + selected ring, mic rings. |
