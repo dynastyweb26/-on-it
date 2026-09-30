@@ -1193,6 +1193,7 @@ export default function Chat() {
     setLinkedStatus('sent');        // locks the card; enables Revise (unpaid)
     setLinkedAmountPaid(0);
     setRenderData(null);
+    playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
     // finished=true keeps this conversation from being re-archived as a draft by
     // a later new-chat / history-open. It is NOT cleared from storage: because
     // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
@@ -2282,8 +2283,8 @@ export default function Chat() {
       </div>
       {locked && (
         // Read-only: the linked invoice has left 'draft' (sent/paid).
-        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
-          <Icon name="lock" size={16} filled />
+        <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
+          <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
           {lockBadgeText(linkedStatus, linkedAmountPaid)}
         </div>
       )}
@@ -2399,7 +2400,10 @@ export default function Chat() {
         // unpaid invoice offers "Revise" (opens an editable copy as a new
         // invoice — Commit C); once any payment has landed it stays fully
         // locked (a revision would be a credit/refund — see PUNCH-LIST).
-        <div className="mt-3 border-t border-outline-variant/30 pt-3">
+        <div
+          className={`mt-3 border-t border-outline-variant/30 pt-3${cardAnim === 'lock' ? ' onit-fade-in' : ''}`}
+          style={cardAnim === 'lock' ? { animationDelay: '400ms' } : undefined}
+        >
           {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
             <>
               <p className="text-center text-sm text-on-surface-variant">
