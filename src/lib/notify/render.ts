@@ -51,9 +51,10 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
     }
     case 'draft_unsent': {
       const no = formatDocNumber('invoice', event.invoiceNumber);
+      // Short title: iOS appends "from On It" and truncates long ones.
       return {
-        title: `${event.clientName}'s ${money(event.total)} invoice is still a draft`,
-        body: `${no} hasn't been sent yet. Tap to send it.`,
+        title: `${event.clientName}'s invoice isn't sent`,
+        body: `${money(event.total)} · ${no} · Tap to send it.`,
         url: `/invoices/${event.invoiceId}`,
         tag: `draft-${event.invoiceId}`,
       };
