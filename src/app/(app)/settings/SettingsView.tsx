@@ -335,6 +335,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) setPushTestMsg(j.error ?? `Failed (${res.status})`);
+      else if (typeof j.candidates === 'number' && !(j.delivered > 0)) setPushTestMsg(j.candidates === 0
+        ? 'No eligible draft: needs an invoice draft last edited 1–14 days ago, outside quiet hours, not already nudged, and no draft nudge in the last 20h.'
+        : 'An eligible draft was found but nothing was delivered. Check this device is subscribed.');
       else setPushTestMsg(j.delivered > 0
         ? `Sent to ${j.delivered} device${j.delivered === 1 ? '' : 's'}.`
         : 'No subscribed preview devices. Turn the switch on first.');
@@ -908,6 +911,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
                 ['Invoice opened', { type: 'viewed' }],
                 ['Draft reminder', { type: 'draft' }],
+                // The real run, own drafts only; claims the draft for good.
+                ['Run draft nudge (real rules)', { type: 'draft_run' }],
               ] as const).map(([label, body]) => (
                 <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
               ))}

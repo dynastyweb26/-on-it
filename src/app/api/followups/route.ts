@@ -1,6 +1,7 @@
 // GET /api/followups — Vercel Cron target (see vercel.json).
 // Every run: find sent/unpaid invoices not nudged in 2+ days and not due in
-// the future, push a notification to the owner, stamp last_nudge_at.
+// the future, push a notification to the owner, stamp last_nudge_at. Then, in
+// production only, send draft nudges (step 2 below).
 // Delivery goes through the shared web-push channel (lib/notify/webpush):
 // parallel sends under a 4s cap, only this environment's devices, and a
 // device is dropped only on 404/410 — not on any error, as before.
@@ -10,6 +11,8 @@ import { money, roundCurrency } from '@/lib/financials';
 import { formatDocNumber } from '@/lib/documents';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { sendWebPush } from '@/lib/notify/webpush';
+import { runDraftNudges } from '@/lib/notify/draft-nudges';
+import { deployEnv } from '@/lib/deploy-env';
 
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) {
@@ -56,5 +59,15 @@ export async function GET(req: NextRequest) {
     }, { ttl: 24 * 3600, urgency: 'normal' });
     await supabase.from('invoices').update({ last_nudge_at: new Date().toISOString() }).eq('id', inv.id);
   }
-  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent });
+
+  // Step 2: draft nudges (lib/notify/draft-nudges). Here rather than in its own
+  // cron entry because the Vercel plan is Hobby. Production only: preview
+  // shares the DB, and a preview run would claim real drafts' one-time dedupe
+  // keys while delivering only to preview devices. Preview tests it for the
+  // signed-in user alone via /api/push/test.
+  const drafts = deployEnv() === 'production'
+    ? await runDraftNudges()
+    : { candidates: 0, sent: 0, skipped: 'not production' };
+
+  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts });
 }

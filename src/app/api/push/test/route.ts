@@ -19,6 +19,7 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { deployEnv } from '@/lib/deploy-env';
 import { roundCurrency } from '@/lib/financials';
 import { notifyTest } from '@/lib/notify';
+import { runDraftNudges } from '@/lib/notify/draft-nudges';
 
 const Body = z.discriminatedUnion('type', [
   z.object({ type: z.literal('payment'), variant: z.enum(['full', 'partial']) }),
@@ -28,6 +29,7 @@ const Body = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('viewed') }),
   z.object({ type: z.literal('draft') }),
+  z.object({ type: z.literal('draft_run') }),
 ]);
 
 const enabled = () => deployEnv() !== 'production' && process.env.PUSH_TEST_ENABLED === '1';
@@ -56,6 +58,15 @@ export async function POST(req: NextRequest) {
       type: 'connect_problem', problem: body.problem, sourceEventId: 'test',
     });
     return NextResponse.json({ delivered });
+  }
+
+  if (body.type === 'draft_run') {
+    // The REAL draft-nudge run (every rule: 1–14 day age window, quiet hours,
+    // 20h cap, opt-out, re-check), scoped to the caller's own drafts. Unlike
+    // the samples it claims the real draft:<invoice_id> key, so that draft is
+    // never nudged again, in any environment. Test on your own drafts only.
+    const r = await runDraftNudges({ onlyUserId: user.id });
+    return NextResponse.json({ delivered: r.sent, candidates: r.candidates });
   }
 
   if (body.type === 'draft') {
