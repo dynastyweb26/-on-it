@@ -405,6 +405,16 @@ html[data-splash=""] .onit-splash {
 .chip-selected,
 .ring-gold-selected { animation: onit-ring-in 240ms var(--ease-standard) both; }
 
+/* ---- Mic level rings (MOTION-SPEC.md §11) ---- */
+.onit-mic-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  transform: scale(1);
+  transition: transform 110ms linear, opacity 180ms linear;
+  will-change: transform;
+}
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {

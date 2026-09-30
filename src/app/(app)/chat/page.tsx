@@ -27,6 +27,7 @@ import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
+import MicRings from '@/components/MicRings';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -2711,17 +2712,21 @@ export default function Chat() {
             className="hidden"
             onChange={onPickReceipt}
           />
+          {/* Level rings sit behind the button while recording (MOTION-SPEC §11). */}
+          <div className="relative shrink-0">
+          <MicRings stream={streamRef.current} active={recording} />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
             // The splash's white rings fly onto this button on a cold start
             // (components/Splash.tsx measures it at runtime).
             data-splash-target=""
-            className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40 ${recording ? 'voice-listening' : ''}`}
+            className="relative grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
             disabled={phase !== null}
             onClick={micTap}
           >
             <Icon name="mic" size={32} filled />
           </button>
+          </div>
           <textarea
             className="input max-h-32 flex-1 resize-none py-3.5"
             placeholder="Or type it…"
