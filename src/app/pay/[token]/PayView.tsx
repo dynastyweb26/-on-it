@@ -35,6 +35,8 @@ const baselineKey = (token: string) => `onit_pay_baseline_${token}`;
 // view, so staying well under it matters.
 const POLL_MS = 4000;
 const POLL_MAX = 15;
+// Continuous visible time before the page reports a view (see the beacon below).
+const VIEW_DWELL_MS = 3000;
 
 export interface PayHandles {
   paypalMe: string | null;
@@ -180,6 +182,38 @@ export default function PayView({ model }: { model: PayModel }) {
   }
   // Synchronous guard: two taps in one frame both see cardBusy=false.
   const cardInFlight = useRef(false);
+
+  // "Viewed" beacon (POST /api/pay/[token]/viewed): once per page load, only
+  // after the page has been VISIBLE for VIEW_DWELL_MS continuously. Hiding the
+  // tab restarts the clock. Email security scanners run JS but don't sit on a
+  // visible page, and link-preview fetchers never run it at all. The server
+  // decides whether the view counts (first view, not the owner, 2+ min after
+  // send); the response says nothing either way.
+  const viewedSent = useRef(false);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const arm = () => {
+      if (t) { clearTimeout(t); t = null; }
+      if (viewedSent.current || document.visibilityState !== 'visible') return;
+      t = setTimeout(() => {
+        if (viewedSent.current || document.visibilityState !== 'visible') return;
+        viewedSent.current = true;
+        document.removeEventListener('visibilitychange', arm);
+        void fetch(`/api/pay/${encodeURIComponent(model.token)}/viewed`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+          keepalive: true,
+        }).catch(() => { /* best-effort */ });
+      }, VIEW_DWELL_MS);
+    };
+    arm();
+    document.addEventListener('visibilitychange', arm);
+    return () => {
+      if (t) clearTimeout(t);
+      document.removeEventListener('visibilitychange', arm);
+    };
+  }, [model.token]);
 
   const [cardReturn, setCardReturn] = useState<CardReturn>(model.paidReturn ? 'processing' : 'idle');
   // Poll counter as STATE, not a ref: each tick must re-run the effect below.
