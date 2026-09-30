@@ -127,7 +127,8 @@ export default function LineItemsEditor({
     'inline-flex items-center gap-1 underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60 text-left min-h-[44px] py-1';
 
   return (
-    <div className="space-y-3">
+    // onit-li-rows: hook for the card build-in stagger (globals.css, MOTION-SPEC §3).
+    <div className="onit-li-rows space-y-3">
       {items.map((li, i) => (
         <div key={i} className="rounded-lg border border-outline-variant/20 bg-surface-container-lowest/50 p-2.5 text-body-md">
           {/* Main row: Line number + Description + Amount */}

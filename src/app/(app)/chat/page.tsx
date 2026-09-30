@@ -26,6 +26,7 @@ import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receip
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
+import CountUpMoney from '@/components/CountUpMoney';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -353,6 +354,18 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
+  // One-shot card animation (MOTION-SPEC §3-5). Set only by LIVE events (a card
+  // appearing from a parse, a send locking it, Revise); restores never set it,
+  // so a reopened card never replays. Cleared by a timer once it has played, so
+  // a later remount (the card moving under a new reply) doesn't replay either.
+  const [cardAnim, setCardAnim] = useState<null | 'enter' | 'lock' | 'exit'>(null);
+  const cardAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function playCardAnim(kind: 'enter' | 'lock' | 'exit', ms: number) {
+    if (cardAnimTimerRef.current) clearTimeout(cardAnimTimerRef.current);
+    setCardAnim(kind);
+    cardAnimTimerRef.current = setTimeout(() => setCardAnim(null), ms);
+  }
+  useEffect(() => () => { if (cardAnimTimerRef.current) clearTimeout(cardAnimTimerRef.current); }, []);
   // Where the invoice/quote card sits in the transcript: right after this
   // message. Moved to the reply that last CHANGED the draft (or seeded the
   // card); card-only edits, finalize and later chat don't move it, so newer
@@ -976,6 +989,8 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
+        // The card is appearing now (not an edit to one already up): build it in.
+        if (isReady && !(ready && draft)) playCardAnim('enter', 1800);
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
@@ -2201,6 +2216,7 @@ export default function Chat() {
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
+    playCardAnim('enter', 1800);
     setCardAfterId(GREETING.id);
     setDuplicateHint(false);
     setPendingChange(null);
@@ -2259,7 +2275,7 @@ export default function Chat() {
     : messages[messages.length - 1]?.id ?? null;
   const invoiceCard = ready && draft ? (
     // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
-    <div data-no-tab-swipe="true" className="card border-primary-container/50 ring-1 ring-primary-container/30">
+    <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
         <Icon name="description" size={18} />
         {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
@@ -2368,8 +2384,13 @@ export default function Chat() {
           <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
             {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
           </span>
-          <span className="font-display text-numeric-xl tracking-tight text-on-background">
-            {money(previewTotals.amountDueNow)}
+          <span className="font-display text-numeric-xl tracking-tight text-on-background tabular-nums">
+            <CountUpMoney
+              value={previewTotals.amountDueNow}
+              run={cardAnim === 'enter'}
+              format={money}
+              delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
+            />
           </span>
         </div>
       </div>
@@ -2404,7 +2425,12 @@ export default function Chat() {
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
-          <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal || !sendReady} onClick={() => finalize()}>
+          <button
+            className={`btn-primary mt-3 w-full${cardAnim === 'enter' ? ' onit-fade-in' : ''}`}
+            style={cardAnim === 'enter' ? { animationDelay: `${180 + Math.min(previewItems.length, 8) * 70 + 660}ms` } : undefined}
+            disabled={phase !== null || !isValidTotal || !sendReady}
+            onClick={() => finalize()}
+          >
             <Icon name="attach_file" size={18} />
             {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
           </button>

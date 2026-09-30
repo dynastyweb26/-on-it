@@ -323,6 +323,26 @@ html[data-splash=""] .onit-splash {
 .onit-pop { animation: onit-pop 360ms var(--ease-spring) both; }
 .onit-bump { animation: onit-bump 360ms var(--ease-standard) both; }
 
+/* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
+.onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
+.onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
+/* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the
+   card and skip rendering until scrolled to, so a 20+ item card stays smooth. */
+.onit-card-enter .onit-li-rows > * { animation: onit-rise-sm var(--motion-base) var(--ease-standard) both; }
+.onit-card-enter .onit-li-rows > :nth-child(1) { animation-delay: 180ms; }
+.onit-card-enter .onit-li-rows > :nth-child(2) { animation-delay: 250ms; }
+.onit-card-enter .onit-li-rows > :nth-child(3) { animation-delay: 320ms; }
+.onit-card-enter .onit-li-rows > :nth-child(4) { animation-delay: 390ms; }
+.onit-card-enter .onit-li-rows > :nth-child(5) { animation-delay: 460ms; }
+.onit-card-enter .onit-li-rows > :nth-child(6) { animation-delay: 530ms; }
+.onit-card-enter .onit-li-rows > :nth-child(7) { animation-delay: 600ms; }
+.onit-card-enter .onit-li-rows > :nth-child(8) { animation-delay: 670ms; }
+.onit-card-enter .onit-li-rows > :nth-child(n + 9) {
+  animation: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {
