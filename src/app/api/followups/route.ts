@@ -1,6 +1,6 @@
 // GET /api/followups — Vercel Cron target (see vercel.json).
-// Every run: find sent/unpaid invoices not nudged in 2+ days,
-// push a notification to the owner, stamp last_nudge_at.
+// Every run: find sent/unpaid invoices not nudged in 2+ days and not due in
+// the future, push a notification to the owner, stamp last_nudge_at.
 // Delivery goes through the shared web-push channel (lib/notify/webpush):
 // parallel sends under a 4s cap, only this environment's devices, and a
 // device is dropped only on 404/410 — not on any error, as before.
@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
 
   const supabase = adminClient();
   const cutoff = new Date(Date.now() - 2 * 24 * 3600e3).toISOString();
+  // Today's date (YYYY-MM-DD) in UTC, for the due-date gate below. There is no
+  // owner timezone on profiles yet; the cron runs at 15:00 UTC, when the UTC
+  // date matches every US timezone's local date.
+  const today = new Date().toISOString().slice(0, 10);
 
   const { data: due } = await supabase
     .from('invoices')
@@ -32,6 +36,9 @@ export async function GET(req: NextRequest) {
     // is null (backfill skips rows with a null sent_at); if both are null the row
     // isn't dunned, matching the prior sent_at-only behavior.
     .or(`first_sent_at.lt.${cutoff},and(first_sent_at.is.null,sent_at.lt.${cutoff})`)
+    // Don't nag before the due date: a deposit-paid invoice whose balance is due
+    // next month isn't late yet. No due date keeps the every-2-days behavior.
+    .or(`due_date.is.null,due_date.lte.${today}`)
     .limit(200);
 
   let sent = 0;
