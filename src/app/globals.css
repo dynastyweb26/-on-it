@@ -323,6 +323,25 @@ html[data-splash=""] .onit-splash {
 .onit-pop { animation: onit-pop 360ms var(--ease-spring) both; }
 .onit-bump { animation: onit-bump 360ms var(--ease-standard) both; }
 
+/* ---- On It spinner (MOTION-SPEC.md §2) ---- */
+.onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
+.onit-spinner-arm {
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  -webkit-mask: var(--arm) center / contain no-repeat;
+  mask: var(--arm) center / contain no-repeat;
+  animation: onit-spinner-orbit 1800ms infinite;
+}
+.onit-spinner-a { --arm: url('/icons/onit-spinner-arm-a.svg'); animation-timing-function: cubic-bezier(.7, 0, .4, 1); }
+.onit-spinner-b { --arm: url('/icons/onit-spinner-arm-b.svg'); animation-timing-function: cubic-bezier(.35, 0, .5, 1); }
+@keyframes onit-spinner-orbit {
+  /* Two eased half-turns: the arms separate mid-half and re-lock at 180/360. */
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-skeleton-shimmer {
     animation: none !important;

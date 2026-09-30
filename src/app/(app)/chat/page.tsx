@@ -25,6 +25,7 @@ import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import OnItSpinner from '@/components/OnItSpinner';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -2562,7 +2563,8 @@ export default function Chat() {
 
         {(phase === 'thinking' || phase === 'reading') && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
-            <Icon name={phase === 'reading' ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
+            {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
+            <OnItSpinner size={20} />
             {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
