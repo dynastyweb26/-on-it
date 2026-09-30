@@ -109,7 +109,7 @@ export default function InvoiceDetail() {
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   // One-shot "paid" moment (MOTION-SPEC §6): only when a payment recorded here
-  // moves the invoice to paid. Loading an already-paid invoice never plays it.
+  // brings the balance to zero. Loading an already-paid invoice never plays it.
   const [paidAnim, setPaidAnim] = useState(false);
   const paidAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current); }, []);
@@ -331,11 +331,15 @@ export default function InvoiceDetail() {
       console.error('record payment failed', error);
       return;
     }
-    const wasPaid = inv?.status === 'paid';
+    // Celebrate when the balance hits zero, not on status: the ledger trigger
+    // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
+    // full keeps its status but is still fully paid.
+    const fullyPaid = (row: any) => Number(row?.total) > 0 && Number(row?.amount_paid ?? 0) >= Number(row?.total);
+    const wasFullyPaid = fullyPaid(inv);
     const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     if (updated) {
       setInv(updated);
-      if (!wasPaid && updated.status === 'paid') celebratePaid();
+      if (!wasFullyPaid && fullyPaid(updated)) celebratePaid();
     }
     setPayMode('none');
     setPayAmount('');
