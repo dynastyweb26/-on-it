@@ -340,7 +340,7 @@ to._
 | Paid moment (invoice detail) | **Done — verified on preview 2026-09-30** (`a5a358f`, `c0f6928`) | Only when Record payment here brings the balance to zero (`c0f6928`: keyed on amount_paid >= total, not status, so a fully paid draft animates too): a gold sweep crosses the header card, the status chip springs in, the amount bumps, and a 12ms vibrate plays (Android). Loading an already-paid invoice never plays it. |
 | Paid moment on the invoice list (pay-link payments) | **Open** | Needs per-invoice last-seen status. |
 | Batch B | **Open** | Failure/retry, receipt capture, Books count-up, tab pill + selected ring, mic rings. |
-| Converted quote paid in full stays draft | **Open** | Converted invoices insert as draft and `reconcile_invoice_from_ledger` (`20260918000003_paid_status_from_ledger.sql`) only flips sent/overdue to paid. |
+| Converted quote paid in full stays draft | **Done — migration applied 2026-09-30; M3 0/0, privilege check matched** (`0d121ad`, merged `e5a9fda`) | Migration `20260930000002_draft_payment_status` redefines `reconcile_invoice_from_ledger`: a draft invoice (not a quote) that's fully paid goes to `paid` with `paid_at`; partly paid goes to `sent`. On leaving draft it takes the render snapshot from the profile, as Send does; `first_sent_at` is stamped by the existing trigger. Backfilled live drafts that already had payments. Function is now `search_path = ''`; `privilege_check.sql` section M. |
 
 ## Follow-up reminders respect due date — logged 2026-09-30 (`fix/followup-due-date`, merged `09a55b0`)
 
