@@ -335,6 +335,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) setPushTestMsg(j.error ?? `Failed (${res.status})`);
+      else if (typeof j.candidates === 'number' && !(j.delivered > 0)) setPushTestMsg(j.candidates === 0
+        ? 'No eligible draft: needs an invoice draft last edited 1–14 days ago, outside quiet hours, not already nudged, and no draft nudge in the last 20h.'
+        : 'An eligible draft was found but nothing was delivered. Check this device is subscribed.');
       else setPushTestMsg(j.delivered > 0
         ? `Sent to ${j.delivered} device${j.delivered === 1 ? '' : 's'}.`
         : 'No subscribed preview devices. Turn the switch on first.');
@@ -853,6 +856,31 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             />
           </button>
         </div>
+        {pushOn && p && (
+          // Sub-toggle for the draft nudge (profiles.notify_draft_nudges, safe
+          // column). Only meaningful once this device gets pushes at all.
+          <div className="flex items-center justify-between gap-3 border-t border-outline-variant/30 pt-3">
+            <div>
+              <p className="text-sm font-semibold text-on-surface">Remind me about unsent drafts</p>
+              <p className="text-sm text-on-surface-variant">
+                A nudge the day after an invoice is drafted but not sent.
+              </p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={p.notify_draft_nudges !== false}
+              aria-label="Remind me about unsent drafts"
+              onClick={() => void save({ notify_draft_nudges: p.notify_draft_nudges === false })}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition-colors
+                ${p.notify_draft_nudges !== false ? 'bg-primary-container' : 'bg-outline-variant'}`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
+                  ${p.notify_draft_nudges !== false ? 'left-7' : 'left-1'}`}
+              />
+            </button>
+          </div>
+        )}
         {!pushOn && pushAvail === 'needs-install' && (
           <p className="text-sm text-on-surface-variant">
             Add On It to your Home Screen to turn these on.{' '}
@@ -881,6 +909,10 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 ['Needs a detail', { type: 'connect_problem', problem: 'details_needed' }],
                 ['Payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
                 ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
+                ['Invoice opened', { type: 'viewed' }],
+                ['Draft reminder', { type: 'draft' }],
+                // The real run, own drafts only; claims the draft for good.
+                ['Run draft nudge (real rules)', { type: 'draft_run' }],
               ] as const).map(([label, body]) => (
                 <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
               ))}

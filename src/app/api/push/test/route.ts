@@ -19,6 +19,7 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { deployEnv } from '@/lib/deploy-env';
 import { roundCurrency } from '@/lib/financials';
 import { notifyTest } from '@/lib/notify';
+import { runDraftNudges } from '@/lib/notify/draft-nudges';
 
 const Body = z.discriminatedUnion('type', [
   z.object({ type: z.literal('payment'), variant: z.enum(['full', 'partial']) }),
@@ -26,6 +27,9 @@ const Body = z.discriminatedUnion('type', [
     type: z.literal('connect_problem'),
     problem: z.enum(['charges_paused', 'details_needed', 'payouts_paused', 'disconnected']),
   }),
+  z.object({ type: z.literal('viewed') }),
+  z.object({ type: z.literal('draft') }),
+  z.object({ type: z.literal('draft_run') }),
 ]);
 
 const enabled = () => deployEnv() !== 'production' && process.env.PUSH_TEST_ENABLED === '1';
@@ -56,6 +60,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ delivered });
   }
 
+  if (body.type === 'draft_run') {
+    // The REAL draft-nudge run (every rule: 1–14 day age window, quiet hours,
+    // 20h cap, opt-out, re-check), scoped to the caller's own drafts. Unlike
+    // the samples it claims the real draft:<invoice_id> key, so that draft is
+    // never nudged again, in any environment. Test on your own drafts only.
+    const r = await runDraftNudges({ onlyUserId: user.id });
+    return NextResponse.json({ delivered: r.sent, candidates: r.candidates });
+  }
+
+  if (body.type === 'draft') {
+    // The caller's most recent invoice draft (RLS: own rows only). Read-only.
+    const { data: d } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, client_name, total')
+      .eq('user_id', user.id)
+      .eq('kind', 'invoice')
+      .eq('status', 'draft')
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!d) return NextResponse.json({ error: 'no draft invoice to test with' }, { status: 404 });
+    const delivered = await notifyTest(user.id, {
+      type: 'draft_unsent',
+      invoiceId: d.id as string,
+      invoiceNumber: d.invoice_number as number,
+      clientName: (d.client_name as string) || 'Your client',
+      total: Number(d.total ?? 0),
+    });
+    return NextResponse.json({ delivered, invoiceNumber: d.invoice_number });
+  }
+
   // The caller's most recent sent invoice (RLS: own rows only). Read-only.
   const { data: inv } = await supabase
     .from('invoices')
@@ -68,6 +104,16 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .maybeSingle();
   if (!inv) return NextResponse.json({ error: 'no sent invoice to test with' }, { status: 404 });
+
+  if (body.type === 'viewed') {
+    const delivered = await notifyTest(user.id, {
+      type: 'invoice_viewed',
+      invoiceId: inv.id as string,
+      invoiceNumber: inv.invoice_number as number,
+      clientName: (inv.client_name as string) || 'Your client',
+    });
+    return NextResponse.json({ delivered, invoiceNumber: inv.invoice_number });
+  }
 
   const total = Number(inv.total ?? 0);
   const owed = Math.max(0, roundCurrency(total - Number(inv.amount_paid ?? 0))) || total;

@@ -606,6 +606,10 @@ export default function InvoiceDetail() {
                 {inv.status}
               </span>
             </div>
+            {/* First qualifying client view (mark_invoice_viewed), in local time. */}
+            {inv.viewed_at && (
+              <div className="text-xs text-on-surface-variant">Viewed {formatDate(inv.viewed_at)}</div>
+            )}
           </div>
           <div className="text-right">
             <div className={`font-display text-xl font-bold text-primary${paidAnim ? ' onit-bump' : ''}`}

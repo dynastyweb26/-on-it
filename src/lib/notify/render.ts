@@ -40,5 +40,24 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
       }[event.problem];
       return { title: copy[0], body: copy[1], url: '/settings', tag: 'connect' };
     }
+    case 'invoice_viewed': {
+      const no = formatDocNumber('invoice', event.invoiceNumber);
+      return {
+        title: `${event.clientName} opened ${no}`,
+        body: "They've seen it. You'll get a ping when they pay.",
+        url: `/invoices/${event.invoiceId}`,
+        tag: `viewed-${event.invoiceId}`,
+      };
+    }
+    case 'draft_unsent': {
+      const no = formatDocNumber('invoice', event.invoiceNumber);
+      // Short title: iOS appends "from On It" and truncates long ones.
+      return {
+        title: `${event.clientName}'s invoice isn't sent`,
+        body: `${money(event.total)} · ${no} · Tap to send it.`,
+        url: `/invoices/${event.invoiceId}`,
+        tag: `draft-${event.invoiceId}`,
+      };
+    }
   }
 }
