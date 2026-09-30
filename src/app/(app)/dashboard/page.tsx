@@ -2,7 +2,7 @@
 // ═══ Books — the money screen ═══
 // One glance: money in, money out, what's still owed.
 // Expenses can be added right here (and still by chat — "spent 80 on paint").
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -28,6 +28,8 @@ function tileMoney(n: number): string {
 // Signed exact money for the hero: a negative net reads "−$120.00" (sign, not
 // red — no colored numbers on this screen).
 const signedMoney = (n: number) => (n < 0 ? `−${money(-n)}` : money(n));
+// sessionStorage flag: the Books count-up already played this session (MOTION-SPEC §9).
+const BOOKS_COUNTED_KEY = 'onit_books_counted';
 
 // The old chips (Gas / Materials / Meals / Phone / Insurance) predate the
 // category CHECK and would now be rejected on save. Same eight values as the
@@ -42,6 +44,58 @@ export default function Dashboard() {
   // no path can hang it true. The post-save refresh (loadStats) never toggles it,
   // so adding an expense doesn't re-flash the skeleton.
   const [loading, setLoading] = useState(true);
+  // Books motion (MOTION-SPEC §9). `shown` is what the hero and tiles display;
+  // it tweens toward `stats`. The first open per session counts up from 0 with
+  // the entrance (intro); later refreshes (after adding an expense) roll the
+  // old values to the new ones. Reduced motion shows the numbers straight away.
+  type Shown = { net: number; collected: number; outstanding: number; spent: number };
+  const [shown, setShown] = useState<Shown | null>(null);
+  const shownRef = useRef<Shown | null>(null);
+  shownRef.current = shown;
+  const tweenRaf = useRef(0);
+  const [intro, setIntro] = useState(false);
+  const [spentFlash, setSpentFlash] = useState(0);
+  const introTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    cancelAnimationFrame(tweenRaf.current);
+    if (introTimer.current) clearTimeout(introTimer.current);
+  }, []);
+  function showStats(next: Shown) {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const prev = shownRef.current;
+    let first = false;
+    if (!prev) {
+      try { first = !sessionStorage.getItem(BOOKS_COUNTED_KEY); sessionStorage.setItem(BOOKS_COUNTED_KEY, '1'); } catch { first = false; }
+    }
+    if (reduced || (!prev && !first)) { setShown(next); return; }
+    if (prev && next.spent > prev.spent) setSpentFlash((n) => n + 1);
+    if (first) {
+      setIntro(true);
+      // Drop the entrance classes once played, so a later remount (the Spent
+      // tile re-keys on a new expense) never replays the entrance.
+      introTimer.current = setTimeout(() => setIntro(false), 1700);
+    }
+    const from: Shown = prev ?? { net: 0, collected: 0, outstanding: 0, spent: 0 };
+    const keys = ['net', 'collected', 'outstanding', 'spent'] as const;
+    // First open: Net counts over 700ms; tiles 560ms, landing left to right.
+    const delay = first ? { net: 0, collected: 140, outstanding: 210, spent: 280 } : { net: 0, collected: 0, outstanding: 0, spent: 0 };
+    const dur = first ? { net: 700, collected: 560, outstanding: 560, spent: 560 } : { net: 400, collected: 400, outstanding: 400, spent: 400 };
+    cancelAnimationFrame(tweenRaf.current);
+    let start: number | null = null;
+    const step = (ts: number) => {
+      if (start === null) start = ts;
+      let done = true;
+      const v = {} as Shown;
+      for (const k of keys) {
+        const q = Math.min(1, Math.max(0, (ts - start - delay[k]) / dur[k]));
+        if (q < 1) done = false;
+        v[k] = from[k] + (next[k] - from[k]) * (1 - Math.pow(1 - q, 3));
+      }
+      setShown(done ? next : v);
+      if (!done) tweenRaf.current = requestAnimationFrame(step);
+    };
+    tweenRaf.current = requestAnimationFrame(step);
+  }
   const [showForm, setShowForm] = useState(false);
 
   const [amount, setAmount] = useState('');
@@ -79,6 +133,7 @@ export default function Dashboard() {
       .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
     setStats({ collected, outstanding, spent, count: rows.length });
+    showStats({ net: collected - spent, collected, outstanding, spent });
   }
 
   useEffect(() => {
@@ -151,7 +206,8 @@ export default function Dashboard() {
     }
   }
 
-  const net = stats.collected - stats.spent;
+  const net = shown?.net ?? stats.collected - stats.spent;
+  const tile = shown ?? stats;
   return (
     <div className="space-y-3 px-4 py-4">
       {loading ? (
@@ -165,22 +221,22 @@ export default function Dashboard() {
           <Link
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
-            className="flex items-center justify-between gap-3 rounded-card bg-inverse-surface p-6 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110"
+            className={`flex items-center justify-between gap-3 rounded-card bg-inverse-surface p-6 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
             <div className="min-w-0">
-              <div className="font-display text-numeric-xl tracking-tight text-inverse-on-surface">{signedMoney(net)}</div>
+              <div className="font-display text-numeric-xl tracking-tight text-inverse-on-surface tabular-nums">{signedMoney(net)}</div>
               <div className="mt-1 text-label-lg font-semibold text-inverse-on-surface/70">Net · all time</div>
               <div className="text-xs text-inverse-on-surface/50">{stats.count} {stats.count === 1 ? 'invoice' : 'invoices'}</div>
             </div>
-            <Icon name="chevron_right" size={24} className="shrink-0 text-inverse-on-surface/60" />
+            <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
           </Link>
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
               Each opens the list whose total equals its number. */}
           <div className="grid grid-cols-3 gap-2">
-            <Tile href="/summary?period=all#income" value={stats.collected} label="Collected" dot="bg-paid" hint="see income" />
-            <Tile href="/invoices?filter=unpaid" value={stats.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" />
-            <Tile href="/expenses" value={stats.spent} label="Spent" dot="bg-outline" hint="see expenses" />
+            <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
+            <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
+            <Tile key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} />
           </div>
         </>
       )}
@@ -279,20 +335,26 @@ export default function Dashboard() {
   );
 }
 
-function Tile({ href, value, label, dot, hint }: {
+function Tile({ href, value, label, dot, hint, intro = false, order = 0, flash = false }: {
   href: string; value: number; label: string; dot: string; hint: string;
+  intro?: boolean; order?: number; flash?: boolean;
 }) {
+  // Entrance (first open per session): tiles rise 70ms apart; each dot pops as
+  // its number lands. `flash` bumps the number once (a new expense); no colour,
+  // per this screen's no-coloured-numbers rule.
   return (
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className="card flex min-h-touch flex-col justify-center gap-1 p-3 transition-transform active:scale-[0.97] active:bg-surface-container"
+      className={`card flex min-h-touch flex-col justify-center gap-1 p-3 transition-transform active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <div className="truncate font-display text-[20px] font-bold leading-tight tracking-tight text-on-background tabular-nums">
+      <div className={`truncate font-display text-[20px] font-bold leading-tight tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
         {tileMoney(value)}
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-on-surface-variant">
-        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
+          style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
         <span className="truncate">{label}</span>
       </div>
     </Link>

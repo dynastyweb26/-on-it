@@ -364,6 +364,57 @@ html[data-splash=""] .onit-splash {
   100% { transform: scaleX(1); opacity: 0; }
 }
 
+/* ---- Failure + retry (MOTION-SPEC.md §7) ---- */
+@keyframes onit-shake {
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+.onit-shake { animation: onit-shake 320ms cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes onit-spin { to { transform: rotate(360deg); } }
+.onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
+
+/* ---- Receipt capture (MOTION-SPEC.md §8) ----
+   Shutter: a full-screen white flash that never blocks touches. Photo: the
+   thumbnail lands from larger, as if the shot shrinks into the expense card. */
+.onit-shutter {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #ffffff;
+  pointer-events: none;
+  animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
+.onit-photo-in { animation: onit-photo-in 460ms var(--ease-emphasized) both; }
+@keyframes onit-photo-in { from { opacity: .4; transform: scale(2.2); } }
+
+/* ---- Books (MOTION-SPEC.md §9) ---- */
+@keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }
+.onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
+
+/* ---- Tabs + selected ring (MOTION-SPEC.md §10) ---- */
+@keyframes onit-from-right { from { opacity: 0; transform: translateX(28px); } }
+@keyframes onit-from-left { from { opacity: 0; transform: translateX(-28px); } }
+.onit-from-right { animation: onit-from-right 280ms var(--ease-standard) both; }
+.onit-from-left { animation: onit-from-left 280ms var(--ease-standard) both; }
+/* The gold selection ring tightens in from a soft halo whenever something
+   becomes selected (the class is added on select, so it plays each time). */
+@keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }
+.chip-selected,
+.ring-gold-selected { animation: onit-ring-in 240ms var(--ease-standard) both; }
+
+/* ---- Mic level rings (MOTION-SPEC.md §11) ---- */
+.onit-mic-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  transform: scale(1);
+  transition: transform 110ms linear, opacity 180ms linear;
+  will-change: transform;
+}
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {

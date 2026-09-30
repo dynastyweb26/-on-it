@@ -339,8 +339,19 @@ to._
 | Revise transition | **Done — verified on preview 2026-09-30** (`765a080`) | The locked card folds out (150ms), then the revision's draft card builds in. `revisingRef` drops repeat taps; reduced motion skips straight to the revision. Safe for 20+ item quotes (only 8 rows animate). |
 | Paid moment (invoice detail) | **Done — verified on preview 2026-09-30** (`a5a358f`, `c0f6928`) | Only when Record payment here brings the balance to zero (`c0f6928`: keyed on amount_paid >= total, not status, so a fully paid draft animates too): a gold sweep crosses the header card, the status chip springs in, the amount bumps, and a 12ms vibrate plays (Android). Loading an already-paid invoice never plays it. |
 | Paid moment on the invoice list (pay-link payments) | **Open** | Needs per-invoice last-seen status. |
-| Batch B | **Open** | Failure/retry, receipt capture, Books count-up, tab pill + selected ring, mic rings. |
 | Converted quote paid in full stays draft | **Done — migration applied 2026-09-30; M3 0/0, privilege check matched** (`0d121ad`, merged `e5a9fda`) | Migration `20260930000002_draft_payment_status` redefines `reconcile_invoice_from_ledger`: a draft invoice (not a quote) that's fully paid goes to `paid` with `paid_at`; partly paid goes to `sent`. On leaving draft it takes the render snapshot from the profile, as Send does; `first_sent_at` is stamped by the existing trigger. Backfilled live drafts that already had payments. Function is now `search_path = ''`; `privilege_check.sql` section M. |
+
+## Motion, batch B — logged 2026-09-30 (`feat/motion-b`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Failure shake + in-place retry spinner | **Built — pending preview verification** (`8e4f597`) | A failed chat message shakes once on live arrival (restored chats never shake, via `restoredMsgIdsRef`); the Retry icon spins while the retry runs; a retry that fails again re-keys the bubble and shakes again. |
+| Receipt capture flash + expense card build-in | **Built — pending preview verification** (`28621ba`) | White shutter flash (`.onit-shutter`, pointer-events none) when `prepareReceipt` returns; the Expense card builds in (`onit-card-enter`) and its thumbnail lands from 2.2× (`onit-photo-in`). No LOGGED chip. |
+| Books count-up, entrance + expense roll | **Built — pending preview verification** (`01790aa`) | First open per session (sessionStorage `onit_books_counted`): Net card and tiles rise, Net counts up (700ms), tiles count left to right, dots pop, chevron nudges. After adding an expense, Spent and Net roll in 400ms and Spent bumps once (no colour). |
+| Gliding tab pill, directional tab entry, selection ring | **Built — pending preview verification** (`e84c4f4`) | `(app)/layout.tsx`: the nav pill is measured per tab and glides (transform + width, 300ms); tab-to-tab content enters 28px from the heading side (280ms), secondary routes excluded. `.chip-selected` / `.ring-gold-selected` animate the ring in (240ms). |
+| Mic rings follow the live input level | **Built — pending preview verification** (`310e73d`) | `MicRings.tsx`: AnalyserNode on the recorder's stream, ~9 updates/sec, transforms written directly. Falls back to the old `.voice-listening` pulse if the AudioContext isn't running within 600ms; reduced motion shows one static ring. |
+| Swipe-follows-finger for tab navigation (MOTION-SPEC §10) | **Open** | Content and pill should follow the finger and snap past 30% width. Not built. |
+| Failure haptic (vibrate on failed message) | **Open** | MOTION-SPEC §7 calls for `navigator.vibrate?.([10, 40, 10])` on failure. Not built. |
 
 ## Follow-up reminders respect due date — logged 2026-09-30 (`fix/followup-due-date`, merged `09a55b0`)
 

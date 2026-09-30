@@ -27,6 +27,7 @@ import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
+import MicRings from '@/components/MicRings';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -351,6 +352,16 @@ export default function Chat() {
   const [messages, setMessages] = useState<Msg[]>([GREETING]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>(null);
+  // Failure + retry motion (MOTION-SPEC §7). Messages that arrived by restore
+  // (reload / history) never shake on mount; a live failure does. retryShake
+  // counts finished retries per message: bumping it re-keys the bubble, so a
+  // retry that fails again shakes again (a success replaces the bubble).
+  const restoredMsgIdsRef = useRef<Set<string>>(new Set());
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryShake, setRetryShake] = useState<Record<string, number>>({});
+  // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
+  // back. Keyed so every capture replays it; 0 = never shown.
+  const [shutterKey, setShutterKey] = useState(0);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -501,6 +512,7 @@ export default function Chat() {
   // the visibilitychange restore. Only ever called with a payload that already
   // passed loadStoredChat's version/TTL/shape checks.
   function applyStoredChat(stored: StoredChat) {
+    stored.messages.forEach((m) => restoredMsgIdsRef.current.add(m.id));
     setMessages(stored.messages);
     setDraft(stored.draft);
     setDraftHistory([]);
@@ -1726,8 +1738,14 @@ export default function Chat() {
   // server-side 23505 read-back guarantees no duplicate invoice on a retry.
   function retry(msg: Msg) {
     if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
-    if (msg.failed.op === 'send') void send(msg.failed.text, 'typed', msg.id);
-    else void finalize(false, msg.id);
+    setRetryingId(msg.id);
+    const run: Promise<unknown> = msg.failed.op === 'send'
+      ? send(msg.failed.text, 'typed', msg.id)
+      : finalize(false, msg.id);
+    void run.finally(() => {
+      setRetryingId(null);
+      setRetryShake((s) => ({ ...s, [msg.id]: (s[msg.id] ?? 0) + 1 }));
+    });
   }
 
   // Payment-alerts offer, shown once after a completed invoice send (never on
@@ -1791,6 +1809,7 @@ export default function Chat() {
       try {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
+        setShutterKey((k) => k + 1);
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
         setMessages((m) => [...m, aMsg(err instanceof ReceiptError
@@ -2081,6 +2100,7 @@ export default function Chat() {
         cardAfterId,
       });
     }
+    entry.messages.forEach((m) => restoredMsgIdsRef.current.add(m.id));
     setMessages(entry.messages);
     setCardAfterId(entry.cardAfterId ?? null);
     setPendingChange(null);
@@ -2487,6 +2507,7 @@ export default function Chat() {
 
   return (
     <div className="flex h-full flex-col">
+      {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
           page, whose bounce would then grab the next gesture. Scoped here —
@@ -2503,16 +2524,20 @@ export default function Chat() {
             // beneath it. Same icon-button styling as the receipt buttons.
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-1">
-                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                <div
+                  key={`${m.id}-${retryShake[m.id] ?? 0}`}
+                  className={`whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md${
+                    (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
+                >
                   {m.content}
                 </div>
                 <button
-                  aria-label="Retry"
+                  aria-label={retryingId === m.id ? 'Retrying' : 'Retry'}
                   className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
                   disabled={phase !== null}
                   onClick={() => retry(m)}
                 >
-                  <Icon name="refresh" size={20} />
+                  <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
                 </button>
               </div>
             </div>
@@ -2571,6 +2596,8 @@ export default function Chat() {
         )}
 
         {expenseDraft && (
+          // Only ever set live (never restored), so the build-in plays once per capture.
+          <div className="onit-card-enter">
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
@@ -2583,6 +2610,7 @@ export default function Chat() {
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}
           />
+          </div>
         )}
 
         {reminderPrompt?.kind === 'ask' && (
@@ -2684,17 +2712,21 @@ export default function Chat() {
             className="hidden"
             onChange={onPickReceipt}
           />
+          {/* Level rings sit behind the button while recording (MOTION-SPEC §11). */}
+          <div className="relative shrink-0">
+          <MicRings stream={streamRef.current} active={recording} />
           <button
             aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
             // The splash's white rings fly onto this button on a cold start
             // (components/Splash.tsx measures it at runtime).
             data-splash-target=""
-            className={`grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40 ${recording ? 'voice-listening' : ''}`}
+            className="relative grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
             disabled={phase !== null}
             onClick={micTap}
           >
             <Icon name="mic" size={32} filled />
           </button>
+          </div>
           <textarea
             className="input max-h-32 flex-1 resize-none py-3.5"
             placeholder="Or type it…"

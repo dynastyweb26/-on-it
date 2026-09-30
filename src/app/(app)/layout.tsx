@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import TutorialReference from '@/components/tutorial/TutorialReference';
@@ -58,9 +58,47 @@ function swipeBlockedAt(target: EventTarget | null): boolean {
   return false;
 }
 
+// Layout effect in the browser (before paint, so tab motion never flashes the
+// resting frame); plain effect during SSR, where React 18 warns on it.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
+  // Tab motion (MOTION-SPEC §10). Moving between two tabs slides the new screen
+  // in from the side you're heading (class cleared after it plays), and the gold
+  // pill glides to the new tab instead of jumping. Secondary routes (index -1)
+  // get neither. Reduced motion: the global rule stops both.
+  const tabIdx = tabIndexOf(path);
+  const prevTabRef = useRef(tabIdx);
+  const [enterDir, setEnterDir] = useState<'onit-from-right' | 'onit-from-left' | null>(null);
+  useIsoLayoutEffect(() => {
+    const prev = prevTabRef.current;
+    prevTabRef.current = tabIdx;
+    if (prev === -1 || tabIdx === -1 || prev === tabIdx) return;
+    setEnterDir(tabIdx > prev ? 'onit-from-right' : 'onit-from-left');
+    const t = setTimeout(() => setEnterDir(null), 320);
+    return () => clearTimeout(t);
+  }, [tabIdx]);
+  const navRef = useRef<HTMLElement>(null);
+  const tabLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const [pill, setPill] = useState<{ x: number; y: number; w: number; h: number; animate: boolean } | null>(null);
+  useIsoLayoutEffect(() => {
+    function measure(animate: boolean) {
+      const nav = navRef.current;
+      const el = tabIdx >= 0 ? tabLinkRefs.current[tabIdx] : null;
+      if (!nav || !el) { setPill(null); return; }
+      const n = nav.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      setPill((p) => ({ x: r.left - n.left, y: r.top - n.top, w: r.width, h: r.height, animate: animate && p !== null }));
+    }
+    measure(true);
+    const onResize = () => measure(false);
+    window.addEventListener('resize', onResize);
+    // Tab widths follow the label font; re-place once it has loaded.
+    void document.fonts?.ready.then(() => measure(false));
+    return () => window.removeEventListener('resize', onResize);
+  }, [tabIdx]);
   // Instagram-style horizontal swipe between tabs. Touch only, one finger,
   // decided once on touchend; vertical scrolling always wins once the gesture
   // turns more vertical than horizontal. `from` is the tab the gesture STARTED
@@ -216,7 +254,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           scroller: nested scroll containers let iOS hand a gesture to the
           wrong one (the reversal "freeze"). Every other tab scrolls main. */}
       <main
-        className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}
+        className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -228,13 +266,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           cover the tab bar or the chat input. Self-hides when installed/dismissed
           or when install isn't possible on this device. */}
       <InstallBanner />
-      <nav className="glass-nav flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
-        {TABS.map(({ href, label, icon }) => {
+      <nav ref={navRef} className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
+        {/* The gliding gold pill; until it has measured, the active tab paints its own. */}
+        {pill && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-0 top-0 rounded-full bg-primary-container"
+            style={{
+              width: pill.w,
+              height: pill.h,
+              transform: `translate(${pill.x}px, ${pill.y}px)`,
+              transition: pill.animate ? 'transform 300ms var(--ease-emphasized), width 300ms var(--ease-emphasized)' : 'none',
+            }}
+          />
+        )}
+        {TABS.map(({ href, label, icon }, i) => {
           const active = path.startsWith(href);
           return (
-            <Link key={href} href={href}
-              className={`my-1.5 flex min-h-touch flex-col items-center justify-center gap-0.5 rounded-full px-4 text-[12px] font-semibold tracking-wide transition-all active:scale-90
-                ${active ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}>
+            <Link key={href} href={href} ref={(el) => { tabLinkRefs.current[i] = el; }}
+              className={`relative my-1.5 flex min-h-touch flex-col items-center justify-center gap-0.5 rounded-full px-4 text-[12px] font-semibold tracking-wide transition-all active:scale-90
+                ${active ? `${pill ? '' : 'bg-primary-container '}text-on-primary-container` : 'text-on-surface-variant'}`}>
               <Icon name={icon} size={24} filled={active} />
               {label}
             </Link>
