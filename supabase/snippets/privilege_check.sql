@@ -158,3 +158,26 @@ select c.relname, c.relrowsecurity,
     where p.schemaname = 'public' and p.tablename = c.relname) as policies
 from pg_class c
 where c.oid = 'public.notification_log'::regclass;
+
+-- ═══ reconcile_invoice_from_ledger (draft payment status — 20260930000002) ═══
+
+-- M1. Internal helper: no client role can call it (expect every can_execute
+--     false).
+select ro.r as role,
+  has_function_privilege(ro.r, 'public.reconcile_invoice_from_ledger(uuid)', 'execute') as can_execute
+from (values ('public'), ('anon'), ('authenticated')) ro(r);
+
+-- M2. SECURITY DEFINER with an empty search_path (expect prosecdef true,
+--     proconfig {search_path=""}).
+select proname, prosecdef, proconfig
+from pg_proc
+where proname = 'reconcile_invoice_from_ledger'
+  and pronamespace = 'public'::regnamespace;
+
+-- M3. No live draft invoice holds payments, and no 'paid' invoice is
+--     underpaid. Expect 0 / 0.
+select
+  count(*) filter (where status = 'draft' and kind = 'invoice' and deleted_at is null
+                     and amount_paid > 0)                         as paid_drafts_left,
+  count(*) filter (where status = 'paid' and amount_paid < total) as paid_but_underpaid
+from public.invoices;
