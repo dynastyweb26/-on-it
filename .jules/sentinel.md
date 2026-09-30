@@ -1,3 +1,8 @@
+## 2026-09-30 - Tag Sanitization Regex Bypass via Whitespace and Special Tags
+**Vulnerability:** Prompt injection breakout in `sanitizeForAI()` using tags with leading/internal whitespace (e.g. `</ user_input>`), comments (`<!--...-->`), or CDATA (`<![CDATA[...]]>`).
+**Learning:** Standard tag-stripping regexes like `/<\/?[a-z_:-][^>]*>/gi` require the character immediately after `<` or `</` to be alphanumeric, ignoring leading whitespace or punctuation like `!` or `?`, which XML/LLM parsers may still treat as closing tags or prompt instructions.
+**Prevention:** Include optional whitespace and special prefix characters (`[a-z_!?:-]`) when stripping tag sequences from LLM user inputs (`/<\s*\/?\s*[a-z_!?:-][^>]*>/gi`).
+
 ## 2026-09-19 - Client-Supplied Conversation History In LLM APIs
 **Vulnerability:** Untrusted client payloads sent to `/api/parse` could contain `assistant` role messages in `history` that bypassed `sanitizeForAI()`.
 **Learning:** Developers often assume only `user` messages contain untrusted input because `assistant` messages originate from the model in normal UI flows. However, when the client transmits the entire conversation history in an API request, all message roles in the payload are client-controlled and untrusted.
