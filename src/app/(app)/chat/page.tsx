@@ -358,6 +358,9 @@ export default function Chat() {
   const restoredMsgIdsRef = useRef<Set<string>>(new Set());
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryShake, setRetryShake] = useState<Record<string, number>>({});
+  // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
+  // back. Keyed so every capture replays it; 0 = never shown.
+  const [shutterKey, setShutterKey] = useState(0);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -1805,6 +1808,7 @@ export default function Chat() {
       try {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
+        setShutterKey((k) => k + 1);
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
         setMessages((m) => [...m, aMsg(err instanceof ReceiptError
@@ -2502,6 +2506,7 @@ export default function Chat() {
 
   return (
     <div className="flex h-full flex-col">
+      {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
           page, whose bounce would then grab the next gesture. Scoped here —
@@ -2590,6 +2595,8 @@ export default function Chat() {
         )}
 
         {expenseDraft && (
+          // Only ever set live (never restored), so the build-in plays once per capture.
+          <div className="onit-card-enter">
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
@@ -2602,6 +2609,7 @@ export default function Chat() {
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}
           />
+          </div>
         )}
 
         {reminderPrompt?.kind === 'ask' && (
