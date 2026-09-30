@@ -295,6 +295,34 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-splash-tile-in { from { opacity: 0; } }
 @keyframes onit-splash-tile-grow { from { transform: scale(0.9); } }
 
+/* ---- Motion system (MOTION-SPEC.md §1) ----
+   Transform + opacity only. Every class here is one-shot (fill-mode both) and
+   is removed by the component after it plays, so a re-render or remount never
+   replays it. The global reduced-motion rule below turns all of it off; the
+   end state of every animation is the normal, static layout. */
+:root {
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 400ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(.65, 0, .35, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* success moments only */
+}
+@keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
+@keyframes onit-fade { from { opacity: 0; } }
+@keyframes onit-pop { from { transform: scale(0); } }
+@keyframes onit-chip-in { from { opacity: 0; transform: scale(.7); } }
+@keyframes onit-card-in { from { opacity: 0; transform: translateY(16px) scale(.98); } }
+@keyframes onit-card-out { to { opacity: 0; transform: scale(.98); } }
+@keyframes onit-bump { 40% { transform: scale(1.06); } }
+
+.onit-rise { animation: onit-rise var(--motion-base) var(--ease-standard) both; }
+.onit-fade-in { animation: onit-fade var(--motion-base) var(--ease-standard) both; }
+.onit-chip-in { animation: onit-chip-in 280ms var(--ease-spring) both; }
+.onit-pop { animation: onit-pop 360ms var(--ease-spring) both; }
+.onit-bump { animation: onit-bump 360ms var(--ease-standard) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .animate-skeleton-shimmer {
     animation: none !important;
