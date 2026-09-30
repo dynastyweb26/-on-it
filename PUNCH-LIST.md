@@ -341,3 +341,10 @@ to._
 | Paid moment on the invoice list (pay-link payments) | **Open** | Needs per-invoice last-seen status. |
 | Batch B | **Open** | Failure/retry, receipt capture, Books count-up, tab pill + selected ring, mic rings. |
 | Converted quote paid in full stays draft | **Open** | Converted invoices insert as draft and `reconcile_invoice_from_ledger` (`20260918000003_paid_status_from_ledger.sql`) only flips sent/overdue to paid. |
+
+## Follow-up reminders respect due date — logged 2026-09-30 (`fix/followup-due-date`, merged `09a55b0`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Reminder cron skips invoices not yet due | **Done — verified on preview 2026-09-30** (`8dc6059`) | `/api/followups` adds `due_date is null or due_date <= today (UTC)`. Before, it keyed only on status + first_sent_at, so a deposit-paid invoice due next month got a "hasn't paid yet" push every 2 days from send. No due date keeps the every-2-days behavior. Verified read-only in the SQL Editor against the cron's filters: 8 past-due rows still nag, 8 future-due rows are skipped. |
+| Owner-timezone "today" | **Open** | Uses the UTC date (exact for US owners at the 15:00 UTC cron). Switch to `profiles.timezone` once the push phase 2 migration (`feat/push-phase-2`, `102b088`) is applied. |
