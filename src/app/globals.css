@@ -295,6 +295,94 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-splash-tile-in { from { opacity: 0; } }
 @keyframes onit-splash-tile-grow { from { transform: scale(0.9); } }
 
+/* ---- Motion system (MOTION-SPEC.md §1) ----
+   Transform + opacity only. Every class here is one-shot (fill-mode both) and
+   is removed by the component after it plays, so a re-render or remount never
+   replays it. The global reduced-motion rule below turns all of it off; the
+   end state of every animation is the normal, static layout. */
+:root {
+  --motion-fast: 160ms;
+  --motion-base: 240ms;
+  --motion-slow: 400ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(.65, 0, .35, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* success moments only */
+}
+@keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
+@keyframes onit-fade { from { opacity: 0; } }
+@keyframes onit-pop { from { transform: scale(0); } }
+@keyframes onit-chip-in { from { opacity: 0; transform: scale(.7); } }
+@keyframes onit-card-in { from { opacity: 0; transform: translateY(16px) scale(.98); } }
+@keyframes onit-card-out { to { opacity: 0; transform: scale(.98); } }
+@keyframes onit-bump { 40% { transform: scale(1.06); } }
+
+.onit-rise { animation: onit-rise var(--motion-base) var(--ease-standard) both; }
+.onit-fade-in { animation: onit-fade var(--motion-base) var(--ease-standard) both; }
+.onit-chip-in { animation: onit-chip-in 280ms var(--ease-spring) both; }
+.onit-pop { animation: onit-pop 360ms var(--ease-spring) both; }
+.onit-bump { animation: onit-bump 360ms var(--ease-standard) both; }
+
+/* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
+.onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
+.onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
+/* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the
+   card and skip rendering until scrolled to, so a 20+ item card stays smooth. */
+.onit-card-enter .onit-li-rows > * { animation: onit-rise-sm var(--motion-base) var(--ease-standard) both; }
+.onit-card-enter .onit-li-rows > :nth-child(1) { animation-delay: 180ms; }
+.onit-card-enter .onit-li-rows > :nth-child(2) { animation-delay: 250ms; }
+.onit-card-enter .onit-li-rows > :nth-child(3) { animation-delay: 320ms; }
+.onit-card-enter .onit-li-rows > :nth-child(4) { animation-delay: 390ms; }
+.onit-card-enter .onit-li-rows > :nth-child(5) { animation-delay: 460ms; }
+.onit-card-enter .onit-li-rows > :nth-child(6) { animation-delay: 530ms; }
+.onit-card-enter .onit-li-rows > :nth-child(7) { animation-delay: 600ms; }
+.onit-card-enter .onit-li-rows > :nth-child(8) { animation-delay: 670ms; }
+.onit-card-enter .onit-li-rows > :nth-child(n + 9) {
+  animation: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
+/* Lock on send (§4): the padlock drops in and settles after the chip. */
+@keyframes onit-lock-drop { from { transform: translateY(-6px) rotate(-18deg); } }
+.onit-lock-drop { display: inline-block; animation: onit-lock-drop 360ms var(--ease-spring) 80ms both; }
+
+/* ---- Sent -> Paid (MOTION-SPEC.md §6) ----
+   A translucent gold wipe crosses the invoice header left to right, then
+   dissolves. Sits under pointer events; the card must be relative + clipped. */
+.onit-paid-sweep {
+  position: absolute;
+  inset: 0;
+  background: #d4af37;
+  transform-origin: left center;
+  pointer-events: none;
+  animation: onit-paid-sweep 900ms var(--ease-emphasized) both;
+}
+@keyframes onit-paid-sweep {
+  0% { transform: scaleX(0); opacity: .3; }
+  45% { transform: scaleX(1); opacity: .3; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+/* ---- On It spinner (MOTION-SPEC.md §2) ---- */
+.onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
+.onit-spinner-arm {
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  -webkit-mask: var(--arm) center / contain no-repeat;
+  mask: var(--arm) center / contain no-repeat;
+  animation: onit-spinner-orbit 1800ms infinite;
+}
+.onit-spinner-a { --arm: url('/icons/onit-spinner-arm-a.svg'); animation-timing-function: cubic-bezier(.7, 0, .4, 1); }
+.onit-spinner-b { --arm: url('/icons/onit-spinner-arm-b.svg'); animation-timing-function: cubic-bezier(.35, 0, .5, 1); }
+@keyframes onit-spinner-orbit {
+  /* Two eased half-turns: the arms separate mid-half and re-lock at 180/360. */
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-skeleton-shimmer {
     animation: none !important;

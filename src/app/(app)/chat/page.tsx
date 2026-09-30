@@ -25,6 +25,8 @@ import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import OnItSpinner from '@/components/OnItSpinner';
+import CountUpMoney from '@/components/CountUpMoney';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -352,6 +354,18 @@ export default function Chat() {
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
+  // One-shot card animation (MOTION-SPEC §3-5). Set only by LIVE events (a card
+  // appearing from a parse, a send locking it, Revise); restores never set it,
+  // so a reopened card never replays. Cleared by a timer once it has played, so
+  // a later remount (the card moving under a new reply) doesn't replay either.
+  const [cardAnim, setCardAnim] = useState<null | 'enter' | 'lock' | 'exit'>(null);
+  const cardAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function playCardAnim(kind: 'enter' | 'lock' | 'exit', ms: number) {
+    if (cardAnimTimerRef.current) clearTimeout(cardAnimTimerRef.current);
+    setCardAnim(kind);
+    cardAnimTimerRef.current = setTimeout(() => setCardAnim(null), ms);
+  }
+  useEffect(() => () => { if (cardAnimTimerRef.current) clearTimeout(cardAnimTimerRef.current); }, []);
   // Where the invoice/quote card sits in the transcript: right after this
   // message. Moved to the reply that last CHANGED the draft (or seeded the
   // card); card-only edits, finalize and later chat don't move it, so newer
@@ -975,6 +989,8 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
+        // The card is appearing now (not an edit to one already up): build it in.
+        if (isReady && !(ready && draft)) playCardAnim('enter', 1800);
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
@@ -1177,6 +1193,7 @@ export default function Chat() {
     setLinkedStatus('sent');        // locks the card; enables Revise (unpaid)
     setLinkedAmountPaid(0);
     setRenderData(null);
+    playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
     // finished=true keeps this conversation from being re-archived as a draft by
     // a later new-chat / history-open. It is NOT cleared from storage: because
     // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
@@ -2200,6 +2217,7 @@ export default function Chat() {
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
+    playCardAnim('enter', 1800);
     setCardAfterId(GREETING.id);
     setDuplicateHint(false);
     setPendingChange(null);
@@ -2215,7 +2233,24 @@ export default function Chat() {
   // deliberately do NOT re-archive the current conversation: the original is
   // already a real sent invoice (and, if reached via history, already has its
   // finalized entry, which pushHistory would otherwise overwrite by id).
+  // Revise transition (MOTION-SPEC §5): the locked card folds out (150ms), then
+  // the new conversation's draft card builds in like any fresh card. The ref
+  // drops repeat taps for the whole transition; a 20+ item draft is safe
+  // because the build-in only animates the first 8 rows.
+  const revisingRef = useRef(false);
   function reviseInvoice() {
+    if (!draft || revisingRef.current) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { startRevision(); return; }
+    revisingRef.current = true;
+    playCardAnim('exit', 400);
+    setTimeout(() => {
+      revisingRef.current = false;
+      startRevision();
+      playCardAnim('enter', 1800);
+    }, 150);
+  }
+  function startRevision() {
     if (!draft) return;
     const kind = docKind(draft);
     const originalNo = pendingInvoiceRef.current?.no ?? null;
@@ -2258,15 +2293,15 @@ export default function Chat() {
     : messages[messages.length - 1]?.id ?? null;
   const invoiceCard = ready && draft ? (
     // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
-    <div data-no-tab-swipe="true" className="card border-primary-container/50 ring-1 ring-primary-container/30">
+    <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
         <Icon name="description" size={18} />
         {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
       </div>
       {locked && (
         // Read-only: the linked invoice has left 'draft' (sent/paid).
-        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant">
-          <Icon name="lock" size={16} filled />
+        <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
+          <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
           {lockBadgeText(linkedStatus, linkedAmountPaid)}
         </div>
       )}
@@ -2367,8 +2402,13 @@ export default function Chat() {
           <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
             {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
           </span>
-          <span className="font-display text-numeric-xl tracking-tight text-on-background">
-            {money(previewTotals.amountDueNow)}
+          <span className="font-display text-numeric-xl tracking-tight text-on-background tabular-nums">
+            <CountUpMoney
+              value={previewTotals.amountDueNow}
+              run={cardAnim === 'enter'}
+              format={money}
+              delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
+            />
           </span>
         </div>
       </div>
@@ -2377,7 +2417,10 @@ export default function Chat() {
         // unpaid invoice offers "Revise" (opens an editable copy as a new
         // invoice — Commit C); once any payment has landed it stays fully
         // locked (a revision would be a credit/refund — see PUNCH-LIST).
-        <div className="mt-3 border-t border-outline-variant/30 pt-3">
+        <div
+          className={`mt-3 border-t border-outline-variant/30 pt-3${cardAnim === 'lock' ? ' onit-fade-in' : ''}`}
+          style={cardAnim === 'lock' ? { animationDelay: '400ms' } : undefined}
+        >
           {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
             <>
               <p className="text-center text-sm text-on-surface-variant">
@@ -2403,7 +2446,12 @@ export default function Chat() {
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
-          <button className="btn-primary mt-3 w-full" disabled={phase !== null || !isValidTotal || !sendReady} onClick={() => finalize()}>
+          <button
+            className={`btn-primary mt-3 w-full${cardAnim === 'enter' ? ' onit-fade-in' : ''}`}
+            style={cardAnim === 'enter' ? { animationDelay: `${180 + Math.min(previewItems.length, 8) * 70 + 660}ms` } : undefined}
+            disabled={phase !== null || !isValidTotal || !sendReady}
+            onClick={() => finalize()}
+          >
             <Icon name="attach_file" size={18} />
             {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
           </button>
@@ -2562,7 +2610,8 @@ export default function Chat() {
 
         {(phase === 'thinking' || phase === 'reading') && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
-            <Icon name={phase === 'reading' ? 'receipt_long' : 'graphic_eq'} size={20} className="text-primary" />
+            {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
+            <OnItSpinner size={20} />
             {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
           </div>
         )}
