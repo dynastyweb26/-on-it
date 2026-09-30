@@ -359,3 +359,13 @@ to._
 |---|---|---|
 | Reminder cron skips invoices not yet due | **Done — verified on preview 2026-09-30** (`8dc6059`) | `/api/followups` adds `due_date is null or due_date <= today (UTC)`. Before, it keyed only on status + first_sent_at, so a deposit-paid invoice due next month got a "hasn't paid yet" push every 2 days from send. No due date keeps the every-2-days behavior. Verified read-only in the SQL Editor against the cron's filters: 8 past-due rows still nag, 8 future-due rows are skipped. |
 | Owner-timezone "today" | **Open** | Uses the UTC date (exact for US owners at the 15:00 UTC cron). Switch to `profiles.timezone` once the push phase 2 migration (`feat/push-phase-2`, `102b088`) is applied. |
+
+## Push notifications, phase 2 — logged 2026-09-30 (`feat/push-phase-2`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Migrations `20260930000003_invoice_viewed`, `20260930000004_draft_nudges` | **Built — apply not yet confirmed** (`ae750c9`) | 000003: `invoices.viewed_at`, service-role `mark_invoice_viewed` (first qualifying view only; skips the owner and views within 2 min of `coalesce(sent_at, first_sent_at)`), `notification_log` accepts `invoice_viewed`. 000004: `profiles.timezone` + `notify_draft_nudges` (safe columns, column-level UPDATE), accepts `draft_unsent`, partial index `invoices_unsent_drafts_idx` (draft, `kind = 'invoice'`, not deleted, never sent). Verify with `privilege_check.sql` B + L1–L4. |
+| Viewed push: `POST /api/pay/[token]/viewed` + pay-page call | **Open** | Pay page fires it from its own code after load (never on GET). Route calls `mark_invoice_viewed` with the signed-in viewer's id, then `notify(owner, invoice_viewed)`, dedupe `viewed:<invoice_id>`. |
+| Draft-nudge route `/api/draft-nudges` + cron in `vercel.json` | **Open** | Query must filter `kind = 'invoice'` (the index alone doesn't enforce it) and only drafts updated in the last 14 days (`updated_at >= now() - 14 days`), so old or duplicate drafts never nudge. Re-check status at send time. Quiet hours 21:00–08:00 in `profiles.timezone` (null → no nudge), respect `notify_draft_nudges`, one per user per 20h, dedupe `draft:<invoice_id>`. |
+| `lib/notify` event types | **Open** | Add `invoice_viewed` and `draft_unsent` to `NotifyEvent`, `render.ts` and `OPTIONS`. `dedupeKey` is a two-way ternary; make it a switch, or new events fall through to the `connect:` key format. |
+| Settings toggle + timezone capture | **Open** | "Remind me about unsent drafts" writes `notify_draft_nudges`; the browser's `Intl.DateTimeFormat().resolvedOptions().timeZone` writes `profiles.timezone`. Optional: show "Viewed" on invoice detail/list. |
