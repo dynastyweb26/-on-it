@@ -390,6 +390,10 @@ html[data-splash=""] .onit-splash {
 .onit-photo-in { animation: onit-photo-in 460ms var(--ease-emphasized) both; }
 @keyframes onit-photo-in { from { opacity: .4; transform: scale(2.2); } }
 
+/* ---- Books (MOTION-SPEC.md §9) ---- */
+@keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }
+.onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {
