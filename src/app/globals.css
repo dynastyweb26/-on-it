@@ -347,6 +347,23 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-lock-drop { from { transform: translateY(-6px) rotate(-18deg); } }
 .onit-lock-drop { display: inline-block; animation: onit-lock-drop 360ms var(--ease-spring) 80ms both; }
 
+/* ---- Sent -> Paid (MOTION-SPEC.md §6) ----
+   A translucent gold wipe crosses the invoice header left to right, then
+   dissolves. Sits under pointer events; the card must be relative + clipped. */
+.onit-paid-sweep {
+  position: absolute;
+  inset: 0;
+  background: #d4af37;
+  transform-origin: left center;
+  pointer-events: none;
+  animation: onit-paid-sweep 900ms var(--ease-emphasized) both;
+}
+@keyframes onit-paid-sweep {
+  0% { transform: scaleX(0); opacity: .3; }
+  45% { transform: scaleX(1); opacity: .3; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {

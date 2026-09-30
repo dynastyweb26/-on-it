@@ -108,6 +108,18 @@ export default function InvoiceDetail() {
   const [payAmount, setPayAmount] = useState('');
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
+  // One-shot "paid" moment (MOTION-SPEC §6): only when a payment recorded here
+  // moves the invoice to paid. Loading an already-paid invoice never plays it.
+  const [paidAnim, setPaidAnim] = useState(false);
+  const paidAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current); }, []);
+  function celebratePaid() {
+    if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current);
+    setPaidAnim(true);
+    paidAnimTimerRef.current = setTimeout(() => setPaidAnim(false), 1000);
+    // Short tick as it lands (Android; iOS ignores vibrate).
+    try { navigator.vibrate?.(12); } catch { /* unsupported */ }
+  }
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
@@ -319,8 +331,12 @@ export default function InvoiceDetail() {
       console.error('record payment failed', error);
       return;
     }
+    const wasPaid = inv?.status === 'paid';
     const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
-    if (updated) setInv(updated);
+    if (updated) {
+      setInv(updated);
+      if (!wasPaid && updated.status === 'paid') celebratePaid();
+    }
     setPayMode('none');
     setPayAmount('');
     void fetchPayments();
@@ -574,16 +590,22 @@ export default function InvoiceDetail() {
 
   return (
     <div className="px-4 py-4">
-      <div className="card mb-4">
+      <div className="card relative mb-4 overflow-hidden">
+        {paidAnim && <div aria-hidden className="onit-paid-sweep" />}
         <div className="flex items-center justify-between">
           <div>
             <div className="font-display text-lg font-bold">{inv.client_name}</div>
             <div className="text-xs text-on-surface-variant">
-              {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} · {inv.status}
+              {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} ·{' '}
+              <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-chip-in' : ''}`}
+                style={paidAnim ? { animationDelay: '380ms' } : undefined}>
+                {inv.status}
+              </span>
             </div>
           </div>
           <div className="text-right">
-            <div className="font-display text-xl font-bold text-primary">{money(totals.dueNow)}</div>
+            <div className={`font-display text-xl font-bold text-primary${paidAnim ? ' onit-bump' : ''}`}
+              style={paidAnim ? { animationDelay: '380ms', transformOrigin: 'right center' } : undefined}>{money(totals.dueNow)}</div>
             {/* The headline is what's due right now (a deposit, or the balance
                 after payments). Show the full project total beneath it so it's
                 never hidden — but only when it differs, so a plain unpaid
