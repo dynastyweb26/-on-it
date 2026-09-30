@@ -62,6 +62,22 @@ function swipeBlockedAt(target: EventTarget | null): boolean {
 // resting frame); plain effect during SSR, where React 18 warns on it.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
+// Save this device's IANA timezone (e.g. America/Chicago) on the profile, so
+// server jobs can reason in the owner's local time: draft-nudge quiet hours and
+// the reminder cron's "today". Only writes when it changed (travel, a new
+// phone). Same shape as the profiles_timezone_chk constraint, so a value the DB
+// would reject is never sent. timezone is a safe column (column-level UPDATE,
+// 20260930000004). Best-effort: a failure changes nothing.
+const TZ_RE = /^[A-Za-z0-9_+/-]{1,64}$/;
+async function syncTimezone(supabase: ReturnType<typeof createClient>, userId: string) {
+  let tz: string | undefined;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return; }
+  if (!tz || !TZ_RE.test(tz)) return;
+  const { data } = await supabase.from('profiles').select('timezone').eq('id', userId).maybeSingle();
+  if (!data || data.timezone === tz) return; // not onboarded yet, or unchanged
+  await supabase.from('profiles').update({ timezone: tz }).eq('id', userId);
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
@@ -137,6 +153,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return; // guest — nothing to auto-show against
       setUserId(user.id);
+      void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
       if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
       const { data: profile } = await supabase
         .from('profiles').select('id').eq('id', user.id).maybeSingle();
