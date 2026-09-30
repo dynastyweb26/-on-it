@@ -881,6 +881,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 ['Needs a detail', { type: 'connect_problem', problem: 'details_needed' }],
                 ['Payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
                 ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
+                ['Invoice opened', { type: 'viewed' }],
+                ['Draft reminder', { type: 'draft' }],
               ] as const).map(([label, body]) => (
                 <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
               ))}

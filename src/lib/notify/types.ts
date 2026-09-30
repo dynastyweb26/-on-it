@@ -26,6 +26,19 @@ export type NotifyEvent =
       type: 'connect_problem';
       problem: ConnectProblem;
       sourceEventId: string;      // Stripe event / notification id (audit)
+    }
+  | {
+      type: 'invoice_viewed';     // first qualifying client view (mark_invoice_viewed)
+      invoiceId: string;          // the dedupe identity: one push per invoice, ever
+      invoiceNumber: number;
+      clientName: string;
+    }
+  | {
+      type: 'draft_unsent';       // an invoice draft that was never sent
+      invoiceId: string;          // the dedupe identity: one nudge per draft, ever
+      invoiceNumber: number;
+      clientName: string;
+      total: number;
     };
 
 export type NotifyEventType = NotifyEvent['type'];

@@ -21,15 +21,23 @@ export type { NotifyEvent, ConnectProblem, PaymentMethod } from './types';
 const OPTIONS: Record<NotifyEvent['type'], SendOptions> = {
   payment_received: { ttl: 24 * 3600, urgency: 'high' },
   connect_problem: { ttl: 72 * 3600, urgency: 'normal' },
+  // A view is only news for a few hours; a stale one arriving tomorrow isn't.
+  invoice_viewed: { ttl: 6 * 3600, urgency: 'normal' },
+  draft_unsent: { ttl: 12 * 3600, urgency: 'low' },
 };
 
 /** The dedupe identity of an event. A payment is its ledger row; an account
  *  problem is the user + problem + the Stripe event that revealed it (the
- *  atomic flag flip in lib/stripe/connect.ts already guarantees one winner). */
+ *  atomic flag flip in lib/stripe/connect.ts already guarantees one winner); a
+ *  view and a draft nudge are one per invoice, ever. Exhaustive: a new event
+ *  type fails to compile here instead of borrowing another type's key. */
 export function dedupeKey(userId: string, event: NotifyEvent): string {
-  return event.type === 'payment_received'
-    ? `payment:${event.paymentId}`
-    : `connect:${userId}:${event.problem}:${event.sourceEventId}`;
+  switch (event.type) {
+    case 'payment_received': return `payment:${event.paymentId}`;
+    case 'connect_problem': return `connect:${userId}:${event.problem}:${event.sourceEventId}`;
+    case 'invoice_viewed': return `viewed:${event.invoiceId}`;
+    case 'draft_unsent': return `draft:${event.invoiceId}`;
+  }
 }
 
 /** Returns the number of devices that accepted it (0 if deduped or none). */
