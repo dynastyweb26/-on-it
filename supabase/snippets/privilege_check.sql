@@ -34,6 +34,9 @@ from (values ('anon'), ('authenticated')) r(role);
 --         brand_colors, background_color, invoice_template)
 --    A new column that's on neither list shows as privileged = false with
 --    can_update false — decide which list it belongs on.
+--    Safe (user preference) columns added by 20260930000004 — expect
+--    privileged false, can_update true, can_insert false:
+--      timezone, notify_draft_nudges
 select c.column_name,
   c.column_name in ('access_tier','subscription_status','stripe_customer_id',
     'current_period_end','trial_ends_at','trial_reminder_sent_at','role',
@@ -158,6 +161,42 @@ select c.relname, c.relrowsecurity,
     where p.schemaname = 'public' and p.tablename = c.relname) as policies
 from pg_class c
 where c.oid = 'public.notification_log'::regclass;
+
+-- ═══ Push phase 2 (invoice viewed + draft nudges — 20260930000003/000004) ═══
+
+-- L1. mark_invoice_viewed is service_role only. Expect can_execute false for
+--     both rows. It returns the invoice owner's id, so it must never be
+--     callable by anon/authenticated.
+select ro.r as role,
+  has_function_privilege(ro.r, 'public.mark_invoice_viewed(text, uuid)', 'execute') as can_execute
+from (values ('anon'), ('authenticated')) ro(r);
+
+-- L2. SECURITY DEFINER with an empty search_path. Expect prosecdef true,
+--     proconfig {search_path=""}, and result
+--     "TABLE(invoice_id uuid, user_id uuid, invoice_number integer, client_name text)".
+select proname, prosecdef, proconfig, pg_get_function_result(oid) as result
+from pg_proc
+where proname = 'mark_invoice_viewed' and pronamespace = 'public'::regnamespace;
+
+-- L3. The new columns exist with the right types. Expect exactly three rows:
+--       invoices  viewed_at            timestamp with time zone  YES
+--       profiles  notify_draft_nudges  boolean                   NO
+--       profiles  timezone             text                      YES
+select table_name, column_name, data_type, is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and ((table_name = 'invoices' and column_name = 'viewed_at')
+    or (table_name = 'profiles' and column_name in ('timezone', 'notify_draft_nudges')))
+order by table_name, column_name;
+
+-- L4. notification_log accepts the new event types. Expect the check to list
+--     payment_received, connect_problem, invoice_viewed, draft_unsent, test.
+--     (K above must still show notification_log with no anon/authenticated
+--     privileges, and 0 policies.)
+select conname, pg_get_constraintdef(oid)
+from pg_constraint
+where conrelid = 'public.notification_log'::regclass
+  and conname = 'notification_log_type_chk';
 
 -- ═══ reconcile_invoice_from_ledger (draft payment status — 20260930000002) ═══
 
