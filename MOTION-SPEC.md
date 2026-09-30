@@ -135,5 +135,5 @@ Batch B (preview, test on phone, merge):
 ## Status
 
 - Batch A (items 1–6): merged to `main` 2026-09-30, verified on preview.
-- Batch B (items 7–11): built on `feat/motion-b`, pending preview verification.
+- Batch B (items 7–11): merged to `main` 2026-09-30 (`fa6866e`), verified on preview.
 - Deploy per CLAUDE.md: preview with the global `vercel` CLI plus `vercel alias set … onit-dynastyweb-preview.vercel.app`; production = merge `--no-ff` to `main` and push (never `vercel --prod`).
