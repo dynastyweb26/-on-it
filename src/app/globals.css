@@ -364,6 +364,17 @@ html[data-splash=""] .onit-splash {
   100% { transform: scaleX(1); opacity: 0; }
 }
 
+/* ---- Failure + retry (MOTION-SPEC.md §7) ---- */
+@keyframes onit-shake {
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+.onit-shake { animation: onit-shake 320ms cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes onit-spin { to { transform: rotate(360deg); } }
+.onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
+
 /* ---- On It spinner (MOTION-SPEC.md §2) ---- */
 .onit-spinner { position: relative; display: inline-block; flex-shrink: 0; }
 .onit-spinner-arm {
