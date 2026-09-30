@@ -2233,7 +2233,24 @@ export default function Chat() {
   // deliberately do NOT re-archive the current conversation: the original is
   // already a real sent invoice (and, if reached via history, already has its
   // finalized entry, which pushHistory would otherwise overwrite by id).
+  // Revise transition (MOTION-SPEC §5): the locked card folds out (150ms), then
+  // the new conversation's draft card builds in like any fresh card. The ref
+  // drops repeat taps for the whole transition; a 20+ item draft is safe
+  // because the build-in only animates the first 8 rows.
+  const revisingRef = useRef(false);
   function reviseInvoice() {
+    if (!draft || revisingRef.current) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { startRevision(); return; }
+    revisingRef.current = true;
+    playCardAnim('exit', 400);
+    setTimeout(() => {
+      revisingRef.current = false;
+      startRevision();
+      playCardAnim('enter', 1800);
+    }, 150);
+  }
+  function startRevision() {
     if (!draft) return;
     const kind = docKind(draft);
     const originalNo = pendingInvoiceRef.current?.no ?? null;
