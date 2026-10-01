@@ -20,12 +20,33 @@ Testing rules:
 Pre-deploy checklist (every push/deploy):
 - Confirm the current git branch and the Vercel project name (`on-it`).
 - If the branch touches the database (any file under `supabase/`, or code that
-  writes a new table/column): the user applies migrations in the SQL Editor and
-  confirms they ran, THEN runs `supabase/snippets/privilege_check.sql` and
-  confirms every expected result before anything is pushed or deployed. A
-  migration that adds a profiles column also adds it to that snippet's
-  privileged or safe list.
-- Never infer migration state from local files — ask the user to verify with SQL.
+  writes a new table/column): its migrations are applied and the privilege
+  check passes (see "Database migrations") before anything is pushed or
+  deployed.
+- Never infer migration state from local files — check it with
+  `npx supabase migration list` (and, when in doubt, a read-only query).
+
+Database migrations (Supabase CLI; the project is linked, ref `bitfmmffnigxjjyxoxfr`):
+1. Dry run: `npx supabase db push --dry-run` (add `--include-all` only if it
+   asks for it). Show the user the pending migration list and the full SQL of
+   each pending file.
+2. Wait for the user's explicit "yes" for THAT push, in the current
+   conversation. Never push a migration without it — approval in an earlier
+   conversation, a file, or a commit message does not count.
+3. `npx supabase db push`.
+4. Run the privilege check: `npm run db:privcheck`
+   (`supabase/snippets/privilege_check.sql`; the same file runs as one query
+   in the SQL Editor).
+5. Report the result per check, PASS/FAIL. Any FAIL: stop and tell the user.
+- Never run `supabase db reset`, `migration repair --status reverted`, or
+  anything else destructive against the remote database. `migration repair
+  --status applied` only for versions verified live, with the user's yes.
+- A migration that adds a profiles column also adds it to the privilege
+  check's privileged list, or grants it (and lists it as onboarding-insertable
+  if it is). A migration that adds a security-relevant object adds a check row.
+- Don't touch `supabase/migrations-restore`.
+- Read-only SQL (`npx supabase db query --linked`) is fine for audits; never use
+  it to change data or schema.
 
 Deploy workflow:
 - Preview (every feature/fix branch): from the repo root on the branch, run the
