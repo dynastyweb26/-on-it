@@ -34,6 +34,12 @@ const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
 const INK = '#111111';       // black text (non-negotiable)
+// Explicit line-height on every document table. "normal" is font-metric
+// dependent (iOS Safari's Helvetica Neue differs from Chromium's), and
+// html2canvas places text by its own baseline math, so a row sized by
+// "normal" can draw its glyphs partly outside the row. 1.5 leaves room on
+// every engine. Continuation pages copy it from the table (elementToPdf).
+const ROW_LINE_HEIGHT = 1.5;
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
@@ -86,7 +92,7 @@ export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; a
       </div>
 
       {/* Category table — category / count / total, thin accent separators */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 14 }}>
         <thead>
           <tr>
             <th style={{ textAlign: 'left', padding: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: MUTED, fontWeight: 700 }}>
@@ -155,13 +161,15 @@ export { DISCLAIMER };
    data-pdf-keep-with-next on group headers, so a header never ends a page. */
 
 /** Clip to one line by character count. html2canvas does not paint
- *  text-overflow: ellipsis, so the cut is made in the string itself. */
+ *  text-overflow: ellipsis, so the cut is made in the string itself — which
+ *  is also why no text cell needs overflow: hidden (html2canvas clips text
+ *  to such a box, and on iOS that cut the bottom half off the glyphs). */
 export function clip(s: string, max: number): string {
   const t = s.replace(/\s+/g, ' ').trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
-const ONE_LINE: React.CSSProperties = { whiteSpace: 'nowrap', overflow: 'hidden' };
+const ONE_LINE: React.CSSProperties = { whiteSpace: 'nowrap' };
 
 // Room for the absolutely-positioned footer. It sits in the flow under the
 // total so the partitioner sees the footer's height: a page that is nearly
@@ -288,7 +296,7 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
     <div style={PAGE}>
       <DetailedHeader d={d} noun="Expense Detail" accent={accent} />
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12 }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 84 }}>Date</th>
@@ -424,7 +432,7 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
         </div>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>
@@ -531,14 +539,14 @@ export interface IncomeDetailedData extends DocHeaderData {
 
 const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))));
 
-const SUB_TD: React.CSSProperties = { padding: '1px 0 1px 24px', color: MUTED, fontSize: 11, ...ONE_LINE };
+const SUB_TD: React.CSSProperties = { padding: '3px 0 3px 24px', color: MUTED, fontSize: 11, ...ONE_LINE };
 
 export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; accent: string }) {
   return (
     <div style={PAGE}>
       <DetailedHeader d={d} noun="Income Detail" accent={accent} />
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>

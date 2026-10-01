@@ -357,6 +357,9 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         pageTable.style.width = '100%';
         pageTable.style.borderCollapse = 'collapse';
         pageTable.style.fontSize = '15px';
+        // Carry the template's explicit line-height (summary documents set one)
+        // so rows measure and paint the same as on page 1.
+        pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
 
         if (tableHeader) {
           pageTable.appendChild(tableHeader.cloneNode(true));
