@@ -1,7 +1,8 @@
 'use client';
 // ═══ Books summary ═══ Money in (cash basis), money out, what's kept, and what
 // is still owed — for a chosen period. In-app view follows the Warm Premium
-// standard; the PDF export is a separate white/black document (summary-template).
+// standard; the PDF exports are separate white/black documents built by
+// buildSummaryPdf (lib/pdf/build-summary), which loads its own data.
 //
 // Period selection is a granularity (week/month/quarter/year) plus a specific
 // bucket, chosen through a two-step sheet. Expenses and invoices are each
@@ -11,27 +12,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
-import { accentForWhite } from '@/lib/colors';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
   summarizeIncome, localDay,
   type Granularity, type Period, type ExpenseLite, type InvoiceLite, type PaymentLite, type ClientTotal,
 } from '@/lib/tax-summary';
-import { elementToPdf, summaryFilename, incomeSummaryFilename, shareInvoice } from '@/lib/pdf/generate';
-import {
-  ExpenseSummaryTemplate, IncomeSummaryTemplate, DISCLAIMER,
-  type ExpenseSummaryData, type IncomeSummaryData,
-} from '@/lib/pdf/summary-template';
-import { formatDocNumber } from '@/lib/documents';
+import { shareInvoice } from '@/lib/pdf/generate';
+import { DISCLAIMER } from '@/lib/pdf/summary-template';
+import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
 // place (no nested scroll area).
 const PREVIEW_ROWS = 5;
-
-// What the offscreen render target is drawing for the PDF capture.
-type ExportDoc =
-  | { kind: 'expenses'; data: ExpenseSummaryData }
-  | { kind: 'income'; data: IncomeSummaryData };
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -44,9 +36,6 @@ function prettyDate(iso: string): string {
 
 interface Profile {
   business_name: string;
-  logo_url: string | null;
-  brand_colors: string[] | null;
-  background_color: string | null;
 }
 
 const GRAN_LABEL: Record<Granularity, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' };
@@ -59,21 +48,14 @@ export default function TaxSummary() {
   const [payments, setPayments] = useState<PaymentLite[] | null>(null); // income, cash basis
   const [owed, setOwed] = useState<InvoiceLite[] | null>(null);         // sent/overdue, as-of-now
   const [selected, setSelected] = useState<Period | null>(null);
-  const [exporting, setExporting] = useState<ExportDoc['kind'] | null>(null);
-  const [exportDoc, setExportDoc] = useState<ExportDoc | null>(null);
+  const [exporting, setExporting] = useState<SummaryPdfKind | null>(null);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
 
   // Period sheet: open flag + which view (the granularity chooser, or one
   // granularity's list of specific periods).
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
-
-  const accent = useMemo(
-    () => accentForWhite(profile?.brand_colors, profile?.background_color ?? null),
-    [profile]
-  );
 
   useEffect(() => {
     (async () => {
@@ -87,7 +69,7 @@ export default function TaxSummary() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('profiles')
-        .select('business_name, logo_url, brand_colors, background_color')
+        .select('business_name')
         .eq('id', user.id).maybeSingle();
       if (data) setProfile(data as Profile);
     })();
@@ -196,61 +178,24 @@ export default function TaxSummary() {
 
   const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
 
-  // Both PDFs share one flow: build the document data, let it paint offscreen,
-  // capture, share. Header fields are the same on both documents.
-  async function exportPdf(kind: ExportDoc['kind']) {
+  // Every PDF goes through the one builder (it loads its own rows for the
+  // period), then the native share sheet. Disabled when that side is empty.
+  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'summary') {
     if (!profile || !selected || exporting) return;
     if (kind === 'expenses' ? summary.count === 0 : incomeCount === 0) return;
     setExporting(kind);
     try {
-      const header = {
-        businessName: profile.business_name,
-        logoUrl: profile.logo_url,
+      const file = await buildSummaryPdf({
+        kind,
+        detail,
+        range: { start: selected.start, end: selected.end },
         periodLabel: selected.label, // literal label on the document, never "This Month"
-        rangeStart: prettyDate(selected.start),
-        rangeEnd: prettyDate(selected.end),
-        generatedOn: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      };
-      setExportDoc(kind === 'expenses'
-        ? {
-            kind,
-            data: {
-              ...header,
-              rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total, anyDeductible: r.anyDeductible })),
-              total: summary.total,
-              count: summary.count,
-            },
-          }
-        : {
-            kind,
-            data: {
-              ...header,
-              clients: income.byClient.map((c) => ({
-                client: c.client,
-                count: c.count,
-                total: c.total,
-                payments: c.payments.map((p) => ({
-                  date: p.day ? prettyDate(p.day) : '—',
-                  invoice: p.invoiceNumber != null ? formatDocNumber('invoice', p.invoiceNumber) : '—',
-                  method: p.method,
-                  amount: p.amount,
-                })),
-              })),
-              total: income.broughtIn,
-              count: incomeCount,
-            },
-          });
-      await new Promise((r) => setTimeout(r, 350)); // let the document paint
-      if (!printRef.current) throw new Error('render failed');
-      const filename = kind === 'expenses'
-        ? summaryFilename(selected.label, profile.business_name)
-        : incomeSummaryFilename(selected.label, profile.business_name);
-      const file = await elementToPdf(printRef.current, filename);
-      await shareInvoice(file, profile.business_name, kind === 'expenses' ? 'Expense summary' : 'Income summary');
+      });
+      const noun = kind === 'expenses' ? 'Expense' : 'Income';
+      await shareInvoice(file, profile.business_name, detail === 'detailed' ? `${noun} detail` : `${noun} summary`);
     } catch {
-      /* share/download failed — the button re-enables so they can retry */
+      /* build/share/download failed — the button re-enables so they can retry */
     } finally {
-      setExportDoc(null);
       setExporting(null);
     }
   }
@@ -467,16 +412,6 @@ export default function TaxSummary() {
         </div>
       )}
 
-      {/* Offscreen render target for the white/black PDF document */}
-      {exportDoc && (
-        <div style={{ position: 'fixed', left: -9999, top: 0 }}>
-          <div ref={printRef}>
-            {exportDoc.kind === 'expenses'
-              ? <ExpenseSummaryTemplate d={exportDoc.data} accent={accent} />
-              : <IncomeSummaryTemplate d={exportDoc.data} accent={accent} />}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
