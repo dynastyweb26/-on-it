@@ -36,12 +36,15 @@ try {
   process.exit(1);
 }
 
+// SKIP = the check's migration isn't pushed yet; not a failure.
+const label = (r) => (r.result === 'PASS' || r.result === 'SKIP' ? r.result : 'FAIL');
 const width = Math.max(...rows.map((r) => r.check_id.length));
 for (const r of rows) {
-  const line = `${r.result === 'PASS' ? 'PASS' : 'FAIL'}  ${r.check_id.padEnd(width)}  ${r.expected}`;
-  console.log(line);
-  if (r.result !== 'PASS') console.log(`${' '.repeat(6 + width)}  found: ${r.found}`);
+  console.log(`${label(r)}  ${r.check_id.padEnd(width)}  ${r.expected}`);
+  if (label(r) === 'FAIL') console.log(`${' '.repeat(6 + width)}  found: ${r.found}`);
 }
-const failed = rows.filter((r) => r.result !== 'PASS').length;
-console.log(`\n${rows.length - failed} PASS, ${failed} FAIL`);
+const count = (s) => rows.filter((r) => label(r) === s).length;
+const failed = count('FAIL');
+const skipped = count('SKIP');
+console.log(`\n${count('PASS')} PASS, ${failed} FAIL${skipped ? `, ${skipped} SKIP (migration not pushed yet)` : ''}`);
 process.exit(failed ? 1 : 0);
