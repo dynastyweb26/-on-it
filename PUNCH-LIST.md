@@ -380,3 +380,28 @@ to._
 | `reconcile_invoice_from_ledger` re-applied | **Done — 2026-09-30 via `db push`** | The live function had been accidentally reverted to the 09-18 definition (search_path=public, no draft logic) by an earlier rollback attempt; its backfill had already run. `db push --include-all` re-applied `20260930000002`; verified search_path="" + draft logic. Privilege check M1–M3 PASS. |
 | Privilege check as PASS/FAIL | **Done** | `supabase/snippets/privilege_check.sql` is now one query returning check / PASS-FAIL / expected / found (runs as-is in the SQL Editor); `npm run db:privcheck` runs it via the CLI and exits 1 on any FAIL. `next_quote_number` added to the privileged list (a server-assigned counter; already not user-writable). |
 | TRUNCATE granted to anon/authenticated | **Done — applied 2026-09-30 via `db push`; privilege check 33 PASS, 0 FAIL** (`9f6abdb`) | Migration `20260930000005_revoke_truncate` revokes TRUNCATE on all public tables and in `postgres`'s default privileges (owner of every public table and the role migrations run as), and drops `expenses_backup_20260723` (0 rows, RLS on with 0 policies, no dependents, unreferenced). `supabase_admin`'s platform defaults still include TRUNCATE for tables *it* creates; `postgres` can't change those, and check D would catch any such table. |
+
+## Itemized summary PDFs — logged 2026-10-01 (`feat/itemized-pdfs`)
+
+_Built in a cloud session with no Supabase/Vercel access: typecheck and
+`next build` (placeholder env) pass; documents rendered in headless Chromium
+against mock data through the real builder, templates and `elementToPdf`. Not
+yet run against the real database or on device — needs the preview pass before
+merge. No DB changes._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Detailed Expenses PDF | **Built — awaiting preview** (`d3f7021`, `db57ed6`) | `ExpenseDetailedTemplate` (`lib/pdf/summary-template.tsx`): grouped by category in the summary's order (total desc); each category has a header row (name, count, subtotal), then one line per expense sorted by `spent_on`: date · store (`vendor`, else "—") · description (note appended, clipped to one line in the string — html2canvas doesn't paint `text-overflow`) · "Deductible" / "Receipt" marks (`tax_deductible`; `receipt_url` or legacy `receipt_path`) · amount. Total + count and the footer are last-page `data-pdf-block`s. Only `deleted_at is null` rows in range. Mock: 230 expenses → 7 pages, no split rows, no header at a page bottom; deleted and out-of-range rows absent; 0 and 1 expense render as one page. |
+| Detailed Income PDF | **Built — awaiting preview** (`cd7391b`, `db57ed6`) | `IncomeDetailedTemplate`: the summary's client → payments layout with each invoice's `line_items` under its payment (`description · qty × unit price = line total`, indented, muted), first 15 then "+ N more items". An invoice with several payments in the period lists its items once, under its first payment there; every payment of a multi-payment invoice carries "Payment N of INV-####" (N over the invoice's whole ledger, so a balance paid this month after last month's deposit reads "Payment 2"), later ones add "· items listed above". `kind = 'invoice'` and non-deleted only. Mock: 22-item invoice with a September deposit + two October payments, quote and deleted-invoice payments excluded, 35 payments → 6 pages. |
+| Pagination: keep-with-next + trailing-block clip guard | **Built — awaiting preview** (`d3f7021`) | `elementToPdf` honours opt-in `data-pdf-keep-with-next` (detailed group headers, a payment above its notes/items): a page never ends on one. When every row fits on page 1 but the total/footer below would be cut off, rows move to page 2. Invoice templates set no marker, and the clip guard only fires when content would otherwise be clipped. The existing Income Summary was left untouched, so it can still end a page on a client header (opt-in is one attribute if wanted). |
+| `buildSummaryPdf` builder | **Built — awaiting preview** (`db57ed6`) | `lib/pdf/build-summary.tsx`: `buildSummaryPdf({ kind, detail, range, periodLabel }) → File`. Loads profile + rows itself through the session client (RLS), renders offscreen via `createRoot`, captures via `elementToPdf`. Range is local yyyy-mm-dd; payments are filtered on `paid_at` between local midnights (same bucketing as `localDay`). Reads in 1000-row pages (PostgREST cap; the Summary page's own fetch still has that cap). Summary documents use the same rollups/fields as before; the Summary page now calls it. Filenames: `Expense-Summary[-Detailed]_<period>_<business>.pdf`, `Income-Summary[-Detailed]_…`. Adds devDependency `@types/react-dom` 18.3.7. Ready for the weekly/monthly recap. |
+| Summary / Detailed sheet | **Built — awaiting preview** (`925e330`) | Expenses PDF / Income PDF open the period picker's bottom-sheet pattern with Summary and Detailed options; "Building…" stays on the button and the file goes to the share sheet as before. |
+
+### Later ($30 tier)
+
+- **Itemized receipt contents** — the individual items printed on a receipt
+  (e.g. "2× 3/4 in elbow $3.18"). Not stored today: an expense is one amount,
+  vendor, description and note. Needs `parse-receipt` to extract line items
+  plus a schema change (an `expense_items` table or a `line_items` jsonb on
+  `expenses`, with RLS, length caps and privilege-check rows), then a third
+  level in the detailed Expenses PDF.
