@@ -258,7 +258,7 @@ export default function Dashboard() {
             className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}
           >
-            <Icon name="receipt_long" size={18} /> Income &amp; Expenses
+            <Icon name="description" size={18} /> Income &amp; Expenses
           </Link>
           <Link
             href="/expenses"
