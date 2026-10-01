@@ -1,8 +1,9 @@
 'use client';
 // ═══ Summary PDF builder ═══ One entry point for every books export: expenses
 // or income, summary or detailed, over any local date range. It loads its own
-// data through the session client (RLS scopes every row to the signed-in
-// user), renders the white/black document offscreen, and captures it through
+// data — by default through the session client (supabaseSource; RLS scopes
+// every row to the signed-in user), or from any SummaryPdfSource returning the
+// same shapes — renders the white/black document offscreen, and captures it through
 // the same elementToPdf pipeline as invoices. The Summary screen calls it with
 // the selected period; a weekly/monthly recap can call it with a week's range
 // and nothing else.
@@ -41,7 +42,29 @@ const PAGE_ROWS = 1000;
 // A detailed income document lists at most this many line items per invoice.
 const MAX_LINE_ITEMS = 15;
 
-type Row = Record<string, unknown>;
+export type Row = Record<string, unknown>;
+
+export interface SummaryPdfProfile {
+  business_name: string;
+  logo_url: string | null;
+  brand_colors: string[] | null;
+  background_color: string | null;
+}
+
+/** Where the builder's rows come from. The default reads the database through
+ *  the session client; any other source must return the same shapes, already
+ *  filtered and ordered as documented, so the rest of the pipeline is shared. */
+export interface SummaryPdfSource {
+  profile(): Promise<SummaryPdfProfile>;
+  /** Non-deleted expenses with spent_on in range, oldest first. */
+  expenses(range: SummaryPdfOptions['range'], detailed: boolean): Promise<Row[]>;
+  /** Payments on non-deleted invoices of kind 'invoice', paid_at on a local day
+   *  in range, oldest first; the invoice embedded as `invoices` (line_items when
+   *  detailed). */
+  payments(range: SummaryPdfOptions['range'], detailed: boolean): Promise<Row[]>;
+  /** Every payment ({ id, invoice_id }) of these invoices, oldest first. */
+  paymentHistory(invoiceIds: string[]): Promise<Row[]>;
+}
 
 async function fetchAll(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<Row[]> {
   const out: Row[] = [];
@@ -75,22 +98,15 @@ const num = (v: unknown) => {
 
 /** Build one of the four books PDFs. Throws when signed out, on a query error,
  *  or when the capture fails; the caller decides how to surface that. */
-export async function buildSummaryPdf({ kind, detail, range, periodLabel }: SummaryPdfOptions): Promise<File> {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('signed out');
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('business_name, logo_url, brand_colors, background_color')
-    .eq('id', user.id).maybeSingle();
-  if (profileError) throw profileError;
-  if (!profile) throw new Error('no profile');
-
+export async function buildSummaryPdf(
+  { kind, detail, range, periodLabel }: SummaryPdfOptions,
+  source: SummaryPdfSource = supabaseSource(),
+): Promise<File> {
+  const profile = await source.profile();
   const accent = accentForWhite(profile.brand_colors, profile.background_color ?? null);
   const header = {
-    businessName: profile.business_name as string,
-    logoUrl: (profile.logo_url as string | null) ?? null,
+    businessName: profile.business_name,
+    logoUrl: profile.logo_url ?? null,
     periodLabel,
     rangeStart: prettyDate(range.start),
     rangeEnd: prettyDate(range.end),
@@ -99,18 +115,7 @@ export async function buildSummaryPdf({ kind, detail, range, periodLabel }: Summ
   const detailed = detail === 'detailed';
 
   if (kind === 'expenses') {
-    const rows = await fetchAll((from, to) => supabase
-      .from('expenses')
-      .select(detailed
-        ? 'id, amount, category, tax_deductible, spent_on, description, vendor, note, receipt_path, receipt_url'
-        : 'id, amount, category, tax_deductible, spent_on')
-      .is('deleted_at', null)
-      .gte('spent_on', range.start)
-      .lte('spent_on', range.end)
-      .order('spent_on', { ascending: true })
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to));
+    const rows = await source.expenses(range, detailed);
     const summary = summarize(rows as unknown as ExpenseLite[]);
     const filename = summaryFilename(periodLabel, header.businessName, detailed);
 
@@ -165,19 +170,7 @@ export async function buildSummaryPdf({ kind, detail, range, periodLabel }: Summ
 
   // ── Income: the payments ledger, cash basis, invoices only (never quotes),
   // soft-deleted invoices excluded — the same filter the Summary screen uses.
-  const invoiceCols = detailed
-    ? 'client_name, invoice_number, kind, deleted_at, line_items'
-    : 'client_name, invoice_number, kind, deleted_at';
-  const payRows = await fetchAll((from, to) => supabase
-    .from('invoice_payments')
-    .select(`id, invoice_id, amount, paid_at, method, stripe_checkout_session_id, invoices!inner(${invoiceCols})`)
-    .eq('invoices.kind', 'invoice')
-    .is('invoices.deleted_at', null)
-    .gte('paid_at', localMidnight(range.start))
-    .lt('paid_at', localMidnight(range.end, 1))
-    .order('paid_at', { ascending: true })
-    .order('id', { ascending: true })
-    .range(from, to));
+  const payRows = await source.payments(range, detailed);
 
   // Supabase embeds a to-one relation as an object (older shapes: an array);
   // handle both so client_name resolves either way.
@@ -236,20 +229,10 @@ export async function buildSummaryPdf({ kind, detail, range, periodLabel }: Summ
   const byPaymentId = new Map(payRows.map((r) => [r.id as string, r]));
   const invoiceIds = [...new Set(payRows.map((r) => r.invoice_id as string))];
   const history = new Map<string, string[]>(); // invoice_id → payment ids, oldest first
-  for (let i = 0; i < invoiceIds.length; i += 100) {
-    const chunk = invoiceIds.slice(i, i + 100);
-    const all = await fetchAll((from, to) => supabase
-      .from('invoice_payments')
-      .select('id, invoice_id')
-      .in('invoice_id', chunk)
-      .order('paid_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to));
-    for (const r of all) {
-      const key = r.invoice_id as string;
-      const list = history.get(key);
-      if (list) list.push(r.id as string); else history.set(key, [r.id as string]);
-    }
+  for (const r of await source.paymentHistory(invoiceIds)) {
+    const key = r.invoice_id as string;
+    const list = history.get(key);
+    if (list) list.push(r.id as string); else history.set(key, [r.id as string]);
   }
 
   const itemsListed = new Set<string>(); // invoices whose items are already in the document
@@ -293,6 +276,68 @@ export async function buildSummaryPdf({ kind, detail, range, periodLabel }: Summ
     <IncomeDetailedTemplate d={{ ...header, clients, total: income.broughtIn, count }} accent={accent} />,
     filename,
   );
+}
+
+/** The database source: the session client, so RLS scopes every row to the
+ *  signed-in user. */
+export function supabaseSource(): SummaryPdfSource {
+  const supabase = createClient();
+  return {
+    async profile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('signed out');
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('business_name, logo_url, brand_colors, background_color')
+        .eq('id', user.id).maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('no profile');
+      return data as SummaryPdfProfile;
+    },
+    expenses(range, detailed) {
+      return fetchAll((from, to) => supabase
+        .from('expenses')
+        .select(detailed
+          ? 'id, amount, category, tax_deductible, spent_on, description, vendor, note, receipt_path, receipt_url'
+          : 'id, amount, category, tax_deductible, spent_on')
+        .is('deleted_at', null)
+        .gte('spent_on', range.start)
+        .lte('spent_on', range.end)
+        .order('spent_on', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to));
+    },
+    payments(range, detailed) {
+      const invoiceCols = detailed
+        ? 'client_name, invoice_number, kind, deleted_at, line_items'
+        : 'client_name, invoice_number, kind, deleted_at';
+      return fetchAll((from, to) => supabase
+        .from('invoice_payments')
+        .select(`id, invoice_id, amount, paid_at, method, stripe_checkout_session_id, invoices!inner(${invoiceCols})`)
+        .eq('invoices.kind', 'invoice')
+        .is('invoices.deleted_at', null)
+        .gte('paid_at', localMidnight(range.start))
+        .lt('paid_at', localMidnight(range.end, 1))
+        .order('paid_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to));
+    },
+    async paymentHistory(invoiceIds) {
+      const out: Row[] = [];
+      for (let i = 0; i < invoiceIds.length; i += 100) {
+        const chunk = invoiceIds.slice(i, i + 100);
+        out.push(...await fetchAll((from, to) => supabase
+          .from('invoice_payments')
+          .select('id, invoice_id')
+          .in('invoice_id', chunk)
+          .order('paid_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to)));
+      }
+      return out;
+    },
+  };
 }
 
 /** Mount the document offscreen (794px, outside the viewport), let it paint,
