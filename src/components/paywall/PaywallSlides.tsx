@@ -9,6 +9,7 @@
 // of the page. No tax or deductible wording anywhere.
 import type { CSSProperties, ReactNode } from 'react';
 import Icon from '@/components/Icon';
+import { PAYMENT_BRANDS, PaymentLogo } from '@/components/paywall/PaymentLogos';
 import type { IconName } from '@/components/icon-names';
 
 export const SLIDE_W = 393;
@@ -143,20 +144,27 @@ function PaidGraphic() {
   );
 }
 
-const PAYMENT_TILES = ['Stripe', 'PayPal', 'Cash App', 'Venmo', 'Zelle'] as const;
-
-/** "Accept payments": the five payment-method tiles, then the PAID chip. */
+/** "Accept payments": the five payment-method tiles, then the PAID chip.
+ *  Each mark comes from simple-icons in its brand's own color (PaymentLogos);
+ *  Venmo shows its wordmark alone, the others a label in their brand color. */
 function PaymentsCard() {
   return (
     <div style={{ ...OVERLAY, bottom: 14 }}>
       <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 13 }}>Accept payments</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
-        {PAYMENT_TILES.map((name) => (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
+        {PAYMENT_BRANDS.map(({ id, icon, wordmark }) => (
           <div
-            key={name}
+            key={id}
             style={{ height: 50, borderRadius: 10, border: '1px solid #efe4d2', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
-            <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', color: MUTED }}>{name}</span>
+            {wordmark ? (
+              <PaymentLogo icon={icon} wordmark size={32} />
+            ) : (
+              <>
+                <PaymentLogo icon={icon} size={18} />
+                <span style={{ fontSize: 7.5, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', color: `#${icon.hex}` }}>{icon.title}</span>
+              </>
+            )}
           </div>
         ))}
       </div>
