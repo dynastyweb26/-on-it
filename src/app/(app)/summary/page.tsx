@@ -455,7 +455,7 @@ export default function TaxSummary() {
               title="Detailed"
               detail={pdfSheet === 'expenses'
                 ? 'Every expense with date, store and amount'
-                : 'Every payment with what was billed'}
+                : 'Every payment with date, invoice and amount'}
               onClick={() => pickDetail('detailed')}
             />
           </div>

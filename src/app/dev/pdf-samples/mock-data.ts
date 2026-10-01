@@ -206,8 +206,4 @@ export const mockSource: SummaryPdfSource = {
       .filter((p) => { const d = localDay(String(p.paid_at)); return d >= range.start && d <= range.end; })
       .sort(byPaidAt);
   },
-  async paymentHistory(ids) {
-    const want = new Set(ids);
-    return payments.filter((p) => want.has(String(p.invoice_id))).sort(byPaidAt).map((p) => ({ id: p.id, invoice_id: p.invoice_id }));
-  },
 };
