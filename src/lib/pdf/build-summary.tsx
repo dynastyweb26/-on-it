@@ -39,6 +39,11 @@ export interface SummaryPdfOptions {
 // PostgREST caps a response (1000 rows on Supabase), so long periods are read
 // in pages. Each query orders on a unique tail so pages never overlap.
 const PAGE_ROWS = 1000;
+// Capture resolution for every books PDF (invoices stay at elementToPdf's 3×).
+// White paper and black text stay crisp at 2×, and a long detailed statement
+// builds faster and lighter — fewer pixels per page for iOS Safari's canvas
+// memory limit.
+const SUMMARY_CAPTURE_SCALE = 2;
 
 export type Row = Record<string, unknown>;
 
@@ -349,7 +354,7 @@ async function renderToPdf(doc: ReactElement, filename: string): Promise<File> {
   try {
     flushSync(() => root.render(doc));
     await new Promise((r) => setTimeout(r, 350)); // let the document paint
-    return await elementToPdf(target, filename);
+    return await elementToPdf(target, filename, { scale: SUMMARY_CAPTURE_SCALE });
   } finally {
     root.unmount();
     host.remove();

@@ -62,11 +62,13 @@ function addPageLinks(pdf: jsPDF, pageEl: HTMLElement) {
 
 /** el = the rendered template node (794px wide).
  *  PNG, not JPEG: flat color with fine text, often on near-black background.
- *  scale: 3 for crisp text edges.
+ *  scale: capture resolution. 3 (the default, every invoice) for crisp text
+ *  edges; the books summaries pass 2, which keeps black-on-white text crisp at
+ *  100% while cutting capture time and memory on long multi-page documents.
  *  backgroundColor: null so templates paint their own background.
  *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
  *  preserving split-free table rows and page-specific link annotations. */
-export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
+export async function elementToPdf(el: HTMLElement, filename: string, { scale = 3 }: { scale?: number } = {}): Promise<File> {
   // Wait for web fonts before capture: html2canvas snapshots synchronously and
   // uses fallback-font metrics if the display font isn't ready yet, which
   // collapses letter spacing. Guarded — document.fonts is absent in older envs.
@@ -81,7 +83,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
 
   // Single-page fast path: height fits in A4 or no expandable table rows
   if (fullHeight <= 1125 || rows.length <= 1) {
-    const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
+    const canvas = await html2canvas(el, { scale, useCORS: true, backgroundColor: null });
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
     addPageLinks(pdf, el);
@@ -458,7 +460,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     }
     const pageNode = pageNodes[p];
     const canvas = await html2canvas(pageNode, {
-      scale: 3,
+      scale,
       useCORS: true,
       backgroundColor: computedBg,
       width: 794,
