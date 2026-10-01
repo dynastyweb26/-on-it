@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
@@ -56,6 +57,8 @@ export default function TaxSummary() {
   // granularity's list of specific periods).
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
+  // PDF sheet: which export's Summary / Detailed choice is open.
+  const [pdfSheet, setPdfSheet] = useState<SummaryPdfKind | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -163,20 +166,29 @@ export default function TaxSummary() {
   const kept = income.broughtIn - summary.total;
   const hasData = summary.count > 0 || income.broughtIn > 0 || income.stillOwed > 0;
 
-  // Sheet: body scroll lock + Escape to dismiss (matches PaywallModal).
+  // Sheets: body scroll lock + Escape to dismiss (matches PaywallModal).
+  const anySheetOpen = sheetOpen || pdfSheet !== null;
   useEffect(() => {
-    if (!sheetOpen) return;
+    if (!anySheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheetOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSheetOpen(false); setPdfSheet(null); }
+    };
     document.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
-  }, [sheetOpen]);
+  }, [anySheetOpen]);
 
   function openSheet() { setSheetView('root'); setSheetOpen(true); }
   function pick(p: Period) { setSelected(p); setSheetOpen(false); }
 
   const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
+
+  function pickDetail(detail: SummaryPdfDetail) {
+    const kind = pdfSheet;
+    setPdfSheet(null);
+    if (kind) exportPdf(kind, detail);
+  }
 
   // Every PDF goes through the one builder (it loads its own rows for the
   // period), then the native share sheet. Disabled when that side is empty.
@@ -229,14 +241,15 @@ export default function TaxSummary() {
       </button>
 
       {/* Two exports for the selected period, right under the period they
-          cover: expenses by category, and income by client with every payment
-          listed. Each is disabled when its side of the period is empty. */}
+          cover. Each opens a sheet to pick Summary (expenses by category,
+          income by client) or Detailed (every expense line, every payment with
+          what was billed). Each is disabled when its side of the period is empty. */}
       {!loading && hasData && (
         <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} onClick={() => exportPdf('expenses')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('expenses')}>
             <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
           </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} onClick={() => exportPdf('income')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('income')}>
             <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
           </button>
         </div>
@@ -412,6 +425,42 @@ export default function TaxSummary() {
         </div>
       )}
 
+
+      {/* PDF sheet: same bottom-sheet pattern as the period picker. */}
+      {pdfSheet && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-on-background/45"
+          onClick={() => setPdfSheet(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
+            className="w-full max-w-lg rounded-t-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
+            style={{ animation: 'paywall-in var(--motion-slow) var(--ease-standard)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+              {pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
+            </div>
+            <PdfOption
+              icon="description"
+              title="Summary"
+              detail={pdfSheet === 'expenses' ? 'Totals by category' : 'Totals by client'}
+              onClick={() => pickDetail('summary')}
+            />
+            <div className="my-1 border-t border-outline-variant/40" />
+            <PdfOption
+              icon="receipt_long"
+              title="Detailed"
+              detail={pdfSheet === 'expenses'
+                ? 'Every expense with date, store and amount'
+                : 'Every payment with what was billed'}
+              onClick={() => pickDetail('detailed')}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -429,6 +478,23 @@ function SeeAllRow({ total, expanded, onToggle }: { total: number; expanded: boo
       <span>{expanded ? 'Show less' : `See all ${total}`}</span>
       {/* expand_more flipped: expand_less isn't in the icon subset font */}
       <Icon name={expanded ? 'expand_more' : 'arrow_forward'} size={20} className={expanded ? 'rotate-180' : ''} />
+    </button>
+  );
+}
+
+// One choice in the PDF sheet: icon, title, and what the document contains.
+function PdfOption({ icon, title, detail, onClick }: { icon: IconName; title: string; detail: string; onClick: () => void }) {
+  return (
+    <button
+      className="flex min-h-touch w-full items-center gap-3 rounded-input px-3 py-3 text-left active:bg-surface-container transition-colors"
+      onClick={onClick}
+    >
+      <Icon name={icon} size={24} className="shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-on-background">{title}</span>
+        <span className="block text-xs text-on-surface-variant">{detail}</span>
+      </span>
+      <Icon name="chevron_right" size={20} className="shrink-0 text-on-surface-variant" />
     </button>
   );
 }
