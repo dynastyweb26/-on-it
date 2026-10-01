@@ -11,7 +11,7 @@ import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailabi
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
-import { TRIAL_DAYS } from '@/lib/trial';
+import { trialDates } from '@/lib/trial';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -808,11 +808,11 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   : access.tier === 'trialing'
                     // No trial length here: trials started before the 30 → 14
                     // day change are still running. The end date is right for both
-                    // (same wording as the trial reminder email).
+                    // (and the same wording as the paywall disclosure).
                     ? (fmtDate(p.trial_ends_at)
-                      ? `Your free trial ends on ${fmtDate(p.trial_ends_at)}, then $9.99/month.`
-                      : 'You’re on a free trial, then $9.99/month.')
-                    : `You’re subscribed at $9.99/month${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
+                      ? `Free until ${fmtDate(p.trial_ends_at)}. Then $9.99/month, renews monthly until you cancel.`
+                      : 'You’re on a free trial. Then $9.99/month, renews monthly until you cancel.')
+                    : `$9.99/month, renews monthly until you cancel${fmtDate(p.current_period_end) ? `. Next renewal ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/billing-portal')}>
@@ -835,13 +835,14 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
                   first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
+                {/* Same wording as the paywall sheet's disclosure. */}
                 {access.trialEligible
-                  ? `${TRIAL_DAYS}-day free trial, then $9.99/month, recurring. Cancel anytime.`
-                  : '$9.99/month, recurring. Cancel anytime.'}
+                  ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.`
+                  : '$9.99/month, renews monthly until you cancel. Cancel anytime in Settings.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : access.trialEligible ? `Start your ${TRIAL_DAYS}-day free trial` : 'Subscribe — $9.99/month'}
+                {billingBusy ? 'Opening…' : access.trialEligible ? 'Start free trial' : 'Subscribe — $9.99/month'}
               </button>
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>
