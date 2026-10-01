@@ -22,6 +22,7 @@ import PdfChoiceSheet from '@/components/PdfChoiceSheet';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 import { bucketFor } from '@/lib/tax-summary';
+import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
 import { shareInvoice } from '@/lib/pdf/generate';
 import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 
@@ -85,6 +86,13 @@ export default function RecapSheet({ suppressed = false }: { suppressed?: boolea
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      // Recaps are a paid feature (the cron builds none for free / canceled
+      // owners). An older snapshot — or a push tapped after a trial lapsed —
+      // doesn't open for them either.
+      if (PAYWALL_ENABLED) {
+        const { data: tierRow } = await supabase.from('profiles').select('access_tier').eq('id', user.id).maybeSingle();
+        if (!isPaidTier((tierRow?.access_tier as string | null) ?? null)) return;
+      }
       const wanted = new URLSearchParams(window.location.search).get('recap');
       let row: Recap | null = null;
       if (wanted && UUID_RE.test(wanted)) {

@@ -23,8 +23,10 @@
 // touching seen_at, and the push goes through notify(), whose notification_log
 // dedupe key recap:<kind>:<user>:<period_start> makes a re-run a no-op.
 //
-// Everyone with activity gets a snapshot, free or paid — the recap is a
-// retention hook, deliberately not gated by access. The push additionally
+// Recaps are a paid feature: with the paywall on, only owners on a paid tier
+// (PAID_TIERS — founder, trialing, active, past_due) get a snapshot or a push;
+// free and canceled owners are skipped before any numbers are read. With the
+// paywall off everyone with activity gets one. The push additionally
 // needs recap_push on and a device in THIS environment (checked first, so the
 // dedupe key is never claimed for an owner nobody can reach). With push off
 // the snapshot still feeds the in-app RecapSheet.
@@ -35,6 +37,7 @@ import { notify } from '@/lib/notify';
 import { roundCurrency } from '@/lib/financials';
 import { summarize, summarizeIncome, type ExpenseLite, type PaymentLite } from '@/lib/tax-summary';
 import { isExpenseCategory } from '@/lib/expenses';
+import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
 
 export const DEFAULT_RECAP_TZ = 'America/Chicago';
 const PAGE_ROWS = 1000;   // PostgREST cap; long reads are paged
@@ -201,7 +204,7 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
   try {
     profiles = await fetchAll((from, to) => admin
       .from('profiles')
-      .select('id, timezone, recap_push')
+      .select('id, timezone, recap_push, access_tier')
       .order('id', { ascending: true })
       .range(from, to));
   } catch (e) {
@@ -211,6 +214,7 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
 
   const owners: Owner[] = [];
   for (const p of profiles) {
+    if (PAYWALL_ENABLED && !isPaidTier(p.access_tier as string | null)) continue; // paid feature
     const tz = resolveTimeZone(p.timezone as string | null);
     const periods = periodsEndingBefore(localYmd(tz, now));
     if (periods.length) owners.push({ id: p.id as string, tz, push: p.recap_push !== false, periods });
