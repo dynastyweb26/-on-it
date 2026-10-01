@@ -50,20 +50,31 @@ async function applySubscription(sub: Stripe.Subscription, explicitUserId?: stri
   }
   if (!id) { console.warn('stripe webhook: no profile for customer', customerId); return; }
 
-  // Never downgrade a founder — grants outrank subscriptions.
-  const { data: profile, error: readErr } = await supabase
-    .from('profiles').select('access_tier').eq('id', id).maybeSingle();
-  if (readErr) throw readErr;
-  const founder = profile?.access_tier === 'founder';
-
+  // Billing facts are recorded for everyone (founders included).
   const { error: updErr } = await supabase.from('profiles').update({
     stripe_customer_id: customerId,
     subscription_status: sub.status,
     current_period_end: periodEndISO(sub),
     trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
-    ...(founder ? {} : { access_tier: tierFromStatus(sub.status) }),
   }).eq('id', id);
   if (updErr) throw updErr;
+
+  await setTierUnlessFounder(supabase, { id }, tierFromStatus(sub.status));
+}
+
+// Never downgrade a founder — grants outrank subscriptions. The founder check
+// is part of the UPDATE itself (WHERE access_tier is not 'founder'), so it is
+// atomic: a code redeemed while this event is in flight can't be overwritten
+// by a tier read a moment earlier. (A read-then-write here raced exactly that.)
+async function setTierUnlessFounder(
+  supabase: ReturnType<typeof adminClient>,
+  match: { id: string } | { stripe_customer_id: string },
+  tier: 'trialing' | 'active' | 'past_due' | 'canceled',
+) {
+  let q = supabase.from('profiles').update({ access_tier: tier });
+  q = 'id' in match ? q.eq('id', match.id) : q.eq('stripe_customer_id', match.stripe_customer_id);
+  const { error } = await q.or('access_tier.is.null,access_tier.neq.founder');
+  if (error) throw error;
 }
 
 export async function POST(req: NextRequest) {
@@ -122,20 +133,18 @@ export async function POST(req: NextRequest) {
         let id = sub.metadata?.user_id;
         if (!id) {
           const { data, error } = await supabase
-            .from('profiles').select('id, access_tier').eq('stripe_customer_id', customerId).maybeSingle();
+            .from('profiles').select('id').eq('stripe_customer_id', customerId).maybeSingle();
           if (error) throw error;
           id = data?.id;
-          if (data?.access_tier === 'founder') break; // never downgrade a founder
         }
         if (id) {
-          const { data: p } = await supabase.from('profiles').select('access_tier').eq('id', id).maybeSingle();
-          if (p?.access_tier === 'founder') break;
+          // Billing facts for everyone; the tier only for non-founders (atomic).
           const { error } = await supabase.from('profiles').update({
-            access_tier: 'canceled',
             subscription_status: sub.status,
             current_period_end: periodEndISO(sub),
           }).eq('id', id);
           if (error) throw error;
+          await setTierUnlessFounder(supabase, { id }, 'canceled');
         }
         break;
       }
@@ -143,15 +152,7 @@ export async function POST(req: NextRequest) {
         const inv = event.data.object as Stripe.Invoice;
         const customerId = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id;
         if (customerId) {
-          const supabase = adminClient();
-          const { data: prof, error: readErr } = await supabase
-            .from('profiles').select('id, access_tier').eq('stripe_customer_id', customerId).maybeSingle();
-          if (readErr) throw readErr;
-          if (prof?.id && prof.access_tier !== 'founder') {
-            const { error } = await supabase
-              .from('profiles').update({ access_tier: 'past_due' }).eq('id', prof.id);
-            if (error) throw error;
-          }
+          await setTierUnlessFounder(adminClient(), { stripe_customer_id: customerId }, 'past_due');
         }
         break;
       }

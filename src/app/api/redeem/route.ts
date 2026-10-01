@@ -10,15 +10,48 @@
 //
 // A wrong, expired or used-up code all get the same answer, so the endpoint
 // never reveals whether a code exists.
+//
+// A user who redeems while subscribed (trialing / active / past_due) has every
+// live subscription set to cancel_at_period_end, so a founder is never billed
+// again; the reply says so (or, if Stripe can't be reached, asks them to
+// cancel in Settings).
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { getStripe } from '@/lib/stripe/server';
 
 const Body = z.object({ code: z.string().trim().min(3).max(40) });
 
 const INVALID = "That code didn't work. Codes are case-sensitive, so check the capital letters.";
+
+// Statuses Stripe will still charge for. A founder must never be billed again.
+const BILLABLE: ReadonlySet<string> = new Set(['trialing', 'active', 'past_due']);
+
+/** After a successful redeem: set cancel_at_period_end on every live
+ *  subscription of this user's Stripe customer, so they keep what they paid
+ *  for and are never charged again (a trial simply ends without a charge).
+ *  The webhook then records the change without touching the founder tier.
+ *  'none' = nothing to cancel; 'failed' = Stripe couldn't be reached. */
+async function stopBilling(userId: string): Promise<'stopped' | 'none' | 'failed'> {
+  const { data: profile } = await adminClient()
+    .from('profiles').select('stripe_customer_id').eq('id', userId).maybeSingle();
+  const customer = profile?.stripe_customer_id as string | null | undefined;
+  if (!customer) return 'none';
+  const stripe = getStripe();
+  if (!stripe) return 'failed';
+  try {
+    const subs = await stripe.subscriptions.list({ customer, status: 'all', limit: 20 });
+    const live = subs.data.filter((s) => BILLABLE.has(s.status) && !s.cancel_at_period_end);
+    if (live.length === 0) return 'none';
+    await Promise.all(live.map((s) => stripe.subscriptions.update(s.id, { cancel_at_period_end: true })));
+    return 'stopped';
+  } catch (e) {
+    console.error('redeem: stopping billing failed', (e as Error)?.message);
+    return 'failed';
+  }
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -45,8 +78,15 @@ export async function POST(req: NextRequest) {
   }
 
   switch (data as string) {
-    case 'ok':
-      return NextResponse.json({ ok: true, tier: 'founder', message: "You're set. Free access is on." });
+    case 'ok': {
+      const billing = await stopBilling(user.id);
+      const message = billing === 'stopped'
+        ? "You're set. Free access is on. Your subscription won't renew."
+        : billing === 'failed'
+          ? "You're set. Free access is on. Cancel your subscription in Settings so you're not charged."
+          : "You're set. Free access is on.";
+      return NextResponse.json({ ok: true, tier: 'founder', message });
+    }
     case 'already_founder':
       return NextResponse.json({ ok: false, message: 'You already have free access.' });
     case 'already_redeemed':
