@@ -835,10 +835,10 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
                   first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
-                {/* Same wording as the paywall sheet's disclosure. */}
+                {/* The paywall sheet's disclosure, with "in Settings" → "below". */}
                 {access.trialEligible
-                  ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.`
-                  : '$9.99/month, renews monthly until you cancel. Cancel anytime in Settings.'}
+                  ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
+                  : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
