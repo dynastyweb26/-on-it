@@ -131,6 +131,7 @@ export interface PaymentLite {
   method?: string | null;      // invoice_payments.method (zelle, cash, card, cashapp…)
   via_stripe?: boolean;        // paid on the pay page (has a Checkout Session id)
   invoice_number?: number | null;
+  id?: string;                 // invoice_payments.id — carried through for the detailed PDF
 }
 
 // A sent/overdue invoice, for the as-of-now outstanding balance only.
@@ -146,6 +147,7 @@ export interface PaymentLine {
   invoiceNumber: number | null;
   method: string;               // display label, e.g. "Cash App (via Stripe)"
   amount: number;
+  id?: string;                  // the ledger row's id, when the caller loaded it
 }
 
 export interface ClientTotal { client: string; count: number; total: number; payments: PaymentLine[]; }
@@ -193,6 +195,7 @@ export function summarizeIncome(
       invoiceNumber: p.invoice_number ?? null,
       method: paymentMethodLabel(p.method ?? 'other', Boolean(p.via_stripe)),
       amount: amt,
+      id: p.id,
     });
     byClient.set(name, cur);
   }
