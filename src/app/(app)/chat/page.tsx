@@ -41,11 +41,13 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
-  /** A receipt photo bubble: a small JPEG data URL (persists with the chat). */
+  /** A receipt photo bubble: a small JPEG data URL. '' = a bubble whose image
+   *  wasn't kept in storage (see forStorage) — it restores as a placeholder. */
   receipt?: string;
   /** A saved expense, shown as the compact logged card (content keeps the text
-   *  confirmation for the model's context). */
-  logged?: LoggedExpense; }
+   *  confirmation for the model's context). Its thumbnail is the photo
+   *  bubble's image, referenced by id — never a second copy. */
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null }; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -297,6 +299,34 @@ function withMessageIds(messages: Msg[]): Msg[] {
   return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
 }
 
+// Receipt thumbnails are ~40–50K characters each as data URLs, and
+// localStorage holds ~5MB per origin (less in practice on iOS Safari). Only
+// the newest few are written; older bubbles restore as a placeholder. Archived
+// history keeps none. In memory (this session) every image stays.
+const PERSIST_THUMBS = 8;
+function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
+  let kept = 0;
+  const out = messages.slice();
+  for (let i = out.length - 1; i >= 0; i--) {
+    const m = out[i];
+    if (!m.receipt) continue;
+    if (kept < keep) kept++;
+    else out[i] = { ...m, receipt: '' };
+  }
+  return out;
+}
+
+/** Write the live conversation. On a quota error, retry once with no images,
+ *  so storage never silently keeps an older copy (a stale restore). A second
+ *  failure throws to the caller, as before. */
+function writeStoredChat(ns: string, payload: StoredChat) {
+  try {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages) }));
+  } catch {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages, 0) }));
+  }
+}
+
 function loadStoredChat(ns: string): StoredChat | null {
   try {
     const raw = localStorage.getItem(chatKey(ns));
@@ -334,7 +364,9 @@ function loadHistory(ns: string): HistoryEntry[] {
 
 function pushHistory(ns: string, entry: HistoryEntry) {
   try {
-    const list = [entry, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
+    // History is a nicety: archived conversations keep no receipt images.
+    const slim = { ...entry, messages: forStorage(entry.messages, 0) };
+    const list = [slim, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
     localStorage.setItem(historyKey(ns), JSON.stringify(list));
   } catch { /* storage full — history is a nicety */ }
 }
@@ -376,6 +408,9 @@ export default function Chat() {
   // Same for the logged card a live save collapses into; and the expense
   // card's fold-away while that happens.
   const liveLoggedIdRef = useRef<string | null>(null);
+  // The photo bubble of the receipt on the open expense card (its logged card
+  // references it). Cleared with the card.
+  const receiptBubbleIdRef = useRef<string | null>(null);
   const [expenseExiting, setExpenseExiting] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
@@ -702,7 +737,7 @@ export default function Chat() {
           cardAfterId,
           updatedAt: Date.now(),
         };
-        localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+        writeStoredChat(ns, payload);
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
@@ -1177,7 +1212,7 @@ export default function Chat() {
         cardAfterId,
         updatedAt: Date.now(),
       };
-      localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+      writeStoredChat(ns, payload);
       appliedUpdatedAtRef.current = payload.updatedAt;
     } catch { /* storage blocked — the persist effect retries on the next change */ }
   }
@@ -1832,6 +1867,7 @@ export default function Chat() {
         if (prepared.thumbUrl) {
           const bubble: Msg = { ...uMsg('Receipt photo'), receipt: prepared.thumbUrl };
           liveReceiptRef.current = { id: bubble.id, startAt: performance.now() + 220 }; // after the flash
+          receiptBubbleIdRef.current = bubble.id;
           nearBottomRef.current = true; // follow the photo, even if scrolled up
           setMessages((m) => [...m, bubble]);
         }
@@ -2001,7 +2037,7 @@ export default function Chat() {
           vendor: expenseDraft.vendor?.trim() || null,
           category: CATEGORY_LABEL[expenseDraft.category],
           date: expenseDraft.occurred_on ?? today(),
-          thumb: receipt?.thumbUrl ?? null,
+          receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
         },
       });
       markMotion('saved'); // TEMP motion diagnosis
@@ -2023,6 +2059,7 @@ export default function Chat() {
   /** Drop the in-flight expense and its photo. Used by cancel, and before a
    *  new pick so two receipts can never share one card. */
   function discardExpense() {
+    receiptBubbleIdRef.current = null;
     setReceipt(null);
     setExpenseDraft(null);
     setExpenseError(null);
@@ -2612,8 +2649,12 @@ export default function Chat() {
               </div>
             </div>
           ) : m.logged ? (
-            <LoggedExpenseCard key={m.id} e={m.logged} animate={liveLoggedIdRef.current === m.id} />
-          ) : m.receipt ? (
+            <LoggedExpenseCard
+              key={m.id}
+              e={{ ...m.logged, thumb: m.logged.receiptMsgId ? messages.find((x) => x.id === m.logged?.receiptMsgId)?.receipt || null : null }}
+              animate={liveLoggedIdRef.current === m.id}
+            />
+          ) : m.receipt !== undefined ? (
             <ReceiptBubble
               key={m.id}
               src={m.receipt}

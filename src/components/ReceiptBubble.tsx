@@ -11,6 +11,7 @@
 // If decode fails, or reduced motion is on, the bubble just appears. Restored
 // messages never animate (the caller only passes `animate` for a live one).
 import { useEffect, useRef, useState } from 'react';
+import Icon from '@/components/Icon';
 import { markMotion } from '@/lib/motion-debug'; // TEMP motion diagnosis — REMOVE BEFORE MERGE
 
 const DURATION = 460;
@@ -92,6 +93,17 @@ export default function ReceiptBubble({ src, animate = false, startAt = 0 }: {
     // Runs once per mount: a live bubble plays once, a re-render never replays it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // An older bubble whose image wasn't kept in storage (chat/page forStorage).
+  if (!src) {
+    return (
+      <div className="flex justify-end">
+        <div className="flex items-center gap-1.5 rounded-card rounded-br-md bg-primary-container px-4 py-3 text-body-md text-on-primary-container">
+          <Icon name="receipt_long" size={18} /> Receipt photo
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-end">
