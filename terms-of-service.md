@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: September 26, 2026**
+**Last updated: September 30, 2026**
 
 These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us") for use of On It. By creating an account, you agree to them.
 
@@ -24,7 +24,7 @@ You must be at least 18 years old and using On It for a business.
 
 ## 3. Subscription and billing
 
-**Free tier.** You can create up to 2 invoices without paying.
+**Free tier.** You can create up to 2 invoices and log up to 2 expenses without paying. Quotes don't count toward the limit. Deleting an invoice or expense doesn't free up a spot.
 
 **Pro subscription.** $9.99 per month, with a 30-day free trial.
 

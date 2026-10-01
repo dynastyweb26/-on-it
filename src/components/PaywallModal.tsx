@@ -1,6 +1,7 @@
 'use client';
 /* ═══ Paywall modal ═══
-   Shown when a free-tier user hits the 2-invoice cap. Tokens from
+   Shown when a free-tier user hits the 2-invoice or 2-expense cap (variant).
+   Tokens from
    ON-IT-DESIGN-STANDARD.md. Plain-built: fade+scale entrance (reduced-motion
    killed by the global reduce block), focus trap, Escape + backdrop dismiss,
    body scroll lock. Upgrade → POST /api/checkout → redirect to Stripe hosted
@@ -15,7 +16,28 @@ const BENEFITS: { icon: IconName; text: string }[] = [
   { icon: 'notifications', text: 'Reminders when invoices go unpaid' },
 ];
 
-export default function PaywallModal({ onClose }: { onClose: () => void }) {
+// Which cap was hit. 'invoice' is the original copy, unchanged; 'expense'
+// (enforce_free_expense_limit) swaps the headline, sub-line and lead benefit.
+export type PaywallVariant = 'invoice' | 'expense';
+
+const COPY: Record<PaywallVariant, { headline: string; sub: string; benefits: { icon: IconName; text: string }[] }> = {
+  invoice: {
+    headline: 'You’re on a roll — that’s 2 invoices sent',
+    sub: 'Keep them coming. Go unlimited and never stop mid-job.',
+    benefits: BENEFITS,
+  },
+  expense: {
+    headline: 'That’s your 2 free expenses',
+    sub: 'Keep every receipt in one place. Go unlimited and log as you go.',
+    benefits: [
+      { icon: 'receipt_long', text: 'Unlimited expenses & receipt scans' },
+      ...BENEFITS,
+    ],
+  },
+};
+
+export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose: () => void; variant?: PaywallVariant }) {
+  const copy = COPY[variant];
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -87,14 +109,14 @@ export default function PaywallModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <h2 id="paywall-headline" className="mt-4 text-center font-display text-headline-mobile text-on-background">
-          You&apos;re on a roll — that&apos;s 2 invoices sent
+          {copy.headline}
         </h2>
         <p className="mt-2 text-center text-body-md text-on-surface-variant">
-          Keep them coming. Go unlimited and never stop mid-job.
+          {copy.sub}
         </p>
 
         <div className="mt-5 space-y-3 rounded-input bg-surface-container-low p-4">
-          {BENEFITS.map((b) => (
+          {copy.benefits.map((b) => (
             <div key={b.icon} className="flex items-center gap-3">
               <Icon name={b.icon} size={22} className="shrink-0 text-primary" />
               <span className="text-body-md text-on-background">{b.text}</span>

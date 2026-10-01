@@ -2837,7 +2837,7 @@ export default function Chat() {
         </div>
       )}
 
-      {paywallFor && <PaywallModal onClose={() => setPaywallFor(null)} />}
+      {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
     </div>
   );
 }

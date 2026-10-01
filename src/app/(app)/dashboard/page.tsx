@@ -339,7 +339,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      {showPaywall && <PaywallModal variant="expense" onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }
