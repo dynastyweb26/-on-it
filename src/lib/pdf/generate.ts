@@ -16,14 +16,14 @@ export function invoiceFilename(kind: string, no: number, client: string, busine
 }
 
 /** Filename for the expense-summary export, e.g.
- *  Expense-Summary_2026_AcmePlumbing.pdf, or with detailed:
- *  Expense-Summary-Detailed_2026_AcmePlumbing.pdf */
-export function summaryFilename(periodLabel: string, business: string, detailed = false) {
-  return `Expense-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
+ *  Expense-Summary_2026_AcmePlumbing.pdf (totals), or itemized:
+ *  Expense-Summary-Itemized_2026_AcmePlumbing.pdf */
+export function summaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Expense-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
-export function incomeSummaryFilename(periodLabel: string, business: string, detailed = false) {
-  return `Income-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
+export function incomeSummaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Income-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
 /** Wait for every <img> inside the node to finish decoding. html2canvas does not
@@ -81,8 +81,22 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
   const table = el.querySelector('table');
   const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
 
+  // The page model paginates ONE table: everything above it is page-1 content,
+  // everything below it moves to the last page. A second table would never be
+  // split, so a long one would be clipped. Every template today has exactly one
+  // (invoices, quotes and all four books PDFs); say so loudly if that changes.
+  if (el.querySelectorAll('table').length > 1) {
+    console.warn(`elementToPdf(${filename}): ${el.querySelectorAll('table').length} tables — only the first paginates`);
+  }
+
   // Single-page fast path: height fits in A4 or no expandable table rows
   if (fullHeight <= 1125 || rows.length <= 1) {
+    if (fullHeight > 1125) {
+      // Taller than a page with nothing to split across pages: it is drawn into
+      // one page box and the overflow is clipped. No template produces this
+      // today; the warning makes a future one visible instead of silent.
+      console.warn(`elementToPdf(${filename}): ${fullHeight}px of content with ${rows.length} table row(s) — clipped to one page`);
+    }
     const canvas = await html2canvas(el, { scale, useCORS: true, backgroundColor: null });
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);

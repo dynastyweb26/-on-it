@@ -1891,6 +1891,8 @@ export default function Chat() {
         // No legible date on the receipt → today, which is right far more often
         // than it's wrong for a photo taken at the counter.
         occurred_on: typeof data.occurred_on === 'string' ? data.occurred_on : today(),
+        // What was bought (the reader's short phrase); editable on the card.
+        description: typeof data.description === 'string' ? data.description : null,
       });
     } catch {
       setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
@@ -1939,6 +1941,8 @@ export default function Chat() {
         amount: expenseDraft.amount,
         category: expenseDraft.category,
         vendor: expenseDraft.vendor,
+        // Blank → null (the column's length check rejects an empty string).
+        description: expenseDraft.description?.trim() || null,
         spent_on: expenseDraft.occurred_on ?? today(),
         receipt_url: receiptPath,
         receipt_hash: receipt?.hash ?? null,

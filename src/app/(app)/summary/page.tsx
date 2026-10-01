@@ -57,7 +57,7 @@ export default function TaxSummary() {
   // granularity's list of specific periods).
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
-  // PDF sheet: which export's Summary / Detailed choice is open.
+  // PDF sheet: which export's Totals / Itemized choice is open.
   const [pdfSheet, setPdfSheet] = useState<SummaryPdfKind | null>(null);
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function TaxSummary() {
   useEffect(() => {
     (async () => {
       const [exp, pay, owe] = await Promise.all([
-        supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
+        supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
           .eq('invoices.kind', 'invoice')
@@ -123,8 +123,8 @@ export default function TaxSummary() {
         ...eRows.map((r) => r.spent_on ?? ''),
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
-      // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // Default to the most recent year that has records (the year-to-date
+      // view), or all-time when there's nothing yet. ?period=all
       // (the Books Net / Collected tiles) opens at All time, where Kept and
       // Brought in equal the all-time figures the tiles show.
       const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
@@ -192,7 +192,7 @@ export default function TaxSummary() {
 
   // Every PDF goes through the one builder (it loads its own rows for the
   // period), then the native share sheet. Disabled when that side is empty.
-  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'summary') {
+  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'totals') {
     if (!profile || !selected || exporting) return;
     if (kind === 'expenses' ? summary.count === 0 : incomeCount === 0) return;
     setExporting(kind);
@@ -204,7 +204,7 @@ export default function TaxSummary() {
         periodLabel: selected.label, // literal label on the document, never "This Month"
       });
       const noun = kind === 'expenses' ? 'Expense' : 'Income';
-      await shareInvoice(file, profile.business_name, detail === 'detailed' ? `${noun} detail` : `${noun} summary`);
+      await shareInvoice(file, profile.business_name, detail === 'itemized' ? `Itemized ${noun.toLowerCase()}` : `${noun} summary`);
     } catch {
       /* build/share/download failed — the button re-enables so they can retry */
     } finally {
@@ -241,9 +241,9 @@ export default function TaxSummary() {
       </button>
 
       {/* Two exports for the selected period, right under the period they
-          cover. Each opens a sheet to pick Summary (expenses by category,
-          income by client) or Detailed (every expense line, every payment with
-          what was billed). Each is disabled when its side of the period is empty. */}
+          cover. Each opens a sheet to pick Totals (expenses by category, income
+          by client) or Itemized (every expense, every payment). Each is
+          disabled when its side of the period is empty. */}
       {!loading && hasData && (
         <div className="grid grid-cols-2 gap-3">
           <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('expenses')}>
@@ -445,18 +445,18 @@ export default function TaxSummary() {
             </div>
             <PdfOption
               icon="description"
-              title="Summary"
+              title="Totals"
               detail={pdfSheet === 'expenses' ? 'Totals by category' : 'Totals by client'}
-              onClick={() => pickDetail('summary')}
+              onClick={() => pickDetail('totals')}
             />
             <div className="my-1 border-t border-outline-variant/40" />
             <PdfOption
               icon="receipt_long"
-              title="Detailed"
+              title="Itemized"
               detail={pdfSheet === 'expenses'
                 ? 'Every expense with date, store and amount'
-                : 'Every payment with what was billed'}
-              onClick={() => pickDetail('detailed')}
+                : 'Every payment with date, invoice and amount'}
+              onClick={() => pickDetail('itemized')}
             />
           </div>
         </div>

@@ -54,7 +54,7 @@ function keepLastWithNext(rows: ReactElement[]): ReactElement[] {
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
-  'This is a record of expenses you logged in On It, grouped by category. It is not tax advice. Whether an expense is deductible is determined by your tax professional.';
+  'This is a record of expenses you logged in On It, grouped by category. Confirm totals against your receipts and bank records.';
 
 const PAGE: React.CSSProperties = {
   width: 794,
@@ -67,7 +67,7 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
+export function ExpenseTotalsTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
   return (
     <div style={PAGE}>
       {/* Header — business name (same no-logo fallback as invoices: name
@@ -277,7 +277,7 @@ function DetailedFooter({ text }: { text: string }) {
   );
 }
 
-/* ═══ Expense Detail document ═══
+/* ═══ Itemized Expenses document ═══
    Every expense in the period, grouped by category in the summary's order
    (total desc). Each category opens with a header row (name, count, subtotal)
    and lists its expenses oldest → newest, one line each: date · store ·
@@ -307,10 +307,10 @@ export interface ExpenseDetailedData extends DocHeaderData {
 const ROW_TD: React.CSSProperties = { padding: '4px 10px 4px 0', color: INK, fontSize: 12, verticalAlign: 'top', ...ONE_LINE };
 const MARK: React.CSSProperties = { fontSize: 10, color: MUTED, letterSpacing: 0.3 };
 
-export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
+export function ExpenseItemizedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
   return (
     <div style={PAGE}>
-      <DetailedHeader d={d} noun="Expense Detail" accent={accent} />
+      <DetailedHeader d={d} noun="Itemized Expenses" accent={accent} />
 
       <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12, ...FIXED }}>
         <thead>
@@ -409,15 +409,17 @@ export interface IncomeSummaryData {
 }
 
 const INCOME_DISCLAIMER =
-  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. It is not tax advice. Confirm totals against your bank records.';
+  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. Confirm totals against your bank records.';
 
 const TH: React.CSSProperties = {
   padding: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: MUTED, fontWeight: 700,
 };
 
-export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
+/** Business name + accent rule + "<noun> — <period>" + dates. Shared by both
+ *  income documents so they read as one set. */
+function IncomeHeader({ d, noun, accent }: { d: IncomeDocHeader; noun: string; accent: string }) {
   return (
-    <div style={PAGE}>
+    <>
       <div style={{ textAlign: 'center' }}>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 84, marginBottom: 12 }} alt="" />}
         <div
@@ -438,7 +440,7 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
 
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 24, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
-          <span data-pdf-doc-noun>Income Summary</span> — <span data-pdf-doc-number>{d.periodLabel}</span>
+          <span data-pdf-doc-noun>{noun}</span> — <span data-pdf-doc-number>{d.periodLabel}</span>
         </div>
         <div style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>
           Period covered: {d.rangeStart} – {d.rangeEnd}
@@ -447,6 +449,95 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
           Generated {d.generatedOn}
         </div>
       </div>
+    </>
+  );
+}
+
+/** "Total received · N payments" + amount, accent-framed. Last page only. */
+function IncomeTotal({ d, accent }: { d: { total: number; count: number }; accent: string }) {
+  return (
+    <div
+      data-pdf-block="total"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8,
+        padding: '14px 0',
+        borderTop: `2.5px solid ${accent}`,
+        borderBottom: `2.5px solid ${accent}`,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, color: INK }}>
+        Total received · {d.count} {d.count === 1 ? 'payment' : 'payments'}
+      </span>
+      <span style={{ fontSize: 26, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
+        {money(d.total)}
+      </span>
+    </div>
+  );
+}
+
+function IncomeFooter() {
+  return (
+    <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
+      <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
+      <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{INCOME_DISCLAIMER}</p>
+      <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, letterSpacing: 1.5, color: MUTED, opacity: 0.8 }}>
+        Generated by On It
+      </div>
+    </div>
+  );
+}
+
+type IncomeDocHeader = Pick<IncomeSummaryData, 'businessName' | 'logoUrl' | 'periodLabel' | 'rangeStart' | 'rangeEnd' | 'generatedOn'>;
+
+/* ═══ Income Totals document ═══
+   One row per client: client, number of payments in the period, amount
+   received, then the grand total. The general view of the period's income;
+   the payment-by-payment list is IncomeItemizedTemplate below. One table, so a
+   long client list paginates like the others. */
+
+export interface IncomeTotalsData extends IncomeDocHeader {
+  clients: { client: string; count: number; total: number }[];
+  total: number;
+  count: number; // number of payments
+}
+
+export function IncomeTotalsTemplate({ d, accent }: { d: IncomeTotalsData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <IncomeHeader d={d} noun="Income Summary" accent={accent} />
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, textAlign: 'left' }}>Client</th>
+            <th style={{ ...TH, textAlign: 'right', width: 110 }}>Payments</th>
+            <th style={{ ...TH, textAlign: 'right', width: 140 }}>Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.clients.map((c, i) => (
+            <tr key={i} style={{ borderTop: `1px solid ${accent}33` }}>
+              <td style={{ padding: '8px 0', color: INK, fontSize: 14, fontWeight: 700 }}>{clip(c.client, 60)}</td>
+              <td style={{ padding: '8px 0', textAlign: 'right', color: INK, fontSize: 13 }}>{c.count}</td>
+              <td style={{ padding: '8px 0', textAlign: 'right', color: INK, fontSize: 14, fontWeight: 700 }}>{money(c.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <IncomeTotal d={d} accent={accent} />
+      <IncomeFooter />
+    </div>
+  );
+}
+
+export function IncomeItemizedTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <IncomeHeader d={d} noun="Itemized Income" accent={accent} />
 
       <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
         <thead>
@@ -488,162 +579,11 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
 
       {/* (2) total row — accent framed, still black text on white. Moves to the
           last page on a multi-page document. */}
-      <div
-        data-pdf-block="total"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginTop: 8,
-          padding: '14px 0',
-          borderTop: `2.5px solid ${accent}`,
-          borderBottom: `2.5px solid ${accent}`,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, color: INK }}>
-          Total received · {d.count} {d.count === 1 ? 'payment' : 'payments'}
-        </span>
-        <span style={{ fontSize: 26, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
-          {money(d.total)}
-        </span>
-      </div>
-
-      <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
-        <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
-        <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{INCOME_DISCLAIMER}</p>
-        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, letterSpacing: 1.5, color: MUTED, opacity: 0.8 }}>
-          Generated by On It
-        </div>
-      </div>
+      <IncomeTotal d={d} accent={accent} />
+      <IncomeFooter />
     </div>
   );
 }
 
 export { INCOME_DISCLAIMER };
 
-/* ═══ Income Detail document ═══
-   The Income Summary's client → payments structure, with what each invoice was
-   for listed under its payment: the invoice's line items, indented and muted.
-   An invoice paid in several installments within the period lists its items
-   once, under its first payment here; later payments carry a note instead. */
-
-export interface IncomeLineItem {
-  description: string;
-  qty: number;
-  unitPrice: number;
-  amount: number;        // qty × unit price, rounded
-}
-
-export interface IncomeDetailPayment extends IncomePaymentRow {
-  note?: string | null;        // "Payment 2 of INV-0042 · items listed above"
-  items?: IncomeLineItem[];    // every line item on the invoice
-}
-
-export interface IncomeDetailClient {
-  client: string;
-  count: number;
-  total: number;
-  payments: IncomeDetailPayment[];
-}
-
-export interface IncomeDetailedData extends DocHeaderData {
-  clients: IncomeDetailClient[];
-  total: number;
-  count: number;     // number of payments
-}
-
-const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))));
-
-// Line items under a payment: black like the payment rows; the hierarchy is
-// the indent and the smaller size only. The "Payment N of" label stays muted
-// via SUB_NOTE. A long item list may break across pages like any other rows;
-// the new page opens with the client's "(continued)" header.
-const SUB_TD: React.CSSProperties = { padding: '3px 0 3px 24px', color: INK, fontSize: 11, ...ONE_LINE };
-const SUB_NOTE: React.CSSProperties = { ...SUB_TD, color: MUTED };
-
-export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; accent: string }) {
-  return (
-    <div style={PAGE}>
-      <DetailedHeader d={d} noun="Income Detail" accent={accent} />
-
-      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13, ...FIXED }}>
-        <thead>
-          <tr>
-            <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>
-            <th style={{ ...TH, textAlign: 'left', width: 110 }}>Invoice</th>
-            <th style={{ ...TH, textAlign: 'left' }}>Method</th>
-            <th style={{ ...TH, textAlign: 'right', width: 130 }}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {d.clients.length === 0 && (
-            <tr style={{ borderTop: `1px solid ${accent}59` }}>
-              <td colSpan={4} style={{ padding: '14px 0', color: MUTED, fontSize: 13 }}>
-                No payments received in this period.
-              </td>
-            </tr>
-          )}
-          {d.clients.flatMap((c, ci) => [
-            // Client header — (3) thin accent separator above each client group
-            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
-              <td colSpan={4} style={{ padding: '14px 0 6px', color: INK, fontSize: 14, fontWeight: 800, ...ONE_LINE }}>
-                <span data-pdf-group-name>{clip(c.client, 60)}</span>
-                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
-                  {'  ·  '}{c.count} {c.count === 1 ? 'payment' : 'payments'}
-                </span>
-              </td>
-            </tr>,
-            ...keepLastWithNext(c.payments.flatMap((p, pi) => {
-              const items = p.items ?? [];
-              const hasDetail = Boolean(p.note) || items.length > 0;
-              return [
-                // A payment stays on the page with the first line under it.
-                <tr key={`c${ci}p${pi}`} {...grp(ci)} {...(hasDetail ? KEEP_NEXT : {})}>
-                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.date}</td>
-                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.invoice}</td>
-                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.method}</td>
-                  <td style={{ padding: '6px 0 2px', textAlign: 'right', color: INK, fontSize: 13 }}>{money(p.amount)}</td>
-                </tr>,
-                ...(p.note
-                  ? [
-                      <tr key={`c${ci}p${pi}n`} {...grp(ci)} {...(items.length > 0 ? KEEP_NEXT : {})}>
-                        <td colSpan={4} style={{ ...SUB_NOTE, fontStyle: 'italic' }}>{p.note}</td>
-                      </tr>,
-                    ]
-                  : []),
-                ...items.map((li, ii) => (
-                  <tr
-                    key={`c${ci}p${pi}i${ii}`}
-                    {...grp(ci)}
-                    // A page that opens on this row names the invoice in its
-                    // "(continued)" header.
-                    {...(p.invoice !== '—' ? { 'data-pdf-continued-suffix': p.invoice } : {})}
-                  >
-                    <td colSpan={4} style={{ ...SUB_TD, ...WRAP }}>
-                      {li.description || 'Item'}
-                      {'  ·  '}{fmtQty(li.qty)} × {money(li.unitPrice)} = {money(li.amount)}
-                    </td>
-                  </tr>
-                )),
-              ];
-            })),
-            <tr key={`c${ci}s`} {...grp(ci)}>
-              <td colSpan={3} style={{ padding: '8px 0 12px', textAlign: 'right', color: MUTED, fontSize: 12 }}>
-                Subtotal · {clip(c.client, 40)}
-              </td>
-              <td style={{ padding: '8px 0 12px', textAlign: 'right', color: INK, fontWeight: 700, fontSize: 13 }}>{money(c.total)}</td>
-            </tr>,
-          ])}
-        </tbody>
-      </table>
-
-      <DetailedTotal
-        label={`Total received · ${d.count} ${d.count === 1 ? 'payment' : 'payments'}`}
-        total={d.total}
-        accent={accent}
-      />
-
-      <DetailedFooter text={INCOME_DISCLAIMER} />
-    </div>
-  );
-}
