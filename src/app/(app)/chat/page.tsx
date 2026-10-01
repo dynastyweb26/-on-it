@@ -1129,6 +1129,25 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   // Free-tier cap hit: which wall to show (invoice or expense), or none.
   const [paywallFor, setPaywallFor] = useState<null | 'invoice' | 'expense'>(null);
+  // TEMPORARY — preview-only paywall UI review. REVERT BEFORE MERGE.
+  // /chat?paywall=invoice|expense opens the real modal, but only when
+  // /api/paywall-preview answers 200 (it 404s in production, gated on the
+  // server's VERCEL_ENV). The param is then dropped so a reload doesn't reopen it.
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get('paywall');
+    if (want !== 'invoice' && want !== 'expense') return;
+    let active = true;
+    fetch('/api/paywall-preview')
+      .then((r) => {
+        if (!active || !r.ok) return;
+        setPaywallFor(want);
+        const url = new URL(window.location.href);
+        url.searchParams.delete('paywall');
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      })
+      .catch(() => { /* not available — do nothing */ });
+    return () => { active = false; };
+  }, []);
 
   /** The card summary, posted once when the card first appears: what we have,
    *  any contact pulled from the saved client record (so a stale one can be
