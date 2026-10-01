@@ -8,6 +8,7 @@
    Checkout; the 503 dormant response is shown inline as a notice. */
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import CodeEntry from '@/components/CodeEntry';
 import type { IconName } from '@/components/icon-names';
 
 const BENEFITS: { icon: IconName; text: string }[] = [
@@ -41,6 +42,7 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [showCode, setShowCode] = useState(false);
 
   // Body scroll lock while open
   useEffect(() => {
@@ -155,6 +157,19 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
         >
           Not now
         </button>
+        {showCode ? (
+          <div className="mt-2">
+            {/* Redeemed → founder access is on; close so they can retry what was blocked. */}
+            <CodeEntry onRedeemed={() => { setTimeout(onClose, 1200); }} />
+          </div>
+        ) : (
+          <button
+            className="min-h-touch w-full text-center text-sm text-on-surface-variant underline"
+            onClick={() => setShowCode(true)}
+          >
+            Have a code?
+          </button>
+        )}
       </div>
     </div>
   );

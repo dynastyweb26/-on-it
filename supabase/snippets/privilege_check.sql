@@ -368,6 +368,53 @@ results(id, ok, expected, actual) as (
       else (select coalesce(string_agg(t.tgname, ', ' order by t.tgname), 'none') from pg_trigger t
         where not t.tgisinternal and t.tgrelid = 'public.expenses'::regclass
           and t.tgname in ('enforce_free_expense_limit', 'pin_created_at')) end
+
+  -- O. Founder code (20261001000003). SKIP until pushed.
+  union all
+  select 'O1 ' || f.sig || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261001000003') then null
+      else coalesce(not has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute'), false) end,
+    'not executable (codes redeem only through /api/redeem)',
+    case when not exists (select 1 from applied where version = '20261001000003') then 'not applied yet'
+      else coalesce(case when has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')
+        then 'EXECUTE' else 'no execute' end, 'missing') end
+  from (values ('public.redeem_grant(text)'), ('public.redeem_grant_for(uuid, text)')) f(sig)
+  cross join (values ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'O2 redeem_grant_for',
+    case when not exists (select 1 from applied where version = '20261001000003') then null
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure('public.redeem_grant_for(uuid, text)')), false) end,
+    'SECURITY DEFINER, search_path=""',
+    case when not exists (select 1 from applied where version = '20261001000003') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.redeem_grant_for(uuid, text)')), 'missing') end
+  union all
+  select 'O3 ' || t.tbl || ' unreadable',
+    case when not exists (select 1 from applied where version = '20261001000003') then null
+      else coalesce((select c.relrowsecurity from pg_class c where c.oid = to_regclass(t.tbl)), false)
+        and (select count(*) from pg_policies p where p.schemaname = 'public'
+               and p.tablename = split_part(t.tbl, '.', 2)) = 0 end,
+    'RLS on, 0 policies (clients never read codes, counts or redemptions)',
+    case when not exists (select 1 from applied where version = '20261001000003') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity || ' policies=' || (select count(*) from pg_policies p
+        where p.schemaname = 'public' and p.tablename = split_part(t.tbl, '.', 2))
+        from pg_class c where c.oid = to_regclass(t.tbl)), 'missing') end
+  from (values ('public.access_grants'), ('public.grant_redemptions')) t(tbl)
+  union all
+  select 'O4 grant_redemptions ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261001000003') then null
+      else coalesce(not (has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'SELECT')
+        or has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'INSERT')
+        or has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'UPDATE')
+        or has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'DELETE')), false) end,
+    'no table privileges',
+    case when not exists (select 1 from applied where version = '20261001000003') then 'not applied yet'
+      else coalesce('sel=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'SELECT')
+        || ' ins=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'INSERT')
+        || ' upd=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'UPDATE')
+        || ' del=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'DELETE'), 'missing') end
+  from (values ('anon'), ('authenticated')) ro(r)
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

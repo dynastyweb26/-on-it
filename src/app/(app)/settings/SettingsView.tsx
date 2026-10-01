@@ -9,6 +9,7 @@ import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templat
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
+import CodeEntry from '@/components/CodeEntry';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -781,6 +782,15 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
+      {access?.tier === 'founder' && (
+        // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
+        <section className="card space-y-1">
+          <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
+          <p className="text-sm font-semibold text-on-surface">Free access · via code</p>
+          <p className="text-sm text-on-surface-variant">Unlimited invoices, quotes and expenses.</p>
+        </section>
+      )}
+
       {access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
@@ -819,6 +829,15 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             </>
           )}
           {billingNotice && <p className="text-sm text-on-surface-variant">{billingNotice}</p>}
+          <div className="space-y-2 border-t border-outline-variant/30 pt-3">
+            <p className="text-sm font-semibold text-on-surface">Have a code?</p>
+            {/* Redeemed → re-read access so this section turns into the founder Plan row. */}
+            <CodeEntry onRedeemed={() => {
+              setTimeout(() => {
+                void fetch('/api/access').then((r) => (r.ok ? r.json() : null)).then((a) => { if (a) setAccess(a); }).catch(() => {});
+              }, 1200);
+            }} />
+          </div>
         </section>
       )}
 
