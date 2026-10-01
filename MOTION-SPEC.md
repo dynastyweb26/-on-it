@@ -77,10 +77,14 @@ Revise opens a NEW conversation seeded from the locked invoice (the original car
 
 ## 8. Receipt capture
 
-- Photo returned from camera: white flash overlay 0 → 1 → 0 over 220ms.
-- Full-bleed photo scales into its chat bubble (scale 1 → .36, radius 0 → 40px, fades at the end), 460ms emphasized.
-- Thinking row uses the spinner (item 2) with "Reading your receipt…".
-- Expense card rises; amount counts up 500ms; LOGGED chip (#c9f2d4 / #0f6d31) springs in 200ms after.
+As built on `feat/receipt-motion` (board "05 · Receipt capture"; supersedes the Batch B note below). Transform and opacity only.
+
+- **Flash** (`.onit-shutter`): fires once the camera / photo sheet is gone — the page is visible (`document.visibilityState`, or the `visibilitychange` back to visible) plus two animation frames. Fired under the sheet it was never seen on iPhone. Pure white, 0 → 1 in 40ms, hold at 1 for 80ms, 1 → 0 over 260ms ease-out (`cubic-bezier(0,0,.2,1)`): 380ms. Rests at opacity 0; `display:none` under reduced motion.
+- **Photo → bubble** (`ReceiptBubble`): the photo is a real chat message on the user's side (a ~264px JPEG data URL). After `img.decode()` and the flash's peak (end of the hold, `FLASH_PEAK_MS` 120), a full-bleed copy shrinks into the bubble's place, 460ms `--ease-emphasized`, and crossfades into the rounded bubble, so the corners read 0 → 16px without animating border-radius. Decode failure or reduced motion: the bubble just appears.
+- **Reading**: "Reading your receipt…" with the spinner (§2) sits under the bubble. The Expense card's own thumbnail no longer animates.
+- **Save → logged card** (`LoggedExpenseCard`): the Expense card folds away (`onit-card-exit`, 150ms) and a compact card arrives (`onit-logged-in`, 240ms: down from slightly larger) — thumbnail, store, category · date, amount. The amount counts up 500ms (`CountUpMoney`); the LOGGED chip (#c9f2d4 / #0f6d31, `check_circle`) springs in 200ms after (scale .7 → 1, `--ease-spring`). It replaces the old text confirmation.
+- **Restore / errors**: restored chats show the bubble and the logged card static, no replay. A duplicate receipt or a read error keeps the bubble, then the normal message.
+- **Storage**: only the newest 8 thumbnails are persisted with the chat (older bubbles restore as a "Receipt photo" placeholder; archived history keeps none), with an image-free retry on a quota error.
 
 ## 9. Books
 
@@ -127,7 +131,7 @@ Batch B (preview, test on phone, merge):
 ## Batch B as built (differences from the canvas)
 
 - §7 Failure + retry: the existing icon-only Retry button spins in place (no "Trying…" label). Live failures shake on arrival; restored chats don't. A retry that fails again re-shakes. No failure haptic yet.
-- §8 Receipt capture: the photo lives as a thumbnail inside the Expense card, not a chat bubble. So: white shutter flash on capture, the Expense card builds in, and its thumbnail lands from 2.2× scale. No LOGGED chip; the save confirmation stays a chat message.
+- §8 Receipt capture (Batch B, superseded by §8 as built on `feat/receipt-motion`): the photo lived as a thumbnail inside the Expense card. On device nothing showed: the flash fired under the camera sheet, and the thumbnail's scale-in ran above the viewport (the list pins to the bottom of the tall card). Under reduced motion the flash left an opaque white layer (hotfix `9a6b8f7`).
 - §9 Books: count-up once per session (sessionStorage `onit_books_counted`); after adding an expense, Spent and Net roll in 400ms and Spent bumps once (no colour, per the no-coloured-numbers rule).
 - §10 Tabs: the nav pill is measured per tab and glides (transform + width); tab-to-tab content enters from the side you're heading. Swipe-follows-finger not built. The selection ring animation applies to every `.chip-selected` and `.ring-gold-selected`.
 - §11 Mic rings: `src/components/MicRings.tsx`; falls back to the old `.voice-listening` pulse when the AudioContext isn't running within 600ms.

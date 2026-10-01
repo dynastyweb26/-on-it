@@ -409,3 +409,20 @@ branch keeping its 2× books capture (`f08ca57`) and description wrapping
   plus a schema change (an `expense_items` table or a `line_items` jsonb on
   `expenses`, with RLS, length caps and privilege-check rows), then a third
   level in the itemized Expenses PDF.
+
+## Receipt capture motion — logged 2026-10-01 (`feat/receipt-motion`; hotfix `fix/shutter-reduced-motion`, merged `9a6b8f7`)
+
+_Board "05 · Receipt capture", MOTION-SPEC §8 (as built). Checked in headless
+Chromium at 390×844 with the receipt read and save faked; the flash change
+(after the camera sheet, longer) awaits an on-device check._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Reduced motion left a white layer over the chat | **Fixed — on `main`** (`ef35fe8`, merge `9a6b8f7`) | `.onit-shutter` (white, no resting opacity) stayed mounted with its animation turned off, covering the chat after any receipt photo. Now `display:none` under `prefers-reduced-motion: reduce`, and the branch also rests it at opacity 0. |
+| Diagnosis: no receipt motion on device | **Done** (`c706906` message) | Flash fired under the camera sheet; the Expense card's thumbnail scale-in (`onit-photo-in`) ran off screen above the viewport (list pinned to the bottom of the tall card), without waiting for decode; card build-in ran with its top off screen. The temporary `?motionlog=1` logger was removed (`668a79a`) after the device check. |
+| Photo flies into a chat bubble | **Built — awaiting preview** (`c706906`, `8c9ee92`) | `ReceiptBubble`: the photo is a real user message (`Msg.receipt`, ~264px JPEG data URL from `prepareReceipt`); after `img.decode()` and the flash's peak, a full-bleed copy shrinks into it (460ms, `--ease-emphasized`) and crossfades into the rounded bubble. Stays on a duplicate or read error. "Reading your receipt…" under it. Parse history sends role + text only. |
+| Real flash, after the camera sheet | **Built — awaiting on-device check** (`8c9ee92`, `9ff1b5d`) | Waits for the page to be visible + 2 frames, then 0 → 1 in 40ms, hold 80ms, 1 → 0 over 260ms ease-out (380ms), pure white. Chromium: curve sampled 0 / .5 / 1 / 1 / 1 / .58 / .16 / .01 / 0 at 0–380ms; with the page hidden nothing fires, then the flash 39ms after it is visible; flight 120ms after the flash. |
+| Save collapses into the logged card | **Built — awaiting preview** (`f8de93c`) | `LoggedExpenseCard`: thumbnail, store, category · date, amount; count-up 500ms, LOGGED chip springs in 200ms after. Replaces the "Got it — …" text (kept as the message content for the model). Restored chats: static. |
+| Thumbnails vs localStorage quota | **Fixed on branch** (`eca1fd3`) | Chat persists in localStorage (live chat + 5 archived). ~38–50K chars per thumbnail; was stored twice and in history copies, so ~50 receipts could exceed the ~5MB quota, and the swallowed error left a stale copy to restore. Now: logged card references its bubble; newest 8 thumbnails persisted (older → "Receipt photo" placeholder); history keeps none; image-free retry on quota error. Chromium: 12 receipts → 167K stored, 8 photos + 4 placeholders after reload; forced quota → every message restored. |
+| Merge note | **Open** | `feat/paywall-v2` edits the same receipt/save functions in `chat/page.tsx`; whichever merges second resolves those conflicts. |
+
