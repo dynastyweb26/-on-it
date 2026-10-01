@@ -124,7 +124,7 @@ export async function buildSummaryPdf(
         <ExpenseSummaryTemplate
           d={{
             ...header,
-            rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total, anyDeductible: r.anyDeductible })),
+            rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total })),
             total: summary.total,
             count: summary.count,
           }}
@@ -156,7 +156,6 @@ export async function buildSummaryPdf(
           store: vendor || '—',
           description: note ? `${description} — ${note}` : description || '—',
           amount: num(r.amount),
-          deductible: Boolean(r.tax_deductible),
           hasReceipt: Boolean(r.receipt_url || r.receipt_path),
         };
       }),
@@ -298,8 +297,8 @@ export function supabaseSource(): SummaryPdfSource {
       return fetchAll((from, to) => supabase
         .from('expenses')
         .select(detailed
-          ? 'id, amount, category, tax_deductible, spent_on, description, vendor, note, receipt_path, receipt_url'
-          : 'id, amount, category, tax_deductible, spent_on')
+          ? 'id, amount, category, spent_on, description, vendor, note, receipt_path, receipt_url'
+          : 'id, amount, category, spent_on')
         .is('deleted_at', null)
         .gte('spent_on', range.start)
         .lte('spent_on', range.end)

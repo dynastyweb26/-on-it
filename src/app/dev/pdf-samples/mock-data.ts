@@ -164,7 +164,6 @@ for (const cat of EXPENSE_CATEGORIES) {
       id: `exp-${String(++e).padStart(4, '0')}`,
       amount: cents(lo + rand() * (hi - lo)).toFixed(2),
       category: cat,
-      tax_deductible: rand() < 0.55,
       spent_on: `2026-10-${pad(day)}`,
       created_at: at(10, day, int(7, 19)),
       description: what,
@@ -182,7 +181,7 @@ expenses[4].receipt_path = 'vault/legacy-receipt.jpg';
 expenses[4].receipt_url = null;
 Object.assign(expenses.find((x) => x.category === 'food')!, { amount: '4.99', description: 'Gatorade', vendor: 'QuikTrip' });
 Object.assign(expenses.find((x) => x.category === 'tools')!, {
-  amount: '12500.00', description: 'Used skid steer, down payment', vendor: 'Four Brothers Equipment', tax_deductible: true,
+  amount: '12500.00', description: 'Used skid steer, down payment', vendor: 'Four Brothers Equipment',
 });
 expenses.sort((a, b) => String(a.spent_on).localeCompare(String(b.spent_on)) || String(a.created_at).localeCompare(String(b.created_at)));
 

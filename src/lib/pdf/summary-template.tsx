@@ -15,7 +15,6 @@ export interface SummaryRowData {
   label: string;
   count: number;
   total: number;
-  anyDeductible: boolean;
 }
 
 export interface ExpenseSummaryData {
@@ -283,7 +282,6 @@ export interface ExpenseDetailRow {
   store: string;         // vendor, or "—"
   description: string;   // description, with the note appended when present
   amount: number;
-  deductible: boolean;
   hasReceipt: boolean;   // receipt_url or legacy receipt_path on file
 }
 
@@ -314,7 +312,7 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
             <th style={{ ...TH, textAlign: 'left', width: 84 }}>Date</th>
             <th style={{ ...TH, textAlign: 'left', width: 128 }}>Store</th>
             <th style={{ ...TH, textAlign: 'left' }}>Description</th>
-            <th style={{ ...TH, textAlign: 'left', width: 112 }} />
+            <th style={{ ...TH, textAlign: 'left', width: 64 }} />
             <th style={{ ...TH, textAlign: 'right', width: 96 }}>Amount</th>
           </tr>
         </thead>
@@ -343,9 +341,9 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
               <tr key={`c${ci}r${ri}`} {...grp(ci)}>
                 <td style={ROW_TD}>{r.date}</td>
                 <td style={ROW_TD}>{clip(r.store, 18)}</td>
-                <td style={ROW_TD}>{clip(r.description, 40)}</td>
+                <td style={ROW_TD}>{clip(r.description, 46)}</td>
                 <td style={{ ...ROW_TD, ...MARK }}>
-                  {[r.deductible && 'Deductible', r.hasReceipt && 'Receipt'].filter(Boolean).join(' · ')}
+                  {r.hasReceipt ? 'Receipt' : ''}
                 </td>
                 <td style={{ ...ROW_TD, padding: '4px 0', textAlign: 'right' }}>{money(r.amount)}</td>
               </tr>
