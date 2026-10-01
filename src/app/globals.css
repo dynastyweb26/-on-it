@@ -386,9 +386,16 @@ html[data-splash=""] .onit-splash {
      flash must not leave a white layer over the screen. */
   opacity: 0;
   pointer-events: none;
-  animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: onit-shutter 380ms linear both;
 }
-@keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
+/* A real flash: 0 → 1 in 40ms, hold 80ms, then 1 → 0 over 260ms ease-out
+   (380ms). Pure white. The photo's flight starts at the end of the hold. */
+@keyframes onit-shutter {
+  0%     { opacity: 0; }
+  10.53% { opacity: 1; }
+  31.58% { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+  100%   { opacity: 0; }
+}
 /* Save: the expense card folds away (onit-card-exit) and the compact logged
    card arrives as if it collapsed out of it — down from slightly larger. */
 @keyframes onit-logged-in { from { opacity: 0; transform: translateY(-10px) scale(1.04); } }
