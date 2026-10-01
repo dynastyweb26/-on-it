@@ -447,6 +447,11 @@ export default function Chat() {
   // for the slow path, so an error surfaces instead of the button hanging on
   // "Preparing…". `preparing` serializes builds (never two DB writes in flight).
   const [prepState, setPrepState] = useState<{ sig: string; status: 'ready' | 'failed' } | null>(null);
+  // A send that built the file but whose share sheet didn't open (iOS drops the
+  // tap's permission to share after the slow-path awaits): the signature of the
+  // draft whose file is waiting. While it matches, the button reads "Share
+  // invoice" so the second tap is a deliberate step, not a retry of an error.
+  const [shareWaiting, setShareWaiting] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
   // now follows per-message input modality (voice vs typed), not session state.
@@ -1711,12 +1716,19 @@ export default function Chat() {
     if (r.status === 'failed') {
       preBuiltRef.current = pb;
       setPrepState({ sig: pb.signature, status: 'ready' });
-      if (!retryId) setMessages((m) => [...m, aMsg(
-        `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
-        { failed: { op: 'finalize' } },
-      )]);
+      setShareWaiting(pb.signature);
+      // NotAllowedError is the expected iOS outcome of a build-at-tap send: the
+      // file is ready, the next tap shares it instantly. Say that calmly; only
+      // a real failure gets the error bubble with Retry.
+      if (!retryId) setMessages((m) => [...m, r.name === 'NotAllowedError'
+        ? aMsg(`Your ${docNoun(docKind(draft)).toLowerCase()} is ready. Tap Share ${docNoun(docKind(draft)).toLowerCase()} to send it.`)
+        : aMsg(
+          `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
+          { failed: { op: 'finalize' } },
+        )]);
       return;
     }
+    setShareWaiting(null);
     if (!profile || !draft) return;
     const downloaded = r.status === 'unsupported';
     if (downloaded) downloadFile(pb.file);
@@ -2526,8 +2538,18 @@ export default function Chat() {
             disabled={phase !== null || !isValidTotal || !sendReady}
             onClick={() => finalize()}
           >
-            <Icon name="attach_file" size={18} />
-            {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+            {sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
+              // The file is built and waiting: this tap opens the share sheet.
+              <>
+                <Icon name="share" size={18} />
+                {`Share ${docNoun(docKind(draft)).toLowerCase()}`}
+              </>
+            ) : (
+              <>
+                <Icon name="attach_file" size={18} />
+                {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+              </>
+            )}
           </button>
           {/* Quiet secondary exit: download the PDF without sending. Saves the
               draft (sendable later); does not mark sent or archive. */}
