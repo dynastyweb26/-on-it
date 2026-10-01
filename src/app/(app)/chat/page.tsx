@@ -401,11 +401,13 @@ export default function Chat() {
   const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Capped tiers (free, canceled, anything not unlimited) get no background
-  // pre-build: it INSERTs the draft row before Send, which would spend a free
-  // invoice slot on a card that may never be sent. Their Send builds at tap
-  // time instead (the slow path). Only while the paywall is on.
+  // pre-build for an INVOICE: it INSERTs the draft row before Send, which would
+  // spend a free invoice slot on a card that may never be sent. Their Send
+  // builds at tap time instead (the slow path). Quotes never count, so they
+  // keep the pre-build. Only while the paywall is on.
   const skipPreBuild = PAYWALL_ENABLED && !!profile
-    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
+    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free')
+    && docKind(draft) === 'invoice';
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
   useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
@@ -1334,7 +1336,7 @@ export default function Chat() {
     // draft (pendingInvoiceRef set, e.g. after a cancelled share) is exempt, so
     // we never block an invoice the user already made and is entitled to finish.
     // hasAccess() encodes the rules: founder/trialing/active/past_due pass;
-    // free passes under the cap; free at/over cap and canceled are gated. The
+    // free and canceled pass under the cap and are gated at/over it. The
     // server-side trigger enforces the same rules even if this gate is bypassed.
     // Fail OPEN if /api/access is unreachable — a transient blip must not block
     // a legitimate invoice (matches the rate-limiter's fail-open stance).
@@ -1342,7 +1344,9 @@ export default function Chat() {
     // it", Download) waits for it, so the two never write the row concurrently.
     if (mode !== 'prepare' && preparePromiseRef.current) await preparePromiseRef.current;
 
-    if (!pendingInvoiceRef.current) {
+    // Quotes are never capped (the trigger skips kind <> 'invoice'), so only a
+    // new INVOICE is gated — for every tier the trigger caps, canceled included.
+    if (!pendingInvoiceRef.current && docKind(draft) === 'invoice') {
       try {
         const gate = await (await fetch('/api/access')).json();
         if (gate && gate.hasAccess === false) {

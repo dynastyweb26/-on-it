@@ -7,7 +7,7 @@
 // - 'past_due' → unlimited (Stripe dunning grace: payment is retrying. The
 //   webhook collapses the tier to 'canceled' once retries are exhausted, which
 //   ends the grace — see tierFromStatus in the stripe webhook).
-// - 'canceled' → paywalled.
+// - 'canceled' → exactly like 'free' below (reported as 'canceled').
 // - 'free' (and any legacy value like the old 'standard') → free_invoice_limit()
 //   real invoices and free_expense_limit() expenses created since
 //   paywall_reset_at(), then paywalled. Older rows never count; soft-deleted
@@ -75,20 +75,22 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   if (raw === 'trialing' || raw === 'active' || raw === 'past_due') {
     return { hasAccess: true, canExpense: true, tier: raw, ...counts };
   }
-  // Paywall kill switch: 'canceled' rejects on TIER regardless of counts, so
-  // the raised limits don't cover it — the flag must. With the paywall off
-  // this early-return is skipped and a canceled user falls through to the free
-  // path, where they're under the (then huge) caps. NOTE: the triggers treat
-  // canceled like free (capped, not blocked), so paths that rely only on the
-  // trigger let a canceled user create up to the free limits.
-  if (PAYWALL_ENABLED && raw === 'canceled') {
-    return { hasAccess: false, canExpense: false, tier: 'canceled', ...counts };
+  // Capped from here on: free, canceled, legacy, anything unexpected. A
+  // canceled user is treated exactly like a free one (the triggers do the
+  // same): the free limits counted from the reset, quotes always allowed. The
+  // tier is still reported as 'canceled' so the UI can word things for them.
+  const tier: AccessTier = raw === 'canceled' ? 'canceled' : 'free';
+
+  // Paywall kill switch (UI): with the paywall off nothing is gated here. The
+  // DB triggers still enforce whatever limits are live — turning the caps off
+  // for real is the rollback (supabase/rollbacks/paywall_v2_rollback.sql).
+  if (!PAYWALL_ENABLED) {
+    return { hasAccess: true, canExpense: true, tier, ...counts };
   }
 
-  // free / legacy 'standard' / anything unexpected → free tier. Each cap is
-  // read from the SAME SQL function its trigger uses, so the numbers are never
-  // duplicated. If an rpc fails we do NOT false-block — the triggers are the
-  // real enforcement, and hasAccess is only the UX hint.
+  // Each cap is read from the SAME SQL function its trigger uses, so the
+  // numbers are never duplicated. If an rpc fails we do NOT false-block — the
+  // triggers are the real enforcement, and hasAccess is only the UX hint.
   const [{ data: invLimit }, { data: expLimit }] = await Promise.all([
     supabase.rpc('free_invoice_limit'),
     supabase.rpc('free_expense_limit'),
@@ -98,7 +100,7 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   return {
     hasAccess: invoiceCount < invoiceLimit,
     canExpense: expenseCount < expenseLimit,
-    tier: 'free',
+    tier,
     ...counts,
   };
 }
