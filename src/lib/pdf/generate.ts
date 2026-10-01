@@ -106,7 +106,10 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   // data-pdf-group-header, with the name in [data-pdf-group-name]. A page that
   // opens mid-group starts with a copy of that header reading "<Name>
   // (continued)" (parts marked data-pdf-continued-hide — counts, subtotals —
-  // dropped), and its height is reserved when the page is packed.
+  // dropped), and its height is reserved when the page is packed. When the
+  // page opens on a row carrying data-pdf-continued-suffix (a line item under
+  // its invoice), the suffix joins the name: "<Name> · INV-1076 (continued)".
+  // A break between payments keeps the name-only form.
   const groupOf = rows.map((r) => r.getAttribute('data-pdf-group'));
   const groupHeaderIdx = new Map<string, number>();
   rows.forEach((r, i) => {
@@ -392,7 +395,8 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
           cont.removeAttribute('data-pdf-keep-with-next');
           cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
           const name = cont.querySelector('[data-pdf-group-name]');
-          if (name) name.textContent = `${name.textContent ?? ''} (continued)`;
+          const suffix = rows[range.start].getAttribute('data-pdf-continued-suffix');
+          if (name) name.textContent = `${name.textContent ?? ''}${suffix ? ` · ${suffix}` : ''} (continued)`;
           tbody.appendChild(cont);
         }
         for (let rIdx = range.start; rIdx < range.end; rIdx++) {

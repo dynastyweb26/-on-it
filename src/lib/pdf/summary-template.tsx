@@ -606,7 +606,13 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                     ]
                   : []),
                 ...items.map((li, ii) => (
-                  <tr key={`c${ci}p${pi}i${ii}`} {...grp(ci)}>
+                  <tr
+                    key={`c${ci}p${pi}i${ii}`}
+                    {...grp(ci)}
+                    // A page that opens on this row names the invoice in its
+                    // "(continued)" header.
+                    {...(p.invoice !== '—' ? { 'data-pdf-continued-suffix': p.invoice } : {})}
+                  >
                     <td colSpan={4} style={SUB_TD}>
                       {clip(li.description || 'Item', 56)}
                       {'  ·  '}{fmtQty(li.qty)} × {money(li.unitPrice)} = {money(li.amount)}
