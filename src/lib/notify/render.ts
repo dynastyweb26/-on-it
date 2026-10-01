@@ -59,5 +59,18 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         tag: `draft-${event.invoiceId}`,
       };
     }
+    case 'recap': {
+      // Short title (iOS cuts long ones); whole dollars in the body.
+      const dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+      const month = new Date(`${event.periodStart}T12:00:00Z`)
+        .toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+      const week = event.kind === 'week';
+      return {
+        title: week ? 'Your week in review' : `Your ${month} in review`,
+        body: `${dollars(event.income)} in · ${dollars(event.expenses)} out · Tap to see your ${week ? 'week' : 'month'}`,
+        url: `/dashboard?recap=${event.recapId}`,
+        tag: `recap-${event.kind}-${event.periodStart}`,
+      };
+    }
   }
 }

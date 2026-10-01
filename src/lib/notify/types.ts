@@ -39,6 +39,14 @@ export type NotifyEvent =
       invoiceNumber: number;
       clientName: string;
       total: number;
+    }
+  | {
+      type: 'recap';              // weekly / monthly "in review" (lib/notify/recaps)
+      recapId: string;            // recaps.id — the tap opens /dashboard?recap=<id>
+      kind: 'week' | 'month';
+      periodStart: string;        // yyyy-mm-dd; with kind + user, the dedupe identity
+      income: number;
+      expenses: number;
     };
 
 export type NotifyEventType = NotifyEvent['type'];
