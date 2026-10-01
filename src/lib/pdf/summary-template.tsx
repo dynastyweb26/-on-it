@@ -530,8 +530,7 @@ export interface IncomeLineItem {
 
 export interface IncomeDetailPayment extends IncomePaymentRow {
   note?: string | null;        // "Payment 2 of INV-0042 · items listed above"
-  items?: IncomeLineItem[];    // capped by the caller (first 15)
-  moreItems?: number;          // items beyond the cap
+  items?: IncomeLineItem[];    // every line item on the invoice
 }
 
 export interface IncomeDetailClient {
@@ -550,8 +549,9 @@ export interface IncomeDetailedData extends DocHeaderData {
 const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))));
 
 // Line items under a payment: black like the payment rows; the hierarchy is
-// the indent and the smaller size only. Annotations (the "Payment N of" label,
-// "+ N more items") stay muted via SUB_NOTE.
+// the indent and the smaller size only. The "Payment N of" label stays muted
+// via SUB_NOTE. A long item list may break across pages like any other rows;
+// the new page opens with the client's "(continued)" header.
 const SUB_TD: React.CSSProperties = { padding: '3px 0 3px 24px', color: INK, fontSize: 11, ...ONE_LINE };
 const SUB_NOTE: React.CSSProperties = { ...SUB_TD, color: MUTED };
 
@@ -589,8 +589,7 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
             </tr>,
             ...keepLastWithNext(c.payments.flatMap((p, pi) => {
               const items = p.items ?? [];
-              const more = p.moreItems ?? 0;
-              const hasDetail = Boolean(p.note) || items.length > 0 || more > 0;
+              const hasDetail = Boolean(p.note) || items.length > 0;
               return [
                 // A payment stays on the page with the first line under it.
                 <tr key={`c${ci}p${pi}`} {...grp(ci)} {...(hasDetail ? KEEP_NEXT : {})}>
@@ -614,13 +613,6 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                     </td>
                   </tr>
                 )),
-                ...(more > 0
-                  ? [
-                      <tr key={`c${ci}p${pi}m`} {...grp(ci)}>
-                        <td colSpan={4} style={SUB_NOTE}>+ {more} more {more === 1 ? 'item' : 'items'}</td>
-                      </tr>,
-                    ]
-                  : []),
               ];
             })),
             <tr key={`c${ci}s`} {...grp(ci)}>

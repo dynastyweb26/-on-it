@@ -39,8 +39,6 @@ export interface SummaryPdfOptions {
 // PostgREST caps a response (1000 rows on Supabase), so long periods are read
 // in pages. Each query orders on a unique tail so pages never overlap.
 const PAGE_ROWS = 1000;
-// A detailed income document lists at most this many line items per invoice.
-const MAX_LINE_ITEMS = 15;
 
 export type Row = Record<string, unknown>;
 
@@ -259,17 +257,13 @@ export async function buildSummaryPdf(
       if (!showItems) return { ...base, note };
 
       const raw = embedded(row)?.line_items;
-      const all: IncomeLineItem[] = (Array.isArray(raw) ? raw : []).map((li: { description?: unknown; qty?: unknown; unit_price?: unknown }) => {
+      // Every line item, uncapped: a detailed statement lists the whole invoice.
+      const items: IncomeLineItem[] = (Array.isArray(raw) ? raw : []).map((li: { description?: unknown; qty?: unknown; unit_price?: unknown }) => {
         const qty = num(li?.qty);
         const unitPrice = num(li?.unit_price);
         return { description: String(li?.description ?? ''), qty, unitPrice, amount: calculateLineAmount(qty, unitPrice) };
       });
-      return {
-        ...base,
-        note,
-        items: all.slice(0, MAX_LINE_ITEMS),
-        moreItems: Math.max(0, all.length - MAX_LINE_ITEMS),
-      };
+      return { ...base, note, items };
     }),
   }));
 
