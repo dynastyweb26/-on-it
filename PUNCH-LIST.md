@@ -371,3 +371,12 @@ to._
 | "Remind me about unsent drafts" toggle | **Done — verified on preview 2026-09-30** (`0599431`) | Settings sub-toggle (shown while push is on) writing `notify_draft_nudges`. |
 | Draft nudges | **Done — verified on preview 2026-09-30** (`a0d12bc`, `b25b15d`) | Vercel plan is Hobby, so it runs as step 2 of the daily `/api/followups` cron (no new cron entry), production only. Invoices only, drafts last updated 24h–14 days ago, never sent, not nudged before; owner opted in, valid timezone outside 21:00–08:00 local, a device in this env, no draft nudge in 20h; one per owner per run (newest draft); status re-read before sending. Preview test: `/api/push/test` `draft_run`, own drafts only (claims the real `draft:<id>`). |
 | "Viewed {date}" on invoice detail | **Done — verified on preview 2026-09-30** (`8cac0f9`) | Under the status line, from `viewed_at`. Detail page only. |
+
+## Supabase CLI migrations — logged 2026-09-30 (`chore/supabase-cli-migrations`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| CLI migration workflow | **Done** | Project linked (`bitfmmffnigxjjyxoxfr`). Nine hand-applied versions verified live by read-only query, then `migration repair --status applied` (0924, 0925 ×2, 0926 ×2, 0927, 0929, 0930000003/4). `migration list`: 0 local-only. Rule in CLAUDE.md "Database migrations". |
+| `reconcile_invoice_from_ledger` re-applied | **Done — 2026-09-30 via `db push`** | The live function had been accidentally reverted to the 09-18 definition (search_path=public, no draft logic) by an earlier rollback attempt; its backfill had already run. `db push --include-all` re-applied `20260930000002`; verified search_path="" + draft logic. Privilege check M1–M3 PASS. |
+| Privilege check as PASS/FAIL | **Done** | `supabase/snippets/privilege_check.sql` is now one query returning check / PASS-FAIL / expected / found (runs as-is in the SQL Editor); `npm run db:privcheck` runs it via the CLI and exits 1 on any FAIL. `next_quote_number` added to the privileged list (a server-assigned counter; already not user-writable). |
+| TRUNCATE granted to anon/authenticated | **Open (security, needs a migration + user yes)** | Privilege check D FAILs: `audit_log`, `clients`, `vault_documents`, `rate_limits`, `access_grants`, `expenses`, `expenses_backup_20260723`, `invoices`, `invoice_payments` grant TRUNCATE to both roles (Supabase default grants). TRUNCATE bypasses RLS. Not reachable through PostgREST, but should be revoked. Also review whether `expenses_backup_20260723` should still exist. |
