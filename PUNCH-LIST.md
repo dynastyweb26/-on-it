@@ -410,3 +410,9 @@ the temporary `/dev/pdf-samples` page (mock set, real pipeline): Income Detailed
   plus a schema change (an `expense_items` table or a `line_items` jsonb on
   `expenses`, with RLS, length caps and privilege-check rows), then a third
   level in the detailed Expenses PDF.
+
+## Weekly / monthly recap — logged 2026-10-01 (`feat/recap`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Recap push toggle in Settings (profiles.recap_push) — add after paywall merges | **Open — follow-up** | `SettingsView.tsx` belongs to the paywall branch right now, so the toggle is not in `feat/recap`. Nothing breaks without it: `profiles.recap_push` defaults to true and is already a safe, user-updatable column (migration `20261001000010`). When it lands: a sub-toggle "Weekly and monthly recap" next to the draft-nudge one, writing `recap_push`; off stops the push only (the snapshot and the in-app sheet still appear). |
