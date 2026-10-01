@@ -496,3 +496,128 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
 }
 
 export { INCOME_DISCLAIMER };
+
+/* ═══ Income Detail document ═══
+   The Income Summary's client → payments structure, with what each invoice was
+   for listed under its payment: the invoice's line items, indented and muted.
+   An invoice paid in several installments within the period lists its items
+   once, under its first payment here; later payments carry a note instead. */
+
+export interface IncomeLineItem {
+  description: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;        // qty × unit price, rounded
+}
+
+export interface IncomeDetailPayment extends IncomePaymentRow {
+  note?: string | null;        // "Payment 2 of INV-0042 · items listed above"
+  items?: IncomeLineItem[];    // capped by the caller (first 15)
+  moreItems?: number;          // items beyond the cap
+}
+
+export interface IncomeDetailClient {
+  client: string;
+  count: number;
+  total: number;
+  payments: IncomeDetailPayment[];
+}
+
+export interface IncomeDetailedData extends DocHeaderData {
+  clients: IncomeDetailClient[];
+  total: number;
+  count: number;     // number of payments
+}
+
+const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))));
+
+const SUB_TD: React.CSSProperties = { padding: '1px 0 1px 24px', color: MUTED, fontSize: 11, ...ONE_LINE };
+
+export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <DetailedHeader d={d} noun="Income Detail" accent={accent} />
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>
+            <th style={{ ...TH, textAlign: 'left', width: 110 }}>Invoice</th>
+            <th style={{ ...TH, textAlign: 'left' }}>Method</th>
+            <th style={{ ...TH, textAlign: 'right', width: 130 }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.clients.length === 0 && (
+            <tr style={{ borderTop: `1px solid ${accent}59` }}>
+              <td colSpan={4} style={{ padding: '14px 0', color: MUTED, fontSize: 13 }}>
+                No payments received in this period.
+              </td>
+            </tr>
+          )}
+          {d.clients.flatMap((c, ci) => [
+            // Client header — (3) thin accent separator above each client group
+            <tr key={`c${ci}`} data-pdf-keep-with-next="" style={{ borderTop: `1px solid ${accent}59` }}>
+              <td colSpan={4} style={{ padding: '14px 0 6px', color: INK, fontSize: 14, fontWeight: 800, ...ONE_LINE }}>
+                {clip(c.client, 60)}
+                <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                  {'  ·  '}{c.count} {c.count === 1 ? 'payment' : 'payments'}
+                </span>
+              </td>
+            </tr>,
+            ...c.payments.flatMap((p, pi) => {
+              const items = p.items ?? [];
+              const more = p.moreItems ?? 0;
+              const hasDetail = Boolean(p.note) || items.length > 0 || more > 0;
+              return [
+                // A payment stays on the page with the first line under it.
+                <tr key={`c${ci}p${pi}`} {...(hasDetail ? { 'data-pdf-keep-with-next': '' } : {})}>
+                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.date}</td>
+                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.invoice}</td>
+                  <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.method}</td>
+                  <td style={{ padding: '6px 0 2px', textAlign: 'right', color: INK, fontSize: 13 }}>{money(p.amount)}</td>
+                </tr>,
+                ...(p.note
+                  ? [
+                      <tr key={`c${ci}p${pi}n`} {...(items.length > 0 ? { 'data-pdf-keep-with-next': '' } : {})}>
+                        <td colSpan={4} style={{ ...SUB_TD, fontStyle: 'italic' }}>{p.note}</td>
+                      </tr>,
+                    ]
+                  : []),
+                ...items.map((li, ii) => (
+                  <tr key={`c${ci}p${pi}i${ii}`}>
+                    <td colSpan={4} style={SUB_TD}>
+                      {clip(li.description || 'Item', 56)}
+                      {'  ·  '}{fmtQty(li.qty)} × {money(li.unitPrice)} = {money(li.amount)}
+                    </td>
+                  </tr>
+                )),
+                ...(more > 0
+                  ? [
+                      <tr key={`c${ci}p${pi}m`}>
+                        <td colSpan={4} style={SUB_TD}>+ {more} more {more === 1 ? 'item' : 'items'}</td>
+                      </tr>,
+                    ]
+                  : []),
+              ];
+            }),
+            <tr key={`c${ci}s`}>
+              <td colSpan={3} style={{ padding: '8px 0 12px', textAlign: 'right', color: MUTED, fontSize: 12 }}>
+                Subtotal · {clip(c.client, 40)}
+              </td>
+              <td style={{ padding: '8px 0 12px', textAlign: 'right', color: INK, fontWeight: 700, fontSize: 13 }}>{money(c.total)}</td>
+            </tr>,
+          ])}
+        </tbody>
+      </table>
+
+      <DetailedTotal
+        label={`Total received · ${d.count} ${d.count === 1 ? 'payment' : 'payments'}`}
+        total={d.total}
+        accent={accent}
+      />
+
+      <DetailedFooter text={INCOME_DISCLAIMER} />
+    </div>
+  );
+}
