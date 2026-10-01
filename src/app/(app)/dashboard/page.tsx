@@ -241,12 +241,34 @@ export default function Dashboard() {
         </>
       )}
 
-      <button className="btn-primary w-full" onClick={() => setShowForm(true)}>
-        <Icon name="add" size={22} /> Add expense
-      </button>
-      <Link href="/summary" className="btn-outline w-full text-primary">
-        <Icon name="receipt_long" size={18} /> Summary &amp; PDFs
-      </Link>
+      {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
+          300ms, 350ms; View expenses 50ms after). Mounted with the totals, like
+          the tiles, so the entrance never starts on buttons already on screen. */}
+      {!loading && (
+        <>
+          <button
+            className={`btn-primary w-full${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '300ms' } : undefined}
+            onClick={() => setShowForm(true)}
+          >
+            <Icon name="add" size={22} /> Add expense
+          </button>
+          <Link
+            href="/summary"
+            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '350ms' } : undefined}
+          >
+            <Icon name="receipt_long" size={18} /> Income &amp; Expenses
+          </Link>
+          <Link
+            href="/expenses"
+            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '400ms' } : undefined}
+          >
+            <Icon name="receipt_long" size={18} /> View expenses
+          </Link>
+        </>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
