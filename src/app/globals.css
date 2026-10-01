@@ -440,4 +440,8 @@ html[data-splash=""] .onit-splash {
     background: #efe5d5 !important;
   }
   * { animation: none !important; transition: none !important; }
+  /* The receipt shutter is a white full-screen layer that relies on its
+     animation to fade out. With animations off it would sit opaque over the
+     chat until the screen is left, so under reduced motion it never renders. */
+  .onit-shutter { display: none !important; }
 }
