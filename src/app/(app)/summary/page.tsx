@@ -437,7 +437,7 @@ export default function TaxSummary() {
             aria-modal="true"
             aria-label={pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
             className="w-full max-w-lg rounded-t-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
-            style={{ animation: 'paywall-in var(--motion-slow) var(--ease-standard)' }}
+            style={{ animation: 'paywall-in 200ms ease-out' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
