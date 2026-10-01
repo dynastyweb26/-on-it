@@ -1,10 +1,12 @@
-// Builds supabase/tests/paywall_v2_validation.sql from the two paywall v2
-// cap migrations, so the embedded copy can never drift from the real files.
+// Builds supabase/tests/paywall_v2_validation.sql from the paywall v2
+// migrations (invoice cap, expense cap, founder code), so the embedded copy
+// can never drift from the real files.
 //
 //   node scripts/build-paywall-validation.mjs
 //
-// The output is ONE DO statement: it EXECUTEs both migrations, runs the cap
-// tests against two throwaway users (random ids, never a real account), then
+// The output is ONE DO statement: it EXECUTEs the migrations, runs the cap and
+// founder-code tests against throwaway users (random ids, never a real
+// account), then
 // RAISEs an error whose message is the test report. A single statement that
 // ends in an error always rolls back completely, however the SQL Editor
 // executes it — nothing is ever committed.
@@ -16,6 +18,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATIONS = [
   'supabase/migrations/20261001000001_paywall_v2_invoice_cap.sql',
   'supabase/migrations/20261001000002_paywall_v2_expense_cap.sql',
+  'supabase/migrations/20261001000003_founder_code.sql',
 ];
 const OUT = 'supabase/tests/paywall_v2_validation.sql';
 
@@ -130,17 +133,133 @@ const tests = String.raw`
   exception when others then
     report := report || ('FAIL  created_at checks errored: ' || sqlerrm); failed := failed + 1;
   end;
+
+  -- ══ Founder code (20261001000003) ═══════════════════════════
+  insert into auth.users (id, email) values
+    (code_u1, 'paywall-validation-code1-' || code_u1 || '@example.invalid'),
+    (code_u2, 'paywall-validation-code2-' || code_u2 || '@example.invalid'),
+    (code_u3, 'paywall-validation-code3-' || code_u3 || '@example.invalid');
+  insert into public.profiles (id, business_name, access_tier) values
+    (code_u1, 'Paywall validation (code 1)', 'free'),
+    (code_u2, 'Paywall validation (code 2)', 'free'),
+    (code_u3, 'Paywall validation (code 3)', 'canceled');
+
+  -- Exact match grants founder.
+  v_status := public.redeem_grant_for(code_u1, 'JesusisKing');
+  select access_tier, granted_via into v_tier, v_text from public.profiles where id = code_u1;
+  if v_status = 'ok' and v_tier = 'founder' and v_text = 'JesusisKing' then
+    report := report || 'PASS  code: exact "JesusisKing" redeemed, tier founder'; passed := passed + 1;
+  else
+    report := report || format('FAIL  code: exact match -> %s, tier %s, via %s', v_status, v_tier, v_text); failed := failed + 1;
+  end if;
+
+  -- Wrong case is rejected (and costs nothing).
+  v_status := public.redeem_grant_for(code_u2, 'jesusisking');
+  select access_tier into v_tier from public.profiles where id = code_u2;
+  if v_status = 'invalid' and v_tier = 'free' then
+    report := report || 'PASS  code: "jesusisking" (wrong case) rejected'; passed := passed + 1;
+  else
+    report := report || format('FAIL  code: wrong case -> %s, tier %s', v_status, v_tier); failed := failed + 1;
+  end if;
+
+  -- An existing founder is refused (doesn't burn a use).
+  select use_count into v_count from public.access_grants where token = 'JesusisKing';
+  v_status := public.redeem_grant_for(founder_u, 'JesusisKing');
+  if v_status = 'already_founder'
+     and (select use_count from public.access_grants where token = 'JesusisKing') = v_count then
+    report := report || 'PASS  code: existing founder refused, no use spent'; passed := passed + 1;
+  else
+    report := report || ('FAIL  code: existing founder -> ' || v_status); failed := failed + 1;
+  end if;
+
+  -- Repeat redemption by the same user is rejected even if they lost founder.
+  update public.profiles set access_tier = 'free' where id = code_u1;
+  v_status := public.redeem_grant_for(code_u1, 'JesusisKing');
+  if v_status = 'already_redeemed' then
+    report := report || 'PASS  code: repeat redemption by the same user rejected'; passed := passed + 1;
+  else
+    report := report || ('FAIL  code: repeat redemption -> ' || v_status); failed := failed + 1;
+  end if;
+
+  -- Cap: a throwaway code with max_uses = 1.
+  insert into public.access_grants (token, label, access_tier, max_uses)
+    values ('ValidationCap1', 'validation cap test', 'founder', 1);
+  v_status := public.redeem_grant_for(code_u2, 'ValidationCap1');
+  v_text := public.redeem_grant_for(code_u3, 'ValidationCap1');
+  select use_count into v_count from public.access_grants where token = 'ValidationCap1';
+  if v_status = 'ok' and v_text = 'invalid' and v_count = 1 then
+    report := report || 'PASS  code: cap enforced (1st of max_uses=1 ok, 2nd rejected, use_count 1)'; passed := passed + 1;
+  else
+    report := report || format('FAIL  code: cap -> first %s, second %s, use_count %s', v_status, v_text, v_count); failed := failed + 1;
+  end if;
+
+  -- ── As a real client (role authenticated, a session for code_u3) ──
+  begin
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', code_u3, 'role', 'authenticated')::text, true);
+    execute 'set local role authenticated';
+
+    begin
+      perform public.redeem_grant_for(code_u3, 'JesusisKing');
+      report := report || 'FAIL  client: redeem_grant_for is EXECUTABLE by authenticated'; failed := failed + 1;
+    exception when insufficient_privilege then
+      report := report || 'PASS  client: redeem_grant_for not executable'; passed := passed + 1;
+    end;
+
+    begin
+      perform public.redeem_grant('JesusisKing');
+      report := report || 'FAIL  client: redeem_grant is EXECUTABLE by authenticated'; failed := failed + 1;
+    exception when insufficient_privilege then
+      report := report || 'PASS  client: redeem_grant (old RPC) not executable'; passed := passed + 1;
+    end;
+
+    begin
+      select count(*) into v_count from public.access_grants;
+      if v_count = 0 then
+        report := report || 'PASS  client: access_grants returns no rows (codes and counts hidden)'; passed := passed + 1;
+      else
+        report := report || ('FAIL  client: can read ' || v_count || ' access_grants rows'); failed := failed + 1;
+      end if;
+    exception when insufficient_privilege then
+      report := report || 'PASS  client: access_grants not readable'; passed := passed + 1;
+    end;
+
+    begin
+      update public.access_grants set max_uses = 1000000;
+      get diagnostics v_rows = row_count;
+      if v_rows = 0 then
+        report := report || 'PASS  client: access_grants can''t be changed (0 rows updated)'; passed := passed + 1;
+      else
+        report := report || ('FAIL  client: updated ' || v_rows || ' access_grants rows'); failed := failed + 1;
+      end if;
+    exception when insufficient_privilege then
+      report := report || 'PASS  client: access_grants can''t be changed'; passed := passed + 1;
+    end;
+
+    begin
+      select count(*) into v_count from public.grant_redemptions;
+      report := report || ('FAIL  client: grant_redemptions is readable (' || v_count || ' rows)'); failed := failed + 1;
+    exception when insufficient_privilege then
+      report := report || 'PASS  client: grant_redemptions not readable'; passed := passed + 1;
+    end;
+
+    execute 'reset role';
+  exception when others then
+    execute 'reset role';
+    report := report || ('FAIL  client checks errored: ' || sqlerrm); failed := failed + 1;
+  end;
 `;
 
 const out = `-- ═══════════════════════════════════════════════════════════════
--- Paywall v2 cap validation — run in the Supabase SQL Editor. NOTHING PERSISTS.
+-- Paywall v2 validation (caps + founder code) — run in the Supabase SQL Editor.
+-- NOTHING PERSISTS.
 --
 -- GENERATED by scripts/build-paywall-validation.mjs from:
 ${MIGRATIONS.map((m) => `--   ${m}`).join('\n')}
--- Regenerate after changing either migration.
+-- Regenerate after changing any of them.
 --
--- How it stays safe: this whole file is ONE DO statement. It applies both
--- migrations, tests them against two throwaway users (random ids, emails
+-- How it stays safe: this whole file is ONE DO statement. It applies the
+-- migrations, tests them against throwaway users (random ids, emails
 -- @example.invalid — never a real account), and then deliberately raises an
 -- error. A statement that errors is rolled back completely, so the migrations,
 -- the users and every test row disappear, however the editor runs it.
@@ -158,11 +277,19 @@ declare
   report    text[] := '{}';
   passed    int := 0;
   failed    int := 0;
+  code_u1   uuid := gen_random_uuid();
+  code_u2   uuid := gen_random_uuid();
+  code_u3   uuid := gen_random_uuid();
   v_hint    text;
   v_id      uuid;
   v_ts      timestamptz;
+  v_status  text;
+  v_text    text;
+  v_tier    text;
+  v_count   int;
+  v_rows    int;
 begin
-  -- ── The two migrations, exactly as they will be pushed ──────
+  -- ── The migrations, exactly as they will be pushed ─────────
 ${bodies.map((b, i) => `  execute $mig${i + 1}$\n${b}\n$mig${i + 1}$;`).join('\n\n')}
 ${tests}
   -- ── Report, then roll everything back ───────────────────────
