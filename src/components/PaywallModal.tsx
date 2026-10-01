@@ -19,11 +19,8 @@ import type { IconName } from '@/components/icon-names';
 // when feat/recap is on main.
 const RECAPS_LIVE = false;
 
-// The design calls for `summarize` / `insights`; neither glyph is in the icon
-// font subset yet (icon-names.ts, rebuilt by `npm run icons:build`). Until it
-// is, the reports row uses `description`. One place to swap them.
-const REPORTS_ICON: IconName = 'description';
-const RECAPS_ICON: IconName = 'description';
+const REPORTS_ICON: IconName = 'summarize';
+const RECAPS_ICON: IconName = 'insights';
 
 const BENEFITS: { icon: IconName; text: string }[] = [
   { icon: 'all_inclusive', text: 'Unlimited invoices' },
