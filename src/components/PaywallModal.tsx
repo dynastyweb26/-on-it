@@ -253,7 +253,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
                 <Icon name="confirmation_number" size={24} className="shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-semibold leading-5">Have a code?</div>
-                  <div className="mt-0.5 text-[13px] leading-[18px] text-on-surface-variant">Founder and partner codes</div>
+                  <div className="mt-0.5 text-[13px] leading-[18px] text-on-surface-variant">Founder and invite codes</div>
                 </div>
                 {!showCode && (
                   <span className="shrink-0 text-sm font-semibold text-primary max-[379px]:hidden">Enter code</span>
