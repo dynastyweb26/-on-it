@@ -9,13 +9,12 @@
      2. the total row
      3. the thin separator lines between category rows
    Nothing else is colored. */
-import React from 'react';
+import React, { cloneElement, type ReactElement } from 'react';
 
 export interface SummaryRowData {
   label: string;
   count: number;
   total: number;
-  anyDeductible: boolean;
 }
 
 export interface ExpenseSummaryData {
@@ -34,10 +33,28 @@ const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 const MONTSERRAT = "var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif";
 const INK = '#111111';       // black text (non-negotiable)
+// Explicit line-height on every document table. "normal" is font-metric
+// dependent (iOS Safari's Helvetica Neue differs from Chromium's), and
+// html2canvas places text by its own baseline math, so a row sized by
+// "normal" can draw its glyphs partly outside the row. 1.5 leaves room on
+// every engine. Continuation pages copy it from the table (elementToPdf).
+const ROW_LINE_HEIGHT = 1.5;
+
+// Group markers for elementToPdf: every row of a client/category group, its
+// header (name in data-pdf-group-name, counts/subtotals data-pdf-continued-hide)
+// so a page that opens mid-group starts with "<Name> (continued)".
+const grp = (i: number) => ({ 'data-pdf-group': String(i) });
+const GROUP_HEADER = { 'data-pdf-group-header': '', 'data-pdf-keep-with-next': '' };
+const KEEP_NEXT = { 'data-pdf-keep-with-next': '' };
+/** The last row of a group's body stays on the page with the subtotal under it. */
+function keepLastWithNext(rows: ReactElement[]): ReactElement[] {
+  if (rows.length === 0) return rows;
+  return [...rows.slice(0, -1), cloneElement(rows[rows.length - 1], KEEP_NEXT)];
+}
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
-  'This is a record of expenses you logged in On It, grouped by category. It is not tax advice. Whether an expense is deductible is determined by your tax professional.';
+  'This is a record of expenses you logged in On It, grouped by category. Confirm totals against your receipts and bank records.';
 
 const PAGE: React.CSSProperties = {
   width: 794,
@@ -50,7 +67,7 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
+export function ExpenseTotalsTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
   return (
     <div style={PAGE}>
       {/* Header — business name (same no-logo fallback as invoices: name
@@ -86,7 +103,7 @@ export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; a
       </div>
 
       {/* Category table — category / count / total, thin accent separators */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 14 }}>
         <thead>
           <tr>
             <th style={{ textAlign: 'left', padding: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: MUTED, fontWeight: 700 }}>
@@ -147,6 +164,212 @@ export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; a
 
 export { DISCLAIMER };
 
+/* ═══ Shared pieces for the detailed documents ═══
+   Same house style as the summaries above. The detailed documents are long by
+   design, so they use the multi-page markers the Income Summary introduced
+   (data-pdf-business-name / doc-noun / doc-number for the continuation header,
+   data-pdf-block for the last-page total and footer) plus
+   data-pdf-keep-with-next on group headers, so a header never ends a page. */
+
+/** Clip to one line by character count. html2canvas does not paint
+ *  text-overflow: ellipsis, so the cut is made in the string itself — which
+ *  is also why no text cell needs overflow: hidden (html2canvas clips text
+ *  to such a box, and on iOS that cut the bottom half off the glyphs). */
+export function clip(s: string, max: number): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+const ONE_LINE: React.CSSProperties = { whiteSpace: 'nowrap' };
+// Full text that wraps inside its column (descriptions on the detailed
+// statements). A wrapped row is still one <tr>, which elementToPdf never splits.
+const WRAP: React.CSSProperties = { whiteSpace: 'normal', overflowWrap: 'anywhere' };
+// Detailed tables lay out from the header widths, so every page (and every
+// continuation table elementToPdf builds) wraps a row to the same height.
+const FIXED: React.CSSProperties = { tableLayout: 'fixed' };
+
+// Room for the absolutely-positioned footer. It sits in the flow under the
+// total so the partitioner sees the footer's height: a page that is nearly
+// full spills onto a second page instead of running rows under the footer.
+const FOOTER_CLEARANCE = 104;
+
+interface DocHeaderData {
+  businessName: string;
+  logoUrl?: string | null;
+  periodLabel: string;
+  rangeStart: string;
+  rangeEnd: string;
+  generatedOn: string;
+}
+
+function DetailedHeader({ d, noun, accent }: { d: DocHeaderData; noun: string; accent: string }) {
+  return (
+    <>
+      <div style={{ textAlign: 'center' }}>
+        {d.logoUrl && <img src={d.logoUrl} style={{ height: 84, marginBottom: 12 }} alt="" />}
+        <div
+          data-pdf-business-name
+          style={{
+            fontSize: d.logoUrl ? 28 : 40,
+            fontWeight: 800,
+            color: INK,
+            ...(d.logoUrl ? {} : { fontFamily: MONTSERRAT, letterSpacing: -0.5 }),
+          }}
+        >
+          {d.businessName}
+        </div>
+      </div>
+
+      {/* (1) accent rule line under the header */}
+      <div style={{ height: 3, background: accent, margin: '20px 0 28px' }} />
+
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 24, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
+          <span data-pdf-doc-noun>{noun}</span> — <span data-pdf-doc-number>{d.periodLabel}</span>
+        </div>
+        <div style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>
+          Period covered: {d.rangeStart} – {d.rangeEnd}
+        </div>
+        <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>
+          Generated {d.generatedOn}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DetailedTotal({ label, total, accent }: { label: string; total: number; accent: string }) {
+  return (
+    <div
+      data-pdf-block="total"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8,
+        padding: '14px 0',
+        borderTop: `2.5px solid ${accent}`,
+        borderBottom: `2.5px solid ${accent}`,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, color: INK }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 26, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
+        {money(total)}
+      </span>
+    </div>
+  );
+}
+
+function DetailedFooter({ text }: { text: string }) {
+  return (
+    <>
+      <div style={{ height: FOOTER_CLEARANCE }} />
+      <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
+        <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
+        <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{text}</p>
+        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, letterSpacing: 1.5, color: MUTED, opacity: 0.8 }}>
+          Generated by On It
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ═══ Itemized Expenses document ═══
+   Every expense in the period, grouped by category in the summary's order
+   (total desc). Each category opens with a header row (name, count, subtotal)
+   and lists its expenses oldest → newest, one line each: date · store ·
+   description · marks · amount. One table, so elementToPdf paginates it. */
+
+export interface ExpenseDetailRow {
+  date: string;          // display date "Mar 4, 2026"
+  store: string;         // vendor, or "—"
+  description: string;   // description, with the note appended when present
+  amount: number;
+  hasReceipt: boolean;   // receipt_url or legacy receipt_path on file
+}
+
+export interface ExpenseDetailCategory {
+  label: string;
+  count: number;
+  total: number;
+  rows: ExpenseDetailRow[];
+}
+
+export interface ExpenseDetailedData extends DocHeaderData {
+  categories: ExpenseDetailCategory[];
+  total: number;
+  count: number;
+}
+
+const ROW_TD: React.CSSProperties = { padding: '4px 10px 4px 0', color: INK, fontSize: 12, verticalAlign: 'top', ...ONE_LINE };
+const MARK: React.CSSProperties = { fontSize: 10, color: MUTED, letterSpacing: 0.3 };
+
+export function ExpenseItemizedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <DetailedHeader d={d} noun="Itemized Expenses" accent={accent} />
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12, ...FIXED }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, textAlign: 'left', width: 84 }}>Date</th>
+            <th style={{ ...TH, textAlign: 'left', width: 128 }}>Store</th>
+            <th style={{ ...TH, textAlign: 'left' }}>Description</th>
+            <th style={{ ...TH, textAlign: 'left', width: 64 }} />
+            <th style={{ ...TH, textAlign: 'right', width: 96 }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.categories.length === 0 && (
+            <tr style={{ borderTop: `1px solid ${accent}59` }}>
+              <td colSpan={5} style={{ padding: '14px 0', color: MUTED, fontSize: 13 }}>
+                No expenses logged in this period.
+              </td>
+            </tr>
+          )}
+          {d.categories.flatMap((c, ci) => [
+            // Category header — (3) thin accent separator above each group.
+            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
+              <td colSpan={4} style={{ padding: '12px 0 6px', color: INK, fontSize: 13, fontWeight: 800, ...ONE_LINE }}>
+                <span data-pdf-group-name>{c.label}</span>
+                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                  {'  ·  '}{c.count} {c.count === 1 ? 'expense' : 'expenses'}
+                </span>
+              </td>
+              <td style={{ padding: '12px 0 6px', textAlign: 'right', color: INK, fontSize: 13, fontWeight: 700 }}>
+                <span data-pdf-continued-hide>{money(c.total)}</span>
+              </td>
+            </tr>,
+            ...c.rows.map((r, ri) => (
+              <tr key={`c${ci}r${ri}`} {...grp(ci)}>
+                <td style={ROW_TD}>{r.date}</td>
+                <td style={ROW_TD}>{clip(r.store, 18)}</td>
+                <td style={{ ...ROW_TD, ...WRAP }}>{r.description}</td>
+                <td style={{ ...ROW_TD, ...MARK }}>
+                  {r.hasReceipt ? 'Receipt' : ''}
+                </td>
+                <td style={{ ...ROW_TD, padding: '4px 0', textAlign: 'right' }}>{money(r.amount)}</td>
+              </tr>
+            )),
+          ])}
+        </tbody>
+      </table>
+
+      {/* (2) total row — moves to the last page on a multi-page document. */}
+      <DetailedTotal
+        label={`Total spend · ${d.count} ${d.count === 1 ? 'expense' : 'expenses'}`}
+        total={d.total}
+        accent={accent}
+      />
+
+      <DetailedFooter text={DISCLAIMER} />
+    </div>
+  );
+}
+
 /* ═══ Income Summary document ═══
    Same rules as the Expense Summary: white paper, black text, the brand accent
    only on the header rule, the thin separators (here: between client groups)
@@ -186,15 +409,17 @@ export interface IncomeSummaryData {
 }
 
 const INCOME_DISCLAIMER =
-  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. It is not tax advice. Confirm totals against your bank records.';
+  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. Confirm totals against your bank records.';
 
 const TH: React.CSSProperties = {
   padding: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: MUTED, fontWeight: 700,
 };
 
-export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
+/** Business name + accent rule + "<noun> — <period>" + dates. Shared by both
+ *  income documents so they read as one set. */
+function IncomeHeader({ d, noun, accent }: { d: IncomeDocHeader; noun: string; accent: string }) {
   return (
-    <div style={PAGE}>
+    <>
       <div style={{ textAlign: 'center' }}>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 84, marginBottom: 12 }} alt="" />}
         <div
@@ -215,7 +440,7 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
 
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 24, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
-          <span data-pdf-doc-noun>Income Summary</span> — <span data-pdf-doc-number>{d.periodLabel}</span>
+          <span data-pdf-doc-noun>{noun}</span> — <span data-pdf-doc-number>{d.periodLabel}</span>
         </div>
         <div style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>
           Period covered: {d.rangeStart} – {d.rangeEnd}
@@ -224,8 +449,97 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
           Generated {d.generatedOn}
         </div>
       </div>
+    </>
+  );
+}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+/** "Total received · N payments" + amount, accent-framed. Last page only. */
+function IncomeTotal({ d, accent }: { d: { total: number; count: number }; accent: string }) {
+  return (
+    <div
+      data-pdf-block="total"
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8,
+        padding: '14px 0',
+        borderTop: `2.5px solid ${accent}`,
+        borderBottom: `2.5px solid ${accent}`,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, color: INK }}>
+        Total received · {d.count} {d.count === 1 ? 'payment' : 'payments'}
+      </span>
+      <span style={{ fontSize: 26, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
+        {money(d.total)}
+      </span>
+    </div>
+  );
+}
+
+function IncomeFooter() {
+  return (
+    <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
+      <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
+      <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{INCOME_DISCLAIMER}</p>
+      <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, letterSpacing: 1.5, color: MUTED, opacity: 0.8 }}>
+        Generated by On It
+      </div>
+    </div>
+  );
+}
+
+type IncomeDocHeader = Pick<IncomeSummaryData, 'businessName' | 'logoUrl' | 'periodLabel' | 'rangeStart' | 'rangeEnd' | 'generatedOn'>;
+
+/* ═══ Income Totals document ═══
+   One row per client: client, number of payments in the period, amount
+   received, then the grand total. The general view of the period's income;
+   the payment-by-payment list is IncomeItemizedTemplate below. One table, so a
+   long client list paginates like the others. */
+
+export interface IncomeTotalsData extends IncomeDocHeader {
+  clients: { client: string; count: number; total: number }[];
+  total: number;
+  count: number; // number of payments
+}
+
+export function IncomeTotalsTemplate({ d, accent }: { d: IncomeTotalsData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <IncomeHeader d={d} noun="Income Summary" accent={accent} />
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, textAlign: 'left' }}>Client</th>
+            <th style={{ ...TH, textAlign: 'right', width: 110 }}>Payments</th>
+            <th style={{ ...TH, textAlign: 'right', width: 140 }}>Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          {d.clients.map((c, i) => (
+            <tr key={i} style={{ borderTop: `1px solid ${accent}33` }}>
+              <td style={{ padding: '8px 0', color: INK, fontSize: 14, fontWeight: 700 }}>{clip(c.client, 60)}</td>
+              <td style={{ padding: '8px 0', textAlign: 'right', color: INK, fontSize: 13 }}>{c.count}</td>
+              <td style={{ padding: '8px 0', textAlign: 'right', color: INK, fontSize: 14, fontWeight: 700 }}>{money(c.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <IncomeTotal d={d} accent={accent} />
+      <IncomeFooter />
+    </div>
+  );
+}
+
+export function IncomeItemizedTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
+  return (
+    <div style={PAGE}>
+      <IncomeHeader d={d} noun="Itemized Income" accent={accent} />
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>
@@ -237,23 +551,23 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
         <tbody>
           {d.clients.flatMap((c, ci) => [
             // Client header — (3) thin accent separator above each client group
-            <tr key={`c${ci}`} style={{ borderTop: `1px solid ${accent}59` }}>
+            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
               <td colSpan={4} style={{ padding: '14px 0 6px', color: INK, fontSize: 14, fontWeight: 800 }}>
-                {c.client}
-                <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                <span data-pdf-group-name>{c.client}</span>
+                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
                   {'  ·  '}{c.count} {c.count === 1 ? 'payment' : 'payments'}
                 </span>
               </td>
             </tr>,
-            ...c.payments.map((p, pi) => (
-              <tr key={`c${ci}p${pi}`}>
+            ...keepLastWithNext(c.payments.map((p, pi) => (
+              <tr key={`c${ci}p${pi}`} {...grp(ci)}>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.date}</td>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.invoice}</td>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.method}</td>
                 <td style={{ padding: '5px 0', textAlign: 'right', color: INK, fontSize: 13 }}>{money(p.amount)}</td>
               </tr>
-            )),
-            <tr key={`c${ci}s`}>
+            ))),
+            <tr key={`c${ci}s`} {...grp(ci)}>
               <td colSpan={3} style={{ padding: '6px 0 12px', textAlign: 'right', color: MUTED, fontSize: 12 }}>
                 Subtotal · {c.client}
               </td>
@@ -265,35 +579,11 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
 
       {/* (2) total row — accent framed, still black text on white. Moves to the
           last page on a multi-page document. */}
-      <div
-        data-pdf-block="total"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginTop: 8,
-          padding: '14px 0',
-          borderTop: `2.5px solid ${accent}`,
-          borderBottom: `2.5px solid ${accent}`,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, color: INK }}>
-          Total received · {d.count} {d.count === 1 ? 'payment' : 'payments'}
-        </span>
-        <span style={{ fontSize: 26, fontWeight: 800, fontFamily: MONTSERRAT, color: INK }}>
-          {money(d.total)}
-        </span>
-      </div>
-
-      <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
-        <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
-        <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{INCOME_DISCLAIMER}</p>
-        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, letterSpacing: 1.5, color: MUTED, opacity: 0.8 }}>
-          Generated by On It
-        </div>
-      </div>
+      <IncomeTotal d={d} accent={accent} />
+      <IncomeFooter />
     </div>
   );
 }
 
 export { INCOME_DISCLAIMER };
+

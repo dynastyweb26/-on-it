@@ -16,13 +16,14 @@ export function invoiceFilename(kind: string, no: number, client: string, busine
 }
 
 /** Filename for the expense-summary export, e.g.
- *  Expense-Summary_2026_AcmePlumbing.pdf */
-export function summaryFilename(periodLabel: string, business: string) {
-  return `Expense-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+ *  Expense-Summary_2026_AcmePlumbing.pdf (totals), or itemized:
+ *  Expense-Summary-Itemized_2026_AcmePlumbing.pdf */
+export function summaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Expense-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
-export function incomeSummaryFilename(periodLabel: string, business: string) {
-  return `Income-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+export function incomeSummaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Income-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
 /** Wait for every <img> inside the node to finish decoding. html2canvas does not
@@ -61,11 +62,13 @@ function addPageLinks(pdf: jsPDF, pageEl: HTMLElement) {
 
 /** el = the rendered template node (794px wide).
  *  PNG, not JPEG: flat color with fine text, often on near-black background.
- *  scale: 3 for crisp text edges.
+ *  scale: capture resolution. 3 (the default, every invoice) for crisp text
+ *  edges; the books summaries pass 2, which keeps black-on-white text crisp at
+ *  100% while cutting capture time and memory on long multi-page documents.
  *  backgroundColor: null so templates paint their own background.
  *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
  *  preserving split-free table rows and page-specific link annotations. */
-export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
+export async function elementToPdf(el: HTMLElement, filename: string, { scale = 3 }: { scale?: number } = {}): Promise<File> {
   // Wait for web fonts before capture: html2canvas snapshots synchronously and
   // uses fallback-font metrics if the display font isn't ready yet, which
   // collapses letter spacing. Guarded — document.fonts is absent in older envs.
@@ -78,9 +81,23 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   const table = el.querySelector('table');
   const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
 
+  // The page model paginates ONE table: everything above it is page-1 content,
+  // everything below it moves to the last page. A second table would never be
+  // split, so a long one would be clipped. Every template today has exactly one
+  // (invoices, quotes and all four books PDFs); say so loudly if that changes.
+  if (el.querySelectorAll('table').length > 1) {
+    console.warn(`elementToPdf(${filename}): ${el.querySelectorAll('table').length} tables — only the first paginates`);
+  }
+
   // Single-page fast path: height fits in A4 or no expandable table rows
   if (fullHeight <= 1125 || rows.length <= 1) {
-    const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
+    if (fullHeight > 1125) {
+      // Taller than a page with nothing to split across pages: it is drawn into
+      // one page box and the overflow is clipped. No template produces this
+      // today; the warning makes a future one visible instead of silent.
+      console.warn(`elementToPdf(${filename}): ${fullHeight}px of content with ${rows.length} table row(s) — clipped to one page`);
+    }
+    const canvas = await html2canvas(el, { scale, useCORS: true, backgroundColor: null });
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
     addPageLinks(pdf, el);
@@ -90,6 +107,37 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
 
   // ── Multi-page DOM Block Partitioning ──────────────────────────
   const rowHeights = rows.map((r) => (r as HTMLElement).offsetHeight || 36);
+  // Opt-in keep-with-next (summary group headers, a payment above its line
+  // items): a page never ends on a row marked data-pdf-keep-with-next. The page
+  // break moves up to before the marked run, keeping at least one row per page.
+  // Invoice templates don't set it, so their pagination is unchanged.
+  const keepWithNext = rows.map((r) => r.hasAttribute('data-pdf-keep-with-next'));
+  const backOffKept = (start: number, end: number) => {
+    let e = end;
+    while (e < rows.length && e - start > 1 && keepWithNext[e - 1]) e--;
+    return e;
+  };
+  // Opt-in groups (summary documents: a client or a category). Every row of a
+  // group carries data-pdf-group="<id>"; its header row also carries
+  // data-pdf-group-header, with the name in [data-pdf-group-name]. A page that
+  // opens mid-group starts with a copy of that header reading "<Name>
+  // (continued)" (parts marked data-pdf-continued-hide — counts, subtotals —
+  // dropped), and its height is reserved when the page is packed. When the
+  // page opens on a row carrying data-pdf-continued-suffix (a line item under
+  // its invoice), the suffix joins the name: "<Name> · INV-1076 (continued)".
+  // A break between payments keeps the name-only form.
+  const groupOf = rows.map((r) => r.getAttribute('data-pdf-group'));
+  const groupHeaderIdx = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const g = groupOf[i];
+    if (g && r.hasAttribute('data-pdf-group-header') && !groupHeaderIdx.has(g)) groupHeaderIdx.set(g, i);
+  });
+  /** Index of the header to repeat as "(continued)" when a page starts at row i, or -1. */
+  const continuedHeaderFor = (i: number) => {
+    const g = groupOf[i];
+    if (!g || i === 0 || groupOf[i - 1] !== g || rows[i].hasAttribute('data-pdf-group-header')) return -1;
+    return groupHeaderIdx.get(g) ?? -1;
+  };
   const tableHeader = table?.querySelector('thead') as HTMLElement | null;
   const tableHeaderHeight = tableHeader ? tableHeader.offsetHeight : 32;
 
@@ -113,6 +161,17 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     p1Height += rowHeights[p1End];
     p1End++;
   }
+  // Every row fits on page 1 but the blocks under the table would run past the
+  // page bottom (a single page would clip them): move rows onto a page 2 until
+  // they fit, so the trailing blocks follow them there. trailingHeight includes
+  // the 56px bottom padding, so this only fires when content would be cut off.
+  const trailingHeight = fullHeight - (tableTop + tableHeight);
+  if (p1End === totalRows) {
+    while (p1End > 1 && tableTop + tableHeaderHeight + p1Height + trailingHeight - 56 > 1123) {
+      p1End--;
+      p1Height -= rowHeights[p1End];
+    }
+  }
   // Enforce orphan rule: if only 1 row left for Page 2+, pull one back unless Page 1 needs it
   if (p1End === totalRows - 1 && p1End > 2) {
     p1End--;
@@ -121,6 +180,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   if (p1End < 2 && totalRows >= 2) {
     p1End = Math.min(2, totalRows);
   }
+  p1End = backOffKept(0, p1End);
   pageRowRanges.push({ start: 0, end: p1End });
   currentRow = p1End;
 
@@ -131,10 +191,12 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   // trailed off into a sparse, mostly-empty final page. Now the reservation
   // applies only to the page that actually carries the trailing blocks.
   while (currentRow < totalRows) {
+    const contIdx = continuedHeaderFor(currentRow);
+    const capacity = continuationCapacity - (contIdx >= 0 ? rowHeights[contIdx] : 0);
     let pHeight = 0;
     let pEnd = currentRow;
 
-    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= continuationCapacity) {
+    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
       pHeight += rowHeights[pEnd];
       pEnd++;
     }
@@ -152,7 +214,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       // the page's overflow:hidden. If the packed rows leave too little, pull
       // rows back (keeping at least one) so they spill onto a fresh final page
       // that does have room for the block.
-      while (pEnd > currentRow + 1 && continuationCapacity - pHeight < bottomHeight) {
+      while (pEnd > currentRow + 1 && capacity - pHeight < bottomHeight) {
         pEnd--;
         pHeight -= rowHeights[pEnd];
       }
@@ -161,6 +223,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       // lone orphan row sitting by itself above the totals block.
       pEnd--;
     }
+    pEnd = backOffKept(currentRow, pEnd);
 
     pageRowRanges.push({ start: currentRow, end: pEnd });
     currentRow = pEnd;
@@ -333,12 +396,28 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         pageTable.style.width = '100%';
         pageTable.style.borderCollapse = 'collapse';
         pageTable.style.fontSize = '15px';
+        // Carry the template's explicit line-height (summary documents set one)
+        // so rows measure and paint the same as on page 1.
+        pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
+        // ...and its table-layout, so a fixed-layout table wraps rows to the
+        // same widths (and so the same measured heights) on every page.
+        pageTable.style.tableLayout = (table as HTMLElement).style.tableLayout;
 
         if (tableHeader) {
           pageTable.appendChild(tableHeader.cloneNode(true));
         }
 
         const tbody = document.createElement('tbody');
+        const contIdx = continuedHeaderFor(range.start);
+        if (contIdx >= 0) {
+          const cont = rows[contIdx].cloneNode(true) as HTMLElement;
+          cont.removeAttribute('data-pdf-keep-with-next');
+          cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
+          const name = cont.querySelector('[data-pdf-group-name]');
+          const suffix = rows[range.start].getAttribute('data-pdf-continued-suffix');
+          if (name) name.textContent = `${name.textContent ?? ''}${suffix ? ` · ${suffix}` : ''} (continued)`;
+          tbody.appendChild(cont);
+        }
         for (let rIdx = range.start; rIdx < range.end; rIdx++) {
           if (rows[rIdx]) {
             tbody.appendChild(rows[rIdx].cloneNode(true));
@@ -395,7 +474,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     }
     const pageNode = pageNodes[p];
     const canvas = await html2canvas(pageNode, {
-      scale: 3,
+      scale,
       useCORS: true,
       backgroundColor: computedBg,
       width: 794,

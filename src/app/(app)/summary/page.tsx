@@ -1,7 +1,8 @@
 'use client';
 // ═══ Books summary ═══ Money in (cash basis), money out, what's kept, and what
 // is still owed — for a chosen period. In-app view follows the Warm Premium
-// standard; the PDF export is a separate white/black document (summary-template).
+// standard; the PDF exports are separate white/black documents built by
+// buildSummaryPdf (lib/pdf/build-summary), which loads its own data.
 //
 // Period selection is a granularity (week/month/quarter/year) plus a specific
 // bucket, chosen through a two-step sheet. Expenses and invoices are each
@@ -10,28 +11,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
-import { accentForWhite } from '@/lib/colors';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
   summarizeIncome, localDay,
   type Granularity, type Period, type ExpenseLite, type InvoiceLite, type PaymentLite, type ClientTotal,
 } from '@/lib/tax-summary';
-import { elementToPdf, summaryFilename, incomeSummaryFilename, shareInvoice } from '@/lib/pdf/generate';
-import {
-  ExpenseSummaryTemplate, IncomeSummaryTemplate, DISCLAIMER,
-  type ExpenseSummaryData, type IncomeSummaryData,
-} from '@/lib/pdf/summary-template';
-import { formatDocNumber } from '@/lib/documents';
+import { shareInvoice } from '@/lib/pdf/generate';
+import { DISCLAIMER } from '@/lib/pdf/summary-template';
+import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
 // place (no nested scroll area).
 const PREVIEW_ROWS = 5;
-
-// What the offscreen render target is drawing for the PDF capture.
-type ExportDoc =
-  | { kind: 'expenses'; data: ExpenseSummaryData }
-  | { kind: 'income'; data: IncomeSummaryData };
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -44,9 +37,6 @@ function prettyDate(iso: string): string {
 
 interface Profile {
   business_name: string;
-  logo_url: string | null;
-  brand_colors: string[] | null;
-  background_color: string | null;
 }
 
 const GRAN_LABEL: Record<Granularity, string> = { week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' };
@@ -59,21 +49,16 @@ export default function TaxSummary() {
   const [payments, setPayments] = useState<PaymentLite[] | null>(null); // income, cash basis
   const [owed, setOwed] = useState<InvoiceLite[] | null>(null);         // sent/overdue, as-of-now
   const [selected, setSelected] = useState<Period | null>(null);
-  const [exporting, setExporting] = useState<ExportDoc['kind'] | null>(null);
-  const [exportDoc, setExportDoc] = useState<ExportDoc | null>(null);
+  const [exporting, setExporting] = useState<SummaryPdfKind | null>(null);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
 
   // Period sheet: open flag + which view (the granularity chooser, or one
   // granularity's list of specific periods).
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
-
-  const accent = useMemo(
-    () => accentForWhite(profile?.brand_colors, profile?.background_color ?? null),
-    [profile]
-  );
+  // PDF sheet: which export's Totals / Itemized choice is open.
+  const [pdfSheet, setPdfSheet] = useState<SummaryPdfKind | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -87,7 +72,7 @@ export default function TaxSummary() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('profiles')
-        .select('business_name, logo_url, brand_colors, background_color')
+        .select('business_name')
         .eq('id', user.id).maybeSingle();
       if (data) setProfile(data as Profile);
     })();
@@ -102,7 +87,7 @@ export default function TaxSummary() {
   useEffect(() => {
     (async () => {
       const [exp, pay, owe] = await Promise.all([
-        supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
+        supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
           .eq('invoices.kind', 'invoice')
@@ -138,8 +123,8 @@ export default function TaxSummary() {
         ...eRows.map((r) => r.spent_on ?? ''),
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
-      // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // Default to the most recent year that has records (the year-to-date
+      // view), or all-time when there's nothing yet. ?period=all
       // (the Books Net / Collected tiles) opens at All time, where Kept and
       // Brought in equal the all-time figures the tiles show.
       const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
@@ -181,76 +166,48 @@ export default function TaxSummary() {
   const kept = income.broughtIn - summary.total;
   const hasData = summary.count > 0 || income.broughtIn > 0 || income.stillOwed > 0;
 
-  // Sheet: body scroll lock + Escape to dismiss (matches PaywallModal).
+  // Sheets: body scroll lock + Escape to dismiss (matches PaywallModal).
+  const anySheetOpen = sheetOpen || pdfSheet !== null;
   useEffect(() => {
-    if (!sheetOpen) return;
+    if (!anySheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheetOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSheetOpen(false); setPdfSheet(null); }
+    };
     document.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
-  }, [sheetOpen]);
+  }, [anySheetOpen]);
 
   function openSheet() { setSheetView('root'); setSheetOpen(true); }
   function pick(p: Period) { setSelected(p); setSheetOpen(false); }
 
   const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
 
-  // Both PDFs share one flow: build the document data, let it paint offscreen,
-  // capture, share. Header fields are the same on both documents.
-  async function exportPdf(kind: ExportDoc['kind']) {
+  function pickDetail(detail: SummaryPdfDetail) {
+    const kind = pdfSheet;
+    setPdfSheet(null);
+    if (kind) exportPdf(kind, detail);
+  }
+
+  // Every PDF goes through the one builder (it loads its own rows for the
+  // period), then the native share sheet. Disabled when that side is empty.
+  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'totals') {
     if (!profile || !selected || exporting) return;
     if (kind === 'expenses' ? summary.count === 0 : incomeCount === 0) return;
     setExporting(kind);
     try {
-      const header = {
-        businessName: profile.business_name,
-        logoUrl: profile.logo_url,
+      const file = await buildSummaryPdf({
+        kind,
+        detail,
+        range: { start: selected.start, end: selected.end },
         periodLabel: selected.label, // literal label on the document, never "This Month"
-        rangeStart: prettyDate(selected.start),
-        rangeEnd: prettyDate(selected.end),
-        generatedOn: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      };
-      setExportDoc(kind === 'expenses'
-        ? {
-            kind,
-            data: {
-              ...header,
-              rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total, anyDeductible: r.anyDeductible })),
-              total: summary.total,
-              count: summary.count,
-            },
-          }
-        : {
-            kind,
-            data: {
-              ...header,
-              clients: income.byClient.map((c) => ({
-                client: c.client,
-                count: c.count,
-                total: c.total,
-                payments: c.payments.map((p) => ({
-                  date: p.day ? prettyDate(p.day) : '—',
-                  invoice: p.invoiceNumber != null ? formatDocNumber('invoice', p.invoiceNumber) : '—',
-                  method: p.method,
-                  amount: p.amount,
-                })),
-              })),
-              total: income.broughtIn,
-              count: incomeCount,
-            },
-          });
-      await new Promise((r) => setTimeout(r, 350)); // let the document paint
-      if (!printRef.current) throw new Error('render failed');
-      const filename = kind === 'expenses'
-        ? summaryFilename(selected.label, profile.business_name)
-        : incomeSummaryFilename(selected.label, profile.business_name);
-      const file = await elementToPdf(printRef.current, filename);
-      await shareInvoice(file, profile.business_name, kind === 'expenses' ? 'Expense summary' : 'Income summary');
+      });
+      const noun = kind === 'expenses' ? 'Expense' : 'Income';
+      await shareInvoice(file, profile.business_name, detail === 'itemized' ? `Itemized ${noun.toLowerCase()}` : `${noun} summary`);
     } catch {
-      /* share/download failed — the button re-enables so they can retry */
+      /* build/share/download failed — the button re-enables so they can retry */
     } finally {
-      setExportDoc(null);
       setExporting(null);
     }
   }
@@ -284,14 +241,15 @@ export default function TaxSummary() {
       </button>
 
       {/* Two exports for the selected period, right under the period they
-          cover: expenses by category, and income by client with every payment
-          listed. Each is disabled when its side of the period is empty. */}
+          cover. Each opens a sheet to pick Totals (expenses by category, income
+          by client) or Itemized (every expense, every payment). Each is
+          disabled when its side of the period is empty. */}
       {!loading && hasData && (
         <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} onClick={() => exportPdf('expenses')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('expenses')}>
             <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
           </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} onClick={() => exportPdf('income')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('income')}>
             <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
           </button>
         </div>
@@ -467,13 +425,39 @@ export default function TaxSummary() {
         </div>
       )}
 
-      {/* Offscreen render target for the white/black PDF document */}
-      {exportDoc && (
-        <div style={{ position: 'fixed', left: -9999, top: 0 }}>
-          <div ref={printRef}>
-            {exportDoc.kind === 'expenses'
-              ? <ExpenseSummaryTemplate d={exportDoc.data} accent={accent} />
-              : <IncomeSummaryTemplate d={exportDoc.data} accent={accent} />}
+
+      {/* PDF sheet: same bottom-sheet pattern as the period picker. */}
+      {pdfSheet && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-on-background/45"
+          onClick={() => setPdfSheet(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
+            className="w-full max-w-lg rounded-t-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
+            style={{ animation: 'paywall-in 200ms ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+              {pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
+            </div>
+            <PdfOption
+              icon="description"
+              title="Totals"
+              detail={pdfSheet === 'expenses' ? 'Totals by category' : 'Totals by client'}
+              onClick={() => pickDetail('totals')}
+            />
+            <div className="my-1 border-t border-outline-variant/40" />
+            <PdfOption
+              icon="receipt_long"
+              title="Itemized"
+              detail={pdfSheet === 'expenses'
+                ? 'Every expense with date, store and amount'
+                : 'Every payment with date, invoice and amount'}
+              onClick={() => pickDetail('itemized')}
+            />
           </div>
         </div>
       )}
@@ -494,6 +478,23 @@ function SeeAllRow({ total, expanded, onToggle }: { total: number; expanded: boo
       <span>{expanded ? 'Show less' : `See all ${total}`}</span>
       {/* expand_more flipped: expand_less isn't in the icon subset font */}
       <Icon name={expanded ? 'expand_more' : 'arrow_forward'} size={20} className={expanded ? 'rotate-180' : ''} />
+    </button>
+  );
+}
+
+// One choice in the PDF sheet: icon, title, and what the document contains.
+function PdfOption({ icon, title, detail, onClick }: { icon: IconName; title: string; detail: string; onClick: () => void }) {
+  return (
+    <button
+      className="flex min-h-touch w-full items-center gap-3 rounded-input px-3 py-3 text-left active:bg-surface-container transition-colors"
+      onClick={onClick}
+    >
+      <Icon name={icon} size={24} className="shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-on-background">{title}</span>
+        <span className="block text-xs text-on-surface-variant">{detail}</span>
+      </span>
+      <Icon name="chevron_right" size={20} className="shrink-0 text-on-surface-variant" />
     </button>
   );
 }
