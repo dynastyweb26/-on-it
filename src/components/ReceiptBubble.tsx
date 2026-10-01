@@ -4,7 +4,7 @@
 // other message.
 //
 // Live capture (animate): once the image has decoded and the shutter flash has
-// played, a full-bleed copy of the photo shrinks into the bubble's place
+// peaked (startAfter), a full-bleed copy of the photo shrinks into the bubble's place
 // (460ms, --ease-emphasized) and crossfades into the rounded bubble, so the
 // corners read as 0 → 16px without animating border-radius (transform and
 // opacity only). The copy lives on <body> so the list's overflow can't clip it.
@@ -17,12 +17,12 @@ import { markMotion } from '@/lib/motion-debug'; // TEMP motion diagnosis — RE
 const DURATION = 460;
 const EASE_EMPHASIZED = 'cubic-bezier(.65, 0, .35, 1)'; // --ease-emphasized
 
-export default function ReceiptBubble({ src, animate = false, startAt = 0 }: {
+export default function ReceiptBubble({ src, animate = false, startAfter }: {
   src: string;
   /** Play the capture flight (a live capture only). */
   animate?: boolean;
-  /** performance.now() before which the flight must not start (the flash). */
-  startAt?: number;
+  /** Resolves when the flight may start: the shutter flash's peak. */
+  startAfter?: Promise<unknown>;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -46,8 +46,7 @@ export default function ReceiptBubble({ src, animate = false, startAt = 0 }: {
         if (!cancelled) setHidden(false);
         return;
       }
-      const wait = startAt - performance.now();
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      await startAfter;
       if (cancelled) return;
 
       const r = box.getBoundingClientRect();

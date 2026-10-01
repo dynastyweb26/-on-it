@@ -213,6 +213,26 @@ const STORE_VERSION = 5;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Receipt shutter (MOTION-SPEC §8). The camera / photo sheet covers the page
+// until it's dismissed, and a flash fired under it is never seen (on iPhone it
+// read as no flash at all). So: wait until the page is visible again, then two
+// animation frames for the sheet's dismissal to clear, then flash.
+function afterSheetGone(): Promise<void> {
+  return new Promise((resolve) => {
+    const twoFrames = () => requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    if (document.visibilityState === 'visible') { twoFrames(); return; }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', onVisible);
+      twoFrames();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  });
+}
+// The flash's peak: 40ms up + 80ms hold (.onit-shutter in globals.css). The
+// photo's flight into its bubble starts here, as the white starts to fade.
+const FLASH_PEAK_MS = 120;
 const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll take care of the rest.");
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -404,7 +424,7 @@ export default function Chat() {
   const [shutterKey, setShutterKey] = useState(0);
   // The receipt bubble captured in THIS session that should play its flight
   // (MOTION-SPEC §8). Never set for restored messages, so they render static.
-  const liveReceiptRef = useRef<{ id: string; startAt: number } | null>(null);
+  const liveReceiptRef = useRef<{ id: string; flashPeak: Promise<void> } | null>(null);
   // Same for the logged card a live save collapses into; and the expense
   // card's fold-away while that happens.
   const liveLoggedIdRef = useRef<string | null>(null);
@@ -1861,12 +1881,17 @@ export default function Chat() {
       try {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
-        setShutterKey((k) => k + 1);
+        // Flash once the camera sheet is gone; resolves at the flash's peak.
+        const flashPeak = afterSheetGone().then(() => {
+          markMotion('flash', `visibility=${document.visibilityState}`); // TEMP motion diagnosis
+          setShutterKey((k) => k + 1);
+          return new Promise<void>((r) => setTimeout(r, FLASH_PEAK_MS));
+        });
         // The photo joins the thread as the user's message. It stays even if
         // the read then fails or turns out to be a duplicate.
         if (prepared.thumbUrl) {
           const bubble: Msg = { ...uMsg('Receipt photo'), receipt: prepared.thumbUrl };
-          liveReceiptRef.current = { id: bubble.id, startAt: performance.now() + 220 }; // after the flash
+          liveReceiptRef.current = { id: bubble.id, flashPeak };
           receiptBubbleIdRef.current = bubble.id;
           nearBottomRef.current = true; // follow the photo, even if scrolled up
           setMessages((m) => [...m, bubble]);
@@ -2659,7 +2684,7 @@ export default function Chat() {
               key={m.id}
               src={m.receipt}
               animate={liveReceiptRef.current?.id === m.id}
-              startAt={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.startAt : 0}
+              startAfter={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.flashPeak : undefined}
             />
           ) : (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
