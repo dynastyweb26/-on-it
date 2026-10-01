@@ -11,7 +11,7 @@
                 send → mark paid.
      Chat     — the things you do by talking that aren't the invoice flow:
                 snap a receipt, say what you spent.
-     Books    — where the money adds up: expenses land, totals, the tax PDF.
+     Books    — where the money adds up: expenses land, totals, the books PDFs.
 
    Array order is the in-tab order (slidesForTab preserves it). Each slide's
    `mock` is built only from the token-based primitives in ./mocks (no hardcoded
@@ -224,7 +224,7 @@ export const SLIDES: Slide[] = [
     id: 'expenseslanding',
     tab: 'books',
     headline: 'Every expense lands in Books',
-    body: "Snap it or say it — either way it drops straight into Books, sorted by category, so nothing's lost when taxes come around.",
+    body: "Snap it or say it — either way it drops straight into Books, sorted by category, so nothing's lost.",
     spotlight: 'seeall',
     mock: (
       <MockShell active="books">
@@ -283,8 +283,8 @@ export const SLIDES: Slide[] = [
   {
     id: 'tax',
     tab: 'books',
-    headline: 'One PDF for tax time',
-    body: 'Your spending totaled by category, for any stretch of the year. Export it and send it straight to whoever does your taxes.',
+    headline: 'Your books in one PDF',
+    body: 'Your spending and income, totaled or itemized, for any stretch of the year. Export it and send it to whoever keeps your books.',
     spotlight: 'taxsummary',
     mock: (
       <MockShell active="books">

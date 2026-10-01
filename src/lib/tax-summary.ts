@@ -8,9 +8,8 @@
 // rolling window can't serve. Buckets are only ever built from dates that carry
 // records, so the UI never offers an empty period to scroll past.
 //
-// summarize() counts EVERYTHING and never filters on tax_deductible: that column
-// defaults false and is user-toggled, so filtering on it would report ~$0.
-// Deductibility is surfaced as an indicator only, never used to gate the count.
+// summarize() counts every expense in the set. On It makes no judgment about
+// which expenses count for anything beyond the user's own records.
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
 import { paymentMethodLabel } from '@/lib/payment-methods';
 
@@ -113,7 +112,6 @@ export function allPeriod(dates: string[], now = new Date()): Period {
 export interface ExpenseLite {
   amount: number | string;
   category: string;
-  tax_deductible?: boolean;
   spent_on?: string; // yyyy-mm-dd — used to bucket into periods
 }
 
@@ -216,7 +214,6 @@ export interface CategoryTotal {
   label: string;
   count: number;
   total: number;
-  anyDeductible: boolean; // for the optional on-screen indicator only
 }
 
 export interface Summary {
@@ -239,10 +236,9 @@ export function summarize(expenses: ExpenseLite[]): Summary {
 
     const key = isExpenseCategory(e.category) ? e.category : 'other';
     const label = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : CATEGORY_LABEL.other;
-    const cur = byCat.get(key) ?? { category: key, label, count: 0, total: 0, anyDeductible: false };
+    const cur = byCat.get(key) ?? { category: key, label, count: 0, total: 0 };
     cur.count += 1;
     cur.total += amt;
-    cur.anyDeductible = cur.anyDeductible || Boolean(e.tax_deductible);
     byCat.set(key, cur);
   }
 

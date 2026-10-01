@@ -54,7 +54,7 @@ function keepLastWithNext(rows: ReactElement[]): ReactElement[] {
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
-  'This is a record of expenses you logged in On It, grouped by category. It is not tax advice. Whether an expense is deductible is determined by your tax professional.';
+  'This is a record of expenses you logged in On It, grouped by category. Confirm totals against your receipts and bank records.';
 
 const PAGE: React.CSSProperties = {
   width: 794,
@@ -403,7 +403,7 @@ export interface IncomeSummaryData {
 }
 
 const INCOME_DISCLAIMER =
-  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. It is not tax advice. Confirm totals against your bank records.';
+  'This is a record of payments recorded in On It, grouped by client — payments you logged and payments made through your On It pay page. Confirm totals against your bank records.';
 
 const TH: React.CSSProperties = {
   padding: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: MUTED, fontWeight: 700,

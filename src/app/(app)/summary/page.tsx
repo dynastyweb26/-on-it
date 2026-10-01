@@ -87,7 +87,7 @@ export default function TaxSummary() {
   useEffect(() => {
     (async () => {
       const [exp, pay, owe] = await Promise.all([
-        supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
+        supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
           .eq('invoices.kind', 'invoice')
@@ -123,8 +123,8 @@ export default function TaxSummary() {
         ...eRows.map((r) => r.spent_on ?? ''),
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
-      // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // Default to the most recent year that has records (the year-to-date
+      // view), or all-time when there's nothing yet. ?period=all
       // (the Books Net / Collected tiles) opens at All time, where Kept and
       // Brought in equal the all-time figures the tiles show.
       const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
