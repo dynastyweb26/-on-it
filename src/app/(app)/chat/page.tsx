@@ -1110,7 +1110,8 @@ export default function Chat() {
   }
 
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
+  // Free-tier cap hit: which wall to show (invoice or expense), or none.
+  const [paywallFor, setPaywallFor] = useState<null | 'invoice' | 'expense'>(null);
 
   /** The card summary, posted once when the card first appears: what we have,
    *  any contact pulled from the saved client record (so a stale one can be
@@ -1334,7 +1335,7 @@ export default function Chat() {
       try {
         const gate = await (await fetch('/api/access')).json();
         if (gate && gate.hasAccess === false) {
-          if (mode !== 'prepare') setShowPaywall(true); // the send tap shows it
+          if (mode !== 'prepare') setPaywallFor('invoice'); // the send tap shows it
           return;
         }
       } catch { /* access check unreachable — fail open, allow the invoice */ }
@@ -1447,7 +1448,7 @@ export default function Chat() {
           // boundary and fires even if the gate failed open or was bypassed —
           // surface the paywall, never a generic error.
           if (insErr?.hint === 'PAYWALL_LIMIT') {
-            if (mode !== 'prepare') setShowPaywall(true);
+            if (mode !== 'prepare') setPaywallFor('invoice');
             return; // draft + ready untouched — upgrade, then tap send again
           }
           // 23505 on finalize_key: THIS conversation's row already exists (the
@@ -1805,6 +1806,11 @@ export default function Chat() {
     // readReceipt advances it to 'reading' and, on the guest 401, 'redirecting'.
     setPhase('preparing');
     try {
+      // Over the free expense cap? Show the wall now — before the shutter, the
+      // upload and the vision call — so nothing is spent on an expense that
+      // can't be saved. /api/parse-receipt refuses with 402 as the backstop.
+      if (!(await expenseAllowed())) return;
+
       let prepared: PreparedReceipt;
       try {
         prepared = await prepareReceipt(file);
@@ -1836,6 +1842,21 @@ export default function Chat() {
     }
   }
 
+  /** False (and the expense wall opens) when the free expense cap is reached.
+   *  Guests pass: the receipt read answers them with 401 + sign-in. Fails OPEN
+   *  if /api/access is unreachable; the DB trigger is the real enforcement. */
+  async function expenseAllowed(): Promise<boolean> {
+    if (!profile) return true;
+    try {
+      const gate = await (await fetch('/api/access')).json();
+      if (gate && gate.canExpense === false) {
+        setPaywallFor('expense');
+        return false;
+      }
+    } catch { /* access check unreachable — fail open */ }
+    return true;
+  }
+
   /** An existing expense for this user with the same receipt image, if any. */
   async function findDuplicate(hash: string): Promise<ExistingReceipt | null> {
     if (!profile) return null;
@@ -1863,6 +1884,12 @@ export default function Chat() {
       const res = await fetch('/api/parse-receipt', { method: 'POST', body });
       const data = await res.json();
 
+      if (res.status === 402 && data.paywall === 'expense') {
+        // Server-side backstop (the client pre-check failed open or raced).
+        setReceipt(null);
+        setPaywallFor('expense');
+        return;
+      }
       if (res.status === 401 && data.authRequired) {
         setMessages((m) => [...m, aMsg(data.reply)]);
         setReceipt(null);
@@ -1917,6 +1944,10 @@ export default function Chat() {
     }
 
     setExpenseError(null);
+      // Re-check before uploading the photo: a capped insert would leave an
+      // orphaned file in storage. The trigger stays the real enforcement.
+      if (!(await expenseAllowed())) return;
+
       // Path is the content hash, so the same photo always lands on the same
       // object instead of piling up copies. The bucket has no UPDATE policy
       // (copied from vault), so upsert is off and a re-upload of an identical
@@ -2787,7 +2818,7 @@ export default function Chat() {
         </div>
       )}
 
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      {paywallFor && <PaywallModal onClose={() => setPaywallFor(null)} />}
     </div>
   );
 }
