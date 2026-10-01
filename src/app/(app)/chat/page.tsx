@@ -24,6 +24,7 @@ import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
+import ReceiptBubble from '@/components/ReceiptBubble';
 import { MotionDebug, markCameraClosed, markMotion } from '@/lib/motion-debug'; // TEMP — REMOVE BEFORE MERGE
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
@@ -38,7 +39,9 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat'; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  /** A receipt photo bubble: a small JPEG data URL (persists with the chat). */
+  receipt?: string; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -363,6 +366,9 @@ export default function Chat() {
   // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
   // back. Keyed so every capture replays it; 0 = never shown.
   const [shutterKey, setShutterKey] = useState(0);
+  // The receipt bubble captured in THIS session that should play its flight
+  // (MOTION-SPEC §8). Never set for restored messages, so they render static.
+  const liveReceiptRef = useRef<{ id: string; startAt: number } | null>(null);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -852,7 +858,8 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1), draft }),
+        // Role + text only: a receipt bubble's photo stays on the device.
+        body: JSON.stringify({ history: next.slice(1).map(({ role, content }) => ({ role, content })), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -1812,6 +1819,14 @@ export default function Chat() {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
         setShutterKey((k) => k + 1);
+        // The photo joins the thread as the user's message. It stays even if
+        // the read then fails or turns out to be a duplicate.
+        if (prepared.thumbUrl) {
+          const bubble: Msg = { ...uMsg('Receipt photo'), receipt: prepared.thumbUrl };
+          liveReceiptRef.current = { id: bubble.id, startAt: performance.now() + 220 }; // after the flash
+          nearBottomRef.current = true; // follow the photo, even if scrolled up
+          setMessages((m) => [...m, bubble]);
+        }
         markMotion('prepared', `${prepared.blob.size}B`); // TEMP motion diagnosis
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
@@ -2569,6 +2584,13 @@ export default function Chat() {
                 </button>
               </div>
             </div>
+          ) : m.receipt ? (
+            <ReceiptBubble
+              key={m.id}
+              src={m.receipt}
+              animate={liveReceiptRef.current?.id === m.id}
+              startAt={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.startAt : 0}
+            />
           ) : (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -2646,11 +2668,11 @@ export default function Chat() {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading') && (
+        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
-            {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
+            {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
           </div>
         )}
       </div>

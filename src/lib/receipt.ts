@@ -25,6 +25,11 @@ export interface PreparedReceipt {
   hash: string;
   /** Object URL for the preview thumbnail. Caller must revokeObjectURL it. */
   previewUrl: string;
+  /** Small JPEG data URL (≤264px wide, center-cropped to at most 2:3) for the
+   *  chat's photo bubble. A data URL, not an object URL, so it persists with
+   *  the conversation and a restored chat still shows the photo. Null if the
+   *  device couldn't encode it (the bubble is then skipped). */
+  thumbUrl: string | null;
   originalBytes: number;
   bytes: number;
 }
@@ -102,6 +107,27 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 }
 
+const THUMB_W = 264;          // 2× a 132px bubble
+const THUMB_MAX_RATIO = 1.5;  // height:width — a long receipt is cropped, not shown tall
+
+function makeThumb(src: HTMLCanvasElement): string | null {
+  try {
+    const cropH = Math.min(src.height, Math.round(src.width * THUMB_MAX_RATIO));
+    const sy = Math.round((src.height - cropH) / 2);
+    const w = Math.min(THUMB_W, src.width);
+    const h = Math.round(cropH * (w / src.width));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    if (!g) return null;
+    g.drawImage(src, 0, sy, src.width, cropH, 0, 0, w, h);
+    return c.toDataURL('image/jpeg', 0.72);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Pick → hash → decode (HEIC-aware) → downscale → JPEG.
  * Throws ReceiptError with a message that is safe to show the user verbatim.
@@ -135,6 +161,7 @@ export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(source as CanvasImageSource, 0, 0, canvas.width, canvas.height);
   if ('close' in source) source.close();
+  const thumbUrl = makeThumb(canvas);
 
   let blob: Blob | null = null;
   for (const q of QUALITY_STEPS) {
@@ -147,6 +174,7 @@ export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
     blob,
     hash,
     previewUrl: URL.createObjectURL(blob),
+    thumbUrl,
     originalBytes: file.size,
     bytes: blob.size,
   };

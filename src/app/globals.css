@@ -376,19 +376,21 @@ html[data-splash=""] .onit-splash {
 .onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
 
 /* ---- Receipt capture (MOTION-SPEC.md §8) ----
-   Shutter: a full-screen white flash that never blocks touches. Photo: the
-   thumbnail lands from larger, as if the shot shrinks into the expense card. */
+   Shutter: a full-screen white flash that never blocks touches. */
 .onit-shutter {
   position: fixed;
   inset: 0;
   z-index: 60;
   background: #ffffff;
+  /* Resting state is invisible: under reduced motion (animation: none) the
+     flash must not leave a white layer over the screen. */
+  opacity: 0;
   pointer-events: none;
   animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
 }
 @keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
-.onit-photo-in { animation: onit-photo-in 460ms var(--ease-emphasized) both; }
-@keyframes onit-photo-in { from { opacity: .4; transform: scale(2.2); } }
+/* The photo's flight into its chat bubble runs in ReceiptBubble (Web
+   Animations, after img.decode()); the card's thumbnail no longer animates. */
 
 /* ---- Books (MOTION-SPEC.md §9) ---- */
 @keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }
