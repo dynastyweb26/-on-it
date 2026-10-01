@@ -36,6 +36,13 @@ const START_SLIDE: Record<PaywallVariant, SlideId> = {
   reports: 'reports',
 };
 
+// Why the wall opened: a quiet pill above the slides, fixed while they change.
+const REASON: Record<PaywallVariant, string> = {
+  invoice: 'You’ve used your 3 free invoices',
+  expense: 'You’ve used your 5 free receipts',
+  reports: 'Reports are part of On It',
+};
+
 // Where Stripe Checkout returns to (POST /api/checkout's whitelist): the screen
 // that showed the wall, so a blocked invoice card or expense is right there.
 export type CheckoutReturn = 'chat' | 'summary' | 'books' | 'invoices' | 'settings';
@@ -50,7 +57,7 @@ const PLAN = 'flex h-14 items-center justify-between gap-2.5 rounded-2xl border-
 // Rows tighten on short screens (SE), per the design's SE frames.
 const ROW_H = 'min-h-[60px] [@media(max-height:700px)]:min-h-[52px]';
 const DOTS_H = 29; // the page-dot row under the slideshow (7px dots + padding)
-const MIN_SCALE = 0.56;
+const MIN_SCALE = 0.48;
 
 export default function PaywallModal({ onClose, variant = 'invoice', returnTo }: {
   onClose: () => void;
@@ -61,6 +68,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
   const pageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
+  const reasonRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -94,7 +102,8 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
     const cards = cardsRef.current;
     if (!sc || !cards) return;
     if (!showCode) cardsH.current = cards.offsetHeight;
-    const avail = sc.clientHeight - cardsH.current - DOTS_H - 16;
+    const reasonH = reasonRef.current?.offsetHeight ?? 0;
+    const avail = sc.clientHeight - reasonH - cardsH.current - DOTS_H - 16;
     const byH = Math.min(1, Math.max(MIN_SCALE, avail / SLIDE_H));
     const byW = Math.min(1, sc.clientWidth / SLIDE_W);
     setScale(Math.min(byH, byW));
@@ -177,6 +186,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
       role="dialog"
       aria-modal="true"
       aria-label="Start your On It plan"
+      aria-describedby="paywall-reason"
       tabIndex={-1}
       className="fixed inset-0 z-[70] flex justify-center bg-background font-body text-on-background outline-none"
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
@@ -209,6 +219,14 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
+          <div ref={reasonRef} className="flex justify-center px-4 pb-2">
+            <p
+              id="paywall-reason"
+              className="rounded-full bg-surface-container px-3 py-1 text-[13px] font-semibold leading-[18px] text-on-surface-variant"
+            >
+              {REASON[variant]}
+            </p>
+          </div>
           <PaywallSlideshow slides={SLIDES} start={START_SLIDE[variant]} scale={scale} />
 
           <div ref={cardsRef} className="flex flex-col gap-2 px-4">
