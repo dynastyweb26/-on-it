@@ -1,11 +1,11 @@
 -- ═══════════════════════════════════════════════════════════════
--- Paywall v2, part 2: free expense cap (2), counted from the reset.
+-- Paywall v2, part 2: free expense cap (5), counted from the reset.
 --
 -- PUSH ON LAUNCH DAY ONLY, together with 20261001000001 (it uses that
 -- migration's paywall_reset_at() and pin_created_at()). Live for every user
 -- once pushed, whatever NEXT_PUBLIC_PAYWALL_ENABLED says.
 --
---   1. free_expense_limit() → 2 (new).
+--   1. free_expense_limit() → 5 (new).
 --   2. enforce_free_expense_limit() + BEFORE INSERT trigger on expenses: the
 --      mirror of the invoice cap. Counts every expense the user created since
 --      paywall_reset_at(), soft-deleted ones included (deleting refunds
@@ -26,7 +26,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 2 $$;
+as $$ select 5 $$;
 
 grant execute on function public.free_expense_limit() to anon, authenticated;
 

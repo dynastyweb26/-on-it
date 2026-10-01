@@ -43,7 +43,7 @@ begin
   -- ── The migrations, exactly as they will be pushed ─────────
   execute $mig1$
 -- ═══════════════════════════════════════════════════════════════
--- Paywall v2, part 1: free invoice cap back on (2), counted from the reset.
+-- Paywall v2, part 1: free invoice cap back on (3), counted from the reset.
 --
 -- PUSH ON LAUNCH DAY ONLY. Preview and production share this database and the
 -- trigger doesn't know about NEXT_PUBLIC_PAYWALL_ENABLED: the cap is live for
@@ -53,7 +53,7 @@ begin
 --      (the transaction's now(), written into the function body). Only rows
 --      created at/after it count, so every free user starts at 0. No
 --      grandfathering, nothing deleted: older rows stay and just don't count.
---   2. free_invoice_limit() → 2 (was the kill-switch value 1,000,000 from
+--   2. free_invoice_limit() → 3 (was the kill-switch value 1,000,000 from
 --      20260823120000, which is left untouched).
 --   3. enforce_free_invoice_limit(): counts kind='invoice' rows created since
 --      the reset (soft-deleted ones included: deleting refunds nothing).
@@ -86,7 +86,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 2 $$;
+as $$ select 3 $$;
 
 grant execute on function public.free_invoice_limit() to anon, authenticated;
 
@@ -166,13 +166,13 @@ $mig1$;
 
   execute $mig2$
 -- ═══════════════════════════════════════════════════════════════
--- Paywall v2, part 2: free expense cap (2), counted from the reset.
+-- Paywall v2, part 2: free expense cap (5), counted from the reset.
 --
 -- PUSH ON LAUNCH DAY ONLY, together with 20261001000001 (it uses that
 -- migration's paywall_reset_at() and pin_created_at()). Live for every user
 -- once pushed, whatever NEXT_PUBLIC_PAYWALL_ENABLED says.
 --
---   1. free_expense_limit() → 2 (new).
+--   1. free_expense_limit() → 5 (new).
 --   2. enforce_free_expense_limit() + BEFORE INSERT trigger on expenses: the
 --      mirror of the invoice cap. Counts every expense the user created since
 --      paywall_reset_at(), soft-deleted ones included (deleting refunds
@@ -193,7 +193,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 2 $$;
+as $$ select 5 $$;
 
 grant execute on function public.free_expense_limit() to anon, authenticated;
 
@@ -363,24 +363,25 @@ $mig3$;
     (free_u, 'Paywall validation (free)', 'free'),
     (founder_u, 'Paywall validation (founder)', 'founder');
 
-  -- ── Free user: invoices ─────────────────────────────────────
+  -- ── Free user: invoices (free limit 3) ─────────────────────
   begin
     insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 1', 'invoice');
     insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 2', 'invoice');
-    report := array_append(report, 'PASS  free: invoices 1 and 2 allowed'); passed := passed + 1;
+    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 3', 'invoice');
+    report := array_append(report, 'PASS  free: invoices 1-3 allowed'); passed := passed + 1;
   exception when others then
-    report := array_append(report, ('FAIL  free: invoices 1-2 rejected: ' || sqlerrm)); failed := failed + 1;
+    report := array_append(report, ('FAIL  free: invoices 1-3 rejected: ' || sqlerrm)); failed := failed + 1;
   end;
 
   begin
-    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 3', 'invoice');
-    report := array_append(report, 'FAIL  free: 3rd invoice was ALLOWED'); failed := failed + 1;
+    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 4', 'invoice');
+    report := array_append(report, 'FAIL  free: 4th invoice was ALLOWED'); failed := failed + 1;
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     if v_hint = 'PAYWALL_LIMIT' then
-      report := array_append(report, 'PASS  free: 3rd invoice rejected (PAYWALL_LIMIT)'); passed := passed + 1;
+      report := array_append(report, 'PASS  free: 4th invoice rejected (PAYWALL_LIMIT)'); passed := passed + 1;
     else
-      report := array_append(report, ('FAIL  free: 3rd invoice rejected for the wrong reason: ' || sqlerrm)); failed := failed + 1;
+      report := array_append(report, ('FAIL  free: 4th invoice rejected for the wrong reason: ' || sqlerrm)); failed := failed + 1;
     end if;
   end;
 
@@ -391,34 +392,38 @@ $mig3$;
     report := array_append(report, ('FAIL  free: quote rejected: ' || sqlerrm)); failed := failed + 1;
   end;
 
-  -- ── Free user: expenses (and soft delete refunds nothing) ───
+  -- ── Free user: expenses (free limit 5; soft delete refunds nothing) ──
   begin
     insert into public.expenses (user_id, amount) values (free_u, 10);
-    insert into public.expenses (user_id, amount) values (free_u, 20) returning id into v_id;
+    insert into public.expenses (user_id, amount) values (free_u, 20);
+    insert into public.expenses (user_id, amount) values (free_u, 30);
+    insert into public.expenses (user_id, amount) values (free_u, 40);
+    insert into public.expenses (user_id, amount) values (free_u, 50) returning id into v_id;
     update public.expenses set deleted_at = now() where id = v_id;
-    report := array_append(report, 'PASS  free: expenses 1 and 2 allowed (2nd then soft-deleted)'); passed := passed + 1;
+    report := array_append(report, 'PASS  free: expenses 1-5 allowed (5th then soft-deleted)'); passed := passed + 1;
   exception when others then
-    report := array_append(report, ('FAIL  free: expenses 1-2 rejected: ' || sqlerrm)); failed := failed + 1;
+    report := array_append(report, ('FAIL  free: expenses 1-5 rejected: ' || sqlerrm)); failed := failed + 1;
   end;
 
   begin
-    insert into public.expenses (user_id, amount) values (free_u, 30);
-    report := array_append(report, 'FAIL  free: 3rd expense was ALLOWED (soft-deleted row must still count)'); failed := failed + 1;
+    insert into public.expenses (user_id, amount) values (free_u, 60);
+    report := array_append(report, 'FAIL  free: 6th expense was ALLOWED (soft-deleted row must still count)'); failed := failed + 1;
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     if v_hint = 'PAYWALL_LIMIT_EXPENSE' then
-      report := array_append(report, 'PASS  free: 3rd expense rejected (PAYWALL_LIMIT_EXPENSE), soft-deleted row still counted'); passed := passed + 1;
+      report := array_append(report, 'PASS  free: 6th expense rejected (PAYWALL_LIMIT_EXPENSE), soft-deleted row still counted'); passed := passed + 1;
     else
-      report := array_append(report, ('FAIL  free: 3rd expense rejected for the wrong reason: ' || sqlerrm)); failed := failed + 1;
+      report := array_append(report, ('FAIL  free: 6th expense rejected for the wrong reason: ' || sqlerrm)); failed := failed + 1;
     end if;
   end;
 
-  -- ── Founder: unlimited ──────────────────────────────────────
+  -- ── Founder: unlimited (past both free limits) ──────────────
   begin
     insert into public.invoices (user_id, client_name, kind) values (founder_u, 'Founder client 1', 'invoice');
     insert into public.invoices (user_id, client_name, kind) values (founder_u, 'Founder client 2', 'invoice');
     insert into public.invoices (user_id, client_name, kind) values (founder_u, 'Founder client 3', 'invoice');
-    report := array_append(report, 'PASS  founder: 3 invoices allowed'); passed := passed + 1;
+    insert into public.invoices (user_id, client_name, kind) values (founder_u, 'Founder client 4', 'invoice');
+    report := array_append(report, 'PASS  founder: 4 invoices allowed'); passed := passed + 1;
   exception when others then
     report := array_append(report, ('FAIL  founder: invoice rejected: ' || sqlerrm)); failed := failed + 1;
   end;
@@ -427,7 +432,10 @@ $mig3$;
     insert into public.expenses (user_id, amount) values (founder_u, 1);
     insert into public.expenses (user_id, amount) values (founder_u, 2);
     insert into public.expenses (user_id, amount) values (founder_u, 3);
-    report := array_append(report, 'PASS  founder: 3 expenses allowed'); passed := passed + 1;
+    insert into public.expenses (user_id, amount) values (founder_u, 4);
+    insert into public.expenses (user_id, amount) values (founder_u, 5);
+    insert into public.expenses (user_id, amount) values (founder_u, 6);
+    report := array_append(report, 'PASS  founder: 6 expenses allowed'); passed := passed + 1;
   exception when others then
     report := array_append(report, ('FAIL  founder: expense rejected: ' || sqlerrm)); failed := failed + 1;
   end;
@@ -460,7 +468,7 @@ $mig3$;
   end;
 
   -- ══ Rollback lifts the caps ═════════════════════════════════
-  -- The free user is at 2 invoices + 2 expenses (one soft-deleted) here.
+  -- The free user is at 3 invoices + 5 expenses (one soft-deleted) here.
   execute $rollback$
 -- ═══════════════════════════════════════════════════════════════
 -- Paywall v2 ROLLBACK — turns the free caps off again (limits → 1,000,000).
@@ -503,17 +511,17 @@ grant execute on function public.free_expense_limit() to anon, authenticated;
 $rollback$;
 
   begin
-    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 3 (after rollback)', 'invoice');
-    report := array_append(report, 'PASS  rollback: free user''s 3rd invoice now allowed'); passed := passed + 1;
+    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 4 (after rollback)', 'invoice');
+    report := array_append(report, 'PASS  rollback: free user''s 4th invoice now allowed'); passed := passed + 1;
   exception when others then
-    report := array_append(report, ('FAIL  rollback: 3rd invoice still rejected: ' || sqlerrm)); failed := failed + 1;
+    report := array_append(report, ('FAIL  rollback: 4th invoice still rejected: ' || sqlerrm)); failed := failed + 1;
   end;
 
   begin
-    insert into public.expenses (user_id, amount) values (free_u, 30);
-    report := array_append(report, 'PASS  rollback: free user''s 3rd expense now allowed'); passed := passed + 1;
+    insert into public.expenses (user_id, amount) values (free_u, 60);
+    report := array_append(report, 'PASS  rollback: free user''s 6th expense now allowed'); passed := passed + 1;
   exception when others then
-    report := array_append(report, ('FAIL  rollback: 3rd expense still rejected: ' || sqlerrm)); failed := failed + 1;
+    report := array_append(report, ('FAIL  rollback: 6th expense still rejected: ' || sqlerrm)); failed := failed + 1;
   end;
 
   -- ══ Founder code (20261001000003) ═══════════════════════════

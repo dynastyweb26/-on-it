@@ -24,7 +24,7 @@ You must be at least 18 years old and using On It for a business.
 
 ## 3. Subscription and billing
 
-**Free tier.** You can create up to 2 invoices and log up to 2 expenses without paying. Quotes don't count toward the limit. Deleting an invoice or expense doesn't free up a spot.
+**Free tier.** You can create up to 3 invoices and log up to 5 expenses without paying. Quotes don't count toward the limit. Deleting an invoice or expense doesn't free up a spot.
 
 **Pro subscription.** $9.99 per month, with a 14-day free trial for first-time subscribers.
 

@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- Paywall v2, part 1: free invoice cap back on (2), counted from the reset.
+-- Paywall v2, part 1: free invoice cap back on (3), counted from the reset.
 --
 -- PUSH ON LAUNCH DAY ONLY. Preview and production share this database and the
 -- trigger doesn't know about NEXT_PUBLIC_PAYWALL_ENABLED: the cap is live for
@@ -9,7 +9,7 @@
 --      (the transaction's now(), written into the function body). Only rows
 --      created at/after it count, so every free user starts at 0. No
 --      grandfathering, nothing deleted: older rows stay and just don't count.
---   2. free_invoice_limit() → 2 (was the kill-switch value 1,000,000 from
+--   2. free_invoice_limit() → 3 (was the kill-switch value 1,000,000 from
 --      20260823120000, which is left untouched).
 --   3. enforce_free_invoice_limit(): counts kind='invoice' rows created since
 --      the reset (soft-deleted ones included: deleting refunds nothing).
@@ -42,7 +42,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 2 $$;
+as $$ select 3 $$;
 
 grant execute on function public.free_invoice_limit() to anon, authenticated;
 

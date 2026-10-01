@@ -24,12 +24,12 @@ export type PaywallVariant = 'invoice' | 'expense';
 
 const COPY: Record<PaywallVariant, { headline: string; sub: string; benefits: { icon: IconName; text: string }[] }> = {
   invoice: {
-    headline: 'You’re on a roll — that’s 2 invoices sent',
+    headline: 'That’s your 3 free invoices',
     sub: 'Keep them coming. Go unlimited and never stop mid-job.',
     benefits: BENEFITS,
   },
   expense: {
-    headline: 'That’s your 2 free expenses',
+    headline: 'That’s your 5 free receipts',
     sub: 'Keep every receipt in one place. Go unlimited and log as you go.',
     benefits: [
       { icon: 'receipt_long', text: 'Unlimited expenses & receipt scans' },
