@@ -16,13 +16,14 @@ export function invoiceFilename(kind: string, no: number, client: string, busine
 }
 
 /** Filename for the expense-summary export, e.g.
- *  Expense-Summary_2026_AcmePlumbing.pdf */
-export function summaryFilename(periodLabel: string, business: string) {
-  return `Expense-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+ *  Expense-Summary_2026_AcmePlumbing.pdf, or with detailed:
+ *  Expense-Summary-Detailed_2026_AcmePlumbing.pdf */
+export function summaryFilename(periodLabel: string, business: string, detailed = false) {
+  return `Expense-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
-export function incomeSummaryFilename(periodLabel: string, business: string) {
-  return `Income-Summary_${safe(periodLabel)}_${safe(business)}.pdf`;
+export function incomeSummaryFilename(periodLabel: string, business: string, detailed = false) {
+  return `Income-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
 /** Wait for every <img> inside the node to finish decoding. html2canvas does not
@@ -90,6 +91,16 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
 
   // ── Multi-page DOM Block Partitioning ──────────────────────────
   const rowHeights = rows.map((r) => (r as HTMLElement).offsetHeight || 36);
+  // Opt-in keep-with-next (summary group headers, a payment above its line
+  // items): a page never ends on a row marked data-pdf-keep-with-next. The page
+  // break moves up to before the marked run, keeping at least one row per page.
+  // Invoice templates don't set it, so their pagination is unchanged.
+  const keepWithNext = rows.map((r) => r.hasAttribute('data-pdf-keep-with-next'));
+  const backOffKept = (start: number, end: number) => {
+    let e = end;
+    while (e < rows.length && e - start > 1 && keepWithNext[e - 1]) e--;
+    return e;
+  };
   const tableHeader = table?.querySelector('thead') as HTMLElement | null;
   const tableHeaderHeight = tableHeader ? tableHeader.offsetHeight : 32;
 
@@ -113,6 +124,17 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     p1Height += rowHeights[p1End];
     p1End++;
   }
+  // Every row fits on page 1 but the blocks under the table would run past the
+  // page bottom (a single page would clip them): move rows onto a page 2 until
+  // they fit, so the trailing blocks follow them there. trailingHeight includes
+  // the 56px bottom padding, so this only fires when content would be cut off.
+  const trailingHeight = fullHeight - (tableTop + tableHeight);
+  if (p1End === totalRows) {
+    while (p1End > 1 && tableTop + tableHeaderHeight + p1Height + trailingHeight - 56 > 1123) {
+      p1End--;
+      p1Height -= rowHeights[p1End];
+    }
+  }
   // Enforce orphan rule: if only 1 row left for Page 2+, pull one back unless Page 1 needs it
   if (p1End === totalRows - 1 && p1End > 2) {
     p1End--;
@@ -121,6 +143,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   if (p1End < 2 && totalRows >= 2) {
     p1End = Math.min(2, totalRows);
   }
+  p1End = backOffKept(0, p1End);
   pageRowRanges.push({ start: 0, end: p1End });
   currentRow = p1End;
 
@@ -161,6 +184,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       // lone orphan row sitting by itself above the totals block.
       pEnd--;
     }
+    pEnd = backOffKept(currentRow, pEnd);
 
     pageRowRanges.push({ start: currentRow, end: pEnd });
     currentRow = pEnd;
