@@ -11,9 +11,12 @@ import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { TRIAL_DAYS, trialEligible } from '@/lib/trial';
 
-// No meaningful body — the price is server-side. Validate anyway (security
-// pattern): reject anything that isn't an object / empty body.
-const CheckoutBody = z.object({}).nullish();
+// The price is server-side. The only input is where to come back to: the
+// screen that showed the wall (chat keeps the blocked invoice card in local
+// storage, so the user lands back on it and can send). A fixed whitelist of
+// in-app paths, never a URL. Validated anyway (security pattern).
+const RETURN_PATHS = { chat: '/chat', summary: '/summary', books: '/dashboard', invoices: '/invoices', settings: '/settings' } as const;
+const CheckoutBody = z.object({ returnTo: z.enum(['chat', 'summary', 'books', 'invoices', 'settings']).optional() }).nullish();
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -24,9 +27,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
 
-  if (!CheckoutBody.safeParse(await req.json().catch(() => ({})) ).success) {
+  const body = CheckoutBody.safeParse(await req.json().catch(() => ({})));
+  if (!body.success) {
     return NextResponse.json({ error: 'invalid request' }, { status: 400 });
   }
+  const returnPath = RETURN_PATHS[body.data?.returnTo ?? 'settings'];
 
   const stripe = getStripe();
   const price = process.env.STRIPE_PRICE_ID_MONTHLY?.trim(); // stray env whitespace → invalid price id
@@ -74,8 +79,8 @@ export async function POST(req: NextRequest) {
         : { customer_email: user.email }),
       client_reference_id: user.id, // webhook maps the session back to the user
       metadata: { user_id: user.id },
-      success_url: `${origin}/settings?upgraded=1`,
-      cancel_url: `${origin}/chat`,
+      success_url: `${origin}${returnPath}?upgraded=1`,
+      cancel_url: `${origin}${returnPath}`,
     });
     return NextResponse.json({ url: session.url });
   } catch (e) {

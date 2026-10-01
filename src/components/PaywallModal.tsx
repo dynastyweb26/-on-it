@@ -44,7 +44,16 @@ const COPY: Record<PaywallVariant, { headline: string; sub: string; benefits: { 
   },
 };
 
-export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose: () => void; variant?: PaywallVariant }) {
+// Where Stripe Checkout returns to (POST /api/checkout's whitelist): the screen
+// that showed the wall, so a blocked invoice card or expense is right there.
+export type CheckoutReturn = 'chat' | 'summary' | 'books' | 'invoices' | 'settings';
+
+export default function PaywallModal({ onClose, variant = 'invoice', returnTo }: {
+  onClose: () => void;
+  variant?: PaywallVariant;
+  returnTo?: CheckoutReturn;
+}) {
+  const back: CheckoutReturn = returnTo ?? (variant === 'reports' ? 'summary' : 'chat');
   const copy = COPY[variant];
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
@@ -97,7 +106,11 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
     setBusy(true);
     setNotice('');
     try {
-      const res = await fetch('/api/checkout', { method: 'POST' });
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ returnTo: back }),
+      });
       const data = await res.json();
       if (data?.url) {
         window.location.href = data.url; // Stripe hosted Checkout

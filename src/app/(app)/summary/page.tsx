@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PaywallModal from '@/components/PaywallModal';
+import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -65,10 +66,18 @@ export default function TaxSummary() {
   const [canExport, setCanExport] = useState<boolean | null>(null);
   const [reportsWall, setReportsWall] = useState(false);
   useEffect(() => {
-    fetch('/api/access')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((a) => { if (a && typeof a.canExport === 'boolean') setCanExport(a.canExport); })
-      .catch(() => { /* unknown → fail open */ });
+    noteUpgradeReturn(); // back from Checkout via the reports wall?
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/access');
+        let a = r.ok ? await r.json() : null;
+        // Just upgraded: the webhook may lag a few seconds behind the return.
+        if (a && a.canExport === false && recentlyUpgraded()) a = (await waitForAccess((x) => x.canExport === true)) ?? a;
+        if (active && a && typeof a.canExport === 'boolean') setCanExport(a.canExport);
+      } catch { /* unknown → fail open */ }
+    })();
+    return () => { active = false; };
   }, []);
   /** An export tap: the Totals / Itemized sheet, or the reports wall. */
   function openExport(kind: SummaryPdfKind) {

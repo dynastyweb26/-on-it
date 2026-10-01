@@ -21,6 +21,7 @@ import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
+import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -1129,6 +1130,9 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   // Free-tier cap hit: which wall to show (invoice or expense), or none.
   const [paywallFor, setPaywallFor] = useState<null | PaywallVariant>(null);
+  // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
+  // wait out the webhook instead of re-showing the wall.
+  useEffect(() => { noteUpgradeReturn(); }, []);
   // TEMPORARY — preview-only paywall UI review. REVERT BEFORE MERGE.
   // /chat?paywall=invoice|expense|reports opens the real modal, but only when
   // /api/paywall-preview answers 200 (it 404s in production, gated on the
@@ -1372,7 +1376,12 @@ export default function Chat() {
     // new INVOICE is gated — for every tier the trigger caps, canceled included.
     if (!pendingInvoiceRef.current && docKind(draft) === 'invoice') {
       try {
-        const gate = await (await fetch('/api/access')).json();
+        let gate = await (await fetch('/api/access')).json();
+        // Just back from Checkout? The webhook may not have landed yet: give it
+        // a few seconds before showing the wall again (lib/upgrade-return).
+        if (gate && gate.hasAccess === false && recentlyUpgraded()) {
+          gate = (await waitForAccess((a) => a.hasAccess === true)) ?? gate;
+        }
         if (gate && gate.hasAccess === false) {
           if (mode !== 'prepare') setPaywallFor('invoice'); // the send tap shows it
           return;
@@ -1894,7 +1903,10 @@ export default function Chat() {
   async function expenseAllowed(): Promise<boolean> {
     if (!profile) return true;
     try {
-      const gate = await (await fetch('/api/access')).json();
+      let gate = await (await fetch('/api/access')).json();
+      if (gate && gate.canExpense === false && recentlyUpgraded()) {
+        gate = (await waitForAccess((a) => a.canExpense === true)) ?? gate;
+      }
       if (gate && gate.canExpense === false) {
         setPaywallFor('expense');
         return false;
