@@ -1,4 +1,7 @@
-// POST /api/checkout — Stripe hosted Checkout (mode: subscription, 30-day trial).
+// POST /api/checkout — Stripe hosted Checkout (mode: subscription). A 14-day
+// trial (card collected at Checkout) for first-time customers only; anyone who
+// has had a trial or a subscription before is billed from day one
+// (lib/trial.ts).
 // User request (session client, NOT admin). Dormant without Stripe env: returns
 // 503 with a clear message the paywall modal displays inline — never crashes.
 import { NextRequest, NextResponse } from 'next/server';
@@ -6,6 +9,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { TRIAL_DAYS, trialEligible } from '@/lib/trial';
 
 // No meaningful body — the price is server-side. Validate anyway (security
 // pattern): reject anything that isn't an object / empty body.
@@ -37,16 +41,32 @@ export async function POST(req: NextRequest) {
   // Reuse an existing Stripe customer if the webhook already linked one.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, trial_ends_at, subscription_status')
     .eq('id', user.id)
     .maybeSingle();
 
   try {
+    // One trial per customer: the profile's record first, then Stripe itself
+    // (any earlier subscription on this customer, whatever its status). If
+    // Stripe can't be asked, the profile's answer stands.
+    let withTrial = trialEligible(profile);
+    if (withTrial && profile?.stripe_customer_id) {
+      try {
+        const prior = await stripe.subscriptions.list({ customer: profile.stripe_customer_id, status: 'all', limit: 1 });
+        if (prior.data.length > 0) withTrial = false;
+      } catch (e) {
+        console.error('checkout: prior-subscription lookup failed', (e as Error)?.message);
+      }
+    }
+
     const origin = req.nextUrl.origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price, quantity: 1 }],
-      subscription_data: { trial_period_days: 30, metadata: { user_id: user.id } },
+      subscription_data: {
+        ...(withTrial ? { trial_period_days: TRIAL_DAYS } : {}),
+        metadata: { user_id: user.id },
+      },
       // Existing customer, else let Checkout create one from the email; either
       // way the webhook stores the customer id back on the profile.
       ...(profile?.stripe_customer_id

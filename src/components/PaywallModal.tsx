@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
+import { TRIAL_DAYS } from '@/lib/trial';
 import type { IconName } from '@/components/icon-names';
 
 const BENEFITS: { icon: IconName; text: string }[] = [
@@ -43,6 +44,19 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [showCode, setShowCode] = useState(false);
+  // One trial per customer (lib/trial.ts): the disclosure above the button must
+  // match what /api/checkout will do, so the button waits until this is known.
+  // An unreachable check falls back to the no-trial copy (never promise a
+  // trial that might not come).
+  const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/access')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a) => { if (active) setTrialEligible(a?.trialEligible === true); })
+      .catch(() => { if (active) setTrialEligible(false); });
+    return () => { active = false; };
+  }, []);
 
   // Body scroll lock while open
   useEffect(() => {
@@ -128,7 +142,9 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
 
         <div className="mt-5 flex items-baseline justify-center gap-1.5">
           <span className="font-display text-numeric-xl tracking-tight text-on-background">$9.99</span>
-          <span className="text-body-md text-on-surface-variant">/month · 30-day free trial · cancel anytime</span>
+          <span className="text-body-md text-on-surface-variant">
+            {trialEligible ? `/month · ${TRIAL_DAYS}-day free trial · cancel anytime` : '/month · cancel anytime'}
+          </span>
         </div>
 
         {notice && (
@@ -138,13 +154,18 @@ export default function PaywallModal({ onClose, variant = 'invoice' }: { onClose
         )}
 
         {/* Subscription disclosure — plain, body-size, visible before the Stripe
-            redirect. Material terms match trial_period_days: 30 in /api/checkout. */}
+            redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
+            first-time customers only (lib/trial.ts), otherwise billed today. */}
         <p className="mt-4 text-center text-body-md text-on-surface-variant">
-          30-day free trial, then $9.99/month, recurring. Cancel anytime.
+          {trialEligible === null
+            ? 'Checking your plan…'
+            : trialEligible
+              ? `${TRIAL_DAYS}-day free trial, then $9.99/month, recurring. Cancel anytime.`
+              : '$9.99/month, recurring. Cancel anytime.'}
         </p>
 
-        <button className="btn-primary mt-3 w-full" disabled={busy} onClick={upgrade}>
-          {busy ? 'One sec…' : 'Start your 30-day free trial'}
+        <button className="btn-primary mt-3 w-full" disabled={busy || trialEligible === null} onClick={upgrade}>
+          {busy ? 'One sec…' : trialEligible ? `Start your ${TRIAL_DAYS}-day free trial` : 'Subscribe — $9.99/month'}
         </button>
         <p className="mt-2 text-center text-body-md text-on-surface-variant">
           <a href="/terms" className="underline">Terms</a>

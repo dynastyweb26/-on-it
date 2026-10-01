@@ -10,6 +10,7 @@ import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailabi
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
+import { TRIAL_DAYS } from '@/lib/trial';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -113,7 +114,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // supersedes it (render order below).
   const [authStuck, setAuthStuck] = useState(false);
   // Subscription: tier drives manage-vs-upgrade; founder hides the section.
-  const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
+  const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number; trialEligible?: boolean } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
   // Stripe Connect: busy covers both the onboarding redirect and a status
@@ -348,7 +349,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   }
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
-  // Free/canceled users → Checkout (start the $9.99/mo, 30-day-free-trial plan).
+  // Free/canceled users → Checkout ($9.99/mo; a 14-day free trial for
+  // first-time customers only, lib/trial.ts).
   // Both redirect to a Stripe-hosted page; the 503 dormant message shows inline.
   async function billingAction(endpoint: '/api/billing-portal' | '/api/checkout') {
     if (billingBusy) return;
@@ -800,7 +802,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 {access.tier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
                   : access.tier === 'trialing'
-                    ? `You’re on your 30-day free trial — $9.99/month${fmtDate(p.trial_ends_at) ? `, first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
+                    ? `You’re on your ${TRIAL_DAYS}-day free trial — $9.99/month${fmtDate(p.trial_ends_at) ? `, first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
                     : `You’re subscribed at $9.99/month${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
@@ -811,15 +813,18 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             </>
           ) : (
             <>
-              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, and reminders.</p>
+              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, expenses and reminders.</p>
               {/* Subscription disclosure — plain, body-size, visible before the Stripe
-                  redirect. Material terms match trial_period_days: 30 in /api/checkout. */}
+                  redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
+                  first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
-                30-day free trial, then $9.99/month, recurring. Cancel anytime.
+                {access.trialEligible
+                  ? `${TRIAL_DAYS}-day free trial, then $9.99/month, recurring. Cancel anytime.`
+                  : '$9.99/month, recurring. Cancel anytime.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : 'Upgrade — $9.99/month'}
+                {billingBusy ? 'Opening…' : access.trialEligible ? `Start your ${TRIAL_DAYS}-day free trial` : 'Subscribe — $9.99/month'}
               </button>
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>

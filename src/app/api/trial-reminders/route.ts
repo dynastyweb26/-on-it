@@ -1,7 +1,7 @@
 // GET /api/trial-reminders — Vercel Cron target (see vercel.json), once daily.
 //
 // Trial users currently get charged with no warning. This run finds users whose
-// 30-day trial ends within the next 3 days and who haven't already been sent the
+// trial (14 days for new trials, lib/trial.ts) ends within the next 3 days and who haven't already been sent the
 // heads-up, verifies each is genuinely about to be charged, and emails them via
 // Resend. Sent-state is tracked on profiles.trial_reminder_sent_at so a user can
 // never be emailed twice.
