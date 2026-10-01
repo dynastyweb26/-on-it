@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
+import PaywallModal from '@/components/PaywallModal';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
@@ -97,6 +98,7 @@ export default function Dashboard() {
     tweenRaf.current = requestAnimationFrame(step);
   }
   const [showForm, setShowForm] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false); // free expense cap hit
 
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
@@ -197,7 +199,13 @@ export default function Dashboard() {
         category,
         spent_on: spentOn,
       });
-      if (error) { setAmountError(error.message); return; }
+      if (error) {
+        // Free expense cap (enforce_free_expense_limit): the wall, not the raw
+        // DB message. The form stays filled so it saves after upgrading.
+        if (error.hint === 'PAYWALL_LIMIT_EXPENSE') { setShowPaywall(true); return; }
+        setAmountError(error.message);
+        return;
+      }
       setShowForm(false);
       resetForm();
       void loadStats();
@@ -331,6 +339,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }

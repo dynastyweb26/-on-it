@@ -20,6 +20,7 @@ import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/pu
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal from '@/components/PaywallModal';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -44,12 +45,15 @@ interface Profile {
   slogan: string | null; brand_colors: string[]; background_color: string | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
   // Connect flags (select(*)) — for the PDF card line only.
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
   card_payments_enabled?: boolean | null;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+// Tiers the cap triggers never limit (must match src/lib/access.ts).
+const UNLIMITED_TIERS = new Set(['founder', 'trialing', 'active', 'past_due']);
 
 // The document kind a draft renders as: 'quote' or 'invoice', handled
 // explicitly. Every other intent (expense/question/other) and a missing one are
@@ -396,6 +400,12 @@ export default function Chat() {
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
   const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Capped tiers (free, canceled, anything not unlimited) get no background
+  // pre-build: it INSERTs the draft row before Send, which would spend a free
+  // invoice slot on a card that may never be sent. Their Send builds at tap
+  // time instead (the slow path). Only while the paywall is on.
+  const skipPreBuild = PAYWALL_ENABLED && !!profile
+    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
   useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
@@ -1243,6 +1253,7 @@ export default function Chat() {
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
     if (!ready || !draft || !profile) return;
+    if (skipPreBuild) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
     if (phase !== null || preparing) return;
     if (prepState && prepState.sig === draftSignature(draft)) return;
@@ -1250,7 +1261,7 @@ export default function Chat() {
     preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState]);
+  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild]);
 
   // mode 'prepare': the background pre-build above — it runs the SAME persist +
   // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
@@ -1259,7 +1270,7 @@ export default function Chat() {
   // usable); a failure just records prepState 'failed'.
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (mode === 'prepare') {
-      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile) return;
+      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile || skipPreBuild) return;
       preparingRef.current = true;
       setPreparing(true);
       // The DB row is about to be rewritten from the current draft, so an older
@@ -1978,6 +1989,12 @@ export default function Chat() {
         // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
         // the pre-check if the same receipt was saved on another device while
         // this card sat open. Say what happened — never a raw constraint error.
+        // The expense cap trigger (PAYWALL_LIMIT_EXPENSE): show the wall, keep
+        // the card so the expense can be saved after upgrading.
+        if (insErr.hint === 'PAYWALL_LIMIT_EXPENSE') {
+          setPaywallFor('expense');
+          return;
+        }
         if (insErr.code === '23505') {
           const existing = receipt ? await findDuplicate(receipt.hash) : null;
           discardExpense();
@@ -2188,6 +2205,8 @@ export default function Chat() {
   // lookup has resolved.
   const sendReady = !profileLoaded ? false
     : !profile ? true
+    // No pre-build for capped tiers: Send takes the slow path (build at tap).
+    : skipPreBuild ? !!draft
     : !!draft && prepState?.sig === draftSignature(draft);
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
