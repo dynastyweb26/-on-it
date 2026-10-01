@@ -26,7 +26,6 @@ import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receip
 import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
-import { MotionDebug, markCameraClosed, markMotion } from '@/lib/motion-debug'; // TEMP — REMOVE BEFORE MERGE
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
@@ -1867,7 +1866,6 @@ export default function Chat() {
     // Reset immediately so picking the SAME file twice still fires onChange.
     e.target.value = '';
     if (!file) return;
-    markCameraClosed(); // TEMP motion diagnosis
 
     if (phase) return; // a turn is already in flight
     discardExpense();
@@ -1883,7 +1881,6 @@ export default function Chat() {
         setReceipt(prepared);
         // Flash once the camera sheet is gone; resolves at the flash's peak.
         const flashPeak = afterSheetGone().then(() => {
-          markMotion('flash', `visibility=${document.visibilityState}`); // TEMP motion diagnosis
           setShutterKey((k) => k + 1);
           return new Promise<void>((r) => setTimeout(r, FLASH_PEAK_MS));
         });
@@ -1896,7 +1893,6 @@ export default function Chat() {
           nearBottomRef.current = true; // follow the photo, even if scrolled up
           setMessages((m) => [...m, bubble]);
         }
-        markMotion('prepared', `${prepared.blob.size}B`); // TEMP motion diagnosis
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
         setMessages((m) => [...m, aMsg(err instanceof ReceiptError
@@ -1981,7 +1977,6 @@ export default function Chat() {
         // What was bought (the reader's short phrase); editable on the card.
         description: typeof data.description === 'string' ? data.description : null,
       });
-      markMotion('draft-shown'); // TEMP motion diagnosis
     } catch {
       setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
       setReceipt(null);
@@ -2065,7 +2060,6 @@ export default function Chat() {
           receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
         },
       });
-      markMotion('saved'); // TEMP motion diagnosis
       // Fold the expense card away first (150ms, onit-card-exit), then the
       // logged card arrives in its place. Reduced motion: straight swap.
       if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
@@ -2621,7 +2615,6 @@ export default function Chat() {
   return (
     <div className="flex h-full flex-col">
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
-      <MotionDebug />{/* TEMP motion diagnosis — REMOVE BEFORE MERGE */}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
           page, whose bounce would then grab the next gesture. Scoped here —

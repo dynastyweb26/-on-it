@@ -12,7 +12,6 @@
 // messages never animate (the caller only passes `animate` for a live one).
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
-import { markMotion } from '@/lib/motion-debug'; // TEMP motion diagnosis — REMOVE BEFORE MERGE
 
 const DURATION = 460;
 const EASE_EMPHASIZED = 'cubic-bezier(.65, 0, .35, 1)'; // --ease-emphasized
@@ -42,7 +41,6 @@ export default function ReceiptBubble({ src, animate = false, startAfter }: {
       try {
         await img.decode();
       } catch {
-        markMotion('receipt-bubble', 'decode failed — shown static');
         if (!cancelled) setHidden(false);
         return;
       }
@@ -69,7 +67,6 @@ export default function ReceiptBubble({ src, animate = false, startAfter }: {
       overlay.appendChild(copy);
       document.body.appendChild(overlay);
 
-      markMotion('receipt-bubble start', `decoded=true on-screen=${r.bottom > 0 && r.top < vh} top=${Math.round(r.top)}`);
       setHidden(false);
       const fly = overlay.animate(
         [
@@ -84,7 +81,6 @@ export default function ReceiptBubble({ src, animate = false, startAfter }: {
         { duration: DURATION, easing: 'linear' },
       );
       try { await fly.finished; } catch { /* cancelled */ }
-      markMotion('receipt-bubble end');
       overlay.remove();
       overlay = null;
     })();
