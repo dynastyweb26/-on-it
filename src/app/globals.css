@@ -389,6 +389,10 @@ html[data-splash=""] .onit-splash {
   animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
 }
 @keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
+/* Save: the expense card folds away (onit-card-exit) and the compact logged
+   card arrives as if it collapsed out of it — down from slightly larger. */
+@keyframes onit-logged-in { from { opacity: 0; transform: translateY(-10px) scale(1.04); } }
+.onit-logged-in { animation: onit-logged-in 240ms var(--ease-standard) both; }
 /* The photo's flight into its chat bubble runs in ReceiptBubble (Web
    Animations, after img.decode()); the card's thumbnail no longer animates. */
 

@@ -25,6 +25,7 @@ import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
+import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import { MotionDebug, markCameraClosed, markMotion } from '@/lib/motion-debug'; // TEMP — REMOVE BEFORE MERGE
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
@@ -41,7 +42,10 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** A receipt photo bubble: a small JPEG data URL (persists with the chat). */
-  receipt?: string; }
+  receipt?: string;
+  /** A saved expense, shown as the compact logged card (content keeps the text
+   *  confirmation for the model's context). */
+  logged?: LoggedExpense; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -369,6 +373,10 @@ export default function Chat() {
   // The receipt bubble captured in THIS session that should play its flight
   // (MOTION-SPEC §8). Never set for restored messages, so they render static.
   const liveReceiptRef = useRef<{ id: string; startAt: number } | null>(null);
+  // Same for the logged card a live save collapses into; and the expense
+  // card's fold-away while that happens.
+  const liveLoggedIdRef = useRef<string | null>(null);
+  const [expenseExiting, setExpenseExiting] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -1985,9 +1993,28 @@ export default function Chat() {
 
       const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
-      setMessages((m) => [...m, aMsg(saved)]);
+      // The compact logged card replaces the text confirmation (it shows the
+      // same facts); the text stays as content for the model's context.
+      const logged: Msg = aMsg(saved, {
+        logged: {
+          amount: expenseDraft.amount,
+          vendor: expenseDraft.vendor?.trim() || null,
+          category: CATEGORY_LABEL[expenseDraft.category],
+          date: expenseDraft.occurred_on ?? today(),
+          thumb: receipt?.thumbUrl ?? null,
+        },
+      });
       markMotion('saved'); // TEMP motion diagnosis
+      // Fold the expense card away first (150ms, onit-card-exit), then the
+      // logged card arrives in its place. Reduced motion: straight swap.
+      if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        setExpenseExiting(true);
+        await new Promise((r) => setTimeout(r, 150));
+        liveLoggedIdRef.current = logged.id;
+      }
+      setMessages((m) => [...m, logged]);
       discardExpense();
+      setExpenseExiting(false);
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
@@ -2584,6 +2611,8 @@ export default function Chat() {
                 </button>
               </div>
             </div>
+          ) : m.logged ? (
+            <LoggedExpenseCard key={m.id} e={m.logged} animate={liveLoggedIdRef.current === m.id} />
           ) : m.receipt ? (
             <ReceiptBubble
               key={m.id}
@@ -2629,7 +2658,7 @@ export default function Chat() {
 
         {expenseDraft && (
           // Only ever set live (never restored), so the build-in plays once per capture.
-          <div className="onit-card-enter">
+          <div className={expenseExiting ? 'onit-card-exit' : 'onit-card-enter'}>
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
