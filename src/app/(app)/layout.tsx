@@ -9,6 +9,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
+import RecapSheet from '@/components/RecapSheet';
 import { createClient } from '@/lib/supabase/client';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
@@ -266,6 +267,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Reference doc — tabbed, always available from the pill. Never gated,
           never marks seen (see closeReference). */}
       {showReference && <TutorialReference onClose={closeReference} />}
+      {/* Weekly / monthly recap: once per app open, never over the walkthrough. */}
+      <RecapSheet suppressed={showFirstRun || showReference} />
       {/* One scroll owner per screen. Chat owns its scrolling (the message list
           between the header and the composer), so here main must NOT also be a
           scroller: nested scroll containers let iOS hand a gesture to the
