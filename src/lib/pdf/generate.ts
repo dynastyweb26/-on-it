@@ -62,11 +62,13 @@ function addPageLinks(pdf: jsPDF, pageEl: HTMLElement) {
 
 /** el = the rendered template node (794px wide).
  *  PNG, not JPEG: flat color with fine text, often on near-black background.
- *  scale: 3 for crisp text edges.
+ *  scale: capture resolution. 3 (the default, every invoice) for crisp text
+ *  edges; the books summaries pass 2, which keeps black-on-white text crisp at
+ *  100% while cutting capture time and memory on long multi-page documents.
  *  backgroundColor: null so templates paint their own background.
  *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
  *  preserving split-free table rows and page-specific link annotations. */
-export async function elementToPdf(el: HTMLElement, filename: string): Promise<File> {
+export async function elementToPdf(el: HTMLElement, filename: string, { scale = 3 }: { scale?: number } = {}): Promise<File> {
   // Wait for web fonts before capture: html2canvas snapshots synchronously and
   // uses fallback-font metrics if the display font isn't ready yet, which
   // collapses letter spacing. Guarded — document.fonts is absent in older envs.
@@ -95,7 +97,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       // today; the warning makes a future one visible instead of silent.
       console.warn(`elementToPdf(${filename}): ${fullHeight}px of content with ${rows.length} table row(s) — clipped to one page`);
     }
-    const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null });
+    const canvas = await html2canvas(el, { scale, useCORS: true, backgroundColor: null });
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
     addPageLinks(pdf, el);
@@ -120,7 +122,10 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   // data-pdf-group-header, with the name in [data-pdf-group-name]. A page that
   // opens mid-group starts with a copy of that header reading "<Name>
   // (continued)" (parts marked data-pdf-continued-hide — counts, subtotals —
-  // dropped), and its height is reserved when the page is packed.
+  // dropped), and its height is reserved when the page is packed. When the
+  // page opens on a row carrying data-pdf-continued-suffix (a line item under
+  // its invoice), the suffix joins the name: "<Name> · INV-1076 (continued)".
+  // A break between payments keeps the name-only form.
   const groupOf = rows.map((r) => r.getAttribute('data-pdf-group'));
   const groupHeaderIdx = new Map<string, number>();
   rows.forEach((r, i) => {
@@ -394,6 +399,9 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         // Carry the template's explicit line-height (summary documents set one)
         // so rows measure and paint the same as on page 1.
         pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
+        // ...and its table-layout, so a fixed-layout table wraps rows to the
+        // same widths (and so the same measured heights) on every page.
+        pageTable.style.tableLayout = (table as HTMLElement).style.tableLayout;
 
         if (tableHeader) {
           pageTable.appendChild(tableHeader.cloneNode(true));
@@ -406,7 +414,8 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
           cont.removeAttribute('data-pdf-keep-with-next');
           cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
           const name = cont.querySelector('[data-pdf-group-name]');
-          if (name) name.textContent = `${name.textContent ?? ''} (continued)`;
+          const suffix = rows[range.start].getAttribute('data-pdf-continued-suffix');
+          if (name) name.textContent = `${name.textContent ?? ''}${suffix ? ` · ${suffix}` : ''} (continued)`;
           tbody.appendChild(cont);
         }
         for (let rIdx = range.start; rIdx < range.end; rIdx++) {
@@ -465,7 +474,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     }
     const pageNode = pageNodes[p];
     const canvas = await html2canvas(pageNode, {
-      scale: 3,
+      scale,
       useCORS: true,
       backgroundColor: computedBg,
       width: 794,
