@@ -144,34 +144,50 @@ function PaidGraphic() {
   );
 }
 
-/** "Accept payments": the five payment-method tiles, then the PAID chip.
- *  Each mark comes from simple-icons in its brand's own color (PaymentLogos);
- *  Venmo shows its wordmark alone, the others a label in their brand color. */
+/** "Accept payments": five payment-method tiles, then the PAID chip with the
+ *  payment line beside it. Built to design-reference/payments-card.png, which
+ *  the slide shows at 240px wide (the PNG is 4.7x): 11.5px side padding,
+ *  39 x 43 tiles on a 5.3px gap with a hairline warm border, 19px marks over
+ *  7px labels, a 14px pill chip. Each mark comes from simple-icons in its
+ *  brand's own color (PaymentLogos); Venmo shows its wordmark alone, the
+ *  others a label in their brand color. */
 function PaymentsCard() {
   return (
-    <div style={{ ...OVERLAY, bottom: 14 }}>
-      <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 13 }}>Accept payments</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
+    <div
+      style={{
+        position: 'absolute', right: 22, bottom: 14, width: 240, boxSizing: 'border-box', padding: '10.5px 11.5px 10.2px',
+        background: '#fff', borderRadius: 13, display: 'flex', flexDirection: 'column',
+        boxShadow: '0 2px 3px rgba(31,27,19,.06), 0 14px 20px rgba(31,27,19,.16)',
+      }}
+    >
+      <div style={{ fontSize: 10.5, lineHeight: '12.6px', fontWeight: 600, color: INK }}>Accept payments</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5.3, marginTop: 10 }}>
         {PAYMENT_BRANDS.map(({ id, icon, wordmark }) => (
           <div
             key={id}
-            style={{ height: 50, borderRadius: 10, border: '1px solid #efe4d2', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            style={{
+              height: 43.4, boxSizing: 'border-box', borderRadius: 7, border: '0.65px solid #ece4d4', background: '#fff',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: wordmark ? 'center' : 'flex-start',
+              paddingTop: wordmark ? 0 : 6, gap: 3,
+            }}
           >
             {wordmark ? (
-              <PaymentLogo icon={icon} wordmark size={32} />
+              <PaymentLogo icon={icon} wordmark size={35.7} />
             ) : (
               <>
-                <PaymentLogo icon={icon} size={18} />
-                <span style={{ fontSize: 7.5, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', color: `#${icon.hex}` }}>{icon.title}</span>
+                <PaymentLogo icon={icon} size={19} />
+                <span style={{ fontSize: 6.9, lineHeight: 1, fontWeight: 600, whiteSpace: 'nowrap', color: `#${icon.hex}` }}>{icon.title}</span>
               </>
             )}
           </div>
         ))}
       </div>
-      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 6px', borderRadius: 999, background: '#c9f2d4', color: '#0f6d31', fontSize: 10.5 }}>
-        <Icon name="check_circle" size={15} filled />
-        <span style={{ fontWeight: 600, letterSpacing: '.08em' }}>PAID</span>
-        <span>· Mike Davis paid $850.00</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 9.1 }}>
+        <div style={{ height: 14, display: 'flex', alignItems: 'center', gap: 2, padding: '0 5.5px 0 4.5px', borderRadius: 999, background: '#e3f6e8', color: '#1b7a3a', fontSize: 7, lineHeight: 1, fontWeight: 600, letterSpacing: '.02em' }}>
+          <Icon name="check" size={10} />
+          PAID
+        </div>
+        <span style={{ fontSize: 7.8, color: INK }}>Mike Davis paid $850.00</span>
       </div>
     </div>
   );
