@@ -549,7 +549,11 @@ export interface IncomeDetailedData extends DocHeaderData {
 
 const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))));
 
-const SUB_TD: React.CSSProperties = { padding: '3px 0 3px 24px', color: MUTED, fontSize: 11, ...ONE_LINE };
+// Line items under a payment: black like the payment rows; the hierarchy is
+// the indent and the smaller size only. Annotations (the "Payment N of" label,
+// "+ N more items") stay muted via SUB_NOTE.
+const SUB_TD: React.CSSProperties = { padding: '3px 0 3px 24px', color: INK, fontSize: 11, ...ONE_LINE };
+const SUB_NOTE: React.CSSProperties = { ...SUB_TD, color: MUTED };
 
 export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; accent: string }) {
   return (
@@ -598,7 +602,7 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                 ...(p.note
                   ? [
                       <tr key={`c${ci}p${pi}n`} {...grp(ci)} {...(items.length > 0 ? KEEP_NEXT : {})}>
-                        <td colSpan={4} style={{ ...SUB_TD, fontStyle: 'italic' }}>{p.note}</td>
+                        <td colSpan={4} style={{ ...SUB_NOTE, fontStyle: 'italic' }}>{p.note}</td>
                       </tr>,
                     ]
                   : []),
@@ -613,7 +617,7 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                 ...(more > 0
                   ? [
                       <tr key={`c${ci}p${pi}m`} {...grp(ci)}>
-                        <td colSpan={4} style={SUB_TD}>+ {more} more {more === 1 ? 'item' : 'items'}</td>
+                        <td colSpan={4} style={SUB_NOTE}>+ {more} more {more === 1 ? 'item' : 'items'}</td>
                       </tr>,
                     ]
                   : []),

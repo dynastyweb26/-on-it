@@ -251,6 +251,8 @@ export async function buildSummaryPdf(
       const showItems = !itemsListed.has(invoiceId);
       itemsListed.add(invoiceId);
       const of = p.invoiceNumber != null ? invoice : 'this invoice';
+      // Only an invoice with 2+ payments in its whole ledger gets a label; a
+      // single-payment invoice never reads "Payment 1 of".
       const note = ids.length > 1 && ordinal > 0
         ? `Payment ${ordinal} of ${of}${showItems ? '' : ' · items listed above'}`
         : null;
