@@ -101,6 +101,24 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
     while (e < rows.length && e - start > 1 && keepWithNext[e - 1]) e--;
     return e;
   };
+  // Opt-in groups (summary documents: a client or a category). Every row of a
+  // group carries data-pdf-group="<id>"; its header row also carries
+  // data-pdf-group-header, with the name in [data-pdf-group-name]. A page that
+  // opens mid-group starts with a copy of that header reading "<Name>
+  // (continued)" (parts marked data-pdf-continued-hide — counts, subtotals —
+  // dropped), and its height is reserved when the page is packed.
+  const groupOf = rows.map((r) => r.getAttribute('data-pdf-group'));
+  const groupHeaderIdx = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const g = groupOf[i];
+    if (g && r.hasAttribute('data-pdf-group-header') && !groupHeaderIdx.has(g)) groupHeaderIdx.set(g, i);
+  });
+  /** Index of the header to repeat as "(continued)" when a page starts at row i, or -1. */
+  const continuedHeaderFor = (i: number) => {
+    const g = groupOf[i];
+    if (!g || i === 0 || groupOf[i - 1] !== g || rows[i].hasAttribute('data-pdf-group-header')) return -1;
+    return groupHeaderIdx.get(g) ?? -1;
+  };
   const tableHeader = table?.querySelector('thead') as HTMLElement | null;
   const tableHeaderHeight = tableHeader ? tableHeader.offsetHeight : 32;
 
@@ -154,10 +172,12 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
   // trailed off into a sparse, mostly-empty final page. Now the reservation
   // applies only to the page that actually carries the trailing blocks.
   while (currentRow < totalRows) {
+    const contIdx = continuedHeaderFor(currentRow);
+    const capacity = continuationCapacity - (contIdx >= 0 ? rowHeights[contIdx] : 0);
     let pHeight = 0;
     let pEnd = currentRow;
 
-    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= continuationCapacity) {
+    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
       pHeight += rowHeights[pEnd];
       pEnd++;
     }
@@ -175,7 +195,7 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
       // the page's overflow:hidden. If the packed rows leave too little, pull
       // rows back (keeping at least one) so they spill onto a fresh final page
       // that does have room for the block.
-      while (pEnd > currentRow + 1 && continuationCapacity - pHeight < bottomHeight) {
+      while (pEnd > currentRow + 1 && capacity - pHeight < bottomHeight) {
         pEnd--;
         pHeight -= rowHeights[pEnd];
       }
@@ -366,6 +386,15 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         }
 
         const tbody = document.createElement('tbody');
+        const contIdx = continuedHeaderFor(range.start);
+        if (contIdx >= 0) {
+          const cont = rows[contIdx].cloneNode(true) as HTMLElement;
+          cont.removeAttribute('data-pdf-keep-with-next');
+          cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
+          const name = cont.querySelector('[data-pdf-group-name]');
+          if (name) name.textContent = `${name.textContent ?? ''} (continued)`;
+          tbody.appendChild(cont);
+        }
         for (let rIdx = range.start; rIdx < range.end; rIdx++) {
           if (rows[rIdx]) {
             tbody.appendChild(rows[rIdx].cloneNode(true));

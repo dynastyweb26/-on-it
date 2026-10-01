@@ -9,7 +9,7 @@
      2. the total row
      3. the thin separator lines between category rows
    Nothing else is colored. */
-import React from 'react';
+import React, { cloneElement, type ReactElement } from 'react';
 
 export interface SummaryRowData {
   label: string;
@@ -40,6 +40,18 @@ const INK = '#111111';       // black text (non-negotiable)
 // "normal" can draw its glyphs partly outside the row. 1.5 leaves room on
 // every engine. Continuation pages copy it from the table (elementToPdf).
 const ROW_LINE_HEIGHT = 1.5;
+
+// Group markers for elementToPdf: every row of a client/category group, its
+// header (name in data-pdf-group-name, counts/subtotals data-pdf-continued-hide)
+// so a page that opens mid-group starts with "<Name> (continued)".
+const grp = (i: number) => ({ 'data-pdf-group': String(i) });
+const GROUP_HEADER = { 'data-pdf-group-header': '', 'data-pdf-keep-with-next': '' };
+const KEEP_NEXT = { 'data-pdf-keep-with-next': '' };
+/** The last row of a group's body stays on the page with the subtotal under it. */
+function keepLastWithNext(rows: ReactElement[]): ReactElement[] {
+  if (rows.length === 0) return rows;
+  return [...rows.slice(0, -1), cloneElement(rows[rows.length - 1], KEEP_NEXT)];
+}
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
@@ -316,19 +328,19 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
           )}
           {d.categories.flatMap((c, ci) => [
             // Category header — (3) thin accent separator above each group.
-            <tr key={`c${ci}`} data-pdf-keep-with-next="" style={{ borderTop: `1px solid ${accent}59` }}>
+            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
               <td colSpan={4} style={{ padding: '12px 0 6px', color: INK, fontSize: 13, fontWeight: 800, ...ONE_LINE }}>
-                {c.label}
-                <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                <span data-pdf-group-name>{c.label}</span>
+                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
                   {'  ·  '}{c.count} {c.count === 1 ? 'expense' : 'expenses'}
                 </span>
               </td>
               <td style={{ padding: '12px 0 6px', textAlign: 'right', color: INK, fontSize: 13, fontWeight: 700 }}>
-                {money(c.total)}
+                <span data-pdf-continued-hide>{money(c.total)}</span>
               </td>
             </tr>,
             ...c.rows.map((r, ri) => (
-              <tr key={`c${ci}r${ri}`}>
+              <tr key={`c${ci}r${ri}`} {...grp(ci)}>
                 <td style={ROW_TD}>{r.date}</td>
                 <td style={ROW_TD}>{clip(r.store, 18)}</td>
                 <td style={ROW_TD}>{clip(r.description, 40)}</td>
@@ -444,23 +456,23 @@ export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; acc
         <tbody>
           {d.clients.flatMap((c, ci) => [
             // Client header — (3) thin accent separator above each client group
-            <tr key={`c${ci}`} style={{ borderTop: `1px solid ${accent}59` }}>
+            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
               <td colSpan={4} style={{ padding: '14px 0 6px', color: INK, fontSize: 14, fontWeight: 800 }}>
-                {c.client}
-                <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                <span data-pdf-group-name>{c.client}</span>
+                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
                   {'  ·  '}{c.count} {c.count === 1 ? 'payment' : 'payments'}
                 </span>
               </td>
             </tr>,
-            ...c.payments.map((p, pi) => (
-              <tr key={`c${ci}p${pi}`}>
+            ...keepLastWithNext(c.payments.map((p, pi) => (
+              <tr key={`c${ci}p${pi}`} {...grp(ci)}>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.date}</td>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.invoice}</td>
                 <td style={{ padding: '5px 0', color: INK, fontSize: 13 }}>{p.method}</td>
                 <td style={{ padding: '5px 0', textAlign: 'right', color: INK, fontSize: 13 }}>{money(p.amount)}</td>
               </tr>
-            )),
-            <tr key={`c${ci}s`}>
+            ))),
+            <tr key={`c${ci}s`} {...grp(ci)}>
               <td colSpan={3} style={{ padding: '6px 0 12px', textAlign: 'right', color: MUTED, fontSize: 12 }}>
                 Subtotal · {c.client}
               </td>
@@ -565,21 +577,21 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
           )}
           {d.clients.flatMap((c, ci) => [
             // Client header — (3) thin accent separator above each client group
-            <tr key={`c${ci}`} data-pdf-keep-with-next="" style={{ borderTop: `1px solid ${accent}59` }}>
+            <tr key={`c${ci}`} {...grp(ci)} {...GROUP_HEADER} style={{ borderTop: `1px solid ${accent}59` }}>
               <td colSpan={4} style={{ padding: '14px 0 6px', color: INK, fontSize: 14, fontWeight: 800, ...ONE_LINE }}>
-                {clip(c.client, 60)}
-                <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
+                <span data-pdf-group-name>{clip(c.client, 60)}</span>
+                <span data-pdf-continued-hide style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>
                   {'  ·  '}{c.count} {c.count === 1 ? 'payment' : 'payments'}
                 </span>
               </td>
             </tr>,
-            ...c.payments.flatMap((p, pi) => {
+            ...keepLastWithNext(c.payments.flatMap((p, pi) => {
               const items = p.items ?? [];
               const more = p.moreItems ?? 0;
               const hasDetail = Boolean(p.note) || items.length > 0 || more > 0;
               return [
                 // A payment stays on the page with the first line under it.
-                <tr key={`c${ci}p${pi}`} {...(hasDetail ? { 'data-pdf-keep-with-next': '' } : {})}>
+                <tr key={`c${ci}p${pi}`} {...grp(ci)} {...(hasDetail ? KEEP_NEXT : {})}>
                   <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.date}</td>
                   <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.invoice}</td>
                   <td style={{ padding: '6px 0 2px', color: INK, fontSize: 13 }}>{p.method}</td>
@@ -587,13 +599,13 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                 </tr>,
                 ...(p.note
                   ? [
-                      <tr key={`c${ci}p${pi}n`} {...(items.length > 0 ? { 'data-pdf-keep-with-next': '' } : {})}>
+                      <tr key={`c${ci}p${pi}n`} {...grp(ci)} {...(items.length > 0 ? KEEP_NEXT : {})}>
                         <td colSpan={4} style={{ ...SUB_TD, fontStyle: 'italic' }}>{p.note}</td>
                       </tr>,
                     ]
                   : []),
                 ...items.map((li, ii) => (
-                  <tr key={`c${ci}p${pi}i${ii}`}>
+                  <tr key={`c${ci}p${pi}i${ii}`} {...grp(ci)}>
                     <td colSpan={4} style={SUB_TD}>
                       {clip(li.description || 'Item', 56)}
                       {'  ·  '}{fmtQty(li.qty)} × {money(li.unitPrice)} = {money(li.amount)}
@@ -602,14 +614,14 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                 )),
                 ...(more > 0
                   ? [
-                      <tr key={`c${ci}p${pi}m`}>
+                      <tr key={`c${ci}p${pi}m`} {...grp(ci)}>
                         <td colSpan={4} style={SUB_TD}>+ {more} more {more === 1 ? 'item' : 'items'}</td>
                       </tr>,
                     ]
                   : []),
               ];
-            }),
-            <tr key={`c${ci}s`}>
+            })),
+            <tr key={`c${ci}s`} {...grp(ci)}>
               <td colSpan={3} style={{ padding: '8px 0 12px', textAlign: 'right', color: MUTED, fontSize: 12 }}>
                 Subtotal · {clip(c.client, 40)}
               </td>
