@@ -19,7 +19,7 @@ import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGues
 import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
-import PaywallModal from '@/components/PaywallModal';
+import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
@@ -1128,14 +1128,14 @@ export default function Chat() {
 
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   // Free-tier cap hit: which wall to show (invoice or expense), or none.
-  const [paywallFor, setPaywallFor] = useState<null | 'invoice' | 'expense'>(null);
+  const [paywallFor, setPaywallFor] = useState<null | PaywallVariant>(null);
   // TEMPORARY — preview-only paywall UI review. REVERT BEFORE MERGE.
-  // /chat?paywall=invoice|expense opens the real modal, but only when
+  // /chat?paywall=invoice|expense|reports opens the real modal, but only when
   // /api/paywall-preview answers 200 (it 404s in production, gated on the
   // server's VERCEL_ENV). The param is then dropped so a reload doesn't reopen it.
   useEffect(() => {
     const want = new URLSearchParams(window.location.search).get('paywall');
-    if (want !== 'invoice' && want !== 'expense') return;
+    if (want !== 'invoice' && want !== 'expense' && want !== 'reports') return;
     let active = true;
     fetch('/api/paywall-preview')
       .then((r) => {

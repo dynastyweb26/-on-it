@@ -20,7 +20,8 @@ const BENEFITS: { icon: IconName; text: string }[] = [
 
 // Which cap was hit. 'invoice' is the original copy, unchanged; 'expense'
 // (enforce_free_expense_limit) swaps the headline, sub-line and lead benefit.
-export type PaywallVariant = 'invoice' | 'expense';
+// 'reports' = a free/canceled user tapped an Income/Expense PDF export.
+export type PaywallVariant = 'invoice' | 'expense' | 'reports';
 
 const COPY: Record<PaywallVariant, { headline: string; sub: string; benefits: { icon: IconName; text: string }[] }> = {
   invoice: {
@@ -35,6 +36,11 @@ const COPY: Record<PaywallVariant, { headline: string; sub: string; benefits: { 
       { icon: 'receipt_long', text: 'Unlimited expenses & receipt scans' },
       ...BENEFITS,
     ],
+  },
+  reports: {
+    headline: 'Reports are part of On It',
+    sub: 'Download your income and expense reports. Try On It free for 14 days.',
+    benefits: BENEFITS,
   },
 };
 

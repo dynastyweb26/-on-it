@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import PaywallModal from '@/components/PaywallModal';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -59,6 +60,21 @@ export default function TaxSummary() {
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
   // PDF sheet: which export's Totals / Itemized choice is open.
   const [pdfSheet, setPdfSheet] = useState<SummaryPdfKind | null>(null);
+  // Reports are paid-only while the paywall is on (hasAccess().canExport). null
+  // until known: the buttons then behave as before (fail open).
+  const [canExport, setCanExport] = useState<boolean | null>(null);
+  const [reportsWall, setReportsWall] = useState(false);
+  useEffect(() => {
+    fetch('/api/access')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a) => { if (a && typeof a.canExport === 'boolean') setCanExport(a.canExport); })
+      .catch(() => { /* unknown → fail open */ });
+  }, []);
+  /** An export tap: the Totals / Itemized sheet, or the reports wall. */
+  function openExport(kind: SummaryPdfKind) {
+    if (canExport === false) { setReportsWall(true); return; }
+    setPdfSheet(kind);
+  }
 
   useEffect(() => {
     (async () => {
@@ -246,10 +262,10 @@ export default function TaxSummary() {
           disabled when its side of the period is empty. */}
       {!loading && hasData && (
         <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('expenses')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => openExport('expenses')}>
             <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
           </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('income')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => openExport('income')}>
             <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
           </button>
         </div>
@@ -461,6 +477,7 @@ export default function TaxSummary() {
           </div>
         </div>
       )}
+      {reportsWall && <PaywallModal variant="reports" onClose={() => setReportsWall(false)} />}
     </div>
   );
 }

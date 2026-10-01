@@ -30,6 +30,11 @@ export type AccessTier = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled
 export interface AccessResult {
   hasAccess: boolean;    // may create an invoice (the original meaning, unchanged)
   canExpense: boolean;   // may create an expense
+  // May export the Income / Expense PDFs (Totals and Itemized). Paid tiers
+  // only while the paywall is on; everyone when it is off. UI gate: the PDFs
+  // are built in the browser from the user's own RLS-scoped rows, so there is
+  // no server step to enforce it on.
+  canExport: boolean;
   tier: AccessTier;
   invoiceCount: number;  // real invoices since the reset (quotes never count)
   expenseCount: number;  // expenses since the reset (soft-deleted included)
@@ -70,10 +75,10 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   const expenseCount = expCount ?? 0;
   const counts = { invoiceCount, expenseCount };
 
-  if (raw === 'founder') return { hasAccess: true, canExpense: true, tier: 'founder', ...counts };
+  if (raw === 'founder') return { hasAccess: true, canExpense: true, canExport: true, tier: 'founder', ...counts };
   // trialing / active / past_due → unlimited (past_due = dunning grace window).
   if (raw === 'trialing' || raw === 'active' || raw === 'past_due') {
-    return { hasAccess: true, canExpense: true, tier: raw, ...counts };
+    return { hasAccess: true, canExpense: true, canExport: true, tier: raw, ...counts };
   }
   // Capped from here on: free, canceled, legacy, anything unexpected. A
   // canceled user is treated exactly like a free one (the triggers do the
@@ -85,7 +90,7 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   // DB triggers still enforce whatever limits are live — turning the caps off
   // for real is the rollback (supabase/rollbacks/paywall_v2_rollback.sql).
   if (!PAYWALL_ENABLED) {
-    return { hasAccess: true, canExpense: true, tier, ...counts };
+    return { hasAccess: true, canExpense: true, canExport: true, tier, ...counts };
   }
 
   // Each cap is read from the SAME SQL function its trigger uses, so the
@@ -100,6 +105,7 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   return {
     hasAccess: invoiceCount < invoiceLimit,
     canExpense: expenseCount < expenseLimit,
+    canExport: false, // reports are a paid feature (free / canceled tiers)
     tier,
     ...counts,
   };
