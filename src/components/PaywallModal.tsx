@@ -39,7 +39,7 @@ const START_SLIDE: Record<PaywallVariant, SlideId> = {
 // Why the wall opened: a quiet pill above the slides, fixed while they change.
 const REASON: Record<PaywallVariant, string> = {
   invoice: 'You’ve used your 3 free invoices',
-  expense: 'You’ve used your 5 free receipts',
+  expense: 'You’ve used your 5 free expenses',
   reports: 'Reports are part of On It',
 };
 
