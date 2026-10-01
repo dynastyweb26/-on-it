@@ -802,7 +802,12 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 {access.tier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
                   : access.tier === 'trialing'
-                    ? `You’re on your ${TRIAL_DAYS}-day free trial — $9.99/month${fmtDate(p.trial_ends_at) ? `, first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
+                    // No trial length here: trials started before the 30 → 14
+                    // day change are still running. The end date is right for both
+                    // (same wording as the trial reminder email).
+                    ? (fmtDate(p.trial_ends_at)
+                      ? `Your free trial ends on ${fmtDate(p.trial_ends_at)}, then $9.99/month.`
+                      : 'You’re on a free trial, then $9.99/month.')
                     : `You’re subscribed at $9.99/month${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
