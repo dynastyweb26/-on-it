@@ -44,6 +44,10 @@ export interface AccessResult {
   expenseLimit: number | null;
 }
 
+// A free limit worth showing the user; anything this large is "uncapped".
+const displayLimit = (n: unknown): number | null =>
+  typeof n === 'number' && n < 1000 ? n : null;
+
 export async function hasAccess(userId: string): Promise<AccessResult> {
   const supabase = await createClient();
 
@@ -112,8 +116,9 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     canExport: false, // reports are a paid feature (free / canceled tiers)
     tier,
     ...counts,
-    // Only real limits: a missing rpc (pre-push) reads as no cap.
-    invoiceLimit: typeof invLimit === 'number' ? invLimit : null,
-    expenseLimit: typeof expLimit === 'number' ? expLimit : null,
+    // Only real limits: a missing rpc (pre-push) or the paywall-off sentinel
+    // (1,000,000, 20260823120000) reads as no cap, so no "1 of 1000000" line.
+    invoiceLimit: displayLimit(invLimit),
+    expenseLimit: displayLimit(expLimit),
   };
 }
