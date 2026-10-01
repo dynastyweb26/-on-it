@@ -9,11 +9,13 @@
 //   ends the grace — see tierFromStatus in the stripe webhook).
 // - 'canceled' → paywalled.
 // - 'free' (and any legacy value like the old 'standard') → free_invoice_limit()
-//   real invoices, then paywalled.
+//   real invoices created since paywall_reset_at(), then paywalled. Older
+//   rows never count; soft-deleted ones do.
 //
 // These tier rules MUST match the enforce_free_invoice_limit() trigger exactly
-// (20260724154509) — the modal and the DB gate cannot disagree. The cap number
-// itself lives in ONE place, the SQL free_invoice_limit(), read below via rpc.
+// (20261001000001) — the modal and the DB gate cannot disagree. The cap number
+// and the reset moment each live in ONE place, the SQL free_invoice_limit()
+// and paywall_reset_at(), read below via rpc.
 //
 // Server-only: it reads the DB with the session client under RLS. The client
 // gates via GET /api/access, never by importing this.
@@ -39,12 +41,18 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     .maybeSingle();
   const raw = (profile?.access_tier ?? 'free') as string;
 
-  // Count only real invoices (kind='invoice'), not quotes, toward the free cap.
-  const { count } = await supabase
+  // Count only real invoices (kind='invoice'), not quotes, created since the
+  // paywall reset — the same rows the trigger counts. Before the reset
+  // migration is pushed the rpc doesn't exist; count all-time then, as before
+  // (the limit is still the 1,000,000 kill-switch value at that point).
+  const { data: resetData } = await supabase.rpc('paywall_reset_at');
+  let countQuery = supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .eq('kind', 'invoice');
+  if (typeof resetData === 'string') countQuery = countQuery.gte('created_at', resetData);
+  const { count } = await countQuery;
   const invoiceCount = count ?? 0;
 
   if (raw === 'founder') return { hasAccess: true, tier: 'founder', invoiceCount };

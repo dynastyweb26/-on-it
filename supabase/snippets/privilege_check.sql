@@ -13,7 +13,9 @@
 -- migration is correct. Migrations can't catch that — only this check can.
 --
 -- Each row: check id, PASS/FAIL, what is expected, and what was found. Any
--- FAIL: stop, don't deploy. Read-only (SELECTs only).
+-- FAIL: stop, don't deploy. SKIP = that section's migration isn't recorded as
+-- pushed yet (supabase_migrations.schema_migrations), so its objects aren't
+-- expected to exist. Read-only (SELECTs only).
 --
 -- Maintenance: when a migration adds a profiles column, add it to the
 -- privileged list (B) or — if users may write it — grant it and, if onboarding
@@ -43,6 +45,11 @@ profile_cols as (
     has_column_privilege('authenticated', 'public.profiles', c.column_name, 'INSERT') as can_insert
   from information_schema.columns c
   where c.table_schema = 'public' and c.table_name = 'profiles'
+),
+-- Migrations recorded by the CLI (db push). Rows for a migration that isn't
+-- pushed yet report SKIP instead of failing on objects that don't exist.
+applied(version) as (
+  select version from supabase_migrations.schema_migrations
 ),
 results(id, ok, expected, actual) as (
 
@@ -293,9 +300,46 @@ results(id, ok, expected, actual) as (
   where pronamespace = 'public'::regnamespace
     and proname in ('get_public_invoice', 'get_public_invoice_checkout',
                     'mark_invoice_viewed', 'reconcile_invoice_from_ledger')
+
+  -- N. Paywall v2 invoice cap (20261001000001). SKIP until pushed.
+  union all
+  select 'N1 ' || f.name,
+    case when not exists (select 1 from applied where version = '20261001000001') then null
+      else coalesce((select p.prosecdef = f.definer and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure(f.sig)), false) end,
+    case when f.definer then 'SECURITY DEFINER, search_path=""' else 'SECURITY INVOKER, search_path=""' end,
+    case when not exists (select 1 from applied where version = '20261001000001') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_proc p where p.oid = to_regprocedure(f.sig)), 'missing') end
+  from (values
+    ('enforce_free_invoice_limit', 'public.enforce_free_invoice_limit()', true),
+    ('pin_created_at', 'public.pin_created_at()', false),
+    ('paywall_reset_at', 'public.paywall_reset_at()', false)
+  ) f(name, sig, definer)
+  union all
+  select 'N2 ' || f.sig || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261001000001') then null
+      else coalesce(not has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute'), false) end,
+    'not executable (trigger function)',
+    case when not exists (select 1 from applied where version = '20261001000001') then 'not applied yet'
+      else coalesce(case when has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')
+        then 'EXECUTE' else 'no execute' end, 'missing') end
+  from (values ('public.enforce_free_invoice_limit()'), ('public.pin_created_at()')) f(sig)
+  cross join (values ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'N3 invoice triggers',
+    case when not exists (select 1 from applied where version = '20261001000001') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.invoices'::regclass
+          and t.tgname in ('enforce_free_invoice_limit', 'pin_created_at')) = 2 end,
+    'invoices: enforce_free_invoice_limit (before insert) + pin_created_at (before update)',
+    case when not exists (select 1 from applied where version = '20261001000001') then 'not applied yet'
+      else (select coalesce(string_agg(t.tgname, ', ' order by t.tgname), 'none') from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.invoices'::regclass
+          and t.tgname in ('enforce_free_invoice_limit', 'pin_created_at')) end
 )
 select id as check_id,
-  case when ok then 'PASS' else 'FAIL' end as result,
+  case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
   expected,
   coalesce(nullif(actual, ''), '—') as found
 from results
