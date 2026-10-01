@@ -25,11 +25,13 @@ import { getResend, emailFrom } from '@/lib/email/resend';
 import { trialReminderEmail } from '@/lib/email/trial-reminder';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { verifyCronAuth } from '@/lib/cron-auth';
+import { TRIAL_REMINDER_DAYS } from '@/lib/trial';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const REMIND_WITHIN_DAYS = 3;
+// Shared with the paywall timeline ("We'll remind you" on end − 3 days).
+const REMIND_WITHIN_DAYS = TRIAL_REMINDER_DAYS;
 const MAX_PER_RUN = 200;
 
 function appUrl(): string {

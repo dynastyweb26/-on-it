@@ -2,15 +2,26 @@
 // Access-code entry ("Have a code?"), used by PaywallModal and Settings.
 // POSTs /api/redeem; the server does the exact, case-sensitive match, the
 // rate limit and the one-per-user rule. On success it calls onRedeemed.
-import { useState } from 'react';
+// Styled per the paywall design: a pill field with Apply inside it, and a
+// right-aligned helper line under it ("Codes are case-sensitive.").
+import { useEffect, useRef, useState } from 'react';
+import Icon from '@/components/Icon';
 
-export default function CodeEntry({ onRedeemed }: { onRedeemed: () => void }) {
+export default function CodeEntry({ onRedeemed, autoFocus = false, onEscape }: {
+  onRedeemed: () => void;
+  autoFocus?: boolean;
+  onEscape?: () => void; // the modal collapses the field back to "Have a code?"
+}) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (autoFocus) inputRef.current?.focus(); }, [autoFocus]);
+
+  const ready = code.trim().length >= 3;
 
   async function apply() {
-    if (busy || code.trim().length < 3) return;
+    if (busy || !ready) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -24,7 +35,7 @@ export default function CodeEntry({ onRedeemed }: { onRedeemed: () => void }) {
         setMessage({ ok: true, text: data.message ?? "You're set. Free access is on." });
         onRedeemed();
       } else {
-        setMessage({ ok: false, text: data?.message ?? "That code didn't work." });
+        setMessage({ ok: false, text: data?.message ?? "That code didn't work. Codes are case-sensitive." });
       }
     } catch {
       setMessage({ ok: false, text: "Couldn't reach the server. Try again." });
@@ -33,11 +44,14 @@ export default function CodeEntry({ onRedeemed }: { onRedeemed: () => void }) {
     }
   }
 
+  const error = message && !message.ok;
   return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
+    <div className="min-w-0 flex-1">
+      <div className="relative">
         <input
-          className="input min-w-0 flex-1"
+          ref={inputRef}
+          className={`h-11 w-full rounded-full border-[1.5px] bg-surface-container-lowest pl-4 pr-[84px] font-body text-[15px] font-medium text-on-background outline-none transition-colors placeholder:text-on-surface-variant/70 focus:border-primary ${
+            error ? 'border-[#9b2c1c]' : 'border-primary/35'}`}
           // Codes are case-sensitive: no auto-capitalize / autocorrect changing them.
           autoCapitalize="none"
           autoCorrect="off"
@@ -46,19 +60,31 @@ export default function CodeEntry({ onRedeemed }: { onRedeemed: () => void }) {
           maxLength={40}
           placeholder="Enter code"
           aria-label="Access code"
+          aria-invalid={error || undefined}
+          aria-describedby="code-entry-help"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void apply(); }}
+          onChange={(e) => { setCode(e.target.value); if (message && !message.ok) setMessage(null); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void apply();
+            if (e.key === 'Escape' && onEscape) { e.stopPropagation(); onEscape(); }
+          }}
         />
-        <button className="btn-outline shrink-0 px-5" disabled={busy || code.trim().length < 3} onClick={apply}>
+        <button
+          className="absolute right-1 top-0 h-11 rounded-full px-3.5 font-body text-[15px] font-semibold text-primary transition-opacity disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-primary"
+          disabled={busy || !ready}
+          onClick={apply}
+        >
           {busy ? 'Checking…' : 'Apply'}
         </button>
       </div>
-      {message && (
-        <p role="status" className={`text-sm ${message.ok ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-          {message.text}
-        </p>
-      )}
+      <p
+        id="code-entry-help"
+        role="status"
+        className={`mt-0.5 flex items-center justify-end gap-1 pr-4 text-[13px] leading-[18px] ${error ? 'text-[#9b2c1c]' : 'text-on-surface-variant'}`}
+      >
+        {message?.ok && <Icon name="check_circle" size={16} className="text-primary" />}
+        <span>{message ? message.text : 'Codes are case-sensitive.'}</span>
+      </p>
     </div>
   );
 }

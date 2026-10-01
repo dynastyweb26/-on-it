@@ -24,7 +24,7 @@ import { getStripe } from '@/lib/stripe/server';
 
 const Body = z.object({ code: z.string().trim().min(3).max(40) });
 
-const INVALID = "That code didn't work. Codes are case-sensitive, so check the capital letters.";
+const INVALID = "That code didn't work. Codes are case-sensitive.";
 
 // Statuses Stripe will still charge for. A founder must never be billed again.
 const BILLABLE: ReadonlySet<string> = new Set(['trialing', 'active', 'past_due']);

@@ -18,3 +18,16 @@ export function trialEligible(profile: {
 } | null | undefined): boolean {
   return !profile?.trial_ends_at && !profile?.subscription_status;
 }
+
+// The trial reminder email goes out once trial_ends_at is within this many
+// days (/api/trial-reminders, daily cron). The paywall timeline's "We'll
+// remind you" date is end − TRIAL_REMINDER_DAYS, so the two can't drift.
+export const TRIAL_REMINDER_DAYS = 3;
+
+/** The paywall timeline dates for a trial started now, in the viewer's own
+ *  timezone (calendar-day arithmetic, so a DST change can't shift a date). */
+export function trialDates(now: Date = new Date()): { end: Date; remind: Date } {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + TRIAL_DAYS);
+  const remind = new Date(end.getFullYear(), end.getMonth(), end.getDate() - TRIAL_REMINDER_DAYS);
+  return { end, remind };
+}

@@ -185,6 +185,18 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* Paywall bottom sheet (components/PaywallModal.tsx): slides up from the
+   bottom edge, per the paywall design (.42s, iOS sheet curve). Reduced motion
+   is killed by the global reduce block. */
+@keyframes paywall-sheet-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes paywall-dim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ---- Splash: brand logo reveal (components/Splash.tsx) ----
    Server-rendered, CSS-driven so it plays from first paint without waiting for
    hydration. Hidden unless the head script in layout.tsx set html[data-splash]
