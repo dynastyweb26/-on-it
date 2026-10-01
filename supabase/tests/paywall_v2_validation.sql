@@ -6,6 +6,7 @@
 --   supabase/migrations/20261001000001_paywall_v2_invoice_cap.sql
 --   supabase/migrations/20261001000002_paywall_v2_expense_cap.sql
 --   supabase/migrations/20261001000003_founder_code.sql
+--   supabase/rollbacks/paywall_v2_rollback.sql (applied after the cap tests)
 -- Regenerate after changing any of them.
 --
 -- How it stays safe: this whole file is ONE DO statement. It applies the
@@ -456,6 +457,63 @@ $mig3$;
     end if;
   exception when others then
     report := report || ('FAIL  created_at checks errored: ' || sqlerrm); failed := failed + 1;
+  end;
+
+  -- ══ Rollback lifts the caps ═════════════════════════════════
+  -- The free user is at 2 invoices + 2 expenses (one soft-deleted) here.
+  execute $rollback$
+-- ═══════════════════════════════════════════════════════════════
+-- Paywall v2 ROLLBACK — turns the free caps off again (limits → 1,000,000).
+--
+-- Use only if launch goes wrong. NOT in supabase/migrations on purpose: a file
+-- there would be applied by the next db push. To apply (CLAUDE.md flow):
+--   1. Copy this file to supabase/migrations/<YYYYMMDDHHMMSS>_paywall_rollback.sql
+--      with a timestamp newer than every existing migration.
+--   2. npx supabase db push --dry-run, show the SQL, get the user's yes.
+--   3. npx supabase db push, then npm run db:privcheck.
+-- Also set NEXT_PUBLIC_PAYWALL_ENABLED=false (Production) and redeploy so the
+-- UI stops showing upgrade prompts.
+--
+-- Same kill-switch value as 20260823120000, for invoices and expenses.
+-- Triggers, paywall_reset_at() and the created_at pinning stay in place; with
+-- limits this high nobody is capped.
+-- Re-enabling later = a new migration setting the limits back.
+-- ═══════════════════════════════════════════════════════════════
+
+create or replace function public.free_invoice_limit()
+returns int
+language sql
+immutable
+set search_path = ''
+as $$ select 1000000 $$;
+
+grant execute on function public.free_invoice_limit() to anon, authenticated;
+
+-- free_expense_limit() exists once 20261001000002 is pushed; with the limit
+-- at 1,000,000 the expense trigger never fires either.
+create or replace function public.free_expense_limit()
+returns int
+language sql
+immutable
+set search_path = ''
+as $$ select 1000000 $$;
+
+grant execute on function public.free_expense_limit() to anon, authenticated;
+
+$rollback$;
+
+  begin
+    insert into public.invoices (user_id, client_name, kind) values (free_u, 'Validation client 3 (after rollback)', 'invoice');
+    report := report || 'PASS  rollback: free user''s 3rd invoice now allowed'; passed := passed + 1;
+  exception when others then
+    report := report || ('FAIL  rollback: 3rd invoice still rejected: ' || sqlerrm); failed := failed + 1;
+  end;
+
+  begin
+    insert into public.expenses (user_id, amount) values (free_u, 30);
+    report := report || 'PASS  rollback: free user''s 3rd expense now allowed'; passed := passed + 1;
+  exception when others then
+    report := report || ('FAIL  rollback: 3rd expense still rejected: ' || sqlerrm); failed := failed + 1;
   end;
 
   -- ══ Founder code (20261001000003) ═══════════════════════════
