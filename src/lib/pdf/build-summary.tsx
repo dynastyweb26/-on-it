@@ -1,6 +1,6 @@
 'use client';
 // ═══ Summary PDF builder ═══ One entry point for every books export: expenses
-// or income, summary or detailed, over any local date range. It loads its own
+// or income, totals or itemized, over any local date range. It loads its own
 // data — by default through the session client (supabaseSource; RLS scopes
 // every row to the signed-in user), or from any SummaryPdfSource returning the
 // same shapes — renders the white/black document offscreen, and captures it through
@@ -21,12 +21,14 @@ import { formatDocNumber } from '@/lib/documents';
 import { summarize, summarizeIncome, type ExpenseLite, type PaymentLite } from '@/lib/tax-summary';
 import { elementToPdf, summaryFilename, incomeSummaryFilename } from '@/lib/pdf/generate';
 import {
-  ExpenseSummaryTemplate, IncomeSummaryTemplate, ExpenseDetailedTemplate, IncomeTotalsTemplate,
+  ExpenseTotalsTemplate, IncomeItemizedTemplate, ExpenseItemizedTemplate, IncomeTotalsTemplate,
   type ExpenseDetailCategory,
 } from '@/lib/pdf/summary-template';
 
 export type SummaryPdfKind = 'expenses' | 'income';
-export type SummaryPdfDetail = 'summary' | 'detailed';
+// 'totals' = the period rolled up (expenses by category, income by client);
+// 'itemized' = every expense / every payment, grouped the same way.
+export type SummaryPdfDetail = 'totals' | 'itemized';
 
 export interface SummaryPdfOptions {
   kind: SummaryPdfKind;
@@ -54,7 +56,7 @@ export interface SummaryPdfProfile {
 export interface SummaryPdfSource {
   profile(): Promise<SummaryPdfProfile>;
   /** Non-deleted expenses with spent_on in range, oldest first. */
-  expenses(range: SummaryPdfOptions['range'], detailed: boolean): Promise<Row[]>;
+  expenses(range: SummaryPdfOptions['range'], itemized: boolean): Promise<Row[]>;
   /** Payments on non-deleted invoices of kind 'invoice', paid_at on a local day
    *  in range, oldest first; the invoice embedded as `invoices`. */
   payments(range: SummaryPdfOptions['range']): Promise<Row[]>;
@@ -106,16 +108,16 @@ export async function buildSummaryPdf(
     rangeEnd: prettyDate(range.end),
     generatedOn: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
   };
-  const detailed = detail === 'detailed';
+  const itemized = detail === 'itemized';
 
   if (kind === 'expenses') {
-    const rows = await source.expenses(range, detailed);
+    const rows = await source.expenses(range, itemized);
     const summary = summarize(rows as unknown as ExpenseLite[]);
-    const filename = summaryFilename(periodLabel, header.businessName, detailed);
+    const filename = summaryFilename(periodLabel, header.businessName, itemized);
 
-    if (!detailed) {
+    if (!itemized) {
       return renderToPdf(
-        <ExpenseSummaryTemplate
+        <ExpenseTotalsTemplate
           d={{
             ...header,
             rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total })),
@@ -159,7 +161,7 @@ export async function buildSummaryPdf(
     }));
 
     return renderToPdf(
-      <ExpenseDetailedTemplate d={{ ...header, categories, total: summary.total, count: summary.count }} accent={accent} />,
+      <ExpenseItemizedTemplate d={{ ...header, categories, total: summary.total, count: summary.count }} accent={accent} />,
       filename,
     );
   }
@@ -192,10 +194,10 @@ export async function buildSummaryPdf(
     id: 'range', granularity: 'all', label: periodLabel, friendlyLabel: periodLabel, start: range.start, end: range.end,
   });
   const count = income.byClient.reduce((s, c) => s + c.count, 0);
-  const filename = incomeSummaryFilename(periodLabel, header.businessName, detailed);
+  const filename = incomeSummaryFilename(periodLabel, header.businessName, itemized);
   const invoiceLabel = (n: number | null) => (n != null ? formatDocNumber('invoice', n) : '—');
 
-  if (!detailed) {
+  if (!itemized) {
     // Totals: one row per client (count + amount), then the grand total.
     return renderToPdf(
       <IncomeTotalsTemplate
@@ -214,7 +216,7 @@ export async function buildSummaryPdf(
   // Itemized: every payment, grouped by client — date paid, invoice #, method,
   // amount, with client subtotals.
   return renderToPdf(
-    <IncomeSummaryTemplate
+    <IncomeItemizedTemplate
       d={{
         ...header,
         clients: income.byClient.map((c) => ({
@@ -253,10 +255,10 @@ export function supabaseSource(): SummaryPdfSource {
       if (!data) throw new Error('no profile');
       return data as SummaryPdfProfile;
     },
-    expenses(range, detailed) {
+    expenses(range, itemized) {
       return fetchAll((from, to) => supabase
         .from('expenses')
-        .select(detailed
+        .select(itemized
           ? 'id, amount, category, spent_on, description, vendor, note, receipt_path, receipt_url'
           : 'id, amount, category, spent_on')
         .is('deleted_at', null)

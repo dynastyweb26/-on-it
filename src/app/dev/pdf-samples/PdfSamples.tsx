@@ -8,10 +8,10 @@ import { shareInvoice } from '@/lib/pdf/generate';
 import { mockSource, MOCK_RANGE, MOCK_PERIOD_LABEL, MOCK_COUNTS } from './mock-data';
 
 const SAMPLES: { kind: SummaryPdfKind; detail: SummaryPdfDetail; label: string }[] = [
-  { kind: 'income', detail: 'detailed', label: 'Income Itemized' },
-  { kind: 'income', detail: 'summary', label: 'Income Totals' },
-  { kind: 'expenses', detail: 'detailed', label: 'Expenses Detailed' },
-  { kind: 'expenses', detail: 'summary', label: 'Expenses Summary' },
+  { kind: 'income', detail: 'itemized', label: 'Income Itemized' },
+  { kind: 'income', detail: 'totals', label: 'Income Totals' },
+  { kind: 'expenses', detail: 'itemized', label: 'Expenses Itemized' },
+  { kind: 'expenses', detail: 'totals', label: 'Expenses Totals' },
 ];
 
 export default function PdfSamples() {

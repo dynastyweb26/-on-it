@@ -67,7 +67,7 @@ const PAGE: React.CSSProperties = {
   position: 'relative',
 };
 
-export function ExpenseSummaryTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
+export function ExpenseTotalsTemplate({ d, accent }: { d: ExpenseSummaryData; accent: string }) {
   return (
     <div style={PAGE}>
       {/* Header — business name (same no-logo fallback as invoices: name
@@ -271,7 +271,7 @@ function DetailedFooter({ text }: { text: string }) {
   );
 }
 
-/* ═══ Expense Detail document ═══
+/* ═══ Itemized Expenses document ═══
    Every expense in the period, grouped by category in the summary's order
    (total desc). Each category opens with a header row (name, count, subtotal)
    and lists its expenses oldest → newest, one line each: date · store ·
@@ -301,10 +301,10 @@ export interface ExpenseDetailedData extends DocHeaderData {
 const ROW_TD: React.CSSProperties = { padding: '4px 10px 4px 0', color: INK, fontSize: 12, ...ONE_LINE };
 const MARK: React.CSSProperties = { fontSize: 10, color: MUTED, letterSpacing: 0.3 };
 
-export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
+export function ExpenseItemizedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
   return (
     <div style={PAGE}>
-      <DetailedHeader d={d} noun="Expense Detail" accent={accent} />
+      <DetailedHeader d={d} noun="Itemized Expenses" accent={accent} />
 
       <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12 }}>
         <thead>
@@ -489,7 +489,7 @@ type IncomeDocHeader = Pick<IncomeSummaryData, 'businessName' | 'logoUrl' | 'per
 /* ═══ Income Totals document ═══
    One row per client: client, number of payments in the period, amount
    received, then the grand total. The general view of the period's income;
-   the payment-by-payment list is IncomeSummaryTemplate below. One table, so a
+   the payment-by-payment list is IncomeItemizedTemplate below. One table, so a
    long client list paginates like the others. */
 
 export interface IncomeTotalsData extends IncomeDocHeader {
@@ -528,10 +528,10 @@ export function IncomeTotalsTemplate({ d, accent }: { d: IncomeTotalsData; accen
   );
 }
 
-export function IncomeSummaryTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
+export function IncomeItemizedTemplate({ d, accent }: { d: IncomeSummaryData; accent: string }) {
   return (
     <div style={PAGE}>
-      <IncomeHeader d={d} noun="Income Summary" accent={accent} />
+      <IncomeHeader d={d} noun="Itemized Income" accent={accent} />
 
       <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
         <thead>

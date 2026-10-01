@@ -16,14 +16,14 @@ export function invoiceFilename(kind: string, no: number, client: string, busine
 }
 
 /** Filename for the expense-summary export, e.g.
- *  Expense-Summary_2026_AcmePlumbing.pdf, or with detailed:
- *  Expense-Summary-Detailed_2026_AcmePlumbing.pdf */
-export function summaryFilename(periodLabel: string, business: string, detailed = false) {
-  return `Expense-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
+ *  Expense-Summary_2026_AcmePlumbing.pdf (totals), or itemized:
+ *  Expense-Summary-Itemized_2026_AcmePlumbing.pdf */
+export function summaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Expense-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
-export function incomeSummaryFilename(periodLabel: string, business: string, detailed = false) {
-  return `Income-Summary${detailed ? '-Detailed' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
+export function incomeSummaryFilename(periodLabel: string, business: string, itemized = false) {
+  return `Income-Summary${itemized ? '-Itemized' : ''}_${safe(periodLabel)}_${safe(business)}.pdf`;
 }
 
 /** Wait for every <img> inside the node to finish decoding. html2canvas does not
