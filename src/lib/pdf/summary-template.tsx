@@ -181,6 +181,12 @@ export function clip(s: string, max: number): string {
 }
 
 const ONE_LINE: React.CSSProperties = { whiteSpace: 'nowrap' };
+// Full text that wraps inside its column (descriptions on the detailed
+// statements). A wrapped row is still one <tr>, which elementToPdf never splits.
+const WRAP: React.CSSProperties = { whiteSpace: 'normal', overflowWrap: 'anywhere' };
+// Detailed tables lay out from the header widths, so every page (and every
+// continuation table elementToPdf builds) wraps a row to the same height.
+const FIXED: React.CSSProperties = { tableLayout: 'fixed' };
 
 // Room for the absolutely-positioned footer. It sits in the flow under the
 // total so the partitioner sees the footer's height: a page that is nearly
@@ -298,7 +304,7 @@ export interface ExpenseDetailedData extends DocHeaderData {
   count: number;
 }
 
-const ROW_TD: React.CSSProperties = { padding: '4px 10px 4px 0', color: INK, fontSize: 12, ...ONE_LINE };
+const ROW_TD: React.CSSProperties = { padding: '4px 10px 4px 0', color: INK, fontSize: 12, verticalAlign: 'top', ...ONE_LINE };
 const MARK: React.CSSProperties = { fontSize: 10, color: MUTED, letterSpacing: 0.3 };
 
 export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData; accent: string }) {
@@ -306,7 +312,7 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
     <div style={PAGE}>
       <DetailedHeader d={d} noun="Expense Detail" accent={accent} />
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 12, ...FIXED }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 84 }}>Date</th>
@@ -341,7 +347,7 @@ export function ExpenseDetailedTemplate({ d, accent }: { d: ExpenseDetailedData;
               <tr key={`c${ci}r${ri}`} {...grp(ci)}>
                 <td style={ROW_TD}>{r.date}</td>
                 <td style={ROW_TD}>{clip(r.store, 18)}</td>
-                <td style={ROW_TD}>{clip(r.description, 46)}</td>
+                <td style={{ ...ROW_TD, ...WRAP }}>{r.description}</td>
                 <td style={{ ...ROW_TD, ...MARK }}>
                   {r.hasReceipt ? 'Receipt' : ''}
                 </td>
@@ -560,7 +566,7 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
     <div style={PAGE}>
       <DetailedHeader d={d} noun="Income Detail" accent={accent} />
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: ROW_LINE_HEIGHT, fontSize: 13, ...FIXED }}>
         <thead>
           <tr>
             <th style={{ ...TH, textAlign: 'left', width: 120 }}>Date</th>
@@ -613,8 +619,8 @@ export function IncomeDetailedTemplate({ d, accent }: { d: IncomeDetailedData; a
                     // "(continued)" header.
                     {...(p.invoice !== '—' ? { 'data-pdf-continued-suffix': p.invoice } : {})}
                   >
-                    <td colSpan={4} style={SUB_TD}>
-                      {clip(li.description || 'Item', 56)}
+                    <td colSpan={4} style={{ ...SUB_TD, ...WRAP }}>
+                      {li.description || 'Item'}
                       {'  ·  '}{fmtQty(li.qty)} × {money(li.unitPrice)} = {money(li.amount)}
                     </td>
                   </tr>

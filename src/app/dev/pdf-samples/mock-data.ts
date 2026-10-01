@@ -60,6 +60,10 @@ const WORK: { d: string; lo: number; hi: number; qty?: [number, number] }[] = [
   { d: 'Demo existing shower to studs, bag and haul debris to transfer station', lo: 650, hi: 1200 },
   { d: 'Install LVP flooring incl. underlayment and transitions', lo: 3.25, hi: 4.75, qty: [120, 600] },
   { d: 'Replace exterior door slab, rehang, new weatherstrip', lo: 420, hi: 780 },
+  // Long descriptions (wrap test): the detailed statement prints the full text.
+  { d: 'Shower rebuild phase 2: cement board, waterproofing membrane (two coats, 24 h cure), 12x24 porcelain wall tile to ceiling, recessed niche with metal edge trim, grout and seal', lo: 2400, hi: 3900 },
+  { d: 'Slab leak repair: locate with acoustic and thermal, jackhammer and open floor at kitchen island, replace 6 ft of copper with PEX, pressure test, backfill, patch slab (flooring by others)', lo: 1800, hi: 3200 },
+  { d: 'Whole-house repipe, 2 bath / 1 kitchen, PEX-A manifold, new shutoffs at every fixture, drywall access cuts patched (texture and paint not included)', lo: 5200, hi: 7400 },
 ];
 
 function lineItem() {

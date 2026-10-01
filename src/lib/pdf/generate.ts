@@ -383,6 +383,9 @@ export async function elementToPdf(el: HTMLElement, filename: string): Promise<F
         // Carry the template's explicit line-height (summary documents set one)
         // so rows measure and paint the same as on page 1.
         pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
+        // ...and its table-layout, so a fixed-layout table wraps rows to the
+        // same widths (and so the same measured heights) on every page.
+        pageTable.style.tableLayout = (table as HTMLElement).style.tableLayout;
 
         if (tableHeader) {
           pageTable.appendChild(tableHeader.cloneNode(true));
