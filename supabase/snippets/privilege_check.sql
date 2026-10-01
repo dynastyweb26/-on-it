@@ -337,6 +337,37 @@ results(id, ok, expected, actual) as (
       else (select coalesce(string_agg(t.tgname, ', ' order by t.tgname), 'none') from pg_trigger t
         where not t.tgisinternal and t.tgrelid = 'public.invoices'::regclass
           and t.tgname in ('enforce_free_invoice_limit', 'pin_created_at')) end
+
+  -- N4–N6. Paywall v2 expense cap (20261001000002). SKIP until pushed.
+  union all
+  select 'N4 enforce_free_expense_limit',
+    case when not exists (select 1 from applied where version = '20261001000002') then null
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_free_expense_limit()')), false) end,
+    'SECURITY DEFINER, search_path=""',
+    case when not exists (select 1 from applied where version = '20261001000002') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_free_expense_limit()')), 'missing') end
+  union all
+  select 'N5 enforce_free_expense_limit() ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261001000002') then null
+      else coalesce(not has_function_privilege(ro.r, to_regprocedure('public.enforce_free_expense_limit()'), 'execute'), false) end,
+    'not executable (trigger function)',
+    case when not exists (select 1 from applied where version = '20261001000002') then 'not applied yet'
+      else coalesce(case when has_function_privilege(ro.r, to_regprocedure('public.enforce_free_expense_limit()'), 'execute')
+        then 'EXECUTE' else 'no execute' end, 'missing') end
+  from (values ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'N6 expense triggers',
+    case when not exists (select 1 from applied where version = '20261001000002') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.expenses'::regclass
+          and t.tgname in ('enforce_free_expense_limit', 'pin_created_at')) = 2 end,
+    'expenses: enforce_free_expense_limit (before insert) + pin_created_at (before update)',
+    case when not exists (select 1 from applied where version = '20261001000002') then 'not applied yet'
+      else (select coalesce(string_agg(t.tgname, ', ' order by t.tgname), 'none') from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.expenses'::regclass
+          and t.tgname in ('enforce_free_expense_limit', 'pin_created_at')) end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
