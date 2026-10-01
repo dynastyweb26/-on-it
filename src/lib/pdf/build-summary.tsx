@@ -148,13 +148,16 @@ export async function buildSummaryPdf(
       count: s.count,
       total: s.total,
       rows: (byCat.get(s.category) ?? []).map((r) => {
-        const description = String(r.description ?? '').trim();
+        // What was bought: the saved description (the receipt reader writes a
+        // short phrase since this branch); older rows have none, so they show
+        // their category instead of a blank.
+        const what = String(r.description ?? '').trim() || s.label;
         const note = String(r.note ?? '').trim();
         const vendor = String(r.vendor ?? '').trim();
         return {
           date: r.spent_on ? prettyDate(String(r.spent_on)) : '—',
           store: vendor || '—',
-          description: note ? `${description} — ${note}` : description || '—',
+          description: note ? `${what} — ${note}` : what,
           amount: num(r.amount),
           hasReceipt: Boolean(r.receipt_url || r.receipt_path),
         };

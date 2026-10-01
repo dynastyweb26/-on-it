@@ -40,4 +40,7 @@ export interface ExpenseDraft {
   category: ExpenseCategory;
   vendor: string | null;
   occurred_on: string | null; // ISO yyyy-mm-dd
+  // Short "what was bought" line from the receipt reader (expenses.description).
+  // Optional: typed/voice expenses don't set it.
+  description?: string | null;
 }
