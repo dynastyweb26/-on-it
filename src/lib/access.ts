@@ -38,6 +38,10 @@ export interface AccessResult {
   tier: AccessTier;
   invoiceCount: number;  // real invoices since the reset (quotes never count)
   expenseCount: number;  // expenses since the reset (soft-deleted included)
+  // The free limits that apply to this user right now; null = no cap (a paid
+  // tier, or the paywall off). Drives the "1 of 3 free invoices used" lines.
+  invoiceLimit: number | null;
+  expenseLimit: number | null;
 }
 
 export async function hasAccess(userId: string): Promise<AccessResult> {
@@ -73,7 +77,7 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
   const [{ count: invCount }, { count: expCount }] = await Promise.all([invoiceQuery, expenseQuery]);
   const invoiceCount = invCount ?? 0;
   const expenseCount = expCount ?? 0;
-  const counts = { invoiceCount, expenseCount };
+  const counts = { invoiceCount, expenseCount, invoiceLimit: null, expenseLimit: null };
 
   if (raw === 'founder') return { hasAccess: true, canExpense: true, canExport: true, tier: 'founder', ...counts };
   // trialing / active / past_due → unlimited (past_due = dunning grace window).
@@ -108,5 +112,8 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     canExport: false, // reports are a paid feature (free / canceled tiers)
     tier,
     ...counts,
+    // Only real limits: a missing rpc (pre-push) reads as no cap.
+    invoiceLimit: typeof invLimit === 'number' ? invLimit : null,
+    expenseLimit: typeof expLimit === 'number' ? expLimit : null,
   };
 }

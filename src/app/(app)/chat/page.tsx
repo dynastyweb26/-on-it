@@ -22,6 +22,7 @@ import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { fetchUsageLine } from '@/lib/usage';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -39,7 +40,10 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat'; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  // A quiet status line (free-tier usage): secondary small text, no bubble,
+  // and never sent to /api/parse as conversation history.
+  quiet?: boolean; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -757,6 +761,7 @@ export default function Chat() {
         });
       }
       setMessages([GREETING]);
+      setInvoiceUsage(null);
       setDraft(null);
       setDraftHistory([]);
       setReady(false);
@@ -869,7 +874,7 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1), draft }),
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -1130,6 +1135,9 @@ export default function Chat() {
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
   // Free-tier cap hit: which wall to show (invoice or expense), or none.
   const [paywallFor, setPaywallFor] = useState<null | PaywallVariant>(null);
+  // "1 of 3 free invoices used" under the card after a free-tier invoice is
+  // saved (lib/usage.ts). Tied to the invoice row so it never outlives it.
+  const [invoiceUsage, setInvoiceUsage] = useState<{ id: string; text: string } | null>(null);
   // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
   // wait out the webhook instead of re-showing the wall.
   useEffect(() => { noteUpgradeReturn(); }, []);
@@ -1553,6 +1561,12 @@ export default function Chat() {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
+          // Free-tier usage line (null for paid tiers / paywall off). Quotes are
+          // never capped, so they never show one.
+          if (rd0.kind === 'invoice') {
+            const savedId = newId;
+            void fetchUsageLine('invoice').then((text) => { if (text) setInvoiceUsage({ id: savedId, text }); });
+          }
           publicToken = (saved.public_token as string) ?? null;
         }
         invoiceId = newId;
@@ -2063,6 +2077,10 @@ export default function Chat() {
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
       setMessages((m) => [...m, aMsg(saved)]);
       discardExpense();
+      // Free-tier usage line under the confirmation (null when uncapped).
+      void fetchUsageLine('expense').then((text) => {
+        if (text) setMessages((m) => [...m, aMsg(text, { quiet: true })]);
+      });
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
@@ -2335,6 +2353,7 @@ export default function Chat() {
     setFinished(false);
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
+    setInvoiceUsage(null);
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
@@ -2398,6 +2417,7 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setFinished(false);
+    setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
     setMessages([GREETING, startMsg]);
     setDraft(seed);
@@ -2630,7 +2650,10 @@ export default function Chat() {
       >
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
-          m.failed ? (
+          m.quiet ? (
+            // Free-tier usage line: plain secondary text, no bubble.
+            <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
+          ) : m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
             // beneath it. Same icon-button styling as the receipt buttons.
             <div key={m.id} className="flex justify-start">
@@ -2683,6 +2706,9 @@ export default function Chat() {
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
+          {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
+            <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
+          )}
         </Fragment>
         ))}
 

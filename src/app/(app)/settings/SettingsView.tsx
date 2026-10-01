@@ -6,6 +6,7 @@ import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
+import { freePlanSummary } from '@/lib/usage';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
@@ -114,7 +115,10 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // supersedes it (render order below).
   const [authStuck, setAuthStuck] = useState(false);
   // Subscription: tier drives manage-vs-upgrade; founder hides the section.
-  const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number; trialEligible?: boolean } | null>(null);
+  const [access, setAccess] = useState<{
+    hasAccess: boolean; tier: string; invoiceCount: number; expenseCount?: number;
+    invoiceLimit?: number | null; expenseLimit?: number | null; trialEligible?: boolean;
+  } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
   // Stripe Connect: busy covers both the onboarding redirect and a status
@@ -818,6 +822,14 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             </>
           ) : (
             <>
+              {/* Free plan usage (free / canceled, paywall on): both counts.
+                  freePlanSummary is null when the limits aren't known. */}
+              {freePlanSummary(access) && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-on-surface">Free plan</p>
+                  <p className="text-right text-sm text-on-surface-variant">{freePlanSummary(access)}</p>
+                </div>
+              )}
               <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, expenses and reminders.</p>
               {/* Subscription disclosure — plain, body-size, visible before the Stripe
                   redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
