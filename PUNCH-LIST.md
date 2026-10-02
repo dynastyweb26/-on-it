@@ -410,3 +410,15 @@ branch keeping its 2× books capture (`f08ca57`) and description wrapping
   plus a schema change (an `expense_items` table or a `line_items` jsonb on
   `expenses`, with RLS, length caps and privilege-check rows), then a third
   level in the itemized Expenses PDF.
+
+## Sentinel PR triage — logged 2026-10-01 (`fix/sentinel-triage`)
+
+_Audit of the six open Jules PRs (#30–#35). No DB changes._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Payment deep links (PRs #30, #31, #33, #34) | **Built — awaiting preview** (`549baa0`) | All four target the same pay-page builders (`PayView.tsx`). Hardening, not a live vulnerability: handles are owner-written (RLS + column grant), the host is fixed, React escapes the href, so a seller can at worst build a broken/odd link on their own pay page. Took #34 (newest, merges cleanly, strips a pasted domain + `$`/`@`, URL-encodes; author kept); #30/#31 conflict with today's `PayView.tsx`; #30 also changes the return type to `string \| null`. No live handle changes (1 Cash App, 0 PayPal, 0 Venmo; all `[A-Za-z0-9_-]`). Close #30, #31, #33, and #34 as landed here. |
+| Prompt-injection tag stripping (PR #35) | **Built — awaiting preview** (`47bc923`) | Real but low severity on main (self-injection only; no model tools, schema-checked output shown to the same user): `</ user_input>` and `<!-- -->` got past the regex. #35 fixed those but stayed bypassable (unclosed tag, zero-width before the name, fullwidth/small-form brackets, digit-led name). Rewrote `sanitizeForAI`: NFKC → drop `\p{Cf}` → every `<`/`>` becomes `‹`/`›` → control chars → 2000 cap. All 10 bypass cases neutralized. Close #35 as superseded. |
+| Guest transcription cookie (PR #32) | **No change needed** | On main the cookie already has `httpOnly` + `sameSite: 'lax'`; the PR only adds `path: '/'`, which Next.js already defaults (`normalizeCookie`). Close #32. |
+| `fix/pdf-card-option` | **Done — already in main** | Its one commit (`efb6145`) is in main as `d5401fc` (`git cherry` = applied upstream); branch deleted 2026-10-01. |
+| Client-sent non-user turns reach the model untagged (`api/parse/route.ts:150-157`) | **Open** | The client sends the whole conversation: `user` turns are wrapped in `<user_input>`, but `assistant` turns go to the model AS assistant turns (sanitized, 1000-char cap, no tags), so a client can forge a "prior reply" carrying instructions. The client-sent `draft` (≤8000 chars) is also stringified into the prompt. Severity: low (same self-injection bound as above). Sizing: small, 1–2 commits — treat client history as untrusted data (send prior replies inside their own tagged block, or drop them and rely on the validated draft) and validate the draft's shape/lengths before it reaches the prompt; then a parse regression pass on preview. A server-side conversation store would remove the channel entirely (medium-large; not needed for this). |
