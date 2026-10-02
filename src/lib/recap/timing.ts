@@ -4,6 +4,7 @@
 // DOM, so the player, the slides and the tests all share one source.
 import { RECAP_CONFIG, type Beat, type CueSpec, type EaseName, type SoundName } from '@/lib/recap/config';
 import { monthWeeks, type RecapPayload, type RecapSlide } from '@/lib/recap/payload';
+import { openerSeries } from '@/lib/recap/columns';
 
 /** CSS cubic-bezier → JS easing function (count-ups, tick spacing). */
 function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
@@ -107,7 +108,7 @@ const EDGES = 6;  // stacked card edges behind them, at most
 export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, number> {
   switch (key) {
     case 'opener':
-      return { cols: p.daily.length };
+      return { cols: openerSeries(p).values.length };   // 7 days, or 4–6 calendar weeks
     case 'moneyIn': {
       const m = p.paymentMethods.filter((x) => x.amount > 0).length;
       return { chips: m, pour: m, segs: m, pct: m };

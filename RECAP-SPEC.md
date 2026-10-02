@@ -59,9 +59,11 @@ decode, gunzip where `compressed: true`. The JS files are:
 - **Decision 6 — Opener: COLUMNS + RIBBON** (the prototype's opener;
   corrected 2026-10-02 — an earlier "horizon line" decision was a spec
   mistake, built once in `e417089` and replaced; **do not bring the horizon
-  back**). One column per day (weekly 7, monthly 28–31), height from daily
+  back**). **Weekly = 7 day columns; monthly = 4–5 calendar-week columns**
+  (Mon–Sun weeks clipped to the month, so 4–6; derived at render time from the
+  stored daily series — no extra payload field). Heights from the column's
   income, scaled against the stored `previous` period so a quiet period stands
-  lower than a busy one; zero days stay as small stubs, never invisible. The
+  lower than a busy one; zero columns stay as small stubs, never invisible. The
   ribbon of light sweeps the tops; the small swoosh riding its head hands off
   to the big mark behind the title. **No value label ("$800") and no day-label
   axis.** Full spec in §4 / §5 "opener". `monthWeeks()` stays for the glance
@@ -174,8 +176,9 @@ source to re-resolve for other counts.
 
 #### opener — COLUMNS + RIBBON (decision 6) · heroEnd 2754 ms · total 5154 ms
 
-Same timing weekly and monthly: the column wave has a fixed `span`, so
-stagger = 540 / (n − 1) (weekly = the prototype's 90 ms). Config to use in
+Same timing weekly (7 day columns) and monthly (4–6 calendar-week columns):
+the column wave has a fixed `span`, so stagger = 540 / (n − 1) (weekly = the
+prototype's 90 ms). Config to use in
 place of §10's `opener` (the prototype's minus its `days` and `peak` beats,
 plus `span`, and the mark starting at the hand-off):
 
@@ -183,7 +186,7 @@ plus `span`, and the mark starting at the hand-off):
 opener: {
   theme: 'dark', heroEnd: 'mark.end', hold: 2400,
   beats: {
-    cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // one column per day
+    cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // 7 days, or 4–6 calendar weeks
     sweep: { delay: 'cols.end-400', dur: 1300, ease: 'inOut' },          // ribbon across the tops
     mark:  { delay: 'sweep.start+664', dur: 900, ease: 'out' },          // hand-off → settles behind the title
     label: { delay: 'mark.start+200', dur: 500 },
@@ -363,22 +366,27 @@ changes. Built in `src/components/recap/slides/OpenerSlide.tsx`, geometry in
 `src/lib/recap/columns.ts`.
 
 **Columns** (393 × 852 canvas; floor `BASE = 748`, row x 28 → 365)
-- One per day: `payload.daily`, 7 weekly, 28–31 monthly. Weekly 30 px wide
-  (prototype); monthly width = 337 / (n + 0.35 (n − 1)), gap 0.35 × width.
-- Height = `max(14, v / max × 210 × amp)`; a zero day = a **6 px stub**
-  (`rgba(212,175,55,.45)`, fully rounded), never invisible. Real days use the
-  prototype's gradient (`transparent → .32 → .85 → #fff1c9`), rounded tops,
-  plus a reflection under the floor (opacity .5) and the floor hairline.
-  The prototype's large `box-shadow` glow is dropped (§9).
-- `amp = 0.4 + 0.6 × min(1, avg / ref)`, `ref` = the previous period's
-  average daily income (`payload.previous.income / days`); no previous → 0.75.
-- **Not built:** day labels (`rc-day`) and the peak value label (`rc-peak`).
+- Weekly: one per day, `payload.daily` (7), 30 px wide (prototype).
+- Monthly: one per **calendar week** — Mon–Sun weeks clipped to the month
+  (`calendarWeeks()`; e.g. Sep 2026 = Tue 1–Sun 6, 7–13, 14–20, 21–27,
+  Mon 28–Wed 30), each the week's income total, 52 px wide (the prototype's
+  week column). 4–5 columns, 6 when a 31-day month starts on a Sunday (or a
+  30-day one on a Sunday). Derived at render time from `payload.daily` and
+  `payload.start`; nothing extra stored. A clipped edge week holds fewer days,
+  so it can stand lower — that's its real total.
+- Height = `max(14, v / max × 210 × amp)`; a zero column = a **6 px stub**
+  (`rgba(212,175,55,.45)`, fully rounded), never invisible. Real columns use
+  the prototype's gradient (`transparent → .32 → .85 → #fff1c9`), rounded
+  tops, plus a reflection under the floor (opacity .5) and the floor
+  hairline. The prototype's large `box-shadow` glow is dropped (§9).
+- `amp = 0.4 + 0.6 × min(1, avg column / ref)`, `ref` = the previous
+  period's income per column: previous week ÷ 7; previous **month** ÷ its own
+  number of calendar weeks. No previous income → 0.75.
+- **Not built:** day/week labels (`rc-day`) and the peak value label (`rc-peak`).
 
 **Ribbon**
-- Weekly: Catmull-Rom → cubic Bézier through every column top + 22 px
-  (prototype), bleeding past both edges (x −30 → 423). Monthly: through a
-  smoothed envelope of the tops (±2-day max, then a 5-tap average), so 30
-  alternating tops/stubs don't zig-zag.
+- Catmull-Rom → cubic Bézier through every column top + 22 px (prototype),
+  weekly and monthly alike, bleeding past both edges (x −30 → 423).
 - Trail = three stacked strokes, no blur (§9): 18 px `#d4af37` .14 (L .45),
   6 px `#e8c766` .45 (L .26), 3 px `#fff1c9` (L .12); `pathLength 100`,
   `stroke-dasharray L 300`, `stroke-dashoffset L → L − 160` on `sweep` (the
@@ -553,7 +561,7 @@ The prototype's scenario object is shaped like a real recap payload:
 | `quotesPending` | number | sent quotes with no answer |
 | `paidInvoices` | `[{ id, client, amount, status: 'paid', date }]` | invoices paid in the period (caught-up bundle) |
 | `notifyDate` | string | prototype lock screen only |
-| `previous` (On It build, opener commit) | `{ income, expenses }` | previous period's totals; `income` sets the opener columns' height `ref` |
+| `previous` (On It build, opener commit) | `{ income, expenses }` | previous period's totals; `income` ÷ its columns (7 days / its calendar weeks) sets the opener columns' height `ref` |
 
 Invoice-count override (QA): 1 / 3 / 7 / 20 invoices replaces `owed.invoices`
 (with 1 / 2 / 4 / 11 viewed) or, when nothing is owed, `paidInvoices`.

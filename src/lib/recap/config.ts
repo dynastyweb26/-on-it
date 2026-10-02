@@ -49,7 +49,8 @@ export const RECAP_CONFIG: RecapConfig = {
   },
   slides: {
     // On It build (RECAP-SPEC §4 / decision 6, corrected 2026-10-02): the
-    // prototype's COLUMNS + RIBBON opener, one column per day (7 or 28–31).
+    // prototype's COLUMNS + RIBBON opener: weekly 7 day columns, monthly 4–6
+    // calendar-week columns (Mon–Sun, clipped to the month).
     // Changes from the prototype: no day labels or peak value (their beats are
     // gone); `span` keeps the column wave 540 ms long at any count (weekly =
     // the prototype's 90 ms stagger); and the mark starts at the hand-off —
@@ -58,7 +59,7 @@ export const RECAP_CONFIG: RecapConfig = {
     opener: {
       theme: 'dark', heroEnd: 'mark.end', hold: 2400,
       beats: {
-        cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // one column per day
+        cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // 7 days, or 4–6 calendar weeks
         sweep: { delay: 'cols.end-400', dur: 1300, ease: 'inOut' },     // ribbon of light across the tops
         mark:  { delay: 'sweep.start+664', dur: 900, ease: 'out' },     // hand-off → swoosh settles behind the title
         label: { delay: 'mark.start+200', dur: 500 },
