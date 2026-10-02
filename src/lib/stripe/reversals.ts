@@ -22,6 +22,7 @@
 import 'server-only';
 import type Stripe from 'stripe';
 import { adminClient } from '@/lib/supabase/admin';
+import { notify } from '@/lib/notify';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -230,4 +231,49 @@ export async function recordDisputeFunds(
   const signed = type === 'dispute_withdrawn' ? -amount : amount;
   const inserted = await insertReversal(found.payment, type, dispute.id, signed, new Date(event.created * 1000));
   return inserted ? `${type} ${dispute.id} recorded ${signed}` : `${type} ${dispute.id} duplicate — no-op`;
+}
+
+/**
+ * charge.dispute.created → "Mike Davis disputed $850" push to the owner.
+ * notify() claims `dispute:<du_id>`, so retries push once. The payment lookup
+ * throws like the ledger paths (→ 500 → retry); the push itself never throws.
+ */
+export async function notifyDisputeOpened(stripe: Stripe, account: string, dispute: Stripe.Dispute): Promise<string> {
+  const amount = usdDollars(dispute.currency, dispute.amount);
+  if (amount === null) return `skip ${dispute.id}: ${dispute.currency} ${dispute.amount}`;
+
+  const found = await disputedPayment(stripe, account, dispute);
+  if ('skip' in found) return `skip ${dispute.id}: ${found.skip}`;
+  const { payment } = found;
+
+  try {
+    const admin = adminClient();
+    const [{ data: inv }, { data: owner }] = await Promise.all([
+      admin.from('invoices').select('invoice_number, client_name').eq('id', payment.invoice_id).maybeSingle(),
+      admin.from('profiles').select('timezone').eq('id', payment.user_id).maybeSingle(),
+    ]);
+    if (!inv) return `${dispute.id}: push skipped (invoice not found)`;
+    const dueBy = dispute.evidence_details?.due_by;
+    const delivered = await notify(payment.user_id, {
+      type: 'payment_disputed',
+      disputeId: dispute.id,
+      invoiceId: payment.invoice_id,
+      invoiceNumber: inv.invoice_number as number,
+      clientName: (inv.client_name as string) || 'Your client',
+      amount,
+      respondBy: dueBy ? localYmd(new Date(dueBy * 1000), owner?.timezone as string | null) : null,
+    });
+    return `${dispute.id} status=${dispute.status}; push ${delivered} device(s)`;
+  } catch {
+    return `${dispute.id} status=${dispute.status}; push failed`;
+  }
+}
+
+/** yyyy-mm-dd of `d` in an IANA timezone (UTC when unknown or invalid). */
+function localYmd(d: Date, timeZone: string | null): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
 }

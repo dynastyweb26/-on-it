@@ -20,13 +20,16 @@ export type { NotifyEvent, ConnectProblem, PaymentMethod } from './types';
 
 const OPTIONS: Record<NotifyEvent['type'], SendOptions> = {
   payment_received: { ttl: 24 * 3600, urgency: 'high' },
+  // A dispute has an evidence deadline; it stays news for days.
+  payment_disputed: { ttl: 72 * 3600, urgency: 'high' },
   connect_problem: { ttl: 72 * 3600, urgency: 'normal' },
   // A view is only news for a few hours; a stale one arriving tomorrow isn't.
   invoice_viewed: { ttl: 6 * 3600, urgency: 'normal' },
   draft_unsent: { ttl: 12 * 3600, urgency: 'low' },
 };
 
-/** The dedupe identity of an event. A payment is its ledger row; an account
+/** The dedupe identity of an event. A payment is its ledger row; a dispute is
+ *  its Stripe dispute id; an account
  *  problem is the user + problem + the Stripe event that revealed it (the
  *  atomic flag flip in lib/stripe/connect.ts already guarantees one winner); a
  *  view and a draft nudge are one per invoice, ever. Exhaustive: a new event
@@ -34,6 +37,7 @@ const OPTIONS: Record<NotifyEvent['type'], SendOptions> = {
 export function dedupeKey(userId: string, event: NotifyEvent): string {
   switch (event.type) {
     case 'payment_received': return `payment:${event.paymentId}`;
+    case 'payment_disputed': return `dispute:${event.disputeId}`;
     case 'connect_problem': return `connect:${userId}:${event.problem}:${event.sourceEventId}`;
     case 'invoice_viewed': return `viewed:${event.invoiceId}`;
     case 'draft_unsent': return `draft:${event.invoiceId}`;

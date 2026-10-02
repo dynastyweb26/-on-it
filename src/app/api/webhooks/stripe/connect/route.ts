@@ -24,7 +24,9 @@
 //       → 'dispute_withdrawn' (−) / 'dispute_reinstated' (+) rows keyed by the
 //         du_ id. A withdrawal reduces paid, so a lost dispute reopens the
 //         invoice; a reinstatement restores it.
-//   charge.dispute.created / charge.dispute.closed
+//   charge.dispute.created
+//       → "Mike Davis disputed $850" push, deduped on the du_ id.
+//   charge.dispute.closed
 //       → logged (no ledger change: money moves on the funds_* events).
 //   account.application.deauthorized
 //       → the seller disconnected On It: clear the account + flags, card off.
@@ -54,7 +56,7 @@ import {
 import { notify } from '@/lib/notify';
 import { notifyConnectProblems } from '@/lib/notify/connect';
 import { roundCurrency } from '@/lib/financials';
-import { recordDisputeFunds, syncChargeRefunds, syncRefund } from '@/lib/stripe/reversals';
+import { notifyDisputeOpened, recordDisputeFunds, syncChargeRefunds, syncRefund } from '@/lib/stripe/reversals';
 
 export const runtime = 'nodejs';
 
@@ -253,8 +255,13 @@ export async function POST(req: NextRequest) {
         outcome = await recordDisputeFunds(stripe, event.account, event, event.data.object as Stripe.Dispute, type);
         break;
       }
-      case 'charge.dispute.created':
+      case 'charge.dispute.created': {
+        if (!event.account) { outcome = 'skip: no event.account'; break; }
+        outcome = await notifyDisputeOpened(stripe, event.account, event.data.object as Stripe.Dispute);
+        break;
+      }
       case 'charge.dispute.closed': {
+        // Won → funds_reinstated adds the row; lost → the withdrawal stands.
         const d = event.data.object as Stripe.Dispute;
         outcome = `${d.id} status=${d.status}`;
         break;
