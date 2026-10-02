@@ -36,6 +36,9 @@ export type SlideProps = {
   reduced: boolean;
   index: number;
   count: number;
+  /** How many times a recap story has been opened on this device (the
+   *  opener's affirmation rotates on it). */
+  opens: number;
   onAction: (a: RecapAction) => void;
 };
 

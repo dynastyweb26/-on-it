@@ -1,0 +1,21 @@
+// Recap copy (RECAP-SPEC §8), shared by the slides.
+import type { RecapPayload } from '@/lib/recap/payload';
+
+export const AFFIRMATIONS = [
+  'Keep building a business you’re proud of.',
+  'Every invoice is proof of work.',
+  'Steady hands. Steady growth.',
+  'You showed up. It shows.',
+  'Good work gets paid.',
+] as const;
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const ymd = (iso: string) => iso.split('-').map(Number) as [number, number, number];
+/** "Sep 22" from a local yyyy-mm-dd (no Date: the payload's days are local). */
+export const shortDate = (iso: string) => { const [, m, d] = ymd(iso); return `${MON[m - 1]} ${d}`; };
+/** "Sep 22 – Sep 28" / "Sep 1 – Sep 30". */
+export const periodLabel = (p: Pick<RecapPayload, 'start' | 'end'>) => `${shortDate(p.start)} – ${shortDate(p.end)}`;
+/** "September" for a monthly recap. */
+export const monthName = (p: Pick<RecapPayload, 'start'>) => MONTH[ymd(p.start)[1] - 1];

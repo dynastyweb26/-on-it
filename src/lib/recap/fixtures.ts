@@ -26,6 +26,11 @@ export type Scenario = {
   quotesPending: number;
   paidInvoices: Inv[];
   weeks: { label: string; amount: number }[] | null;
+  /** On It build (opener commit): the previous period's income, which sets the
+   *  horizon's height. The prototype has no such field; when absent it's
+   *  derived as previous net + this period's spend. Chosen so the change chip
+   *  (previous net) is exactly what the prototype shows. */
+  previousIncome?: number;
 };
 
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -77,6 +82,7 @@ const quietWeek: Scenario = {
   daily: [0, 0, 0, 0, 0, 0, 0], topClient: null,
   topVendor: { name: 'Home Depot', amount: 64, category: 'Supplies', trips: [40, 24] },
   paymentMethods: [], paidInvoices: [],
+  previousIncome: 1600, // after a normal week
 };
 
 const investmentWeek: Scenario = {
@@ -89,6 +95,7 @@ const investmentWeek: Scenario = {
   topClient: { name: 'Sarah Lee', amount: 400 },
   topVendor: { name: "Lowe's", amount: 780, category: 'Tools', trips: [780] },
   paymentMethods: [{ method: 'card', amount: 400 }, { method: 'zelle', amount: 240 }],
+  previousIncome: 1600, // after a normal week: a lower horizon
 };
 
 const caughtUp: Scenario = { ...normalWeek, id: 'caught-up', owed: owed([]), viewedUnpaid: 0, quotesPending: 0 };
@@ -128,13 +135,13 @@ const busyMonth = month('busy-month', [0, 320, 0, 560, 0, 600, 0, 450, 0, 390, 0
   topClient: { name: 'Mike Davis', amount: 3150 },
   topVendor: { name: 'Home Depot', amount: 410, category: 'Supplies', trips: [62, 48, 55, 40, 38, 52, 44, 36, 35] },
 });
-const quietMonth = month('quiet-month', [0, 0, 180, 0, 0, 0, 0, 0, 240, 0, 0, 0, 0, 0, 0, 150, 0, 0, 0, 0, 0, 320, 0, 0, 0, 0, 0, 0, 200, 0], {
+const quietMonth: Scenario = { ...month('quiet-month', [0, 0, 180, 0, 0, 0, 0, 0, 240, 0, 0, 0, 0, 0, 0, 150, 0, 0, 0, 0, 0, 320, 0, 0, 0, 0, 0, 0, 200, 0], {
   payments: 5, clients: 4, change: { pct: 22, direction: 'down', vs: 'August' },
   categories: [{ name: 'Supplies', amount: 180 }, { name: 'Fuel', amount: 130 }],
   receipts: [{ vendor: 'Home Depot', amount: 70, category: 'Supplies' }, { vendor: 'Shell', amount: 45, category: 'Fuel' }, { vendor: 'Home Depot', amount: 60, category: 'Supplies' }],
   topClient: { name: 'Sarah Lee', amount: 320 },
   topVendor: { name: 'Home Depot', amount: 180, category: 'Supplies', trips: [70, 60, 50] },
-});
+}), previousIncome: 8000 }; // after a normal August: a low horizon
 const spikyMonth = month('spiky-month', [0, 0, 0, 0, 2400, 0, 0, 0, 0, 0, 150, 0, 0, 0, 0, 0, 0, 3100, 0, 0, 0, 0, 0, 0, 0, 180, 0, 1900, 0, 0], {
   payments: 6, clients: 4, change: { pct: 14, direction: 'up', vs: 'August' },
   categories: [{ name: 'Supplies', amount: 640 }, { name: 'Tools', amount: 420 }, { name: 'Fuel', amount: 180 }],
@@ -142,6 +149,21 @@ const spikyMonth = month('spiky-month', [0, 0, 0, 0, 2400, 0, 0, 0, 0, 0, 150, 0
   topClient: { name: 'Ortiz Builders', amount: 3100 },
   topVendor: { name: 'Home Depot', amount: 640, category: 'Supplies', trips: [310, 190, 140] },
 });
+
+/** On It build (opener checkpoint), NOT one of the prototype's eight: a week
+ *  with a single payment (one soft hill, the rest low). Kept out of SCENARIOS
+ *  so the prototype-parity tests stay about the prototype. */
+export const onePaymentWeek: Scenario = {
+  ...normalWeek, id: 'one-payment-week',
+  income: { total: 850, payments: 1, clients: 1 },
+  net: 850 - normalWeek.spend.total,
+  change: { net: { pct: 0, direction: 'flat', vs: 'last week' } },
+  daily: [0, 0, 0, 850, 0, 0, 0],
+  topClient: { name: 'Mike Davis', amount: 850 },
+  paymentMethods: [{ method: 'zelle', amount: 850 }],
+  paidInvoices: [{ id: 'INV-1038', client: 'Mike Davis', amount: 850, status: 'paid', date: '2026-09-25' }],
+  previousIncome: 1600,
+};
 
 export const SCENARIOS = { normalWeek, quietWeek, investmentWeek, caughtUp, nothing, busyMonth, quietMonth, spikyMonth };
 export type ScenarioId = keyof typeof SCENARIOS;
@@ -220,9 +242,18 @@ export function scenarioInput(s: Scenario): RecapInput {
     owed: s.owed.invoices.map((i) => ({ client_name: i.client, total: i.amount, amount_paid: 0, viewed_at: i.status === 'viewed' ? noon(i.date) : null, sent_at: noon(i.date) })),
     paid: s.paidInvoices.map((i) => ({ client_name: i.client, total: i.amount, paid_at: noon(i.date) })),
     quotesPending: s.quotesPending,
-    previous: prevNet > 0 ? { income: prevNet, expenses: 0 } : null,
+    // Previous income (horizon height) with the previous NET kept exactly as
+    // the prototype's change chip implies: expenses = income − prevNet.
+    previous: (() => {
+      const net = prevNet > 0 ? prevNet : 0;
+      const income = s.previousIncome ?? (net > 0 ? net + s.spend.total : null);
+      return income == null ? null : { income, expenses: income - net };
+    })(),
   };
 }
 
 export const fixturePayload = (id: ScenarioId, invoiceCount?: number): RecapPayload =>
   buildRecapPayload(scenarioInput(getScenario(id, invoiceCount)));
+
+/** Any scenario object (e.g. onePaymentWeek) through the real payload builder. */
+export const scenarioPayload = (s: Scenario): RecapPayload => buildRecapPayload(scenarioInput(s));

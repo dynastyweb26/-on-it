@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { RecapView, type Recap } from '@/components/RecapSheet';
-import { fixturePayload, INVOICE_COUNTS, SCENARIO_LABELS, type ScenarioId } from '@/lib/recap/fixtures';
+import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenarioPayload, type ScenarioId } from '@/lib/recap/fixtures';
 import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import type { Cue } from '@/lib/recap/timing';
@@ -20,8 +20,11 @@ import type { Cue } from '@/lib/recap/timing';
 // Same as the app will do: the story's code (and its CSS) loads only on open.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
 
-const WEEKLY: ScenarioId[] = ['normalWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing'];
-const MONTHLY: ScenarioId[] = ['busyMonth', 'quietMonth', 'spikyMonth'];
+// 'onePaymentWeek' is not one of the prototype's eight (opener checkpoint).
+type PreviewId = ScenarioId | 'onePaymentWeek';
+const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 'One-payment week' };
+const WEEKLY: PreviewId[] = ['normalWeek', 'onePaymentWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing'];
+const MONTHLY: PreviewId[] = ['busyMonth', 'quietMonth', 'spikyMonth'];
 
 const MOCKS: { label: string; recap: Omit<Recap, 'id'> }[] = [
   {
@@ -59,12 +62,12 @@ const MOCKS: { label: string; recap: Omit<Recap, 'id'> }[] = [
 ];
 
 function StoryPreview() {
-  const [scenario, setScenario] = useState<ScenarioId>('normalWeek');
+  const [scenario, setScenario] = useState<PreviewId>('normalWeek');
   const [inv, setInv] = useState<number | undefined>(undefined);
   const [motion, setMotion] = useState<'os' | 'reduce' | 'full'>('os');
   const [open, setOpen] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const payload = useMemo(() => fixturePayload(scenario, inv), [scenario, inv]);
+  const payload = useMemo(() => (scenario === 'onePaymentWeek' ? scenarioPayload(onePaymentWeek) : fixturePayload(scenario, inv)), [scenario, inv]);
   const seq = recapSequence(payload);
   const note = (line: string) => setLog((l) => [line, ...l].slice(0, 8));
 
@@ -72,7 +75,7 @@ function StoryPreview() {
     `min-h-touch rounded-full border px-3 text-sm font-semibold ${on ? 'border-on-background bg-on-background text-background' : 'border-outline-variant bg-surface-container-lowest text-on-background'}`;
   return (
     <section className="space-y-4">
-      <h2 className="font-display text-xl font-extrabold">Recap story (player shell)</h2>
+      <h2 className="font-display text-xl font-extrabold">Recap story</h2>
       <p className="text-sm text-on-surface-variant">
         Tap the right two-thirds for next, the left third for back, hold to pause. The progress bar starts only after each slide&rsquo;s hero.
       </p>
@@ -81,7 +84,7 @@ function StoryPreview() {
           <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">{title}</div>
           <div className="flex flex-wrap gap-2">
             {ids.map((id) => (
-              <button key={id} className={chip(scenario === id)} aria-pressed={scenario === id} onClick={() => setScenario(id)}>{SCENARIO_LABELS[id]}</button>
+              <button key={id} className={chip(scenario === id)} aria-pressed={scenario === id} onClick={() => setScenario(id)}>{LABELS[id]}</button>
             ))}
           </div>
         </div>

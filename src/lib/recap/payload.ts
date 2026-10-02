@@ -62,6 +62,11 @@ export type RecapPayload = {
   };
   net: number;
   change: { prevNet: number; pct: number; direction: 'up' | 'down' | 'flat' } | null;
+  /** The previous period's totals as stored (null = unknown). `income` sets the
+   *  opener horizon's height: this period's daily average against last
+   *  period's (RECAP-SPEC §5 opener). Added with the opener; still v1, since no
+   *  payload had been stored in production yet. */
+  previous: { income: number; expenses: number } | null;
   daily: number[];               // income per local day: 7 (week) or 28–31 (month)
   topClient: { name: string; amount: number } | null;
   topVendor: { name: string; amount: number; category: string; tripCount: number; trips: number[] } | null;
@@ -186,6 +191,7 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
     spend: { total: spendTotal, count: spend.count, categories, receipts },
     net,
     change: changeVs(net, input.previous),
+    previous: input.previous ? { income: r2(num(input.previous.income)), expenses: r2(num(input.previous.expenses)) } : null,
     daily: daily.map(r2),
     topClient: topClient ? { name: topClient.name, amount: r2(topClient.amount) } : null,
     topVendor,

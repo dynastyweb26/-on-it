@@ -92,3 +92,29 @@
 }
 
 .rc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── Shared slide type ── */
+.rc-label { font: 600 12px/1 var(--onit-body); letter-spacing: .12em; text-transform: uppercase; color: var(--onit-gold-text); }
+[data-theme='dark'] .rc-label { color: var(--onit-on-ink-muted); }
+/* A soft gold glow behind a swoosh: a radial gradient, not a drop-shadow
+   filter (§9), so animating the swoosh never re-rasterizes a blur. */
+.rc-glow { position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(closest-side, rgba(240, 205, 110, .45), rgba(212, 175, 55, .18) 55%, rgba(212, 175, 55, 0)); pointer-events: none; }
+
+/* ── Opener (horizon) ── */
+.rc-hz { position: absolute; inset: 0; pointer-events: none; }
+.rc-hz-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.rc-hz-svg:first-of-type { will-change: transform, opacity; }
+.rc-haze { position: absolute; width: 320px; height: 220px; pointer-events: none; background: radial-gradient(closest-side, rgba(240, 205, 110, .22), rgba(240, 205, 110, 0)); }
+.rc-rider { position: absolute; left: 0; top: 0; offset-rotate: auto; offset-anchor: 50% 100%; will-change: offset-distance, opacity; }
+.rc-rider img, .rc-mark-box img { position: relative; display: block; width: 100%; height: 100%; }
+.rc-mark-gate { position: absolute; inset: 0; pointer-events: none; }
+.rc-mark-box { position: absolute; left: calc(50% - 150px); top: calc(var(--rc-top) + 100px); opacity: .62; will-change: transform, opacity; }
+.rc-mark-box .rc-glow { inset: -10%; background: radial-gradient(closest-side, rgba(212, 175, 55, .32), rgba(212, 175, 55, 0)); }
+.rc-opener-text {
+  position: absolute; left: 28px; right: 28px; top: calc(var(--rc-top) + 172px);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;
+}
+.rc-opener-text .rc-label { color: var(--onit-on-ink-body); }
+.rc-opener-title { margin: 0; font: 800 42px/46px var(--onit-display); letter-spacing: -.02em; text-wrap: balance; text-shadow: 0 2px 20px rgba(31, 27, 19, .75); }
+.rc-opener-range { font: 400 16px/22px var(--onit-body); color: var(--onit-on-ink-body); text-shadow: 0 1px 12px rgba(31, 27, 19, .8); }
+.rc-opener-aff { margin: 14px 0 0; padding: 0 8px; font: 700 19px/26px var(--onit-display); text-wrap: balance; }

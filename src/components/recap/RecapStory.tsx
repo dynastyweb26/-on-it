@@ -29,6 +29,7 @@ import { SLIDES } from '@/components/recap/slides';
 import './recap.css';
 
 const MUTE_KEY = 'onit-recap-muted';
+const OPENS_KEY = 'onit-recap-opens';
 const DT_MAX = 64;
 
 type Entry = { key: number; idx: number; clock: SlideClock; timing: SlideTiming };
@@ -87,6 +88,14 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [announce, setAnnounce] = useState('');
+  // Opens on this device: the opener's affirmation rotates per open (§8).
+  const [opens] = useState(() => {
+    try {
+      const n = (Number(localStorage.getItem(OPENS_KEY)) || 0) + 1;
+      localStorage.setItem(OPENS_KEY, String(n));
+      return n;
+    } catch { return 1; }
+  });
 
   // Loop state lives in refs: the clock never re-renders React.
   const st = useRef({ idx: 0, t: 0, prevT: -1, held: false, spacePaused: false, hidden: false, trans: null as Trans | null, muted: false });
@@ -301,7 +310,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
             <div className="rc-wipe-clip" ref={(el) => { slot(e.key).clip = el; }}>
               <div className="rc-wipe-inner" ref={(el) => { slot(e.key).inner = el; }}>
                 <div className="rc-slide" data-theme={e.timing.theme}>
-                  <Slide payload={payload} timing={e.timing} clock={e.clock} reduced={reduced} index={e.idx} count={n} onAction={action} />
+                  <Slide payload={payload} timing={e.timing} clock={e.clock} reduced={reduced} index={e.idx} count={n} opens={opens} onAction={action} />
                 </div>
               </div>
               {/* Inside the moving clip box, so it dims only the outgoing slide. */}
