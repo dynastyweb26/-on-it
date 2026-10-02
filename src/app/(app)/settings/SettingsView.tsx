@@ -6,9 +6,12 @@ import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
+import { freePlanSummary } from '@/lib/usage';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
+import CodeEntry from '@/components/CodeEntry';
+import { trialDates } from '@/lib/trial';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -112,7 +115,10 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   // supersedes it (render order below).
   const [authStuck, setAuthStuck] = useState(false);
   // Subscription: tier drives manage-vs-upgrade; founder hides the section.
-  const [access, setAccess] = useState<{ hasAccess: boolean; tier: string; invoiceCount: number } | null>(null);
+  const [access, setAccess] = useState<{
+    hasAccess: boolean; tier: string; invoiceCount: number; expenseCount?: number;
+    invoiceLimit?: number | null; expenseLimit?: number | null; trialEligible?: boolean;
+  } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
   // Stripe Connect: busy covers both the onboarding redirect and a status
@@ -347,7 +353,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   }
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
-  // Free/canceled users → Checkout (start the $9.99/mo, 30-day-free-trial plan).
+  // Free/canceled users → Checkout ($9.99/mo; a 14-day free trial for
+  // first-time customers only, lib/trial.ts).
   // Both redirect to a Stripe-hosted page; the 503 dormant message shows inline.
   async function billingAction(endpoint: '/api/billing-portal' | '/api/checkout') {
     if (billingBusy) return;
@@ -781,6 +788,15 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
+      {access?.tier === 'founder' && (
+        // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
+        <section className="card space-y-1">
+          <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
+          <p className="text-sm font-semibold text-on-surface">Free access · via code</p>
+          <p className="text-sm text-on-surface-variant">Unlimited invoices, quotes and expenses.</p>
+        </section>
+      )}
+
       {access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
@@ -790,8 +806,13 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 {access.tier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
                   : access.tier === 'trialing'
-                    ? `You’re on your 30-day free trial — $9.99/month${fmtDate(p.trial_ends_at) ? `, first charge ${fmtDate(p.trial_ends_at)}` : ''}.`
-                    : `You’re subscribed at $9.99/month${fmtDate(p.current_period_end) ? ` — renews ${fmtDate(p.current_period_end)}` : ''}.`}
+                    // No trial length here: trials started before the 30 → 14
+                    // day change are still running. The end date is right for both
+                    // (and the same wording as the paywall disclosure).
+                    ? (fmtDate(p.trial_ends_at)
+                      ? `Free until ${fmtDate(p.trial_ends_at)}. Then $9.99/month, renews monthly until you cancel.`
+                      : 'You’re on a free trial. Then $9.99/month, renews monthly until you cancel.')
+                    : `$9.99/month, renews monthly until you cancel${fmtDate(p.current_period_end) ? `. Next renewal ${fmtDate(p.current_period_end)}` : ''}.`}
               </p>
               <button className="btn-outline w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/billing-portal')}>
@@ -801,15 +822,27 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             </>
           ) : (
             <>
-              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, and reminders.</p>
+              {/* Free plan usage (free / canceled, paywall on): both counts.
+                  freePlanSummary is null when the limits aren't known. */}
+              {freePlanSummary(access) && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-semibold text-on-surface">Free plan</p>
+                  <p className="text-right text-sm text-on-surface-variant">{freePlanSummary(access)}</p>
+                </div>
+              )}
+              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, expenses and reminders.</p>
               {/* Subscription disclosure — plain, body-size, visible before the Stripe
-                  redirect. Material terms match trial_period_days: 30 in /api/checkout. */}
+                  redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
+                  first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
-                30-day free trial, then $9.99/month, recurring. Cancel anytime.
+                {/* The paywall's disclosure, with "in Settings" → "below". */}
+                {access.trialEligible
+                  ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
+                  : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : 'Upgrade — $9.99/month'}
+                {billingBusy ? 'Opening…' : access.trialEligible ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
               </button>
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>
@@ -819,6 +852,15 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
             </>
           )}
           {billingNotice && <p className="text-sm text-on-surface-variant">{billingNotice}</p>}
+          <div className="space-y-2 border-t border-outline-variant/30 pt-3">
+            <p className="text-sm font-semibold text-on-surface">Have a code?</p>
+            {/* Redeemed → re-read access so this section turns into the founder Plan row. */}
+            <CodeEntry onRedeemed={() => {
+              setTimeout(() => {
+                void fetch('/api/access').then((r) => (r.ok ? r.json() : null)).then((a) => { if (a) setAccess(a); }).catch(() => {});
+              }, 1200);
+            }} />
+          </div>
         </section>
       )}
 

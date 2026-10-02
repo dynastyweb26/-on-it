@@ -1,5 +1,5 @@
 'use client';
-// The Summary / Detailed choice for a books PDF, as a bottom sheet (the period
+// The Totals / Itemized choice for a books PDF, as a bottom sheet (the period
 // picker's pattern). Shared by the Summary screen and the recap sheet; the
 // caller owns what happens on a pick (buildSummaryPdf + share) and its own
 // Escape / scroll-lock handling. z-[80] so it also sits above the recap sheet.
@@ -32,18 +32,18 @@ export default function PdfChoiceSheet({ kind, onPick, onClose }: {
         </div>
         <PdfOption
           icon="description"
-          title="Summary"
+          title="Totals"
           detail={kind === 'expenses' ? 'Totals by category' : 'Totals by client'}
-          onClick={() => onPick('summary')}
+          onClick={() => onPick('totals')}
         />
         <div className="my-1 border-t border-outline-variant/40" />
         <PdfOption
           icon="receipt_long"
-          title="Detailed"
+          title="Itemized"
           detail={kind === 'expenses'
             ? 'Every expense with date, store and amount'
-            : 'Every payment with what was billed'}
-          onClick={() => onPick('detailed')}
+            : 'Every payment with date, invoice and amount'}
+          onClick={() => onPick('itemized')}
         />
       </div>
     </div>

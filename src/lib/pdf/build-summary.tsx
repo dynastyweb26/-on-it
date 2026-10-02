@@ -1,6 +1,6 @@
 'use client';
 // ═══ Summary PDF builder ═══ One entry point for every books export: expenses
-// or income, summary or detailed, over any local date range. It loads its own
+// or income, totals or itemized, over any local date range. It loads its own
 // data — by default through the session client (supabaseSource; RLS scopes
 // every row to the signed-in user), or from any SummaryPdfSource returning the
 // same shapes — renders the white/black document offscreen, and captures it through
@@ -17,17 +17,18 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@/lib/supabase/client';
 import { accentForWhite } from '@/lib/colors';
 import { isExpenseCategory } from '@/lib/expenses';
-import { calculateLineAmount } from '@/lib/financials';
 import { formatDocNumber } from '@/lib/documents';
 import { summarize, summarizeIncome, type ExpenseLite, type PaymentLite } from '@/lib/tax-summary';
 import { elementToPdf, summaryFilename, incomeSummaryFilename } from '@/lib/pdf/generate';
 import {
-  ExpenseSummaryTemplate, IncomeSummaryTemplate, ExpenseDetailedTemplate, IncomeDetailedTemplate,
-  type ExpenseDetailCategory, type IncomeDetailPayment, type IncomeLineItem,
+  ExpenseTotalsTemplate, IncomeItemizedTemplate, ExpenseItemizedTemplate, IncomeTotalsTemplate,
+  type ExpenseDetailCategory,
 } from '@/lib/pdf/summary-template';
 
 export type SummaryPdfKind = 'expenses' | 'income';
-export type SummaryPdfDetail = 'summary' | 'detailed';
+// 'totals' = the period rolled up (expenses by category, income by client);
+// 'itemized' = every expense / every payment, grouped the same way.
+export type SummaryPdfDetail = 'totals' | 'itemized';
 
 export interface SummaryPdfOptions {
   kind: SummaryPdfKind;
@@ -60,13 +61,10 @@ export interface SummaryPdfProfile {
 export interface SummaryPdfSource {
   profile(): Promise<SummaryPdfProfile>;
   /** Non-deleted expenses with spent_on in range, oldest first. */
-  expenses(range: SummaryPdfOptions['range'], detailed: boolean): Promise<Row[]>;
+  expenses(range: SummaryPdfOptions['range'], itemized: boolean): Promise<Row[]>;
   /** Payments on non-deleted invoices of kind 'invoice', paid_at on a local day
-   *  in range, oldest first; the invoice embedded as `invoices` (line_items when
-   *  detailed). */
-  payments(range: SummaryPdfOptions['range'], detailed: boolean): Promise<Row[]>;
-  /** Every payment ({ id, invoice_id }) of these invoices, oldest first. */
-  paymentHistory(invoiceIds: string[]): Promise<Row[]>;
+   *  in range, oldest first; the invoice embedded as `invoices`. */
+  payments(range: SummaryPdfOptions['range']): Promise<Row[]>;
 }
 
 async function fetchAll(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<Row[]> {
@@ -115,16 +113,16 @@ export async function buildSummaryPdf(
     rangeEnd: prettyDate(range.end),
     generatedOn: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
   };
-  const detailed = detail === 'detailed';
+  const itemized = detail === 'itemized';
 
   if (kind === 'expenses') {
-    const rows = await source.expenses(range, detailed);
+    const rows = await source.expenses(range, itemized);
     const summary = summarize(rows as unknown as ExpenseLite[]);
-    const filename = summaryFilename(periodLabel, header.businessName, detailed);
+    const filename = summaryFilename(periodLabel, header.businessName, itemized);
 
-    if (!detailed) {
+    if (!itemized) {
       return renderToPdf(
-        <ExpenseSummaryTemplate
+        <ExpenseTotalsTemplate
           d={{
             ...header,
             rows: summary.rows.map((r) => ({ label: r.label, count: r.count, total: r.total })),
@@ -151,13 +149,16 @@ export async function buildSummaryPdf(
       count: s.count,
       total: s.total,
       rows: (byCat.get(s.category) ?? []).map((r) => {
-        const description = String(r.description ?? '').trim();
+        // What was bought: the saved description (the receipt reader writes a
+        // short phrase since this branch); older rows have none, so they show
+        // their category instead of a blank.
+        const what = String(r.description ?? '').trim() || s.label;
         const note = String(r.note ?? '').trim();
         const vendor = String(r.vendor ?? '').trim();
         return {
           date: r.spent_on ? prettyDate(String(r.spent_on)) : '—',
           store: vendor || '—',
-          description: note ? `${description} — ${note}` : description || '—',
+          description: note ? `${what} — ${note}` : what,
           amount: num(r.amount),
           hasReceipt: Boolean(r.receipt_url || r.receipt_path),
         };
@@ -165,18 +166,18 @@ export async function buildSummaryPdf(
     }));
 
     return renderToPdf(
-      <ExpenseDetailedTemplate d={{ ...header, categories, total: summary.total, count: summary.count }} accent={accent} />,
+      <ExpenseItemizedTemplate d={{ ...header, categories, total: summary.total, count: summary.count }} accent={accent} />,
       filename,
     );
   }
 
   // ── Income: the payments ledger, cash basis, invoices only (never quotes),
   // soft-deleted invoices excluded — the same filter the Summary screen uses.
-  const payRows = await source.payments(range, detailed);
+  const payRows = await source.payments(range);
 
   // Supabase embeds a to-one relation as an object (older shapes: an array);
   // handle both so client_name resolves either way.
-  type Emb = { client_name?: string; invoice_number?: number | null; line_items?: unknown };
+  type Emb = { client_name?: string; invoice_number?: number | null };
   const embedded = (r: Row): Emb | undefined => {
     const emb = r.invoices as Emb | Emb[] | null;
     return (Array.isArray(emb) ? emb[0] : emb) ?? undefined;
@@ -198,25 +199,16 @@ export async function buildSummaryPdf(
     id: 'range', granularity: 'all', label: periodLabel, friendlyLabel: periodLabel, start: range.start, end: range.end,
   });
   const count = income.byClient.reduce((s, c) => s + c.count, 0);
-  const filename = incomeSummaryFilename(periodLabel, header.businessName, detailed);
+  const filename = incomeSummaryFilename(periodLabel, header.businessName, itemized);
   const invoiceLabel = (n: number | null) => (n != null ? formatDocNumber('invoice', n) : '—');
 
-  if (!detailed) {
+  if (!itemized) {
+    // Totals: one row per client (count + amount), then the grand total.
     return renderToPdf(
-      <IncomeSummaryTemplate
+      <IncomeTotalsTemplate
         d={{
           ...header,
-          clients: income.byClient.map((c) => ({
-            client: c.client,
-            count: c.count,
-            total: c.total,
-            payments: c.payments.map((p) => ({
-              date: p.day ? prettyDate(p.day) : '—',
-              invoice: invoiceLabel(p.invoiceNumber),
-              method: p.method,
-              amount: p.amount,
-            })),
-          })),
+          clients: income.byClient.map((c) => ({ client: c.client, count: c.count, total: c.total })),
           total: income.broughtIn,
           count,
         }}
@@ -226,54 +218,28 @@ export async function buildSummaryPdf(
     );
   }
 
-  // Detailed: each payment's invoice and its line items, plus where the payment
-  // sits in the invoice's full installment history ("Payment 2 of INV-0042").
-  const byPaymentId = new Map(payRows.map((r) => [r.id as string, r]));
-  const invoiceIds = [...new Set(payRows.map((r) => r.invoice_id as string))];
-  const history = new Map<string, string[]>(); // invoice_id → payment ids, oldest first
-  for (const r of await source.paymentHistory(invoiceIds)) {
-    const key = r.invoice_id as string;
-    const list = history.get(key);
-    if (list) list.push(r.id as string); else history.set(key, [r.id as string]);
-  }
-
-  const itemsListed = new Set<string>(); // invoices whose items are already in the document
-  const clients = income.byClient.map((c) => ({
-    client: c.client,
-    count: c.count,
-    total: c.total,
-    payments: c.payments.map((p): IncomeDetailPayment => {
-      const row = p.id ? byPaymentId.get(p.id) : undefined;
-      const invoiceId = (row?.invoice_id as string | undefined) ?? '';
-      const invoice = invoiceLabel(p.invoiceNumber);
-      const base = { date: p.day ? prettyDate(p.day) : '—', invoice, method: p.method, amount: p.amount };
-      if (!row) return base;
-
-      const ids = history.get(invoiceId) ?? [];
-      const ordinal = ids.indexOf(p.id as string) + 1;
-      const showItems = !itemsListed.has(invoiceId);
-      itemsListed.add(invoiceId);
-      const of = p.invoiceNumber != null ? invoice : 'this invoice';
-      // Only an invoice with 2+ payments in its whole ledger gets a label; a
-      // single-payment invoice never reads "Payment 1 of".
-      const note = ids.length > 1 && ordinal > 0
-        ? `Payment ${ordinal} of ${of}${showItems ? '' : ' · items listed above'}`
-        : null;
-      if (!showItems) return { ...base, note };
-
-      const raw = embedded(row)?.line_items;
-      // Every line item, uncapped: a detailed statement lists the whole invoice.
-      const items: IncomeLineItem[] = (Array.isArray(raw) ? raw : []).map((li: { description?: unknown; qty?: unknown; unit_price?: unknown }) => {
-        const qty = num(li?.qty);
-        const unitPrice = num(li?.unit_price);
-        return { description: String(li?.description ?? ''), qty, unitPrice, amount: calculateLineAmount(qty, unitPrice) };
-      });
-      return { ...base, note, items };
-    }),
-  }));
-
+  // Itemized: every payment, grouped by client — date paid, invoice #, method,
+  // amount, with client subtotals.
   return renderToPdf(
-    <IncomeDetailedTemplate d={{ ...header, clients, total: income.broughtIn, count }} accent={accent} />,
+    <IncomeItemizedTemplate
+      d={{
+        ...header,
+        clients: income.byClient.map((c) => ({
+          client: c.client,
+          count: c.count,
+          total: c.total,
+          payments: c.payments.map((p) => ({
+            date: p.day ? prettyDate(p.day) : '—',
+            invoice: invoiceLabel(p.invoiceNumber),
+            method: p.method,
+            amount: p.amount,
+          })),
+        })),
+        total: income.broughtIn,
+        count,
+      }}
+      accent={accent}
+    />,
     filename,
   );
 }
@@ -294,10 +260,10 @@ export function supabaseSource(): SummaryPdfSource {
       if (!data) throw new Error('no profile');
       return data as SummaryPdfProfile;
     },
-    expenses(range, detailed) {
+    expenses(range, itemized) {
       return fetchAll((from, to) => supabase
         .from('expenses')
-        .select(detailed
+        .select(itemized
           ? 'id, amount, category, spent_on, description, vendor, note, receipt_path, receipt_url'
           : 'id, amount, category, spent_on')
         .is('deleted_at', null)
@@ -308,10 +274,8 @@ export function supabaseSource(): SummaryPdfSource {
         .order('id', { ascending: true })
         .range(from, to));
     },
-    payments(range, detailed) {
-      const invoiceCols = detailed
-        ? 'client_name, invoice_number, kind, deleted_at, line_items'
-        : 'client_name, invoice_number, kind, deleted_at';
+    payments(range) {
+      const invoiceCols = 'client_name, invoice_number, kind, deleted_at';
       return fetchAll((from, to) => supabase
         .from('invoice_payments')
         .select(`id, invoice_id, amount, paid_at, method, stripe_checkout_session_id, invoices!inner(${invoiceCols})`)
@@ -322,20 +286,6 @@ export function supabaseSource(): SummaryPdfSource {
         .order('paid_at', { ascending: true })
         .order('id', { ascending: true })
         .range(from, to));
-    },
-    async paymentHistory(invoiceIds) {
-      const out: Row[] = [];
-      for (let i = 0; i < invoiceIds.length; i += 100) {
-        const chunk = invoiceIds.slice(i, i + 100);
-        out.push(...await fetchAll((from, to) => supabase
-          .from('invoice_payments')
-          .select('id, invoice_id')
-          .in('invoice_id', chunk)
-          .order('paid_at', { ascending: true })
-          .order('id', { ascending: true })
-          .range(from, to)));
-      }
-      return out;
     },
   };
 }

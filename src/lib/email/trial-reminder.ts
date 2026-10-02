@@ -1,8 +1,10 @@
 // Trial-ending reminder email — content only (pure function, no I/O).
 // Voice: plain and factual, matching the app's own subscription copy on the
-// Settings screen ("You're on your 30-day free trial — $9.99/month, first charge
+// Settings screen ("You're on your 14-day free trial — $9.99/month, first charge
 // {date}. Cancel or update your card in the billing portal."). No emojis, no
 // marketing tone, no guilt — per ONIT-SPEC: never make not using it feel bad.
+// The email states the END DATE, not the trial length: trials started before
+// the 30 → 14 day change are still running, and the date is right for both.
 //
 // Says the four required things: when the trial ends, that the card is charged,
 // that it renews monthly, and how to cancel — with a direct link to manage
@@ -32,7 +34,7 @@ export function trialReminderEmail(input: TrialReminderInput): EmailContent {
   const text = [
     greeting,
     '',
-    `Your 30-day On It free trial ends on ${chargeDate}. On that day, the card on file will be charged ${amount}, and your subscription will renew for ${amount} each month after that.`,
+    `Your On It free trial ends on ${chargeDate}. On that day, the card on file will be charged ${amount}, and your subscription will renew for ${amount} each month after that.`,
     '',
     `If you want to keep using On It, you don't need to do anything — the charge happens automatically.`,
     '',
@@ -57,7 +59,7 @@ export function trialReminderEmail(input: TrialReminderInput): EmailContent {
 <body style="margin:0;padding:0;background:#ffffff;">
   <div style="max-width:520px;margin:0 auto;padding:32px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1f2937;">
     <p style="margin:0 0 16px;">${greetingHtml}</p>
-    <p style="margin:0 0 16px;">Your 30-day On It free trial ends on <strong>${cd}</strong>. On that day, the card on file will be charged <strong>${amt}</strong>, and your subscription will renew for ${amt} each month after that.</p>
+    <p style="margin:0 0 16px;">Your On It free trial ends on <strong>${cd}</strong>. On that day, the card on file will be charged <strong>${amt}</strong>, and your subscription will renew for ${amt} each month after that.</p>
     <p style="margin:0 0 16px;">If you want to keep using On It, you don&rsquo;t need to do anything &mdash; the charge happens automatically.</p>
     <p style="margin:0 0 16px;">If you&rsquo;d rather not continue, cancel before ${cd} and you won&rsquo;t be charged. You can cancel or update your card in the billing portal:</p>
     <p style="margin:0 0 24px;"><a href="${url}" style="color:#b45309;font-weight:600;">Manage or cancel your subscription</a></p>

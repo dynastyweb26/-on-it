@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
+import PaywallModal from '@/components/PaywallModal';
+import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
@@ -97,6 +99,9 @@ export default function Dashboard() {
     tweenRaf.current = requestAnimationFrame(step);
   }
   const [showForm, setShowForm] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false); // free expense cap hit
+  // Back from Stripe Checkout (returnTo 'books' → /dashboard?upgraded=1).
+  useEffect(() => { noteUpgradeReturn(); }, []);
 
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
@@ -190,14 +195,28 @@ export default function Dashboard() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setAmountError('Sign in to log expenses.'); return; }
-      const { error } = await supabase.from('expenses').insert({
+      const insert = () => supabase.from('expenses').insert({
         user_id: user.id,
         description,
         amount: value,
         category,
         spent_on: spentOn,
       });
-      if (error) { setAmountError(error.message); return; }
+      let { error } = await insert();
+      // Just back from Stripe: the subscription reaches the DB via the webhook a
+      // moment later, so the cap trigger can still say no. Wait for access to
+      // flip (lib/upgrade-return.ts), then try the save once more.
+      if (error?.hint === 'PAYWALL_LIMIT_EXPENSE' && recentlyUpgraded()) {
+        const a = await waitForAccess((x) => x.canExpense === true);
+        if (a?.canExpense === true) ({ error } = await insert());
+      }
+      if (error) {
+        // Free expense cap (enforce_free_expense_limit): the wall, not the raw
+        // DB message. The form stays filled so it saves after upgrading.
+        if (error.hint === 'PAYWALL_LIMIT_EXPENSE') { setShowPaywall(true); return; }
+        setAmountError(error.message);
+        return;
+      }
       setShowForm(false);
       resetForm();
       void loadStats();
@@ -271,9 +290,11 @@ export default function Dashboard() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
+        // data-kb-fit: pinned to the visible area while typing, so the sheet sits
+        // on the keyboard; max-h tops out at that area (100%) and it scrolls.
+        <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
           <div
-            className="max-h-[88dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="max-h-[min(88dvh,100%)] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -353,6 +374,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {showPaywall && <PaywallModal variant="expense" returnTo="books" onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }

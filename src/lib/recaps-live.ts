@@ -5,8 +5,7 @@
  *
  * Off: the cron builds no snapshots and sends no recap pushes, and no recap
  * UI appears (the in-app sheet now; the Books row, prompt and the paywall's
- * recap slide as they land). The temporary /dev/recap-preview page ignores it.
- * After feat/paywall-v2 merges, its PaywallModal's local RECAPS_LIVE constant
- * switches to this export.
+ * recap slide + "What's included" recaps row in PaywallModal). The temporary
+ * /dev/recap-preview page ignores it.
  */
 export const RECAPS_LIVE = process.env.NEXT_PUBLIC_RECAPS_LIVE === 'true'

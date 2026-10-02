@@ -7,13 +7,17 @@
 // - 'past_due' → unlimited (Stripe dunning grace: payment is retrying. The
 //   webhook collapses the tier to 'canceled' once retries are exhausted, which
 //   ends the grace — see tierFromStatus in the stripe webhook).
-// - 'canceled' → paywalled.
+// - 'canceled' → exactly like 'free' below (reported as 'canceled').
 // - 'free' (and any legacy value like the old 'standard') → free_invoice_limit()
-//   real invoices, then paywalled.
+//   real invoices and free_expense_limit() expenses created since
+//   paywall_reset_at(), then paywalled. Older rows never count; soft-deleted
+//   ones do.
 //
-// These tier rules MUST match the enforce_free_invoice_limit() trigger exactly
-// (20260724154509) — the modal and the DB gate cannot disagree. The cap number
-// itself lives in ONE place, the SQL free_invoice_limit(), read below via rpc.
+// These tier rules MUST match the enforce_free_invoice_limit() and
+// enforce_free_expense_limit() triggers exactly (20261001000001 / 000002) —
+// the modal and the DB gate cannot disagree. The caps and the reset moment
+// each live in ONE place, the SQL free_invoice_limit(), free_expense_limit()
+// and paywall_reset_at(), read below via rpc.
 //
 // Server-only: it reads the DB with the session client under RLS. The client
 // gates via GET /api/access, never by importing this.
@@ -24,10 +28,25 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 export type AccessTier = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'founder';
 
 export interface AccessResult {
-  hasAccess: boolean;
+  hasAccess: boolean;    // may create an invoice (the original meaning, unchanged)
+  canExpense: boolean;   // may create an expense
+  // May export the Income / Expense PDFs (Totals and Itemized). Paid tiers
+  // only while the paywall is on; everyone when it is off. UI gate: the PDFs
+  // are built in the browser from the user's own RLS-scoped rows, so there is
+  // no server step to enforce it on.
+  canExport: boolean;
   tier: AccessTier;
-  invoiceCount: number; // real invoices only (quotes don't count toward the cap)
+  invoiceCount: number;  // real invoices since the reset (quotes never count)
+  expenseCount: number;  // expenses since the reset (soft-deleted included)
+  // The free limits that apply to this user right now; null = no cap (a paid
+  // tier, or the paywall off). Drives the "1 of 3 free invoices used" lines.
+  invoiceLimit: number | null;
+  expenseLimit: number | null;
 }
+
+// A free limit worth showing the user; anything this large is "uncapped".
+const displayLimit = (n: unknown): number | null =>
+  typeof n === 'number' && n < 1000 ? n : null;
 
 export async function hasAccess(userId: string): Promise<AccessResult> {
   const supabase = await createClient();
@@ -39,30 +58,67 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     .maybeSingle();
   const raw = (profile?.access_tier ?? 'free') as string;
 
-  // Count only real invoices (kind='invoice'), not quotes, toward the free cap.
-  const { count } = await supabase
+  // Count the same rows the triggers count: real invoices (kind='invoice', not
+  // quotes) and all expenses, created since the paywall reset, soft-deleted
+  // included (RLS select is auth.uid() = user_id, so deleted rows are visible).
+  // Before the reset migration is pushed the rpc doesn't exist; count all-time
+  // then, as before (the limits are still the kill-switch value at that point).
+  const { data: resetData } = await supabase.rpc('paywall_reset_at');
+  const resetAt = typeof resetData === 'string' ? resetData : null;
+  let invoiceQuery = supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .eq('kind', 'invoice');
-  const invoiceCount = count ?? 0;
+  let expenseQuery = supabase
+    .from('expenses')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (resetAt) {
+    invoiceQuery = invoiceQuery.gte('created_at', resetAt);
+    expenseQuery = expenseQuery.gte('created_at', resetAt);
+  }
+  const [{ count: invCount }, { count: expCount }] = await Promise.all([invoiceQuery, expenseQuery]);
+  const invoiceCount = invCount ?? 0;
+  const expenseCount = expCount ?? 0;
+  const counts = { invoiceCount, expenseCount, invoiceLimit: null, expenseLimit: null };
 
-  if (raw === 'founder') return { hasAccess: true, tier: 'founder', invoiceCount };
+  if (raw === 'founder') return { hasAccess: true, canExpense: true, canExport: true, tier: 'founder', ...counts };
   // trialing / active / past_due → unlimited (past_due = dunning grace window).
   if (raw === 'trialing' || raw === 'active' || raw === 'past_due') {
-    return { hasAccess: true, tier: raw, invoiceCount };
+    return { hasAccess: true, canExpense: true, canExport: true, tier: raw, ...counts };
   }
-  // Paywall kill switch: 'canceled' rejects on TIER regardless of invoice
-  // count, so the raised free_invoice_limit() doesn't cover it — the flag must.
-  // With the paywall off this early-return is skipped and a canceled user falls
-  // through to the free path, where they're under the (now huge) cap.
-  if (PAYWALL_ENABLED && raw === 'canceled') return { hasAccess: false, tier: 'canceled', invoiceCount };
+  // Capped from here on: free, canceled, legacy, anything unexpected. A
+  // canceled user is treated exactly like a free one (the triggers do the
+  // same): the free limits counted from the reset, quotes always allowed. The
+  // tier is still reported as 'canceled' so the UI can word things for them.
+  const tier: AccessTier = raw === 'canceled' ? 'canceled' : 'free';
 
-  // free / legacy 'standard' / anything unexpected → free tier. The cap is read
-  // from the SAME SQL function the trigger uses, so the number is never
-  // duplicated. If the rpc fails we do NOT false-block — the trigger is the
-  // real enforcement, and hasAccess is only the UX hint.
-  const { data: limitData } = await supabase.rpc('free_invoice_limit');
-  const limit = typeof limitData === 'number' ? limitData : Number.MAX_SAFE_INTEGER;
-  return { hasAccess: invoiceCount < limit, tier: 'free', invoiceCount };
+  // Paywall kill switch (UI): with the paywall off nothing is gated here. The
+  // DB triggers still enforce whatever limits are live — turning the caps off
+  // for real is the rollback (supabase/rollbacks/paywall_v2_rollback.sql).
+  if (!PAYWALL_ENABLED) {
+    return { hasAccess: true, canExpense: true, canExport: true, tier, ...counts };
+  }
+
+  // Each cap is read from the SAME SQL function its trigger uses, so the
+  // numbers are never duplicated. If an rpc fails we do NOT false-block — the
+  // triggers are the real enforcement, and hasAccess is only the UX hint.
+  const [{ data: invLimit }, { data: expLimit }] = await Promise.all([
+    supabase.rpc('free_invoice_limit'),
+    supabase.rpc('free_expense_limit'),
+  ]);
+  const invoiceLimit = typeof invLimit === 'number' ? invLimit : Number.MAX_SAFE_INTEGER;
+  const expenseLimit = typeof expLimit === 'number' ? expLimit : Number.MAX_SAFE_INTEGER;
+  return {
+    hasAccess: invoiceCount < invoiceLimit,
+    canExpense: expenseCount < expenseLimit,
+    canExport: false, // reports are a paid feature (free / canceled tiers)
+    tier,
+    ...counts,
+    // Only real limits: a missing rpc (pre-push) or the paywall-off sentinel
+    // (1,000,000, 20260823120000) reads as no cap, so no "1 of 1000000" line.
+    invoiceLimit: displayLimit(invLimit),
+    expenseLimit: displayLimit(expLimit),
+  };
 }

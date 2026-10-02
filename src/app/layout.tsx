@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Montserrat, Inter } from 'next/font/google';
 import localFont from 'next/font/local';
 import Splash from '@/components/Splash';
+import KeyboardAvoider from '@/components/KeyboardAvoider';
 import launchScreens from '@/lib/launch-screens.json';
 import './globals.css';
 
@@ -154,6 +155,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Splash />
+        <KeyboardAvoider />
         {children}
       </body>
     </html>

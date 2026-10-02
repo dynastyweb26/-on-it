@@ -12,6 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PdfChoiceSheet from '@/components/PdfChoiceSheet';
+import PaywallModal from '@/components/PaywallModal';
+import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
@@ -57,8 +59,31 @@ export default function TaxSummary() {
   // granularity's list of specific periods).
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetView, setSheetView] = useState<'root' | Granularity>('root');
-  // PDF sheet: which export's Summary / Detailed choice is open.
+  // PDF sheet: which export's Totals / Itemized choice is open.
   const [pdfSheet, setPdfSheet] = useState<SummaryPdfKind | null>(null);
+  // Reports are paid-only while the paywall is on (hasAccess().canExport). null
+  // until known: the buttons then behave as before (fail open).
+  const [canExport, setCanExport] = useState<boolean | null>(null);
+  const [reportsWall, setReportsWall] = useState(false);
+  useEffect(() => {
+    noteUpgradeReturn(); // back from Checkout via the reports wall?
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/access');
+        let a = r.ok ? await r.json() : null;
+        // Just upgraded: the webhook may lag a few seconds behind the return.
+        if (a && a.canExport === false && recentlyUpgraded()) a = (await waitForAccess((x) => x.canExport === true)) ?? a;
+        if (active && a && typeof a.canExport === 'boolean') setCanExport(a.canExport);
+      } catch { /* unknown → fail open */ }
+    })();
+    return () => { active = false; };
+  }, []);
+  /** An export tap: the Totals / Itemized sheet, or the reports wall. */
+  function openExport(kind: SummaryPdfKind) {
+    if (canExport === false) { setReportsWall(true); return; }
+    setPdfSheet(kind);
+  }
 
   useEffect(() => {
     (async () => {
@@ -87,7 +112,7 @@ export default function TaxSummary() {
   useEffect(() => {
     (async () => {
       const [exp, pay, owe] = await Promise.all([
-        supabase.from('expenses').select('amount, category, tax_deductible, spent_on').is('deleted_at', null),
+        supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
           .eq('invoices.kind', 'invoice')
@@ -123,8 +148,8 @@ export default function TaxSummary() {
         ...eRows.map((r) => r.spent_on ?? ''),
         ...pRows.map((p) => localDay(p.paid_at)),
       ].filter(Boolean);
-      // Default to the most recent year that has records (the tax-relevant
-      // year-to-date view), or all-time when there's nothing yet. ?period=all
+      // Default to the most recent year that has records (the year-to-date
+      // view), or all-time when there's nothing yet. ?period=all
       // (the Books Net / Collected tiles) opens at All time, where Kept and
       // Brought in equal the all-time figures the tiles show.
       const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
@@ -192,7 +217,7 @@ export default function TaxSummary() {
 
   // Every PDF goes through the one builder (it loads its own rows for the
   // period), then the native share sheet. Disabled when that side is empty.
-  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'summary') {
+  async function exportPdf(kind: SummaryPdfKind, detail: SummaryPdfDetail = 'totals') {
     if (!profile || !selected || exporting) return;
     if (kind === 'expenses' ? summary.count === 0 : incomeCount === 0) return;
     setExporting(kind);
@@ -204,7 +229,7 @@ export default function TaxSummary() {
         periodLabel: selected.label, // literal label on the document, never "This Month"
       });
       const noun = kind === 'expenses' ? 'Expense' : 'Income';
-      await shareInvoice(file, profile.business_name, detail === 'detailed' ? `${noun} detail` : `${noun} summary`);
+      await shareInvoice(file, profile.business_name, detail === 'itemized' ? `Itemized ${noun.toLowerCase()}` : `${noun} summary`);
     } catch {
       /* build/share/download failed — the button re-enables so they can retry */
     } finally {
@@ -241,15 +266,15 @@ export default function TaxSummary() {
       </button>
 
       {/* Two exports for the selected period, right under the period they
-          cover. Each opens a sheet to pick Summary (expenses by category,
-          income by client) or Detailed (every expense line, every payment with
-          what was billed). Each is disabled when its side of the period is empty. */}
+          cover. Each opens a sheet to pick Totals (expenses by category, income
+          by client) or Itemized (every expense, every payment). Each is
+          disabled when its side of the period is empty. */}
       {!loading && hasData && (
         <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('expenses')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => openExport('expenses')}>
             <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
           </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => setPdfSheet('income')}>
+          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => openExport('income')}>
             <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
           </button>
         </div>
@@ -426,8 +451,9 @@ export default function TaxSummary() {
       )}
 
 
-      {/* PDF sheet: Summary / Detailed (shared with the recap sheet). */}
+      {/* PDF sheet: Totals / Itemized (shared with the recap sheet). */}
       <PdfChoiceSheet kind={pdfSheet} onPick={pickDetail} onClose={() => setPdfSheet(null)} />
+      {reportsWall && <PaywallModal variant="reports" onClose={() => setReportsWall(false)} />}
     </div>
   );
 }

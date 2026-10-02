@@ -91,6 +91,13 @@ That is a schema gap, not a layout gap.
 
 ### 1.5 Pagination is impossible by construction
 
+> **Superseded (2026-09-30).** `elementToPdf()` now paginates: it splits the
+> document's single table by measured row height, repeats the column header,
+> adds "Page X of Y", moves `data-pdf-block` content to the last page, and
+> renders PNG at scale 3. A 15-line quote is 2 pages in all four templates. See
+> PUNCH-LIST "Itemized summary PDFs" for the current behaviour and limits
+> (one table per document). The text below is the original diagnosis.
+
 `PAGE` sets `minHeight: 1123`. Content longer than that overflows
 the element. Then:
 
@@ -366,6 +373,10 @@ a default.
 ---
 
 ## 6. Pagination
+
+> **Largely shipped (2026-09-30)** — see the note under 1.5. What's built
+> differs in places from the plan below (e.g. widow/orphan handling, the
+> keep-with-next and "(continued)" markers used by the books PDFs).
 
 ### 6.1 Preserve `data-pdf-link`
 

@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'push_subscribe' | 'push_test';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'push_subscribe' | 'push_test' | 'redeem';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -54,6 +54,10 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   push_subscribe:  { tokens: 10, window: '60 s' },
   // Preview-only test sender (/api/push/test); a tester taps it a few times.
   push_test:       { tokens: 10, window: '60 s' },
+  // Founder/access code entry (POST /api/redeem) — keyed by user. A person
+  // types a code once, maybe retypes it after a typo; 5 an hour makes
+  // guessing a code hopeless.
+  redeem:          { tokens: 5,  window: '3600 s' },
 };
 
 let redis: Redis | null = null;

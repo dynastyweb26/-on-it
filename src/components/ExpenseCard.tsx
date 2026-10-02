@@ -118,6 +118,20 @@ export default function ExpenseCard({
 
       <label className="mt-3 block">
         <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+          What
+        </span>
+        <input
+          className="input mt-1"
+          placeholder="What you bought"
+          maxLength={120}
+          aria-label="What you bought"
+          value={draft.description ?? ''}
+          onChange={(e) => set('description', e.target.value || null)}
+        />
+      </label>
+
+      <label className="mt-3 block">
+        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
           When
         </span>
         <input

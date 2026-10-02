@@ -183,7 +183,7 @@ export function RecapView({ recap, businessName, onClose }: { recap: Recap; busi
         periodLabel: bucketFor(recap.kind, recap.period_start).label,
       });
       const noun = kind === 'expenses' ? 'Expense' : 'Income';
-      await shareInvoice(file, businessName, detail === 'detailed' ? `${noun} detail` : `${noun} summary`);
+      await shareInvoice(file, businessName, detail === 'itemized' ? `Itemized ${noun.toLowerCase()}` : `${noun} summary`);
     } catch {
       /* build/share failed — the button re-enables so they can retry */
     } finally {

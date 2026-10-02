@@ -58,7 +58,7 @@ export default function InstallBanner() {
   if (!mounted || dismissed || isInstalled || !canInstallHere) return null;
 
   return (
-    <div className="shrink-0 border-t border-outline-variant/50 bg-surface-container-low px-container py-2.5">
+    <div data-kb-hide="" className="shrink-0 border-t border-outline-variant/50 bg-surface-container-low px-container py-2.5">
       <div className="flex items-center gap-3">
         <Icon name="install_mobile" size={24} className="shrink-0 text-primary" />
         <p className="min-w-0 flex-1 text-body-md text-on-background">

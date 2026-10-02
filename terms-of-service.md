@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: September 26, 2026**
+**Last updated: September 30, 2026**
 
 These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us") for use of On It. By creating an account, you agree to them.
 
@@ -24,15 +24,16 @@ You must be at least 18 years old and using On It for a business.
 
 ## 3. Subscription and billing
 
-**Free tier.** You can create up to 2 invoices without paying.
+**Free tier.** You can create up to 3 invoices and log up to 5 expenses without paying. Quotes don't count toward the limit. Deleting an invoice or expense doesn't free up a spot.
 
-**Pro subscription.** $9.99 per month, with a 30-day free trial.
+**Pro subscription.** $9.99 per month, with a 14-day free trial for first-time subscribers.
 
 Here's exactly how billing works:
 
-- Your trial lasts **30 days** from the day you subscribe — not one calendar month
+- Your trial lasts **14 days** from the day you subscribe
+- **One free trial per customer.** If you've had a trial or a subscription before, there's no trial when you subscribe again — you're charged $9.99 that day, and every month after that until you cancel
 - We collect your payment details when the trial starts, but **you are not charged during the trial**
-- At the end of 30 days, your card is charged $9.99, and then **$9.99 every month after that, automatically, until you cancel**
+- At the end of 14 days, your card is charged $9.99, and then **$9.99 every month after that, automatically, until you cancel**
 - You can cancel at any time from Settings, through the billing portal
 - **Cancel before the trial ends and you are never charged**
 

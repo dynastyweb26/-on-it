@@ -889,7 +889,7 @@ export default function InvoiceDetail() {
           if (!file) setShareError("Couldn't prepare the PDF. Tap Share PDF to try again.");
         }}
       />
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      {showPaywall && <PaywallModal returnTo="invoices" onClose={() => setShowPaywall(false)} />}
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}
