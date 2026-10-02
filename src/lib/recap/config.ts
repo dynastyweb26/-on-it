@@ -1,6 +1,6 @@
 // On It Recap — ONE place for every timing, easing and sound level
 // (RECAP-SPEC §10: the prototype's OnItRecap.CONFIG, verbatim, except the
-// opener, which is the On It build's horizon opener from §4).
+// opener, which is the On It build's columns + ribbon opener from §4).
 //
 // Times are ms from slide start. A beat's `delay` is a number or a reference:
 // "beat.start" / "beat.end" plus an optional +/- offset, e.g. "count.end+250".
@@ -11,7 +11,9 @@ import type { RecapSlide } from '@/lib/recap/payload';
 
 export type EaseName = 'linear' | 'out' | 'outQuart' | 'inOut' | 'back' | 'snap';
 export type BeatRef = number | string;
-export type Beat = { delay: BeatRef; dur: number; stagger?: number; ease?: EaseName };
+/** `span` (On It build): the whole stagger, so stagger = span / (n − 1) for n
+ *  items — a wave of the same length whatever the count. */
+export type Beat = { delay: BeatRef; dur: number; stagger?: number; span?: number; ease?: EaseName };
 export type SoundName = 'whoosh' | 'sweep' | 'tick' | 'ticks' | 'none' | 'chime' | 'drop' | 'flutter' | 'stamp' | 'ripple' | 'snap' | 'glint';
 export type CueSpec = { at: string; sound: SoundName; db: number; label?: string; count?: number; offset?: number };
 export type SlideConfig = { theme: 'light' | 'dark'; heroEnd: string; hold: number; beats: Record<string, Beat>; cues: CueSpec[] };
@@ -46,23 +48,27 @@ export const RECAP_CONFIG: RecapConfig = {
     music: { bpm: 90, bars: 12, db: -24, fadeIn: 1200, fadeOut: 600, duckDb: -4, duckMs: 700 }
   },
   slides: {
-    // On It build (RECAP-SPEC §4, decided 2026-10-02): the HORIZON opener,
-    // replacing the prototype's columns + ribbon opener.
+    // On It build (RECAP-SPEC §4 / decision 6, corrected 2026-10-02): the
+    // prototype's COLUMNS + RIBBON opener, one column per day (7 or 28–31).
+    // Changes from the prototype: no day labels or peak value (their beats are
+    // gone); `span` keeps the column wave 540 ms long at any count (weekly =
+    // the prototype's 90 ms stagger); and the mark starts at the hand-off —
+    // when the ribbon's head passes 85 % of the path, 664 ms into the inOut
+    // sweep — so the small swoosh riding the head becomes the big mark.
     opener: {
-      theme: 'dark', heroEnd: 'fill.end', hold: 2400,
+      theme: 'dark', heroEnd: 'mark.end', hold: 2400,
       beats: {
-        line:  { delay: 200, dur: 1200, ease: 'out' },               // draws left → right; the rider is on its head
-        lift:  { delay: 'line.start+566', dur: 700, ease: 'inOut' }, // = the moment the head passes 85 % of the line
-        fill:  { delay: 'line.end-200', dur: 900, ease: 'out' },
-        haze:  { delay: 'fill.start+200', dur: 900 },
-        label: { delay: 'lift.start+300', dur: 500 },
-        title: { delay: 'lift.start+450', dur: 650 },
-        range: { delay: 'lift.start+700', dur: 500 },
-        aff:   { delay: 'lift.end+300', dur: 800 }
+        cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // one column per day
+        sweep: { delay: 'cols.end-400', dur: 1300, ease: 'inOut' },     // ribbon of light across the tops
+        mark:  { delay: 'sweep.start+664', dur: 900, ease: 'out' },     // hand-off → swoosh settles behind the title
+        label: { delay: 'mark.start+200', dur: 500 },
+        title: { delay: 'mark.start+350', dur: 650 },
+        range: { delay: 'mark.start+600', dur: 500 },
+        aff:   { delay: 'mark.start+1100', dur: 800 }
       },
       cues: [
-        { at: 'line.start', sound: 'sweep', db: -18, label: 'Line draws' },
-        { at: 'lift.end', sound: 'chime', db: -20, label: 'Swoosh settles (soft)' }
+        { at: 'sweep.start', sound: 'sweep', db: -18, label: 'Ribbon sweep' },
+        { at: 'mark.end', sound: 'chime', db: -20, label: 'Swoosh settles (soft)' }
       ]
     },
     moneyIn: {

@@ -58,7 +58,7 @@ export function resolveBeats(beats: Record<string, Beat>, counts: Record<string,
     if (!b) throw new Error(`Unknown beat ${k}`);
     const start = refBeat(b.delay, get);
     const n = counts[k] ?? 1;
-    const stagger = b.stagger ?? 0;
+    const stagger = b.span != null && n > 1 ? b.span / (n - 1) : b.stagger ?? 0;
     return (out[k] = { start, dur: b.dur, stagger, ease: b.ease ?? 'out', n, end: n > 0 ? start + (n - 1) * stagger + b.dur : start });
   };
   Object.keys(beats).forEach(get);
@@ -106,6 +106,8 @@ const EDGES = 6;  // stacked card edges behind them, at most
  *  so "the rest" comes from `count`. */
 export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, number> {
   switch (key) {
+    case 'opener':
+      return { cols: p.daily.length };
     case 'moneyIn': {
       const m = p.paymentMethods.filter((x) => x.amount > 0).length;
       return { chips: m, pour: m, segs: m, pct: m };
