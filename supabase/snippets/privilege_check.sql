@@ -301,7 +301,7 @@ results(id, ok, expected, actual) as (
     and proname in ('get_public_invoice', 'get_public_invoice_checkout',
                     'mark_invoice_viewed', 'reconcile_invoice_from_ledger')
 
-  -- P. Recaps (20261001000010). SKIP until pushed.
+  -- P. Recaps (20261001000010; P3/P6 also 20261002000001 recap payload). SKIP until pushed.
   union all
   select 'P1 recaps RLS + policies',
     case when not exists (select 1 from applied where version = '20261001000010') then null
@@ -337,8 +337,12 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261001000010') then null
       else coalesce(string_agg(c.column_name, ',' order by c.column_name)
         filter (where has_column_privilege(ro.r, 'public.recaps', c.column_name, 'UPDATE')), '')
-        = case when ro.r = 'authenticated' then 'seen_at' else '' end end,
-    case when ro.r = 'authenticated' then 'UPDATE on seen_at only' else 'no column UPDATE' end,
+        = case when ro.r <> 'authenticated' then ''
+               when exists (select 1 from applied where version = '20261002000001') then 'prompted_at,seen_at'
+               else 'seen_at' end end,
+    case when ro.r <> 'authenticated' then 'no column UPDATE'
+         when exists (select 1 from applied where version = '20261002000001') then 'UPDATE on prompted_at, seen_at only (never payload)'
+         else 'UPDATE on seen_at only' end,
     case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
       else coalesce(string_agg(c.column_name, ',' order by c.column_name)
         filter (where has_column_privilege(ro.r, 'public.recaps', c.column_name, 'UPDATE')), 'none') end
@@ -371,6 +375,20 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
       else coalesce((select pg_get_constraintdef(oid) from pg_constraint
         where conrelid = 'public.notification_log'::regclass and conname = 'notification_log_type_chk'), 'missing') end
+  union all
+  select 'P6 recaps payload columns + constraint',
+    case when not exists (select 1 from applied where version = '20261002000001') then null
+      else (select count(*) from information_schema.columns c
+              where c.table_schema = 'public' and c.table_name = 'recaps'
+                and c.column_name in ('payload', 'payload_version', 'prompted_at')) = 3
+        and coalesce((select pg_get_constraintdef(oid) ilike '%jsonb_typeof(payload)%'
+                        and pg_get_constraintdef(oid) ilike '%16384%'
+              from pg_constraint
+              where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), false) end,
+    'payload, payload_version, prompted_at exist; recaps_payload_chk (object, <= 16384 bytes)',
+    case when not exists (select 1 from applied where version = '20261002000001') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

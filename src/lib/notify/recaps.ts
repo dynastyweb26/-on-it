@@ -18,10 +18,21 @@
 //     as the category key), top_vendor the store with the highest spend inside
 //     that category.
 //
-// An empty period (no income and no expenses) gets no snapshot and no push.
-// Idempotent: snapshots upsert on (user_id, kind, period_start) without
-// touching seen_at, and the push goes through notify(), whose notification_log
-// dedupe key recap:<kind>:<user>:<period_start> makes a re-run a no-op.
+// Each snapshot also stores the full story payload (recaps.payload, built by
+// lib/recap/payload: daily series, top client/store, payment methods, still
+// owed, quotes pending, change vs the previous period …), so the story shows
+// the same numbers every time it is opened.
+//
+// Insert-once: a snapshot is written the first time its period closes and a
+// cron re-run never changes it (on conflict do nothing — seen_at and
+// prompted_at are untouched too). The push goes through notify(), whose
+// notification_log dedupe key recap:<kind>:<user>:<period_start> makes a
+// re-run a no-op.
+//
+// A "nothing at all" period (nothing in, out, owed or paid) still gets a
+// snapshot, so Books can show "Quiet week", but never a push (and the app
+// shows no prompt for it). Owners who have never created an invoice or an
+// expense get no snapshots at all.
 //
 // Recaps are a paid feature: with the paywall on, only owners on a paid tier
 // (PAID_TIERS — founder, trialing, active, past_due) get a snapshot or a push;
@@ -45,7 +56,10 @@ import { RECAPS_LIVE } from '@/lib/recaps-live';
 import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
-import type { RecapExpenseRow, RecapInput, RecapPaymentRow } from '@/lib/recap/payload';
+import {
+  buildRecapPayload, recapAnnounces, RECAP_PAYLOAD_VERSION,
+  type RecapExpenseRow, type RecapInput, type RecapPaymentRow,
+} from '@/lib/recap/payload';
 
 const PAGE_ROWS = 1000;   // PostgREST cap; long reads are paged
 const CONCURRENCY = 6;    // owners processed at once
@@ -55,7 +69,14 @@ export {
   DEFAULT_RECAP_TZ, resolveTimeZone, localYmd, addDays, periodsEndingBefore, zonedMidnight,
   type RecapKind, type RecapPeriod,
 } from '@/lib/recap/dates';
-export type RecapRunSummary = { candidates: number; built: number; pushed: number; skipped_empty: number };
+export type RecapRunSummary = {
+  candidates: number;     // owner-periods closing today
+  built: number;          // new snapshots written this run
+  existing: number;       // already written by an earlier run (left untouched)
+  quiet: number;          // "nothing at all" snapshots (no push)
+  skipped_inactive: number; // owner has never created an invoice or expense
+  pushed: number;
+};
 
 // ── Numbers ───────────────────────────────────────────────────────────
 type Admin = ReturnType<typeof adminClient>;
@@ -223,9 +244,20 @@ export async function loadRecapInput(
 
 // ── Run ───────────────────────────────────────────────────────────────
 type Owner = { id: string; tz: string; push: boolean; periods: RecapPeriod[] };
+type Built = { period: RecapPeriod; id: string; numbers: RecapNumbers; announce: boolean };
+
+/** Has this owner ever created an invoice/quote or an expense (deleted or not)? */
+async function everActive(admin: Admin, userId: string): Promise<boolean> {
+  const [inv, exp] = await Promise.all([
+    admin.from('invoices').select('id', { count: 'exact', head: true }).eq('user_id', userId).limit(1),
+    admin.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', userId).limit(1),
+  ]);
+  if (inv.error || exp.error) throw inv.error ?? exp.error;
+  return (inv.count ?? 0) > 0 || (exp.count ?? 0) > 0;
+}
 
 export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
-  const summary: RecapRunSummary = { candidates: 0, built: 0, pushed: 0, skipped_empty: 0 };
+  const summary: RecapRunSummary = { candidates: 0, built: 0, existing: 0, quiet: 0, skipped_inactive: 0, pushed: 0 };
   if (!RECAPS_LIVE) return summary; // launch switch (lib/recaps-live): nothing built or pushed
   const admin = adminClient();
 
@@ -265,24 +297,41 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
     while (next < owners.length) {
       const o = owners[next++];
       try {
-        const built: { period: RecapPeriod; id: string; numbers: RecapNumbers }[] = [];
+        if (!(await everActive(admin, o.id))) { summary.skipped_inactive += o.periods.length; continue; }
+        const built: Built[] = [];
         for (const period of o.periods) {
-          const n = await loadNumbers(admin, o.id, period, o.tz);
-          if (n.income === 0 && n.expenses === 0) { summary.skipped_empty++; continue; }
+          const rows = await loadPeriodRows(admin, o.id, period, o.tz);
+          const numbers = rollUp(rows.expenses, rows.payments, period);
+          const payload = buildRecapPayload(await loadRecapInput(admin, o.id, period, o.tz, rows));
+          const announce = recapAnnounces(payload);
+          if (!announce) summary.quiet++;
+
+          // Insert-once: an existing snapshot (an earlier run) is never rewritten.
           const { data, error } = await admin
             .from('recaps')
             .upsert(
-              { user_id: o.id, kind: period.kind, period_start: period.start, period_end: period.end, ...n },
-              { onConflict: 'user_id,kind,period_start' },
+              {
+                user_id: o.id, kind: period.kind, period_start: period.start, period_end: period.end,
+                ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
+              },
+              { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },
             )
-            .select('id')
-            .single();
-          if (error || !data) { console.error('recaps: upsert failed', error?.code ?? error?.message); continue; }
-          summary.built++;
-          built.push({ period, id: data.id as string, numbers: n });
+            .select('id');
+          if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
+          let id = (data?.[0]?.id as string | undefined) ?? null;
+          if (id) summary.built++;
+          else {
+            summary.existing++;
+            const { data: row } = await admin.from('recaps').select('id')
+              .eq('user_id', o.id).eq('kind', period.kind).eq('period_start', period.start).maybeSingle();
+            id = (row?.id as string | undefined) ?? null;
+          }
+          if (id) built.push({ period, id, numbers, announce });
         }
-        // One push per run: the monthly recap when there is one, else the weekly.
-        const pick = built.find((b) => b.period.kind === 'month') ?? built[0];
+        // One push per run: the monthly recap when there is one, else the
+        // weekly — and never for a "nothing at all" period.
+        const announced = built.filter((b) => b.announce);
+        const pick = announced.find((b) => b.period.kind === 'month') ?? announced[0];
         if (pick && o.push && reachable.has(o.id)) {
           const delivered = await notify(o.id, {
             type: 'recap',

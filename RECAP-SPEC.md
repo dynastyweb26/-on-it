@@ -37,6 +37,29 @@ decode, gunzip where `compressed: true`. The JS files are:
   the prototype uses); see §9 for the expensive effects and how to keep them cheap.
 - Recap code loads only when a recap opens (dynamic import).
 
+## 0b. Decisions (2026-10-02, on top of the prototype)
+
+- "Still on the table": no "Send reminders" (no backend; PUNCH-LIST "Bulk
+  payment reminders — later"). "View invoices" (unpaid list) is the gold button.
+- The old sheet's Income / Expenses PDF buttons move to each row of the recap
+  history list; paid-only, locked rows open the paywall (reports variant).
+- Nothing-at-all periods: snapshot built (Books card "Quiet week"), no push,
+  no prompt (`recapAnnounces`).
+- Delivery stays on the daily 15:00 UTC cron (Monday 8–11am across the
+  continental US). iOS 16+ floor.
+- Categories: top 4 + "other" (data-1..5). Inter 500 in the prototype maps to
+  the app's 400/600. React components, not HTML strings. Hero numbers auto-fit;
+  names truncate. Performance substitutions and the audio approach as in the
+  audit (cheap transition: dark overlay + composited slide, no animated
+  filter/clip-path/blend; `navigator.audioSession.type = 'ambient'`).
+- One shared `RECAPS_LIVE` (`src/lib/recaps-live.ts`). Books dot: unwatched
+  recaps from the last 14 days only.
+- Slide order adds two guards to `R.sequence` (`recapSequence`): no kept slide
+  when $0 in and $0 out; no glance slide for a $0 month.
+- Opener: columns + ribbon vs horizon line — **open**. The payload stores
+  income per local day for both kinds (7 or 28–31), which feeds either; the
+  4-week buckets come from `monthWeeks()`.
+
 ## 1. Slide sequence
 
 ```js

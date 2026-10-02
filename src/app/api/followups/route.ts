@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
   // deliver only to preview devices.
   const recaps = deployEnv() === 'production'
     ? await runRecaps()
-    : { candidates: 0, built: 0, pushed: 0, skipped_empty: 0, skipped: 'not production' };
+    : { candidates: 0, built: 0, existing: 0, quiet: 0, skipped_inactive: 0, pushed: 0, skipped: 'not production' };
 
   return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts, recaps });
 }
