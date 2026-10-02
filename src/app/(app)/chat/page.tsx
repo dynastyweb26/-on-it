@@ -60,6 +60,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 // Tiers the cap triggers never limit (must match src/lib/access.ts).
 const UNLIMITED_TIERS = new Set(['founder', 'trialing', 'active', 'past_due']);
 
+/** The chat reply when a capped user asks for a document over the free cap:
+ *  the card still shows, but nothing is saved until they upgrade. The limit
+ *  comes from /api/access (the SQL cap functions); 3/5 only if it's missing. */
+function overCapReply(kind: 'invoice' | 'expense', limit: unknown): string {
+  const n = typeof limit === 'number' ? limit : kind === 'invoice' ? 3 : 5;
+  return kind === 'invoice'
+    ? `Here's your invoice. You've used your ${n} free invoices, so start your free trial to send it.`
+    : `Here's your expense. You've used your ${n} free expenses, so start your free trial to save it.`;
+}
+
 // The document kind a draft renders as: 'quote' or 'invoice', handled
 // explicitly. Every other intent (expense/question/other) and a missing one are
 // unexpected on a document card — log loudly rather than let an unknown value
@@ -893,6 +903,23 @@ export default function Chat() {
       });
       // The duplicate warning is now a passive card badge (see duplicateHint),
       // not a spoken/blocking reply — so the reply is always the normal one.
+      // Over the free cap? The model's reply ("You're all set") can't know, and
+      // nothing is saved until Send/Save, so it must not claim success. Checked
+      // only for a capped tier's new, ready invoice or a complete expense
+      // (quotes are never capped); fails open like the Send gate.
+      const effIntent = data.intent_explicit === false && draft?.intent ? draft.intent : data.intent;
+      const isReady = Boolean(data.ready) && data.intent !== 'expense';
+      const expenseComplete = data.intent === 'expense' && typeof data.expense?.amount === 'number' && data.expense.amount > 0;
+      const cappedTier = PAYWALL_ENABLED && !!profile && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
+      let overCap: null | 'invoice' | 'expense' = null;
+      if (cappedTier && ((isReady && effIntent === 'invoice' && !pendingInvoiceRef.current) || expenseComplete)) {
+        try {
+          const gate = await (await fetch('/api/access')).json();
+          if (expenseComplete && gate?.canExpense === false) overCap = 'expense';
+          if (!expenseComplete && gate?.hasAccess === false) overCap = 'invoice';
+          if (overCap) data.reply = overCapReply(overCap, overCap === 'invoice' ? gate.invoiceLimit : gate.expenseLimit);
+        } catch { /* unreachable — fail open, keep the model's reply */ }
+      }
       const reply: string = data.reply ?? 'Say that again?';
       const replyMsg = aMsg(reply);
       setMessages((m) => emitResult(m, replyMsg, retryId));
@@ -904,7 +931,6 @@ export default function Chat() {
       }
       // A duplicate no longer forces the card closed — it shows, ready and
       // actionable, with a passive badge (duplicateHint) instead of a prompt.
-      const isReady = Boolean(data.ready) && data.intent !== 'expense';
       if (data.intent) {
         // The AI's own output for contact, BEFORE we enrich — it's either what
         // the user spoke this turn or a value carried through the draft.
@@ -1012,8 +1038,10 @@ export default function Chat() {
         });
         // The card moves under this reply when the reply changed the draft (or
         // the card is appearing now). A no-op parse ("what's the total?") leaves
-        // it where it is.
-        if (!draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+        // it where it is. Over the cap it always moves: asking again after the
+        // wall (often the same job) must put the unsent card right under the
+        // reply, where the next Send tap reopens the wall.
+        if (overCap || !draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
           setCardAfterId(replyMsg.id);
         }
         // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
@@ -1024,8 +1052,9 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
-        // The card is appearing now (not an edit to one already up): build it in.
-        if (isReady && !(ready && draft)) playCardAnim('enter', 1800);
+        // The card is appearing now (not an edit to one already up), or moving
+        // under an over-cap reply: build it in.
+        if (isReady && (overCap || !(ready && draft))) playCardAnim('enter', 1800);
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
