@@ -1,7 +1,7 @@
-// TEMPORARY — remove before merge (PUNCH-LIST "Recap"). Renders the real
-// RecapView with mock snapshots so the sheet can be checked on a phone. The
-// cron is not mocked: test it for real on preview once the migration is
-// applied. 404 in production.
+// TEMPORARY — remove before merge (PUNCH-LIST "Recap"). The recap story
+// player on the prototype's 8 scenario fixtures, plus the old recap sheet's
+// mocks. Nothing is mocked server-side; the cron is tested for real on preview.
+// 404 in production (VERCEL_ENV === 'production').
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import RecapPreview from './RecapPreview';

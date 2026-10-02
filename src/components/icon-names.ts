@@ -52,6 +52,7 @@ export const ICON_NAMES = [
   'mic',
   'notifications',
   'open_in_new',
+  'pause',
   'payments',
   'pending',
   'photo_camera',
@@ -73,6 +74,8 @@ export const ICON_NAMES = [
   'verified',
   'visibility',
   'visibility_off',
+  'volume_off',
+  'volume_up',
   'warning',
 ] as const;
 

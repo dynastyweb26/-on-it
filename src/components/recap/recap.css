@@ -1,0 +1,94 @@
+/* Recap story — the prototype's component CSS (RECAP-SPEC §12), scoped to
+   .rc-story so nothing leaks into the app. Loaded with the lazy story chunk.
+   Tokens: the prototype's --onit-* names (same values as tailwind.config.ts);
+   fonts map to the app's next/font variables.
+   Differences from the prototype, all deliberate:
+   - No phone frame / status bar / lock screen / test panel. The chrome sits
+     under the real safe area (--rc-top) instead of the mock's 54px status bar.
+   - Transition (§9 "cheap"): no clip-path, filter: brightness() or
+     mix-blend-mode. The wipe is two counter-translated layers (transform
+     only), the dim is an ink overlay's opacity, the band is a plain gradient,
+     and the swoosh's glow is a STATIC drop-shadow on a composited layer. */
+.rc-story {
+  --onit-cream: #fff8f0; --onit-ink: #1f1b13; --onit-secondary: #4d4635;
+  --onit-gold: #d4af37; --onit-gold-light: #f1d57c; --onit-gold-deep: #b8952a; --onit-gold-text: #735c00;
+  --onit-success: #2e6b3f; --onit-success-tint: #e3efe3; --onit-neutral-chip: #efe8dc; --onit-track: #efe6d6;
+  --onit-ink-raised: #2a251c; --onit-on-ink-muted: #cfc3ad; --onit-on-ink-body: #e9dfcc;
+  --onit-data-1: #d4af37; --onit-data-2: #2f8a83; --onit-data-3: #c0693f; --onit-data-4: #5b77a8; --onit-data-5: #6f8c5c;
+  --onit-muted-dot: #a39a86;
+  --onit-display: var(--font-montserrat), system-ui, sans-serif;
+  --onit-body: var(--font-inter), system-ui, sans-serif;
+  --rc-top: env(safe-area-inset-top, 0px);
+
+  position: fixed; inset: 0; z-index: 95;
+  overflow: hidden;
+  background: var(--onit-ink);
+  font-family: var(--onit-body);
+  color: var(--onit-ink);
+  -webkit-font-smoothing: antialiased;
+  touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  outline: none;
+}
+.rc-story * { box-sizing: border-box; }
+
+.rc-layer { position: absolute; inset: 0; }
+.rc-slide { position: absolute; inset: 0; overflow: hidden; background: var(--onit-cream); }
+.rc-slide[data-theme='light'] {
+  background:
+    radial-gradient(110% 50% at 50% -4%, #fff, rgba(255, 255, 255, 0) 64%),
+    radial-gradient(120% 50% at 50% 110%, rgba(212, 175, 55, .10), rgba(212, 175, 55, 0) 60%),
+    var(--onit-cream);
+  color: var(--onit-ink);
+}
+.rc-slide[data-theme='dark'] {
+  background:
+    radial-gradient(120% 55% at 50% 108%, rgba(212, 175, 55, .16), rgba(212, 175, 55, 0) 62%),
+    radial-gradient(90% 40% at 50% -6%, rgba(255, 248, 240, .06), rgba(255, 248, 240, 0) 70%),
+    var(--onit-ink);
+  color: var(--onit-cream);
+}
+
+/* ── Chrome: progress segments, header, paused pill ── */
+.rc-chrome { position: absolute; inset: 0; pointer-events: none; z-index: 20; color: var(--onit-ink); }
+.rc-story[data-theme='dark'] .rc-chrome { color: var(--onit-cream); }
+.rc-segs { position: absolute; top: calc(var(--rc-top) + 8px); left: 16px; right: 16px; display: flex; gap: 4px; }
+.rc-seg { flex: 1; height: 3px; border-radius: 2px; overflow: hidden; background: rgba(127, 118, 100, .3); }
+.rc-seg i { display: block; height: 100%; background: currentColor; transform-origin: left center; transform: scaleX(0); }
+.rc-head {
+  position: absolute; top: calc(var(--rc-top) + 22px); left: 16px; right: 12px; height: 40px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.rc-head-l { display: flex; align-items: center; gap: 8px; font: 600 13px var(--onit-body); }
+.rc-head-l img { width: 26px; height: 26px; border-radius: 7px; display: block; }
+.rc-head-r { display: flex; gap: 6px; }
+.rc-iconbtn {
+  pointer-events: auto; width: 40px; height: 40px; border: 0; border-radius: 999px;
+  background: rgba(31, 27, 19, .06); color: inherit;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+.rc-story[data-theme='dark'] .rc-iconbtn { background: rgba(255, 248, 240, .1); }
+.rc-iconbtn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.rc-paused {
+  position: absolute; top: calc(var(--rc-top) + 70px); right: 16px; height: 26px; padding: 0 10px;
+  border-radius: 999px; background: rgba(31, 27, 19, .6); color: var(--onit-cream);
+  font: 600 11px var(--onit-body); letter-spacing: .1em; text-transform: uppercase;
+  display: none; align-items: center; gap: 4px;
+}
+.rc-paused[data-on] { display: flex; }
+
+/* ── Transition (swoosh wipe) ── */
+.rc-wipe-clip, .rc-wipe-inner { position: absolute; inset: 0; will-change: transform; }
+.rc-wipe-clip { overflow: hidden; z-index: 2; }
+.rc-wipe-dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 3; }
+.rc-wipe {
+  position: absolute; top: 35.2%; left: 0; width: 340px; height: 269px; z-index: 15; pointer-events: none; /* 300 of 852 */
+  filter: drop-shadow(0 0 24px rgba(212, 175, 55, .7)); opacity: 0; will-change: transform, opacity;
+}
+.rc-wipeband {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 140px; z-index: 14; pointer-events: none;
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0), rgba(240, 205, 110, .45) 50%, rgba(212, 175, 55, 0));
+  opacity: 0; will-change: transform, opacity;
+}
+
+.rc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
