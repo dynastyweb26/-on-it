@@ -31,6 +31,26 @@ html:has([data-app-shell]) body {
   overscroll-behavior: none;
 }
 
+/* On-screen keyboard (lib/keyboard.ts sets html[data-kb] and the --kb / --vvh
+   / --vv-top / --kb-overlap variables while it's open):
+   - data-kb-fit: full-screen layers (app shell, paywall, sheets, dialogs) pin
+     to the visible area, so their bottom edge sits right on the keyboard and
+     the focused field can't end up underneath it. The shell is fixed only
+     while typing; it scrolls nothing itself, so nothing moves.
+   - data-kb-hide: pinned footers / the tab bar step aside for the keyboard.
+   - data-kb-lift: fixed bottom elements (toasts) ride above it. */
+html[data-kb] [data-kb-fit] {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vv-top, 0px);
+  bottom: auto;
+  height: var(--vvh, 100dvh);
+}
+html[data-kb] [data-kb-hide] { display: none !important; }
+/* `translate` (not transform) composes with the element's own Tailwind transform. */
+html[data-kb] [data-kb-lift] { translate: 0 calc(-1 * var(--kb-overlap, 0px)); }
+
 @layer base {
   h1, h2, h3 { @apply font-display; }
 }
