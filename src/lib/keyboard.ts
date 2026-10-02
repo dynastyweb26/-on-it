@@ -58,11 +58,12 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
   return null; // the document itself
 }
 
+// Pages outside the app shell (login, onboarding, reset-password) scroll the
+// document; the shell locks it (overflow: hidden, globals.css). A short page
+// that fits today still counts: the keyboard padding is what makes it scroll.
 function documentScrolls(): boolean {
-  const root = document.scrollingElement ?? document.documentElement;
   return getComputedStyle(document.documentElement).overflowY !== 'hidden'
-    && getComputedStyle(document.body).overflowY !== 'hidden'
-    && root.scrollHeight > root.clientHeight;
+    && getComputedStyle(document.body).overflowY !== 'hidden';
 }
 
 export function startKeyboardAvoidance(): () => void {
