@@ -44,15 +44,19 @@ export default function DeleteConfirmModal({
   }
 
   return (
+    // data-kb-fit + overflow-y-auto + my-auto: while the keyboard is open the
+    // backdrop shrinks to the visible area and a dialog taller than that (the
+    // typed-DELETE variant on an iPhone SE) scrolls instead of being clipped.
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-on-background/45 p-4"
+      data-kb-fit=""
+      className="fixed inset-0 z-[80] flex justify-center overflow-y-auto bg-on-background/45 p-4"
       onClick={handleClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Delete ${recordType}`}
-        className="w-full max-w-sm rounded-card p-6 shadow-card-raised"
+        className="my-auto w-full max-w-sm rounded-card p-6 shadow-card-raised"
         style={{ backgroundColor: '#fff8f0', animation: 'paywall-in 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >

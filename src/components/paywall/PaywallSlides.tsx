@@ -1,8 +1,9 @@
 // The paywall slideshow's slides, built to Claude Design frames 1a–1e: a
-// Montserrat 800 headline over a feature graphic — a base object fading out at
-// the bottom, plus one elevated overlay card. Everything is drawn on the
-// design's fixed 393×300 canvas in DOM/SVG and scaled as a whole by the
-// slideshow, so it stays crisp at any size.
+// Montserrat 800 headline (SLIDE_TITLE, set as live text by the slideshow so it
+// can grow on its own) over a feature graphic — a base object fading out at the
+// bottom, plus one elevated overlay card. The graphic is drawn on a fixed
+// 393×216 canvas in DOM/SVG and scaled as a whole by the slideshow, so it
+// stays crisp at any size.
 //
 // All data is invented. The invoice/report "from" mark is the USER's business
 // (a neutral contractor tile), never On It's logo — that lives only at the top
@@ -12,8 +13,15 @@ import Icon from '@/components/Icon';
 import { PAYMENT_BRANDS, PaymentLogo } from '@/components/paywall/PaymentLogos';
 import type { IconName } from '@/components/icon-names';
 
-export const SLIDE_W = 393;
-export const SLIDE_H = 300;
+// The graphic canvas (the design's 393×300 slide minus its 84px headline band).
+export const GRAPHIC_W = 393;
+export const GRAPHIC_H = 216;
+// The objects span x≈40–371 (centre 205.5); they're drawn OBJECTS_DX to the
+// left so that span is centred on the canvas, and the slideshow scales by
+// GRAPHIC_CONTENT_W (the span plus a 14px margin a side), not GRAPHIC_W — the
+// glow may crop at the sides, an object never does.
+const OBJECTS_DX = -9;
+export const GRAPHIC_CONTENT_W = 360;
 
 export type SlideId = 'invoice' | 'paid' | 'expense' | 'reports' | 'recap';
 
@@ -332,23 +340,18 @@ const GRAPHIC: Record<SlideId, () => JSX.Element> = {
   recap: RecapGraphic,
 };
 
-export function PaywallSlide({ id }: { id: SlideId }) {
-  const [a, b] = SLIDE_TITLE[id];
+/** One slide's graphic on its 393×216 canvas (the headline is drawn by the slideshow). */
+export function PaywallSlideGraphic({ id }: { id: SlideId }) {
   const Graphic = GRAPHIC[id];
   return (
-    <div style={{ position: 'relative', width: SLIDE_W, height: SLIDE_H, overflow: 'hidden', background: '#fff8f0', fontFamily: INTER, color: INK }}>
+    <div style={{ position: 'relative', width: GRAPHIC_W, height: GRAPHIC_H, overflow: 'hidden', fontFamily: INTER, color: INK }}>
       {/* warm glow + two soft white swooshes behind the graphic */}
-      <div aria-hidden style={{ position: 'absolute', left: '50%', top: 96, width: 380, height: 220, transform: 'translateX(-50%)', background: 'radial-gradient(closest-side, #f8ead0, rgba(248,234,208,0))' }} />
-      <svg aria-hidden width={393} height={216} viewBox="0 0 393 216" style={{ position: 'absolute', left: 0, top: 84 }}>
+      <div aria-hidden style={{ position: 'absolute', left: '50%', top: 12, width: 380, height: 220, transform: 'translateX(-50%)', background: 'radial-gradient(closest-side, #f8ead0, rgba(248,234,208,0))' }} />
+      <svg aria-hidden width={393} height={216} viewBox="0 0 393 216" style={{ position: 'absolute', left: 0, top: 0 }}>
         <path d="M-10 186 C 90 120, 210 210, 405 70" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" />
         <path d="M-10 196 C 100 140, 220 222, 405 92" fill="none" stroke="#fff" strokeOpacity={0.55} strokeWidth={1.5} strokeLinecap="round" />
       </svg>
-
-      <h2 style={{ position: 'absolute', top: 8, left: 0, right: 0, margin: 0, textAlign: 'center', fontFamily: MONT, fontWeight: 800, fontSize: 30, lineHeight: 1.12, letterSpacing: '-0.025em' }}>
-        {a}<br />{b}
-      </h2>
-
-      <div aria-hidden style={{ position: 'absolute', left: 0, top: 84, width: SLIDE_W, height: 216, overflow: 'hidden' }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, left: OBJECTS_DX, right: -OBJECTS_DX, overflow: 'hidden' }}>
         <Graphic />
       </div>
     </div>

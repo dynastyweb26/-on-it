@@ -1,22 +1,25 @@
 'use client';
 /* ═══ Paywall ═══
    Shown when a free/canceled user hits the 3-invoice or 5-expense cap, or taps
-   an Income/Expense PDF export (variant). Built to the "On It Paywall" design
-   (frame 1f): a full-screen cream page with a close X (top-left, "Not now"),
-   the app icon, a feature slideshow in the upper half, then cards — trial
-   reminder, "Have a code?" (expands into CodeEntry), the selected plan row —
-   and a pinned footer with one gold CTA, "Nothing charged today" and a
-   readable disclosure. No big price, no urgency.
-   Short screens (iPhone SE): the slideshow scales down to fit, the cards
-   scroll, and the footer (CTA + disclosure) stays pinned, so the CTA is always
-   reachable. Focus trap, Escape dismiss, body scroll lock.
+   an Income/Expense PDF export (variant). A full-screen cream page with a
+   close X (top-left, "Not now") and the app icon, then ONE scrolling column:
+     context pill + slideshow (the hero, ~57% of the screen height)
+     → Trial reminder → Have a code? (expands into CodeEntry) → 14-day trial
+     row → "What's included" (Free vs On It)
+   and a pinned footer: one gold CTA, "Nothing charged today", the full
+   disclosure right under it, Terms · Privacy. No big price, no urgency.
+   Returning customers (no trial left) get the same page without the trial
+   reminder / trial rows. While the keyboard is open (the code field) the page
+   pins to the visible area and the footer steps aside (lib/keyboard.ts), so
+   the field sits right above the keyboard.
+   Focus trap, Escape dismiss, body scroll lock.
    CTA → POST /api/checkout → Stripe hosted Checkout; the 503 dormant response
    is shown inline. */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
 import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
-import { SLIDE_H, SLIDE_W, type SlideId } from '@/components/paywall/PaywallSlides';
+import type { SlideId } from '@/components/paywall/PaywallSlides';
 import { trialDates } from '@/lib/trial';
 
 // Slide 5 ("Your week at a glance") appears only once recaps ship: flip this
@@ -56,8 +59,31 @@ const CARD = 'rounded-2xl border border-[#efe4d2] bg-surface-container-lowest';
 const PLAN = 'flex h-14 items-center justify-between gap-2.5 rounded-2xl border-[1.5px] border-on-background bg-surface-container-lowest px-4 [@media(max-height:700px)]:h-[50px]';
 // Rows tighten on short screens (SE), per the design's SE frames.
 const ROW_H = 'min-h-[60px] [@media(max-height:700px)]:min-h-[52px]';
-const DOTS_H = 29; // the page-dot row under the slideshow (7px dots + padding)
-const MIN_SCALE = 0.48;
+// The slideshow hero: this share of the screen height, never taller than the
+// space between the top bar and the footer (minus the pill), so the whole hero
+// is in view when the page opens.
+const HERO_SHARE = 0.57;
+const HERO_MIN = 260;
+
+// "What's included": TRUE rows only — each matches what the code enforces
+// (free_invoice_limit() / free_expense_limit(), quotes never capped, PDF
+// exports paid-only). `true` = ✓, `false` = —.
+type Cell = string | boolean;
+const INCLUDED: { label: string; free: Cell; paid: Cell; recapsOnly?: boolean }[] = [
+  { label: 'Invoices', free: '3 free', paid: 'Unlimited' },
+  { label: 'Expenses & receipt scans', free: '5 free', paid: 'Unlimited' },
+  { label: 'Quotes', free: 'Unlimited', paid: 'Unlimited' },
+  { label: 'Voice invoicing', free: true, paid: true },
+  { label: 'Online pay page', free: true, paid: true },
+  { label: 'Income & expense reports (PDF)', free: false, paid: true },
+  { label: 'Weekly & monthly recaps', free: false, paid: true, recapsOnly: true },
+];
+
+function CellValue({ v }: { v: Cell }): ReactNode {
+  if (v === true) return <span role="img" aria-label="Included"><Icon name="check" size={20} className="text-primary" /></span>;
+  if (v === false) return <span role="img" aria-label="Not included" className="text-on-surface-variant">—</span>;
+  return v;
+}
 
 export default function PaywallModal({ onClose, variant = 'invoice', returnTo }: {
   onClose: () => void;
@@ -67,7 +93,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
   const back: CheckoutReturn = returnTo ?? (variant === 'reports' ? 'summary' : 'chat');
   const pageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const cardsRef = useRef<HTMLDivElement>(null);
+  const codeCardRef = useRef<HTMLDivElement>(null);
   const reasonRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -91,28 +117,25 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
   const [{ end, remind }] = useState(() => trialDates());
   const trial = trialEligible === true;
   const returning = trialEligible === false;
+  const included = INCLUDED.filter((r) => !r.recapsOnly || RECAPS_LIVE);
 
-  // Slideshow size: the design's 393×300 canvas, scaled down so the cards fit
-  // under it on short screens (SE ≈ 0.62). Measured with the code row
-  // collapsed; opening it scrolls the page instead of shrinking the slides.
-  const [scale, setScale] = useState(1);
-  const cardsH = useRef(0);
-  const fit = useCallback(() => {
+  // Hero height, from the page as it opens: measured again on rotation and
+  // once the trial rows settle the footer's height, but never while the
+  // keyboard is open — typing a code must not reshape the page.
+  const [heroH, setHeroH] = useState(0);
+  const sizeHero = useCallback(() => {
     const sc = scrollRef.current;
-    const cards = cardsRef.current;
-    if (!sc || !cards) return;
-    if (!showCode) cardsH.current = cards.offsetHeight;
-    const reasonH = reasonRef.current?.offsetHeight ?? 0;
-    const avail = sc.clientHeight - reasonH - cardsH.current - DOTS_H - 16;
-    const byH = Math.min(1, Math.max(MIN_SCALE, avail / SLIDE_H));
-    const byW = Math.min(1, sc.clientWidth / SLIDE_W);
-    setScale(Math.min(byH, byW));
-  }, [showCode]);
-  useLayoutEffect(() => { fit(); }, [fit, trialEligible]);
+    if (!sc || document.documentElement.hasAttribute('data-kb')) return;
+    const room = sc.clientHeight - (reasonRef.current?.offsetHeight ?? 0) - 8;
+    setHeroH(Math.round(Math.max(HERO_MIN, Math.min(window.innerHeight * HERO_SHARE, room))));
+  }, []);
+  useLayoutEffect(() => { sizeHero(); }, [sizeHero, trialEligible]);
   useEffect(() => {
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  }, [fit]);
+    let w = window.innerWidth;
+    const onResize = () => { if (window.innerWidth !== w) { w = window.innerWidth; sizeHero(); } };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [sizeHero]);
 
   // Body scroll lock while open
   useEffect(() => {
@@ -147,10 +170,15 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
   function toggleCode() {
     setShowCode((open) => {
       if (!open) {
-        // Bring the field into view above the pinned footer.
+        // Bring the opened code row fully into view (its own scroller only,
+        // instant). Once the keyboard is up, lib/keyboard.ts keeps the field
+        // right above it.
         setTimeout(() => {
           const sc = scrollRef.current;
-          sc?.scrollTo({ top: sc.scrollHeight, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+          const row = codeCardRef.current;
+          if (!sc || !row) return;
+          const over = row.getBoundingClientRect().bottom + 12 - sc.getBoundingClientRect().bottom;
+          if (over > 0) sc.scrollTop += over;
         }, 30);
       }
       return !open;
@@ -188,6 +216,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
       aria-label="Start your On It plan"
       aria-describedby="paywall-reason"
       tabIndex={-1}
+      data-kb-fit=""
       className="fixed inset-0 z-[70] flex justify-center bg-background font-body text-on-background outline-none"
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
     >
@@ -214,7 +243,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
           />
         </div>
 
-        {/* Scrolling middle: slideshow + cards. */}
+        {/* The page: hero slideshow, then the cards and "What's included". */}
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -227,9 +256,9 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
               {REASON[variant]}
             </p>
           </div>
-          <PaywallSlideshow slides={SLIDES} start={START_SLIDE[variant]} scale={scale} />
+          {heroH > 0 && <PaywallSlideshow slides={SLIDES} start={START_SLIDE[variant]} height={heroH} />}
 
-          <div ref={cardsRef} className="flex flex-col gap-2 px-4">
+          <div className="flex flex-col gap-2 px-4">
             {trial && (
               <div className={`${CARD} flex ${ROW_H} items-center gap-3 px-3.5 py-2`}>
                 <Icon name="check_circle" size={24} className="shrink-0 text-primary" />
@@ -242,7 +271,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
               </div>
             )}
 
-            <div className={`${CARD} overflow-hidden`}>
+            <div ref={codeCardRef} className={`${CARD} overflow-hidden`}>
               <button
                 type="button"
                 aria-expanded={showCode}
@@ -294,10 +323,41 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
               </div>
             )}
           </div>
+
+          {/* What's included: Free vs On It, true rows only (INCLUDED). */}
+          <section aria-labelledby="paywall-included" className="mt-6 px-4">
+            <h2 id="paywall-included" className="mb-2.5 px-1 font-display text-[19px] font-extrabold tracking-[-0.01em]">
+              What’s included
+            </h2>
+            <table className={`${CARD} w-full border-separate border-spacing-0 overflow-hidden text-[14px] leading-5`}>
+              <thead>
+                <tr className="text-[12px] font-semibold uppercase tracking-[.08em] text-on-surface-variant">
+                  <th scope="col" className="px-3.5 py-2.5 text-left font-semibold"><span className="sr-only">Feature</span></th>
+                  <th scope="col" className="w-[84px] px-2 py-2.5 text-center font-semibold">Free</th>
+                  <th scope="col" className="w-[96px] bg-primary-container/25 px-2 py-2.5 text-center font-display font-extrabold text-on-background">On It</th>
+                </tr>
+              </thead>
+              <tbody>
+                {included.map((r) => (
+                  <tr key={r.label}>
+                    <th scope="row" className="border-t border-[#efe4d2] px-3.5 py-3 text-left font-semibold">{r.label}</th>
+                    <td className="border-t border-[#efe4d2] px-2 py-3 text-center text-on-surface-variant">
+                      <span className="inline-flex justify-center"><CellValue v={r.free} /></span>
+                    </td>
+                    <td className="border-t border-[#efe4d2] bg-primary-container/25 px-2 py-3 text-center font-semibold">
+                      <span className="inline-flex justify-center"><CellValue v={r.paid} /></span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
         </div>
 
-        {/* Pinned footer: the CTA is always reachable. */}
+        {/* Pinned footer: the CTA is always reachable — except while typing a
+            code, when it steps aside so the field can sit on the keyboard. */}
         <div
+          data-kb-hide=""
           className="relative flex shrink-0 flex-col items-center gap-2.5 bg-background px-5 pt-2.5"
           style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
         >
