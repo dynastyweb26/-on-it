@@ -835,14 +835,14 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
                   first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
-                {/* The paywall sheet's disclosure, with "in Settings" → "below". */}
+                {/* The paywall's disclosure, with "in Settings" → "below". */}
                 {access.trialEligible
                   ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
                   : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : access.trialEligible ? 'Start free trial' : 'Subscribe — $9.99/month'}
+                {billingBusy ? 'Opening…' : access.trialEligible ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
               </button>
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>
