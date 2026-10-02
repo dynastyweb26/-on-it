@@ -11,7 +11,7 @@
 // summarize() counts every expense in the set. On It makes no judgment about
 // which expenses count for anything beyond the user's own records.
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
-import { paymentMethodLabel } from '@/lib/payment-methods';
+import { ledgerEntryLabel } from '@/lib/payment-methods';
 
 export type Granularity = 'week' | 'month' | 'quarter' | 'year';
 
@@ -128,6 +128,7 @@ export interface PaymentLite {
   client_name: string;
   method?: string | null;      // invoice_payments.method (zelle, cash, card, cashapp…)
   via_stripe?: boolean;        // paid on the pay page (has a Checkout Session id)
+  entry_type?: string | null;  // payment | refund | dispute_withdrawn | dispute_reinstated (absent on older queries)
   invoice_number?: number | null;
   id?: string;                 // invoice_payments.id — carried through for the detailed PDF
 }
@@ -186,12 +187,15 @@ export function summarizeIncome(
     broughtIn += amt;
     const name = p.client_name || 'Client';
     const cur = byClient.get(name) ?? { client: name, count: 0, total: 0, payments: [] };
-    cur.count += 1; // number of payments received, not invoices
+    // Number of payments received, not invoices. A refund or dispute row is
+    // money moving, so it nets into the totals, but it isn't a payment.
+    const isPayment = p.entry_type ? p.entry_type === 'payment' : amt > 0;
+    if (isPayment) cur.count += 1;
     cur.total += amt;
     cur.payments.push({
       day,
       invoiceNumber: p.invoice_number ?? null,
-      method: paymentMethodLabel(p.method ?? 'other', Boolean(p.via_stripe)),
+      method: ledgerEntryLabel(p.entry_type, p.method ?? 'other', Boolean(p.via_stripe), amt),
       amount: amt,
       id: p.id,
     });

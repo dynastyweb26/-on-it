@@ -13,11 +13,12 @@ import { groupByPeriod } from '@/lib/date-groups';
 import { localDay } from '@/lib/tax-summary';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
+import { invoiceStatusLabel } from '@/lib/payment-methods';
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
-  converted_from: string | null; amount_paid: number | null;
+  converted_from: string | null; amount_paid: number | null; refunded_amount: number | null;
 }
 type Filter = 'all' | 'unpaid' | 'paid' | 'quote';
 const FILTERS: readonly Filter[] = ['all', 'unpaid', 'paid', 'quote'];
@@ -62,7 +63,7 @@ export default function Invoices() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
-        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, refunded_amount')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -203,7 +204,7 @@ export default function Invoices() {
                             </div>
                             <span className={`status-chip shrink-0 ${chip.cls}`}>
                               <Icon name={chip.icon} size={18} />
-                              {converted ? 'converted' : r.status}
+                              {converted ? 'converted' : invoiceStatusLabel(r.status, r.refunded_amount, r.amount_paid)}
                             </span>
                           </div>
                           <div className="flex items-end justify-between">

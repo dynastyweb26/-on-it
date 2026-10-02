@@ -16,7 +16,7 @@ import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
-import { paymentMethodLabel } from '@/lib/payment-methods';
+import { invoiceStatusLabel, ledgerEntryLabel } from '@/lib/payment-methods';
 import PaywallModal from '@/components/PaywallModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
@@ -209,8 +209,9 @@ export default function InvoiceDetail() {
     amountPaid,
   );
   // Most recent payment date (payments are ordered newest-first) for the PDF's
-  // payment-received line.
-  const paymentDate = payments.length ? new Date(payments[0].paid_at).toLocaleDateString() : null;
+  // payment-received line. Money in only: a refund or dispute row isn't a payment.
+  const lastPayment = payments.find((p) => Number(p.amount) > 0);
+  const paymentDate = lastPayment ? new Date(lastPayment.paid_at).toLocaleDateString() : null;
 
   const rd: InvoiceRenderData = {
     kind: inv.kind, invoiceNumber: inv.invoice_number,
@@ -603,7 +604,7 @@ export default function InvoiceDetail() {
               {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} ·{' '}
               <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-chip-in' : ''}`}
                 style={paidAnim ? { animationDelay: '380ms' } : undefined}>
-                {inv.status}
+                {invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid)}
               </span>
             </div>
             {/* First qualifying client view (mark_invoice_viewed), in local time. */}
@@ -773,13 +774,14 @@ export default function InvoiceDetail() {
               >
                 <div>
                   <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
-                  <span className="ml-2 font-medium text-on-surface-variant">{paymentMethodLabel(p.method, Boolean(p.stripe_checkout_session_id))}</span>
+                  <span className="ml-2 font-medium text-on-surface-variant">{ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}</span>
                   <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
                 </div>
-                {/* Stripe-sourced rows (paid on the pay page) are locked by RLS —
-                    a delete would silently match 0 rows — so they get no delete
-                    control. Refunds are handled in the seller's Stripe Dashboard. */}
-                {p.stripe_checkout_session_id || p.stripe_event_id ? null : deletingPaymentId === p.id ? (
+                {/* Stripe-sourced rows (paid on the pay page, and the refund /
+                    dispute rows the webhook records against them) are locked by
+                    RLS — a delete would silently match 0 rows — so they get no
+                    delete control. Refunds are made in the seller's Stripe Dashboard. */}
+                {p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment') ? null : deletingPaymentId === p.id ? (
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-semibold text-error">Delete?</span>
                     <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
