@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 import { bucketFor } from '@/lib/tax-summary';
 import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
+import { RECAPS_LIVE } from '@/lib/recaps-live';
 import { shareInvoice } from '@/lib/pdf/generate';
 import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 
@@ -79,7 +80,7 @@ export default function RecapSheet({ suppressed = false }: { suppressed?: boolea
   const checked = useRef(false); // one recap per app open
 
   useEffect(() => {
-    if (checked.current || suppressed) return;
+    if (!RECAPS_LIVE || checked.current || suppressed) return; // hidden until launch
     if (HIDDEN_ON.some((p) => pathname?.startsWith(p))) return;
     checked.current = true;
     const supabase = createClient();

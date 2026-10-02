@@ -30,6 +30,9 @@
 // needs recap_push on and a device in THIS environment (checked first, so the
 // dedupe key is never claimed for an owner nobody can reach). With push off
 // the snapshot still feeds the in-app RecapSheet.
+//
+// Nothing runs until launch: RECAPS_LIVE (lib/recaps-live) off → no snapshot,
+// no push.
 import 'server-only';
 import { adminClient } from '@/lib/supabase/admin';
 import { deployEnv } from '@/lib/deploy-env';
@@ -38,71 +41,21 @@ import { roundCurrency } from '@/lib/financials';
 import { summarize, summarizeIncome, type ExpenseLite, type PaymentLite } from '@/lib/tax-summary';
 import { isExpenseCategory } from '@/lib/expenses';
 import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
+import { RECAPS_LIVE } from '@/lib/recaps-live';
+import {
+  addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
+} from '@/lib/recap/dates';
+import type { RecapExpenseRow, RecapInput, RecapPaymentRow } from '@/lib/recap/payload';
 
-export const DEFAULT_RECAP_TZ = 'America/Chicago';
 const PAGE_ROWS = 1000;   // PostgREST cap; long reads are paged
 const CONCURRENCY = 6;    // owners processed at once
 
-export type RecapKind = 'week' | 'month';
-export type RecapPeriod = { kind: RecapKind; start: string; end: string }; // local yyyy-mm-dd, inclusive
+// Periods and local dates live in lib/recap/dates (pure, unit-tested); re-exported here.
+export {
+  DEFAULT_RECAP_TZ, resolveTimeZone, localYmd, addDays, periodsEndingBefore, zonedMidnight,
+  type RecapKind, type RecapPeriod,
+} from '@/lib/recap/dates';
 export type RecapRunSummary = { candidates: number; built: number; pushed: number; skipped_empty: number };
-
-// ── Dates (pure; exported for tests) ──────────────────────────────────
-const pad = (n: number) => String(n).padStart(2, '0');
-
-/** A zone this runtime knows, else the default. */
-export function resolveTimeZone(tz: string | null | undefined): string {
-  if (tz) {
-    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch { /* unknown zone */ }
-  }
-  return DEFAULT_RECAP_TZ;
-}
-
-/** The local calendar date (yyyy-mm-dd) in `tz` at instant `at`. */
-export function localYmd(tz: string, at: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
-}
-
-export function addDays(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
-}
-
-/** The periods that close on local date `today`: the previous Mon–Sun on a
- *  Monday, the previous calendar month on the 1st (both on a Monday the 1st). */
-export function periodsEndingBefore(today: string): RecapPeriod[] {
-  const [y, m, d] = today.split('-').map(Number);
-  const out: RecapPeriod[] = [];
-  if (d === 1) {
-    const first = new Date(Date.UTC(y, m - 2, 1)); // previous month, day 1 (Date.UTC wraps the year)
-    out.push({ kind: 'month', start: `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-01`, end: addDays(today, -1) });
-  }
-  if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 1) {
-    out.push({ kind: 'week', start: addDays(today, -7), end: addDays(today, -1) });
-  }
-  return out;
-}
-
-/** UTC offset of `tz` at instant `at`, in ms (local − UTC). */
-function tzOffsetMs(tz: string, at: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(at);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
-  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
-}
-
-/** The instant of local midnight starting `ymd` in `tz` (DST-safe). */
-export function zonedMidnight(ymd: string, tz: string): Date {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const guess = Date.UTC(y, m - 1, d);
-  let t = guess - tzOffsetMs(tz, new Date(guess));
-  t = guess - tzOffsetMs(tz, new Date(t)); // second pass lands DST transitions
-  return new Date(t);
-}
 
 // ── Numbers ───────────────────────────────────────────────────────────
 type Admin = ReturnType<typeof adminClient>;
@@ -168,8 +121,10 @@ export function rollUp(expenseRows: Row[], paymentRows: Row[], period: RecapPeri
   };
 }
 
-async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
-  const [expenseRows, paymentRows] = await Promise.all([
+/** The period's expense and payment rows (the Summary/PDF filters), with the
+ *  columns both the number columns and the story payload need. */
+export async function loadPeriodRows(admin: Admin, userId: string, period: RecapPeriod, tz: string) {
+  const [expenses, payments] = await Promise.all([
     fetchAll((from, to) => admin
       .from('expenses')
       .select('id, amount, category, vendor, spent_on')
@@ -181,7 +136,7 @@ async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz
       .range(from, to)),
     fetchAll((from, to) => admin
       .from('invoice_payments')
-      .select('id, amount, paid_at, invoices!inner(kind, deleted_at)')
+      .select('id, amount, paid_at, method, invoices!inner(kind, deleted_at, client_name)')
       .eq('user_id', userId)
       .eq('invoices.kind', 'invoice')
       .is('invoices.deleted_at', null)
@@ -190,7 +145,80 @@ async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz
       .order('id', { ascending: true })
       .range(from, to)),
   ]);
-  return rollUp(expenseRows, paymentRows, period);
+  return { expenses, payments };
+}
+
+async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
+  const rows = await loadPeriodRows(admin, userId, period, tz);
+  return rollUp(rows.expenses, rows.payments, period);
+}
+
+const embedded = (v: unknown): Row => (Array.isArray(v) ? (v[0] ?? {}) : (v ?? {})) as Row;
+
+/** Everything buildRecapPayload needs beyond the period's own rows: what is
+ *  still owed and pending as of now, the invoices paid in the period, and the
+ *  previous period's totals for the change chip. */
+export async function loadRecapInput(
+  admin: Admin, userId: string, period: RecapPeriod, tz: string,
+  rows: { expenses: Row[]; payments: Row[] },
+): Promise<RecapInput> {
+  const from = zonedMidnight(period.start, tz).toISOString();
+  const until = zonedMidnight(addDays(period.end, 1), tz).toISOString();
+  const [owed, paid, quotes, converted, previous] = await Promise.all([
+    // Still owed: the Books "Still owed" rows (sent/overdue invoices, not deleted).
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, client_name, total, amount_paid, viewed_at, sent_at, first_sent_at')
+      .eq('user_id', userId).eq('kind', 'invoice').in('status', ['sent', 'overdue']).is('deleted_at', null)
+      .order('id', { ascending: true }).range(f, t)),
+    // Paid in the period (the caught-up bundle).
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, client_name, total, paid_at')
+      .eq('user_id', userId).eq('kind', 'invoice').eq('status', 'paid').is('deleted_at', null)
+      .gte('paid_at', from).lt('paid_at', until)
+      .order('id', { ascending: true }).range(f, t)),
+    // Quotes waiting on an answer: sent, not deleted, never converted.
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id')
+      .eq('user_id', userId).eq('kind', 'quote').eq('status', 'sent').is('deleted_at', null)
+      .order('id', { ascending: true }).range(f, t)),
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, converted_from')
+      .eq('user_id', userId).not('converted_from', 'is', null)
+      .order('id', { ascending: true }).range(f, t)),
+    loadNumbers(admin, userId, previousPeriod(period), tz),
+  ]);
+  const answered = new Set(converted.map((r) => r.converted_from as string));
+
+  return {
+    period,
+    tz,
+    payments: rows.payments.map((p): RecapPaymentRow => ({
+      amount: p.amount as number | string,
+      paid_at: p.paid_at as string,
+      method: (p.method as string | null) ?? null,
+      client_name: (embedded(p.invoices).client_name as string | null) ?? null,
+    })),
+    expenses: rows.expenses.map((e): RecapExpenseRow => ({
+      amount: e.amount as number | string,
+      category: (e.category as string | null) ?? null,
+      vendor: (e.vendor as string | null) ?? null,
+      spent_on: e.spent_on as string,
+    })),
+    owed: owed.map((o) => ({
+      client_name: (o.client_name as string | null) ?? null,
+      total: o.total as number | string,
+      amount_paid: (o.amount_paid as number | string | null) ?? null,
+      viewed_at: (o.viewed_at as string | null) ?? null,
+      sent_at: ((o.sent_at ?? o.first_sent_at) as string | null) ?? null,
+    })),
+    paid: paid.map((p) => ({
+      client_name: (p.client_name as string | null) ?? null,
+      total: p.total as number | string,
+      paid_at: p.paid_at as string,
+    })),
+    quotesPending: quotes.filter((q) => !answered.has(q.id as string)).length,
+    previous: { income: previous.income, expenses: previous.expenses },
+  };
 }
 
 // ── Run ───────────────────────────────────────────────────────────────
@@ -198,6 +226,7 @@ type Owner = { id: string; tz: string; push: boolean; periods: RecapPeriod[] };
 
 export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
   const summary: RecapRunSummary = { candidates: 0, built: 0, pushed: 0, skipped_empty: 0 };
+  if (!RECAPS_LIVE) return summary; // launch switch (lib/recaps-live): nothing built or pushed
   const admin = adminClient();
 
   let profiles: Row[];
