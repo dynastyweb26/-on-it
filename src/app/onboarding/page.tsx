@@ -107,9 +107,18 @@ export default function Onboarding() {
     const grantToken = document.cookie
       .split('; ').find((c) => c.startsWith('onit_grant='))?.split('=')[1];
     if (grantToken) {
-      // access grant first; if the token isn't one, try it as a referral code
-      const { data: tier } = await supabase.rpc('redeem_grant', { p_token: grantToken });
-      if (!tier) await supabase.rpc('redeem_referral', { p_token: grantToken });
+      // Access code first (server-only redemption via /api/redeem, exact
+      // match); if it isn't one, try it as a referral code.
+      let granted = false;
+      try {
+        const res = await fetch('/api/redeem', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ code: decodeURIComponent(grantToken) }),
+        });
+        granted = Boolean((await res.json())?.ok);
+      } catch { /* redeem unreachable — fall through to the referral try */ }
+      if (!granted) await supabase.rpc('redeem_referral', { p_token: grantToken });
       document.cookie = 'onit_grant=; max-age=0; path=/';
     }
     router.push('/chat');

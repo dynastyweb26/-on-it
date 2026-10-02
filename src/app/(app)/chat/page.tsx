@@ -19,7 +19,10 @@ import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGues
 import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
-import PaywallModal from '@/components/PaywallModal';
+import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
+import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { fetchUsageLine } from '@/lib/usage';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -37,19 +40,35 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat'; }
+interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  // A quiet status line (free-tier usage): secondary small text, no bubble,
+  // and never sent to /api/parse as conversation history.
+  quiet?: boolean; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
   slogan: string | null; brand_colors: string[]; background_color: string | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
   // Connect flags (select(*)) — for the PDF card line only.
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
   card_payments_enabled?: boolean | null;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+// Tiers the cap triggers never limit (must match src/lib/access.ts).
+const UNLIMITED_TIERS = new Set(['founder', 'trialing', 'active', 'past_due']);
+
+/** The chat reply when a capped user asks for a document over the free cap:
+ *  the card still shows, but nothing is saved until they upgrade. The limit
+ *  comes from /api/access (the SQL cap functions); 3/5 only if it's missing. */
+function overCapReply(kind: 'invoice' | 'expense', limit: unknown): string {
+  const n = typeof limit === 'number' ? limit : kind === 'invoice' ? 3 : 5;
+  return kind === 'invoice'
+    ? `Here's your invoice. You've used your ${n} free invoices, so start your free trial to send it.`
+    : `Here's your expense. You've used your ${n} free expenses, so start your free trial to save it.`;
+}
 
 // The document kind a draft renders as: 'quote' or 'invoice', handled
 // explicitly. Every other intent (expense/question/other) and a missing one are
@@ -396,6 +415,14 @@ export default function Chat() {
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
   const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Capped tiers (free, canceled, anything not unlimited) get no background
+  // pre-build for an INVOICE: it INSERTs the draft row before Send, which would
+  // spend a free invoice slot on a card that may never be sent. Their Send
+  // builds at tap time instead (the slow path). Quotes never count, so they
+  // keep the pre-build. Only while the paywall is on.
+  const skipPreBuild = PAYWALL_ENABLED && !!profile
+    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free')
+    && docKind(draft) === 'invoice';
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
   useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
@@ -435,6 +462,11 @@ export default function Chat() {
   // for the slow path, so an error surfaces instead of the button hanging on
   // "Preparing…". `preparing` serializes builds (never two DB writes in flight).
   const [prepState, setPrepState] = useState<{ sig: string; status: 'ready' | 'failed' } | null>(null);
+  // A send that built the file but whose share sheet didn't open (iOS drops the
+  // tap's permission to share after the slow-path awaits): the signature of the
+  // draft whose file is waiting. While it matches, the button reads "Share
+  // invoice" so the second tap is a deliberate step, not a retry of an error.
+  const [shareWaiting, setShareWaiting] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   // Push-to-talk voice session: mic toggles a session (X ends it). Reply speech
   // now follows per-message input modality (voice vs typed), not session state.
@@ -739,6 +771,7 @@ export default function Chat() {
         });
       }
       setMessages([GREETING]);
+      setInvoiceUsage(null);
       setDraft(null);
       setDraftHistory([]);
       setReady(false);
@@ -851,7 +884,7 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1), draft }),
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -870,6 +903,23 @@ export default function Chat() {
       });
       // The duplicate warning is now a passive card badge (see duplicateHint),
       // not a spoken/blocking reply — so the reply is always the normal one.
+      // Over the free cap? The model's reply ("You're all set") can't know, and
+      // nothing is saved until Send/Save, so it must not claim success. Checked
+      // only for a capped tier's new, ready invoice or a complete expense
+      // (quotes are never capped); fails open like the Send gate.
+      const effIntent = data.intent_explicit === false && draft?.intent ? draft.intent : data.intent;
+      const isReady = Boolean(data.ready) && data.intent !== 'expense';
+      const expenseComplete = data.intent === 'expense' && typeof data.expense?.amount === 'number' && data.expense.amount > 0;
+      const cappedTier = PAYWALL_ENABLED && !!profile && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
+      let overCap: null | 'invoice' | 'expense' = null;
+      if (cappedTier && ((isReady && effIntent === 'invoice' && !pendingInvoiceRef.current) || expenseComplete)) {
+        try {
+          const gate = await (await fetch('/api/access')).json();
+          if (expenseComplete && gate?.canExpense === false) overCap = 'expense';
+          if (!expenseComplete && gate?.hasAccess === false) overCap = 'invoice';
+          if (overCap) data.reply = overCapReply(overCap, overCap === 'invoice' ? gate.invoiceLimit : gate.expenseLimit);
+        } catch { /* unreachable — fail open, keep the model's reply */ }
+      }
       const reply: string = data.reply ?? 'Say that again?';
       const replyMsg = aMsg(reply);
       setMessages((m) => emitResult(m, replyMsg, retryId));
@@ -881,7 +931,6 @@ export default function Chat() {
       }
       // A duplicate no longer forces the card closed — it shows, ready and
       // actionable, with a passive badge (duplicateHint) instead of a prompt.
-      const isReady = Boolean(data.ready) && data.intent !== 'expense';
       if (data.intent) {
         // The AI's own output for contact, BEFORE we enrich — it's either what
         // the user spoke this turn or a value carried through the draft.
@@ -989,8 +1038,10 @@ export default function Chat() {
         });
         // The card moves under this reply when the reply changed the draft (or
         // the card is appearing now). A no-op parse ("what's the total?") leaves
-        // it where it is.
-        if (!draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+        // it where it is. Over the cap it always moves: asking again after the
+        // wall (often the same job) must put the unsent card right under the
+        // reply, where the next Send tap reopens the wall.
+        if (overCap || !draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
           setCardAfterId(replyMsg.id);
         }
         // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
@@ -1001,8 +1052,9 @@ export default function Chat() {
         // no-intent response (rate limit, a transient error, a bare reply)
         // leaves the current preview intact instead of collapsing it.
         setReady(isReady);
-        // The card is appearing now (not an edit to one already up): build it in.
-        if (isReady && !(ready && draft)) playCardAnim('enter', 1800);
+        // The card is appearing now (not an edit to one already up), or moving
+        // under an over-cap reply: build it in.
+        if (isReady && (overCap || !(ready && draft))) playCardAnim('enter', 1800);
         // Reflect the server's duplicate signal as a passive card badge. Set on
         // every parse (self-clearing), never a blocking prompt.
         setDuplicateHint(Boolean(data.duplicateWarning));
@@ -1110,7 +1162,14 @@ export default function Chat() {
   }
 
   const [renderData, setRenderData] = useState<InvoiceRenderData | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false); // free-tier cap hit
+  // Free-tier cap hit: which wall to show (invoice or expense), or none.
+  const [paywallFor, setPaywallFor] = useState<null | PaywallVariant>(null);
+  // "1 of 3 free invoices used" under the card after a free-tier invoice is
+  // saved (lib/usage.ts). Tied to the invoice row so it never outlives it.
+  const [invoiceUsage, setInvoiceUsage] = useState<{ id: string; text: string } | null>(null);
+  // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
+  // wait out the webhook instead of re-showing the wall.
+  useEffect(() => { noteUpgradeReturn(); }, []);
 
   /** The card summary, posted once when the card first appears: what we have,
    *  any contact pulled from the saved client record (so a stale one can be
@@ -1242,6 +1301,7 @@ export default function Chat() {
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
     if (!ready || !draft || !profile) return;
+    if (skipPreBuild) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
     if (phase !== null || preparing) return;
     if (prepState && prepState.sig === draftSignature(draft)) return;
@@ -1249,7 +1309,7 @@ export default function Chat() {
     preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState]);
+  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild]);
 
   // mode 'prepare': the background pre-build above — it runs the SAME persist +
   // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
@@ -1258,7 +1318,7 @@ export default function Chat() {
   // usable); a failure just records prepState 'failed'.
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (mode === 'prepare') {
-      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile) return;
+      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile || skipPreBuild) return;
       preparingRef.current = true;
       setPreparing(true);
       // The DB row is about to be rewritten from the current draft, so an older
@@ -1322,7 +1382,7 @@ export default function Chat() {
     // draft (pendingInvoiceRef set, e.g. after a cancelled share) is exempt, so
     // we never block an invoice the user already made and is entitled to finish.
     // hasAccess() encodes the rules: founder/trialing/active/past_due pass;
-    // free passes under the cap; free at/over cap and canceled are gated. The
+    // free and canceled pass under the cap and are gated at/over it. The
     // server-side trigger enforces the same rules even if this gate is bypassed.
     // Fail OPEN if /api/access is unreachable — a transient blip must not block
     // a legitimate invoice (matches the rate-limiter's fail-open stance).
@@ -1330,11 +1390,18 @@ export default function Chat() {
     // it", Download) waits for it, so the two never write the row concurrently.
     if (mode !== 'prepare' && preparePromiseRef.current) await preparePromiseRef.current;
 
-    if (!pendingInvoiceRef.current) {
+    // Quotes are never capped (the trigger skips kind <> 'invoice'), so only a
+    // new INVOICE is gated — for every tier the trigger caps, canceled included.
+    if (!pendingInvoiceRef.current && docKind(draft) === 'invoice') {
       try {
-        const gate = await (await fetch('/api/access')).json();
+        let gate = await (await fetch('/api/access')).json();
+        // Just back from Checkout? The webhook may not have landed yet: give it
+        // a few seconds before showing the wall again (lib/upgrade-return).
+        if (gate && gate.hasAccess === false && recentlyUpgraded()) {
+          gate = (await waitForAccess((a) => a.hasAccess === true)) ?? gate;
+        }
         if (gate && gate.hasAccess === false) {
-          if (mode !== 'prepare') setShowPaywall(true); // the send tap shows it
+          if (mode !== 'prepare') setPaywallFor('invoice'); // the send tap shows it
           return;
         }
       } catch { /* access check unreachable — fail open, allow the invoice */ }
@@ -1447,7 +1514,7 @@ export default function Chat() {
           // boundary and fires even if the gate failed open or was bypassed —
           // surface the paywall, never a generic error.
           if (insErr?.hint === 'PAYWALL_LIMIT') {
-            if (mode !== 'prepare') setShowPaywall(true);
+            if (mode !== 'prepare') setPaywallFor('invoice');
             return; // draft + ready untouched — upgrade, then tap send again
           }
           // 23505 on finalize_key: THIS conversation's row already exists (the
@@ -1504,6 +1571,12 @@ export default function Chat() {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
+          // Free-tier usage line (null for paid tiers / paywall off). Quotes are
+          // never capped, so they never show one.
+          if (rd0.kind === 'invoice') {
+            const savedId = newId;
+            void fetchUsageLine('invoice').then((text) => { if (text) setInvoiceUsage({ id: savedId, text }); });
+          }
           publicToken = (saved.public_token as string) ?? null;
         }
         invoiceId = newId;
@@ -1695,12 +1768,19 @@ export default function Chat() {
     if (r.status === 'failed') {
       preBuiltRef.current = pb;
       setPrepState({ sig: pb.signature, status: 'ready' });
-      if (!retryId) setMessages((m) => [...m, aMsg(
-        `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
-        { failed: { op: 'finalize' } },
-      )]);
+      setShareWaiting(pb.signature);
+      // NotAllowedError is the expected iOS outcome of a build-at-tap send: the
+      // file is ready, the next tap shares it instantly. Say that calmly; only
+      // a real failure gets the error bubble with Retry.
+      if (!retryId) setMessages((m) => [...m, r.name === 'NotAllowedError'
+        ? aMsg(`Your ${docNoun(docKind(draft)).toLowerCase()} is ready. Tap Share ${docNoun(docKind(draft)).toLowerCase()} to send it.`)
+        : aMsg(
+          `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
+          { failed: { op: 'finalize' } },
+        )]);
       return;
     }
+    setShareWaiting(null);
     if (!profile || !draft) return;
     const downloaded = r.status === 'unsupported';
     if (downloaded) downloadFile(pb.file);
@@ -1805,6 +1885,11 @@ export default function Chat() {
     // readReceipt advances it to 'reading' and, on the guest 401, 'redirecting'.
     setPhase('preparing');
     try {
+      // Over the free expense cap? Show the wall now — before the shutter, the
+      // upload and the vision call — so nothing is spent on an expense that
+      // can't be saved. /api/parse-receipt refuses with 402 as the backstop.
+      if (!(await expenseAllowed())) return;
+
       let prepared: PreparedReceipt;
       try {
         prepared = await prepareReceipt(file);
@@ -1836,6 +1921,24 @@ export default function Chat() {
     }
   }
 
+  /** False (and the expense wall opens) when the free expense cap is reached.
+   *  Guests pass: the receipt read answers them with 401 + sign-in. Fails OPEN
+   *  if /api/access is unreachable; the DB trigger is the real enforcement. */
+  async function expenseAllowed(): Promise<boolean> {
+    if (!profile) return true;
+    try {
+      let gate = await (await fetch('/api/access')).json();
+      if (gate && gate.canExpense === false && recentlyUpgraded()) {
+        gate = (await waitForAccess((a) => a.canExpense === true)) ?? gate;
+      }
+      if (gate && gate.canExpense === false) {
+        setPaywallFor('expense');
+        return false;
+      }
+    } catch { /* access check unreachable — fail open */ }
+    return true;
+  }
+
   /** An existing expense for this user with the same receipt image, if any. */
   async function findDuplicate(hash: string): Promise<ExistingReceipt | null> {
     if (!profile) return null;
@@ -1863,6 +1966,12 @@ export default function Chat() {
       const res = await fetch('/api/parse-receipt', { method: 'POST', body });
       const data = await res.json();
 
+      if (res.status === 402 && data.paywall === 'expense') {
+        // Server-side backstop (the client pre-check failed open or raced).
+        setReceipt(null);
+        setPaywallFor('expense');
+        return;
+      }
       if (res.status === 401 && data.authRequired) {
         setMessages((m) => [...m, aMsg(data.reply)]);
         setReceipt(null);
@@ -1919,6 +2028,10 @@ export default function Chat() {
     }
 
     setExpenseError(null);
+      // Re-check before uploading the photo: a capped insert would leave an
+      // orphaned file in storage. The trigger stays the real enforcement.
+      if (!(await expenseAllowed())) return;
+
       // Path is the content hash, so the same photo always lands on the same
       // object instead of piling up copies. The bucket has no UPDATE policy
       // (copied from vault), so upsert is off and a re-upload of an identical
@@ -1951,6 +2064,12 @@ export default function Chat() {
         // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
         // the pre-check if the same receipt was saved on another device while
         // this card sat open. Say what happened — never a raw constraint error.
+        // The expense cap trigger (PAYWALL_LIMIT_EXPENSE): show the wall, keep
+        // the card so the expense can be saved after upgrading.
+        if (insErr.hint === 'PAYWALL_LIMIT_EXPENSE') {
+          setPaywallFor('expense');
+          return;
+        }
         if (insErr.code === '23505') {
           const existing = receipt ? await findDuplicate(receipt.hash) : null;
           discardExpense();
@@ -1968,6 +2087,10 @@ export default function Chat() {
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
       setMessages((m) => [...m, aMsg(saved)]);
       discardExpense();
+      // Free-tier usage line under the confirmation (null when uncapped).
+      void fetchUsageLine('expense').then((text) => {
+        if (text) setMessages((m) => [...m, aMsg(text, { quiet: true })]);
+      });
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
@@ -2161,6 +2284,8 @@ export default function Chat() {
   // lookup has resolved.
   const sendReady = !profileLoaded ? false
     : !profile ? true
+    // No pre-build for capped tiers: Send takes the slow path (build at tap).
+    : skipPreBuild ? !!draft
     : !!draft && prepState?.sig === draftSignature(draft);
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
@@ -2238,6 +2363,7 @@ export default function Chat() {
     setFinished(false);
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
+    setInvoiceUsage(null);
     setMessages([GREETING]);
     setDraft(seed);
     setReady(true);
@@ -2301,6 +2427,7 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setFinished(false);
+    setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
     setMessages([GREETING, startMsg]);
     setDraft(seed);
@@ -2476,8 +2603,18 @@ export default function Chat() {
             disabled={phase !== null || !isValidTotal || !sendReady}
             onClick={() => finalize()}
           >
-            <Icon name="attach_file" size={18} />
-            {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+            {sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
+              // The file is built and waiting: this tap opens the share sheet.
+              <>
+                <Icon name="share" size={18} />
+                {`Share ${docNoun(docKind(draft)).toLowerCase()}`}
+              </>
+            ) : (
+              <>
+                <Icon name="attach_file" size={18} />
+                {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+              </>
+            )}
           </button>
           {/* Quiet secondary exit: download the PDF without sending. Saves the
               draft (sendable later); does not mark sent or archive. */}
@@ -2523,7 +2660,10 @@ export default function Chat() {
       >
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
-          m.failed ? (
+          m.quiet ? (
+            // Free-tier usage line: plain secondary text, no bubble.
+            <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
+          ) : m.failed ? (
             // Failed assistant message: bubble plus an icon-only retry control
             // beneath it. Same icon-button styling as the receipt buttons.
             <div key={m.id} className="flex justify-start">
@@ -2576,6 +2716,9 @@ export default function Chat() {
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
+          {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
+            <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
+          )}
         </Fragment>
         ))}
 
@@ -2791,7 +2934,7 @@ export default function Chat() {
         </div>
       )}
 
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
     </div>
   );
 }

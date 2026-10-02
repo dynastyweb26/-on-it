@@ -11,6 +11,7 @@ import { parseJsonObject } from '@/lib/json-guard';
 import { sanitizeField } from '@/lib/sanitize';
 import { EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { rateLimit, rateIdentifier, reserveUserDaily } from '@/lib/ratelimit';
+import { hasAccess } from '@/lib/access';
 
 // The client compresses to <900 KB; anything much past that didn't come from
 // our pipeline. Bounds the vision bill and the request body alike.
@@ -82,6 +83,15 @@ export async function POST(req: NextRequest) {
       { authRequired: true, reply: "Sign in first and I'll read that receipt and save it for you." },
       { status: 401 }
     );
+  }
+
+  // Over the free expense cap → never pay for a scan that can't be saved. The
+  // chat checks this before the shutter; this is the server-side backstop.
+  // Checked before the daily ceiling so a capped user doesn't burn it.
+  // hasAccess() fails open (the expense trigger is the real enforcement).
+  const access = await hasAccess(user.id);
+  if (!access.canExpense) {
+    return NextResponse.json({ paywall: 'expense' }, { status: 402 });
   }
 
   // Signed-in daily ceiling for Vision AI requests: caps total daily Anthropic

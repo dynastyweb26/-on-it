@@ -1,7 +1,7 @@
 // GET /api/trial-reminders — Vercel Cron target (see vercel.json), once daily.
 //
 // Trial users currently get charged with no warning. This run finds users whose
-// 30-day trial ends within the next 3 days and who haven't already been sent the
+// trial (14 days for new trials, lib/trial.ts) ends within the next 3 days and who haven't already been sent the
 // heads-up, verifies each is genuinely about to be charged, and emails them via
 // Resend. Sent-state is tracked on profiles.trial_reminder_sent_at so a user can
 // never be emailed twice.
@@ -25,11 +25,13 @@ import { getResend, emailFrom } from '@/lib/email/resend';
 import { trialReminderEmail } from '@/lib/email/trial-reminder';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { verifyCronAuth } from '@/lib/cron-auth';
+import { TRIAL_REMINDER_DAYS } from '@/lib/trial';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const REMIND_WITHIN_DAYS = 3;
+// Shared with the paywall timeline ("We'll remind you" on end − 3 days).
+const REMIND_WITHIN_DAYS = TRIAL_REMINDER_DAYS;
 const MAX_PER_RUN = 200;
 
 function appUrl(): string {
