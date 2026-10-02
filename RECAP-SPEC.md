@@ -56,9 +56,12 @@ decode, gunzip where `compressed: true`. The JS files are:
   recaps from the last 14 days only.
 - Slide order adds two guards to `R.sequence` (`recapSequence`): no kept slide
   when $0 in and $0 out; no glance slide for a $0 month.
-- Opener: columns + ribbon vs horizon line — **open**. The payload stores
-  income per local day for both kinds (7 or 28–31), which feeds either; the
-  4-week buckets come from `monthWeeks()`.
+- **Opener: HORIZON LINE** (decided 2026-10-02, weekly and monthly). One
+  glowing curve of daily income (7 points, or one per day of the month), a
+  molten-gold fill under it, the swoosh riding the line and settling behind
+  the title. No bars, labels, numbers or axes. Replaces the prototype's
+  columns + ribbon; full spec in §5 "opener". `monthWeeks()` stays for the
+  glance slide only.
 
 ## 1. Slide sequence
 
@@ -165,21 +168,47 @@ Tapping during a transition finishes it instantly and starts the next.
 Representative item counts noted per slide; the config in §10 is the
 source to re-resolve for other counts.
 
-#### opener — weekly, 7 columns · heroEnd 3090 ms · total 5490 ms
+#### opener — HORIZON (On It build; replaces the prototype's columns opener) · heroEnd 2100 ms · total 4500 ms
 
-| beat | start | end | dur | stagger | ease |
-|---|---|---|---|---|---|
-| cols | 150 | 1590 | 900 | 90 | back |
-| days | 400 | 1040 | 400 | 40 | out |
-| sweep | 1190 | 2490 | 1300 |  | inOut |
-| mark | 2190 | 3090 | 900 |  | out |
-| label | 2390 | 2890 | 500 |  | out |
-| title | 2540 | 3190 | 650 |  | out |
-| range | 2790 | 3290 | 500 |  | out |
-| peak | 2790 | 3290 | 500 |  | out |
-| aff | 3290 | 4090 | 800 |  | out |
+Same for weekly and monthly (no per-item counts). Config to use in place of
+§10's `opener`:
 
-Cues: 1190 ms sweep -18 dB · 3090 ms chime -20 dB
+```js
+opener: {
+  theme: 'dark', heroEnd: 'fill.end', hold: 2400,
+  beats: {
+    line:  { delay: 200, dur: 1200, ease: 'out' },          // draws left → right; the rider is on its head
+    lift:  { delay: 'line.start+566', dur: 700, ease: 'inOut' }, // = the moment the head passes 85 % of the line
+    fill:  { delay: 'line.end-200', dur: 900, ease: 'out' },
+    haze:  { delay: 'fill.start+200', dur: 900 },
+    label: { delay: 'lift.start+300', dur: 500 },
+    title: { delay: 'lift.start+450', dur: 650 },
+    range: { delay: 'lift.start+700', dur: 500 },
+    aff:   { delay: 'lift.end+300', dur: 800 }
+  },
+  cues: [
+    { at: 'line.start', sound: 'sweep', db: -18, label: 'Line draws' },
+    { at: 'lift.end', sound: 'chime', db: -20, label: 'Swoosh settles (soft)' }
+  ]
+}
+```
+
+| beat | start | end | dur | ease |
+|---|---|---|---|---|
+| line (+ rider) | 200 | 1400 | 1200 | out |
+| lift | 766 | 1466 | 700 | inOut |
+| label | 1066 | 1566 | 500 | out |
+| fill | 1200 | 2100 | 900 | out |
+| title | 1216 | 1866 | 650 | out |
+| haze | 1400 | 2300 | 900 | out |
+| range | 1466 | 1966 | 500 | out |
+| aff | 1766 | 2566 | 800 | out |
+
+`line.start+566`: with `out` = cubic-bezier(.33,1,.68,1), the eased progress
+reaches 0.85 at 47.2 % of 1200 ms. Recompute with the bezier solver if `line`
+changes (same method as the count-up ticks).
+
+Cues: 200 ms sweep −18 dB · 1466 ms chime −20 dB
 
 #### moneyIn — 3 payment methods · heroEnd 3250 ms · total 6050 ms
 
@@ -323,31 +352,75 @@ gold bottom glow; dark = ink + gold bottom glow (radial gradients, §12).
 
 Money: whole dollars, `−$` for negatives (`R.money`).
 
-### opener (dark)
-- One **column of light** per day (weekly, 7) or per week (monthly, 4–5).
-  Base line y = 748, max height 210, columns span x 28 → 365; width 30 (52 when
-  ≤4 columns), equal gaps. Height `max(14, v/max*210)`; a zero day is a 4 px
-  dot `rgba(212,175,55,.45)` at the base. Column fill
-  `linear-gradient(0deg, gold 0 → .32 at 40% → rgba(236,200,100,.85) at 88% → #fff1c9)`,
-  `box-shadow 0 -4px 22px rgba(212,175,55,.38)`, rounded top. Reflection below
-  the base: 30 % height (≤40), opacity .5. A 1 px gold hairline across the base.
-- **Ribbon**: a Catmull-Rom curve through every column top (22 px above it,
-  extended off-screen both sides), drawn as three stacked strokes
-  (`pathLength=100`): 14 px blurred(6px) gold at .18 (trail 45 %), 6 px
-  `#e8c766` at .45 (trail 26 %), 3 px `#fff1c9` (trail 12 %). Each sweeps by
-  `stroke-dashoffset L → L−160` so the head runs off the end. A 10 px **spark**
-  rides the same path via `offset-path` (0 → 100 % over the first 62.5 % of the
-  sweep, glow `0 0 18px 6px rgba(212,175,55,.7)`).
-- **Swoosh mark** (300 × 237 at 46,150, opacity .62, gold drop-shadow 22 px)
-  settles from `translate(90px,140px) scale(.7) rotate(-14deg)`.
-- Text block centred at top 222: label "Weekly recap" / "Monthly recap", title
-  "Your week, On It." / "Your {Month}, On It." (Montserrat 800 42/46, text
-  shadow), range ("Sep 22 – Sep 28"), affirmation (Montserrat 700 19/26).
-  Peak value label ($ of the tallest column, Inter 600 11px) 44 px above it.
-  Day initials (weekly, starting at the period's first weekday) or week labels
-  ("Sep 1–7") at y 796.
-- Motion: cols scaleY(0)→1 + fade (back, staggered 90) · day labels fade ·
-  ribbon + spark sweep · mark settles · label/title/range/peak fadeUp · aff fadeUp.
+### opener (dark) — HORIZON LINE (On It build, decided 2026-10-02)
+
+Replaces the prototype's columns + ribbon + spark + peak label + day labels
+(that code is **not** ported). Starting point: the prototype's unused
+`shapes.horizon` (util.js) and its `.rc-haze` / `.rc-rider` CSS (§12).
+
+**Shape** (393 × 852 canvas; the curve lives in the lower third)
+- Series = `payload.daily`: 7 points weekly, one per day monthly (28–31).
+- Normalise `v = (x / max)^0.7` (lifts small days so one big day doesn't
+  flatten the rest), then smooth: 3-tap kernel `[.15, .7, .15]` for ≤ 10
+  points, 7-tap `[.05, .12, .2, .26, .2, .12, .05]` above that (a monthly
+  spike becomes a hill, not a needle).
+- `BASE = 790`, `TOP = BASE − 178 × amp`; point y = `BASE − (0.06 + 0.94 ×
+  v/vmax) × (BASE − TOP)`, so a zero day dips to 6 % of the height (low, never
+  flat on the floor). x runs −10 → 403 (bleeds past both edges), evenly spaced.
+- `amp = 0.4 + 0.6 × min(1, avg / ref)`: a quiet period draws a lower, gentler
+  horizon. `ref` = the previous period's average daily income
+  (`payload.previous.income / days`) — **one payload addition in the opener
+  commit** (`previous: { income, expenses }`; still payload v1, nothing is
+  stored in production yet). No previous income → `amp = 0.75`.
+- Catmull-Rom through the points (the prototype's `horizon` sampler: 20
+  steps per segment weekly, 8 monthly → ≈ 120 / 230 vertices), clamped to
+  `BASE + 4`. Line path = the curve; area path = the curve closed down to
+  y 852.
+- **$0 period** (a quiet week still opens the story): a near-flat line at
+  `BASE − 12` with a gentle swell (≤ 6 px, one long sine) so it reads as calm,
+  not broken; fill at half strength.
+
+**Look** (no blur filters; see §9)
+- Line: three stacked strokes of the same path, round caps/joins: 16 px
+  `#d4af37` at .14 (glow), 6 px `#e8c766` at .5, 3 px `#fff1c9` (core).
+- Fill: the area path with a vertical gradient from the curve's top down:
+  `rgba(240,205,110,.55)` → `rgba(212,175,55,.22)` at 40 % →
+  `rgba(212,175,55,0)` at the bottom, over the ink background (molten gold
+  fading into ink).
+- Haze: `.rc-haze` (320 × 220 radial `rgba(240,205,110,.22)` → 0) centred
+  ~70 px above the highest point; a second, smaller one (60 %) over the second
+  highest hill when it is at least 70 % of the peak and ≥ 90 px away.
+- Nothing else: **no bars, no labels, no numbers, no axes.**
+- Swoosh: the rider is `.rc-rider` (54 × 43, gold swoosh, `offset-anchor:
+  50% 100%`, `offset-rotate: auto`, gold drop-shadow → replaced by a baked
+  glow, §9). The resting mark is the prototype's `.rc-mark` (300 × 237 at
+  46,150, opacity .62) behind the title.
+- Text (unchanged from the prototype): centred at top 222 — label "Weekly
+  recap" / "Monthly recap", title "Your week, On It." / "Your {Month}, On It.",
+  range, affirmation.
+
+**Motion**
+- `line`: the line draws left → right (`stroke-dashoffset 100 → 0`,
+  `pathLength=100`, all three strokes together), 1200 ms ease-out.
+- Rider: rides the line's head (`offset-path` = the line path,
+  `offset-distance 0 → 100 %` on the same beat and easing), so it travels
+  with the drawing tip.
+- `lift`: when the head passes 85 % of the line (766 ms) the rider hands off
+  to the big mark in the same frame: the mark starts at the rider's position,
+  angle and size (`scale(.18)`, opacity 1) and flies to its rest behind the
+  title (`scale(1)`, rotate 0, opacity .62), 700 ms inOut; the rider fades out
+  in the first 80 ms. The line keeps drawing to its end underneath.
+- `fill`: the area rises gently (`translateY(24px)` + opacity 0 → rest),
+  900 ms out, from 200 ms before the line finishes.
+- `haze`: opacity 0 → 1 after the fill starts.
+- Text fades up as in the prototype (label, title, range, then affirmation).
+- **Reduce Motion:** no draw, no rider, no lift: line, fill, haze and the
+  resting mark appear with an opacity fade (350 ms), then the text fades.
+
+**Must look intentional** — verify at the opener preview checkpoint with the
+fixtures: busy month, quiet month, spiky month (4 separated hills, no
+needles), a week with one payment (one soft hill, the rest low), a $0 week
+(calm swell), and a normal week.
 
 ### moneyIn (light)
 - "Money in" / "You brought in" / hero count-up / "4 payments · 3 clients".
@@ -494,6 +567,7 @@ The prototype's scenario object is shaped like a real recap payload:
 | `quotesPending` | number | sent quotes with no answer |
 | `paidInvoices` | `[{ id, client, amount, status: 'paid', date }]` | invoices paid in the period (caught-up bundle) |
 | `notifyDate` | string | prototype lock screen only |
+| `previous` (On It build, opener commit) | `{ income, expenses }` | previous period's totals; `income` sets the horizon's amplitude `ref` |
 
 Invoice-count override (QA): 1 / 3 / 7 / 20 invoices replaces `owed.invoices`
 (with 1 / 2 / 4 / 11 viewed) or, when nothing is owed, `paidInvoices`.
@@ -511,14 +585,23 @@ Invoice-count override (QA): 1 / 3 / 7 / 20 invoices replaces `owed.invoices`
 
 ## 9. Expensive effects (flagged in the prototype)
 
-`filter: blur()` on SVG strokes (opener ribbon trail, money-out ring glow, kept
-ring glow), large `box-shadow` glows on the light columns and drops,
+`filter: blur()` on SVG strokes (prototype opener ribbon trail, money-out ring
+glow, kept ring glow), large `box-shadow` glows on the light columns (gone
+with the horizon opener) and drops,
 `backdrop-filter` (lock-screen only, not built), `mix-blend-mode: screen`
 (transition band), `filter: brightness()` on the outgoing slide during every
 transition, `drop-shadow` on the swoosh mark, and the 43 KB traced swoosh path.
 The audit has the plan for each.
 
+Horizon opener: the glow is stacked strokes (no `blur()`), the fill is one
+static path moved only by transform/opacity, the haze is a radial-gradient
+div animated by opacity, and the draw is `stroke-dashoffset` on one path of
+≈ 120–230 vertices. The rider's `offset-path` needs iOS 16+ (the floor).
+
 ## 10. Timing config (verbatim, `OnItRecap.CONFIG`)
+
+`slides.opener` below is the prototype's columns opener, **superseded** by
+the horizon config in §4. Everything else stands.
 
 ```json
 {
