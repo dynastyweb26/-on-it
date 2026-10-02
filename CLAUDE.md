@@ -16,6 +16,9 @@ Rules:
 Testing rules:
 - Never tap Connect/Finish setup on the preview; preview and production share
   the DB and a sandbox account id would overwrite production state.
+  Only exception: the dedicated test-seller profile set up in
+  REFUNDS-DISPUTES-TEST.md, signed in on its own in a private window. Never
+  on the founder's account or Cyril's.
 
 Pre-deploy checklist (every push/deploy):
 - Confirm the current git branch and the Vercel project name (`on-it`).
