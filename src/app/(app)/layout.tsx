@@ -105,6 +105,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const el = tabIdx >= 0 ? tabLinkRefs.current[tabIdx] : null;
       if (!nav || !el) { setPill(null); return; }
       const n = nav.getBoundingClientRect();
+      // Hidden while the keyboard is open (data-kb-hide): keep the last spot.
+      if (!n.width) return;
       const r = el.getBoundingClientRect();
       setPill((p) => ({ x: r.left - n.left, y: r.top - n.top, w: r.width, h: r.height, animate: animate && p !== null }));
     }
@@ -223,7 +225,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     // data-app-shell: locks document scroll while the shell is mounted (globals.css).
-    <div data-app-shell="" className="mx-auto flex h-dvh max-w-lg flex-col">
+    // data-kb-fit: while the keyboard is open the shell is pinned to the visible
+    // area (lib/keyboard.ts), so the chat composer sits right on the keyboard
+    // and every tab's scroller ends where the keyboard starts.
+    <div data-app-shell="" data-kb-fit="" className="mx-auto flex h-dvh max-w-lg flex-col">
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
         <div className="flex items-center gap-1">
           {parentRoute && <BackButton parentHref={parentRoute} />}
@@ -281,9 +286,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
       {/* Slim install strip: in-flow above the tab bar (never fixed), so it can't
           cover the tab bar or the chat input. Self-hides when installed/dismissed
-          or when install isn't possible on this device. */}
+          or when install isn't possible on this device. Both step aside while
+          the keyboard is open (data-kb-hide), leaving the room to the field. */}
       <InstallBanner />
-      <nav ref={navRef} className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
+      <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
         {/* The gliding gold pill; until it has measured, the active tab paints its own. */}
         {pill && (
           <span
