@@ -16,6 +16,16 @@
 //       → then a "payment received" push to the owner (lib/notify), deduped
 //         on the ledger row id so it goes out once however often Stripe
 //         delivers.
+//   charge.refunded, refund.created, refund.updated, refund.failed
+//       → one 'refund' reversal row per Stripe refund (−amount, keyed by the
+//         re_ id), removed again if the refund fails or is canceled. Cash-basis
+//         income drops; the invoice stays paid (lib/stripe/reversals).
+//   charge.dispute.funds_withdrawn / charge.dispute.funds_reinstated
+//       → 'dispute_withdrawn' (−) / 'dispute_reinstated' (+) rows keyed by the
+//         du_ id. A withdrawal reduces paid, so a lost dispute reopens the
+//         invoice; a reinstatement restores it.
+//   charge.dispute.created / charge.dispute.closed
+//       → logged (no ledger change: money moves on the funds_* events).
 //   account.application.deauthorized
 //       → the seller disconnected On It: clear the account + flags, card off.
 //   account.updated
@@ -44,6 +54,7 @@ import {
 import { notify } from '@/lib/notify';
 import { notifyConnectProblems } from '@/lib/notify/connect';
 import { roundCurrency } from '@/lib/financials';
+import { recordDisputeFunds, syncChargeRefunds, syncRefund } from '@/lib/stripe/reversals';
 
 export const runtime = 'nodejs';
 
@@ -60,12 +71,14 @@ const METHOD_NOTE = { card: 'Paid by card (Stripe)', cashapp: 'Paid with Cash Ap
 
 // Which payment method actually paid: the Checkout Session doesn't say, so
 // read the PaymentIntent (on the seller's account) with its PaymentMethod
-// expanded. Throws on Stripe failure → 500 → Stripe retries.
-async function paidMethodType(stripe: Stripe, account: string, session: Stripe.Checkout.Session): Promise<string | undefined> {
+// expanded. Also returns the PaymentIntent id, stored on the ledger row so a
+// later refund or dispute (which carries the PaymentIntent) can find it.
+// Throws on Stripe failure → 500 → Stripe retries.
+async function paidMethodType(stripe: Stripe, account: string, session: Stripe.Checkout.Session): Promise<{ type?: string; piId: string | null }> {
   const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
-  if (!piId) return undefined;
+  if (!piId) return { piId: null };
   const pi = await stripe.paymentIntents.retrieve(piId, { expand: ['payment_method'] }, { stripeContext: account });
-  return typeof pi.payment_method === 'object' && pi.payment_method ? pi.payment_method.type : undefined;
+  return { type: typeof pi.payment_method === 'object' && pi.payment_method ? pi.payment_method.type : undefined, piId };
 }
 
 // A paid Checkout Session on a seller's account → one ledger row.
@@ -107,7 +120,7 @@ async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: S
   }
 
   // The real method (card vs Cash App Pay), only after the cross-check passes.
-  const pmType = await paidMethodType(stripe, account, session);
+  const { type: pmType, piId } = await paidMethodType(stripe, account, session);
   const method = ledgerMethod(pmType);
   if (method === 'other') {
     console.warn('stripe connect webhook: unexpected payment method type — recorded as other', JSON.stringify({
@@ -128,6 +141,7 @@ async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: S
         paid_at: new Date(event.created * 1000).toISOString(),
         note: METHOD_NOTE[method],
         stripe_checkout_session_id: session.id,
+        stripe_payment_intent_id: piId,
       },
       { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true }
     )
@@ -218,6 +232,31 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed':
       case 'checkout.session.async_payment_succeeded': {
         outcome = await recordCardPayment(stripe, event, event.data.object as Stripe.Checkout.Session);
+        break;
+      }
+      case 'charge.refunded': {
+        if (!event.account) { outcome = 'skip: no event.account'; break; }
+        outcome = await syncChargeRefunds(stripe, event.account, event.data.object as Stripe.Charge);
+        break;
+      }
+      case 'refund.created':
+      case 'refund.updated':
+      case 'refund.failed': {
+        if (!event.account) { outcome = 'skip: no event.account'; break; }
+        outcome = await syncRefund(stripe, event.account, event.data.object as Stripe.Refund);
+        break;
+      }
+      case 'charge.dispute.funds_withdrawn':
+      case 'charge.dispute.funds_reinstated': {
+        if (!event.account) { outcome = 'skip: no event.account'; break; }
+        const type = event.type === 'charge.dispute.funds_withdrawn' ? 'dispute_withdrawn' : 'dispute_reinstated';
+        outcome = await recordDisputeFunds(stripe, event.account, event, event.data.object as Stripe.Dispute, type);
+        break;
+      }
+      case 'charge.dispute.created':
+      case 'charge.dispute.closed': {
+        const d = event.data.object as Stripe.Dispute;
+        outcome = `${d.id} status=${d.status}`;
         break;
       }
       case 'account.application.deauthorized': {
