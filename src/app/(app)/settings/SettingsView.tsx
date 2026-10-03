@@ -872,6 +872,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         </button>
       </section>
 
+
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">

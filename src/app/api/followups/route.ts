@@ -1,7 +1,8 @@
 // GET /api/followups — Vercel Cron target (see vercel.json).
 // Every run: find sent/unpaid invoices not nudged in 2+ days and not due in
 // the future, push a notification to the owner, stamp last_nudge_at. Then, in
-// production only, send draft nudges (step 2 below).
+// production only, send draft nudges (step 2) and build weekly/monthly recaps
+// (step 3).
 // Delivery goes through the shared web-push channel (lib/notify/webpush):
 // parallel sends under a 4s cap, only this environment's devices, and a
 // device is dropped only on 404/410 — not on any error, as before.
@@ -12,6 +13,7 @@ import { formatDocNumber } from '@/lib/documents';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { sendWebPush } from '@/lib/notify/webpush';
 import { runDraftNudges } from '@/lib/notify/draft-nudges';
+import { runRecaps } from '@/lib/notify/recaps';
 import { deployEnv } from '@/lib/deploy-env';
 
 export async function GET(req: NextRequest) {
@@ -90,5 +92,13 @@ export async function GET(req: NextRequest) {
     ? await runDraftNudges()
     : { candidates: 0, sent: 0, skipped: 'not production' };
 
-  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts });
+  // Step 3: weekly/monthly recaps (lib/notify/recaps). Production only, for the
+  // same reason as drafts: recap snapshots and their push dedupe keys live in
+  // the shared DB, so a preview run would claim real owners' recap pushes and
+  // deliver only to preview devices.
+  const recaps = deployEnv() === 'production'
+    ? await runRecaps()
+    : { candidates: 0, built: 0, existing: 0, quiet: 0, skipped_inactive: 0, pushed: 0, skipped: 'not production' };
+
+  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts, recaps });
 }

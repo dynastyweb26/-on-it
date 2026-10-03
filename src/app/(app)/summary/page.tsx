@@ -11,9 +11,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import PdfChoiceSheet from '@/components/PdfChoiceSheet';
 import PaywallModal from '@/components/PaywallModal';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
-import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
@@ -451,41 +451,8 @@ export default function TaxSummary() {
       )}
 
 
-      {/* PDF sheet: same bottom-sheet pattern as the period picker. */}
-      {pdfSheet && (
-        <div
-          className="fixed inset-0 z-[70] flex items-end justify-center bg-on-background/45"
-          onClick={() => setPdfSheet(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
-            className="w-full max-w-lg rounded-t-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
-            style={{ animation: 'paywall-in 200ms ease-out' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-2 px-1 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-              {pdfSheet === 'expenses' ? 'Expenses PDF' : 'Income PDF'}
-            </div>
-            <PdfOption
-              icon="description"
-              title="Totals"
-              detail={pdfSheet === 'expenses' ? 'Totals by category' : 'Totals by client'}
-              onClick={() => pickDetail('totals')}
-            />
-            <div className="my-1 border-t border-outline-variant/40" />
-            <PdfOption
-              icon="receipt_long"
-              title="Itemized"
-              detail={pdfSheet === 'expenses'
-                ? 'Every expense with date, store and amount'
-                : 'Every payment with date, invoice and amount'}
-              onClick={() => pickDetail('itemized')}
-            />
-          </div>
-        </div>
-      )}
+      {/* PDF sheet: Totals / Itemized (shared with the recap sheet). */}
+      <PdfChoiceSheet kind={pdfSheet} onPick={pickDetail} onClose={() => setPdfSheet(null)} />
       {reportsWall && <PaywallModal variant="reports" onClose={() => setReportsWall(false)} />}
     </div>
   );
@@ -504,23 +471,6 @@ function SeeAllRow({ total, expanded, onToggle }: { total: number; expanded: boo
       <span>{expanded ? 'Show less' : `See all ${total}`}</span>
       {/* expand_more flipped: expand_less isn't in the icon subset font */}
       <Icon name={expanded ? 'expand_more' : 'arrow_forward'} size={20} className={expanded ? 'rotate-180' : ''} />
-    </button>
-  );
-}
-
-// One choice in the PDF sheet: icon, title, and what the document contains.
-function PdfOption({ icon, title, detail, onClick }: { icon: IconName; title: string; detail: string; onClick: () => void }) {
-  return (
-    <button
-      className="flex min-h-touch w-full items-center gap-3 rounded-input px-3 py-3 text-left active:bg-surface-container transition-colors"
-      onClick={onClick}
-    >
-      <Icon name={icon} size={24} className="shrink-0 text-primary" />
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-on-background">{title}</span>
-        <span className="block text-xs text-on-surface-variant">{detail}</span>
-      </span>
-      <Icon name="chevron_right" size={20} className="shrink-0 text-on-surface-variant" />
     </button>
   );
 }

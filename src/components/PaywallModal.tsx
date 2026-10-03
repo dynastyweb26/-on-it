@@ -21,11 +21,10 @@ import CodeEntry from '@/components/CodeEntry';
 import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
 import type { SlideId } from '@/components/paywall/PaywallSlides';
 import { trialDates } from '@/lib/trial';
+import { RECAPS_LIVE } from '@/lib/recaps-live';
 
-// Slide 5 ("Your week at a glance") appears only once recaps ship: flip this
-// when feat/recap is on main.
-const RECAPS_LIVE = false;
-
+// Slide 5 ("Your week at a glance") and the recaps row in "What's included"
+// appear only once recaps launch: the one shared flag (lib/recaps-live).
 const SLIDES: SlideId[] = ['invoice', 'paid', 'expense', 'reports', ...(RECAPS_LIVE ? ['recap' as const] : [])];
 
 // Which wall: 'invoice' = the 4th invoice at Send, 'expense' = the 6th expense

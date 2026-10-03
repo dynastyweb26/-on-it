@@ -13,7 +13,11 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sqlFile = path.join('supabase', 'snippets', 'privilege_check.sql');
 
-const run = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '-f', sqlFile], {
+// Ask for JSON explicitly. Without it the CLI picks its format by detecting
+// whether an AI agent is running it: JSON for an agent, a box-drawing table in
+// a plain terminal (the "Unexpected token '┌'" failure on Windows). --agent no
+// pins the shape too: a bare array of rows, not the agent's { rows } envelope.
+const run = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '--agent', 'no', '--output-format', 'json', '-f', sqlFile], {
   cwd: root,
   encoding: 'utf8',
   shell: process.platform === 'win32', // npx is npx.cmd on Windows
@@ -26,13 +30,24 @@ if (run.status !== 0) {
   process.exit(1);
 }
 
-let rows;
+// Rows from either JSON shape: a bare array (--agent no) or { rows: [...] }
+// (agent mode, if an older CLI ignores --agent). Anything else is a clear stop.
+
+const out = run.stdout.trim();
+let parsed;
 try {
-  rows = JSON.parse(run.stdout).rows;
-  if (!Array.isArray(rows) || rows.length === 0) throw new Error('no rows');
-} catch (e) {
-  console.error('privilege check: could not read the query output:', e.message);
-  console.error(run.stdout.slice(0, 2000));
+  parsed = JSON.parse(out);
+} catch {
+  console.error('privilege check: the Supabase CLI did not return JSON, so the results could not be read.');
+  console.error('It was asked for JSON (--output-format json). Update the CLI (npx supabase --version; this script was');
+  console.error('checked with 2.119.0) and run again. First lines of what it printed instead:');
+  console.error(out.split('\n').slice(0, 5).join('\n'));
+  process.exit(1);
+}
+const rows = Array.isArray(parsed) ? parsed : parsed?.rows;
+if (!Array.isArray(rows) || rows.length === 0 || typeof rows[0]?.check_id !== 'string') {
+  console.error('privilege check: the CLI returned JSON, but not the expected check rows (check_id, result, expected, found).');
+  console.error(out.slice(0, 2000));
   process.exit(1);
 }
 

@@ -350,6 +350,9 @@ html[data-splash=""] .onit-splash {
 .onit-chip-in { animation: onit-chip-in 280ms var(--ease-spring) both; }
 .onit-pop { animation: onit-pop 360ms var(--ease-spring) both; }
 .onit-bump { animation: onit-bump 360ms var(--ease-standard) both; }
+/* Full-height sheet rising from the bottom edge (recap sheet; MOTION-SPEC §12). */
+@keyframes onit-sheet-in { from { transform: translateY(100%); } }
+.onit-sheet-in { animation: onit-sheet-in var(--motion-slow) var(--ease-standard) both; }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }

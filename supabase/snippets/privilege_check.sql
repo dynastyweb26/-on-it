@@ -415,6 +415,94 @@ results(id, ok, expected, actual) as (
         || ' upd=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'UPDATE')
         || ' del=' || has_table_privilege(ro.r, to_regclass('public.grant_redemptions'), 'DELETE'), 'missing') end
   from (values ('anon'), ('authenticated')) ro(r)
+  -- P. Recaps (20261001000010; P3/P6 also 20261002000001 recap payload). SKIP until pushed.
+  union all
+  select 'P1 recaps RLS + policies',
+    case when not exists (select 1 from applied where version = '20261001000010') then null
+      else coalesce((select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.recaps')), false)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'recaps') = 2
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'recaps'
+          and p.cmd = 'SELECT' and p.qual ilike '%auth.uid() = user_id%')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'recaps'
+          and p.cmd = 'UPDATE' and p.qual ilike '%auth.uid() = user_id%' and p.with_check ilike '%auth.uid() = user_id%') end,
+    'RLS on; exactly 2 owner policies: SELECT, UPDATE (no INSERT/DELETE policy)',
+    case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+        from pg_policies p where p.schemaname = 'public' and p.tablename = 'recaps'), 'none')
+        from pg_class c where c.oid = to_regclass('public.recaps')), 'missing') end
+  union all
+  select 'P2 recaps ' || t.role,
+    case when not exists (select 1 from applied where version = '20261001000010') then null
+      else coalesce(has_table_privilege(t.role, to_regclass('public.recaps'), 'SELECT') = t.sel
+        and not has_table_privilege(t.role, to_regclass('public.recaps'), 'INSERT')
+        and not has_table_privilege(t.role, to_regclass('public.recaps'), 'UPDATE')
+        and not has_table_privilege(t.role, to_regclass('public.recaps'), 'DELETE')
+        and not has_table_privilege(t.role, to_regclass('public.recaps'), 'TRUNCATE'), false) end,
+    'sel=' || t.sel || ' ins=false upd(table)=false del=false trunc=false',
+    case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
+      else coalesce('sel=' || has_table_privilege(t.role, to_regclass('public.recaps'), 'SELECT')
+        || ' ins=' || has_table_privilege(t.role, to_regclass('public.recaps'), 'INSERT')
+        || ' upd(table)=' || has_table_privilege(t.role, to_regclass('public.recaps'), 'UPDATE')
+        || ' del=' || has_table_privilege(t.role, to_regclass('public.recaps'), 'DELETE')
+        || ' trunc=' || has_table_privilege(t.role, to_regclass('public.recaps'), 'TRUNCATE'), 'missing') end
+  from (values ('anon', false), ('authenticated', true)) t(role, sel)
+  union all
+  select 'P3 recaps updatable columns ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261001000010') then null
+      else coalesce(string_agg(c.column_name, ',' order by c.column_name)
+        filter (where has_column_privilege(ro.r, 'public.recaps', c.column_name, 'UPDATE')), '')
+        = case when ro.r <> 'authenticated' then ''
+               when exists (select 1 from applied where version = '20261002000001') then 'prompted_at,seen_at'
+               else 'seen_at' end end,
+    case when ro.r <> 'authenticated' then 'no column UPDATE'
+         when exists (select 1 from applied where version = '20261002000001') then 'UPDATE on prompted_at, seen_at only (never payload)'
+         else 'UPDATE on seen_at only' end,
+    case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
+      else coalesce(string_agg(c.column_name, ',' order by c.column_name)
+        filter (where has_column_privilege(ro.r, 'public.recaps', c.column_name, 'UPDATE')), 'none') end
+  from (values ('anon'), ('authenticated')) ro(r)
+  left join information_schema.columns c
+    on c.table_schema = 'public' and c.table_name = 'recaps'
+    and exists (select 1 from applied where version = '20261001000010')
+  group by ro.r
+  union all
+  select 'P4 profiles.recap_push',
+    case when not exists (select 1 from applied where version = '20261001000010') then null
+      else coalesce((select c.data_type = 'boolean' and c.is_nullable = 'NO' and c.column_default = 'true'
+          and has_column_privilege('authenticated', 'public.profiles', 'recap_push', 'UPDATE')
+          and not has_column_privilege('authenticated', 'public.profiles', 'recap_push', 'INSERT')
+        from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'recap_push'), false) end,
+    'boolean not null default true; authenticated UPDATE, no INSERT (safe column)',
+    case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
+      else coalesce((select c.data_type || ' nullable=' || c.is_nullable || ' default=' || coalesce(c.column_default, 'none')
+          || ' upd=' || has_column_privilege('authenticated', 'public.profiles', 'recap_push', 'UPDATE')
+          || ' ins=' || has_column_privilege('authenticated', 'public.profiles', 'recap_push', 'INSERT')
+        from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'recap_push'), 'missing') end
+  union all
+  select 'P5 notification_log recap type',
+    case when not exists (select 1 from applied where version = '20261001000010') then null
+      else coalesce((select pg_get_constraintdef(oid) ilike '%''recap''%' from pg_constraint
+        where conrelid = 'public.notification_log'::regclass and conname = 'notification_log_type_chk'), false) end,
+    'notification_log_type_chk allows recap',
+    case when not exists (select 1 from applied where version = '20261001000010') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = 'public.notification_log'::regclass and conname = 'notification_log_type_chk'), 'missing') end
+  union all
+  select 'P6 recaps payload columns + constraint',
+    case when not exists (select 1 from applied where version = '20261002000001') then null
+      else (select count(*) from information_schema.columns c
+              where c.table_schema = 'public' and c.table_name = 'recaps'
+                and c.column_name in ('payload', 'payload_version', 'prompted_at')) = 3
+        and coalesce((select pg_get_constraintdef(oid) ilike '%jsonb_typeof(payload)%'
+                        and pg_get_constraintdef(oid) ilike '%16384%'
+              from pg_constraint
+              where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), false) end,
+    'payload, payload_version, prompted_at exist; recaps_payload_chk (object, <= 16384 bytes)',
+    case when not exists (select 1 from applied where version = '20261002000001') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

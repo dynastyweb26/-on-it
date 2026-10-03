@@ -107,6 +107,17 @@ Layout as shipped: dark Net card with chevron, 3 tiles (Collected / Still owed /
 - Reduced motion: one static ring, icon swap only.
 - Performance: throttle level updates to ~9/sec; stop the analyser when not listening.
 
+## 12. Recap sheet (weekly / monthly "in review")
+
+Built after Batch B, on `feat/recap` (`src/components/RecapSheet.tsx`). Opened from the recap push (`/dashboard?recap=<id>`) or on app open for the newest unseen recap.
+
+- Sheet: full height, rises from the bottom edge (`onit-sheet-in`: translateY(100%) → 0, `--motion-slow`, `--ease-standard`).
+- Figures count up with `CountUpMoney`, 700ms each, 120ms apart: income → expenses → net, starting 300ms in (as the sheet lands). Net is the large figure, uncoloured; a negative shows a minus sign (Books' no-coloured-numbers rule).
+- After net lands (~1240ms): "Most spent on", the counts line, the PDF buttons and Done rise (`onit-rise`, 50ms apart).
+- Once per recap per session (sessionStorage `onit_recap_counted:<id>`): reopening shows the figures still.
+- Reduced motion: static values, no rise (the global rule).
+- The Summary / Detailed choice opens over it with the period-picker sheet's motion (`paywall-in 200ms ease-out`).
+
 ## Build order (one commit each)
 
 Batch A (preview, test on phone, merge):
@@ -128,7 +139,7 @@ Batch B (preview, test on phone, merge):
 
 - §7 Failure + retry: the existing icon-only Retry button spins in place (no "Trying…" label). Live failures shake on arrival; restored chats don't. A retry that fails again re-shakes. No failure haptic yet.
 - §8 Receipt capture: the photo lives as a thumbnail inside the Expense card, not a chat bubble. So: white shutter flash on capture, the Expense card builds in, and its thumbnail lands from 2.2× scale. No LOGGED chip; the save confirmation stays a chat message.
-- §9 Books: count-up once per session (sessionStorage `onit_books_counted`); after adding an expense, Spent and Net roll in 400ms and Spent bumps once (no colour, per the no-coloured-numbers rule).
+- §9 Books: count-up once per session (sessionStorage `onit_books_counted`); after adding an expense, Spent and Net roll in 400ms and Spent bumps once (no colour, per the no-coloured-numbers rule). The buttons' rise (300ms, 350ms) was missed in Batch B and added on `feat/recap`: Add expense 300ms, Income & Expenses 350ms, View expenses 400ms.
 - §10 Tabs: the nav pill is measured per tab and glides (transform + width); tab-to-tab content enters from the side you're heading. Swipe-follows-finger not built. The selection ring animation applies to every `.chip-selected` and `.ring-gold-selected`.
 - §11 Mic rings: `src/components/MicRings.tsx`; falls back to the old `.voice-listening` pulse when the AudioContext isn't running within 600ms.
 

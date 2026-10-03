@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import PaywallModal from '@/components/PaywallModal';
+import RecapsCard from '@/components/recap/RecapsCard';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
@@ -260,12 +261,38 @@ export default function Dashboard() {
         </>
       )}
 
-      <button className="btn-primary w-full" onClick={() => setShowForm(true)}>
-        <Icon name="add" size={22} /> Add expense
-      </button>
-      <Link href="/summary" className="btn-outline w-full text-primary">
-        <Icon name="receipt_long" size={18} /> Summary &amp; PDFs
-      </Link>
+      {/* Weekly / monthly recaps: the latest one, or the locked card (free).
+          Between the tiles and the Summary / Expenses buttons (decided 2026-10-03). */}
+      <RecapsCard />
+
+      {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
+          300ms, 350ms; View expenses 50ms after). Mounted with the totals, like
+          the tiles, so the entrance never starts on buttons already on screen. */}
+      {!loading && (
+        <>
+          <button
+            className={`btn-primary w-full${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '300ms' } : undefined}
+            onClick={() => setShowForm(true)}
+          >
+            <Icon name="add" size={22} /> Add expense
+          </button>
+          <Link
+            href="/summary"
+            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '350ms' } : undefined}
+          >
+            <Icon name="description" size={18} /> Income &amp; Expenses
+          </Link>
+          <Link
+            href="/expenses"
+            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '400ms' } : undefined}
+          >
+            <Icon name="receipt_long" size={18} /> View expenses
+          </Link>
+        </>
+      )}
 
       {showForm && (
         // data-kb-fit: pinned to the visible area while typing, so the sheet sits

@@ -59,5 +59,16 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         tag: `draft-${event.invoiceId}`,
       };
     }
+    case 'recap': {
+      // RECAP-SPEC §8: no numbers on the lock screen — the story is the reveal.
+      const month = new Date(`${event.periodStart}T12:00:00Z`)
+        .toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+      return {
+        title: event.kind === 'week' ? 'Your week is ready' : `Your ${month} is ready`,
+        body: 'Tap to see how you did.',
+        url: `/dashboard?recap=${event.recapId}`,
+        tag: `recap-${event.kind}-${event.periodStart}`,
+      };
+    }
   }
 }
