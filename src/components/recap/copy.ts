@@ -26,3 +26,14 @@ export const money = (n: number) => (n < 0 ? '−$' : '$') + Math.abs(Math.round
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 /** "week" / "month". */
 export const per = (p: Pick<RecapPayload, 'kind'>) => (p.kind === 'month' ? 'month' : 'week');
+
+/** The change chip on "What you kept": "Up 18% from last week" / "Down 22%
+ *  from August" / "About the same as last week"; null when there's nothing
+ *  to compare with (no positive previous net). */
+export function changeLine(p: Pick<RecapPayload, 'kind' | 'start' | 'change'>): { dir: 'up' | 'down' | 'flat'; text: string } | null {
+  const c = p.change;
+  if (!c) return null;
+  const vs = p.kind === 'month' ? MONTH[(ymd(p.start)[1] + 10) % 12] : 'last week';
+  if (c.direction === 'flat') return { dir: 'flat', text: `About the same as ${vs}` };
+  return { dir: c.direction, text: `${c.direction === 'up' ? 'Up' : 'Down'} ${c.pct}% from ${vs}` };
+}

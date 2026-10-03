@@ -197,3 +197,33 @@
 .rc-trips { display: flex; gap: 4px; height: 8px; }
 .rc-trips i { display: block; flex: none; border-radius: 999px; transform-origin: left center; }
 .rc-trips em { flex: 1; border-radius: 999px; background: rgba(255, 248, 240, .08); }
+
+/* ── Shared: H2, chips, 16 px bars, foot ── */
+.rc-h2 { margin: 18px 0 0; font: 800 36px/40px var(--onit-display); letter-spacing: -.015em; text-wrap: balance; }
+.rc-chip { height: 40px; padding: 0 16px; border-radius: 999px; font: 600 15px var(--onit-body); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.rc-chip.up { background: var(--onit-success-tint); color: var(--onit-success); }
+.rc-chip.flat { background: var(--onit-neutral-chip); color: var(--onit-secondary); }
+.rc-bar16 { height: 16px; border-radius: 999px; background: var(--onit-track); overflow: hidden; box-shadow: inset 0 1px 3px rgba(31, 27, 19, .12); display: flex; gap: 2px; }
+.rc-bar16 i { display: block; flex: none; height: 100%; transform-origin: left center; }
+.rc-foot { font: 400 13px/18px var(--onit-body); color: var(--onit-secondary); }
+
+/* ── What you kept ── */
+.rc-center { align-items: center; }
+.rc-center > .rc-label, .rc-center > .rc-lead { align-self: stretch; }
+.rc-keptring { position: relative; width: 300px; height: 300px; margin-top: 40px; }
+.rc-keptring::before { content: ''; position: absolute; inset: 36px; border-radius: 999px; background: radial-gradient(circle at 50% 35%, #fff, #fbf2e3 70%); box-shadow: 0 24px 50px -20px rgba(115, 92, 0, .35), inset 0 -6px 16px rgba(115, 92, 0, .08); }
+.rc-keptring svg { position: absolute; inset: 0; overflow: visible; }
+.rc-keptin { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.rc-keptnum { width: 200px; text-align: center; overflow: hidden; white-space: nowrap; font: 800 60px/64px var(--onit-display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.rc-spark { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 999px; background: var(--onit-cream); box-shadow: 0 0 10px var(--onit-gold-light), 0 0 3px #fff; offset-anchor: 50% 50%; offset-rotate: 0deg; opacity: 0; will-change: offset-distance, opacity; }
+
+/* ── What you kept: investment ── */
+.rc-kv { margin-top: 30px; display: flex; flex-direction: column; gap: 4px; }
+.rc-knet { display: block; overflow: hidden; white-space: nowrap; font: 800 64px/64px var(--onit-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.rc-kbars { margin-top: 36px; display: flex; flex-direction: column; gap: 18px; }
+.rc-kbar { display: flex; flex-direction: column; gap: 8px; }
+.rc-kbar-h { display: flex; justify-content: space-between; font: 600 14px var(--onit-body); }
+.rc-kin { border-radius: 999px; background: linear-gradient(90deg, #e8c766, var(--onit-gold)); }
+.rc-kchip-row { margin-top: 28px; display: flex; }
+.rc-kchip { height: 36px; font-size: 14px; gap: 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.rc-kchip i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
