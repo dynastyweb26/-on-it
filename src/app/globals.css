@@ -467,6 +467,13 @@ html[data-splash=""] .onit-splash {
 .onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
 
 /* ---- Tabs + selected ring (MOTION-SPEC.md §10) ---- */
+/* Invoices filter switch: the list crossfades with a 12px shift toward the
+   direction of travel (--motion-fast). */
+@keyframes onit-list-from-right { from { opacity: 0; transform: translateX(12px); } }
+@keyframes onit-list-from-left { from { opacity: 0; transform: translateX(-12px); } }
+.onit-list-from-right { animation: onit-list-from-right var(--motion-fast) var(--ease-standard) both; }
+.onit-list-from-left { animation: onit-list-from-left var(--motion-fast) var(--ease-standard) both; }
+
 /* Tab switch (M5): the screen crossfades in; the new tab's icon bounces 4px;
    Chat presses deeper than the others (.9 scale, 1px down). */
 .onit-tab-enter { animation: onit-fade var(--motion-fast) var(--ease-standard) both; }

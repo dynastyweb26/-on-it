@@ -9,7 +9,7 @@ import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
-import SortToggle from '@/components/SortToggle';
+import { SortCaption } from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
 import { INVOICES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
 import { localDay } from '@/lib/tax-summary';
@@ -19,7 +19,7 @@ import { formatDocNumber } from '@/lib/documents';
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
-  converted_from: string | null; amount_paid: number | null;
+  converted_from: string | null; amount_paid: number | null; viewed_at?: string | null;
 }
 type Filter = 'all' | 'unpaid' | 'paid' | 'quote';
 const FILTERS: readonly Filter[] = ['all', 'unpaid', 'paid', 'quote'];
@@ -29,14 +29,29 @@ const balanceDue = (r: Row) => Math.max(0, Number(r.total) - Number(r.amount_pai
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
-// Status chips (§2): semantic containers, ALWAYS icon + text.
-const STATUS_CHIP: Record<string, { cls: string; icon: IconName }> = {
+// Status tags (release frames 4a; Design Standard §2: always icon + text).
+// A sent invoice with a due date reads "DUE OCT 16"; a viewed one swaps its
+// icon to the eye.
+const TAG: Record<string, { cls: string; icon: IconName }> = {
   paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
-  sent: { cls: 'bg-sent-container text-sent', icon: 'send' },
+  sent: { cls: 'bg-primary-soft text-primary-on-container', icon: 'send' },
   overdue: { cls: 'bg-error-container text-on-error-container', icon: 'warning' },
   draft: { cls: 'bg-draft-container text-draft', icon: 'history' },
   void: { cls: 'bg-draft-container text-draft line-through', icon: 'block' },
+  converted: { cls: 'bg-surface-container-high text-on-surface-variant', icon: 'sync' },
 };
+const shortDate = (ymd: string) =>
+  new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+function tagFor(r: Row, converted: boolean): { key: string; text: string; cls: string; icon: IconName } {
+  if (converted) return { key: 'converted', text: 'CONVERTED', ...TAG.converted };
+  const base = TAG[r.status] ?? TAG.draft;
+  if (r.status === 'sent' && r.kind === 'invoice' && r.due_date) {
+    return { key: `due-${r.viewed_at ? 'v' : 's'}`, text: `DUE ${shortDate(r.due_date)}`, ...base, icon: r.viewed_at ? 'visibility' : base.icon };
+  }
+  if (r.status === 'sent' && r.viewed_at) return { key: 'viewed', text: 'VIEWED', ...base, icon: 'visibility' };
+  return { key: r.status, text: r.status.toUpperCase(), ...base };
+}
+const FILTER_LABEL: Record<Filter, string> = { all: 'All', unpaid: 'Unpaid', paid: 'Paid', quote: 'Quotes' };
 
 export default function Invoices() {
   const supabase = createClient();
@@ -47,6 +62,7 @@ export default function Invoices() {
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [undoTarget, setUndoTarget] = useState<Row | null>(null);
+  const [travel, setTravel] = useState<'left' | 'right' | null>(null);
   // Newest (default) / A–Z by client within each month, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
   useEffect(() => { setSort(readListSort(INVOICES_SORT_KEY)); }, []);
@@ -71,7 +87,7 @@ export default function Invoices() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
-        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, viewed_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -119,10 +135,19 @@ export default function Invoices() {
   const groups = sort === 'az' ? sortWithinGroups(byMonth, (r) => r.client_name, (r) => r.created_at) : byMonth;
   // Unpaid view total — equals Books' "Still owed" (same rows, same formula).
   const unpaidTotal = filter === 'unpaid' ? sorted.reduce((s, r) => s + balanceDue(r), 0) : 0;
+  const n = sorted.length;
+  const summary = filter === 'unpaid' ? `${n} unpaid · ${money(unpaidTotal)}`
+    : filter === 'paid' ? `${n} paid · ${money(sorted.reduce((s, r) => s + Number(r.total), 0))}`
+    : filter === 'quote' ? `${n} ${n === 1 ? 'quote' : 'quotes'}`
+    : `${n} ${n === 1 ? 'document' : 'documents'}`;
 
   // A chip tap also updates the URL (replace, no new history entry), so Back
-  // from an invoice returns to the same filter.
+  // from an invoice returns to the same filter. The list crossfades with a
+  // 12px shift in the direction of travel (motion inventory "Filter tab").
   function chooseFilter(f: Filter) {
+    if (f === filter) return;
+    setTravel(FILTERS.indexOf(f) > FILTERS.indexOf(filter) ? 'right' : 'left');
+    try { navigator.vibrate?.(5); } catch { /* unsupported */ }
     setFilter(f);
     router.replace(f === 'all' ? '/invoices' : `/invoices?filter=${f}`, { scroll: false });
   }
@@ -165,86 +190,70 @@ export default function Invoices() {
   }
 
   return (
-    <div className="px-4 py-4">
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+    <div className="px-4 pb-4 pt-3.5">
+      {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
+      <div role="tablist" aria-label="Show" className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
-          <button key={f} className={`chip shrink-0 capitalize ${filter === f ? 'chip-selected' : ''}`}
-            onClick={() => chooseFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
+          <button key={f} type="button" role="tab" aria-selected={filter === f}
+            className={`h-[42px] shrink-0 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
+              ${filter === f ? 'border-2 border-primary-container bg-[#f6ebc6]' : 'border-[1.5px] border-outline bg-surface-container-lowest'}`}
+            onClick={() => chooseFilter(f)}>{FILTER_LABEL[f]}</button>
         ))}
       </div>
-      <div className="mb-4 flex justify-end">
-        <SortToggle value={sort} onChange={chooseSort} label="Sort invoices" />
+      <div className="flex items-center justify-between px-1 pt-1">
+        <span className="text-[12.5px] font-medium text-on-surface-variant">{loading ? '' : summary}</span>
+        <SortCaption value={sort} onChange={chooseSort} azLabel="A–Z by client" label="Sort invoices" />
       </div>
       {loading ? (
         <InvoicesSkeleton />
       ) : (
-        <>
-          {filter === 'unpaid' && sorted.length > 0 && (
-            <div className="mb-2 flex items-baseline justify-between px-1">
-              <span className="text-label-lg font-semibold text-on-surface-variant">
-                Still owed · {sorted.length} {sorted.length === 1 ? 'invoice' : 'invoices'}
-              </span>
-              <span className="font-display text-xl font-bold text-on-background">{money(unpaidTotal)}</span>
-            </div>
-          )}
+        <div key={filter} className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
             <p className="mt-16 text-center text-on-surface-variant">
-              Nothing here yet. Head to Chat and tell me about a job.
+              {filter === 'all' ? 'Nothing here yet. Head to Chat and tell me about a job.'
+                : filter === 'quote' ? 'No quotes right now.' : `No ${FILTER_LABEL[filter].toLowerCase()} invoices right now.`}
             </p>
           )}
-          <div>
-            {groups.map((g) => (
-              <div key={g.key}>
-                <DateDivider label={g.label} />
-                <div className="space-y-4">
-                  {g.items.map((r) => {
-                    const converted = isConvertedQuote(r);
-                    // A converted quote shows a "converted" chip (only the Quotes tab
-                    // surfaces it) instead of its stale draft status.
-                    const chip = converted
-                      ? { cls: 'bg-sent-container text-sent', icon: 'sync' as const }
-                      : STATUS_CHIP[r.status] ?? STATUS_CHIP.draft;
-                    return (
-                      <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
-                        <Link href={`/invoices/${r.id}`}
-                          className="card block p-5 transition-transform active:scale-[0.98]">
-                          <div className="mb-4 flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate font-display text-headline-mobile text-on-background">{r.client_name}</div>
-                              <div className="text-body-md text-on-surface-variant/70">
-                                {formatDocNumber(r.kind, r.invoice_number)}
-                                {' • '}{new Date(r.created_at).toLocaleDateString()}
-                              </div>
-                            </div>
-                            <span className={`status-chip shrink-0 ${chip.cls}`}>
-                              <Icon name={chip.icon} size={18} />
-                              {converted ? 'converted' : r.status}
-                            </span>
-                          </div>
-                          <div className="flex items-end justify-between">
-                            {/* On Unpaid, a part-paid invoice shows what it still
-                                owes (adds up to the header), with the full total. */}
-                            {filter === 'unpaid' && Number(r.amount_paid ?? 0) > 0 ? (
-                              <div>
-                                <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(balanceDue(r))}</div>
-                                <div className="text-body-md text-on-surface-variant/70">due of {money(r.total)}</div>
-                              </div>
-                            ) : (
-                              <div className="font-display text-numeric-xl tracking-tight text-on-background">{money(r.total)}</div>
-                            )}
-                            <span className="grid h-12 w-12 place-items-center rounded-full bg-surface-variant/50 text-primary">
-                              <Icon name="chevron_right" size={24} />
-                            </span>
-                          </div>
-                        </Link>
-                      </SwipeableRow>
-                    );
-                  })}
-                </div>
+          {groups.map((g) => (
+            <div key={g.key}>
+              <DateDivider label={g.label} />
+              <div className="space-y-2.5">
+                {g.items.map((r) => {
+                  const tag = tagFor(r, isConvertedQuote(r));
+                  // On Unpaid, a part-paid invoice shows what it still owes
+                  // (adds up to the summary), with the full total under it.
+                  const partPaid = filter === 'unpaid' && Number(r.amount_paid ?? 0) > 0;
+                  return (
+                    <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
+                      <Link href={`/invoices/${r.id}`}
+                        className="flex items-center gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
+                          <span className="text-[13.5px] text-on-surface-variant">
+                            {formatDocNumber(r.kind, r.invoice_number)} • {new Date(r.created_at).toLocaleDateString()}
+                          </span>
+                          <span className="mt-1 font-display text-[26px] font-extrabold leading-tight tracking-tight text-on-background tabular-nums">
+                            {money(partPaid ? balanceDue(r) : Number(r.total))}
+                          </span>
+                          {partPaid && <span className="text-[13px] text-on-surface-variant">due of {money(r.total)}</span>}
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-3.5">
+                          {/* Keyed by state, so a sent → viewed change crossfades. */}
+                          <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
+                            <Icon name={tag.icon} size={14} />{tag.text}
+                          </span>
+                          <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
+                            <Icon name="chevron_right" size={22} />
+                          </span>
+                        </div>
+                      </Link>
+                    </SwipeableRow>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </>
+            </div>
+          ))}
+        </div>
       )}
 
       <DeleteConfirmModal
