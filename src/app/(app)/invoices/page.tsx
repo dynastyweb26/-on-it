@@ -9,7 +9,9 @@ import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
+import SortToggle from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
+import { INVOICES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
 import { localDay } from '@/lib/tax-summary';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
@@ -45,6 +47,13 @@ export default function Invoices() {
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [undoTarget, setUndoTarget] = useState<Row | null>(null);
+  // Newest (default) / A–Z by client within each month, remembered per device.
+  const [sort, setSort] = useState<ListSort>('newest');
+  useEffect(() => { setSort(readListSort(INVOICES_SORT_KEY)); }, []);
+  function chooseSort(v: ListSort) {
+    setSort(v);
+    writeListSort(INVOICES_SORT_KEY, v);
+  }
 
   useEffect(() => {
     // ?filter=unpaid|paid|quote (e.g. from the Books "Still owed" tile). Read
@@ -90,7 +99,8 @@ export default function Invoices() {
     : r.kind === 'quote'
   );
   // One ordering for EVERY tab (All / Unpaid / Paid / Quotes): newest first, then
-  // client name A→Z. This is a client-side sort applied to the filtered set, so it
+  // client name A→Z. The Newest / A–Z toggle (below) reorders rows inside each
+  // month only. This is a client-side sort applied to the filtered set, so it
   // is the source of truth for display — the query's .order('created_at') alone is
   // not enough (this sort previously ranked by status then total, which overrode
   // it). created_at is the invoice's displayed date; ISO timestamps compare
@@ -104,7 +114,9 @@ export default function Invoices() {
   // ambiguous (invoiced vs collected); the summary page answers the money
   // question. localDay converts the created_at timestamp to the local day the
   // row displays, so a row never lands under the wrong month near midnight.
-  const groups = groupByPeriod(sorted, (r) => localDay(r.created_at), (r) => Number(r.total), 'month');
+  const byMonth = groupByPeriod(sorted, (r) => localDay(r.created_at), (r) => Number(r.total), 'month');
+  // A–Z: the same months, rows by client inside each (ties newest first).
+  const groups = sort === 'az' ? sortWithinGroups(byMonth, (r) => r.client_name, (r) => r.created_at) : byMonth;
   // Unpaid view total — equals Books' "Still owed" (same rows, same formula).
   const unpaidTotal = filter === 'unpaid' ? sorted.reduce((s, r) => s + balanceDue(r), 0) : 0;
 
@@ -154,11 +166,14 @@ export default function Invoices() {
 
   return (
     <div className="px-4 py-4">
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
           <button key={f} className={`chip shrink-0 capitalize ${filter === f ? 'chip-selected' : ''}`}
             onClick={() => chooseFilter(f)}>{f === 'quote' ? 'Quotes' : f}</button>
         ))}
+      </div>
+      <div className="mb-4 flex justify-end">
+        <SortToggle value={sort} onChange={chooseSort} label="Sort invoices" />
       </div>
       {loading ? (
         <InvoicesSkeleton />
