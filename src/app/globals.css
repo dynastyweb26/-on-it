@@ -429,14 +429,18 @@ html[data-splash=""] .onit-splash {
 .onit-paid-word { animation: onit-paid-word 1300ms var(--ease-standard) both; }
 @keyframes onit-paid-word { 0% { opacity: 1; } 9% { opacity: 0; } 50% { opacity: 0; } 62%, 100% { opacity: 1; } }
 
-/* ---- Failure + retry (MOTION-SPEC.md §7) ---- */
+/* ---- Failure + retry (MOTION-SPEC.md §7; motion inventory "Failed action")
+   A gentle shake: 6px, three decaying passes, 360ms emphasized. ---- */
 @keyframes onit-shake {
-  20% { transform: translateX(-5px); }
-  40% { transform: translateX(5px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
+  14% { transform: translateX(-6px); }
+  28% { transform: translateX(6px); }
+  44% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  76% { transform: translateX(-2px); }
+  90% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
 }
-.onit-shake { animation: onit-shake 320ms cubic-bezier(.36, .07, .19, .97) both; }
+.onit-shake { animation: onit-shake 360ms var(--ease-emphasized) both; }
 @keyframes onit-spin { to { transform: rotate(360deg); } }
 .onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
 

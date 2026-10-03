@@ -461,6 +461,19 @@ export default function Chat() {
   const restoredMsgIdsRef = useRef<Set<string>>(new Set());
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryShake, setRetryShake] = useState<Record<string, number>>({});
+  // Failure haptic (MOTION-SPEC §7 / motion inventory "Failed action"): one
+  // warning buzz per live failure, and again when a retry fails. Restored
+  // failures stay quiet. Android only (iOS has no vibration API).
+  const buzzedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const m of messages) {
+      if (!m.failed || restoredMsgIdsRef.current.has(m.id)) continue;
+      const key = `${m.id}:${retryShake[m.id] ?? 0}`;
+      if (buzzedRef.current.has(key)) continue;
+      buzzedRef.current.add(key);
+      try { navigator.vibrate?.([10, 40, 10]); } catch { /* unsupported */ }
+    }
+  }, [messages, retryShake]);
   // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
   // back. Keyed so every capture replays it; 0 = never shown.
   const [shutterKey, setShutterKey] = useState(0);
@@ -2862,13 +2875,16 @@ export default function Chat() {
                 >
                   {m.content}
                 </div>
+                {/* Inline Retry under the item (no modal): it keeps its width; the
+                    icon spins in place while retrying. */}
                 <button
                   aria-label={retryingId === m.id ? 'Retrying' : 'Retry'}
-                  className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                  className="flex min-h-11 items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 text-label-lg font-semibold text-primary transition onit-fade-in active:scale-95 disabled:opacity-40"
                   disabled={phase !== null}
                   onClick={() => retry(m)}
                 >
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
+                  Retry
                 </button>
               </div>
             </div>
