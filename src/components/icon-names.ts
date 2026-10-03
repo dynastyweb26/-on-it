@@ -15,6 +15,7 @@ export const ICON_NAMES = [
   'all_inclusive',
   'arrow_back',
   'arrow_forward',
+  'arrow_upward',
   'attach_file',
   'block',
   'build',

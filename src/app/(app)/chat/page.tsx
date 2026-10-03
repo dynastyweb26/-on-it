@@ -2968,15 +2968,11 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Plain py-3: the composer sits ABOVE the bottom nav, which carries the
-          safe-area inset — padding here too would double the gap. */}
-      <div className="border-t border-outline-variant/40 bg-background px-3 py-3">
-        {recording && (
-          // Static "Listening" label doubles as the reduced-motion fallback
-          // for the mic pulse (§ voice spec).
-          <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening… tap the mic when you&rsquo;re done.</div>
-        )}
-
+      {/* The composer (UI redesign, release frames 1a): a small "+" on the
+          left, the "Message On It…" field with gallery + camera inside it, and
+          send on the right. It sits ABOVE the bottom nav, which carries the
+          safe-area inset, so no bottom padding here. */}
+      <div className="border-t border-outline-variant/40 bg-background px-3 py-2.5">
         {phase === 'preparing' && (
           <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
             <Icon name="photo_camera" size={20} className="text-primary" />
@@ -2984,95 +2980,111 @@ export default function Chat() {
           </div>
         )}
 
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          capture="environment"
+          className="hidden"
+          onChange={onPickReceipt}
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          className="hidden"
+          onChange={onPickReceipt}
+        />
+
         <div className="flex items-end gap-2">
-          {voiceSession && (
-            <button
-              aria-label="End voice session"
-              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant transition active:scale-90"
-              onClick={endVoiceSession}
-            >
-              <Icon name="close" size={24} />
-            </button>
-          )}
-          {/* Receipt capture sits beside the mic — hidden mid-voice-session,
-              where the row already carries an X + mic + send. Two stacked
-              circular buttons keep the leftmost slot one control wide (no
-              squeeze on the text field) while giving camera and gallery each
-              their own tap target: top = shoot with the rear camera, bottom =
-              pick from the gallery. Both fire the same onPickReceipt. */}
-          {!voiceSession && (
-            <div className="flex shrink-0 flex-col gap-1.5">
-              <button
-                aria-label="Take a receipt photo"
-                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => cameraRef.current?.click()}
-              >
-                <Icon name="photo_camera" size={20} />
-              </button>
-              <button
-                aria-label="Upload receipt from gallery"
-                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => galleryRef.current?.click()}
-              >
-                <Icon name="photo_library" size={20} />
-              </button>
-            </div>
-          )}
-          <input
-            ref={cameraRef}
-            type="file"
-            accept="image/*,.heic,.heif"
-            capture="environment"
-            className="hidden"
-            onChange={onPickReceipt}
-          />
-          <input
-            ref={galleryRef}
-            type="file"
-            accept="image/*,.heic,.heif"
-            className="hidden"
-            onChange={onPickReceipt}
-          />
-          {/* Level rings sit behind the button while recording (MOTION-SPEC §11). */}
           <div className={`relative shrink-0${plusMenu ? ' z-[46]' : ''}`}>
-          <MicRings stream={streamRef.current} active={recording} />
-          {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
-          <button
-            aria-label={voiceSession ? (recording ? 'Stop and send' : 'Speak') : plusMenu === 'open' ? 'Close' : 'Start something: mic, new invoice or new quote'}
-            aria-haspopup={voiceSession ? undefined : 'menu'}
-            aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
-            // The splash's white rings fly onto this button on a cold start
-            // (components/Splash.tsx measures it at runtime).
-            data-splash-target=""
-            className="relative z-[46] grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
-            disabled={phase !== null}
-            onClick={voiceSession ? micTap : plusTap}
-          >
-            {voiceSession
-              ? <Icon name="mic" size={32} filled />
-              : <span className={`onit-plus grid place-items-center${plusMenu === 'open' ? ' is-open' : ''}`}><Icon name="add" size={36} /></span>}
-          </button>
+            {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
+            {/* One button, two jobs: outside a voice session it's the "+" that
+                opens Voice · New invoice · New quote; during a session it's the
+                ink × that ends it. The splash's rings fly onto it on a cold
+                start (components/Splash.tsx measures it at runtime). */}
+            <button
+              aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new quote'}
+              aria-haspopup={voiceSession ? undefined : 'menu'}
+              aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
+              data-splash-target=""
+              className={`onit-plus-btn relative z-[46] grid h-11 w-11 place-items-center rounded-full active:scale-90 disabled:opacity-40
+                ${voiceSession || plusMenu === 'open' ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-soft text-on-background'}`}
+              disabled={!voiceSession && phase !== null}
+              onClick={voiceSession ? endVoiceSession : plusTap}
+            >
+              <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
+                <Icon name="add" size={28} />
+              </span>
+            </button>
           </div>
-          <textarea
-            ref={inputRef}
-            className="input max-h-32 flex-1 resize-none py-3.5"
-            placeholder="Or type it…"
-            value={input}
-            rows={1}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
-            }}
-          />
+
+          <div className="flex min-h-11 min-w-0 flex-1 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-4 pr-1">
+            {voiceSession ? (
+              // The voice session lives in the field: a live level dot and
+              // "Listening…" with Done (stop → transcribe → send) while
+              // recording, and Speak to take the next turn between takes.
+              // Both call today's micTap() inside the tap.
+              <>
+                <span className="relative grid h-3 w-3 shrink-0 place-items-center">
+                  <MicRings stream={streamRef.current} active={recording} tone="232, 85, 60" />
+                  <span className={`relative h-2 w-2 rounded-full ${recording ? 'bg-[#c8452c]' : 'bg-outline'}`} />
+                </span>
+                <span className="min-w-0 flex-1 truncate pl-2 text-body-md font-medium text-on-surface-variant" aria-live="polite">
+                  {recording ? 'Listening…' : phase !== null ? 'On It is on it…' : 'Tap Speak to keep going'}
+                </span>
+                <button
+                  aria-label={recording ? 'Stop and send' : 'Speak'}
+                  className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
+                    ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
+                  disabled={!recording && phase !== null}
+                  onClick={micTap}
+                >
+                  {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
+                </button>
+              </>
+            ) : (
+              <>
+                <textarea
+                  ref={inputRef}
+                  aria-label="Message On It"
+                  className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
+                  placeholder="Message On It…"
+                  value={input}
+                  rows={1}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
+                  }}
+                />
+                <button
+                  aria-label="Upload receipt from gallery"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
+                  disabled={phase !== null}
+                  onClick={() => galleryRef.current?.click()}
+                >
+                  <Icon name="image" size={22} />
+                </button>
+                <button
+                  aria-label="Take a receipt photo"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
+                  disabled={phase !== null}
+                  onClick={() => cameraRef.current?.click()}
+                >
+                  <Icon name="photo_camera" size={20} />
+                </button>
+              </>
+            )}
+          </div>
+
           <button
             aria-label="Send"
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
-            disabled={!input.trim() || phase !== null}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-colors active:scale-90
+              disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
+            disabled={voiceSession || !input.trim() || phase !== null}
             onClick={() => void send(input)}
           >
-            <Icon name="send" size={22} filled />
+            <Icon name="arrow_upward" size={24} />
           </button>
         </div>
       </div>

@@ -360,7 +360,8 @@ html[data-splash=""] .onit-splash {
 /* Composer "+" expand (UI redesign): + rotates 45° into ×, a cream scrim fades
    over the chat, options rise out nearest first (delays set inline, 45ms
    apart). Closing reverses everything together in 180ms. */
-.onit-plus { transition: transform 300ms var(--ease-standard); }
+.onit-plus { transition: transform 300ms cubic-bezier(.3, 1.5, .5, 1); } /* release frames 1d "Tap +" */
+.onit-plus-btn { transition: background-color 200ms ease, color 200ms ease; }
 .onit-plus.is-open { transform: rotate(45deg); }
 @keyframes onit-fade-out { to { opacity: 0; } }
 @keyframes onit-option-in { from { opacity: 0; transform: translateY(14px) scale(.92); } }

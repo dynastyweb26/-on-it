@@ -28,6 +28,7 @@ const config: Config = {
         primary: {
           DEFAULT: '#735c00',        // gold as TEXT/ICON on light surfaces
           container: '#d4af37',      // gold as FILL — dark text only, never white
+          soft: '#f0e3b8',           // soft gold fill (composer +, camera, Chat tab at rest)
           'on-container': '#554300',
           fixed: '#ffe088',
           'fixed-dim': '#e9c349',
