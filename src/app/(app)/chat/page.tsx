@@ -253,7 +253,29 @@ function afterSheetGone(): Promise<void> {
 // The flash's peak: 40ms up + 80ms hold (.onit-shutter in globals.css). The
 // photo's flight into its bubble starts here, as the white starts to fade.
 const FLASH_PEAK_MS = 120;
-const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll take care of the rest.");
+// The opening line (release frames; §L Q10: time of day, no name). Built per
+// conversation so the time of day is current. Never sent to /api/parse (the
+// history starts after it).
+function greeting(): Msg {
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  return aMsg(`${part}! Snap a receipt, or tap + to start an invoice or quote.`);
+}
+
+// The day label over the conversation ("TODAY", "YESTERDAY", or the date),
+// from the first message's id, which carries its creation time.
+function dayLabel(messages: Msg[]): string | null {
+  const t = /^m-([0-9a-z]+)-/.exec(messages[0]?.id ?? '')?.[1];
+  if (!t) return null;
+  const d = new Date(parseInt(t, 36));
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diff === 0) return 'TODAY';
+  if (diff === 1) return 'YESTERDAY';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -429,7 +451,7 @@ type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving'
 export default function Chat() {
   const supabase = createClient();
   const router = useRouter();
-  const [messages, setMessages] = useState<Msg[]>([GREETING]);
+  const [messages, setMessages] = useState<Msg[]>(() => [greeting()]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>(null);
   // Failure + retry motion (MOTION-SPEC §7). Messages that arrived by restore
@@ -841,7 +863,7 @@ export default function Chat() {
           messages, draft, ready, cardAfterId,
         });
       }
-      setMessages([GREETING]);
+      setMessages([greeting()]);
       setInvoiceUsage(null);
       setDraft(null);
       setDraftHistory([]);
@@ -2525,11 +2547,12 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setInvoiceUsage(null);
-    setMessages([GREETING]);
+    const hello = greeting();
+    setMessages([hello]);
     setDraft(seed);
     setReady(true);
     playCardAnim('enter', 1800);
-    setCardAfterId(GREETING.id);
+    setCardAfterId(hello.id);
     setDuplicateHint(false);
     setPendingChange(null);
   }
@@ -2590,7 +2613,7 @@ export default function Chat() {
     setFinished(false);
     setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
-    setMessages([GREETING, startMsg]);
+    setMessages([greeting(), startMsg]);
     setDraft(seed);
     setReady(true);
     setCardAfterId(startMsg.id);
@@ -2819,6 +2842,9 @@ export default function Chat() {
         onScroll={onListScroll}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
       >
+        {hydrated && dayLabel(messages) && (
+          <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
+        )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
           m.quiet ? (
@@ -2831,7 +2857,7 @@ export default function Chat() {
               <div className="flex max-w-[82%] flex-col items-start gap-1">
                 <div
                   key={`${m.id}-${retryShake[m.id] ?? 0}`}
-                  className={`whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md${
+                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
                   {m.content}
@@ -2853,7 +2879,7 @@ export default function Chat() {
             // act on by hunting for the header button.
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
-                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
                   {m.content}
                 </div>
                 <button
@@ -2879,11 +2905,15 @@ export default function Chat() {
             />
           ) : (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {/* Release frames: On It = cream bubble, you = ink bubble. A
+                  message that just arrived rises 8px (motion inventory "New On
+                  It message", 240ms); restored ones are static. */}
               <div
-                className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
+                className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
                   ${m.role === 'user'
-                    ? 'rounded-br-md bg-primary-container text-on-primary-container'
-                    : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
+                    ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
+                    : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
+                  restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
               >
                 {m.content}
               </div>
@@ -2957,11 +2987,21 @@ export default function Chat() {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
+        {phase === 'thinking' && (
+          // On It is typing (motion inventory "New On It message"): three dots
+          // in an On It bubble, 900ms loop; the reply then rises in its place.
+          <div className="flex justify-start onit-msg-in">
+            <div role="status" aria-label="On It is thinking"
+              className="flex items-center gap-1.5 rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-4 py-3.5">
+              <span className="onit-typing-dot" /><span className="onit-typing-dot" /><span className="onit-typing-dot" />
+            </div>
+          </div>
+        )}
+        {(phase === 'reading' || (phase === 'preparing' && receipt)) && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
-            {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
+            Reading your receipt…
           </div>
         )}
       </div>
