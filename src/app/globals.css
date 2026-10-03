@@ -423,19 +423,32 @@ html[data-splash=""] .onit-splash {
 .onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
 
 /* ---- Receipt capture (MOTION-SPEC.md §8) ----
-   Shutter: a full-screen white flash that never blocks touches. Photo: the
-   thumbnail lands from larger, as if the shot shrinks into the expense card. */
+   Shutter: a full-screen white flash that never blocks touches. */
 .onit-shutter {
   position: fixed;
   inset: 0;
   z-index: 60;
   background: #ffffff;
+  /* Resting state is invisible: under reduced motion (animation: none) the
+     flash must not leave a white layer over the screen. */
+  opacity: 0;
   pointer-events: none;
-  animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: onit-shutter 380ms linear both;
 }
-@keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
-.onit-photo-in { animation: onit-photo-in 460ms var(--ease-emphasized) both; }
-@keyframes onit-photo-in { from { opacity: .4; transform: scale(2.2); } }
+/* A real flash: 0 → 1 in 40ms, hold 80ms, then 1 → 0 over 260ms ease-out
+   (380ms). Pure white. The photo's flight starts at the end of the hold. */
+@keyframes onit-shutter {
+  0%     { opacity: 0; }
+  10.53% { opacity: 1; }
+  31.58% { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+  100%   { opacity: 0; }
+}
+/* Save: the expense card folds away (onit-card-exit) and the compact logged
+   card arrives as if it collapsed out of it — down from slightly larger. */
+@keyframes onit-logged-in { from { opacity: 0; transform: translateY(-10px) scale(1.04); } }
+.onit-logged-in { animation: onit-logged-in 240ms var(--ease-standard) both; }
+/* The photo's flight into its chat bubble runs in ReceiptBubble (Web
+   Animations, after img.decode()); the card's thumbnail no longer animates. */
 
 /* ---- Books (MOTION-SPEC.md §9) ---- */
 @keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }

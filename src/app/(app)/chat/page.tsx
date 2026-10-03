@@ -28,6 +28,8 @@ import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
+import ReceiptBubble from '@/components/ReceiptBubble';
+import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
@@ -45,7 +47,14 @@ type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   // A quiet status line (free-tier usage): secondary small text, no bubble,
   // and never sent to /api/parse as conversation history.
-  quiet?: boolean; }
+  quiet?: boolean;
+  /** A receipt photo bubble: a small JPEG data URL. '' = a bubble whose image
+   *  wasn't kept in storage (see forStorage) — it restores as a placeholder. */
+  receipt?: string;
+  /** A saved expense, shown as the compact logged card (content keeps the text
+   *  confirmation for the model's context). Its thumbnail is the photo
+   *  bubble's image, referenced by id — never a second copy. */
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null }; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -224,6 +233,26 @@ const STORE_VERSION = 5;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Receipt shutter (MOTION-SPEC §8). The camera / photo sheet covers the page
+// until it's dismissed, and a flash fired under it is never seen (on iPhone it
+// read as no flash at all). So: wait until the page is visible again, then two
+// animation frames for the sheet's dismissal to clear, then flash.
+function afterSheetGone(): Promise<void> {
+  return new Promise((resolve) => {
+    const twoFrames = () => requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    if (document.visibilityState === 'visible') { twoFrames(); return; }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', onVisible);
+      twoFrames();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  });
+}
+// The flash's peak: 40ms up + 80ms hold (.onit-shutter in globals.css). The
+// photo's flight into its bubble starts here, as the white starts to fade.
+const FLASH_PEAK_MS = 120;
 const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll take care of the rest.");
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -310,6 +339,34 @@ function withMessageIds(messages: Msg[]): Msg[] {
   return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
 }
 
+// Receipt thumbnails are ~40–50K characters each as data URLs, and
+// localStorage holds ~5MB per origin (less in practice on iOS Safari). Only
+// the newest few are written; older bubbles restore as a placeholder. Archived
+// history keeps none. In memory (this session) every image stays.
+const PERSIST_THUMBS = 8;
+function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
+  let kept = 0;
+  const out = messages.slice();
+  for (let i = out.length - 1; i >= 0; i--) {
+    const m = out[i];
+    if (!m.receipt) continue;
+    if (kept < keep) kept++;
+    else out[i] = { ...m, receipt: '' };
+  }
+  return out;
+}
+
+/** Write the live conversation. On a quota error, retry once with no images,
+ *  so storage never silently keeps an older copy (a stale restore). A second
+ *  failure throws to the caller, as before. */
+function writeStoredChat(ns: string, payload: StoredChat) {
+  try {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages) }));
+  } catch {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages, 0) }));
+  }
+}
+
 function loadStoredChat(ns: string): StoredChat | null {
   try {
     const raw = localStorage.getItem(chatKey(ns));
@@ -347,7 +404,9 @@ function loadHistory(ns: string): HistoryEntry[] {
 
 function pushHistory(ns: string, entry: HistoryEntry) {
   try {
-    const list = [entry, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
+    // History is a nicety: archived conversations keep no receipt images.
+    const slim = { ...entry, messages: forStorage(entry.messages, 0) };
+    const list = [slim, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
     localStorage.setItem(historyKey(ns), JSON.stringify(list));
   } catch { /* storage full — history is a nicety */ }
 }
@@ -383,6 +442,16 @@ export default function Chat() {
   // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
   // back. Keyed so every capture replays it; 0 = never shown.
   const [shutterKey, setShutterKey] = useState(0);
+  // The receipt bubble captured in THIS session that should play its flight
+  // (MOTION-SPEC §8). Never set for restored messages, so they render static.
+  const liveReceiptRef = useRef<{ id: string; flashPeak: Promise<void> } | null>(null);
+  // Same for the logged card a live save collapses into; and the expense
+  // card's fold-away while that happens.
+  const liveLoggedIdRef = useRef<string | null>(null);
+  // The photo bubble of the receipt on the open expense card (its logged card
+  // references it). Cleared with the card.
+  const receiptBubbleIdRef = useRef<string | null>(null);
+  const [expenseExiting, setExpenseExiting] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -721,7 +790,7 @@ export default function Chat() {
           cardAfterId,
           updatedAt: Date.now(),
         };
-        localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+        writeStoredChat(ns, payload);
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
@@ -904,7 +973,9 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet), draft }),
+        // Role + text only: a receipt bubble's photo stays on the device;
+        // quiet usage lines are never sent as history.
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet).map(({ role, content }) => ({ role, content })), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -1240,7 +1311,7 @@ export default function Chat() {
         cardAfterId,
         updatedAt: Date.now(),
       };
-      localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+      writeStoredChat(ns, payload);
       appliedUpdatedAtRef.current = payload.updatedAt;
     } catch { /* storage blocked — the persist effect retries on the next change */ }
   }
@@ -1914,7 +1985,20 @@ export default function Chat() {
       try {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
-        setShutterKey((k) => k + 1);
+        // Flash once the camera sheet is gone; resolves at the flash's peak.
+        const flashPeak = afterSheetGone().then(() => {
+          setShutterKey((k) => k + 1);
+          return new Promise<void>((r) => setTimeout(r, FLASH_PEAK_MS));
+        });
+        // The photo joins the thread as the user's message. It stays even if
+        // the read then fails or turns out to be a duplicate.
+        if (prepared.thumbUrl) {
+          const bubble: Msg = { ...uMsg('Receipt photo'), receipt: prepared.thumbUrl };
+          liveReceiptRef.current = { id: bubble.id, flashPeak };
+          receiptBubbleIdRef.current = bubble.id;
+          nearBottomRef.current = true; // follow the photo, even if scrolled up
+          setMessages((m) => [...m, bubble]);
+        }
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
         setMessages((m) => [...m, aMsg(err instanceof ReceiptError
@@ -2105,8 +2189,27 @@ export default function Chat() {
 
       const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
-      setMessages((m) => [...m, aMsg(saved)]);
+      // The compact logged card replaces the text confirmation (it shows the
+      // same facts); the text stays as content for the model's context.
+      const logged: Msg = aMsg(saved, {
+        logged: {
+          amount: expenseDraft.amount,
+          vendor: expenseDraft.vendor?.trim() || null,
+          category: CATEGORY_LABEL[expenseDraft.category],
+          date: expenseDraft.occurred_on ?? today(),
+          receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
+        },
+      });
+      // Fold the expense card away first (150ms, onit-card-exit), then the
+      // logged card arrives in its place. Reduced motion: straight swap.
+      if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        setExpenseExiting(true);
+        await new Promise((r) => setTimeout(r, 150));
+        liveLoggedIdRef.current = logged.id;
+      }
+      setMessages((m) => [...m, logged]);
       discardExpense();
+      setExpenseExiting(false);
       // Free-tier usage line under the confirmation (null when uncapped).
       void fetchUsageLine('expense').then((text) => {
         if (text) setMessages((m) => [...m, aMsg(text, { quiet: true })]);
@@ -2119,6 +2222,7 @@ export default function Chat() {
   /** Drop the in-flight expense and its photo. Used by cancel, and before a
    *  new pick so two receipts can never share one card. */
   function discardExpense() {
+    receiptBubbleIdRef.current = null;
     setReceipt(null);
     setExpenseDraft(null);
     setExpenseError(null);
@@ -2762,6 +2866,19 @@ export default function Chat() {
                 </button>
               </div>
             </div>
+          ) : m.logged ? (
+            <LoggedExpenseCard
+              key={m.id}
+              e={{ ...m.logged, thumb: m.logged.receiptMsgId ? messages.find((x) => x.id === m.logged?.receiptMsgId)?.receipt || null : null }}
+              animate={liveLoggedIdRef.current === m.id}
+            />
+          ) : m.receipt !== undefined ? (
+            <ReceiptBubble
+              key={m.id}
+              src={m.receipt}
+              animate={liveReceiptRef.current?.id === m.id}
+              startAfter={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.flashPeak : undefined}
+            />
           ) : (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -2803,7 +2920,7 @@ export default function Chat() {
 
         {expenseDraft && (
           // Only ever set live (never restored), so the build-in plays once per capture.
-          <div className="onit-card-enter">
+          <div className={expenseExiting ? 'onit-card-exit' : 'onit-card-enter'}>
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
@@ -2842,11 +2959,11 @@ export default function Chat() {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading') && (
+        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
           <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
-            {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
+            {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
           </div>
         )}
       </div>
