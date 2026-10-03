@@ -19,6 +19,7 @@ function getParentRoute(path: string): string | null {
   if (path === '/summary') return '/dashboard';
   if (path === '/recaps') return '/dashboard';
   if (path === '/vault') return '/settings';
+  if (path.startsWith('/settings/')) return '/settings';
   return null;
 }
 

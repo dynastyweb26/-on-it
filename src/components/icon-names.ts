@@ -72,6 +72,7 @@ export const ICON_NAMES = [
   'settings',
   'share',
   'shopping_cart',
+  'storefront',
   'summarize',
   'sync',
   'sync_problem',

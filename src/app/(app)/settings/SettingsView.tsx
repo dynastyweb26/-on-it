@@ -12,6 +12,8 @@ import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
+import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
+import type { SettingsSection } from './sections';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -84,7 +86,10 @@ const AUTH_TIMEOUT_MS = 8000;
 // server by settings/page.tsx and passed in, so the Stripe card renders its
 // real state on first paint instead of flashing "Coming soon" while a client
 // fetch resolves. Fail closed: anything but true renders "Coming soon".
-export default function SettingsView({ connectEnabled }: { connectEnabled: boolean }) {
+// One component, several screens (release frames 0c): /settings shows the
+// grouped rows, /settings/<section> one sub-screen. Every screen loads the same
+// profile and keeps the same save paths; only what renders differs.
+export default function SettingsView({ connectEnabled, section = 'main' }: { connectEnabled: boolean; section?: SettingsSection }) {
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
@@ -478,14 +483,23 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   if (!p) return <SettingsSkeleton />;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
+  const is = (s: SettingsSection) => section === s;
   return (
     <div className="space-y-4 px-4 py-4 overflow-x-hidden">
+      <SettingsTitle>{is('business') ? 'Business profile' : 'Settings'}</SettingsTitle>
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
+      {is('main') && (
+        <SettingsGroup title="Your business">
+          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
+        </SettingsGroup>
+      )}
+
+      {is('business') && (<>
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
-        <input className="input" value={p.business_name ?? ''}
+        <input className="input" aria-label="Business name" placeholder="Business name" value={p.business_name ?? ''}
           onChange={(e) => setP({ ...p, business_name: e.target.value })}
           onBlur={(e) => save({ business_name: e.target.value })} />
         <input className="input" placeholder="Website"
@@ -523,7 +537,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           )}
         </div>
       </section>
+      </>)}
 
+      {is('main') && (<>
       {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
           Four states from the profile's mirrored Stripe status:
             not connected                        → Connect (creates the account)
@@ -700,6 +716,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         <p className="font-body text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
       </section>
 
+      </>)}
+
+      {is('business') && (
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
         <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
@@ -751,7 +770,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           </div>
         )}
       </section>
+      )}
 
+      {is('main') && (<>
       {p.referral_code && (() => {
         // host read dynamically so the link survives the custom-domain move
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
@@ -1022,6 +1043,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         <a href="/privacy" className="underline">Privacy</a>
       </div>
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
+      </>)}
     </div>
   );
 }
