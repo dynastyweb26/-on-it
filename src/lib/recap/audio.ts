@@ -38,11 +38,17 @@ export class RecapAudio {
   musicOn = false;
   private musicPaused = false;
   private muted = false;
+  // TEMPORARY debug (dev preview readout) — remove with /dev/recap-preview.
+  dbg = { lastCue: '', lastCueAt: 0, played: 0, skipped: 0 };
+  private meter: AnalyserNode;
+  private meterBuf = new Float32Array(1024);
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
     const c = ctx;
-    this.out = c.createGain(); this.out.connect(c.destination);
+    // out → meter (pass-through analyser, debug) → destination
+    this.meter = c.createAnalyser(); this.meter.fftSize = 1024; this.meter.connect(c.destination);
+    this.out = c.createGain(); this.out.connect(this.meter);
     this.fx = c.createGain(); this.fx.connect(this.out);
     this.musicBus = c.createGain(); this.musicBus.gain.value = 0; this.musicBus.connect(this.out);
     this.duckNode = c.createGain(); this.duckNode.connect(this.musicBus);
@@ -54,6 +60,21 @@ export class RecapAudio {
   }
 
   get running() { return this.ctx.state === 'running'; }
+  get isMuted() { return this.muted; }
+  /** Peak level leaving the recap bus right now (0–1; debug). */
+  level01() {
+    this.meter.getFloatTimeDomainData(this.meterBuf);
+    let m = 0;
+    for (const v of this.meterBuf) m = Math.max(m, Math.abs(v));
+    return m;
+  }
+  /** A plain 440 Hz beep straight to the speakers, bypassing every recap bus (debug). */
+  testBeep() {
+    this.resume();
+    const t = this.ctx.currentTime + 0.01, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.frequency.value = 440; g.gain.setValueAtTime(0.4, t); g.gain.setTargetAtTime(0, t + 0.35, 0.03);
+    o.connect(g); g.connect(this.ctx.destination); o.start(t); o.stop(t + 0.6);
+  }
   resume() { if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {}); }
   /** Silences everything; the bed also stops scheduling notes while muted (no work at zero volume). */
   setMuted(m: boolean) { this.muted = m; this.out.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, 0.03); }
@@ -126,7 +147,9 @@ export class RecapAudio {
 
   /** A cue-sheet sound at `db`. ('none' = the silent start marker of a tick run.) */
   play(name: string, db = -14) {
-    if (!this.running) return;
+    if (name !== 'none') { this.dbg.lastCue = `${name} ${db} dB`; this.dbg.lastCueAt = performance.now(); }
+    if (!this.running) { this.dbg.skipped++; return; }
+    if (name !== 'none') this.dbg.played++;
     const t = this.ctx.currentTime + 0.01, a = dbToGain(db) * 2;
     switch (name) {
       case 'whoosh': this.noiseHit(t, 0.45, a * 0.9, 'bandpass', 300, 2600, 0.8); break;
@@ -162,6 +185,9 @@ export function recapAudio(): RecapAudio | null {
   }
   return shared;
 }
+
+/** The instance if one exists, without creating it (debug readout). */
+export function peekRecapAudio(): RecapAudio | null { return shared; }
 
 /** Call synchronously inside the tap that opens a recap (iOS gesture rule). */
 export function primeRecapAudio() {

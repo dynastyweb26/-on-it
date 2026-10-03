@@ -17,6 +17,7 @@ import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import type { Cue } from '@/lib/recap/timing';
 import { primeRecapAudio } from '@/lib/recap/audio';
+import { AudioDebugControls, AudioDebugPanel } from './AudioDebug';
 
 // Same as the app will do: the story's code (and its CSS) loads only on open.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
@@ -119,6 +120,7 @@ function StoryPreview() {
           ))}
         </div>
       </div>
+      <AudioDebugControls />
       {/* primeRecapAudio inside the tap: iOS only starts Web Audio in a gesture. */}
       <button className="btn-primary w-full" onClick={() => { primeRecapAudio(); setLog([]); setOpen(true); }}>Open recap</button>
       {log.length > 0 && (
@@ -141,7 +143,7 @@ function StoryPreview() {
   );
 }
 
-export default function RecapPreview() {
+export default function RecapPreview({ build }: { build: string }) {
   const [open, setOpen] = useState<Recap | null>(null);
   const [last, setLast] = useState<Recap | null>(null);
 
@@ -153,6 +155,7 @@ export default function RecapPreview() {
 
   return (
     <main className="mx-auto max-w-lg space-y-4 px-4 py-6">
+      <AudioDebugPanel build={build} />
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Recap preview</h1>
       <StoryPreview />
       <h2 className="pt-4 font-display text-xl font-extrabold">Old recap sheet</h2>

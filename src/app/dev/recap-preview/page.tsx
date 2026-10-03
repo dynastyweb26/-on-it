@@ -11,5 +11,7 @@ export const metadata: Metadata = { title: 'Recap preview (dev)', robots: { inde
 
 export default function Page() {
   if (process.env.VERCEL_ENV === 'production') notFound();
-  return <RecapPreview />;
+  // Which commit this deployment is (sound debugging: is the phone on the latest build?).
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
+  return <RecapPreview build={sha ? `${sha} (${process.env.VERCEL_GIT_COMMIT_REF ?? '?'})` : 'local'} />;
 }
