@@ -1,4 +1,5 @@
-// Weekly / monthly recaps: "Your week in review — $1,240 in · $310 out".
+// Weekly / monthly recaps: the push "Your week is ready" / "Your September is
+// ready" — "Tap to see how you did." (RECAP-SPEC §8; copy in notify/render).
 //
 // Runs as a step of the daily /api/followups cron (Hobby plan: no extra cron
 // entry), production only. For every owner, in their own timezone
@@ -338,8 +339,6 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
             recapId: pick.id,
             kind: pick.period.kind,
             periodStart: pick.period.start,
-            income: pick.numbers.income,
-            expenses: pick.numbers.expenses,
           });
           if (delivered > 0) summary.pushed++;
         }
