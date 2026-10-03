@@ -471,6 +471,12 @@ build everything in both design files, composer lock lifted, 3 merges to
 release frames `design-reference/on-it-next-release.html` (`66bb0be`). No
 database changes in commits 1–5.
 
+**Merge plan changed 2026-10-03 (founder):** merge 1 passed the device pass
+(`7e80912`, `07070a9`) but is **held** — nothing goes to `main` until merges
+2 and 3 are built and pass preview; then all three ship together. Merge 2/3
+migrations still apply to the shared database before their UI is
+previewed, so each must stay additive and safe for the live `main` code.
+
 | Item | Status | Evidence |
 |---|---|---|
 | 1. MOTION-SPEC §12 fix + motion foundations | **Built — awaiting branch-preview check** (commit "feat(motion): redesign foundations, MOTION-SPEC §12 fixed") | §12 now points at the recap Watch/Later sheet, story player and history (the old RecapSheet is gone); new §13: keep MOTION-SPEC easing tokens, sheets rise with `onit-sheet-in` (chat history + Books Add expense now do), toasts rise in (`onit-toast-in`, UndoToast), switches move by `transform` not `left` (3 Settings toggles), shared `usePrefersReducedMotion` in `src/lib/use-reduced-motion.ts` (PaywallSlideshow + RecapStory copies removed), Android-only haptics. |

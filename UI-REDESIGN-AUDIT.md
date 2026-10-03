@@ -658,6 +658,10 @@ pass in each merge's docs commit.
 
 ## 5. Commit sequence — one item per commit, three merges to `main`
 
+> **Changed 2026-10-03 (founder):** the three merges are built in order on
+> `feat/ui-redesign` but ship to `main` **together**, once merges 2 and 3
+> pass preview. Merge 1 passed its device pass and is held.
+
 **Already on the branch, and staying:**
 - commits 1–5 (`c99ce2d` … `91f6c09`);
 - the release frames (`66bb0be`);
