@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { groupByPeriod } from './date-groups';
-import { readListSort, sortWithinGroups } from './list-sort';
+import { expensesListCaption, readExpenseGrouping, readListSort, sortWithinGroups } from './list-sort';
 
 type R = { name: string; at: string; amt: number };
 const rows: R[] = [
@@ -33,4 +33,18 @@ test('weekly groups keep their subtotals', () => {
 
 test('stored choice: Newest unless "az"; blocked storage → Newest', () => {
   assert.equal(readListSort('k'), 'newest');   // no localStorage in node → caught → newest
+});
+
+test('expenses grouping: Week by default (also with no storage); month subtotals are per month', () => {
+  assert.equal(readExpenseGrouping(), 'week'); // no localStorage under node → the default
+  const newest = [...rows].sort((a, b) => b.at.localeCompare(a.at));
+  const m = groupByPeriod(newest, (r) => r.at, (r) => r.amt, 'month');
+  assert.deepEqual(m.map((g) => g.subtotal), [23, 9]);
+  const az = sortWithinGroups(m, (r) => r.name, (r) => r.at);
+  assert.deepEqual(az.map((g) => g.subtotal), [23, 9]); // A–Z inside the month view keeps its subtotals
+});
+
+test('Books subtitle follows the expenses grouping and sort', () => {
+  assert.equal(expensesListCaption('az', 'week'), 'A–Z by vendor, by week');
+  assert.equal(expensesListCaption('newest', 'month'), 'Newest first, by month');
 });

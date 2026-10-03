@@ -38,3 +38,21 @@ export function writeListSort(key: string, v: ListSort) {
 
 export const INVOICES_SORT_KEY = 'onit-invoices-sort';
 export const EXPENSES_SORT_KEY = 'onit-expenses-sort';
+
+// Expenses: Week / Month grouping (§L Q2). Week by default, remembered per
+// device; each view has its own group subtotals and the sort applies inside.
+export type ExpenseGrouping = 'week' | 'month';
+export const EXPENSES_GROUP_KEY = 'onit-expenses-group';
+
+export function readExpenseGrouping(): ExpenseGrouping {
+  try { return localStorage.getItem(EXPENSES_GROUP_KEY) === 'month' ? 'month' : 'week'; } catch { return 'week'; }
+}
+
+export function writeExpenseGrouping(v: ExpenseGrouping) {
+  try { localStorage.setItem(EXPENSES_GROUP_KEY, v); } catch { /* not persisted (private mode) */ }
+}
+
+/** The Books "View expenses" subtitle: what the expenses list will show. */
+export function expensesListCaption(sort: ListSort, group: ExpenseGrouping): string {
+  return `${sort === 'az' ? 'A–Z by vendor' : 'Newest first'}, by ${group}`;
+}

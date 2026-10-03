@@ -7,12 +7,14 @@ interface SwipeableRowProps {
   children: React.ReactNode;
   onDelete: () => void;
   className?: string;
+  /** Square corners, for rows inside a grouped card (Expenses). */
+  flat?: boolean;
 }
 
 const SWIPE_THRESHOLD = 70; // px to reveal delete button
 const MAX_SWIPE = 90; // max px distance
 
-export default function SwipeableRow({ children, onDelete, className = '' }: SwipeableRowProps) {
+export default function SwipeableRow({ children, onDelete, className = '', flat = false }: SwipeableRowProps) {
   const [translateX, setTranslateX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -64,10 +66,12 @@ export default function SwipeableRow({ children, onDelete, className = '' }: Swi
   return (
     <div
       data-no-tab-swipe="true"
-      className={`relative overflow-hidden rounded-card ${className}`}
+      className={`relative overflow-hidden ${flat ? '' : 'rounded-card'} ${className}`}
     >
-      {/* Revealed Delete Action Background */}
-      <div className="absolute inset-y-0 right-0 flex items-center justify-end bg-error px-4 rounded-card">
+      {/* Revealed Delete Action Background — only painted while the row is
+          moved, so its edge never shows past an at-rest row's corners. */}
+      <div className={`absolute inset-y-0 right-0 flex items-center justify-end bg-error px-4 ${flat ? '' : 'rounded-card'}`}
+        style={{ visibility: translateX < 0 || isSwiping ? 'visible' : 'hidden' }}>
         <button
           type="button"
           aria-label="Delete item"

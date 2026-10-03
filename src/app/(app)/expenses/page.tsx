@@ -11,9 +11,11 @@ import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
-import SortToggle from '@/components/SortToggle';
+import { SortCaption } from '@/components/SortToggle';
+import SegmentedControl from '@/components/SegmentedControl';
+import AddExpenseSheet from '@/components/AddExpenseSheet';
 import { groupByPeriod } from '@/lib/date-groups';
-import { EXPENSES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
+import { EXPENSES_SORT_KEY, readExpenseGrouping, readListSort, sortWithinGroups, writeExpenseGrouping, writeListSort, type ExpenseGrouping, type ListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
@@ -56,6 +58,15 @@ export default function Books() {
     setSort(v);
     writeListSort(EXPENSES_SORT_KEY, v);
   }
+  // Week (default) / Month groups, each with its own subtotals (§L Q2).
+  const [grouping, setGrouping] = useState<ExpenseGrouping>('week');
+  useEffect(() => { setGrouping(readExpenseGrouping()); }, []);
+  function chooseGrouping(v: ExpenseGrouping) {
+    setGrouping(v);
+    writeExpenseGrouping(v);
+  }
+  const [query, setQuery] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     // spent_on is the user-facing date; created_at breaks ties so two expenses
@@ -104,16 +115,22 @@ export default function Books() {
   // falling back to description. This replaces the previous created_at same-day
   // tiebreak with the name tier so both lists order identically.
   const label = (e: ExpenseRow) => e.vendor || e.description || '';
-  const sorted = [...rows].sort((a, b) =>
+  const categoryOf = (e: ExpenseRow) => (isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other');
+  // Search: vendor, description or category, case-insensitive.
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? rows.filter((e) => [e.vendor, e.description, categoryOf(e)].some((v) => v?.toLowerCase().includes(q)))
+    : rows;
+  const sorted = [...visible].sort((a, b) =>
     b.spent_on.localeCompare(a.spent_on) ||           // Tier 1: newest → oldest
     label(a).localeCompare(label(b)));                // Tier 2: vendor → description A→Z
 
   // Week dividers with a running subtotal. Weeks are clamped to their month, so
   // each week's subtotal stays within one month and rolls up to the monthly
   // total on the summary page (see date-groups). Books shows the subtotal.
-  const byWeek = groupByPeriod(sorted, (e) => e.spent_on, (e) => Number(e.amount), 'week');
-  // A–Z: the same weeks and subtotals; only the rows inside each week reorder.
-  const groups = sort === 'az' ? sortWithinGroups(byWeek, label, (e) => e.spent_on) : byWeek;
+  const byPeriod = groupByPeriod(sorted, (e) => e.spent_on, (e) => Number(e.amount), grouping);
+  // A–Z: the same groups and subtotals; only the rows inside each group reorder.
+  const groups = sort === 'az' ? sortWithinGroups(byPeriod, label, (e) => e.spent_on) : byPeriod;
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -153,12 +170,21 @@ export default function Books() {
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 pb-4 pt-2">
+      {/* Release frames 4b: title + gold "+" (the same Add expense sheet as
+          Books), search, Week / Month + sort, then the groups. */}
+      <div className="flex items-center justify-between px-1 pb-2.5">
+        <h1 className="font-display text-[28px] font-extrabold leading-tight">Expenses</h1>
+        <button aria-label="Add expense" onClick={() => setAdding(true)}
+          className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
+          <Icon name="add" size={24} />
+        </button>
+      </div>
       {loading ? (
         <ExpensesSkeleton />
       ) : (
         <>
-          {!loading && rows.length === 0 && (
+          {rows.length === 0 && (
             <div className="mt-16 text-center">
               <Icon name="receipt_long" size={40} className="text-primary" />
               <p className="mt-2 text-body-md text-on-surface-variant">
@@ -169,51 +195,55 @@ export default function Books() {
           )}
 
           {rows.length > 0 && (
-            <div className="mb-3 flex justify-end">
-              <SortToggle value={sort} onChange={chooseSort} label="Sort expenses" />
-            </div>
+            <>
+              <label className="flex h-11 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5">
+                <Icon name="search" size={20} className="text-on-surface-variant/70" />
+                <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search vendor or category" aria-label="Search vendor or category"
+                  className="min-w-0 flex-1 border-0 bg-transparent text-[16px] outline-none placeholder:text-on-surface-variant/60" />
+              </label>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <SegmentedControl label="Group expenses by" value={grouping} onChange={chooseGrouping}
+                  options={[{ value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }] as const} />
+                <SortCaption value={sort} onChange={chooseSort} azLabel="A–Z by vendor" label="Sort expenses" />
+              </div>
+            </>
+          )}
+          {rows.length > 0 && visible.length === 0 && (
+            <p className="mt-10 text-center text-on-surface-variant">No expenses match &ldquo;{query.trim()}&rdquo;</p>
           )}
           <div>
             {groups.map((g) => (
               <div key={g.key}>
                 <DateDivider label={g.label} subtotal={g.subtotal} />
-                <div className="space-y-2">
+                <div className="overflow-hidden rounded-2xl border border-outline-variant/70 bg-surface-container-lowest">
                   {g.items.map((e) => {
                     const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
-                    const label = e.vendor || e.description || 'Expense';
-                    const category = isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other';
+                    const name = e.vendor || e.description || 'Expense';
                     return (
-                      <SwipeableRow key={e.id} onDelete={() => setDeleteTarget(e)}>
-                        <div className="card flex items-center gap-3">
+                      <SwipeableRow key={e.id} flat onDelete={() => setDeleteTarget(e)}>
+                        <div className="flex min-h-[58px] items-center gap-3 border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2">
                           {thumb ? (
                             <button
-                              aria-label={`View the receipt from ${label}`}
+                              aria-label={`View the receipt from ${name}`}
                               onClick={() => setLightbox(thumb)}
                               className="shrink-0 transition active:scale-95"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={thumb}
-                                alt=""
-                                className="h-14 w-14 rounded-input border border-outline-variant/40 object-cover"
-                              />
+                              <img src={thumb} alt="" className="h-[34px] w-[34px] rounded-[10px] border border-outline-variant/40 object-cover" />
                             </button>
                           ) : (
-                            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-input bg-surface-container text-on-surface-variant/60">
-                              <Icon name={e.receipt_url ? 'image' : 'shopping_cart'} size={22} />
+                            <span aria-hidden className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-surface-container-high font-display text-[13px] font-bold text-on-surface-variant">
+                              {e.receipt_url ? <Icon name="image" size={18} /> : name.charAt(0).toUpperCase()}
                             </span>
                           )}
-
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium">{label}</div>
-                            <div className="text-xs text-on-surface-variant">
-                              {category} · {localDate(e.spent_on).toLocaleDateString()}
+                            <div className="truncate text-[15.5px] font-semibold">{name}</div>
+                            <div className="text-[12.5px] text-on-surface-variant">
+                              {categoryOf(e)} · {localDate(e.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </div>
                           </div>
-
-                          <div className="shrink-0 text-right">
-                            <div className="font-display font-bold">{money(Number(e.amount))}</div>
-                          </div>
+                          <div className="shrink-0 font-display text-[15px] font-bold tabular-nums">{money(Number(e.amount))}</div>
                         </div>
                       </SwipeableRow>
                     );
@@ -224,6 +254,8 @@ export default function Books() {
           </div>
         </>
       )}
+
+      {adding && <AddExpenseSheet onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
 
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}

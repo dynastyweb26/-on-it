@@ -71,6 +71,7 @@ export const ICON_NAMES = [
   'receipt_long',
   'refresh',
   'request_quote',
+  'search',
   'send',
   'settings',
   'share',
