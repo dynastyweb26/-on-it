@@ -25,7 +25,6 @@ export const ICON_NAMES = [
   'close',
   'confirmation_number',
   'content_copy',
-  'credit_card',
   'delete',
   'delete_forever',
   'description',

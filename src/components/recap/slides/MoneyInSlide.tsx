@@ -5,10 +5,10 @@
 // segmented bar, each segment wipes in with its %; then the top-client card
 // with its share bar.
 //
-// Payment marks (§0): Zelle and Cash App are their simple-icons marks in each
-// brand's own hex (never recoloured); methods without a brand (card, cash,
-// check, other) show a Material Symbol in a neutral chip, with a data colour
-// for their bar segment so every segment is distinct.
+// Payment marks (§0, lib/recap/paymarks.ts): Zelle, Cash App and card
+// (Stripe) are their simple-icons marks in each brand's own hex (never
+// recoloured); cash, check and other show a Material Symbol in a neutral chip,
+// with a data colour for their bar segment so every segment is distinct.
 //
 // Reduce Motion: chips, segments, labels and the card fade; no drops; the
 // total shows its final value (no count, no ticks).

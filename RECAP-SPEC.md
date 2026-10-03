@@ -437,9 +437,9 @@ week, $0 week, normal week.
 - Bottom card: "{Top client} was your top client." / "Paid $X, N% of the
   week." + 8 px share bar (gold gradient) growing scaleX.
 - Brand colours in the prototype: Zelle `#6D1ED4`, Cash App `#00C244`,
-  Card `#635BFF`. On It build: marks + hex from `simple-icons`
-  (Zelle, Cash App); methods without a brand mark (card, cash, check, other) use a
-  Material Symbol in a neutral chip (see the audit).
+  Card `#635BFF`. On It build: marks + hex from `simple-icons` — Zelle,
+  Cash App, and **card = the Stripe mark** (`#635BFF`, as the paywall; decided
+  2026-10-03); cash, check and other use a Material Symbol in a neutral chip.
 
 ### moneyInZero (light, calm)
 - "Quiet week on payments." / "Your invoices are still working. N are out
