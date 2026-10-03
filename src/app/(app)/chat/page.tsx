@@ -2301,9 +2301,9 @@ export default function Chat() {
     }
   }
 
-  // ── The gold circle's "+" menu (UI redesign; the input bar itself is locked).
-  // Outside a voice session the circle opens Mic · New invoice · New quote;
-  // during one it stays today's mic/stop button (micTap).
+  // ── The composer's "+" menu (release frames 1b, motion 1d). Outside a voice
+  // session "+" opens Voice · New invoice · New quote; during one the same
+  // button is the × that ends the session.
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -2321,14 +2321,13 @@ export default function Chat() {
   }
   function pickFromPlus(k: ComposerPick) {
     if (k === 'mic') {
-      // Exactly today's mic: micTap() runs synchronously inside this tap, so
+      // Voice = exactly today's mic: micTap() runs synchronously inside this tap, so
       // iOS still allows the speech priming and the mic permission prompt.
       micTap();
-      clearTimeout(plusTimer.current);
-      setPlusMenu(null);
+      closePlusMenu(); // the menu reverses out (1d: an option pick closes it too)
       return;
     }
-    // New invoice / New quote: until the guided template lands (commit 8),
+    // New invoice / New quote: until the guided template lands (merge 2, §L Q1),
     // start a fresh conversation with the field primed and focused (focus
     // inside the tap, so iOS opens the keyboard).
     window.dispatchEvent(new Event('onit-new-chat'));
@@ -2336,8 +2335,7 @@ export default function Chat() {
     setInput(seed);
     inputRef.current?.focus();
     requestAnimationFrame(() => inputRef.current?.setSelectionRange(seed.length, seed.length));
-    clearTimeout(plusTimer.current);
-    setPlusMenu(null);
+    closePlusMenu();
   }
 
   function micTap() {
@@ -2972,7 +2970,7 @@ export default function Chat() {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
-      <div className="border-t border-outline-variant/40 bg-background px-3 py-2.5">
+      <div className={`border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' relative z-[46]' : ''}`}>
         {phase === 'preparing' && (
           <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
             <Icon name="photo_camera" size={20} className="text-primary" />
@@ -2997,7 +2995,7 @@ export default function Chat() {
         />
 
         <div className="flex items-end gap-2">
-          <div className={`relative shrink-0${plusMenu ? ' z-[46]' : ''}`}>
+          <div className="relative shrink-0">
             {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
             {/* One button, two jobs: outside a voice session it's the "+" that
                 opens Voice · New invoice · New quote; during a session it's the

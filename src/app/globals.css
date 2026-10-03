@@ -364,12 +364,14 @@ html[data-splash=""] .onit-splash {
 .onit-plus-btn { transition: background-color 200ms ease, color 200ms ease; }
 .onit-plus.is-open { transform: rotate(45deg); }
 @keyframes onit-fade-out { to { opacity: 0; } }
-@keyframes onit-option-in { from { opacity: 0; transform: translateY(14px) scale(.92); } }
-@keyframes onit-option-out { to { opacity: 0; transform: translateY(14px) scale(.92); } }
-.onit-composer-scrim { animation: onit-fade var(--motion-base) var(--ease-standard) both; }
-.onit-composer-scrim.is-closing { animation: onit-fade-out 180ms var(--ease-standard) both; }
-.onit-composer-option { transform-origin: left bottom; animation: onit-option-in 300ms var(--ease-standard) both; }
-.onit-composer-option.is-closing { animation: onit-option-out 180ms var(--ease-standard) both; }
+@keyframes onit-option-rise { from { transform: translateY(var(--rise, 16px)) scale(.88); } }
+@keyframes onit-option-out { to { opacity: 0; transform: translateY(var(--rise, 16px)) scale(.88); } }
+/* Release frames 1d: scrim 220ms ease; options 340ms cubic-bezier(.2,1.3,.4,1)
+   (opacity 180ms ease, same delay); close 180ms, no stagger. */
+.onit-composer-scrim { animation: onit-fade 220ms ease both; }
+.onit-composer-scrim.is-closing { animation: onit-fade-out 180ms ease both; }
+.onit-composer-option { transform-origin: 22px 100%; animation: onit-option-rise 340ms cubic-bezier(.2, 1.3, .4, 1) both, onit-fade 180ms ease both; }
+.onit-composer-option.is-closing { animation: onit-option-out 180ms ease both; }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
