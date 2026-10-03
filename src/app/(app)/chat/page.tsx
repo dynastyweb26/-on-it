@@ -3,7 +3,8 @@
    Speak or type a job → "On it!" → follow-up questions →
    invoice preview card → PDF → native share sheet → follow-up engine.
    Works for guests (5 free parses), saves for signed-in users.
-   Text mode is silent. Tapping the mic opens full-screen voice mode.  */
+   Text mode is silent. The gold circle is a "+": Mic starts a voice session
+   (the circle is then the mic/stop button until the session ends).  */
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -31,6 +32,7 @@ import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
+import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -2195,6 +2197,45 @@ export default function Chat() {
     }
   }
 
+  // ── The gold circle's "+" menu (UI redesign; the input bar itself is locked).
+  // Outside a voice session the circle opens Mic · New invoice · New quote;
+  // during one it stays today's mic/stop button (micTap).
+  const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
+  const plusTimer = useRef<ReturnType<typeof setTimeout>>();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => () => clearTimeout(plusTimer.current), []);
+  function closePlusMenu() {
+    if (plusMenu !== 'open') return;
+    setPlusMenu('closing');
+    clearTimeout(plusTimer.current);
+    plusTimer.current = setTimeout(() => setPlusMenu(null), MENU_CLOSE_MS);
+  }
+  function plusTap() {
+    if (plusMenu === 'open') { closePlusMenu(); return; }
+    clearTimeout(plusTimer.current);
+    setPlusMenu('open');
+  }
+  function pickFromPlus(k: ComposerPick) {
+    if (k === 'mic') {
+      // Exactly today's mic: micTap() runs synchronously inside this tap, so
+      // iOS still allows the speech priming and the mic permission prompt.
+      micTap();
+      clearTimeout(plusTimer.current);
+      setPlusMenu(null);
+      return;
+    }
+    // New invoice / New quote: until the guided template lands (commit 8),
+    // start a fresh conversation with the field primed and focused (focus
+    // inside the tap, so iOS opens the keyboard).
+    window.dispatchEvent(new Event('onit-new-chat'));
+    const seed = k === 'quote' ? 'Quote for ' : 'Invoice for ';
+    setInput(seed);
+    inputRef.current?.focus();
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(seed.length, seed.length));
+    clearTimeout(plusTimer.current);
+    setPlusMenu(null);
+  }
+
   function micTap() {
     // iOS Safari only lets TTS start from a user gesture. Prime it here, inside
     // the tap, so the reply — spoken later after async transcribe+parse — is
@@ -2878,21 +2919,27 @@ export default function Chat() {
             onChange={onPickReceipt}
           />
           {/* Level rings sit behind the button while recording (MOTION-SPEC §11). */}
-          <div className="relative shrink-0">
+          <div className={`relative shrink-0${plusMenu ? ' z-[46]' : ''}`}>
           <MicRings stream={streamRef.current} active={recording} />
+          {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
           <button
-            aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
+            aria-label={voiceSession ? (recording ? 'Stop and send' : 'Speak') : plusMenu === 'open' ? 'Close' : 'Start something: mic, new invoice or new quote'}
+            aria-haspopup={voiceSession ? undefined : 'menu'}
+            aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
             // The splash's white rings fly onto this button on a cold start
             // (components/Splash.tsx measures it at runtime).
             data-splash-target=""
-            className="relative grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
+            className="relative z-[46] grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
             disabled={phase !== null}
-            onClick={micTap}
+            onClick={voiceSession ? micTap : plusTap}
           >
-            <Icon name="mic" size={32} filled />
+            {voiceSession
+              ? <Icon name="mic" size={32} filled />
+              : <span className={`onit-plus grid place-items-center${plusMenu === 'open' ? ' is-open' : ''}`}><Icon name="add" size={36} /></span>}
           </button>
           </div>
           <textarea
+            ref={inputRef}
             className="input max-h-32 flex-1 resize-none py-3.5"
             placeholder="Or type it…"
             value={input}

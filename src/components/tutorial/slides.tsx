@@ -42,7 +42,7 @@ export const SLIDES: Slide[] = [
     id: 'mic',
     tab: 'invoices',
     headline: 'Talk or type the job',
-    body: "Tap the mic and talk, or type it — “Invoice Cyril four fifty for a door install.” On It writes it up.",
+    body: "Tap +, then Mic, and talk — or type it: “Invoice Cyril four fifty for a door install.” On It writes it up.",
     spotlight: 'mic',
     mock: (
       <MockShell active="chat">

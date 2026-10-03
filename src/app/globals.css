@@ -357,6 +357,18 @@ html[data-splash=""] .onit-splash {
    centring (-50% x); the keyboard lift uses the separate `translate` property. */
 @keyframes onit-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .onit-toast-in { animation: onit-toast-in var(--motion-base) var(--ease-standard) both; }
+/* Composer "+" expand (UI redesign): + rotates 45° into ×, a cream scrim fades
+   over the chat, options rise out nearest first (delays set inline, 45ms
+   apart). Closing reverses everything together in 180ms. */
+.onit-plus { transition: transform 300ms var(--ease-standard); }
+.onit-plus.is-open { transform: rotate(45deg); }
+@keyframes onit-fade-out { to { opacity: 0; } }
+@keyframes onit-option-in { from { opacity: 0; transform: translateY(14px) scale(.92); } }
+@keyframes onit-option-out { to { opacity: 0; transform: translateY(14px) scale(.92); } }
+.onit-composer-scrim { animation: onit-fade var(--motion-base) var(--ease-standard) both; }
+.onit-composer-scrim.is-closing { animation: onit-fade-out 180ms var(--ease-standard) both; }
+.onit-composer-option { transform-origin: left bottom; animation: onit-option-in 300ms var(--ease-standard) both; }
+.onit-composer-option.is-closing { animation: onit-option-out 180ms var(--ease-standard) both; }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }

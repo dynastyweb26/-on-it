@@ -72,7 +72,8 @@ export function MockBubble({ role, children }: { role: 'user' | 'assistant'; chi
   );
 }
 
-/** The chat composer row (camera/gallery stack, mic FAB, field, send), scaled
+/** The chat composer row (camera/gallery stack, the gold "+" (Mic · New invoice ·
+ *  New quote), field, send), scaled
  *  down. `captureId`/`micId` mark whichever control a slide spotlights. */
 export function MockComposer({ captureId, micId }: { captureId?: string; micId?: string }) {
   return (
@@ -89,7 +90,7 @@ export function MockComposer({ captureId, micId }: { captureId?: string; micId?:
         data-spotlight={micId}
         className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised"
       >
-        <Icon name="mic" size={24} filled />
+        <Icon name="add" size={26} />
       </span>
       <div className="input flex h-10 min-h-0 flex-1 items-center py-0 text-[13px] text-on-surface-variant/60">
         Or type it…
