@@ -37,10 +37,11 @@ for (const [key, counts, heroEnd, total] of SPEC) {
 
 test('opener beats match the §4 table (7 days, or 4–5 calendar weeks: same wave length)', () => {
   for (const n of [4, 5, 7]) {
-    const { B } = timing('opener', { cols: n });
+    const { B } = timing('opener', { cols: n, days: n });
     const got = Object.fromEntries(Object.entries(B).map(([k, b]) => [k, [Math.round(b.start), Math.round(b.end)]]));
     assert.deepEqual(got, {
       cols: [150, 1590], sweep: [1190, 2490], mark: [1854, 2754],
+      days: [1590, 1590 + (n - 1) * 40 + 400],   // axis labels once the columns are up (no effect on heroEnd)
       label: [2054, 2554], title: [2204, 2854], range: [2454, 2954], aff: [2954, 3754],
     }, `n=${n}`);
   }

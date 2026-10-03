@@ -22,6 +22,18 @@ export const monthName = (p: Pick<RecapPayload, 'start'>) => MONTH[ymd(p.start)[
 
 /** Whole dollars, "−$" for negatives (the prototype's R.money). */
 export const money = (n: number) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+
+/** Compact currency for chart labels: "$840", "$1.2k", "$12k", "$1.2M"
+ *  (thresholds on the rounded value, so $999.6k reads "$1M", never "$1,000k"). */
+export function compactMoney(n: number): string {
+  const sign = n < 0 ? '−' : '';
+  const a = Math.abs(n);
+  const one = (v: number) => v.toFixed(1).replace(/\.0$/, '');
+  if (Math.round(a) < 1000) return `${sign}$${Math.round(a)}`;
+  if (Math.round(a / 100) / 10 < 10) return `${sign}$${one(a / 1000)}k`;
+  if (Math.round(a / 1000) < 1000) return `${sign}$${Math.round(a / 1000)}k`;
+  return `${sign}$${one(a / 1e6)}M`;
+}
 /** "1 payment" / "4 payments". */
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 /** "week" / "month". */

@@ -22,11 +22,18 @@ const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr:
 
 // Not among the prototype's eight: 'onePaymentWeek' (opener checkpoint) and
 // 'stressWeek' (all six payment methods, $123,456, a long client name).
-type PreviewId = ScenarioId | 'onePaymentWeek' | 'stressWeek';
-const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 'One-payment week', stressWeek: 'Stress: 6 methods, long name' };
+type PreviewId = ScenarioId | 'onePaymentWeek' | 'stressWeek' | 'fiveWeekMonth';
+const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 'One-payment week', stressWeek: 'Stress: 6 methods, long name', fiveWeekMonth: '5-week month (Oct)' };
+// Every fixture is September (4 calendar-week columns); October 2026 gives 5
+// (Oct 1–4, 5–11, 12–18, 19–25, 26–31). Busy month's numbers on October's days.
+const OCT_DAILY = [0, 640, 0, 0, 920, 380, 0, 1460, 0, 210, 0, 0, 1180, 0, 0, 0, 760, 0, 2240, 0, 0, 0, 0, 980, 0, 0, 1320, 0, 0, 540, 0];
+function fiveWeekMonth(inv?: number) {
+  const p = fixturePayload('busyMonth', inv);
+  return { ...p, start: '2026-10-01', end: '2026-10-31', daily: OCT_DAILY };
+}
 const EXTRA = { onePaymentWeek, stressWeek };
 const WEEKLY: PreviewId[] = ['normalWeek', 'onePaymentWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing', 'stressWeek'];
-const MONTHLY: PreviewId[] = ['busyMonth', 'quietMonth', 'spikyMonth'];
+const MONTHLY: PreviewId[] = ['busyMonth', 'quietMonth', 'spikyMonth', 'fiveWeekMonth'];
 
 function StoryPreview() {
   const [scenario, setScenario] = useState<PreviewId>('normalWeek');
@@ -34,7 +41,11 @@ function StoryPreview() {
   const [motion, setMotion] = useState<'os' | 'reduce' | 'full'>('os');
   const [open, setOpen] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const payload = useMemo(() => (scenario === 'onePaymentWeek' || scenario === 'stressWeek' ? scenarioPayload(EXTRA[scenario]) : fixturePayload(scenario, inv)), [scenario, inv]);
+  const payload = useMemo(() => (
+    scenario === 'fiveWeekMonth' ? fiveWeekMonth(inv)
+      : scenario === 'onePaymentWeek' || scenario === 'stressWeek' ? scenarioPayload(EXTRA[scenario])
+        : fixturePayload(scenario, inv)
+  ), [scenario, inv]);
   const [startAt, setStartAt] = useState(0);
   const seq = recapSequence(payload);
   const note = (line: string) => setLog((l) => [line, ...l].slice(0, 8));

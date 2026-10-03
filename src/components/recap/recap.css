@@ -116,6 +116,10 @@
 
 /* ── Opener (columns + ribbon) ── */
 .rc-cols { position: absolute; inset: 0; pointer-events: none; }
+/* Axis labels and the peak amount: the prototype's rc-day / rc-peak, as authored
+   (not scaled with the canvas). */
+.rc-day { position: absolute; text-align: center; white-space: nowrap; font: 600 11px/14px var(--onit-body); color: var(--onit-on-ink-muted); }
+.rc-peak { position: absolute; text-align: center; white-space: nowrap; font: 600 11px/1 var(--onit-body); color: var(--onit-on-ink-body); font-variant-numeric: tabular-nums; }
 .rc-col {
   position: absolute; transform-origin: 50% 100%; will-change: transform, opacity;
   background: linear-gradient(0deg, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, .32) 40%, rgba(236, 200, 100, .85) 88%, #fff1c9 100%);

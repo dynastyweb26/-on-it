@@ -107,8 +107,10 @@ const EDGES = 6;  // stacked card edges behind them, at most
  *  so "the rest" comes from `count`. */
 export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, number> {
   switch (key) {
-    case 'opener':
-      return { cols: openerSeries(p).values.length };   // 7 days, or 4–5 calendar weeks
+    case 'opener': {
+      const n = openerSeries(p).values.length;   // 7 days, or 4–5 calendar weeks
+      return { cols: n, days: n };
+    }
     case 'moneyIn': {
       const m = p.paymentMethods.filter((x) => x.amount > 0).length;
       return { chips: m, pour: m, segs: m, pct: m };
@@ -121,7 +123,7 @@ export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, nu
       return { outBars: p.spend.categories.length };
     case 'glance': {
       const w = monthColumns(p.start, p.end, p.daily).length;   // the opener's weeks
-      return { bars: w, vals: w };
+      return { bars: w, vals: w, lbls: w };
     }
     case 'owed': {
       const full = Math.min(LIST, p.owed.invoices.length), rest = Math.max(0, p.owed.count - full);

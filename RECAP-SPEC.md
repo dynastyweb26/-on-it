@@ -68,8 +68,12 @@ decode, gunzip where `compressed: true`. The JS files are:
   income, scaled against the stored `previous` period so a quiet period stands
   lower than a busy one; zero columns stay as small stubs, never invisible. The
   ribbon of light sweeps the tops; the small swoosh riding its head hands off
-  to the big mark behind the title. **No value label ("$800") and no day-label
-  axis.** Full spec in §4 / §5 "opener". **Month at a glance uses the same
+  to the big mark behind the title. **Labels (changed 2026-10-03, replacing
+  "no value label, no axis"):** an axis label under every column — weekly the
+  date (22 … 28), monthly each week's start ("Sep 1", "Sep 8" …, same merge
+  rule) — and the tallest column's amount above it (compact: "$840",
+  "$1.2k"; first on a tie; none when every column is $0), in the prototype's
+  `rc-day` / `rc-peak` type, colour and spacing. Full spec in §4 / §5 "opener". **Month at a glance uses the same
   weeks** (`monthColumns()`, decided 2026-10-03; `monthWeeks()` removed), so
   both slides agree.
 
@@ -422,7 +426,20 @@ changes. Built in `src/components/recap/slides/OpenerSlide.tsx`, geometry in
 - `amp = 0.4 + 0.6 × min(1, avg column / ref)`, `ref` = the previous
   period's income per column: previous week ÷ 7; previous **month** ÷ its own
   number of columns (same merge rule). No previous income → 0.75.
-- **Not built:** day/week labels (`rc-day`) and the peak value label (`rc-peak`).
+- **Axis labels** (`rc-day`, prototype): 600 11px/14px `--onit-on-ink-muted`,
+  top at canvas y 796 (floor + 48 — clear of the reflections, which end by
+  floor + 42), one per column incl. $0 days, centred in the column's slot
+  (pitch wide). Weekly: the date (22 … 28); monthly: the week's start
+  ("Sep 1"). Beat `days` = { delay `cols.end`, dur 400, stagger 40 }: they
+  fade in once the columns have risen.
+- **Peak amount** (`rc-peak`, prototype): 600 11px/1 `--onit-on-ink-body`,
+  tabular, 80 px wide centred on the tallest column (first on a tie), top 44
+  px above its top; the column's REAL total (a merged month column shows its
+  real amount, not the 7-day rate), compact (`compactMoney`: "$840", "$1.2k",
+  "$12k", "$1.2M"). None when every column is $0. Pops (scale .6 → 1, back)
+  over the second half of that column's rise. `CEILING` now reserves room for
+  it (floor − 210 − 44 − 4).
+- Reduce Motion: labels and the peak amount are static (no animation).
 
 **Ribbon**
 - Catmull-Rom → cubic Bézier through every column top + 22 px (prototype),
@@ -511,6 +528,11 @@ week, $0 week, normal week.
   Soft chime (−22 dB), no ring, no glow.
 
 ### glance (light) — monthly only, after kept
+- On It build (2026-10-03): week values above the bars are compact
+  (`compactMoney`, so five weeks fit 390 px); labels below are each week's
+  start ("Sep 1", from `monthColumns`), fading in after the bars (beat `lbls`
+  = { delay `bars.end`, dur 400, stagger 40 }; static under Reduce Motion).
+  The Best week card keeps whole dollars.
 - Label = month name; "Your month at a glance"; "$X brought in over N weeks"
   (count-up) · weekly bars (max 230 px, best week in gold with glow, others
   `#efe4cf → #e3d5bb`), values above, labels below · "Best week" card

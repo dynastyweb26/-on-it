@@ -6,8 +6,11 @@
 //             derived at render time from the stored daily series — nothing
 //             extra is stored, and the weeks can't disagree with the days.
 // Heights are scaled against the previous period (a quiet period stands lower
-// than a busy one); zero columns stay as small stubs (never invisible); no
-// value label, no day/week-label axis. Pure geometry; the slide draws it.
+// than a busy one); zero columns stay as small stubs (never invisible). Axis
+// labels under every column (weekly: the date, 22 … 28; monthly: each week's
+// start, "Sep 1", "Sep 8" …) and the tallest column's amount above it (the
+// prototype's rc-day / rc-peak, restored 2026-10-03). Pure geometry; the slide
+// draws it.
 //
 // Authored on the prototype's 393 × 852 canvas, then mapped to the screen:
 // x × kx, y → oy + y × ky. The ribbon is a Catmull-Rom → cubic Bézier through
@@ -27,9 +30,12 @@ const MIN_H = 14;                 // the smallest real column
 export const STUB_H = 6;          // a zero column: a low stub, never invisible
 const RIBBON_LIFT = 22;           // ribbon rides 22 px above the column tops
 const NO_REF_AMP = 0.75;
-/** The highest anything reaches (a full column + ribbon + its glow): the
+export const PEAK_LIFT = 44;      // prototype rc-peak: its top sits 44 px above the column top
+export const LABEL_Y = 796;       // prototype rc-day: top of the axis labels (floor + 48)
+/** The highest anything reaches (the peak amount over a full column): the
  *  fitting reference, the same for every period so heights stay comparable. */
-export const CEILING = BASE - MAXH - RIBBON_LIFT - 10;
+export const CEILING = BASE - MAXH - PEAK_LIFT - 4;
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const weekday = (ymd: string) => (new Date(`${ymd}T00:00:00Z`).getUTCDay() + 6) % 7; // Mon = 0 … Sun = 6
 
@@ -70,7 +76,9 @@ export function monthColumns(start: string, end: string, daily: number[] = []) {
  *  a giant bar. */
 const weekValue = (c: { days: number; amount: number }) => (c.days > 7 ? (c.amount * 7) / c.days : c.amount);
 
-export type OpenerSeries = { values: number[]; ref: number | null; wide: boolean };
+/** values = what sets each column's height; amounts = its real total (the
+ *  peak label); labels = the axis text under it. */
+export type OpenerSeries = { values: number[]; ref: number | null; wide: boolean; amounts: number[]; labels: string[] };
 
 /** What the columns show: weekly → the 7 days; monthly → the month's
  *  columns (monthColumns, merged-week values at a 7-day rate). `ref` = the
@@ -78,12 +86,20 @@ export type OpenerSeries = { values: number[]; ref: number | null; wide: boolean
  *  ITS number of columns, same merge rule); null if unknown. */
 export function openerSeries(p: Pick<RecapPayload, 'kind' | 'start' | 'end' | 'daily' | 'previous'>): OpenerSeries {
   const prev = p.previous?.income && p.previous.income > 0 ? p.previous.income : null;
-  if (p.kind !== 'month') return { values: p.daily, ref: prev && prev / Math.max(1, p.daily.length), wide: false };
+  if (p.kind !== 'month') {
+    return {
+      values: p.daily, ref: prev && prev / Math.max(1, p.daily.length), wide: false,
+      amounts: p.daily, labels: p.daily.map((_, i) => String(Number(addDays(p.start, i).slice(8, 10)))),
+    };
+  }
   const pp = previousPeriod({ kind: 'month', start: p.start, end: p.end });
+  const weeks = monthColumns(p.start, p.end, p.daily);
   return {
-    values: monthColumns(p.start, p.end, p.daily).map(weekValue),
+    values: weeks.map(weekValue),
     ref: prev && prev / monthColumns(pp.start, pp.end).length,
     wide: true,
+    amounts: weeks.map((w) => w.amount),
+    labels: weeks.map((w) => `${MON[Number(w.start.slice(5, 7)) - 1]} ${Number(w.start.slice(8, 10))}`),
   };
 }
 
@@ -94,9 +110,15 @@ export function columnsAmp(values: number[], ref: number | null): number {
   return 0.4 + 0.6 * Math.min(1, avg / ref);
 }
 
+/** The tallest column (first on a tie), or −1 when every column is $0. */
+export function peakIndex(values: number[]): number {
+  const mx = Math.max(0, ...values);
+  return mx > 0 ? values.indexOf(mx) : -1;
+}
+
 export type Col = { x: number; w: number; h: number; zero: boolean };   // canvas px; top = BASE − h
 
-export function buildColumns({ values, ref, wide }: OpenerSeries): { cols: Col[]; amp: number } {
+export function buildColumns({ values, ref, wide }: Pick<OpenerSeries, 'values' | 'ref' | 'wide'>): { cols: Col[]; amp: number } {
   const n = Math.max(1, values.length);
   const mx = Math.max(0, ...values);
   const amp = mx > 0 ? columnsAmp(values, ref) : 0;
@@ -118,6 +140,9 @@ export type ScreenColumns = {
    *  pathLength dash offsets and offset-distance both measure). */
   pointAt: (f: number) => Pt & { angle: number };
   top: number;                  // highest column top (screen y)
+  labelY: number;               // screen y (top) of the axis labels
+  /** The tallest column's index, amount and label top (screen y); null when all are $0. */
+  peak: { i: number; amount: number; y: number } | null;
 };
 
 export function screenColumns(series: OpenerSeries, kx: number, ky: number, oy: number): ScreenColumns {
@@ -157,7 +182,12 @@ export function screenColumns(series: OpenerSeries, kx: number, ky: number, oy: 
     const k = (len - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1), a = poly[i - 1], b = poly[i];
     return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, angle: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI };
   };
-  return { cols: sc, base: Y(BASE), ribbon: d, pointAt, top: Math.min(...sc.map((c) => c.y)) };
+  const pi = peakIndex(series.values);
+  return {
+    cols: sc, base: Y(BASE), ribbon: d, pointAt, top: Math.min(...sc.map((c) => c.y)),
+    labelY: Y(LABEL_Y),
+    peak: pi < 0 ? null : { i: pi, amount: series.amounts[pi] ?? 0, y: Y(BASE - cols[pi].h - PEAK_LIFT) },
+  };
 }
 
 export const payloadColumns = (p: Parameters<typeof openerSeries>[0], kx = 1, ky = 1, oy = 0) =>

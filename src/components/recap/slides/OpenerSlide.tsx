@@ -6,9 +6,12 @@
 // stored daily series). The
 // columns rise in a wave, a ribbon of light sweeps across the tops, and the
 // small swoosh riding the ribbon's head hands off (same spot, angle and size,
-// same frame) to the big mark, which settles behind the title. No value label
-// and no day/week labels. Zero columns stay as low stubs. Geometry:
-// lib/recap/columns.ts.
+// same frame) to the big mark, which settles behind the title. Zero columns
+// stay as low stubs. Axis labels under every column (weekly: the date;
+// monthly: each week's start, "Sep 1") fade in once the columns have risen;
+// the tallest column's amount (compact, "$1.2k") pops in as that column
+// lands — the prototype's rc-day / rc-peak type, colour and spacing (restored
+// 2026-10-03). Geometry: lib/recap/columns.ts.
 //
 // Layout: the text and the resting mark sit under the chrome at the
 // prototype's sizes. The columns span the screen width with the design
@@ -18,12 +21,13 @@
 // period, so a quiet period still stands lower than a busy one.
 //
 // Reduce Motion: no rise, sweep, rider or hand-off — columns, reflections and
-// the resting mark fade in (350 ms), then the text.
+// the resting mark fade in (350 ms), then the text; the axis labels and the
+// peak amount are static.
 import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useSlideAnims } from '@/components/recap/anim';
 import type { SlideProps } from '@/components/recap/clock';
-import { AFFIRMATIONS, monthName, periodLabel } from '@/components/recap/copy';
-import { CANVAS_H, CANVAS_W, CEILING, payloadColumns } from '@/lib/recap/columns';
+import { AFFIRMATIONS, compactMoney, monthName, periodLabel } from '@/components/recap/copy';
+import { CANVAS_H, CANVAS_W, CEILING, openerSeries, payloadColumns } from '@/lib/recap/columns';
 
 const HANDOFF = 0.85;              // share of the ribbon the head has covered at the hand-off
 const HEAD_END = 0.625;            // eased sweep progress at which the head reaches the path end (100 of 160)
@@ -33,6 +37,8 @@ const MARK_W = 300, MARK_H = 237;
 const TEXT_GAP = 24;               // between the affirmation and the highest possible column / ribbon
 const AFF_BLOCK = 12 + 14 + 2 * 26;  // text gap + affirmation margin + two 26 px lines
 const MIN_KY = 0.3;                // only an SE in Safari (548 px tall) gets near this
+const PEAK_W = 80;                 // prototype rc-peak box (centred on its column)
+const PEAK_POP = 450;              // the peak amount pops over the second half of its column's rise
 
 type Layout = { w: number; h: number; textBottom: number };
 type TextRefs = {
@@ -88,6 +94,8 @@ function Columns({ payload, timing, clock, reduced, layout, text }: SlideProps &
   const ky = Math.min(kx, Math.max(MIN_KY, (h - textBottom - TEXT_GAP) / (CANVAS_H - CEILING)));
   const oy = h - CANVAS_H * ky;
   const g = useMemo(() => payloadColumns(payload, kx, ky, oy), [payload, kx, ky, oy]);
+  const labels = useMemo(() => openerSeries(payload).labels, [payload]);
+  const pitch = g.cols.length > 1 ? g.cols[1].x - g.cols[0].x : g.cols[0].w;   // columns are evenly spaced
 
   const colRefs = useRef<(HTMLDivElement | null)[]>([]);
   const reflRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -97,6 +105,8 @@ function Columns({ payload, timing, clock, reduced, layout, text }: SlideProps &
   const riderInRef = useRef<HTMLDivElement>(null);
   const markGateRef = useRef<HTMLDivElement>(null);
   const markRef = useRef<HTMLDivElement>(null);
+  const dayRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const peakRef = useRef<HTMLDivElement>(null);
 
   useSlideAnims(clock, timing.B, reduced, (S) => {
     const B = timing.B;
@@ -104,6 +114,12 @@ function Columns({ payload, timing, clock, reduced, layout, text }: SlideProps &
     colRefs.current.forEach((el, i) => S.anim(el, [{ opacity: 0, transform: 'scaleY(0)' }, { offset: 0.25, opacity: 1 }, { opacity: 1, transform: 'none' }], 'cols', { i }));
     reflRefs.current.forEach((el, i) => S.anim(el, [{ opacity: 0 }, { opacity: 0.5 }], 'cols', { i }));
     S.anim(baseRef.current, [{ opacity: 0 }, { opacity: 1 }], 'cols');
+    // Axis labels once the columns are up; the peak amount pops as its column
+    // lands. Reduce Motion: both static (no animation registered).
+    if (!reduced) {
+      dayRefs.current.forEach((el, i) => S.anim(el, [{ opacity: 0 }, { opacity: 1 }], 'days', { i }));
+      if (g.peak) S.pop(peakRef.current, 'cols', { i: g.peak.i, offset: PEAK_POP, dur: B.cols.dur - PEAK_POP });
+    }
     // Ribbon: a trail window [head − L, head]; the head travels 0 → 160 so the trail leaves the screen.
     ribbonRef.current?.querySelectorAll('path').forEach((p) => {
       const L = parseFloat(p.getAttribute('stroke-dasharray') ?? '0'); // each stroke's own trail length
@@ -159,6 +175,17 @@ function Columns({ payload, timing, clock, reduced, layout, text }: SlideProps &
             style={{ left: c.x, top: g.base + 2, width: c.w, height: Math.min(40 * ky, c.h * 0.3), borderRadius: `2px 2px ${c.w / 2}px ${c.w / 2}px` }} />
         )))}
         <div ref={baseRef} className="rc-floor" style={{ top: g.base, left: 28 * kx, right: 28 * kx }} />
+        {/* Each label owns its column's slot (pitch = column + gap), centred under it. */}
+        {g.cols.map((c, i) => (
+          <span key={`d${i}`} ref={(el) => { dayRefs.current[i] = el; }} className="rc-day"
+            style={{ left: c.x + c.w / 2 - pitch / 2, width: pitch, top: g.labelY }}>{labels[i]}</span>
+        ))}
+        {g.peak && (
+          <div ref={peakRef} className="rc-peak"
+            style={{ left: Math.min(w - PEAK_W, Math.max(0, g.cols[g.peak.i].x + g.cols[g.peak.i].w / 2 - PEAK_W / 2)), width: PEAK_W, top: g.peak.y }}>
+            {compactMoney(g.peak.amount)}
+          </div>
+        )}
         <svg ref={ribbonRef} className="rc-ribbon" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
           {/* Glow = stacked strokes, no blur filter (§9). Static state = the trail gone past the end. */}
           <path d={g.ribbon} {...stroke} stroke="#d4af37" strokeOpacity={0.14} strokeWidth={18 * kx} strokeDasharray={`${TRAIL[2] * 100} 300`} strokeDashoffset={TRAIL[2] * 100 - 160} />

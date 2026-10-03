@@ -60,6 +60,7 @@ export const RECAP_CONFIG: RecapConfig = {
       theme: 'dark', heroEnd: 'mark.end', hold: 2400,
       beats: {
         cols:  { delay: 150, dur: 900, stagger: 90, span: 540, ease: 'back' }, // 7 days, or 4–5 calendar weeks
+        days:  { delay: 'cols.end', dur: 400, stagger: 40 },            // axis labels, once the columns have risen
         sweep: { delay: 'cols.end-400', dur: 1300, ease: 'inOut' },     // ribbon of light across the tops
         mark:  { delay: 'sweep.start+664', dur: 900, ease: 'out' },     // hand-off → swoosh settles behind the title
         label: { delay: 'mark.start+200', dur: 500 },
@@ -161,6 +162,7 @@ export const RECAP_CONFIG: RecapConfig = {
         total: { delay: 500, dur: 1600, ease: 'outQuart' },
         bars:  { delay: 700, dur: 900, stagger: 200 },
         vals:  { delay: 'bars.start+600', dur: 400, stagger: 200 },
+        lbls:  { delay: 'bars.end', dur: 400, stagger: 40 },             // week labels, once the bars have risen
         card:  { delay: 'bars.end+200', dur: 600 }
       },
       cues: [

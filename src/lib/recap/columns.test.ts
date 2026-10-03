@@ -3,7 +3,7 @@
 // month), for every opener checkpoint case.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BASE, CEILING, MAXH, STUB_H, buildColumns, calendarWeeks, columnsAmp, monthColumns, openerSeries, payloadColumns } from './columns';
+import { BASE, CEILING, MAXH, STUB_H, buildColumns, peakIndex, calendarWeeks, columnsAmp, monthColumns, openerSeries, payloadColumns } from './columns';
 import { addDays } from './dates';
 import { fixturePayload, onePaymentWeek, scenarioPayload } from './fixtures';
 import { slideCounts } from './timing';
@@ -150,4 +150,32 @@ test('Month at a glance uses the opener weeks (same buckets, same merge rule)', 
     assert.equal(slideCounts('glance', p).bars, slideCounts('opener', p).cols);
     assert.deepEqual(monthColumns(p.start, p.end, p.daily).map((w) => w.days), [6, 7, 7, 10]);
   }
+});
+
+test('axis labels: weekly day numbers, monthly week starts (same merge rule)', () => {
+  const w = openerSeries({ kind: 'week', start: '2026-09-22', end: '2026-09-28', daily: [0, 100, 0, 0, 0, 0, 50], previous: { income: 0, expenses: 0 } });
+  assert.deepEqual(w.labels, ['22', '23', '24', '25', '26', '27', '28']);
+  const across = openerSeries({ kind: 'week', start: '2026-09-28', end: '2026-10-04', daily: [0, 0, 0, 0, 0, 0, 0], previous: { income: 0, expenses: 0 } });
+  assert.deepEqual(across.labels, ['28', '29', '30', '1', '2', '3', '4']);
+  // Sep 2026 (Tue 1): 1–6, 7–13, 14–20, 21–30 (28–30 merged).
+  const m = openerSeries({ kind: 'month', start: '2026-09-01', end: '2026-09-30', daily: Array(30).fill(10), previous: { income: 0, expenses: 0 } });
+  assert.deepEqual(m.labels, ['Sep 1', 'Sep 7', 'Sep 14', 'Sep 21']);
+  assert.deepEqual(m.amounts, [60, 70, 70, 100]);   // real totals (the 21–30 column's height is at its 7-day rate)
+  // A 5-column month: Jun 2026 (Mon 1) → 1, 8, 15, 22, 29–30 merged into 22.
+  const j = openerSeries({ kind: 'month', start: '2026-06-01', end: '2026-06-30', daily: Array(30).fill(0), previous: { income: 0, expenses: 0 } });
+  assert.deepEqual(j.labels, ['Jun 1', 'Jun 8', 'Jun 15', 'Jun 22']);
+  const o = openerSeries({ kind: 'month', start: '2026-10-01', end: '2026-10-31', daily: Array(31).fill(0), previous: { income: 0, expenses: 0 } });
+  assert.equal(o.labels.length, 5);
+  assert.deepEqual(o.labels, ['Oct 1', 'Oct 5', 'Oct 12', 'Oct 19', 'Oct 26']);
+});
+
+test('peak: the tallest column (first on a tie); none when every column is $0', () => {
+  assert.equal(peakIndex([0, 300, 120, 300]), 1);
+  assert.equal(peakIndex([0, 0, 0]), -1);
+  const s = payloadColumns({ kind: 'week', start: '2026-09-22', end: '2026-09-28', daily: [0, 840, 0, 1240, 1240, 0, 0], previous: { income: 0, expenses: 0 } });
+  assert.equal(s.peak?.i, 3);
+  assert.equal(s.peak?.amount, 1240);
+  assert.ok(s.peak!.y >= CEILING, 'peak label stays under the fit ceiling');
+  assert.equal(payloadColumns({ kind: 'week', start: '2026-09-22', end: '2026-09-28', daily: Array(7).fill(0), previous: { income: 0, expenses: 0 } }).peak, null);
+  assert.ok(s.labelY >= BASE + 2 + 40, 'labels sit below the tallest possible reflection');
 });
