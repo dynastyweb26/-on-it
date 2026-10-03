@@ -573,6 +573,13 @@ order above holds (ticks softest, snap loudest); each sound's measured peak at
 unity gain (`PEAK_AT_UNITY`) sets its gain. The chime/snap duck is unchanged.
 Re-measure the licensed set the same way.
 
+**Silent mode hint (On It build, 2026-10-03):** on the first recap open on an
+iPhone / iPad (the only devices with a Silent switch), unmuted, a small bubble
+under the mute button says "Turn off Silent mode to hear the soundtrack"
+(fades in at 0.6 s, gone by ~5.8 s; cream on dark slides, ink on light). Marked
+seen in `localStorage['onit-recap-sound-hint']` as it shows, so it never shows
+again on that device; no storage → never shown.
+
 ## 7. Payload shape (one per recap)
 
 The prototype's scenario object is shaped like a real recap payload:

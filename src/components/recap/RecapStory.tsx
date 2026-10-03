@@ -35,6 +35,11 @@ import { SLIDES } from '@/components/recap/slides';
 import './recap.css';
 
 const MUTE_KEY = 'onit-recap-muted';
+/** Set once the Silent mode hint has shown on this device (it never shows again). */
+export const SOUND_HINT_KEY = 'onit-recap-sound-hint';
+/** iPhone / iPad (iPadOS reports a Mac with touch): the only devices with a Silent switch. */
+const hasSilentSwitch = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const OPENS_KEY = 'onit-recap-opens';
 const DT_MAX = 64;
 
@@ -96,6 +101,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const [pendingTrans, setPendingTrans] = useState<{ dir: 1 | -1; key: number } | null>(null);
 
   const [muted, setMuted] = useState(false);
+  const [soundHint, setSoundHint] = useState(false);
   const [paused, setPaused] = useState(false);
   const [announce, setAnnounce] = useState('');
   // Opens on this device: the opener's affirmation rotates per open (§8).
@@ -136,6 +142,15 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
 
   useEffect(() => {
     try { const m = localStorage.getItem(MUTE_KEY) === '1'; st.current.muted = m; setMuted(m); } catch { /* storage blocked: unmuted */ }
+    // One-time hint (iPhone): the recap follows the Silent switch. Marked seen
+    // as it shows, so closing early still counts; unmuted recaps only; no
+    // storage → never shown (it couldn't be "once").
+    try {
+      if (!st.current.muted && hasSilentSwitch() && !localStorage.getItem(SOUND_HINT_KEY)) {
+        localStorage.setItem(SOUND_HINT_KEY, '1');
+        setSoundHint(true);
+      }
+    } catch { /* no hint */ }
     // Music bed: now if the opening tap primed the audio context, else on the first tap.
     const a = recapAudio();
     if (a) {
@@ -384,6 +399,11 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
             </button>
           </div>
         </div>
+        {soundHint && !quietOnly && (
+          <div className="rc-hint" role="note" onAnimationEnd={() => setSoundHint(false)}>
+            Turn off Silent mode to hear the soundtrack
+          </div>
+        )}
         <div className="rc-paused" data-on={paused || undefined} aria-hidden={!paused}>
           <Icon name="pause" size={15} />Paused
         </div>

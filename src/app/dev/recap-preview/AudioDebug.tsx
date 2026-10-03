@@ -62,7 +62,7 @@ export function AudioDebugPanel({ build }: { build: string }) {
   return (
     <div
       aria-hidden
-      style={{ position: 'fixed', left: 8, right: 8, top: 'calc(env(safe-area-inset-top) + 56px)', zIndex: 200, pointerEvents: 'none', background: 'rgba(0,0,0,.72)', color: '#9f9', font: '11px/1.35 ui-monospace,Menlo,monospace', padding: '6px 8px', borderRadius: 8 }}
+      style={{ position: 'fixed', left: 8, right: 8, top: 'calc(env(safe-area-inset-top) + 132px)', zIndex: 200, pointerEvents: 'none', background: 'rgba(0,0,0,.72)', color: '#9f9', font: '11px/1.35 ui-monospace,Menlo,monospace', padding: '6px 8px', borderRadius: 8 }}
     >
       {rows.map(([k, v]) => <div key={k}><span style={{ color: '#ccc' }}>{k}:</span> {v}</div>)}
       <div style={{ height: 4, marginTop: 4, background: '#333', borderRadius: 2 }}>
@@ -84,6 +84,7 @@ export function AudioDebugControls() {
       <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Sound debug (temporary)</div>
       <div className="flex flex-wrap gap-2">
         <button className="btn-outline text-primary" onClick={() => recapAudio()?.testBeep()}>Test beep</button>
+        <button className="btn-outline text-primary" onClick={() => { try { localStorage.removeItem('onit-recap-sound-hint'); } catch { /* blocked */ } }}>Reset Silent mode hint</button>
         {s && (['ambient', 'auto', 'playback'] as const).map((t) => (
           <button key={t} className={chip(s.type === t)} aria-pressed={s.type === t} onClick={() => { s.type = t; rerender((n) => n + 1); }}>Session: {t}</button>
         ))}
