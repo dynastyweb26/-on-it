@@ -1,6 +1,5 @@
 // The approved prototype's eight scenarios (design-reference/recap-prototype.html,
-// data.js; RECAP-SPEC.md §11), ported as test fixtures and, later, as the
-// /dev/recap-preview data. `scenarioInput` turns a scenario into the raw rows
+// data.js; RECAP-SPEC.md §11), ported as test fixtures. `scenarioInput` turns a scenario into the raw rows
 // the cron would read, so the real payload builder runs on them.
 //
 // The prototype's scenarios are hand-written and not all internally consistent

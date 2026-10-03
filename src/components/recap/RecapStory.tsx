@@ -21,7 +21,7 @@
 //    as the clock crosses them, the whoosh on every transition; the bed pauses
 //    while held / hidden and fades out on close. Web Audio only, ambient
 //    session (the silent switch mutes it). Mute persists in localStorage
-//    'onit-recap-muted'. `onCue` still reports each cue (dev log).
+//    'onit-recap-muted'. `onCue` reports each cue (optional).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
@@ -36,7 +36,7 @@ import './recap.css';
 
 const MUTE_KEY = 'onit-recap-muted';
 /** Set once the Silent mode hint has shown on this device (it never shows again). */
-export const SOUND_HINT_KEY = 'onit-recap-sound-hint';
+const SOUND_HINT_KEY = 'onit-recap-sound-hint';
 /** iPhone / iPad (iPadOS reports a Mac with touch): the only devices with a Silent switch. */
 const hasSilentSwitch = () =>
   /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -65,9 +65,9 @@ export type RecapStoryProps = {
   onAction?: (a: RecapAction) => void;
   /** Sound cues as they fire (not called while muted). */
   onCue?: (c: Cue) => void;
-  /** Forces Reduce Motion on/off (dev preview); default follows the OS. */
+  /** Forces Reduce Motion on/off; default follows the OS. */
   reducedMotion?: boolean;
-  /** Dev preview only: open on this slide (clamped). */
+  /** Open on this slide (clamped); default the first. */
   startAt?: number;
 };
 

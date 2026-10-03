@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recentPeriods } from './dates';
 import { fixturePayload } from './fixtures';
 import { RECAP_PAYLOAD_VERSION } from './payload';
 import { announces, hasUnwatched, normalizeRow, promptPick, readyTitle, rowLabel, sortRows, type RecapRow } from './rows';
@@ -47,19 +46,6 @@ test('labels and titles', () => {
   assert.equal(readyTitle({ kind: 'month', period_start: '2026-09-01' }), 'Your September is ready');
 });
 
-test('recentPeriods: completed weeks (Mon–Sun) and months before today', () => {
-  // Saturday 2026-10-03: the last completed week is Sep 21–27; last month September.
-  assert.deepEqual(recentPeriods('2026-10-03', 2, 2), [
-    { kind: 'week', start: '2026-09-21', end: '2026-09-27' },
-    { kind: 'week', start: '2026-09-14', end: '2026-09-20' },
-    { kind: 'month', start: '2026-09-01', end: '2026-09-30' },
-    { kind: 'month', start: '2026-08-01', end: '2026-08-31' },
-  ]);
-  // A Monday: the week that just closed counts.
-  assert.deepEqual(recentPeriods('2026-09-28', 1, 0), [{ kind: 'week', start: '2026-09-21', end: '2026-09-27' }]);
-  // January: last month is December of the previous year.
-  assert.deepEqual(recentPeriods('2027-01-05', 0, 1), [{ kind: 'month', start: '2026-12-01', end: '2026-12-31' }]);
-});
 
 test('history rows (no payload) announce from four payload fields', () => {
   const base = { id: 'h', kind: 'week', period_start: '2026-09-21', period_end: '2026-09-27', income: '0', expenses: '0', net: '0',

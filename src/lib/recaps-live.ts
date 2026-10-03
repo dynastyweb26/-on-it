@@ -4,8 +4,7 @@
  * missing or malformed env var keeps them hidden.
  *
  * Off: the cron builds no snapshots and sends no recap pushes, and no recap
- * UI appears (the in-app sheet now; the Books row, prompt and the paywall's
- * recap slide + "What's included" recaps row in PaywallModal). The temporary
- * /dev/recap-preview page ignores it.
+ * UI appears (the Watch/Later sheet, Books card + tab dot, history list, and
+ * the paywall's recap slide + "What's included" recaps row in PaywallModal).
  */
 export const RECAPS_LIVE = process.env.NEXT_PUBLIC_RECAPS_LIVE === 'true'

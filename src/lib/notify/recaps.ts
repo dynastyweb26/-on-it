@@ -260,8 +260,7 @@ async function everActive(admin: Admin, userId: string): Promise<boolean> {
 export type OwnerRecaps = { inactive: boolean; built: number; existing: number; quiet: number; rows: Built[] };
 
 /** Build (insert-once) one owner's snapshots for `periods`. Shared by the
- *  daily run and the preview's test route (/api/recaps/test), so both write
- *  exactly the same rows. Never pushes. */
+ *  daily run's per-owner work. Never pushes. */
 export async function buildOwnerRecaps(admin: Admin, userId: string, tz: string, periods: RecapPeriod[]): Promise<OwnerRecaps> {
   const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
   if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
