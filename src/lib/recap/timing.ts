@@ -3,8 +3,8 @@
 // item counts each slide hands to it (slides.js S.resolve calls). Pure: no
 // DOM, so the player, the slides and the tests all share one source.
 import { RECAP_CONFIG, type Beat, type CueSpec, type EaseName, type SoundName } from '@/lib/recap/config';
-import { monthWeeks, type RecapPayload, type RecapSlide } from '@/lib/recap/payload';
-import { openerSeries } from '@/lib/recap/columns';
+import type { RecapPayload, RecapSlide } from '@/lib/recap/payload';
+import { monthColumns, openerSeries } from '@/lib/recap/columns';
 
 /** CSS cubic-bezier → JS easing function (count-ups, tick spacing). */
 function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
@@ -120,7 +120,7 @@ export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, nu
     case 'keptInvest':
       return { outBars: p.spend.categories.length };
     case 'glance': {
-      const w = monthWeeks(p).length;
+      const w = monthColumns(p.start, p.end, p.daily).length;   // the opener's weeks
       return { bars: w, vals: w };
     }
     case 'owed': {

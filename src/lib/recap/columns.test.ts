@@ -143,3 +143,11 @@ test('payload stores previous { income, expenses }; nothing new for the weeks', 
   assert.equal(p.daily.length, 30);
   assert.equal(fixturePayload('nothing').previous, null);
 });
+
+test('Month at a glance uses the opener weeks (same buckets, same merge rule)', () => {
+  for (const id of ['busyMonth', 'quietMonth', 'spikyMonth'] as const) {
+    const p = fixturePayload(id);
+    assert.equal(slideCounts('glance', p).bars, slideCounts('opener', p).cols);
+    assert.deepEqual(monthColumns(p.start, p.end, p.daily).map((w) => w.days), [6, 7, 7, 10]);
+  }
+});

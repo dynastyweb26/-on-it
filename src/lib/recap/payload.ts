@@ -13,7 +13,7 @@
 import { summarize } from '@/lib/tax-summary';
 import { isExpenseCategory } from '@/lib/expenses';
 import { roundCurrency } from '@/lib/financials';
-import { addDays, daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
+import { daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
 
 export const RECAP_PAYLOAD_VERSION = 1;
 export const TOP_CATEGORIES = 4;   // the rest fold into "other" (5 data colours)
@@ -257,16 +257,3 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
 /** Whether this recap earns a push and the in-app "Your week is ready" prompt. */
 export const recapAnnounces = (p: RecapPayload) => !recapFlags(p).nothing;
 
-// ── Month buckets (glance slide; the columns opener for a month) ─────
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** 1–7, 8–14, 15–21, 22–end, from the per-day series ("Sep 22–30"). */
-export function monthWeeks(p: Pick<RecapPayload, 'start' | 'daily'>): { label: string; start: string; amount: number }[] {
-  const mon = MON[Number(p.start.slice(5, 7)) - 1];
-  const n = p.daily.length;
-  return [[0, 7], [7, 14], [14, 21], [21, n]].map(([a, b]) => ({
-    label: `${mon} ${a + 1}–${b}`,
-    start: addDays(p.start, a),
-    amount: r2(p.daily.slice(a, b).reduce((s, x) => s + x, 0)),
-  }));
-}

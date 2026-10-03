@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildRecapPayload, changeVs, monthWeeks, recapAnnounces, recapFlags, recapSequence,
+  buildRecapPayload, changeVs, recapAnnounces, recapFlags, recapSequence,
   TRIPS_MAX, type RecapInput, type RecapSlide,
 } from './payload';
 import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, SCENARIOS, type ScenarioId } from './fixtures';
 import { addDays, periodsEndingBefore, previousPeriod, zonedMidnight } from './dates';
+import { monthColumns } from './columns';
 
 const IDS = Object.keys(SCENARIOS) as ScenarioId[];
 const key = (name: string) => name.toLowerCase();
@@ -71,7 +72,8 @@ for (const id of IDS) {
     } else {
       assert.equal(p.change, null); // no positive previous net → chip hidden
     }
-    if (s.weeks) assert.deepEqual(monthWeeks(p).map((w) => [w.label, w.amount]), s.weeks.map((w) => [w.label, w.amount]));
+    // Monthly weeks (opener + glance) are the merged calendar weeks; they add up to the month.
+    if (p.kind === 'month') assert.equal(monthColumns(p.start, p.end, p.daily).reduce((a, w) => a + w.amount, 0), p.income.total);
   });
 }
 
@@ -216,7 +218,10 @@ test('a month with $0 in skips the glance slide', () => {
   }));
   assert.equal(p.daily.length, 28);
   assert.deepEqual(recapSequence(p), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
-  assert.deepEqual(monthWeeks(p).map((w) => w.label), ['Feb 1–7', 'Feb 8–14', 'Feb 15–21', 'Feb 22–28']);
+  // Feb 2026 starts on a Sunday: Sun 1 merges into 2–8 → 1–8, 9–15, 16–22, 23–28.
+  assert.deepEqual(monthColumns(p.start, p.end, p.daily).map((w) => [w.start, w.end]), [
+    ['2026-02-01', '2026-02-08'], ['2026-02-09', '2026-02-15'], ['2026-02-16', '2026-02-22'], ['2026-02-23', '2026-02-28'],
+  ]);
 });
 
 test('payload stays small: the worst case is well under the 16 KB column cap', () => {

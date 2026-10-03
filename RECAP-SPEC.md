@@ -69,8 +69,9 @@ decode, gunzip where `compressed: true`. The JS files are:
   lower than a busy one; zero columns stay as small stubs, never invisible. The
   ribbon of light sweeps the tops; the small swoosh riding its head hands off
   to the big mark behind the title. **No value label ("$800") and no day-label
-  axis.** Full spec in §4 / §5 "opener". `monthWeeks()` stays for the glance
-  slide only.
+  axis.** Full spec in §4 / §5 "opener". **Month at a glance uses the same
+  weeks** (`monthColumns()`, decided 2026-10-03; `monthWeeks()` removed), so
+  both slides agree.
 
 ## 1. Slide sequence
 
@@ -483,6 +484,12 @@ week, $0 week, normal week.
   (count-up) · weekly bars (max 230 px, best week in gold with glow, others
   `#efe4cf → #e3d5bb`), values above, labels below · "Best week" card
   (2 px gold border + 4 px gold halo).
+- **On It build (2026-10-03):** the weeks are the opener's monthly columns —
+  Mon–Sun calendar weeks clipped to the month, a first/last week of ≤ 3 days
+  merged into its neighbour (`monthColumns()`), labelled "Sep 1–6" — not the
+  prototype's fixed 1–7 / 8–14 / 15–21 / 22–end. Bars, values and the best
+  week use each week's **real total** (the bars carry dollar labels); the
+  opener's 7-day-rate scaling of a merged column is for the opener only.
 
 ### owed (dark) — "Still on the table"
 - "Still owed to you" / hero 76/80 count-up / "N invoices".
