@@ -18,6 +18,7 @@ export const ICON_NAMES = [
   'arrow_forward',
   'arrow_upward',
   'attach_file',
+  'auto_awesome',
   'block',
   'build',
   'chat_bubble',

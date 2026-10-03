@@ -10,6 +10,7 @@ import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import RecapsCard from '@/components/recap/RecapsCard';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
+import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 
 const money = (n: number) =>
@@ -30,8 +31,11 @@ function tileMoney(n: number): string {
 // Signed exact money for the hero: a negative net reads "−$120.00" (sign, not
 // red — no colored numbers on this screen).
 const signedMoney = (n: number) => (n < 0 ? `−${money(-n)}` : money(n));
-// sessionStorage flag: the Books count-up already played this session (MOTION-SPEC §9).
-const BOOKS_COUNTED_KEY = 'onit_books_counted';
+// The Books count-up plays on the first visit of the day (motion inventory
+// "Books › First visit of the day"); later visits that day are static. The
+// stored value is the local date it last played (MOTION-SPEC §9 mechanics).
+const BOOKS_COUNTED_KEY = 'onit_books_counted_day';
+const localToday = () => new Date().toLocaleDateString('en-CA');
 
 // The old chips (Gas / Materials / Meals / Phone / Insurance) predate the
 // category CHECK and would now be rejected on save. Same eight values as the
@@ -40,7 +44,10 @@ const BOOKS_COUNTED_KEY = 'onit_books_counted';
 export default function Dashboard() {
   const supabase = createClient();
   const router = useRouter();
-  const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0 });
+  const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0, expenseCount: 0 });
+  // The "View expenses" subtitle names what that list will show (§L Q2).
+  const [expensesCaption, setExpensesCaption] = useState('');
+  useEffect(() => { setExpensesCaption(expensesListCaption(readListSort(EXPENSES_SORT_KEY), readExpenseGrouping())); }, []);
   // Initial-load only: without it the totals flash $0.00 / "0 invoices created"
   // before real data arrives, reading as an empty account. Cleared in finally so
   // no path can hang it true. The post-save refresh (loadStats) never toggles it,
@@ -67,7 +74,7 @@ export default function Dashboard() {
     const prev = shownRef.current;
     let first = false;
     if (!prev) {
-      try { first = !sessionStorage.getItem(BOOKS_COUNTED_KEY); sessionStorage.setItem(BOOKS_COUNTED_KEY, '1'); } catch { first = false; }
+      try { first = localStorage.getItem(BOOKS_COUNTED_KEY) !== localToday(); localStorage.setItem(BOOKS_COUNTED_KEY, localToday()); } catch { first = false; }
     }
     if (reduced || (!prev && !first)) { setShown(next); return; }
     if (prev && next.spent > prev.spent) setSpentFlash((n) => n + 1);
@@ -124,7 +131,7 @@ export default function Dashboard() {
       .filter((i) => ['sent', 'overdue'].includes(i.status))
       .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({ collected, outstanding, spent, count: rows.length });
+    setStats({ collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length });
     showStats({ net: collected - spent, collected, outstanding, spent });
   }
 
@@ -146,7 +153,11 @@ export default function Dashboard() {
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;
   return (
-    <div className="space-y-3 px-4 py-4">
+    <div className="space-y-3 px-4 pb-4 pt-3.5">
+      {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
+          dot), then Net, the three tiles, Add expense, the list card and
+          Income & Expenses (§L Q4 keeps today's label). */}
+      <RecapsCard />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
@@ -169,7 +180,7 @@ export default function Dashboard() {
           </Link>
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
-              Each opens the list whose total equals its number. */}
+              Each is a button to the list whose total equals its number. */}
           <div className="grid grid-cols-3 gap-2">
             <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
             <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
@@ -178,13 +189,9 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Weekly / monthly recaps: the latest one, or the locked card (free).
-          Between the tiles and the Summary / Expenses buttons (decided 2026-10-03). */}
-      <RecapsCard />
-
-      {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
-          300ms, 350ms; View expenses 50ms after). Mounted with the totals, like
-          the tiles, so the entrance never starts on buttons already on screen. */}
+      {/* The rest rises last on the first visit of the day (MOTION-SPEC §9:
+          300 / 350 / 400ms). Mounted with the totals, like the tiles, so the
+          entrance never starts on buttons already on screen. */}
       {!loading && (
         <>
           <button
@@ -194,19 +201,27 @@ export default function Dashboard() {
           >
             <Icon name="add" size={22} /> Add expense
           </button>
+          {/* List card: Expenses (and Recurring with merge 3). */}
+          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '350ms' } : undefined}>
+            <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-container-high">
+                <Icon name="receipt_long" size={21} />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-base font-semibold text-on-background">View expenses</span>
+                <span className="truncate text-[13px] text-on-surface-variant">{expensesCaption}</span>
+              </span>
+              <span className="text-sm font-semibold text-on-surface-variant tabular-nums">{stats.expenseCount}</span>
+              <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
+            </Link>
+          </div>
           <Link
             href="/summary"
             className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
-            style={intro ? { animationDelay: '350ms' } : undefined}
-          >
-            <Icon name="description" size={18} /> Income &amp; Expenses
-          </Link>
-          <Link
-            href="/expenses"
-            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '400ms' } : undefined}
           >
-            <Icon name="receipt_long" size={18} /> View expenses
+            <Icon name="description" size={18} /> Income &amp; Expenses
           </Link>
         </>
       )}
@@ -229,11 +244,14 @@ function Tile({ href, value, label, dot, hint, intro = false, order = 0, flash =
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`card flex min-h-touch flex-col justify-center gap-1 p-3 transition-transform active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`flex min-h-touch flex-col justify-center gap-2 rounded-[18px] border border-outline-variant/60 bg-surface-container-low py-3.5 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(34,30,24,.06)] transition-transform duration-[120ms] active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <div className={`truncate font-display text-[20px] font-bold leading-tight tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
-        {tileMoney(value)}
+      <div className="flex items-center gap-0.5">
+        <div className={`min-w-0 flex-1 truncate font-display text-[21px] font-extrabold leading-none tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
+          {tileMoney(value)}
+        </div>
+        <Icon name="chevron_right" size={16} className="shrink-0 text-outline" />
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-on-surface-variant">
         <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
