@@ -290,3 +290,19 @@
 .rc-pmore { position: absolute; left: 0; right: 0; display: flex; justify-content: center; }
 .rc-pmore span { height: 30px; padding: 0 12px; border-radius: 999px; display: flex; align-items: center; font: 600 13px var(--onit-body); background: var(--onit-success-tint); color: var(--onit-success); }
 .rc-cu-t { margin-top: 40px; }
+
+/* ── Money in, $0 period ── */
+.rc-lrows { margin-top: 36px; display: flex; flex-direction: column; gap: 10px; }
+.rc-lrow { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-radius: 18px; background: #fff; border: 1px solid rgba(31, 27, 19, .08); box-shadow: 0 12px 24px -20px rgba(31, 27, 19, .5); will-change: transform, opacity; }
+.rc-lrow span { flex: 1; min-width: 0; font: 600 15px var(--onit-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-lrow em { flex: none; display: flex; align-items: center; gap: 6px; font: 600 12px var(--onit-body); font-style: normal; color: var(--onit-secondary); }
+.rc-lrow em i { width: 8px; height: 8px; border-radius: 999px; background: var(--c); }
+.rc-lrow b { flex: none; font: 700 16px var(--onit-display); font-variant-numeric: tabular-nums; min-width: 58px; text-align: right; }
+.rc-oz { margin-top: 16px; display: flex; justify-content: space-between; padding: 0 4px; font: 600 14px var(--onit-body); color: var(--onit-secondary); }
+.rc-oz b { color: var(--onit-ink); font: 800 16px var(--onit-display); font-variant-numeric: tabular-nums; }
+
+/* ── Nothing at all ── */
+.rc-quiet { align-items: center; text-align: center; }
+.rc-quiet-card { width: 100%; max-width: 337px; display: flex; flex-direction: column; align-items: center; padding: 40px 28px 28px; border-radius: 28px; background: #fff; border: 1px solid rgba(31, 27, 19, .08); box-shadow: 0 30px 60px -36px rgba(115, 92, 0, .5); }
+.rc-quiet-card img { width: 72px; height: 72px; border-radius: 17px; display: block; box-shadow: 0 12px 24px -10px rgba(115, 92, 0, .6); }
+.rc-quiet-card .rc-btn { margin-top: 32px; }

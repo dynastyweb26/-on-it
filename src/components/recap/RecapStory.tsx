@@ -66,6 +66,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const keys = useMemo(() => recapSequence(payload), [payload]);
   const timings = useMemo(() => keys.map((k) => slideTiming(k, payload, reduced)), [keys, payload, reduced]);
   const n = keys.length;
+  const quietOnly = n === 1 && keys[0] === 'quiet';
   const first = Math.min(Math.max(0, startAt), n - 1);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -328,21 +329,24 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
       <img ref={wipeRef} className="rc-wipe" src="/recap/swoosh-gold.svg" alt="" draggable={false} aria-hidden />
 
       <div className="rc-chrome">
-        <div className="rc-segs" aria-hidden>
+        {/* "Nothing at all" is one quiet card: no story chrome beyond close (§1). */}
+        <div className="rc-segs" aria-hidden style={quietOnly ? { visibility: 'hidden' } : undefined}>
           {keys.map((k, i) => (
             <div key={`${k}-${i}`} className="rc-seg"><i ref={(el) => { segRefs.current[i] = el; }} /></div>
           ))}
         </div>
         <div className="rc-head">
-          <div className="rc-head-l">
+          <div className="rc-head-l" style={quietOnly ? { visibility: 'hidden' } : undefined}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/apple-icon-180.png" alt="" />
             <span>{label}</span>
           </div>
           <div className="rc-head-r">
-            <button type="button" className="rc-iconbtn" data-act="mute" aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted} onClick={toggleMute}>
-              <Icon name={muted ? 'volume_off' : 'volume_up'} size={21} />
-            </button>
+            {!quietOnly && (
+              <button type="button" className="rc-iconbtn" data-act="mute" aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted} onClick={toggleMute}>
+                <Icon name={muted ? 'volume_off' : 'volume_up'} size={21} />
+              </button>
+            )}
             <button type="button" className="rc-iconbtn" data-act="close" aria-label="Close recap" onClick={() => cbs.current.onClose()}>
               <Icon name="close" size={21} />
             </button>
