@@ -60,6 +60,7 @@ export const ICON_NAMES = [
   'photo_camera',
   'photo_library',
   'picture_as_pdf',
+  'play_arrow',
   'preview',
   'receipt_long',
   'refresh',

@@ -792,6 +792,24 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, draft, ready, finished, convoId, cardAfterId]);
 
+  // /chat?new=1 — the recap's "Make an invoice": start a fresh conversation
+  // (the live one is archived to history, as with the header's New chat).
+  // After hydration, so the restored conversation is what gets archived; the
+  // event fires a tick later, once the listener above holds that state.
+  const newFromParam = useRef(false);
+  useEffect(() => {
+    if (!hydrated || newFromParam.current) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('new') !== '1') return;
+    const t = setTimeout(() => {
+      newFromParam.current = true;
+      url.searchParams.delete('new');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      window.dispatchEvent(new Event('onit-new-chat'));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [hydrated]);
+
   // Auto-scroll: follow new content only if the reader is already at the
   // bottom. It sets the list's own scrollTop, never scrollIntoView (which also
   // scrolls every scrollable ancestor, the page included), and is always

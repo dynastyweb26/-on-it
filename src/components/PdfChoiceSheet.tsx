@@ -1,8 +1,8 @@
 'use client';
 // The Totals / Itemized choice for a books PDF, as a bottom sheet (the period
-// picker's pattern). Shared by the Summary screen and the recap sheet; the
+// picker's pattern). Shared by the Summary screen and the recap history list; the
 // caller owns what happens on a pick (buildSummaryPdf + share) and its own
-// Escape / scroll-lock handling. z-[80] so it also sits above the recap sheet.
+// Escape / scroll-lock handling. z-[80] so it sits above other sheets.
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import type { SummaryPdfKind, SummaryPdfDetail } from '@/lib/pdf/build-summary';

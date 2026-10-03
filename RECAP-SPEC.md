@@ -73,6 +73,37 @@ decode, gunzip where `compressed: true`. The JS files are:
   weeks** (`monthColumns()`, decided 2026-10-03; `monthWeeks()` removed), so
   both slides agree.
 
+## 0c. In-app access (On It build, commit 14, 2026-10-03)
+
+`RecapProvider` (`src/components/recap/`), mounted once by the (app) layout;
+rules in `src/lib/recap/rows.ts` (unit-tested). Paid-only; inert while
+`RECAPS_LIVE` is off.
+
+- **Watch / Later sheet (a):** once per app open, never over the walkthrough
+  or the reference, never auto-plays. Offers the newest recap whose period
+  ended ≤ 14 days ago that is unwatched (`seen_at` null), not put off
+  (`prompted_at` null) and announces (not nothing-at-all); a push tap
+  (`/dashboard?recap=<id>`) offers that recap even if it was put off. "Watch"
+  plays it; "Later" (or backdrop / Escape) stamps `prompted_at`; older
+  recaps waiting for a sheet are retired with it (still unwatched).
+- **Books "Recaps" row (b):** the latest recap as a card — swoosh in a gold
+  ring while unwatched, "Your week is ready" / "Watch again" / "Quiet week",
+  "$X in · $Y out" — plus "See all". Before the first recap: "Your first recap
+  lands Monday morning."
+- **History (c):** `/recaps` (Back → Books), weekly + monthly, newest first;
+  each row plays its recap and has Income / Expenses PDF buttons (Totals /
+  Itemized), moved from the old sheet. The list reads four payload fields
+  (`income.total`, `spend.total`, `owed.count`, `paid.count`), not whole payloads.
+- **Books tab dot (d):** while any announcing recap from the last 14 days is
+  unwatched (gold on the bar, ink on the active tab's pill).
+- **Locked (e):** free / canceled owners see a locked "Weekly recaps" card on
+  Books (and locked history rows); any tap opens the paywall, reports variant.
+- **Buttons (f):** "View invoices" → `/invoices?filter=unpaid`; "Make an
+  invoice" → `/chat?new=1` (a fresh conversation; the live one goes to history).
+- **Sound:** every entry point plays through `open(row)`, which calls
+  `primeRecapAudio()` synchronously inside the tap. Opening stamps `seen_at`.
+- The old `RecapSheet` is gone (its PDFs live on the history rows).
+
 ## 1. Slide sequence
 
 ```js

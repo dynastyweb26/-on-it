@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import PaywallModal from '@/components/PaywallModal';
+import RecapsCard from '@/components/recap/RecapsCard';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
@@ -259,6 +260,9 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* Weekly / monthly recaps: the latest one, or the locked card (free). */}
+      <RecapsCard />
 
       {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
           300ms, 350ms; View expenses 50ms after). Mounted with the totals, like

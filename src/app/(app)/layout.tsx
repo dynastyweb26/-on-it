@@ -9,7 +9,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
-import RecapSheet from '@/components/RecapSheet';
+import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
@@ -17,6 +17,7 @@ function getParentRoute(path: string): string | null {
   if (path.startsWith('/invoices/') && path !== '/invoices') return '/invoices';
   if (path === '/expenses') return '/dashboard';
   if (path === '/summary') return '/dashboard';
+  if (path === '/recaps') return '/dashboard';
   if (path === '/vault') return '/settings';
   return null;
 }
@@ -230,6 +231,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // area (lib/keyboard.ts), so the chat composer sits right on the keyboard
     // and every tab's scroller ends where the keyboard starts.
     <div data-app-shell="" data-kb-fit="" className="mx-auto flex h-dvh max-w-lg flex-col">
+      {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
+          the sheet waits while the walkthrough or the reference is open. */}
+      <RecapProvider suppressed={showFirstRun || showReference}>
       <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
         <div className="flex items-center gap-1">
           {parentRoute && <BackButton parentHref={parentRoute} />}
@@ -272,8 +276,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Reference doc — tabbed, always available from the pill. Never gated,
           never marks seen (see closeReference). */}
       {showReference && <TutorialReference onClose={closeReference} />}
-      {/* Weekly / monthly recap: once per app open, never over the walkthrough. */}
-      <RecapSheet suppressed={showFirstRun || showReference} />
       {/* One scroll owner per screen. Chat owns its scrolling (the message list
           between the header and the composer), so here main must NOT also be a
           scroller: nested scroll containers let iOS hand a gesture to the
@@ -314,10 +316,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ${active ? `${pill ? '' : 'bg-primary-container '}text-on-primary-container` : 'text-on-surface-variant'}`}>
               <Icon name={icon} size={24} filled={active} />
               {label}
+              {href === '/dashboard' && <BooksDot active={active} />}
             </Link>
           );
         })}
       </nav>
+      </RecapProvider>
     </div>
+  );
+}
+
+/** (14d) Books tab dot: an unwatched recap from the last 14 days. */
+function BooksDot({ active }: { active: boolean }) {
+  const { unwatched } = useRecaps();
+  if (!unwatched) return null;
+  // Gold on the bar; ink on the active tab's gold pill (gold on gold disappears).
+  return (
+    <>
+      <span aria-hidden className={`absolute right-3 top-1.5 h-2 w-2 rounded-full ring-2 ${active ? 'bg-on-background ring-primary-container' : 'bg-[#d4af37] ring-background'}`} />
+      <span className="sr-only">, new recap</span>
+    </>
   );
 }
