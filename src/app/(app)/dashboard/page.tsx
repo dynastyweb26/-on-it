@@ -244,14 +244,12 @@ function Tile({ href, value, label, dot, hint, intro = false, order = 0, flash =
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`flex min-h-touch flex-col justify-center gap-2 rounded-[18px] border border-outline-variant/60 bg-surface-container-low py-3.5 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(34,30,24,.06)] transition-transform duration-[120ms] active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`relative flex min-h-touch flex-col justify-center gap-2 rounded-[18px] border border-outline-variant/60 bg-surface-container-low py-3.5 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(34,30,24,.06)] transition-transform duration-[120ms] active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <div className="flex items-center gap-0.5">
-        <div className={`min-w-0 flex-1 truncate font-display text-[21px] font-extrabold leading-none tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
-          {tileMoney(value)}
-        </div>
-        <Icon name="chevron_right" size={16} className="shrink-0 text-outline" />
+      <Icon name="chevron_right" size={14} className="absolute right-1.5 top-2 text-outline" />
+      <div className={`truncate font-display text-[21px] font-extrabold leading-none tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
+        {tileMoney(value)}
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-on-surface-variant">
         <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
