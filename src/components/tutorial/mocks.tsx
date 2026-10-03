@@ -14,10 +14,11 @@ import type { IconName } from '@/components/icon-names';
 // The real bottom-nav tabs. `active` is the tab the mock screen sits on; a
 // slide about Expenses or Tax passes 'books' so the user sees where in the app
 // the feature lives (§ the tab bar is part of "this is a real screen").
-export type TabKey = 'chat' | 'invoices' | 'books' | 'settings';
+export type TabKey = 'clients' | 'invoices' | 'chat' | 'books' | 'settings';
 const MOCK_TABS: { key: TabKey; label: string; icon: IconName }[] = [
-  { key: 'chat', label: 'Chat', icon: 'mic' },
+  { key: 'clients', label: 'Clients', icon: 'group' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
+  { key: 'chat', label: 'Chat', icon: 'chat_bubble' },
   { key: 'books', label: 'Books', icon: 'payments' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
@@ -28,8 +29,8 @@ export function MockTabBar({ active }: { active: TabKey }) {
       {MOCK_TABS.map(({ key, label, icon }) => (
         <div
           key={key}
-          className={`flex flex-col items-center gap-0.5 rounded-full px-3 py-1 text-[10px] font-semibold tracking-wide
-            ${active === key ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}
+          className={`flex flex-col items-center gap-0.5 rounded-full px-1.5 py-1 text-[9.5px] font-semibold tracking-wide
+            ${active === key ? 'bg-primary-container text-on-primary-container' : key === 'chat' ? 'bg-[#f0e3b8] text-on-surface-variant' : 'text-on-surface-variant'}`}
         >
           <Icon name={icon} size={18} filled={active === key} />
           {label}

@@ -149,6 +149,10 @@ design's M1 / M4 heroes are deferred to the final motion pass.
   **Hero (≤ 1.2s):** rare (send, save, paid).
 - **Haptics:** `navigator.vibrate` only, so Android only (iOS Safari / PWA has
   no vibration API).
+- **Nav (5 tabs):** Clients · Invoices · Chat (centre) · Books · Settings. The
+  §10 pill glide and side entry are unchanged and measure each tab, so the
+  larger raised Chat pill (M5) needs nothing extra. Chat keeps a soft gold fill
+  when inactive.
 
 ## Build order (one commit each)
 

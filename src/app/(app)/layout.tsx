@@ -22,12 +22,14 @@ function getParentRoute(path: string): string | null {
   return null;
 }
 
-// 4 tabs. The Vault page still exists at /vault (archived PDFs surface on
-// each invoice's detail page) but is no longer in primary navigation.
-// Icons: Design Standard §4 canonical assignments.
+// 5 tabs (UI redesign, M5): Clients · Invoices · Chat (centre, raised) ·
+// Books · Settings. Chat stays the default landing. The Vault page still
+// exists at /vault (archived PDFs surface on each invoice's detail page) but
+// is not in primary navigation. Icons: Design Standard §4 (+ group, chat_bubble).
 const TABS: { href: string; label: string; icon: IconName }[] = [
-  { href: '/chat', label: 'Chat', icon: 'mic' },
+  { href: '/clients', label: 'Clients', icon: 'group' },
   { href: '/invoices', label: 'Invoices', icon: 'description' },
+  { href: '/chat', label: 'Chat', icon: 'chat_bubble' },
   { href: '/dashboard', label: 'Books', icon: 'payments' },
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
@@ -213,7 +215,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const dy = t.clientY - g.y;
     if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) <= SWIPE_RATIO * Math.abs(dy)) return;
     const next = g.from + (dx < 0 ? 1 : -1);
-    if (next < 0 || next >= TABS.length) return; // no wrap-around past Chat or Settings
+    if (next < 0 || next >= TABS.length) return; // no wrap-around past Clients or Settings
     // The tab under the gesture must still be current (nothing navigated mid-gesture).
     if (tabIndexOf(window.location.pathname) !== g.from) return;
     navigating.current = Date.now();
@@ -310,11 +312,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
         {TABS.map(({ href, label, icon }, i) => {
           const active = path.startsWith(href);
+          // Chat is the centre tab (M5): a slightly larger, raised pill that keeps
+          // a soft gold fill when another tab is active.
+          const centre = href === '/chat';
           return (
             <Link key={href} href={href} ref={(el) => { tabLinkRefs.current[i] = el; }}
-              className={`relative my-1.5 flex min-h-touch flex-col items-center justify-center gap-0.5 rounded-full px-4 text-[12px] font-semibold tracking-wide transition-all active:scale-90
-                ${active ? `${pill ? '' : 'bg-primary-container '}text-on-primary-container` : 'text-on-surface-variant'}`}>
-              <Icon name={icon} size={24} filled={active} />
+              className={`relative flex flex-col items-center justify-center gap-0.5 rounded-full text-[11.5px] tracking-wide transition-transform
+                ${centre ? '-mt-1 mb-1.5 min-h-[60px] px-3.5 active:scale-90' : 'my-1.5 min-h-touch px-2.5 active:scale-95'}
+                ${active ? `${pill ? '' : 'bg-primary-container '}font-bold text-on-primary-container` : `font-semibold text-on-surface-variant${centre ? ' bg-[#f0e3b8]' : ''}`}`}>
+              <Icon name={icon} size={centre ? 27 : 24} filled={active} />
               {label}
               {href === '/dashboard' && <BooksDot active={active} />}
             </Link>

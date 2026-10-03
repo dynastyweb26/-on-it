@@ -1,6 +1,6 @@
 'use client';
 /* ═══ TutorialReference — the always-available "How On It works" doc ═══
-   Three tabs matching app nav (Chat / Invoices / Books), opening on Invoices.
+   Three tabs in app nav order (Invoices / Chat / Books), opening on Invoices.
    Tabs use the app's existing gold selected-state (.chip-selected) — the same
    ring every selectable element uses, no new pattern. Within a tab, slides are
    VERTICALLY SCROLLABLE (not swipeable): the app already swipes horizontally
@@ -17,10 +17,10 @@ import { SlideMock } from '@/components/tutorial/mocks';
 import { slidesForTab, type SlideTab } from '@/components/tutorial/slides';
 
 // Reference tabs, in nav order. Icons match the app's bottom nav (Design
-// Standard §4): Chat mic, Invoices description, Books payments.
+// Standard §4): Invoices description, Chat chat_bubble, Books payments.
 const TABS: { key: SlideTab; label: string; icon: IconName }[] = [
-  { key: 'chat', label: 'Chat', icon: 'mic' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
+  { key: 'chat', label: 'Chat', icon: 'chat_bubble' },
   { key: 'books', label: 'Books', icon: 'payments' },
 ];
 

@@ -100,8 +100,9 @@ emoji-removal item) and any mixed icon libraries.
 - Icons accompany text on chips, nav items, and stat cards; icons stand alone only
   for universally understood actions (mic, send, back, notifications).
 - Icon color follows text color rules (§2 contrast rule).
-- Canonical assignments: Chat `mic`, Invoices `description`, Money `payments`,
-  Settings `settings`, notifications `notifications`, send `send`, preview
+- Canonical assignments (nav, UI redesign 2026-10-03): Clients `group`,
+  Invoices `description`, Chat `chat_bubble` (centre tab), Books `payments`,
+  Settings `settings`. Voice is `mic` (the composer's "+" menu). Also: notifications `notifications`, send `send`, preview
   `preview`, share `attach_file`/native share icon, paid `check_circle`,
   overdue `warning`, draft `history`, expense `shopping_cart`, deductible `receipt_long`.
 
