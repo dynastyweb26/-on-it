@@ -35,8 +35,8 @@ for (const [key, counts, heroEnd, total] of SPEC) {
   });
 }
 
-test('opener beats match the §4 table (7 days, or 4–6 calendar weeks: same wave length)', () => {
-  for (const n of [4, 5, 6, 7]) {
+test('opener beats match the §4 table (7 days, or 4–5 calendar weeks: same wave length)', () => {
+  for (const n of [4, 5, 7]) {
     const { B } = timing('opener', { cols: n });
     const got = Object.fromEntries(Object.entries(B).map(([k, b]) => [k, [Math.round(b.start), Math.round(b.end)]]));
     assert.deepEqual(got, {

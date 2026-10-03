@@ -1,8 +1,9 @@
 'use client';
 // Slide 1 — the opener: COLUMNS + RIBBON (RECAP-SPEC §4 / §5, decision 6 —
 // corrected 2026-10-02; the horizon line was a spec mistake). The prototype's
-// columns opener: weekly = 7 day columns, monthly = 4–6 calendar-week columns
-// (Mon–Sun, clipped to the month; derived from the stored daily series). The
+// columns opener: weekly = 7 day columns, monthly = 4–5 calendar-week columns
+// (Mon–Sun, clipped to the month, ≤ 3-day edge weeks merged; derived from the
+// stored daily series). The
 // columns rise in a wave, a ribbon of light sweeps across the tops, and the
 // small swoosh riding the ribbon's head hands off (same spot, angle and size,
 // same frame) to the big mark, which settles behind the title. No value label

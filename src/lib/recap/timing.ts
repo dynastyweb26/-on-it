@@ -108,7 +108,7 @@ const EDGES = 6;  // stacked card edges behind them, at most
 export function slideCounts(key: RecapSlide, p: RecapPayload): Record<string, number> {
   switch (key) {
     case 'opener':
-      return { cols: openerSeries(p).values.length };   // 7 days, or 4–6 calendar weeks
+      return { cols: openerSeries(p).values.length };   // 7 days, or 4–5 calendar weeks
     case 'moneyIn': {
       const m = p.paymentMethods.filter((x) => x.amount > 0).length;
       return { chips: m, pour: m, segs: m, pct: m };

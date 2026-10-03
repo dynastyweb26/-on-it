@@ -1,7 +1,8 @@
 // The opener's columns + ribbon (RECAP-SPEC §5 "opener", decision 6): the
 // prototype's columns opener (slides.js) with the On It build's rules:
 //   weekly  = 7 day columns;
-//   monthly = 4–6 calendar-week columns (Mon–Sun weeks clipped to the month),
+//   monthly = 4–5 calendar-week columns (Mon–Sun weeks clipped to the month,
+//             a first/last week of ≤ 3 days merged into its neighbour),
 //             derived at render time from the stored daily series — nothing
 //             extra is stored, and the weeks can't disagree with the days.
 // Heights are scaled against the previous period (a quiet period stands lower
@@ -33,31 +34,55 @@ export const CEILING = BASE - MAXH - RIBBON_LIFT - 10;
 const weekday = (ymd: string) => (new Date(`${ymd}T00:00:00Z`).getUTCDay() + 6) % 7; // Mon = 0 … Sun = 6
 
 /** Mon–Sun calendar weeks clipped to [start, end]: each bucket's first day,
- *  last day, and total from `daily` (one value per day from `start`). */
+ *  last day, length in days and total from `daily` (one value per day from
+ *  `start`). */
 export function calendarWeeks(start: string, end: string, daily: number[] = []) {
-  const weeks: { start: string; end: string; amount: number }[] = [];
-  const days = daysBetween(start, end) + 1;
+  const weeks: { start: string; end: string; days: number; amount: number }[] = [];
+  const total = daysBetween(start, end) + 1;
   let i = 0;
-  while (i < days) {
-    const len = Math.min(7 - weekday(addDays(start, i)), days - i);   // to the next Sunday, or the month's end
-    weeks.push({ start: addDays(start, i), end: addDays(start, i + len - 1), amount: daily.slice(i, i + len).reduce((a, b) => a + b, 0) });
+  while (i < total) {
+    const len = Math.min(7 - weekday(addDays(start, i)), total - i);   // to the next Sunday, or the month's end
+    weeks.push({ start: addDays(start, i), end: addDays(start, i + len - 1), days: len, amount: daily.slice(i, i + len).reduce((a, b) => a + b, 0) });
     i += len;
   }
   return weeks;
 }
 
+const SHORT_EDGE = 3;   // an edge week of ≤ 3 days merges into its neighbour
+
+/** The monthly opener's columns: calendar weeks, with a first or last week of
+ *  ≤ 3 days merged into the adjacent week (Sep 28–30 + 21–27 → 21–30). Any
+ *  28–31-day month gives 4 or 5 columns, never 6, and no misleadingly short
+ *  edge column. */
+export function monthColumns(start: string, end: string, daily: number[] = []) {
+  const w = calendarWeeks(start, end, daily);
+  const merge = (a: (typeof w)[number], b: (typeof w)[number]) =>
+    ({ start: a.start, end: b.end, days: a.days + b.days, amount: a.amount + b.amount });
+  if (w.length > 1 && w[0].days <= SHORT_EDGE) w.splice(0, 2, merge(w[0], w[1]));
+  if (w.length > 1 && w[w.length - 1].days <= SHORT_EDGE) w.splice(w.length - 2, 2, merge(w[w.length - 2], w[w.length - 1]));
+  return w;
+}
+
+/** A column's height value: its total, except a merged column longer than a
+ *  week counts at its 7-day rate (total × 7 / days), so 10 days of income
+ *  don't stand taller than a week's worth. Shorter (unmerged 4–6-day) edge
+ *  weeks keep their real total — scaling them UP would turn one payment into
+ *  a giant bar. */
+const weekValue = (c: { days: number; amount: number }) => (c.days > 7 ? (c.amount * 7) / c.days : c.amount);
+
 export type OpenerSeries = { values: number[]; ref: number | null; wide: boolean };
 
-/** What the columns show: weekly → the 7 days; monthly → calendar-week
- *  totals. `ref` = the previous period's income per column (previous week ÷
- *  7; previous month ÷ ITS number of calendar weeks); null if unknown. */
+/** What the columns show: weekly → the 7 days; monthly → the month's
+ *  columns (monthColumns, merged-week values at a 7-day rate). `ref` = the
+ *  previous period's income per column (previous week ÷ 7; previous month ÷
+ *  ITS number of columns, same merge rule); null if unknown. */
 export function openerSeries(p: Pick<RecapPayload, 'kind' | 'start' | 'end' | 'daily' | 'previous'>): OpenerSeries {
   const prev = p.previous?.income && p.previous.income > 0 ? p.previous.income : null;
   if (p.kind !== 'month') return { values: p.daily, ref: prev && prev / Math.max(1, p.daily.length), wide: false };
   const pp = previousPeriod({ kind: 'month', start: p.start, end: p.end });
   return {
-    values: calendarWeeks(p.start, p.end, p.daily).map((w) => w.amount),
-    ref: prev && prev / calendarWeeks(pp.start, pp.end).length,
+    values: monthColumns(p.start, p.end, p.daily).map(weekValue),
+    ref: prev && prev / monthColumns(pp.start, pp.end).length,
     wide: true,
   };
 }
