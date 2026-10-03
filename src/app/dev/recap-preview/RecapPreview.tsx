@@ -1,17 +1,13 @@
 'use client';
-// TEMPORARY — remove before merge. Two things to check on a phone:
-//  1. The recap STORY (player shell, commit 3): the prototype's 8 scenario
-//     fixtures run through the real payload builder and the real player,
-//     lazy-loaded exactly like the app will load it. Slides are placeholders
-//     until their own commits land.
-//  2. The old recap SHEET (four mocks; replaced by the story later). Each tap
-//     opens the real RecapView under a fresh id (so the count-up plays), and
-//     "Reopen last" reuses the previous id (so it must NOT count again). The
-//     PDF buttons build from your real data for the mock's date range.
-// Nothing is read or written here (except those PDF builds).
-import { useMemo, useState } from 'react';
+// TEMPORARY — remove before merge.
+//  1. The recap STORY on the prototype's scenario fixtures, through the real
+//     payload builder and player, lazy-loaded like the app loads it.
+//  2. Real data (your account, Preview only): build your recaps with the
+//     cron's builder, send the recap push to this device, reset watched /
+//     put-off — via /api/recaps/test (404 unless Preview + PUSH_TEST_ENABLED +
+//     RECAPS_LIVE). Build writes real recaps rows for you (shared DB).
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { RecapView, type Recap } from '@/components/RecapSheet';
 import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenarioPayload, stressWeek, type ScenarioId } from '@/lib/recap/fixtures';
 import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
@@ -29,41 +25,6 @@ const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 
 const EXTRA = { onePaymentWeek, stressWeek };
 const WEEKLY: PreviewId[] = ['normalWeek', 'onePaymentWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing', 'stressWeek'];
 const MONTHLY: PreviewId[] = ['busyMonth', 'quietMonth', 'spikyMonth'];
-
-const MOCKS: { label: string; recap: Omit<Recap, 'id'> }[] = [
-  {
-    label: 'Normal week',
-    recap: {
-      kind: 'week', period_start: '2026-09-21', period_end: '2026-09-27',
-      income: 3240, expenses: 612.48, net: 2627.52, payments_count: 4, expenses_count: 9,
-      top_category: 'supplies', top_category_amount: 388.2, top_vendor: 'Home Depot',
-    },
-  },
-  {
-    label: 'Negative-net week',
-    recap: {
-      kind: 'week', period_start: '2026-09-28', period_end: '2026-10-04',
-      income: 450, expenses: 1875.9, net: -1425.9, payments_count: 1, expenses_count: 6,
-      top_category: 'tools', top_category_amount: 1299, top_vendor: 'Harbor Freight',
-    },
-  },
-  {
-    label: 'Expenses-only week',
-    recap: {
-      kind: 'week', period_start: '2026-09-14', period_end: '2026-09-20',
-      income: 0, expenses: 214.37, net: -214.37, payments_count: 0, expenses_count: 3,
-      top_category: 'fuel', top_category_amount: 160.12, top_vendor: null,
-    },
-  },
-  {
-    label: 'Month',
-    recap: {
-      kind: 'month', period_start: '2026-09-01', period_end: '2026-09-30',
-      income: 12480.5, expenses: 3310.75, net: 9169.75, payments_count: 17, expenses_count: 41,
-      top_category: 'supplies', top_category_amount: 1488.6, top_vendor: "Lowe's",
-    },
-  },
-];
 
 function StoryPreview() {
   const [scenario, setScenario] = useState<PreviewId>('normalWeek');
@@ -143,34 +104,52 @@ function StoryPreview() {
   );
 }
 
-export default function RecapPreview({ build }: { build: string }) {
-  const [open, setOpen] = useState<Recap | null>(null);
-  const [last, setLast] = useState<Recap | null>(null);
-
-  function show(r: Omit<Recap, 'id'>) {
-    const recap = { ...r, id: crypto.randomUUID() };
-    setLast(recap);
-    setOpen(recap);
+/** Your own recaps on this preview (see the header). Hidden where the route 404s. */
+function RealData() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState('');
+  useEffect(() => {
+    fetch('/api/recaps/test').then((r) => setEnabled(r.ok)).catch(() => setEnabled(false));
+  }, []);
+  if (!enabled) return null;
+  async function run(action: 'build' | 'push' | 'reset') {
+    setBusy(true);
+    setOut('…');
+    try {
+      const r = await fetch('/api/recaps/test', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+      setOut(`${action}: ${r.status} ${await r.text()}`);
+    } catch (e) {
+      setOut(`${action}: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   }
-
   return (
-    <main className="mx-auto max-w-lg space-y-4 px-4 py-6">
+    <section className="space-y-2">
+      <h2 className="font-display text-xl font-extrabold">Real data (your account)</h2>
+      <p className="text-sm text-on-surface-variant">
+        Build = your last 4 weeks + 2 months with the cron&rsquo;s builder (insert-once; real rows in the shared DB). Push = the recap
+        push for your newest recap, to this environment&rsquo;s devices. Reset = clear watched / &ldquo;Later&rdquo; on your recaps.
+        Reload the app after Build or Reset.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-outline text-primary" disabled={busy} onClick={() => run('build')}>Build my recaps</button>
+        <button className="btn-outline text-primary" disabled={busy} onClick={() => run('push')}>Send recap push</button>
+        <button className="btn-outline text-primary" disabled={busy} onClick={() => run('reset')}>Reset watched / Later</button>
+      </div>
+      {out && <pre className="whitespace-pre-wrap break-all rounded-card bg-surface-container p-3 text-xs">{out}</pre>}
+    </section>
+  );
+}
+
+export default function RecapPreview({ build }: { build: string }) {
+  return (
+    <main className="mx-auto max-w-lg space-y-6 px-4 py-6">
       <AudioDebugPanel build={build} />
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Recap preview</h1>
+      <RealData />
       <StoryPreview />
-      <h2 className="pt-4 font-display text-xl font-extrabold">Old recap sheet</h2>
-      <p className="text-body-md text-on-surface-variant">
-        Dev only, removed before merge. Each button opens the real recap sheet with mock numbers.
-      </p>
-      <div className="grid gap-3">
-        {MOCKS.map((m) => (
-          <button key={m.label} className="btn-primary" onClick={() => show(m.recap)}>{m.label}</button>
-        ))}
-        <button className="btn-outline text-primary" disabled={!last} onClick={() => last && setOpen(last)}>
-          Reopen last (should not count again)
-        </button>
-      </div>
-      {open && <RecapView recap={open} businessName="Preview" onClose={() => setOpen(null)} />}
     </main>
   );
 }

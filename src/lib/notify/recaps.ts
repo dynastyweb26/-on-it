@@ -41,7 +41,7 @@
 // paywall off everyone with activity gets one. The push additionally
 // needs recap_push on and a device in THIS environment (checked first, so the
 // dedupe key is never claimed for an owner nobody can reach). With push off
-// the snapshot still feeds the in-app RecapSheet.
+// the snapshot still shows in the app (Books card, history, Watch/Later sheet).
 //
 // Nothing runs until launch: RECAPS_LIVE (lib/recaps-live) off → no snapshot,
 // no push.
@@ -245,7 +245,7 @@ export async function loadRecapInput(
 
 // ── Run ───────────────────────────────────────────────────────────────
 type Owner = { id: string; tz: string; push: boolean; periods: RecapPeriod[] };
-type Built = { period: RecapPeriod; id: string; numbers: RecapNumbers; announce: boolean };
+export type Built = { period: RecapPeriod; id: string; numbers: RecapNumbers; announce: boolean };
 
 /** Has this owner ever created an invoice/quote or an expense (deleted or not)? */
 async function everActive(admin: Admin, userId: string): Promise<boolean> {
@@ -256,6 +256,56 @@ async function everActive(admin: Admin, userId: string): Promise<boolean> {
   if (inv.error || exp.error) throw inv.error ?? exp.error;
   return (inv.count ?? 0) > 0 || (exp.count ?? 0) > 0;
 }
+
+export type OwnerRecaps = { inactive: boolean; built: number; existing: number; quiet: number; rows: Built[] };
+
+/** Build (insert-once) one owner's snapshots for `periods`. Shared by the
+ *  daily run and the preview's test route (/api/recaps/test), so both write
+ *  exactly the same rows. Never pushes. */
+export async function buildOwnerRecaps(admin: Admin, userId: string, tz: string, periods: RecapPeriod[]): Promise<OwnerRecaps> {
+  const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
+  if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
+  for (const period of periods) {
+    const rows = await loadPeriodRows(admin, userId, period, tz);
+    const numbers = rollUp(rows.expenses, rows.payments, period);
+    const payload = buildRecapPayload(await loadRecapInput(admin, userId, period, tz, rows));
+    const announce = recapAnnounces(payload);
+    if (!announce) out.quiet++;
+
+    // Insert-once: an existing snapshot (an earlier run) is never rewritten.
+    const { data, error } = await admin
+      .from('recaps')
+      .upsert(
+        {
+          user_id: userId, kind: period.kind, period_start: period.start, period_end: period.end,
+          ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
+        },
+        { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },
+      )
+      .select('id');
+    if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
+    let id = (data?.[0]?.id as string | undefined) ?? null;
+    if (id) out.built++;
+    else {
+      out.existing++;
+      const { data: row } = await admin.from('recaps').select('id')
+        .eq('user_id', userId).eq('kind', period.kind).eq('period_start', period.start).maybeSingle();
+      id = (row?.id as string | undefined) ?? null;
+    }
+    if (id) out.rows.push({ period, id, numbers, announce });
+  }
+  return out;
+}
+
+/** One push per run: the monthly recap when there is one, else the weekly —
+ *  and never for a "nothing at all" period. */
+export function pushPick(rows: Built[]): Built | undefined {
+  const announced = rows.filter((b) => b.announce);
+  return announced.find((b) => b.period.kind === 'month') ?? announced[0];
+}
+
+export const recapEvent = (b: Built) =>
+  ({ type: 'recap', recapId: b.id, kind: b.period.kind, periodStart: b.period.start }) as const;
 
 export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
   const summary: RecapRunSummary = { candidates: 0, built: 0, existing: 0, quiet: 0, skipped_inactive: 0, pushed: 0 };
@@ -298,48 +348,12 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
     while (next < owners.length) {
       const o = owners[next++];
       try {
-        if (!(await everActive(admin, o.id))) { summary.skipped_inactive += o.periods.length; continue; }
-        const built: Built[] = [];
-        for (const period of o.periods) {
-          const rows = await loadPeriodRows(admin, o.id, period, o.tz);
-          const numbers = rollUp(rows.expenses, rows.payments, period);
-          const payload = buildRecapPayload(await loadRecapInput(admin, o.id, period, o.tz, rows));
-          const announce = recapAnnounces(payload);
-          if (!announce) summary.quiet++;
-
-          // Insert-once: an existing snapshot (an earlier run) is never rewritten.
-          const { data, error } = await admin
-            .from('recaps')
-            .upsert(
-              {
-                user_id: o.id, kind: period.kind, period_start: period.start, period_end: period.end,
-                ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
-              },
-              { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },
-            )
-            .select('id');
-          if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
-          let id = (data?.[0]?.id as string | undefined) ?? null;
-          if (id) summary.built++;
-          else {
-            summary.existing++;
-            const { data: row } = await admin.from('recaps').select('id')
-              .eq('user_id', o.id).eq('kind', period.kind).eq('period_start', period.start).maybeSingle();
-            id = (row?.id as string | undefined) ?? null;
-          }
-          if (id) built.push({ period, id, numbers, announce });
-        }
-        // One push per run: the monthly recap when there is one, else the
-        // weekly — and never for a "nothing at all" period.
-        const announced = built.filter((b) => b.announce);
-        const pick = announced.find((b) => b.period.kind === 'month') ?? announced[0];
+        const r = await buildOwnerRecaps(admin, o.id, o.tz, o.periods);
+        if (r.inactive) { summary.skipped_inactive += o.periods.length; continue; }
+        summary.built += r.built; summary.existing += r.existing; summary.quiet += r.quiet;
+        const pick = pushPick(r.rows);
         if (pick && o.push && reachable.has(o.id)) {
-          const delivered = await notify(o.id, {
-            type: 'recap',
-            recapId: pick.id,
-            kind: pick.period.kind,
-            periodStart: pick.period.start,
-          });
+          const delivered = await notify(o.id, recapEvent(pick));
           if (delivered > 0) summary.pushed++;
         }
       } catch (e) {

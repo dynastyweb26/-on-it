@@ -50,6 +50,24 @@ export function periodsEndingBefore(today: string): RecapPeriod[] {
   return out;
 }
 
+/** The last `weeks` completed Mon–Sun weeks and `months` completed calendar
+ *  months before local date `today`, newest first within each kind (the
+ *  preview's "build my recaps" backfill; the cron only builds what closes today). */
+export function recentPeriods(today: string, weeks: number, months: number): RecapPeriod[] {
+  const out: RecapPeriod[] = [];
+  const [y, m, d] = today.split('-').map(Number);
+  const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Mon = 0
+  let monday = addDays(today, -dow - 7);                               // last completed week's Monday
+  for (let i = 0; i < weeks; i++, monday = addDays(monday, -7)) out.push({ kind: 'week', start: monday, end: addDays(monday, 6) });
+  let end = addDays(`${today.slice(0, 8)}01`, -1);                      // last day of last month
+  for (let i = 0; i < months; i++) {
+    const start = `${end.slice(0, 8)}01`;
+    out.push({ kind: 'month', start, end });
+    end = addDays(start, -1);
+  }
+  return out;
+}
+
 /** The period just before `p`, for "Up 18% from last week": the previous
  *  7 days for a week, the previous calendar month for a month. */
 export function previousPeriod(p: RecapPeriod): RecapPeriod {
