@@ -3003,21 +3003,11 @@ export default function Chat() {
           </div>
         )}
 
-        {phase === 'thinking' && (
-          // On It is typing (motion inventory "New On It message"): three dots
-          // in an On It bubble, 900ms loop; the reply then rises in its place.
-          <div className="flex justify-start onit-msg-in">
-            <div role="status" aria-label="On It is thinking"
-              className="flex items-center gap-1.5 rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-4 py-3.5">
-              <span className="onit-typing-dot" /><span className="onit-typing-dot" /><span className="onit-typing-dot" />
-            </div>
-          </div>
-        )}
-        {(phase === 'reading' || (phase === 'preparing' && receipt)) && (
-          <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
+        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
+          <div role="status" className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
-            Reading your receipt…
+            {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
           </div>
         )}
       </div>

@@ -178,8 +178,8 @@ everything else uses this spec's tokens (§1).
   ends the session.
 
 **Chat thread (tokens):** a new bubble rises 8px (`--motion-base`,
-`--ease-emphasized`); "thinking" is a typing bubble (three dots, 900ms loop)
-— the On It spinner (§2) stays for "Reading your receipt…".
+`--ease-emphasized`). "On It is thinking…" and "Reading your receipt…" both
+use the On It spinner (§2) row — no typing dots (device pass, merge 1).
 
 **Tabs (M5, tokens; replaces §10's side entry):** the gold disc slides to the
 active icon pill (`--motion-slow`, `--ease-spring`); the new tab's icon
