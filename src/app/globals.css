@@ -406,22 +406,28 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-lock-drop { from { transform: translateY(-6px) rotate(-18deg); } }
 .onit-lock-drop { display: inline-block; animation: onit-lock-drop 360ms var(--ease-spring) 80ms both; }
 
-/* ---- Sent -> Paid (MOTION-SPEC.md §6) ----
-   A translucent gold wipe crosses the invoice header left to right, then
-   dissolves. Sits under pointer events; the card must be relative + clipped. */
-.onit-paid-sweep {
-  position: absolute;
-  inset: 0;
-  background: #d4af37;
-  transform-origin: left center;
-  pointer-events: none;
-  animation: onit-paid-sweep 900ms var(--ease-emphasized) both;
+/* ---- Sent -> Paid (M4; replaces MOTION-SPEC.md §6's gold sweep) ----
+   The status word fades (120ms), a PAID stamp lands with a small settle
+   (200–700ms), the card dips 3px on impact, the stamp clears at the end and
+   the status reads "paid". Card must be relative + clipped. */
+.onit-paid-stamp {
+  position: absolute; left: 50%; top: 50%; z-index: 2; pointer-events: none;
+  padding: 4px 12px; border: 3px solid #0f6d31; border-radius: 10px;
+  color: #0f6d31; background: rgb(201 242 212 / .92);
+  font: 800 22px/1 Montserrat, sans-serif; letter-spacing: .12em;
+  animation: onit-paid-stamp 1300ms var(--ease-emphasized) both;
 }
-@keyframes onit-paid-sweep {
-  0% { transform: scaleX(0); opacity: .3; }
-  45% { transform: scaleX(1); opacity: .3; }
-  100% { transform: scaleX(1); opacity: 0; }
+@keyframes onit-paid-stamp {
+  0%, 15% { opacity: 0; transform: translate(-50%, -50%) scale(1.8) rotate(-14deg); }
+  35% { opacity: 1; transform: translate(-50%, -50%) scale(.94) rotate(-8deg); }
+  54% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
 }
+.onit-paid-dip { animation: onit-paid-dip 1300ms var(--ease-emphasized) both; }
+@keyframes onit-paid-dip { 0%, 30% { transform: translateY(0); } 36% { transform: translateY(3px); } 50%, 100% { transform: translateY(0); } }
+.onit-paid-word { animation: onit-paid-word 1300ms var(--ease-standard) both; }
+@keyframes onit-paid-word { 0% { opacity: 1; } 9% { opacity: 0; } 50% { opacity: 0; } 62%, 100% { opacity: 1; } }
 
 /* ---- Failure + retry (MOTION-SPEC.md §7) ---- */
 @keyframes onit-shake {
