@@ -10,6 +10,8 @@
 export function websiteHref(value: string | null | undefined): string | null {
   const v = value?.trim();
   if (!v) return null;
+  // Security guard: reject dangerous pseudo-protocols (javascript:, data:, vbscript:, file:)
+  if (/^(?:javascript|data|vbscript|file):/i.test(v)) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
