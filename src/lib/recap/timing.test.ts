@@ -96,3 +96,20 @@ test('every scenario sequence resolves to finite timings with heroEnd < duration
     }
   }
 });
+
+test('All caught up: the band lands within 3 s at any invoice count (≤ 3 cards, ≤ 6 edges animate)', () => {
+  for (const n of [undefined, 1, 3, 7, 20] as const) {
+    const p = fixturePayload('caughtUp', n);
+    const t = slideTiming('caughtUp', p, false);
+    // The spec's rule is the band landing; the glint after it may run a little past 3 s.
+    assert.ok(t.B.band.end <= 3000, `n=${n}: band ${t.B.band.end}`);
+    assert.ok(t.heroEnd <= 3130, `n=${n}: heroEnd ${t.heroEnd}`);   // capped: ≤ 3 cards, ≤ 6 edges
+  }
+});
+
+test('Still on the table: "the rest" past 3 cards is count − 3, capped at 6 edges', () => {
+  const p = fixturePayload('normalWeek', 20);
+  assert.equal(p.owed.count, 20);
+  assert.deepEqual(slideCounts('owed', p), { cards: 3, edges: 6, more: 1 });
+  assert.deepEqual(slideCounts('owed', fixturePayload('normalWeek', 1)), { cards: 1, edges: 0, more: 0 });
+});
