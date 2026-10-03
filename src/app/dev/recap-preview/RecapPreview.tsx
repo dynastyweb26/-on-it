@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { RecapView, type Recap } from '@/components/RecapSheet';
-import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenarioPayload, type ScenarioId } from '@/lib/recap/fixtures';
+import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenarioPayload, stressWeek, type ScenarioId } from '@/lib/recap/fixtures';
 import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import type { Cue } from '@/lib/recap/timing';
@@ -20,10 +20,12 @@ import type { Cue } from '@/lib/recap/timing';
 // Same as the app will do: the story's code (and its CSS) loads only on open.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
 
-// 'onePaymentWeek' is not one of the prototype's eight (opener checkpoint).
-type PreviewId = ScenarioId | 'onePaymentWeek';
-const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 'One-payment week' };
-const WEEKLY: PreviewId[] = ['normalWeek', 'onePaymentWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing'];
+// Not among the prototype's eight: 'onePaymentWeek' (opener checkpoint) and
+// 'stressWeek' (all six payment methods, $123,456, a long client name).
+type PreviewId = ScenarioId | 'onePaymentWeek' | 'stressWeek';
+const LABELS: Record<PreviewId, string> = { ...SCENARIO_LABELS, onePaymentWeek: 'One-payment week', stressWeek: 'Stress: 6 methods, long name' };
+const EXTRA = { onePaymentWeek, stressWeek };
+const WEEKLY: PreviewId[] = ['normalWeek', 'onePaymentWeek', 'quietWeek', 'investmentWeek', 'caughtUp', 'nothing', 'stressWeek'];
 const MONTHLY: PreviewId[] = ['busyMonth', 'quietMonth', 'spikyMonth'];
 
 const MOCKS: { label: string; recap: Omit<Recap, 'id'> }[] = [
@@ -67,7 +69,8 @@ function StoryPreview() {
   const [motion, setMotion] = useState<'os' | 'reduce' | 'full'>('os');
   const [open, setOpen] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const payload = useMemo(() => (scenario === 'onePaymentWeek' ? scenarioPayload(onePaymentWeek) : fixturePayload(scenario, inv)), [scenario, inv]);
+  const payload = useMemo(() => (scenario === 'onePaymentWeek' || scenario === 'stressWeek' ? scenarioPayload(EXTRA[scenario]) : fixturePayload(scenario, inv)), [scenario, inv]);
+  const [startAt, setStartAt] = useState(0);
   const seq = recapSequence(payload);
   const note = (line: string) => setLog((l) => [line, ...l].slice(0, 8));
 
@@ -105,9 +108,16 @@ function StoryPreview() {
           ))}
         </div>
       </div>
-      <p className="text-sm text-on-surface-variant">
-        {seq.length} slides: {seq.map((k) => RECAP_SLIDE_NAMES[k]).join(' → ')}
-      </p>
+      <div className="space-y-2">
+        <div className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Start at ({seq.length} {seq.length === 1 ? 'slide' : 'slides'})</div>
+        <div className="flex flex-wrap gap-2">
+          {seq.map((k, i) => (
+            <button key={`${k}-${i}`} className={chip(Math.min(startAt, seq.length - 1) === i)} aria-pressed={Math.min(startAt, seq.length - 1) === i} onClick={() => setStartAt(i)}>
+              {i + 1} · {RECAP_SLIDE_NAMES[k]}
+            </button>
+          ))}
+        </div>
+      </div>
       <button className="btn-primary w-full" onClick={() => { setLog([]); setOpen(true); }}>Open recap</button>
       {log.length > 0 && (
         <div className="rounded-card bg-surface-container p-3 text-xs leading-5 text-on-surface-variant">
@@ -118,6 +128,7 @@ function StoryPreview() {
       {open && (
         <RecapStory
           payload={payload}
+          startAt={startAt}
           reducedMotion={motion === 'os' ? undefined : motion === 'reduce'}
           onClose={() => setOpen(false)}
           onAction={(a) => note(`action: ${a}`)}

@@ -56,14 +56,17 @@ export type RecapStoryProps = {
   onCue?: (c: Cue) => void;
   /** Forces Reduce Motion on/off (dev preview); default follows the OS. */
   reducedMotion?: boolean;
+  /** Dev preview only: open on this slide (clamped). */
+  startAt?: number;
 };
 
-export default function RecapStory({ payload, onClose, onAction, onCue, reducedMotion }: RecapStoryProps) {
+export default function RecapStory({ payload, onClose, onAction, onCue, reducedMotion, startAt = 0 }: RecapStoryProps) {
   const osReduced = usePrefersReducedMotion();
   const reduced = reducedMotion ?? osReduced;
   const keys = useMemo(() => recapSequence(payload), [payload]);
   const timings = useMemo(() => keys.map((k) => slideTiming(k, payload, reduced)), [keys, payload, reduced]);
   const n = keys.length;
+  const first = Math.min(Math.max(0, startAt), n - 1);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<(HTMLElement | null)[]>([]);
@@ -82,7 +85,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const uid = useRef(0);
   const makeEntry = useCallback((idx: number): Entry => ({ key: ++uid.current, idx, clock: createClock(), timing: timings[idx] }), [timings]);
   // entries[0] = the current slide; entries[1] (during a transition) = the outgoing one.
-  const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(0)]);
+  const [entries, setEntries] = useState<Entry[]>(() => [makeEntry(first)]);
   const [pendingTrans, setPendingTrans] = useState<{ dir: 1 | -1; key: number } | null>(null);
 
   const [muted, setMuted] = useState(false);
@@ -98,7 +101,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   });
 
   // Loop state lives in refs: the clock never re-renders React.
-  const st = useRef({ idx: 0, t: 0, prevT: -1, held: false, spacePaused: false, hidden: false, trans: null as Trans | null, muted: false });
+  const st = useRef({ idx: first, t: 0, prevT: -1, held: false, spacePaused: false, hidden: false, trans: null as Trans | null, muted: false });
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
   const cbs = useRef({ onCue, onClose, onAction });
@@ -149,7 +152,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   // A Reduce Motion change (or a new payload) restarts the current slide with the new timing.
   const firstRun = useRef(true);
   useEffect(() => {
-    if (firstRun.current) { firstRun.current = false; setTheme(timings[0].theme); setAnnounce(`${RECAP_SLIDE_NAMES[keys[0]]}, 1 of ${n}`); return; }
+    if (firstRun.current) { firstRun.current = false; setTheme(timings[first].theme); setAnnounce(`${RECAP_SLIDE_NAMES[keys[first]]}, ${first + 1} of ${n}`); return; }
     showFresh(Math.min(st.current.idx, n - 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timings]);
@@ -294,7 +297,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      data-theme={timings[0].theme}
+      data-theme={timings[first].theme}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerLeave}

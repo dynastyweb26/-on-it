@@ -165,6 +165,23 @@ export const onePaymentWeek: Scenario = {
   previousIncome: 1600,
 };
 
+/** On It build (Money In checkpoint), NOT one of the prototype's eight: all
+ *  six payment methods (the two brand marks + the four neutral chips), a
+ *  six-figure total and a long top-client name — for auto-fit and truncation. */
+export const stressWeek: Scenario = {
+  ...normalWeek, id: 'stress-week',
+  income: { total: 123456, payments: 6, clients: 6 },
+  net: 123456 - normalWeek.spend.total,
+  change: { net: { pct: 0, direction: 'flat', vs: 'last week' } },
+  daily: [41000, 30200, 20456, 15800, 9000, 7000, 0],
+  topClient: { name: 'Northside Property Management Group LLC', amount: 41000 },
+  paymentMethods: [
+    { method: 'zelle', amount: 41000 }, { method: 'card', amount: 30200 }, { method: 'cashapp', amount: 20456 },
+    { method: 'check', amount: 15800 }, { method: 'cash', amount: 9000 }, { method: 'other', amount: 7000 },
+  ],
+  previousIncome: 90000,
+};
+
 export const SCENARIOS = { normalWeek, quietWeek, investmentWeek, caughtUp, nothing, busyMonth, quietMonth, spikyMonth };
 export type ScenarioId = keyof typeof SCENARIOS;
 export const SCENARIO_LABELS: Record<ScenarioId, string> = {
@@ -212,10 +229,21 @@ export function scenarioInput(s: Scenario): RecapInput {
   } else {
     const peak = Math.max(0, ...s.daily);
     let n = 0;
+    // Methods: biggest payment first, each to the method with the most of its
+    // share still unfilled, so the stored split follows the scenario's.
+    const left = new Map(s.paymentMethods.map((m) => [m.method, m.amount]));
+    const methodFor = new Map<number, string>();
+    s.daily.map((amount, day) => ({ amount, day })).filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .forEach(({ amount, day }) => {
+        const [m] = [...left].sort((a, b) => b[1] - a[1])[0] ?? ['zelle'];
+        methodFor.set(day, m);
+        left.set(m, (left.get(m) ?? 0) - amount);
+      });
     payments = s.daily.flatMap((amount, day) => amount > 0 ? [{
       amount,
       paid_at: noon(addDays(period.start, day)),
-      method: s.paymentMethods[0]?.method ?? 'zelle',
+      method: methodFor.get(day) ?? 'zelle',
       client_name: amount === peak && s.topClient ? s.topClient.name : `Client ${++n}`,
     }] : []);
   }

@@ -19,3 +19,10 @@ export const shortDate = (iso: string) => { const [, m, d] = ymd(iso); return `$
 export const periodLabel = (p: Pick<RecapPayload, 'start' | 'end'>) => `${shortDate(p.start)} – ${shortDate(p.end)}`;
 /** "September" for a monthly recap. */
 export const monthName = (p: Pick<RecapPayload, 'start'>) => MONTH[ymd(p.start)[1] - 1];
+
+/** Whole dollars, "−$" for negatives (the prototype's R.money). */
+export const money = (n: number) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+/** "1 payment" / "4 payments". */
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "week" / "month". */
+export const per = (p: Pick<RecapPayload, 'kind'>) => (p.kind === 'month' ? 'month' : 'week');
