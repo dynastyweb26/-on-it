@@ -570,6 +570,70 @@ results(id, ok, expected, actual) as (
         || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE') end
   from (values ('public.save_client(text,text,text,text,text)'), ('public.client_name_usage(text)'),
                ('public.client_summaries()')) f(sig)
+
+  -- R. Saved products & services (20261003000002). SKIP until pushed.
+  union all
+  select 'R1 products RLS + policies',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else coalesce((select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.products')), false)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'products') = 3
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'SELECT' and p.qual = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'INSERT' and p.with_check = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'UPDATE' and p.qual = '(auth.uid() = user_id)' and p.with_check = '(auth.uid() = user_id)') end,
+    'RLS on; exactly 3 owner policies: SELECT, INSERT, UPDATE (no DELETE)',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity from pg_class c where c.oid = to_regclass('public.products')), 'missing')
+        || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+          from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'), 'none') end
+  union all
+  select 'R2 products ' || t.role,
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      when to_regclass('public.products') is null then false
+      else has_table_privilege(t.role, 'public.products', 'SELECT') = t.rw
+        and has_table_privilege(t.role, 'public.products', 'INSERT') = t.rw
+        and has_table_privilege(t.role, 'public.products', 'UPDATE') = t.rw
+        and not has_table_privilege(t.role, 'public.products', 'DELETE')
+        and not has_table_privilege(t.role, 'public.products', 'TRUNCATE')
+        and not has_table_privilege(t.role, 'public.products', 'REFERENCES')
+        and not has_table_privilege(t.role, 'public.products', 'TRIGGER') end,
+    case when t.rw then 'select/insert/update only (no delete/truncate/references/trigger)' else 'no privileges' end,
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      when to_regclass('public.products') is null then 'missing'
+      else concat_ws(' ',
+        case when has_table_privilege(t.role, 'public.products', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(t.role, 'public.products', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(t.role, 'public.products', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(t.role, 'public.products', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(t.role, 'public.products', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege(t.role, 'public.products', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege(t.role, 'public.products', 'TRIGGER') then 'TRIGGER' end) end
+  from (values ('anon', false), ('authenticated', true)) t(role, rw)
+  union all
+  select 'R3 products name_key + checks',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else exists (select 1 from pg_constraint where conrelid = to_regclass('public.products')
+          and conname = 'products_user_name_key' and contype = 'u')
+        and (select count(*) from pg_constraint where conrelid = to_regclass('public.products')
+          and conname in ('products_name_chk', 'products_unit_chk', 'products_price_chk', 'products_detail_chk', 'products_use_count_chk')) = 5 end,
+    'unique (user_id, name_key); name / unit / price / detail / use_count checks',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      else coalesce((select string_agg(conname, ',' order by conname) from pg_constraint
+        where conrelid = to_regclass('public.products') and contype in ('u', 'c')), 'missing') end
+  union all
+  select 'R4 public.record_product_use(jsonb)',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else coalesce((select not p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.record_product_use(jsonb)')), false)
+        and coalesce(has_function_privilege('authenticated', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE'), false)
+        and not coalesce(has_function_privilege('anon', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE'), true) end,
+    'security invoker; EXECUTE to authenticated, not anon',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      when to_regprocedure('public.record_product_use(jsonb)') is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.record_product_use(jsonb)'))
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
