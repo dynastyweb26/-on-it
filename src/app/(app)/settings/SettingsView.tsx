@@ -143,6 +143,15 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // YOUR BUSINESS › Clients count: saved clients only (merge 2 · 2·3).
+  const [clientCount, setClientCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (section !== 'main') return;
+    supabase.from('clients').select('id', { count: 'exact', head: true })
+      .not('saved_at', 'is', null).is('deleted_at', null)
+      .then(({ count }) => setClientCount(count ?? null), () => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
 
   useEffect(() => {
     let active = true;
@@ -511,7 +520,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           joins MONEY with the Recurring screen (merge 3). */}
       {is('main') && (<>
         <SettingsGroup title="Your business">
-          <SettingsRow icon="group" tint="gold" title="Clients" href="/clients" />
+          <SettingsRow icon="group" tint="gold" title="Clients" value={clientCount ? String(clientCount) : null} href="/clients" />
           <SettingsRow icon="handyman" tint="gold" title="Products & Services" href="/clients?segment=products" />
           <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
           <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />

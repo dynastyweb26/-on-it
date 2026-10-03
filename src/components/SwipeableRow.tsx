@@ -6,6 +6,8 @@ import Icon from '@/components/Icon';
 interface SwipeableRowProps {
   children: React.ReactNode;
   onDelete: () => void;
+  /** Adds an Edit action left of Delete (saved clients / products, frames 3a). */
+  onEdit?: () => void;
   className?: string;
   /** Square corners, for rows inside a grouped card (Expenses). */
   flat?: boolean;
@@ -13,8 +15,10 @@ interface SwipeableRowProps {
 
 const SWIPE_THRESHOLD = 70; // px to reveal delete button
 const MAX_SWIPE = 90; // max px distance
+const MAX_SWIPE_EDIT = 148; // Edit + Delete
 
-export default function SwipeableRow({ children, onDelete, className = '', flat = false }: SwipeableRowProps) {
+export default function SwipeableRow({ children, onDelete, onEdit, className = '', flat = false }: SwipeableRowProps) {
+  const maxSwipe = onEdit ? MAX_SWIPE_EDIT : MAX_SWIPE;
   const [translateX, setTranslateX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -39,7 +43,7 @@ export default function SwipeableRow({ children, onDelete, className = '', flat 
     // Only allow swiping left (negative dx)
     if (dx < 0) {
       e.stopPropagation(); // Stop tab-swipe from hijacking
-      const offset = Math.max(dx, -MAX_SWIPE);
+      const offset = Math.max(dx, -maxSwipe);
       setTranslateX(offset);
     } else if (translateX < 0) {
       // Swiping back right
@@ -53,7 +57,7 @@ export default function SwipeableRow({ children, onDelete, className = '', flat 
     touchStart.current = null;
 
     if (translateX < -SWIPE_THRESHOLD / 2) {
-      setTranslateX(-MAX_SWIPE);
+      setTranslateX(-maxSwipe);
     } else {
       setTranslateX(0);
     }
@@ -70,21 +74,39 @@ export default function SwipeableRow({ children, onDelete, className = '', flat 
     >
       {/* Revealed Delete Action Background — only painted while the row is
           moved, so its edge never shows past an at-rest row's corners. */}
-      <div className={`absolute inset-y-0 right-0 flex items-center justify-end bg-error px-4 ${flat ? '' : 'rounded-card'}`}
-        style={{ visibility: translateX < 0 || isSwiping ? 'visible' : 'hidden' }}>
-        <button
-          type="button"
-          aria-label="Delete item"
-          onClick={() => {
-            resetSwipe();
-            onDelete();
-          }}
-          className="flex h-full items-center justify-center gap-1 px-2 text-label-lg font-bold text-white transition active:scale-95"
-        >
-          <Icon name="delete" size={24} />
-          <span>Delete</span>
-        </button>
-      </div>
+      {onEdit ? (
+        <div className={`absolute inset-y-0 right-0 flex ${flat ? '' : 'rounded-card overflow-hidden'}`}
+          style={{ visibility: translateX < 0 || isSwiping ? 'visible' : 'hidden' }}>
+          <button type="button" aria-label="Edit"
+            onClick={() => { resetSwipe(); onEdit(); }}
+            className="flex w-[74px] flex-col items-center justify-center gap-0.5 bg-surface-container-high text-[13px] font-semibold text-on-background transition active:scale-95">
+            <Icon name="edit" size={20} />
+            Edit
+          </button>
+          <button type="button" aria-label="Delete"
+            onClick={() => { resetSwipe(); onDelete(); }}
+            className="flex w-[74px] flex-col items-center justify-center gap-0.5 bg-error text-[13px] font-bold text-white transition active:scale-95">
+            <Icon name="delete" size={20} />
+            Delete
+          </button>
+        </div>
+      ) : (
+        <div className={`absolute inset-y-0 right-0 flex items-center justify-end bg-error px-4 ${flat ? '' : 'rounded-card'}`}
+          style={{ visibility: translateX < 0 || isSwiping ? 'visible' : 'hidden' }}>
+          <button
+            type="button"
+            aria-label="Delete item"
+            onClick={() => {
+              resetSwipe();
+              onDelete();
+            }}
+            className="flex h-full items-center justify-center gap-1 px-2 text-label-lg font-bold text-white transition active:scale-95"
+          >
+            <Icon name="delete" size={24} />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
 
       {/* Swipeable Foreground Row */}
       <div

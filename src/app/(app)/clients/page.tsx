@@ -1,35 +1,18 @@
 'use client';
 // ═══ Clients — saved clients and products & services ═══
 // The Clients tab (UI redesign, 5-tab nav). Two segments: Clients · Products &
-// Services (UI-REDESIGN-AUDIT §L14). Placeholder until the saved-list
-// migrations land (audit commits 6–7, 11–12): nothing is read or written here
-// yet — chat still saves every client silently as history, and only clients
-// you choose to save will be listed.
+// Services (UI-REDESIGN-AUDIT §L14). Clients is the saved-clients list
+// (merge 2 · 2·3, components/clients/ClientsList). Products & Services keeps
+// its "coming soon" empty state until its table lands (merge 2 · 2·6–2·8).
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
-import type { IconName } from '@/components/icon-names';
+import ClientsList from '@/components/clients/ClientsList';
 
 type Segment = 'clients' | 'products';
 const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'clients', label: 'Clients' },
   { key: 'products', label: 'Products & Services' },
 ];
-
-// "Coming soon" copy until merge 2 ships saved clients / products: the empty
-// states must not promise anything that isn't live, so no buttons either.
-// Merge 2 restores the design's empty-state copy (PUNCH-LIST).
-const EMPTY: Record<Segment, { icon: IconName; title: string; body: string }> = {
-  clients: {
-    icon: 'group',
-    title: 'Saved clients are coming soon.',
-    body: 'You’ll be able to save the people you bill and pick them in one tap.',
-  },
-  products: {
-    icon: 'handyman',
-    title: 'Saved products & services are coming soon.',
-    body: 'Save what you charge for often and add it to an invoice in one tap.',
-  },
-};
 
 export default function Clients() {
   const [segment, setSegment] = useState<Segment>('clients');
@@ -39,7 +22,6 @@ export default function Clients() {
     if (new URLSearchParams(window.location.search).get('segment') === 'products') setSegment('products');
   }, []);
   const i = SEGMENTS.findIndex((s) => s.key === segment);
-  const empty = EMPTY[segment];
   return (
     <div className="px-4 py-4">
       {/* Segmented control: the gold thumb slides by transform (MOTION-SPEC §13). */}
@@ -58,12 +40,18 @@ export default function Clients() {
         ))}
       </div>
 
-      <div key={segment} role="tabpanel" className="onit-rise mt-16 px-4 text-center">
-        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-surface-container text-primary">
-          <Icon name={empty.icon} size={32} />
-        </span>
-        <h1 className="mt-4 font-display text-xl font-bold text-on-background">{empty.title}</h1>
-        <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">{empty.body}</p>
+      <div key={segment} role="tabpanel">
+        {segment === 'clients' ? <ClientsList /> : (
+          // "Coming soon" until merge 2 ships saved products: no promises, no
+          // buttons. Merge 2 restores the design's empty-state copy (PUNCH-LIST).
+          <div className="onit-rise mt-16 px-4 text-center">
+            <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-surface-container text-primary">
+              <Icon name="handyman" size={32} />
+            </span>
+            <h1 className="mt-4 font-display text-xl font-bold text-on-background">Saved products &amp; services are coming soon.</h1>
+            <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">Save what you charge for often and add it to an invoice in one tap.</p>
+          </div>
+        )}
       </div>
     </div>
   );
