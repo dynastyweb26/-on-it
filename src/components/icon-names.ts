@@ -88,6 +88,7 @@ export const ICON_NAMES = [
   'volume_off',
   'volume_up',
   'warning',
+  'workspace_premium',
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];

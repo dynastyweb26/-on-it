@@ -156,6 +156,13 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     // (server-built, unchanged): hand them to the Payouts sub-screen, which
     // runs the return-trip logic below.
     const connectParam = new URLSearchParams(window.location.search).get('connect');
+    // Checkout's success URL for Settings is /settings?upgraded=1: show the
+    // Plan sub-screen (it re-reads access on load).
+    if (section === 'main' && !connectParam && new URLSearchParams(window.location.search).get('upgraded') === '1') {
+      settled = true; clearTimeout(stuckTimer);
+      router.replace('/settings/plan');
+      return () => { active = false; };
+    }
     if (section === 'main' && connectParam) {
       settled = true; clearTimeout(stuckTimer);
       router.replace(`/settings/payouts?connect=${encodeURIComponent(connectParam)}`);
@@ -494,7 +501,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="space-y-4 px-4 py-4 overflow-x-hidden">
-      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : 'Settings'}</SettingsTitle>
+      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : 'Settings'}</SettingsTitle>
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -508,6 +515,17 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
               : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
+        </SettingsGroup>
+      )}
+      {/* Plan row: only when the Plan screen has something to show (founder,
+          a real subscription, or the paywall on) — same rule as before. */}
+      {is('main') && access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+        <SettingsGroup title="Account">
+          <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
+            value={access.tier === 'founder' ? 'Founder'
+              : access.tier === 'trialing' ? 'Free trial'
+              : access.tier === 'past_due' ? 'Payment due'
+              : access.tier === 'active' ? 'Subscribed' : 'Free'} />
         </SettingsGroup>
       )}
 
@@ -820,11 +838,13 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         );
       })()}
 
+      </>)}
+
       {/* Paywall kill switch: with the paywall off, only show this section to
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
-      {access?.tier === 'founder' && (
+      {is('plan') && access?.tier === 'founder' && (
         // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
         <section className="card space-y-1">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
@@ -833,7 +853,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         </section>
       )}
 
-      {access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+      {is('plan') && access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
           {SUBSCRIBED.has(access.tier) ? (
@@ -899,6 +919,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           </div>
         </section>
       )}
+
+      {is('main') && (<>
 
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Records</h2>
