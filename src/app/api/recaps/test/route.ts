@@ -10,6 +10,10 @@
 //     row, never the real recap:<kind>:<user>:<period> dedupe key).
 //   { action: 'reset' } — clear seen_at / prompted_at on the caller's recaps
 //     (the two columns the app itself writes), so the prompt and dot show again.
+//   { action: 'delete' } — delete the caller's recaps rows (all kinds and
+//     periods), so 'build' starts from nothing. Clients have no DELETE on
+//     recaps (by design, 20261001000010), so this runs with the service role,
+//     scoped to the session user's id — never an id from the request.
 //
 // Preview-only by three gates: never in production (VERCEL_ENV), only where
 // PUSH_TEST_ENABLED=1 (Preview only, shared with /api/push/test), and only
@@ -29,7 +33,7 @@ import { RECAPS_LIVE } from '@/lib/recaps-live';
 import { localYmd, recentPeriods, resolveTimeZone } from '@/lib/recap/dates';
 import { RECAP_FULL_COLS, announces, normalizeRow, sortRows } from '@/lib/recap/rows';
 
-const Body = z.object({ action: z.enum(['build', 'push', 'reset']) });
+const Body = z.object({ action: z.enum(['build', 'push', 'reset', 'delete']) });
 
 const enabled = () => deployEnv() !== 'production' && process.env.PUSH_TEST_ENABLED === '1' && RECAPS_LIVE;
 const notFound = () => NextResponse.json({ error: 'not found' }, { status: 404 });
@@ -58,6 +62,12 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id);
     if (error) return NextResponse.json({ error: 'reset failed' }, { status: 500 });
     return NextResponse.json({ reset: true });
+  }
+
+  if (action === 'delete') {
+    const { data, error } = await adminClient().from('recaps').delete().eq('user_id', user.id).select('id');
+    if (error) return NextResponse.json({ error: 'delete failed' }, { status: 500 });
+    return NextResponse.json({ deleted: data?.length ?? 0 });
   }
 
   if (action === 'push') {

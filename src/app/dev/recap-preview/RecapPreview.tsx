@@ -4,7 +4,7 @@
 //     payload builder and player, lazy-loaded like the app loads it.
 //  2. Real data (your account, Preview only): build your recaps with the
 //     cron's builder, send the recap push to this device, reset watched /
-//     put-off — via /api/recaps/test (404 unless Preview + PUSH_TEST_ENABLED +
+//     put-off, delete your recaps — via /api/recaps/test (404 unless Preview + PUSH_TEST_ENABLED +
 //     RECAPS_LIVE). Build writes real recaps rows for you (shared DB).
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -113,7 +113,8 @@ function RealData() {
     fetch('/api/recaps/test').then((r) => setEnabled(r.ok)).catch(() => setEnabled(false));
   }, []);
   if (!enabled) return null;
-  async function run(action: 'build' | 'push' | 'reset') {
+  async function run(action: 'build' | 'push' | 'reset' | 'delete') {
+    if (action === 'delete' && !window.confirm('Delete ALL your recaps (every week and month)? This removes your own rows from the shared database and cannot be undone.')) return;
     setBusy(true);
     setOut('…');
     try {
@@ -131,12 +132,14 @@ function RealData() {
       <p className="text-sm text-on-surface-variant">
         Build = your last 4 weeks + 2 months with the cron&rsquo;s builder (insert-once; real rows in the shared DB). Push = the recap
         push for your newest recap, to this environment&rsquo;s devices. Reset = clear watched / &ldquo;Later&rdquo; on your recaps.
+        Delete = remove all your recaps rows (asks first).
         Reload the app after Build or Reset.
       </p>
       <div className="flex flex-wrap gap-2">
         <button className="btn-outline text-primary" disabled={busy} onClick={() => run('build')}>Build my recaps</button>
         <button className="btn-outline text-primary" disabled={busy} onClick={() => run('push')}>Send recap push</button>
         <button className="btn-outline text-primary" disabled={busy} onClick={() => run('reset')}>Reset watched / Later</button>
+        <button className="btn-outline text-primary" disabled={busy} onClick={() => run('delete')}>Delete my recaps</button>
       </div>
       {out && <pre className="whitespace-pre-wrap break-all rounded-card bg-surface-container p-3 text-xs">{out}</pre>}
     </section>
