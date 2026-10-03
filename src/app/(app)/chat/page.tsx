@@ -35,6 +35,7 @@ import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
+import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -1072,7 +1073,9 @@ export default function Chat() {
             .from('clients')
             .select('address, phone')
             .eq('user_id', profile.id)
-            .ilike('name', data.client_name)
+            // Exact match on the case-insensitive key (an ilike pattern would
+            // treat % and _ in a name as wildcards).
+            .eq('name_key', clientNameKey(data.client_name))
             .limit(1)
             .maybeSingle();
           if (known) {
@@ -1568,6 +1571,10 @@ export default function Chat() {
       if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
       const { data: client } = await supabase
         .from('clients')
+        // (user_id, name) stays the conflict target: the clients_canonical_name
+        // trigger snaps a case variant ("cyril") onto the stored spelling
+        // ("Cyril") first, so this updates that row instead of hitting the
+        // unique name_key index (migration 20261003000001).
         .upsert(clientRow, { onConflict: 'user_id,name' })
         .select('id').single();
 
