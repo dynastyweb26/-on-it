@@ -11,7 +11,9 @@ import SwipeableRow from '@/components/SwipeableRow';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
+import SortToggle from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
+import { EXPENSES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 
@@ -47,6 +49,13 @@ export default function Books() {
   const [deleteTarget, setDeleteTarget] = useState<ExpenseRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [undoTarget, setUndoTarget] = useState<ExpenseRow | null>(null);
+  // Newest (default) / A–Z inside each week, remembered per device.
+  const [sort, setSort] = useState<ListSort>('newest');
+  useEffect(() => { setSort(readListSort(EXPENSES_SORT_KEY)); }, []);
+  function chooseSort(v: ListSort) {
+    setSort(v);
+    writeListSort(EXPENSES_SORT_KEY, v);
+  }
 
   const load = useCallback(async () => {
     // spent_on is the user-facing date; created_at breaks ties so two expenses
@@ -102,7 +111,9 @@ export default function Books() {
   // Week dividers with a running subtotal. Weeks are clamped to their month, so
   // each week's subtotal stays within one month and rolls up to the monthly
   // total on the summary page (see date-groups). Books shows the subtotal.
-  const groups = groupByPeriod(sorted, (e) => e.spent_on, (e) => Number(e.amount), 'week');
+  const byWeek = groupByPeriod(sorted, (e) => e.spent_on, (e) => Number(e.amount), 'week');
+  // A–Z: the same weeks and subtotals; only the rows inside each week reorder.
+  const groups = sort === 'az' ? sortWithinGroups(byWeek, label, (e) => e.spent_on) : byWeek;
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -157,6 +168,11 @@ export default function Books() {
             </div>
           )}
 
+          {rows.length > 0 && (
+            <div className="mb-3 flex justify-end">
+              <SortToggle value={sort} onChange={chooseSort} label="Sort expenses" />
+            </div>
+          )}
           <div>
             {groups.map((g) => (
               <div key={g.key}>
