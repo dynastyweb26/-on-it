@@ -64,8 +64,8 @@ export function MockBubble({ role, children }: { role: 'user' | 'assistant'; chi
       <div
         className={`max-w-[85%] rounded-card px-3 py-2 text-[13px] leading-snug
           ${role === 'user'
-            ? 'rounded-br-md bg-primary-container text-on-primary-container'
-            : 'rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest'}`}
+            ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
+            : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}`}
       >
         {children}
       </div>
