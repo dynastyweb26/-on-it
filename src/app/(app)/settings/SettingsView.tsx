@@ -872,6 +872,18 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         </button>
       </section>
 
+      {/* TEMPORARY — remove before merge with /dev/recap-preview (PUNCH-LIST).
+          Preview deploys only; NEXT_PUBLIC_VERCEL_ENV is inlined at build, so
+          production (and local builds without it) never render this row. */}
+      {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && (
+        <section className="card space-y-3">
+          <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Preview only</h2>
+          <button className="btn-outline w-full text-primary" onClick={() => router.push('/dev/recap-preview')}>
+            <Icon name="settings" size={18} /> Recap test tools
+          </button>
+        </section>
+      )}
+
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">

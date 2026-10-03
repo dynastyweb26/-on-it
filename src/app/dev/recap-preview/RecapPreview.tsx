@@ -8,6 +8,8 @@
 //     RECAPS_LIVE). Build writes real recaps rows for you (shared DB).
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import Icon from '@/components/Icon';
 import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenarioPayload, stressWeek, type ScenarioId } from '@/lib/recap/fixtures';
 import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
@@ -150,6 +152,9 @@ export default function RecapPreview({ build }: { build: string }) {
   return (
     <main className="mx-auto max-w-lg space-y-6 px-4 py-6">
       <AudioDebugPanel build={build} />
+      <Link href="/settings" className="-ml-2 inline-flex min-h-touch items-center gap-1 rounded-full px-2 text-sm font-semibold text-primary">
+        <Icon name="arrow_back" size={20} /> Settings
+      </Link>
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Recap preview</h1>
       <RealData />
       <StoryPreview />

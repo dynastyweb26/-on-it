@@ -261,7 +261,8 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Weekly / monthly recaps: the latest one, or the locked card (free). */}
+      {/* Weekly / monthly recaps: the latest one, or the locked card (free).
+          Between the tiles and the Summary / Expenses buttons (decided 2026-10-03). */}
       <RecapsCard />
 
       {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
