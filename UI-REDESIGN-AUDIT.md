@@ -72,6 +72,28 @@ listed in §N.
    (`src/app/(app)/dashboard/page.tsx:287-293`).
 6. **Fix the stale MOTION-SPEC §12** (it still describes the removed
    `RecapSheet`) in the first commit.
+7. **Chat tab icon:** `chat_bubble`, in the raised centre pill per M5.
+8. **Templates follow exactly the same guest rules as chat** (signed-out
+   users get what chat gives them today).
+9. **"Pro" = the existing paid plan** (founder / trialing / active /
+   past_due). It is a visual tag only for now.
+10. **Easing:** keep MOTION-SPEC's tokens. The design's stand-in curves are
+    not adopted.
+11. **Send and paid animations:** keep the shipped lock-on-send (§4) and
+    gold-sweep paid (§6). M1 and M4 are deferred to the final motion pass
+    (commit 17).
+12. **Haptics:** Android-only is accepted (iOS Safari/PWA has no vibration
+    API).
+13. **The template is a tap-to-fill form.** No voice or typing fills it.
+    Voice stays Mic → chat.
+14. **Recurring Expenses is a row in Books, next to Expenses.** The Clients
+    tab has two segments: **Clients · Products & Services**.
+15. **Missed due dates:** back-fill at most 3, cap-checked on each one.
+    Resuming after Pause never back-fills.
+16. **Release frames are coming.** Commit 8 (template) waits for them.
+17. **Duplicate check moves to Send.** The 48-hour duplicate-invoice check
+    moves from `/api/parse` to Send, as one shared check for both chat and
+    template invoices (commit 8).
 
 ---
 
@@ -90,8 +112,8 @@ listed in §N.
 2. **Easing tokens disagree.** The design's `ease.emphasized`
    `cubic-bezier(.2,0,0,1)` equals MOTION-SPEC's `--ease-standard`; the repo's
    `--ease-emphasized` is `(.65,0,.35,1)`. The designer calls their curves
-   "stand-ins" because they didn't have the On It motion kit (open question
-   Q4).
+   "stand-ins" because they didn't have the On It motion kit. Resolved:
+   keep MOTION-SPEC's tokens (L10).
 
 ---
 
@@ -237,7 +259,7 @@ The design reworks the input bar. None of this is adopted.
 - Tutorial: `mocks.tsx:17-39`, `TutorialReference.tsx:19-25`, `slides.tsx`
   (`SlideTab`).
 - Docs: ON-IT-DESIGN-STANDARD §4, MOTION-SPEC §10.
-- Icons: `group` (Clients); `person`, `person_add` (M2).
+- Icons: `group` (Clients), `chat_bubble` (Chat, L7); `person`, `person_add` (M2).
 
 ### Design (M5)
 - Bar 84 px. Pills 58×32; Chat 64×36, raised 4 px.
@@ -263,10 +285,11 @@ The design reworks the input bar. None of this is adopted.
   - Expense flow ~1945-2090.
 - `src/app/(app)/dashboard/page.tsx:296-380` (Books add-expense sheet).
 - New:
-  - `clients` page with a Products segment (the design puts Products inside
+  - `clients` page with **Clients · Products & Services** segments (L14; the design puts Products inside
     Clients: "A–Z clients + items");
   - client detail;
-  - Recurring Expenses list;
+  - Recurring Expenses list, reached from a row in Books next to Expenses
+    (L14);
   - a shared `SaveToListPrompt` (M2/M3: dark card above the composer, no
     scrim).
 - `src/app/api/followups/route.ts`: daily cron. Recurring becomes a step after
@@ -484,7 +507,7 @@ owner policy in the same file (SECURITY.md:27).
   DELETE, the unique index, and the extended type check.
 
 ### E. (later) Pro gating
-Not proposed. Today "Pro" is a visual tag only (Q3).
+Not proposed. "Pro" = the existing paid plan, visual tag only for now (L9).
 
 ---
 
@@ -536,13 +559,13 @@ The design's inventory vs MOTION-SPEC (§1–11 shipped; §12 fixed in commit 1)
 | Keypad | sheet rises 320 ms, live line total | — | Adopt |
 | Add / remove item | expand 380 ms / collapse 320 ms + 5 s undo | — | Adopt (stable row ids) |
 | Send enabled | gold sweep then ↗ pops, 400 ms | §3 send fades in last | Adopt |
-| Send invoice / quote | M1 hero, 1,100 ms (template card folds; the bar stays) | §4 lock on send | Q5 |
+| Send invoice / quote | M1 hero, 1,100 ms (template card folds; the bar stays) | §4 lock on send (kept) | Deferred to commit 17 (L11) |
 | Save client / item | M2: chip arcs into the Clients tab, tab bumps, "+1", bubble; 1,000 ms | — | Adopt |
 | Save prompt | rises 14 px spring 320 ms; Not now sinks 10 px 180 ms | — | Adopt |
 | Make recurring | M3: ellipse draws, "Monthly" pops, ↻ spins, shimmer; 950 ms | — | Adopt |
 | Recurring auto-logged | shimmer + "Logged automatically", 900 ms | — | Adopt (+ "Recurring" tag) |
 | Recurring skipped | — | — | New: banner rises 240 ms (§1 rise) |
-| Marked paid | M4 stamp + tiles count up, 1,200 ms | §6 gold sweep (built) | Q5 |
+| Marked paid | M4 stamp + tiles count up, 1,200 ms | §6 gold sweep (kept) | Deferred to commit 17 (L11) |
 | Tab switch | M5 disc slide 340 ms spring, icon bounce, fadeUp 160 ms | §10 pill 300 ms + side entry | Update §10 |
 | Invoices filter | list crossfade 12 px shift, 200 ms | §10 ring | Adopt |
 | Sort toggle | segment thumb slides 180 ms spring | — | Adopt (Forms segment row) |
@@ -567,7 +590,7 @@ The design's inventory vs MOTION-SPEC (§1–11 shipped; §12 fixed in commit 1)
   RecapStory) to `src/lib` in the motion-foundations commit.
 
 ### Haptics
-iOS Safari/PWA has no vibration API, so haptics work on Android only (Q6).
+iOS Safari/PWA has no vibration API, so haptics work on Android only (accepted, L12).
 
 ---
 
@@ -586,19 +609,19 @@ branch preview.
 | 2 | Invoice sort toggle (Newest / A–Z within month, per-device) | — | Low |
 | 3 | Expense sort toggle (A→Z inside each weekly group; subtotals and Summary untouched) | — | Low |
 | 4 | Composer: gold mic → gold "+" expand (Mic · New invoice · New quote). Mic = `micTap()`; New invoice/quote stub to today's chat greeting until #8. Tutorial copy | — | Medium (iOS gesture) |
-| 5 | Nav → 5 tabs (Clients as a placeholder screen), icons, M5 pill, tutorial mocks | — | Medium |
+| 5 | Nav → 5 tabs (Clients placeholder with the Clients · Products & Services segments), `group` + `chat_bubble` icons, raised centre Chat pill (M5), tutorial mocks | — | Medium |
 | 6 | Migration A (clients) — **preflight duplicate report first** | **yes** | Medium |
 | 7 | Clients list + detail + "Save to your list?" (M2) | needs 6 | Medium |
-| 8 | Guided template without units (locked composer under it; Send via `finalize()`) | — | **High** |
+| 8 | Guided template without units — **waits for the release frames**. Tap-to-fill form; locked composer under it; Send via `finalize()`. **The 48-hour duplicate-invoice check moves to Send as one shared check for chat and template invoices** (out of `/api/parse` ~378) | — | **High** |
 | 9 | Migration C (public RPC passes `unit`) | **yes** | Medium |
 | 10 | Units end to end (editor, PDF, PayView, parse normaliser + AI rule) | needs 9 | Medium |
 | 11 | Migration B (products + `record_product_use`) | **yes** | Low |
 | 12 | Products & Services segment + save prompt + pick-from-sheet | needs 11 | Medium |
 | 13 | Migration D (recurring + `expenses.recurring_id` + notification type) | **yes** | Medium |
-| 14 | Recurring list (Pause/Delete), save prompt (M3), "Recurring" tag | needs 13 | Medium |
-| 15 | Recurring cron step (idempotent, timezone, cap skip + notify) | needs 13 | **High** |
+| 14 | Recurring Expenses row in Books (next to Expenses) + list with Pause/Delete, save prompt (M3), "Recurring" tag | needs 13 | Medium |
+| 15 | Recurring cron step (idempotent, timezone, back-fill ≤ 3 each cap-checked, cap skip + notify) | needs 13 | **High** |
 | 16 | "Pro" tags (visual) | — | Low |
-| 17 | Motion passes (M1 send, M4 paid per Q5, list rows, empty states) | — | Medium |
+| 17 | Final motion pass (M1 send and M4 paid, deferred per L11; list rows; empty states) | — | Medium |
 
 **Why this order:**
 - Doc and sorting first (no risk).
@@ -610,24 +633,6 @@ branch preview.
 
 ---
 
-## Open questions (remaining)
+## Open questions
 
-1. **Chat tab icon:** keep `mic`, or switch to the design's `chat_bubble`?
-   Raised/bigger centre Chat pill per M5?
-2. **Templates for guests** (not signed in), or signed-in only?
-3. **"Pro" = the existing paid plan, or a new higher tier?** (Tag only for
-   now.)
-4. **Easing tokens:** keep MOTION-SPEC's, adopt the design's stand-ins, or wait
-   for the On It motion kit?
-5. **Send / paid heroes:** should M1 (send) and M4 (paid) replace the shipped
-   lock-on-send (§4) and gold-sweep paid (§6), or layer on them?
-6. **Haptics:** OK that they're Android-only?
-7. **Template vs chat:** while a template is open, can talking or typing fill
-   it, or is it a modal form?
-8. **Where Recurring Expenses lives:** a Books row, Settings, or a segment in
-   Clients?
-9. **Missed due dates:** after a pause or an outage, log up to N missed dates
-   (proposed max 3), or only the latest? (Resume after Pause never back-fills.)
-10. **Release frames:** please add `On It Next Release.dc.html` to
-    `design-reference/` (send option A, two-row items, stepper, keypad, units,
-    list screens, Pro tag).
+None. All answered 2026-10-03 and locked in §L (items 7–17).
