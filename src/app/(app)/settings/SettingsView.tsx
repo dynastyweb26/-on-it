@@ -114,6 +114,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const [pushTestOn, setPushTestOn] = useState(false);
   const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
   // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
   // an actionable state instead of an indefinite spinner. A late-resolving `p`
@@ -501,7 +502,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="space-y-4 px-4 py-4 overflow-x-hidden">
-      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : 'Settings'}</SettingsTitle>
+      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : 'Settings'}</SettingsTitle>
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -515,6 +516,14 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
               : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
+        </SettingsGroup>
+      )}
+      {is('main') && (
+        <SettingsGroup title={access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) ? 'More' : 'Account'}>
+          <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
+            value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
+          {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
+          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" />
         </SettingsGroup>
       )}
       {/* Plan row: only when the Plan screen has something to show (founder,
@@ -806,12 +815,20 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       )}
 
       {is('main') && (<>
-      {p.referral_code && (() => {
+      {inviteOpen && p.referral_code && (() => {
         // host read dynamically so the link survives the custom-domain move
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
         return (
-          <section className="card space-y-3">
-            <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invite</h2>
+          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setInviteOpen(false)}>
+          <div role="dialog" aria-label="Invite a contractor"
+            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold">Invite a contractor</h2>
+              <button aria-label="Close" className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant" onClick={() => setInviteOpen(false)}>
+                <Icon name="close" size={24} />
+              </button>
+            </div>
             <p className="text-sm text-on-surface-variant">Share On It with another contractor.</p>
             <div className="break-all rounded-input border border-outline-variant bg-surface-container px-3 py-2.5 font-mono text-sm">
               {inviteUrl}
@@ -834,7 +851,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
                 </button>
               )}
             </div>
-          </section>
+          </div>
+        </div>
         );
       })()}
 
@@ -931,6 +949,9 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       </section>
 
 
+      </>)}
+
+      {is('notifications') && (
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
@@ -1023,6 +1044,20 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         )}
       </section>
 
+      )}
+
+      {is('help') && (
+        <SettingsGroup title="Help">
+          <SettingsRow icon="help" title="How On It works" onClick={() => window.dispatchEvent(new Event('onit-open-reference'))} />
+          <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event('onit-replay-walkthrough'))} />
+          {/* §L Q9 */}
+          <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
+          <SettingsRow icon="description" title="Terms" href="/terms" />
+          <SettingsRow icon="lock" title="Privacy" href="/privacy" />
+        </SettingsGroup>
+      )}
+
+      {is('main') && (<>
       <button className="w-full py-3 text-sm text-error underline"
         onClick={async () => {
           clearChatStorage(p?.id);

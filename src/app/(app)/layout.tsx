@@ -186,6 +186,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // version for a brand-new user who only tapped the pill, silently suppressing
   // the first-run carousel they never actually saw. Only closeFirstRun marks
   // seen — keep these two paths separate.
+  // Settings › Help & feedback opens these two from inside a screen.
+  useEffect(() => {
+    const openReference = () => setShowReference(true);
+    const replayWalkthrough = () => setShowFirstRun(true);
+    window.addEventListener('onit-open-reference', openReference);
+    window.addEventListener('onit-replay-walkthrough', replayWalkthrough);
+    return () => {
+      window.removeEventListener('onit-open-reference', openReference);
+      window.removeEventListener('onit-replay-walkthrough', replayWalkthrough);
+    };
+  }, []);
+
   function closeReference() {
     setShowReference(false);
   }
