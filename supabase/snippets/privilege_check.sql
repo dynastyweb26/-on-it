@@ -503,6 +503,73 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261002000001') then 'not applied yet'
       else coalesce((select pg_get_constraintdef(oid) from pg_constraint
         where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), 'missing') end
+
+  -- Q. Saved clients (20261003000001). SKIP until pushed.
+  union all
+  select 'Q1 clients RLS + policies',
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else (select c.relrowsecurity from pg_class c where c.oid = 'public.clients'::regclass)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients') = 3
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'SELECT' and p.qual = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'INSERT' and p.with_check = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'UPDATE' and p.qual = '(auth.uid() = user_id)' and p.with_check = '(auth.uid() = user_id)') end,
+    'RLS on; exactly 3 owner policies: SELECT, INSERT, UPDATE (no DELETE, no FOR ALL)',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else (select 'rls=' || c.relrowsecurity from pg_class c where c.oid = 'public.clients'::regclass)
+        || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+          from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'), 'none') end
+  union all
+  select 'Q2 clients ' || t.role,
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else has_table_privilege(t.role, 'public.clients', 'SELECT') = t.rw
+        and has_table_privilege(t.role, 'public.clients', 'INSERT') = t.rw
+        and has_table_privilege(t.role, 'public.clients', 'UPDATE') = t.rw
+        and not has_table_privilege(t.role, 'public.clients', 'DELETE')
+        and not has_table_privilege(t.role, 'public.clients', 'TRUNCATE')
+        and not has_table_privilege(t.role, 'public.clients', 'REFERENCES')
+        and not has_table_privilege(t.role, 'public.clients', 'TRIGGER') end,
+    case when t.rw then 'select/insert/update only (no delete/truncate/references/trigger)' else 'no privileges' end,
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else concat_ws(' ',
+        case when has_table_privilege(t.role, 'public.clients', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(t.role, 'public.clients', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(t.role, 'public.clients', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege(t.role, 'public.clients', 'TRIGGER') then 'TRIGGER' end) end
+  from (values ('anon', false), ('authenticated', true)) t(role, rw)
+  union all
+  select 'Q3 clients name_key + notes cap + canonical trigger',
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.tablename = 'clients'
+          and i.indexname = 'clients_user_name_key_idx' and i.indexdef ilike 'create unique index%(user_id, name_key)%')
+        and exists (select 1 from pg_constraint where conrelid = 'public.clients'::regclass
+          and conname = 'clients_notes_chk' and pg_get_constraintdef(oid) ilike '%500%')
+        and exists (select 1 from pg_trigger where tgrelid = 'public.clients'::regclass
+          and tgname = 'clients_canonical_name' and not tgisinternal) end,
+    'unique (user_id, name_key); clients_notes_chk <= 500; clients_canonical_name trigger',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else 'index=' || exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'clients_user_name_key_idx')
+        || ' notes_chk=' || exists (select 1 from pg_constraint where conrelid = 'public.clients'::regclass and conname = 'clients_notes_chk')
+        || ' trigger=' || exists (select 1 from pg_trigger where tgrelid = 'public.clients'::regclass and tgname = 'clients_canonical_name') end
+  union all
+  select 'Q4 ' || f.sig,
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else coalesce((select not p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig)), false)
+        and coalesce(has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE'), false)
+        and not coalesce(has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE'), true) end,
+    'security invoker; EXECUTE to authenticated, not anon',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      when to_regprocedure(f.sig) is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig))
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE') end
+  from (values ('public.save_client(text,text,text,text,text)'), ('public.client_name_usage(text)'),
+               ('public.client_summaries()')) f(sig)
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
