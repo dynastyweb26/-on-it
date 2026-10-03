@@ -1,638 +1,814 @@
-# On It — UI redesign audit (feat/ui-redesign)
+# On It — UI redesign audit, rev 2 (feat/ui-redesign)
 
-Audit only: no code changed, no migration applied. Branch `feat/ui-redesign`
-(`main` 683301b + `1c1ee80`, the design reference). Written 2026-10-03; revised
-the same day with the founder's locked decisions (§L).
+Audit only. No app code changed in this revision, and no migration was written
+or applied. Rev 1 (`5ea7a2a` → `ddaf491`) is replaced by this file. Written
+2026-10-03.
 
-Design source: `design-reference/on-it-motion.html` ("On It. Motion pass",
-Claude Design). It holds five playable prototypes and a 37-row motion
-inventory:
-- M1 Send invoice
-- M2 Save client
-- M3 Make recurring
-- M4 Invoice marked paid
-- M5 Tab switch
+**Branch state when written:**
+- `main` 683301b, then the rev 1 audit, then commits 1–5 (`c99ce2d` motion
+  foundations, `16bf943` invoice sort, `da98c8c` expense sort, `b7d488d`
+  composer "+", `91f6c09` 5-tab nav).
+- `66bb0be`: the release frames (`design-reference/on-it-next-release.html`).
+- `b5c261d`: **`feat/receipt-motion` merged** in its own merge commit, before
+  any composer work (§9 lists its conflicts and how they were resolved).
 
-The drawn screens it refers to, `On It Next Release.dc.html` ("the release
-frames"), are **not in the repo** (§0). Line numbers below are for `main` at
-683301b.
+**Design sources** (both are Claude Design "bundled page" exports; unpacked
+the same way: the `__bundler/manifest` entries are base64 + gzip, and
+`__bundler/template` is the canvas):
+- `design-reference/on-it-next-release.html` ("the release frames"). It holds
+  the canvas (sections 0–7) plus two live components: `Composer Prototype.dc.html`
+  (17 presets) and `Tab Bar.dc.html`. All frames are 393×852. The names and
+  contact details in them are mock data.
+- `design-reference/on-it-motion.html` ("the motion file"). It holds M1–M5
+  and the 37-row motion inventory.
 
----
-
-## L. Locked decisions (founder, 2026-10-03) — not open questions
-
-**LOCKED — the chat composer is not redesigned.** The current input bar stays
-exactly as it is today:
-- camera + gallery stacked on the left;
-- the big gold circle;
-- the "Or type it…" field;
-- the round send button.
-
-Same layout, sizes, spacing, colours and behaviour. **The only change:** the
-gold mic icon becomes a gold **+** in the same circle at the same size, and
-the circle keeps `data-splash-target`. Tapping it plays the Claude Design
-expand: + rotates to ×, and the options rise out: **Mic · New invoice · New
-quote**. **Mic behaves exactly like the current mic does today.** Anything in
-`on-it-motion.html` that redesigns the bar beyond the + expand is ignored and
-listed in §N.
-
-1. **Invoice sorting.**
-   - A **Newest / A–Z** toggle on the invoices list, **Newest by default**.
-   - **A–Z sorts by client within each month.** The month groups stay as they
-     are.
-   - The choice is remembered per device (localStorage).
-2. **Expense sorting.**
-   - Keep the weekly and monthly views and their subtotals as they are. Today
-     these are the expenses list's weekly groups (clamped to months) and
-     Books → Summary's week/month/quarter/year periods.
-   - Only the order **inside each group** changes: **A→Z**, with the same
-     Newest / A–Z toggle as invoices, remembered per device.
-3. **Recurring expenses auto-log.**
-   - **Real expenses.** Auto-logged rows count in Books and recaps and show a
-     small **"Recurring"** tag.
-   - **Easy to stop.** In Recurring Expenses each item has **Pause** and
-     **Delete**. Stopping never deletes rows already logged. Any single logged
-     row can still be deleted like a normal expense.
-   - **Free cap.** If the 5-expense cap blocks an auto-log, don't fail
-     silently: **skip it and notify the user**, e.g. "Couldn't log Rent, free
-     limit reached". **Never bypass the cap.**
-   - **Scheduling.** Runs from the existing daily cron. Idempotent: **one row
-     per item per due date**, even if the cron runs twice. Due dates are
-     computed in the **user's timezone**.
-4. **Clients.**
-   - Keep the silent upsert as history. Add a **"saved" flag**; the Clients
-     list shows only saved clients.
-   - Prompt **"Save to your list?"** on the **2nd use** of an unsaved client.
-   - The migration makes the **unique key case-insensitive**. **Check
-     existing data for case-duplicates first and report them; don't merge.**
-   - Add **privilege-check rows for `clients`**.
-   - **Products & Services** and **Recurring Expenses** get the same save
-     prompt, and privilege-check rows from the start.
-5. **"View expenses"** is not part of this work. It is already on `main`
-   (`src/app/(app)/dashboard/page.tsx:287-293`).
-6. **Fix the stale MOTION-SPEC §12** (it still describes the removed
-   `RecapSheet`) in the first commit.
-7. **Chat tab icon:** `chat_bubble`, in the raised centre pill per M5.
-8. **Templates follow exactly the same guest rules as chat** (signed-out
-   users get what chat gives them today).
-9. **"Pro" = the existing paid plan** (founder / trialing / active /
-   past_due). It is a visual tag only for now.
-10. **Easing:** keep MOTION-SPEC's tokens. The design's stand-in curves are
-    not adopted.
-11. **Send and paid animations:** keep the shipped lock-on-send (§4) and
-    gold-sweep paid (§6). M1 and M4 are deferred to the final motion pass
-    (commit 17).
-12. **Haptics:** Android-only is accepted (iOS Safari/PWA has no vibration
-    API).
-13. **The template is a tap-to-fill form.** No voice or typing fills it.
-    Voice stays Mic → chat.
-14. **Recurring Expenses is a row in Books, next to Expenses.** The Clients
-    tab has two segments: **Clients · Products & Services**.
-15. **Missed due dates:** back-fill at most 3, cap-checked on each one.
-    Resuming after Pause never back-fills.
-16. **Release frames are coming.** Commit 8 (template) waits for them.
-17. **Duplicate check moves to Send.** The 48-hour duplicate-invoice check
-    moves from `/api/parse` to Send, as one shared check for both chat and
-    template invoices (commit 8).
+Frame ids below (`1b`, `3c` …) are the release frames' own labels.
 
 ---
 
-## 0. Blockers
+## F. Founder rules for this pass (2026-10-03)
 
-1. **Release frames missing.** `on-it-motion.html` describes the template, the
-   keypad and the list screens only as text in its inventory, and has one send
-   button (not "option A"). The geometry for these lives in
-   `On It Next Release.dc.html`, which isn't in `design-reference/`:
-   - send-button options A/B/C;
-   - two-row line items, qty stepper, keypad keys, units picker;
-   - the Clients / Products / Recurring screens and the "Pro" tag.
+1. **Build everything** in both files: every screen, button and function, all
+   working. Nothing ships as a dead button. When something needs a table, an
+   RPC or a cron, that work is in the sequence; nothing is stubbed in the UI.
+2. **Never lose an existing feature.** §2 lists, per screen, what exists today
+   that the design doesn't show, and where it goes. Nothing is removed without
+   the founder's yes.
+3. **Nav:** the 5-tab design (Clients · Invoices · Chat · Books · Settings).
+   Settings uses the grouped screen (`0c`). Its Clients and Products rows link
+   to the Clients tab.
+4. **Voice:** the Voice option calls `micTap()` synchronously in the tap.
+   During a session there is a stop/send control and an end-session ×.
+   `data-splash-target` moves to the new +.
+5. **Motion:** where the design's motion spec (`1d`) gives exact values for the
+   composer, menu or template, use them. Everywhere else, use MOTION-SPEC tokens.
+6. **Pro:** a visual tag plus the design's copy ("PRO is part of an upcoming
+   plan. It's included free for now."). The free caps (3 invoices / 5 expenses)
+   still apply everywhere, including auto-logged recurring expenses.
+7. **Data model:** plan the additions (link past invoices to a newly saved
+   client, product usage counts, repeat-expense detection, the recurring "Log
+   automatically" switch). Propose the migrations only; never apply them.
+8. `feat/receipt-motion` is merged first, in its own merge commit. Done
+   (`b5c261d`, §9).
 
-   Templates and list screens can't be specced to the pixel until it's added.
-   The composer is not affected: it is locked to today's bar.
-2. **Easing tokens disagree.** The design's `ease.emphasized`
-   `cubic-bezier(.2,0,0,1)` equals MOTION-SPEC's `--ease-standard`; the repo's
-   `--ease-emphasized` is `(.65,0,.35,1)`. The designer calls their curves
-   "stand-ins" because they didn't have the On It motion kit. Resolved:
-   keep MOTION-SPEC's tokens (L10).
+**The composer lock is lifted.** We adopt the design's composer: a small +
+on the left, a "Message On It…" field with gallery and camera inside it, and
+send on the right. The + menu offers Voice / New invoice / New quote, with
+subtitles. Picking invoice or quote turns the bar into the template card in
+place.
 
----
-
-## N. Not adopted from `on-it-motion.html` (composer lock)
-
-The design reworks the input bar. None of this is adopted.
-
-| Design (M1 / inventory) | Why not |
-|---|---|
-| A small soft-gold (#F0E3B8) **44 px "+"** (radius 22, `add` 28 px) instead of the 72 px gold circle | Locked: same circle, same size, same gold |
-| A **"Message On It…"** field (44 px, #FFFDF8, border #E3D8C3) replacing "Or type it…" | Locked: field unchanged |
-| **No camera, no gallery, no round send button** in the bar | Locked: all three stay |
-| After a send, the bar is replaced by "+ / Message On It…" fading in (`rmFade .3s`) | Locked: today's bar stays after send |
-| The option label **"Voice"** | Locked: **"Mic"** |
-| "The field grows into the template card" (the composer field morphs into the template) | Locked: the bar doesn't change. The template opens as its own layer (§2) using the same grow/stagger timing |
-
-**Adopted from the expand** (the "Composer › Tap +" and "Close +" rows):
-- + rotates 45° into ×;
-- the options rise out from the button, nearest first, 45 ms stagger, on the
-  design's 12° arc;
-- a cream scrim fades over the chat;
-- 300 ms spring, light haptic;
-- close reverses everything together in 180 ms (exit easing).
+**One change from the design:** the template's send control is a **black
+circle with a ↗ arrow only**. There is no gold "Send invoice" pill and no text.
+- `aria-label="Send invoice"` / `"Send quote"`.
+- Clearly disabled until there's a client and an item.
 
 ---
 
-## 1. Composer: gold mic → gold "+" with expand (Mic · New invoice · New quote)
+## L. Locked decisions (rev 1) — what stands, what changed
 
-### Files touched
-- `src/app/(app)/chat/page.tsx` (2958 lines)
-  - Gold circle: 2880-2894 (`h-fab w-fab` = 72 px, `bg-primary-container`,
-    `data-splash-target=""` at 2887, `disabled={phase !== null}`,
-    `onClick={micTap}`, `<Icon name="mic" size={32} filled />`).
-  - Camera/gallery: 2845-2864, hidden while `voiceSession`. Send button:
-    2905-2912. Field: 2895-2904. All unchanged.
-  - Voice:
-    - `micTap()` 2198-2211 — calls `primeSpeech()` inside the tap.
-    - `getSessionStream()` 2136-2146 and `startRecording()` 2148-2196.
-    - `endVoiceSession()` 2213-2224.
-    - State 471-495.
-- `src/components/MicRings.tsx` (in the gold circle's wrapper, 2881-2882):
-  unchanged.
-- `src/components/Splash.tsx:103-107` (`[data-splash-target]`): unchanged; the
-  attribute stays on the circle.
-- Tutorial: `src/components/tutorial/mocks.tsx:75-102` (`MockComposer` draws
-  the mic), `slides.tsx:41-56, 205-220`, `FirstRunTutorial.tsx:12`. Copy needs
-  updating: "Tap the mic…" becomes "Tap +, then Mic…".
-- `globals.css`: new expand keyframes. Icons `add` and `close` exist; options
-  use `mic`, `description` and `request_quote` (all exist).
-
-### Behaviour
-- **Idle (no voice session):** the gold circle shows `add`. Tap opens the
-  menu. Options: **Mic · New invoice · New quote**.
-- **Mic option = today's mic.** Its handler calls the existing `micTap()`
-  **synchronously in the same tap**, then closes the menu. Nothing in the voice
-  code changes. Any timer or animation wait before `micTap()` would break iOS
-  `primeSpeech()` and the mic permission prompt.
-- **During a voice session** the circle behaves exactly as it does today, as
-  speak/stop (mic icon, MicRings, aria-labels "Speak" / "Stop and send", the X
-  to end the session, camera/gallery hidden). It shows "+" again when the
-  session ends. That is what "Mic behaves exactly like the current mic" means
-  in practice; otherwise a take can't be stopped.
-- **The menu:**
-  - `data-no-tab-swipe="true"`;
-  - z-index below PaywallModal (z-70) and UndoToast (z-90), above the history
-    sheet (z-50);
-  - closes on scrim, ×, Escape, or picking an option;
-  - Reduce Motion: crossfade ≤ 200 ms.
-- `disabled={phase !== null}` is unchanged, so the menu can't open while the
-  app is thinking, building or saving.
+| # | Decision | Rev 2 |
+|---|---|---|
+| L-lock | Composer locked to today's bar; only the mic → + swap | **Changed (F):** the lock is lifted; the design's composer is adopted |
+| L1 | Invoices: Newest / A–Z toggle, A–Z by client within each month, remembered per device | Stands (built, commit 2). The design's "A–Z by client" label becomes the toggle's caption |
+| L2 | Expenses: keep the weekly/monthly views and subtotals; only order inside groups changes | **Stands, but the design conflicts:** `4b` groups expenses by month. See Q2 |
+| L3 | Recurring auto-log: real expenses, "Recurring" tag, Pause + Delete, cap never bypassed (skip + notify), daily cron, idempotent, user timezone | Stands. **Mapping to the design:** Pause = the "Log automatically" switch off (`3i`); Delete = "Stop & delete"; the "Recurring" tag = the ↻ icon on the row (`4b`). See Q8 |
+| L4 | Clients: silent upsert kept as history; "saved" flag; prompt on 2nd use; case-insensitive key (report duplicates, don't merge); privilege-check rows. Products and Recurring get the same prompt | Stands. **The design adds:** "Not now ends it until the next repeat" (it asks again on the next use), and linking past invoices on save (`3c`). See Q7 |
+| L5 | "View expenses" already on `main` | Stands |
+| L6 | MOTION-SPEC §12 fixed in commit 1 | Done (`c99ce2d`) |
+| L7 | Chat tab icon `chat_bubble`, raised centre pill | Stands (built, commit 5) |
+| L8 | Templates follow the same guest rules as chat | Stands |
+| L9 | "Pro" = the existing paid plan, visual tag only | **Changed (F6):** "Pro" is a feature tag on Recurring with the design's copy. It is shown to everyone and usable by everyone. It is not the paid plan, so the Plan row shows Free / Trial / Subscribed / Founder, never "Pro" |
+| L10 | Keep MOTION-SPEC easing; design curves not adopted | **Changed (F5):** `1d`'s exact values are used for the composer, menu and template. MOTION-SPEC tokens everywhere else |
+| L11 | Keep lock-on-send (§4) and gold-sweep paid (§6); M1/M4 deferred to a final motion pass | **Changed (F1):** M1 and M4 are in scope. M1 ships with the template (merge 2). M4 ships in merge 1. The shipped §4/§6 code is replaced, not stacked |
+| L12 | Haptics Android-only | Stands |
+| L13 | The template is a tap-to-fill form; no voice/typing fills it; Voice → chat | Stands. The design matches: slots open sheets. Extra info is a free-text note |
+| L14 | Recurring is a row in Books; Clients tab = Clients · Products & Services | Stands. The design matches (`0a`, `5a`) |
+| L15 | Missed due dates: back-fill ≤ 3, each cap-checked; resume never back-fills | Stands |
+| L16 | Release frames coming; template waits | **Done:** the frames arrived (`66bb0be`) |
+| L17 | The 48-hour duplicate check moves to Send, shared by chat and template | Stands |
 
 ---
 
-## 2. Guided template for New invoice / New quote
+## 1. Screen-by-screen inventory
 
-### Files touched
-- `src/app/(app)/chat/page.tsx`:
-  - Draft card `invoiceCard` 2463-2665.
-  - `finalize()` 1337-1771 and `settleShare()` 1779-1831.
-  - Pre-build effect 1320-1330.
-  - Paywall gate 1411-1426 and trigger-hint handling 1534-1537.
-  - Seed patterns: `resolvePendingChangeNew()` 2362-2392, `startRevision()`
-    2421-2455.
-  - New-chat listener 758-793.
-- `src/components/LineItemsEditor.tsx` (shared with
-  `invoices/[id]/page.tsx:813`): rows keyed by index (`key={i}`, :133). Needs
-  stable ids for add/remove motion.
-- `src/lib/ai.ts:9` (`LineItem`), `src/lib/financials.ts:10-13`.
-- Units would also touch:
-  - `src/lib/pdf/templates/index.tsx:354, 582` and
-    `src/app/pay/[token]/PayView.tsx:489-491`;
-  - the parse route normaliser (`src/app/api/parse/route.ts` ~172-226) and
-    duplicate math (~378);
-  - `draftFingerprint` (chat :169);
-  - the public RPC `get_public_invoice`
-    (`supabase/migrations/20260926100000_pay_with_card_rpcs.sql:61-71`).
-- Icons to add (font rebuild): `remove`, `backspace`, `north_east`, `person`.
+**Status key:**
+- **Built** = on this branch and matching the frames.
+- **Partial** = on the branch but differs from the frames (the difference is noted).
+- **New** = nothing yet, no DB needed.
+- **New · DB x** = needs migration x (§3) first.
 
-### Behaviour (proposal; pixel spec waits on the release frames)
-- **A template is a locally seeded draft, not a `/api/parse` call.** Same
-  steps as `startRevision()`:
-  - archive the current conversation;
-  - **new `convoId`** (the `finalize_key`, one conversation = one row);
-  - clear `pendingInvoiceRef` and link state, reset `originalDescriptionsRef`;
-  - `intent = 'invoice' | 'quote'`, `intent_explicit = true`.
+`chat` = `src/app/(app)/chat/page.tsx`.
 
-  Don't reuse `onit-new-chat` as is: it no-ops with only the greeting (761)
-  and doesn't reset `voiceSession`, `prepState`, `shareWaiting` or
-  `duplicateHint`.
-- **`ready` only once Send is enabled** (a name plus at least one priced line).
-  The pre-build inserts a row 400 ms after `ready`. Setting it early would
-  burn invoice numbers and count toward the free 3-invoice cap.
-- **"Send invoice ↗" calls `finalize()`.** That keeps:
-  - the paywall gate and the `PAYWALL_LIMIT` hint;
-  - the synchronous iOS share;
-  - the client upsert, lock and history.
+### 1.1 Chat composer: idle bar (`1a`, Composer Prototype `idle`)
 
-  Quotes stay uncapped.
-- **Its own fixed layer above the tab bar** (the composer underneath is
-  untouched). Qty and price are `readOnly` fields that open the custom keypad,
-  so the OS keyboard never opens with it. `readOnly` doesn't count as text
-  entry in `src/lib/keyboard.ts:44-49`. Name and Extra info are real inputs
-  (OS keyboard, `data-kb-fit` on the layer).
-- **Units:** an optional `unit` key in each `line_items` JSONB element
-  ("5 materials × $2.00"). `qty` stays numeric. Shipped in its own commit after
-  the template works without units.
-- **Placeholder guide:** [Name, Product/Service, Price, Extra info]. Extra
-  info = `draft.notes` (≤ 500 chars).
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| **+** (44 px circle, `#F0E3B8`, `add` 28 px, `aria-label="More"`) | Opens / closes the + menu. Open: icon turns 45° to ×, fill flips to ink `#2E2822`, glyph cream. Carries `data-splash-target` (F4) | none | **Partial.** Commit 4's + is today's 72 px gold circle (`h-fab`) with `data-splash-target`. Rebuilt at 44 px |
+| **"Message On It…" field** (44 px, radius 22, `#FFFDF8`, border `#E3D8C3`) | Typed message → `send(text)` → `/api/parse` (unchanged pipeline). Enter sends | existing `/api/parse` | **Partial.** Today's textarea "Or type it…". Restyled; keeps multi-line growth (`max-h-32`) and Enter / Shift+Enter |
+| **Gallery** (`image`, inside the field, right) | Opens the photo picker → `onPickReceipt` (receipt read + ReceiptBubble flight, §8) | existing `/api/parse-receipt` | **Partial.** Exists as a separate stacked button left of the circle. Moves inside the field |
+| **Camera** (`photo_camera` on a `#F0E3B8` 36 px circle, inside the field) | Rear camera (`capture="environment"`) → `onPickReceipt` | existing | **Partial.** Same as gallery: moves inside the field |
+| **Send** (44 px, `arrow_upward`) | Sends the typed text. Ink circle when there is text; muted `#EAE2D2` / `#B0A592` and `disabled` when empty or `phase !== null` | existing | **Partial.** Today a 56 px ink circle with `send`. Restyled |
+
+### 1.2 + menu (`1b`, `1c`, `1d`)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| Scrim (`rgba(252,247,239,.86)`, "cream frost"; the bar stays sharp) | Tap closes the menu | none | **Partial.** `ComposerMenu` scrim exists; restyled to `1d` (220 ms ease) |
+| **Voice** · "Say it, On It writes it" (`mic`, `#F0E3B8` disc) | Calls `micTap()` **synchronously inside the tap** (F4), then closes the menu. Starts today's voice session (§1.3) | existing `/api/transcribe`, TTS | **Partial.** Exists as "Mic" with no subtitle. Relabelled, plus subtitle |
+| **New invoice** · "Guided template" (`description`, gold `#D4AF37` disc) | Closes the menu, then the field becomes the template card in place, in invoice mode (§1.4) | template (merge 2) | **Partial.** Today it seeds "Invoice for " in chat. See Q1 for merge 1 |
+| **New quote** · "Guided template" (`request_quote`, `#F0E3B8` disc) | Same, in quote mode | template (merge 2) | **Partial.** As above |
+| Close (×, scrim, Escape, pick) | Everything reverses together, no stagger | none | **Built.** Retimed to `1d` |
+
+Option buttons are 56 px tall, radius 28, `#FFFDF8`, border `#E6DCC8`, with a
+40 px icon disc, a 16 px title and a 12.5 px subtitle. They are left-aligned
+above the +, with transform origin `22px 100%`.
+
+### 1.3 Voice session (F4; the design shows only "Listening… / Done")
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| In-field **"● Listening…"** (red `#C8452C` dot) + **Done** (ink pill, `aria-label="Stop and send"`) | While recording: Done → `micTap()` → stop → transcribe → `send(text,'voice')` | existing | **New UI.** Today it's the 72 px circle + "Listening… tap the mic when you're done" |
+| In-field **Speak** pill (`aria-label="Speak"`) | Session on, between takes: starts the next take (`micTap()`). Disabled while `phase !== null` (thinking / speaking the reply) | existing | **New UI.** Today the circle does this |
+| **×** in the + slot (ink, `aria-label="End voice session"`) | `endVoiceSession()`: stops TTS and recording, releases the mic stream. The bar returns to idle | existing | **Partial.** Today a separate × button left of the circle |
+| Level indicator | MicRings reads the stream. Target moves from the 72 px circle to the in-field dot (the dot scales with level, ≤ 14 px, one ring) | none | **Partial.** MicRings is built for the 72 px circle; MOTION-SPEC §11 gets updated |
+
+Camera and gallery stay hidden during a session (as today and as the design).
+Send stays visible but disabled (no text).
+
+### 1.4 Template card (`1e`–`1j`, `7a`–`7e`, Composer Prototype)
+
+It replaces the bar in place: the bar's slot becomes the card, the tab bar
+stays, and the chat above stays scrollable. It is its own state of the
+composer, not a modal.
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| Header chip "NEW INVOICE" / "NEW QUOTE" | Shows the mode | none | **New** |
+| **"Make it a quote" / "Make it an invoice"** | Switches the mode, keeping all slots | none | **New** |
+| **Close ×** (32 px, `aria-label="Close template"`) | Back to the idle bar. Discards the unsent template; no row was written (see "ready" below) | none | **New** |
+| **Name slot** (dashed "Name" → solid ink chip with `person` + `unfold_more`) | Opens the Client sheet | DB A | **New · DB A** |
+| Client sheet: search ("Search N clients"), **USED BEFORE · NOT SAVED** group ("Used once · Sep 18"), A–Z groups + scrub rail, **"Use '{q}'"** row, **+ New client** | Picks a saved client, an unsaved history client, or a new name. "+ New client" with no query focuses search; with a query it uses it | DB A (`clients.saved_at`, `client_summaries()`) | **New · DB A** |
+| **Item row**, a two-row card: name chip with unit ("Deck staining · job") / dashed "Product/Service" | Opens the Item sheet for that row | DB B | **New · DB B** |
+| Item sheet: search ("Search N items"), USED BEFORE · NOT SAVED with last price, A–Z + rail, prices ("$3.25/sq ft", "No price"), Use '{q}', + New product or service | Pick fills name, unit and price; qty resets to 1 | DB B (`products`) | **New · DB B** |
+| **Qty stepper** − / number / + (qty 1 muted `#A39883`) | ± 1, minimum 1. Unit label "hr" / "sq ft" after it | none | **New** |
+| **Qty number** → Quantity keypad ("Quantity of X", "× $1.50 = $180.00", keys 1–9 . 0 ⌫, Set quantity) | Decimal qty, ≤ 2 dp, ≤ 7 digits; 0 or empty → 1 | none | **New** |
+| **Price chip** / dashed "$ Price" → Price keypad ("Price for X", "per hour", Set price) | Sets `unit_price` | none | **New** |
+| Line total (right, Montserrat 16) | qty × price; muted until named and priced | none | **New** |
+| **Remove item** (`delete`, only when > 1 row) | Collapses the row, with a 5 s undo bar | none | **New** |
+| **+ Add item** | Appends an empty row, scrolls the list to it | none | **New** |
+| Item list area | Scrolls inside a capped area (`max-height` 196 px in the prototype; "~50%" in the copy) with 14 px mask fades. The Name row is pinned above and the totals pinned below | none | **New** |
+| **Extra info slot** ("Extra info · dates, notes, deposit") → sheet: textarea ("Due Friday, job address, notes for the client…") + chips **Due Friday · Due in 14 days · 50% deposit · Job at {address}** + Done | Free text → `draft.notes` (≤ 500). Parsed deterministically on the device (no AI): "N% deposit" → `deposit_type='percent'`, `deposit_value=N`; "Due {weekday}" / "Due in N days" → `due_date`. The address chip only appears when the picked client has an address on file | existing deposit/due columns | **New** |
+| Footer: hint ("Add a client and an item to send" / "Add a client to send" / "Add an item to send") or Subtotal · "50% deposit due now: $X" · **Total** | Live totals | none | **New** |
+| **Send ↗** (founder change): black `#2E2822` circle, cream `north_east`, no text. `aria-label="Send invoice"` / `"Send quote"` | Enabled only with a client and ≥ 1 named item (and see Q3 on prices). Disabled: `disabled` + `aria-disabled`, `#EFE7D8` fill, arrow at 40 % ink, no press scale. Tap → **`finalize()`**: paywall gate (3-invoice cap; quotes uncapped), the shared 48 h duplicate check (L17), client upsert, PDF, the synchronous iOS share | existing finalize | **New** |
+
+**Template rules** (rev 1, unchanged):
+- A template is a locally seeded draft: a new `convoId` / `finalize_key`,
+  `intent_explicit = true`, no `/api/parse` call.
+- `ready` is set only once Send is enabled. The pre-build inserts a row
+  400 ms after `ready`, so setting it earlier would burn invoice numbers and
+  free-cap slots.
+- Name and item sheets have real inputs (search). Qty and price use the custom
+  keypad, never the OS keyboard.
+- Tax: the frames show none ("show tax as a line" is only a "Try next"), so
+  template documents go out at `tax_rate 0`. Chat-made documents are unchanged.
+
+**After Send** (M1): the card folds into the chat, and a **sent-doc card** is
+added to the thread (name, SENT chip, "Invoice INV-0042 • date", amount; tap →
+`/invoices/[id]`). The user-turn summary bubble ("Invoice Mike Davis: Deck
+staining $450.00 …") is added too, as a real message, so history and recaps
+read the same as a chat-made invoice. **Status: New.**
+
+### 1.5 Save prompts (`2a`–`2c`)
+
+A dark card (`#2E2822`) floats above the composer with no scrim, so typing,
++ and the camera keep working. It appears about 700 ms after the send or the
+logged receipt. One prompt shows at a time; extra prompts wait in a queue.
+
+| Prompt | Buttons → effect | Backend | Status |
+|---|---|---|---|
+| `person_add` "Save **Mike Davis** to your clients?" | **Save** → `save_client` (stamps `saved_at`, links past invoices); bot "Saved Mike Davis to Clients."; M2 flight into the Clients tab. **Not now** → closes; asks again on the next use (Q7) | DB A | **New · DB A** |
+| `sell` "Save **Deck staining** ($450.00) to your products & services?" | **Save** → `saved_at` (price/unit = last used); bot "Saved … to Products & Services."; M2 flight (Clients tab, Products segment). **Not now** as above | DB B | **New · DB B** |
+| `autorenew` "**Adobe** charged $54.99 again. Make it a monthly recurring expense?" | **Make recurring** → creates `recurring_expenses` (cadence from the detected gap, `next_on` = last + cadence, `auto_log` on); bot "Done. Adobe is now a monthly recurring expense. I'll log $54.99 on Nov 2."; M3. **Not now** as above | DB D | **New · DB D** |
+
+**Triggers:**
+- **Client:** at finalize, if the client is unsaved and this is its ≥ 2nd
+  document. The count comes from the `save_client` / `client_summaries` data,
+  not from client state.
+- **Product:** `record_product_use()` returns the names that are unsaved with
+  `use_count ≥ 2`.
+- **Recurring:** after any expense save (chat, receipt, Books sheet): same
+  normalised vendor, amount within ±10 %, and a gap of about one cadence
+  (weekly 5–9 d, monthly 26–35 d, yearly 350–380 d) from an earlier expense,
+  with no live recurring item for that vendor (`repeat_candidate()`, DB D).
+
+The prompt shows only after the share completes, never inside the share
+gesture. Guests get no prompts (they have no rows).
+
+### 1.6 Navigation + header (`0a`, Tab Bar)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| Tabs **Clients · Invoices · Chat · Books · Settings** (84 px bar; pills 58×32; Chat 64×36 raised 4 px with a soft `#F0E3B8` fill when inactive; active = gold `#D4AF37` disc, filled icon, 700 weight; labels 11.5 px) | Navigate; swipes as today | none | **Built** (commit 5). Check against the frames: Chat pill 60 px today vs 64 px |
+| Books tab **unread dot** (`#C8452C`, 9 px) | Unwatched recap (RECAPS_LIVE) | existing | **Built** (`BooksDot`) |
+| Tab switch: disc slides, icon bounces 4 px, screen crossfades 160 ms, Chat press .9 scale + 1 px down (M5) | Motion only | none | **Partial.** Today the pill glides 300 ms with a side entry. Moves to M5 using tokens (§4) |
+| Header: "On It." wordmark + **How On It works** pill | Opens `TutorialReference` | none | **Built** |
+
+### 1.7 Clients tab · Clients segment (`3a`, `3d`)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| Segments **Clients · Products & Services** | Switch segment | none | **Built** (placeholder, commit 5) |
+| **Search** ("Search 18 clients") | Filters live; empty letter headers collapse; "No clients match '{q}'" | none (client-side over the loaded list) | **New** |
+| **+** (gold) | Opens New client (`3c`) | DB A | **New · DB A** |
+| Row: initials avatar, name, status line ("Paid up" / "1 open · $310.00" / "1 overdue · $2,150.00" in red / "1 quote out"), chevron | Tap → client detail | DB A `client_summaries()` | **New · DB A** |
+| A–Z letter headers + **scrub rail** (letters with rows gold `#8C6D10`, others `#D6CCB8`) | Tap or drag a letter → scroll to it, header pulses | none | **New** |
+| **Swipe left → Edit / Delete** | Edit → `3c` prefilled. Delete → un-save (Q6) + 5 s undo | DB A | **New · DB A** |
+| **Long-press** → Edit / Delete menu | Same actions | DB A | **New · DB A** |
+| Empty state ("No clients yet … On It will also offer to save anyone you bill twice." + **Add client**) | Add → `3c` | DB A | **Partial** (placeholder copy, no button) |
+
+### 1.8 Client detail (`3b`)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| ‹ Clients · **Edit** | Back; Edit → `3c` | DB A | **New · DB A** |
+| Avatar, name, "Client since Jun 2026" (`clients.created_at`, the first time they were billed) | — | DB A | **New · DB A** |
+| **Call / Text / Email** | `tel:` / `sms:` / `mailto:` with the stored value. When the value is missing, the tap opens Edit with that field focused (never dead) | none | **New** |
+| **Invoice** (gold) | Opens Chat with the template in invoice mode and the Name slot filled | template | **New** (merge 2) |
+| Tiles **Total paid** / **Still owed** (count up once) | Sum of payments / balance due over this client's documents | DB A `client_summaries()` | **New · DB A** |
+| Info rows: phone, email, address, **notes** | Tap → Edit | DB A (`clients.notes` is new) | **New · DB A** |
+| **Invoices & quotes** list (number, "Oct 1, 2026 · Fence repair", amount, DUE / PAID / CONVERTED / OVERDUE chip) | Tap → `/invoices/[id]` | existing invoices by `client_id` | **New** |
+
+### 1.9 New / Edit client (`3c`)
+
+| Control | What it does | Backend | Status |
+|---|---|---|---|
+| Cancel / **Save** | Save → `save_client(name, phone, email, address, notes)`: upsert on `name_key`, stamps `saved_at`, **links past invoices** (§3 A), returns the linked count. Label → ✓, sheet down, row glows | DB A | **New · DB A** |
+| Name, Phone, Email, Address, Notes ("Gate code, preferred contact time…") | Inputs with the SQL length caps | DB A | **New · DB A** |
+| History note: "**Mike is on 2 invoices already. Both will link to this client.**" | Shown when the typed name matches existing documents (`client_name_usage(name)`) | DB A | **New · DB A** |
+
+### 1.10 Products & Services segment (`3e`, `3g`)
+
+| Control | What it does | Backend | Status |
+|---|---|---|---|
+| Search ("Search 12 items"), **+**, A–Z + rail | As for Clients | DB B | **New · DB B** |
+| Row: name, "description · per unit", price ("$450.00", "$3.25/sq ft", "No price" muted) | Tap → Edit (`3f`) | DB B | **New · DB B** |
+| **Long-press** menu (row lifts, list dims): **Edit · Duplicate · Delete** | Duplicate → "{name} (copy)", saved. Delete → soft delete + undo | DB B | **New · DB B** |
+| Swipe left → Edit / Delete | Same | DB B | **New · DB B** |
+| Empty ("Nothing saved yet … Picking one in an invoice fills in the price." + **Add product or service**) | → `3f` (new) | DB B | **Partial** (placeholder) |
+
+### 1.11 Edit product / service (`3f`)
+
+| Control | What it does | Backend | Status |
+|---|---|---|---|
+| Cancel / Save | Saves `name, unit_price, unit, detail` | DB B | **New · DB B** |
+| Name, **Price · optional**, **Unit** segment (each · hour · sq ft · job), **Description · optional, shows on invoices** | The description prints under the line on the PDF and the pay page | DB B + DB C (line `detail`) | **New · DB B/C** |
+| "Used on 3 invoices · last on Oct 2" | `use_count`, `last_used_at` | DB B | **New · DB B** |
+| **Delete item** | Soft delete; a later use brings it back as unsaved history | DB B | **New · DB B** |
+
+### 1.12 Recurring (`3h`, `3j`) — reached from Books
+
+| Control | What it does | Backend | Status |
+|---|---|---|---|
+| ‹ Books · **+** | Back; + → new recurring (`3i` blank) | DB D | **New · DB D** |
+| Title **Recurring** + **PRO** tag | Visual only (F6) | none | **New** |
+| "$X per month · N recurring" | Monthly = monthly + weekly × 52/12 + yearly/12 | DB D | **New · DB D** |
+| Info banner: "On It logs each charge on its date. PRO is part of an upcoming plan. It's included free for now." | — | none | **New** |
+| **Next 2 weeks** total + rows ("OCT 6 · Corner Fuel · $60.00") | Projected due dates in the next 14 local days (weekly items repeat) | DB D | **New · DB D** |
+| **All recurring**, A–Z: vendor, "Category · Monthly", amount, "Next Nov 2" | Tap → `3i`; swipe → Edit / Delete | DB D | **New · DB D** |
+| Skip notice on a row ("Couldn't log Rent, free limit reached") | From `last_skipped_on` / `last_skip_reason` (L3) | DB D | **New · DB D** |
+| Empty ("No recurring expenses … **Add recurring expense** · When a charge repeats, On It will offer to set it up.") | → `3i` | DB D | **New · DB D** |
+
+### 1.13 Edit recurring expense (`3i`)
+
+| Control | What it does | Backend | Status |
+|---|---|---|---|
+| Cancel / Save | Saves the item | DB D | **New · DB D** |
+| Vendor, Amount, **Category** › picker | Category from the 10 expense categories (Q5) | DB D | **New · DB D** |
+| **How often**: Weekly · Monthly · Yearly | Sets `cadence`; `anchor_day` from Next charge | DB D | **New · DB D** |
+| **Next charge** (date) | `next_on` | DB D | **New · DB D** |
+| **Log automatically** switch ("Adds the expense to Books each time") | `auto_log`. On → the cron logs it. Off = **paused** (L3 Pause): listed and projected, never logged, no notice. Turning it back on starts from the next due date, with no back-fill (L15) | DB D | **New · DB D** |
+| **Stop & delete** | Soft delete (`deleted_at`). Rows already logged stay (L3) | DB D | **New · DB D** |
+
+### 1.14 Invoices list (`4a`)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| Tabs **All · Unpaid · Paid · Quotes** (outlined pills; selected = gold border `#D4AF37` 2 px on `#F6EBC6`) | Filter (`?filter=`) | existing | **Partial.** Filter chips exist; restyled. List crossfades with a 12 px shift |
+| Summary "4 unpaid · $4,390.00" | Balance-due sum (part-paid aware) | existing | **Partial.** "Still owed · N invoices" exists; restyled |
+| "↕ A–Z by client" caption | **Is** the sort toggle (L1); tapping it flips Newest ↔ A–Z | none | **Partial.** `SortToggle` exists (commit 2); the caption style is new |
+| Month headers ("OCTOBER 2026") | Unchanged grouping | none | **Built** |
+| Compact row: client, "INV-0039 • 10/1/2026", amount, chip (**DUE OCT 16**, **OVERDUE**, PAID, DRAFT, CONVERTED, VOID), chevron | Tap → detail; swipe → delete + undo (kept) | existing `due_date` | **Partial.** Today large cards with status-word chips. The DUE-date chip is new (from `due_date`; no due date → "SENT") |
+
+### 1.15 Expenses list (`4b`, from Books › View expenses)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| ‹ Books · **+** | + → the Add expense sheet (extracted from Books into a shared component) | existing insert + cap | **New** (the sheet exists only on Books) |
+| **Search** ("Search vendor or category") | Client-side filter over the loaded rows | none | **New** |
+| Group headers with subtotal | Today: weekly groups. The design: monthly (Q2) | none | **Partial** |
+| Row: initial avatar (or receipt thumb), vendor, **↻** when `recurring_id`, "Category · date", amount | Thumb → lightbox (kept); swipe → delete + undo (kept) | DB D for ↻ | **Partial** (no ↻) |
+| Sort toggle | L2 | none | **Built** (commit 3) |
+
+### 1.16 Books (`5a`)
+
+| Control | What it does | Backend | Status today |
+|---|---|---|---|
+| **Recaps** row (`auto_awesome`, "Coming soon" while RECAPS_LIVE is off, unread dot, chevron) | Live: opens the latest recap / `/recaps`. Free/canceled: locked → paywall (reports). Off: shows "Coming soon" and is a non-interactive row (not a button) | existing | **Partial.** `RecapsCard` exists between the tiles and the buttons. It moves to the top as a row, keeping every state |
+| **Net** card ("$9,267.42 · Net · all time · 41 invoices") | → `/summary?period=all` | existing | **Built** |
+| Tiles **Collected / Still owed / Spent** as buttons (number headline, press .97) | → income / unpaid / expenses | existing | **Built** |
+| **+ Add expense** | Sheet (kept); cap → paywall | existing | **Built** |
+| List card · **View expenses** ("A–Z by vendor, by month", count) | → `/expenses` | existing | **Partial.** A button today; becomes a list-card row with a count |
+| List card · **Recurring PRO** ("7 charges · next Oct 6", "$X /mo") | → Recurring | DB D | **New · DB D** |
+| **Summary & PDFs** | → `/summary` | existing | **Partial.** Labelled "Income & Expenses" today (Q4) |
+
+### 1.17 Settings (`0c` grouped; F3)
+
+The main screen has grouped rows. Each row opens a sub-screen
+(`/settings/<name>`, with a Back button to `/settings`) or links to a tab.
+
+| Row (group) | Goes to / does | Backend | Status today |
+|---|---|---|---|
+| **Clients** · count (YOUR BUSINESS) | → `/clients` (Clients segment) | DB A (count) | **New.** No count until DB A |
+| **Products & Services** · count | → `/clients?segment=products` | DB B (count) | **New.** No count until DB B |
+| **Business profile** | Sub-screen: name, website, slogan, logo, invoice style (template, colours, background, live preview) | existing | **Partial.** Today these are inline cards |
+| **Recurring expenses** · "In Books" (MONEY) | → Books › Recurring | DB D | **New · DB D** (the row lands with the screen) |
+| **Payouts** · "Connected" / "Set up" | Sub-screen: the Stripe Connect card (all four states, card switch, payouts-paused note), PayPal / Cash App / Venmo, Zelle | existing | **Partial.** Inline today |
+| **Plan** · Free / Trial / Subscribed / Founder (ACCOUNT) | Sub-screen: subscription (manage / trial copy / past-due), free usage summary, subscribe/trial CTA + disclosure, **Have a code?**, founder row | existing | **Partial.** Inline today |
+| **Help & feedback** | Sub-screen: How On It works (`TutorialReference`), Replay the walkthrough, Contact us (Q9), Terms, Privacy | none | **New** (contact address: Q9) |
 
 ---
 
-## 3. Nav: Clients · Invoices · Chat (center) · Books · Settings
+## 2. Existing features the design doesn't show, and where they go
 
-### Files touched
-- `src/app/(app)/layout.tsx`:
-  - `TABS` 25-33.
-  - `getParentRoute` 16-23.
-  - Swipe 185-224 (index-generic; the comment at :216 assumes Chat is first).
-  - Pill measurement 101-121 / 297-310 (measures each link, so 5 tabs work).
-  - `BooksDot` 330-340.
-- New `src/app/(app)/clients/page.tsx`. `src/app/api/checkout/route.ts:18`
-  `RETURN_PATHS` gets `clients` if the paywall can open from Clients.
-- Tutorial: `mocks.tsx:17-39`, `TutorialReference.tsx:19-25`, `slides.tsx`
-  (`SlideTab`).
-- Docs: ON-IT-DESIGN-STANDARD §4, MOTION-SPEC §10.
-- Icons: `group` (Clients), `chat_bubble` (Chat, L7); `person`, `person_add` (M2).
+Nothing below is removed. Removing any of them needs the founder's yes.
 
-### Design (M5)
-- Bar 84 px. Pills 58×32; Chat 64×36, raised 4 px.
-- Gold active disc, which slides with `left .34s spring`. Icon bounce 340 ms;
-  screen `fadeUp .16s`.
-- Chat keeps a soft #F0E3B8 pill when not active.
-
-### Notes
-- Every entry point still lands on `/chat` (unchanged).
-- Swipes from Chat now go both ways.
-- Five tabs may crowd at 375 px with today's `px-4` + 12 px labels.
-- The pill currently animates `width`. Switch it to transform only.
+| Screen | Exists today (not in the frames) | Goes to |
+|---|---|---|
+| Chat header | **New chat** (`edit_square`), **Recent conversations** (`history`) sheet (last 5) | Stays in the header, left of the "How On It works" pill, on Chat only |
+| Chat thread | Draft invoice card (LineItemsEditor, revise, lock-on-send), ExpenseCard confirmation, ReceiptBubble + LoggedExpenseCard (just merged), retry on failure, duplicate warning, quiet free-usage line, TTS replies, guest mode (5 parses), PaywallModal, the "Getting that photo ready…" line | Unchanged. Voice and typed chat keep making documents exactly as today; the template is a second path |
+| Chat | First-run tutorial, install banner | Unchanged. Tutorial copy/mocks change to "+ → Voice" and the new bar |
+| Invoices | Swipe delete + undo, part-paid "due of $X", converted-quote chip, void chip, the `?filter=` deep links (recap CTA, Books tile) | Kept in the compact row (§1.14) |
+| Invoice detail `/invoices/[id]` | Record payment, payments ledger, mark paid, deposit, draft editor, revise, quote → invoice, resend/share, PDF, delete | Not in the frames. Unchanged, apart from M4 on mark paid, and the unit/detail display after DB C |
+| Expenses | Receipt thumbnail + lightbox, swipe delete + undo, empty-state copy | Kept (§1.15) |
+| Books | `RecapsCard` states (locked → paywall, "first recap lands Monday"), Spent bump/roll after an add, count-up, `/summary` (periods + Income/Expense PDFs), `/recaps` history | Kept. Recaps becomes the top row (§1.16) |
+| Settings → Business | Business name / website / slogan, logo upload/replace/remove, invoice style (4 templates, colours, background pick, live preview) | **Business profile** sub-screen |
+| Settings → Payments | Stripe Connect (Coming soon / Connect / Finish setup / In review / Connected + card switch + payouts paused + notice), PayPal/Cash App/Venmo + group Save, Zelle (encrypted, Save/Remove) | **Payouts** sub-screen. `/settings?connect=return|refresh` (Stripe return URLs) and the `connect` push (`render.ts` url `/settings`) forward to `/settings/payouts` with the query kept. The server URLs don't change |
+| Settings → Subscription | Founder "Free access · via code", subscription manage (billing portal returns to `/settings`), trial/past-due copy, free-plan usage, subscribe/trial CTA + disclosure + Terms/Privacy, **Have a code?** (CodeEntry), billing notice | **Plan** sub-screen. `/settings?upgraded=…` (checkout return, `RETURN_PATHS.settings`) forwards to `/settings/plan` |
+| Settings → Records | **Vault** button (`/vault`) | Row **Records (Vault)** in YOUR BUSINESS. `getParentRoute('/vault')` stays `/settings` |
+| Settings → Invite | Referral link, Copy, Share (only with `referral_code`) | Row **Invite a contractor** (ACCOUNT) → sheet with Copy / Share |
+| Settings → Notifications | Push toggle, draft-nudge sub-toggle, install / denied / unsupported hints, preview-only test pushes | Row **Notifications** (ACCOUNT) → sub-screen, everything as is |
+| Settings | **Sign out** (clears chat storage, unsubscribes push) | Bottom of the main screen, below the groups |
+| Settings | **Delete account** (typed DELETE) | Bottom of the main screen, its own red-bordered card, as today |
+| Settings | Terms · Privacy, "On It · a Dynasty Web product · $9.99/month" footer | Main screen footer |
+| `/vault`, `/recaps`, `/summary`, `/install`, pay page, onboarding | — | Unchanged. The pay page and PDFs gain unit + detail after DB C |
 
 ---
 
-## 4. Saved Clients, Products & Services, Recurring Expenses ("Pro" tag)
+## 3. Proposed migrations (NOT written, NOT applied)
 
-### Files touched
-- `src/app/(app)/chat/page.tsx`:
-  - Client lookup 961-974 — `.ilike('name', …)`, where an unescaped `%`/`_`
-    acts as a wildcard; switch to the case-insensitive key.
-  - Client upsert 1455-1464; `client_id` 1509.
-  - Expense flow ~1945-2090.
-- `src/app/(app)/dashboard/page.tsx:296-380` (Books add-expense sheet).
-- New:
-  - `clients` page with **Clients · Products & Services** segments (L14; the design puts Products inside
-    Clients: "A–Z clients + items");
-  - client detail;
-  - Recurring Expenses list, reached from a row in Books next to Expenses
-    (L14);
-  - a shared `SaveToListPrompt` (M2/M3: dark card above the composer, no
-    scrim).
-- `src/app/api/followups/route.ts`: daily cron. Recurring becomes a step after
-  recaps, production only, like the others.
-- `src/lib/notify/{types,render,index}.ts`: new `recurring_skipped` event.
-- `src/app/(app)/expenses/page.tsx`: the "Recurring" tag (select
-  `recurring_id`).
-- Pro tag: none exists (no badge component). It's a visual tag only for now;
-  gating comes later.
+**Process, each one separately (CLAUDE.md):**
+1. `npx supabase migration list`;
+2. `db push --dry-run`;
+3. the exact file list + full SQL shown to the founder;
+4. the founder's "yes" in that conversation;
+5. `db push`;
+6. `npm run db:privcheck`, PASS/FAIL per check.
 
-### Save-to-list prompts
-- **Clients.** At finalize, the silent upsert runs as today (history). If the
-  client is unsaved (`saved_at is null`) and this is its **2nd use** (an
-  earlier invoice or quote with the same `client_id`), show "Save {name} to
-  your list?" after the share completes, never during the share gesture.
-  - Save stamps `saved_at`.
-  - Not now stamps `prompt_dismissed_at`, and that client isn't asked again.
-- **Products & Services.** Each finalize records every line description in
-  `products` (unsaved, `use_count + 1`). When an unsaved product reaches
-  `use_count = 2`, show the prompt.
-- **Recurring.** When a new expense matches an earlier one (same normalised
-  vendor, same amount, about one cadence apart), M3's prompt appears: "Adobe
-  charged $54.99 again. Make it a monthly recurring expense?". Accepting
-  creates a `recurring_expenses` row.
+**Rules for every file:**
+- Names sort after `20261002000001`.
+- RLS + owner policies in the same file (SECURITY.md).
+- Every text column has a CHECK cap.
+- `revoke all … from anon`; no DELETE / TRUNCATE / REFERENCES / TRIGGER for
+  authenticated.
+- RPCs are `security invoker`, `set search_path = public`, execute granted to
+  authenticated only.
+- Each file adds SKIP-gated check rows to
+  `supabase/snippets/privilege_check.sql` (the P-section pattern) in the same
+  commit.
+- None adds a `profiles` column.
 
-### Recurring auto-log (locked rules, mechanics)
-- **Due dates.** The cron step loads active, non-deleted items, plus each
-  owner's `profiles.timezone`, via `resolveTimeZone` / `localYmd` (the same
-  helpers as recaps, `src/lib/recap/dates.ts`). It logs every due date
-  `next_on ≤ local today` (bounded catch-up, e.g. at most 3 per item per run).
-- **Idempotent.** A unique index on `expenses (recurring_id, spent_on) where
-  recurring_id is not null`; insert with `on conflict do nothing`. Two cron
-  runs → one row. `next_on` advances by the cadence:
-  - monthly is anchored to the item's day of month;
-  - day 31 lands on the last day of a shorter month.
-- **Never bypasses the cap.** The insert runs as the service role, and
-  `enforce_free_expense_limit` (`SECURITY DEFINER` BEFORE INSERT trigger,
-  `20261001000002_paywall_v2_expense_cap.sql:37,71`) still fires.
-- **When the cap blocks it** (`hint = 'PAYWALL_LIMIT_EXPENSE'`):
-  - record a skip on the item (`last_skipped_on`, `last_skip_reason =
-    'free_limit'`);
-  - advance `next_on` (no daily retry spam);
-  - notify the user: push "Couldn't log Rent, free limit reached" via
-    `notify()` (dedupe key `recurring_skipped:<item>:<due>`);
-  - show the same message in-app: Recurring list row plus a Books banner, for
-    users without push.
-- **Pause / Delete.** Pause = `active = false` (resume restarts from the next
-  due date; no back-fill). Delete = soft delete (`deleted_at`). Neither touches
-  logged rows. A logged row is a normal expense: swipe-delete works as today
-  (soft delete).
-- **"Recurring" tag** on any expense row with `recurring_id`.
+### A. `…_clients_saved_list.sql` (merge 2)
 
----
+**Preflight** (read-only; run and **report** before the push; no merging):
 
-## 5. Invoice and expense sorting
+```sql
+select user_id, lower(btrim(name)) as name_key, count(*), array_agg(name order by created_at)
+from public.clients group by 1, 2 having count(*) > 1;
+```
 
-### Files touched
-- `src/app/(app)/invoices/page.tsx`:
-  - Fetch `created_at desc limit 200` (63-68).
-  - Sort 98-100 (tier 1 is a full timestamp, so A→Z never applies today).
-  - `groupByPeriod(…, 'month')` 107; filter chips 157-161.
-- `src/app/(app)/expenses/page.tsx`:
-  - Sort 97-100.
-  - Weekly groups with subtotals 102-105 and 163.
-- `src/lib/date-groups.ts:50-67` (`groupByPeriod` keeps input order;
-  subtotals are per group).
+If this returns rows, the unique index can't be built. The founder decides
+case by case.
 
-### Change (no DB)
-- Group exactly as today (sorted newest first by date to build the groups).
-  Then, when A–Z is on, sort **inside each group**:
-  - invoices by `client_name`;
-  - expenses by `vendor || description`;
-  - case-insensitive `localeCompare(…, { sensitivity: 'base' })`, ties newest
-    first.
-- Group order, group labels and subtotals are unchanged.
-- **Toggle:** a two-option segmented control ("Newest" | "A–Z") under the
-  filter chips (invoices) or the header (expenses).
-- **Persistence:** keys `onit-invoices-sort` / `onit-expenses-sort`,
-  read/write in try/catch (the InstallBanner pattern). Default Newest.
-- Books → Summary periods are untouched.
+**Columns:**
+```sql
+saved_at timestamptz,
+prompt_dismissed_at timestamptz,
+notes text check (notes is null or char_length(notes) <= 500),
+updated_at timestamptz not null default now(),
+deleted_at timestamptz,
+name_key text generated always as (lower(btrim(name))) stored
+```
 
----
+**Key:** drop `unique (user_id, name)` and add `unique (user_id, name_key)`.
+- The chat upsert targets `user_id,name_key`. Verify `ON CONFLICT` on a
+  generated column on the local stub first; the fallback is a trigger-kept
+  plain column.
+- The chat lookup moves from `.ilike('name', …)` (an unescaped `%`/`_` acts as
+  a wildcard) to `name_key`.
 
-## 6. MOTION-SPEC §12 (first commit)
+**Index for linking:**
+`create index … on public.invoices (user_id, lower(btrim(client_name))) where deleted_at is null`.
 
-§12 describes `src/components/RecapSheet.tsx` ("sheet rises, figures count
-up"), which was removed in `9eb43c0`. Rewrite it to point at today's code:
-- the recap Watch/Later sheet (`RecapProvider.tsx`, `onit-sheet-in`);
-- the story player (`src/components/recap/RecapStory.tsx` + `RECAP-SPEC.md`
-  §2–§6);
-- the history list.
+**RLS:** split the `FOR ALL` "own clients" policy into select / insert /
+update. No DELETE (soft delete).
 
-Keep the PdfChoiceSheet `paywall-in` line.
+**RPCs:**
+- `save_client(p_name, p_phone, p_email, p_address, p_notes) returns table(id uuid, linked int)`
+  1. Upsert on `name_key`; stamp `saved_at`; clear `deleted_at`.
+  2. **Link past invoices:**
+     ```sql
+     update invoices set client_id = <id>
+     where user_id = auth.uid() and lower(btrim(client_name)) = <name_key>
+       and deleted_at is null and client_id is distinct from <id>
+     ```
+     `client_id` isn't pinned by `lock_sent_invoice_fields`, so sent and paid
+     rows link too. The `client_name` snapshot never changes.
+  3. Return the count. One transaction.
+- `client_name_usage(p_name text) returns table(invoices int, quotes int)`:
+  for the `3c` note.
+- `client_summaries() returns setof (…)`: one row per non-deleted client, with
+  - `saved`, `doc_count`, `invoice_count`, `quote_count`, `open_count`,
+    `open_balance`, `overdue_count`, `overdue_balance`, `quotes_out`,
+    `total_paid`, `last_used_at`;
+  - computed from invoices (`balance = total − amount_paid`, not deleted).
 
----
+  It feeds the list status line, the "USED BEFORE · NOT SAVED" group, the 2nd-use
+  prompt and the detail tiles.
 
-## Data model — proposed migrations (NOT applied)
+**Check rows** (new section Q):
+- RLS on;
+- the exact policy set (no DELETE);
+- anon nothing;
+- authenticated has no DELETE / TRUNCATE;
+- the `name_key` unique index exists;
+- `notes` cap;
+- each RPC is `security invoker` with execute granted to authenticated only.
 
-Process for each (CLAUDE.md):
-1. dry run;
-2. exact file list;
-3. your "yes" in that conversation;
-4. `db push`;
-5. `npm run db:privcheck`.
+### B. `…_products_services.sql` (merge 2)
 
-Each adds SKIP-gated check rows in `supabase/snippets/privilege_check.sql`
-(the P1/P2/P3 pattern), in the same commit. Names sort after
-`20261002000001`. Every text column gets a CHECK cap (SECURITY.md:23). RLS +
-owner policy in the same file (SECURITY.md:27).
-
-### A. `…_clients_saved_list.sql`
-- **Preflight** (read-only; run and **report** the result before the
-  migration is pushed; no merging):
-  ```sql
-  select user_id, lower(btrim(name)) as name_key, count(*), array_agg(name order by created_at)
-  from public.clients group by 1, 2 having count(*) > 1;
-  ```
-  If it returns rows, the case-insensitive unique index can't be built. You
-  decide case by case; the migration doesn't merge anything.
-- **Columns:**
-  ```sql
+```sql
+create table public.products (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 120),
+  name_key text generated always as (lower(btrim(name))) stored,
+  unit text not null default 'each' check (unit in ('each','hour','sq ft','job')),
+  unit_price numeric(12,2) check (unit_price is null or unit_price between 0 and 10000000),
+  detail text check (detail is null or char_length(detail) <= 300),  -- "Description · shows on invoices"
+  use_count integer not null default 0 check (use_count >= 0),
+  last_used_at timestamptz,
   saved_at timestamptz,
   prompt_dismissed_at timestamptz,
+  created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
-  name_key text generated always as (lower(btrim(name))) stored
-  ```
-- **Key:** drop `unique (user_id, name)` and add `unique (user_id, name_key)`.
-  The chat upsert targets `user_id,name_key` (verify the `ON CONFLICT` on the
-  generated column on the local Postgres stub). The lookup matches `name_key`
-  instead of `ilike`.
-- **RLS:** split today's `FOR ALL` "own clients" into select/insert/update; no
-  DELETE (soft delete). Matches invoices/expenses.
-- **Grants:** `revoke all … from anon`; authenticated keeps
-  select/insert/update; no TRUNCATE/REFERENCES/TRIGGER.
-- **Privilege check rows (new section):**
-  - RLS on;
-  - exact policy set (no DELETE);
-  - anon has nothing;
-  - authenticated has no DELETE/TRUNCATE;
-  - the unique index exists.
+  unique (user_id, name_key)
+);
+```
 
-### B. `…_products_services.sql`
-- **Table:**
-  ```sql
-  create table public.products (
-    id uuid primary key default gen_random_uuid(),
-    user_id uuid not null references public.profiles(id) on delete cascade,
-    name text not null check (char_length(btrim(name)) between 1 and 120),
-    name_key text generated always as (lower(btrim(name))) stored,
-    unit text check (unit is null or char_length(unit) <= 20),
-    unit_price numeric(12,2) check (unit_price is null or unit_price between 0 and 10000000),
-    kind text not null default 'service' check (kind in ('product','service')),
-    use_count integer not null default 0 check (use_count >= 0),
-    last_used_at timestamptz,
-    saved_at timestamptz,
-    prompt_dismissed_at timestamptz,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    deleted_at timestamptz,
-    unique (user_id, name_key)
-  );
-  ```
-- RLS owner select/insert/update; no DELETE.
-- Grants and privilege-check rows from the start, as in A.
-- `use_count` via an owner-scoped `security invoker` RPC
-  `record_product_use(names text[])` (one call per finalize, atomic). Its
-  check row: execute granted to authenticated only.
+- RLS: owner select / insert / update; no DELETE.
+- **Usage counts:** `record_product_use(p_items jsonb) returns setof text`.
+  - The input is the finalized lines: `[{name, unit, unit_price}]`, ≤ 50
+    lines, each validated.
+  - Upserts on `name_key`: `use_count + 1`, `last_used_at = now()`, and the last
+    `unit` / `unit_price` while unsaved; clears `deleted_at`.
+  - Returns the names that are unsaved with `use_count ≥ 2` (prompt
+    candidates).
+  - Called fire-and-forget after a successful finalize (chat and template), so
+    it never blocks or changes the send.
+- **Check rows** (section R): as in A, plus the RPC.
 
-### C. `…_public_invoice_line_unit.sql`
-- No table change: `unit` lives inside `invoices.line_items` JSONB.
-- `create or replace function get_public_invoice(…)` to pass `'unit'` through,
-  with the same signature and grants. It's the public pay-page RPC, so
-  security-relevant: the existing H-section check rows must still PASS.
+### C. `…_public_invoice_line_unit_detail.sql` (merge 2)
 
-### D. `…_recurring_expenses.sql`
-- **Table:**
-  ```sql
-  create table public.recurring_expenses (
-    id uuid primary key default gen_random_uuid(),
-    user_id uuid not null references public.profiles(id) on delete cascade,
-    vendor text check (vendor is null or char_length(vendor) <= 120),
-    description text check (description is null or char_length(description) <= 200),
-    amount numeric(12,2) not null check (amount > 0 and amount <= 10000000),
-    category text not null default 'other' check (category in
-      ('food','fuel','supplies','tools','travel','maintenance','subscriptions','phone','insurance','other')),
-    cadence text not null check (cadence in ('weekly','monthly','yearly')),
-    anchor_day smallint check (anchor_day between 1 and 31),
-    next_on date not null,
-    active boolean not null default true,          -- Pause / Resume
-    saved_at timestamptz,
-    prompt_dismissed_at timestamptz,
-    last_logged_on date,
-    last_skipped_on date,
-    last_skip_reason text check (last_skip_reason is null or last_skip_reason in ('free_limit','error')),
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    deleted_at timestamptz
-  );
-  ```
+- No table change. `unit` and `detail` live inside each `invoices.line_items`
+  JSONB element.
+- `create or replace function get_public_invoice(…)` passes `'unit'` and
+  `'detail'` through, with the same signature and grants.
+- It's the public pay-page RPC, so the existing H-section rows must still
+  PASS. Add one row: the function body's element keys.
+
+### D. `…_recurring_expenses.sql` (merge 3)
+
+```sql
+create table public.recurring_expenses (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  vendor text not null check (char_length(btrim(vendor)) between 1 and 120),
+  vendor_key text generated always as (lower(btrim(vendor))) stored,
+  description text check (description is null or char_length(description) <= 200),
+  amount numeric(12,2) not null check (amount > 0 and amount <= 10000000),
+  category text not null default 'other' check (category in
+    ('food','fuel','supplies','tools','travel','maintenance','subscriptions','phone','insurance','other')),
+  cadence text not null check (cadence in ('weekly','monthly','yearly')),
+  anchor_day smallint check (anchor_day between 1 and 31),
+  next_on date not null,
+  auto_log boolean not null default true,         -- "Log automatically" (off = paused)
+  last_logged_on date,
+  last_skipped_on date,
+  last_skip_reason text check (last_skip_reason is null or last_skip_reason in ('free_limit','error')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create unique index … on public.recurring_expenses (user_id, vendor_key, cadence) where deleted_at is null;
+```
+
 - **On `expenses`:**
-  `add column recurring_id uuid references public.recurring_expenses(id) on delete set null`
-  plus `create unique index … on public.expenses (recurring_id, spent_on) where
-  recurring_id is not null`. That index gives the cron its idempotency.
-- **Client privileges:**
-  - Clients may update only `vendor, description, amount, category, cadence,
-    anchor_day, active, saved_at, prompt_dismissed_at, deleted_at,
-    updated_at`.
-  - `next_on`, `last_*` and `recurring_id` on expenses are written only by the
-    service-role cron.
-  - Column grants, as recaps does.
+  - `add column recurring_id uuid references public.recurring_expenses(id) on delete set null`;
+  - `create unique index … on public.expenses (recurring_id, spent_on) where recurring_id is not null`.
+    That index makes the cron idempotent.
+- **Column grants:**
+  - authenticated may update only `vendor, description, amount, category,
+    cadence, anchor_day, next_on, auto_log, deleted_at, updated_at`;
+  - `last_*` and `expenses.recurring_id` are written only by the service-role
+    cron.
+  - `recurring_id` is not client-insertable, so a client can't forge a
+    "Recurring" row. Today `expenses` has a table-level INSERT grant; this
+    switches it to a column list, which must cover every column the app
+    writes (chat, receipt, Books sheet). Verify that on the local stub.
+- **Repeat detection:** `repeat_candidate(p_expense uuid) returns table(vendor text, amount numeric, cadence text, prior_on date)`.
+  - Same `lower(btrim(vendor))`, amount ±10 %, gap in the cadence windows
+    (§1.5).
+  - Skips vendors with a live recurring item.
+  - Index `expenses (user_id, lower(btrim(vendor)), spent_on desc) where deleted_at is null`.
 - **`notification_log_type_chk`** gains `recurring_skipped` (drop + add, as
-  `20261001000010_recaps.sql:81-82` did). Without it, the push claim fails.
-- Privilege-check rows from the start: RLS, policies, column grants, no
-  DELETE, the unique index, and the extended type check.
+  `20261001000010_recaps.sql` did).
+- **Check rows** (section T):
+  - RLS, policies, column grants (no `last_*`, no `recurring_id` insert/update
+    for authenticated);
+  - no DELETE;
+  - both unique indexes;
+  - the extended type check;
+  - the RPC.
 
-### E. (later) Pro gating
-Not proposed. "Pro" = the existing paid plan, visual tag only for now (L9).
+**Caps (F6):** the cron inserts as the service role, and
+`enforce_free_expense_limit` (a SECURITY DEFINER BEFORE INSERT trigger)
+still fires. On `PAYWALL_LIMIT_EXPENSE`:
+- skip and stamp `last_skipped_on` / `last_skip_reason = 'free_limit'`;
+- advance `next_on`;
+- push "Couldn't log Rent, free limit reached" (dedupe
+  `recurring_skipped:<item>:<due>`), plus the in-app row notice and a Books
+  banner.
 
----
+The cap is never bypassed.
 
-## Conflicts re-checked
+### E. Not proposed
 
-Each item was checked against the composer lock, the paywall caps, recaps, the
-chat AI flow and keyboard handling. Files read for this check:
-- `src/app/(app)/chat/page.tsx`
-- `src/app/(app)/layout.tsx`
-- `src/lib/keyboard.ts`
-- `src/components/Splash.tsx`, `src/components/MicRings.tsx`
-- `src/lib/access.ts`, `src/lib/paywall.ts`
-- `supabase/migrations/20261001000001_paywall_v2_invoice_cap.sql`,
-  `supabase/migrations/20261001000002_paywall_v2_expense_cap.sql`
-- `src/lib/notify/recaps.ts`, `src/lib/recap/payload.ts`
-- `src/app/api/followups/route.ts`
-- `src/lib/notify/index.ts`, `src/lib/notify/types.ts`
-- `supabase/migrations/20261001000010_recaps.sql`
-- `src/app/(app)/invoices/page.tsx`, `src/app/(app)/expenses/page.tsx`
-- `src/lib/date-groups.ts`
-- `src/app/(app)/summary/page.tsx`
-- `src/components/LineItemsEditor.tsx`
-- `supabase/migrations/001_init.sql`
-
-| Item | Composer lock | Paywall caps | Recaps | Chat AI flow | Keyboard |
-|---|---|---|---|---|---|
-| **Composer + expand** | Only the icon and the tap handler change. Circle size/colour/position, `data-splash-target` (chat:2887, Splash.tsx:103), MicRings wrapper (chat:2881), camera/gallery/field/send all untouched. Mic calls the existing `micTap()` in the same tap. ✔ | Menu options open existing flows; no cap logic touched. ✔ | No effect. ✔ | Mic path identical (`micTap` → `startRecording` → `/api/transcribe` → `send(text,'voice')`). ✔ | The menu opens no input. `data-no-tab-swipe`; z-index below PaywallModal/UndoToast. ✔ |
-| **Guided template** | Separate layer; the bar stays as is under it (template grow motion borrowed, field morph not adopted). ✔ | Send goes through `finalize()`, so the invoice gate (chat:1411-1426), trigger hint (1534) and quote exemption are kept. `ready` only once complete, so no early pre-build rows (1320-1330) and no wasted cap slots. ✔ | Template invoices are ordinary invoice rows; recaps read them as today. ✔ | Bypasses `/api/parse` on purpose. New `convoId`/`finalize_key` per template (as `startRevision`), so no cross-conversation row updates. The duplicate warning needs a client-side or at-Send check (open item). ⚠ handled in the commit | Qty/price are `readOnly` keypad fields (not text entry, keyboard.ts:44-49); Name/Extra info use the OS keyboard with `data-kb-fit` on the layer; never both open. ✔ |
-| **5-tab nav** | Not touched. ✔ | `RETURN_PATHS` gains `clients` only if the paywall opens there. ✔ | `BooksDot` moves with the Books tab (layout:319). ✔ | Landing stays `/chat`; `/chat?new=1` unchanged. ✔ | Nav keeps `data-kb-hide` (layout:297). ✔ |
-| **Clients (saved + prompt)** | Prompt is an inline card above the bar, not part of it. ✔ | Clients rows aren't capped. The upsert still runs before the invoice insert (chat:1455), so a capped free user keeps a history row (harmless, as today). ✔ | Recaps read `invoices.client_name`, never `clients` (recaps.ts:148-244), so no change. ✔ | Lookup moves from `ilike` (wildcard bug) to `name_key`; autofill behaviour otherwise the same. The prompt shows after the share completes, never inside the share gesture. ✔ | Card has no input; Save/Not now buttons only. ✔ |
-| **Products & Services** | ✔ | Not capped. ✔ | Not read by recaps. ✔ | `record_product_use` runs after a successful finalize (fire-and-forget), so it never blocks or alters the send. ✔ | ✔ |
-| **Recurring auto-log** | ✔ | Inserts as the service role, and the cap trigger still fires (SECURITY DEFINER, expense_cap.sql:37,71). On `PAYWALL_LIMIT_EXPENSE`: skip + notify, never bypass. ✔ | Auto-logged rows are real expenses, so they count in Books and recaps (intended). Built snapshots never change (insert-once, recaps.ts). Cron order: recurring **before** recaps, so a Monday's logged rent is in that week's recap. ✔ | Not involved. The chat expense flow only gets the "make it recurring?" prompt after a save. ✔ | Recurring form uses normal inputs inside existing sheet patterns. ✔ |
-| **Sorting toggle** | ✔ | ✔ | ✔ | ✔ | Segmented control has no input. ✔ |
-| **MOTION-SPEC §12 fix** | Doc only. ✔ | ✔ | ✔ | ✔ | ✔ |
+- Pro gating: the tag is visual only (F6).
+- A first-name column for the greeting (Q10).
 
 ---
 
-## Motion inventory
+## 4. Motion
 
-The design's inventory vs MOTION-SPEC (§1–11 shipped; §12 fixed in commit 1).
+**`1d` exact values** (F5). These apply to the composer, the menu and the
+template only.
 
-| Screen / action | Design (on-it-motion.html) | MOTION-SPEC today | Status |
+| Moment | Value |
+|---|---|
+| Tap + | Icon rotates 45° into ×, fill soft gold → ink: **300 ms `cubic-bezier(.3,1.5,.5,1)`**. Background/colour: 200 ms |
+| Scrim | Cream frost fades in: **220 ms `ease`**. The bar stays sharp (above the scrim) |
+| Options rise | Rise 16–40 px (the farthest option starts lowest: `16 + 12 × distance` px), scale .88 → 1, nearest + first, **45 ms** apart: **340 ms `cubic-bezier(.2,1.3,.4,1)`**. Opacity 180 ms ease, same delay |
+| Close (×, scrim, option) | Everything reverses, **no stagger: 180–300 ms**. Use 180 ms for options/scrim; the + glyph returns on its own 300 ms curve |
+| Pick invoice / quote | The menu closes, then the field becomes the template card in place. **Same frame**: the bar never jumps |
+| Template slots and controls not in `1d` (slot fill, sheets, keypad, add/remove item, send enabled, M1) | MOTION-SPEC tokens (below) |
+
+**Everywhere else: MOTION-SPEC tokens.**
+- Durations: `--motion-fast` 160, `--motion-base` 240, `--motion-slow` 400.
+- Easings: `--ease-standard`, `--ease-emphasized`, `--ease-spring` (success
+  moments only).
+
+Each row of the motion file's inventory maps to the nearest token. Hero
+moments keep their choreography and total length, built from token curves.
+
+| Inventory row | Built as | Commit |
+|---|---|---|
+| Slot filled (dashed → ink, 1.04 pop) | `--motion-base` + `--ease-spring` (it's a success moment) | 2·10 |
+| Pick from sheet (sheet down, text hands off) | `--motion-slow` `--ease-emphasized` | 2·10 |
+| Qty ± (number rolls, totals odometer) | `--motion-fast` `--ease-emphasized`, selection haptic | 2·11 |
+| Keypad sheet rises | `onit-sheet-in` (`--motion-slow` standard) | 2·11 |
+| Add item / remove item (+ 5 s undo) | expand `--motion-slow` / collapse `--motion-base`, emphasized | 2·11 |
+| Send becomes enabled | Founder change: no pill sweep. The black circle fades/scales in from the muted disabled disc, `--motion-base` `--ease-spring` | 2·12 |
+| **M1** send (compress → ↗ shoots → card folds → sent card springs → SENT stamp, ~1.1 s) | Token curves; replaces MOTION-SPEC §4 lock-on-send for template sends. Chat-card sends keep §4 | 2·12 |
+| Receipt snapped | **Built** (merged `feat/receipt-motion`, MOTION-SPEC §8) | — |
+| New On It message (typing dots, rise 8 px) | `--motion-base` standard (MOTION-SPEC §2 rise) | 1·3 |
+| Prompt appears (rise 14 px) / Not now (sink 10 px) | `--motion-base` spring / `--motion-fast` standard | 2·13 |
+| **M2** save client / item (arc into the Clients tab, tab bump, +1, bot line, ~1 s) | Token curves | 2·13 |
+| **M3** make recurring (loop draws, "Monthly" tag, ↻ spins, shimmer, ~950 ms) | Token curves | 3·4 |
+| New entry saved (slides into its A–Z slot + 1.2 s gold glow) / Form save (label → ✓) | `--motion-slow` emphasized | 2·14 |
+| Swipe delete (resistance past 40 %) / Undo re-expand | `SwipeableRow` update, `--motion-base` | 2·14 |
+| Long-press (lift 1.02, dim, menu scales in) / Search reflow / A–Z letter jump + header pulse | `--motion-fast` / `--motion-fast` / `--motion-base` + pulse | 2·14 |
+| Client detail (shared avatar/name, tiles count up) | View transition when supported, else rise. Count-up as Books | 2·4 |
+| Unit / frequency segment thumb | `SortToggle` pattern (`--motion-fast`) | 2·8, 3·2 |
+| Invoices filter (outline slides, list crossfade + 12 px shift) | `--motion-fast` standard | 1·10 |
+| Status change sent → viewed (`viewed_at`, tag flip) | `--motion-base` | 1·10 |
+| **M4** marked paid (DUE fades, PAID stamp settles, card dips 3 px, Collected/Still owed roll, ~1.2 s) | Token curves; **replaces MOTION-SPEC §6 gold sweep** (L11 changed) on the detail page and in lists | 1·13 |
+| Books first visit **of the day** count-up (today: once per session) | Keep the §9 mechanics; the key becomes per local day | 1·12 |
+| Books recaps dot pulse once | `--motion-slow` ring | 1·12 |
+| Tile press .97 | **Built** | — |
+| Recurring auto-logged (shimmer + "Logged automatically") / skip banner | `--motion-slow` / `onit-rise` | 3·6 |
+| **M5** tab switch (disc slides, icon 4 px bounce, 160 ms crossfade) + Chat press (.9, 1 px down) | Disc `--motion-slow` + `--ease-spring`; crossfade `--motion-fast`. Replaces the §10 side entry | 1·4 |
+| Failed action (6 px × 3 decaying shake + inline Retry) | Update §7 (today a 320 ms shake): `--motion-slow` emphasized | 1·14 |
+
+Haptics stay Android-only (L12). Reduce Motion: every row becomes a ≤ 200 ms
+crossfade and numbers swap without rolling (global kill switch +
+`usePrefersReducedMotion`, built in commit 1). MOTION-SPEC gets a §14 for this
+pass in each merge's docs commit.
+
+---
+
+## 5. Commit sequence — one item per commit, three merges to `main`
+
+**Already on the branch, and staying:**
+- commits 1–5 (`c99ce2d` … `91f6c09`);
+- the release frames (`66bb0be`);
+- the receipt-motion merge (`b5c261d`);
+- this doc.
+
+Commit 4 (`b7d488d`, the gold + on today's bar) stays in history; the composer
+is redone on top of it in 1·1.
+
+**For every code commit:** `tsc`, `npm test`, `next build`. Then each merge
+gets:
+1. a branch preview (`vercel` → alias `onit-dynastyweb-preview.vercel.app`);
+2. an iPhone pass;
+3. the founder's OK;
+4. `--no-ff` merge to `main` + push.
+
+**DB commits** contain the migration file plus its check rows only. The
+founder applies each one with the CLAUDE.md flow **before** the merge that
+needs it. Never tap Connect / Finish setup on the preview.
+
+### Merge 1: no-DB visual changes (composer, nav, Settings, sorting, motion)
+
+| # | Commit | Risk |
+|---|---|---|
+| 1·1 | **Composer bar:** 44 px + (left, `data-splash-target`), "Message On It…" field with gallery + camera inside, 44 px send (right). Voice session in the field (Listening… / Done = stop & send, Speak between takes, × in the + slot ends the session, level dot). Splash lands on the new +. Tutorial mocks + copy ("Tap +, then Voice") | **High** (iOS gesture, splash, keyboard) |
+| 1·2 | **+ menu:** Voice / New invoice / New quote with subtitles and `1d` values. Voice = `micTap()` in the tap. New invoice/quote: Q1 | Medium |
+| 1·3 | **Chat thread visuals:** TODAY divider, bubble styles, typing dots + 8 px rise (MOTION-SPEC §2), greeting copy "Snap a receipt, or tap + to start an invoice or quote." (Q10) | Low |
+| 1·4 | **Nav to the frames:** Chat pill 64×36, Books dot, M5 disc + bounce + crossfade, Chat press depth | Medium |
+| 1·5 | **Settings main screen:** grouped rows (YOUR BUSINESS / MONEY / ACCOUNT), Clients + Products rows → Clients tab (no counts yet), sign out, delete account, footer | Medium |
+| 1·6 | Settings › **Business profile** sub-screen (business, logo, invoice style) | Low |
+| 1·7 | Settings › **Payouts** sub-screen + `/settings?connect=` and `connect` push forwarding (Stripe flow re-tested on preview without tapping Connect) | **High** (payments) |
+| 1·8 | Settings › **Plan** sub-screen + checkout / billing-portal return forwarding | Medium |
+| 1·9 | Settings › **Notifications**, **Records (Vault)**, **Invite**, **Help & feedback** rows | Low |
+| 1·10 | **Invoices list** to `4a`: tabs, summary, caption toggle, compact rows with DUE chips, filter crossfade, viewed flip | Medium |
+| 1·11 | **Expenses list** to `4b`: header +, shared Add expense sheet, search, grouping per Q2 | Medium |
+| 1·12 | **Books** to `5a`: Recaps row on top (all `RecapsCard` states), list card (View expenses + count), button label (Q4), daily count-up, dot pulse | Medium |
+| 1·13 | **M4 marked paid** (replaces MOTION-SPEC §6) | Medium |
+| 1·14 | **Failed action:** shake + inline Retry (MOTION-SPEC §7) | Low |
+| 1·15 | Docs: MOTION-SPEC §14 (merge 1), Design Standard nav/composer, PUNCH-LIST rows | — |
+
+**Note on merge 1:** no row or button in merge 1 points at a feature that needs a migration:
+  - the Settings Recurring row and the Books Recurring row land in merge 3;
+  - the ↻ icon lands in merge 3;
+  - Clients/Products counts land in merge 2.
+
+### Merge 2: Clients + Products + template
+
+| # | Commit | DB | Risk |
 |---|---|---|---|
-| Composer + open / close | + → ×, options rise on a 12° arc, 45 ms stagger, cream scrim, 300 ms spring / reverse 180 ms exit | — | **Adopt** (new §) |
-| Template opens | slots stagger 30 ms, rise 6 px, 360 ms (as its own layer, not a field morph) | §3 card build-in (chat card) | **Adopt** |
-| Slot filled | dashed → solid chip, 1.04 pop, 320 ms spring | — | Adopt |
-| Pick from sheet | sheet down, text hands off into the slot, 340 ms | — | Adopt |
-| Qty − / + | number rolls, totals odometer, 140 ms, tick | §9 roll (Books only) | Adopt |
-| Keypad | sheet rises 320 ms, live line total | — | Adopt |
-| Add / remove item | expand 380 ms / collapse 320 ms + 5 s undo | — | Adopt (stable row ids) |
-| Send enabled | gold sweep then ↗ pops, 400 ms | §3 send fades in last | Adopt |
-| Send invoice / quote | M1 hero, 1,100 ms (template card folds; the bar stays) | §4 lock on send (kept) | Deferred to commit 17 (L11) |
-| Save client / item | M2: chip arcs into the Clients tab, tab bumps, "+1", bubble; 1,000 ms | — | Adopt |
-| Save prompt | rises 14 px spring 320 ms; Not now sinks 10 px 180 ms | — | Adopt |
-| Make recurring | M3: ellipse draws, "Monthly" pops, ↻ spins, shimmer; 950 ms | — | Adopt |
-| Recurring auto-logged | shimmer + "Logged automatically", 900 ms | — | Adopt (+ "Recurring" tag) |
-| Recurring skipped | — | — | New: banner rises 240 ms (§1 rise) |
-| Marked paid | M4 stamp + tiles count up, 1,200 ms | §6 gold sweep (kept) | Deferred to commit 17 (L11) |
-| Tab switch | M5 disc slide 340 ms spring, icon bounce, fadeUp 160 ms | §10 pill 300 ms + side entry | Update §10 |
-| Invoices filter | list crossfade 12 px shift, 200 ms | §10 ring | Adopt |
-| Sort toggle | segment thumb slides 180 ms spring | — | Adopt (Forms segment row) |
-| New entry in list | slides into A–Z slot + gold glow 1.2 s | — | Adopt |
-| Swipe delete / undo | resistance past 40 %, 300 ms / undo 300 ms spring | SwipeableRow 200 ms (not in spec) | Adopt |
-| Long-press / search / A–Z letter | 220 ms / 160 ms / 300 ms + pulse | — | Later (no such UI yet) |
-| Client detail | shared avatar/name, stats count up, 380 ms | — | Adopt |
-| Form save | label → ✓, sheet down, 400 ms | — | Adopt |
-| Chat new message | typing dots, bubble rises 8 px, 240 ms | §2 (not built) | Build |
-| Receipt snapped | thumbnail into a bubble, scan line, 600 ms | §8 shutter | Update §8 |
-| Failed action | shake 6 px × 3, inline Retry, 360 ms | §7 shake 320 ms | Update §7 |
-| Books recaps dot | ring pulse once 600 ms | — | Adopt |
-| Empty states, sheets (generic), toasts | — | inconsistent / none | One rule each |
-| Settings toggles | — | animate `left` | Fix (transform) |
+| 2·1 | **Migration A** (clients saved list, `save_client`, `client_name_usage`, `client_summaries`, check rows). **Preflight duplicate report first** | **yes** | Medium |
+| 2·2 | Chat client upsert + lookup → `name_key` (fixes the `ilike` wildcard) | needs 2·1 | Medium |
+| 2·3 | **Clients segment** (`3a`/`3d`): search, A–Z + rail, swipe + long-press Edit/Delete, empty state, Settings Clients count | needs 2·1 | Medium |
+| 2·4 | **Client detail** (`3b`): Call/Text/Email (or open Edit), tiles, info, documents list | needs 2·1 | Low |
+| 2·5 | **New / Edit client** (`3c`): history note + linking via `save_client` | needs 2·1 | Medium |
+| 2·6 | **Migration B** (products + `record_product_use`, check rows) | **yes** | Medium |
+| 2·7 | **Migration C** (public `get_public_invoice` passes `unit` + `detail`) | **yes** | Medium |
+| 2·8 | **Products segment + edit** (`3e`/`3f`/`3g`): long-press Edit/Duplicate/Delete, unit segment, Settings Products count | needs 2·6 | Medium |
+| 2·9 | **Line units + detail end to end:** `LineItem` type, LineItemsEditor, PDF templates, PayView, parse normaliser + AI rule, `draftFingerprint`, duplicate math | needs 2·7 | Medium |
+| 2·10 | **Template card, part 1:** card in place (`1d` "same frame"), header/switch/close, Name slot + Client sheet (saved + USED BEFORE), Item slot + Item sheet | needs 2·1, 2·6 | **High** |
+| 2·11 | **Template card, part 2:** two-row items, stepper, qty + price keypads, add/remove + undo, capped list with fades | — | Medium |
+| 2·12 | **Template card, part 3:** Extra info sheet + chips + deposit/due parsing, totals, **black ↗ send** (`aria-label`, disabled state), `finalize()`, **shared 48 h duplicate check at Send (L17)**, sent-doc card + M1, `record_product_use` after finalize. The + menu's New invoice/quote now open it (ends Q1's interim). Client detail's **Invoice** action opens it prefilled | — | **High** |
+| 2·13 | **Save prompts:** queue, client + item prompts, M2 flight + bot lines | — | Medium |
+| 2·14 | **List motion:** new-entry glow, swipe resistance/undo, long-press lift, search reflow, letter jump pulse, form ✓ | — | Low |
+| 2·15 | Docs (MOTION-SPEC §14 merge 2, PUNCH-LIST) | — | — |
 
-### Reduced motion
-- Design: every row becomes a crossfade ≤ 200 ms; numbers swap without
-  rolling.
-- Repo: a global CSS kill switch (`globals.css:468-478`) plus per-component
-  checks. WAAPI animations branch themselves.
-- Move the duplicated `usePrefersReducedMotion` (PaywallSlideshow,
-  RecapStory) to `src/lib` in the motion-foundations commit.
+### Merge 3: Recurring + cron
 
-### Haptics
-iOS Safari/PWA has no vibration API, so haptics work on Android only (accepted, L12).
-
----
-
-## Commit sequence (one item per commit, safe order)
-
-**DB commits** contain the migration file plus its privilege-check rows only.
-You apply each with the CLAUDE.md flow **before** the code that needs it
-merges.
-
-**Code commits:** typecheck + `npm test` + build, then an iPhone check on the
-branch preview.
-
-| # | Commit | DB? | Risk |
+| # | Commit | DB | Risk |
 |---|---|---|---|
-| 1 | **MOTION-SPEC §12 fix** (doc) + motion foundations: shared reduced-motion hook, sheet/toast rules, toggle fix | — | Low |
-| 2 | Invoice sort toggle (Newest / A–Z within month, per-device) | — | Low |
-| 3 | Expense sort toggle (A→Z inside each weekly group; subtotals and Summary untouched) | — | Low |
-| 4 | Composer: gold mic → gold "+" expand (Mic · New invoice · New quote). Mic = `micTap()`; New invoice/quote stub to today's chat greeting until #8. Tutorial copy | — | Medium (iOS gesture) |
-| 5 | Nav → 5 tabs (Clients placeholder with the Clients · Products & Services segments), `group` + `chat_bubble` icons, raised centre Chat pill (M5), tutorial mocks | — | Medium |
-| 6 | Migration A (clients) — **preflight duplicate report first** | **yes** | Medium |
-| 7 | Clients list + detail + "Save to your list?" (M2) | needs 6 | Medium |
-| 8 | Guided template without units — **waits for the release frames**. Tap-to-fill form; locked composer under it; Send via `finalize()`. **The 48-hour duplicate-invoice check moves to Send as one shared check for chat and template invoices** (out of `/api/parse` ~378) | — | **High** |
-| 9 | Migration C (public RPC passes `unit`) | **yes** | Medium |
-| 10 | Units end to end (editor, PDF, PayView, parse normaliser + AI rule) | needs 9 | Medium |
-| 11 | Migration B (products + `record_product_use`) | **yes** | Low |
-| 12 | Products & Services segment + save prompt + pick-from-sheet | needs 11 | Medium |
-| 13 | Migration D (recurring + `expenses.recurring_id` + notification type) | **yes** | Medium |
-| 14 | Recurring Expenses row in Books (next to Expenses) + list with Pause/Delete, save prompt (M3), "Recurring" tag | needs 13 | Medium |
-| 15 | Recurring cron step (idempotent, timezone, back-fill ≤ 3 each cap-checked, cap skip + notify) | needs 13 | **High** |
-| 16 | "Pro" tags (visual) | — | Low |
-| 17 | Final motion pass (M1 send and M4 paid, deferred per L11; list rows; empty states) | — | Medium |
+| 3·1 | **Migration D** (recurring_expenses, `expenses.recurring_id` + unique index, `repeat_candidate`, `recurring_skipped` type, check rows) | **yes** | Medium |
+| 3·2 | **Recurring screen + edit** (`3h`/`3i`/`3j`): PRO tag + copy, monthly total, next 2 weeks, A–Z list, Log automatically, Stop & delete | needs 3·1 | Medium |
+| 3·3 | Books **Recurring PRO** list-card row + Settings **Recurring expenses** row | needs 3·1 | Low |
+| 3·4 | **Repeat detection + "Make it recurring?"** prompt (chat, receipt and Books saves) + M3 | needs 3·1 | Medium |
+| 3·5 | **Cron step** in `/api/followups`, production only, **before** recaps. It handles: `auto_log` items due by local today (owner timezone); one row per item per due date (`on conflict do nothing`); back-fill ≤ 3, each cap-checked; resume never back-fills; cap skip → stamp + advance + `recurring_skipped` push; monthly anchored to `anchor_day` (31 → last day) | needs 3·1 | **High** |
+| 3·6 | **↻ on expense rows** + "Logged automatically" shimmer + skip notice (Recurring row + Books banner) | needs 3·1 | Low |
+| 3·7 | Docs (MOTION-SPEC, PUNCH-LIST, SECURITY.md cron line) | — | — |
 
 **Why this order:**
-- Doc and sorting first (no risk).
-- Composer before the template it opens.
-- Each table lands before its UI.
-- Units after the template works.
-- The recurring cron last: it is the only scheduled writer, and it touches
-  caps and recaps.
+- Merge 1 touches no table and can ship alone.
+- In merge 2, each table lands before its UI, and units land before the
+  template, which reads them.
+- The prompts come after the template that triggers them.
+- The cron is last: it is the only scheduled writer, and it touches the caps
+  and recaps.
 
 ---
 
-## Open questions
+## 6. Open questions (each has a default; work isn't blocked)
 
-None. All answered 2026-10-03 and locked in §L (items 7–17).
+1. **Q1 — Merge 1 New invoice / New quote.** The template needs DB A/B, so it
+   lands in merge 2. Until then, the two options keep commit 4's working path:
+   a fresh chat seeded "Invoice for " / "Quote for " and focused. That makes a
+   real document, so it isn't a dead button. The subtitle would read "Say or
+   type it" instead of "Guided template". **Default:** that. **Alternative:**
+   hold merge 1's + menu until merge 2.
+2. **Q2 — Expense groups.** L2 (locked) keeps weekly groups; `4b` and the Books
+   row ("A–Z by vendor, by month") show monthly groups. **Default:** keep L2
+   (weekly), with the Books subtitle "A–Z by vendor, by week", until you say
+   switch.
+3. **Q3 — Unpriced items.** Your rule enables Send with a client and an item.
+   An item without a price would go out as a $0.00 line. **Default:** Send also
+   needs a price on every named item; the hint says "Add a price for Labor".
+   Say if $0 lines should be allowed (for example on quotes).
+4. **Q4 — Books button label.** The design says "Summary & PDFs"; `feat/recap`
+   renamed it to "Income & Expenses". **Default:** keep "Income & Expenses".
+5. **Q5 — Recurring categories.** The frames use Software / Storage /
+   Equipment / Materials, which aren't expense categories. **Default:** use
+   the existing 10 (Software → Subscriptions, Equipment → Tools, Materials →
+   Supplies, Storage → Other). No new categories without your yes (they would
+   change the CHECK, the tax summary and the recaps).
+6. **Q6 — Deleting a client.** **Default:** un-save (it leaves the list) and
+   clear phone / email / address / notes, with a 5 s undo. Their invoices and
+   the history row stay, so they can be offered again after a later invoice.
+7. **Q7 — "Not now".** The design re-asks at the next repeat (rev 1 proposed
+   never again). **Default:** the design.
+8. **Q8 — Log automatically = Pause.** **Default:** the switch is L3's Pause,
+   and "Stop & delete" is its Delete.
+9. **Q9 — Help & feedback "Contact us".** Which address should it open
+   (`mailto:`)? Until you name one, the row offers How On It works, Replay
+   walkthrough, Terms and Privacy only (no dead contact button).
+10. **Q10 — Greeting name.** "Morning, Jess" needs an owner first name, which
+    isn't stored. **Default:** a time-of-day greeting without a name; no new
+    `profiles` column.
+
+---
+
+## 7. Conflicts re-checked
+
+| Item | Paywall caps | Recaps | Chat AI flow | Keyboard / iOS |
+|---|---|---|---|---|
+| New composer | Untouched | — | `send()` / `micTap()` / `onPickReceipt` unchanged; only their buttons move. `primeSpeech()` stays inside the Voice tap | The field is the only text input in the bar. Camera/gallery are buttons inside the field, so tapping them must not focus the field (`preventDefault` on pointerdown). The 44 px + is still a 44 px touch target |
+| Template | Send → `finalize()`: invoice cap + `PAYWALL_LIMIT` hint, quotes uncapped. `ready` only when Send is enabled, so no early pre-build rows | Ordinary invoice rows | Bypasses `/api/parse` on purpose. New `convoId` per template. Duplicate check at Send (L17) | Keypads are custom, so the OS keyboard is never open with them. Sheets with search use `data-kb-fit` |
+| Save prompts | — | — | After the share completes; never in the share gesture | No inputs |
+| Clients / Products | Not capped | Recaps read `invoices.client_name`; unaffected | `record_product_use` is fire-and-forget after finalize | Forms are sheets with `data-kb-fit` |
+| Recurring cron | Service-role insert; the cap trigger still fires; skip + notify, never bypassed | Runs **before** recaps so the day's rows count; snapshots are insert-once | — | — |
+| Settings split | Plan sub-screen keeps the checkout/portal flows; return URLs forwarded | — | — | — |
+
+---
+
+## 8. What the frames say vs this branch (summary)
+
+**Already matching:**
+- 5 tabs (L7);
+- sorting (L1, L2-ordering);
+- receipt photo → bubble (merged);
+- Books Net / tiles / Add expense;
+- "How On It works";
+- `usePrefersReducedMotion`;
+- the segment control pattern.
+
+**To build:**
+- **Merge 1 (no DB):**
+  - composer + menu + in-field voice;
+  - chat visuals;
+  - nav polish;
+  - Settings grouping + sub-screens;
+  - Invoices / Expenses / Books to their frames;
+  - M4 and the failure shake.
+- **Merge 2:** Clients, Products, units/detail, the template with the ↗
+  send, the prompts, list motion.
+- **Merge 3:** Recurring, repeat detection, the cron.
+
+---
+
+## 9. Merge of `feat/receipt-motion` (`b5c261d`)
+
+Merged with `--no-ff` before any composer work (F8). It brings ReceiptBubble,
+LoggedExpenseCard, the real flash after the camera sheet, and the thumbnail
+storage cap; MOTION-SPEC §8 is now "as built".
+
+**Five conflict hunks,** all additive (both sides added different lines in the
+same spot). Both sides were kept; no logic was chosen between:
+
+| File | Conflict | Resolution |
+|---|---|---|
+| `MOTION-SPEC.md` "Batch B as built" | §8 line (receipt-motion marks it superseded) vs §9 line (this branch added the button rise timings) | receipt-motion's §8 line + this branch's §9 line |
+| `PUNCH-LIST.md` | Both appended sections at the same spot | Both sections, this branch's first |
+| `chat` `interface Msg` | `quiet?` (paywall usage line) vs `receipt?` + `logged?` | All three fields |
+| `chat` `/api/parse` body | `.filter((m) => !m.quiet)` vs `.map(({ role, content }) => …)` | Both: drop quiet lines, then send role + text only |
+| `chat` expense save | `fetchUsageLine('expense')` vs `setExpenseExiting(false)` | Both: the exit reset, then the usage line |
+
+**Checks:** `tsc --noEmit` clean, `npm test` 96/96, `next build` passes
+(placeholder env). Not yet checked on a device; it rides merge 1's preview.
