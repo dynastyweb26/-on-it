@@ -70,7 +70,7 @@ circle with a ↗ arrow only**. There is no gold "Send invoice" pill and no text
 |---|---|---|
 | L-lock | Composer locked to today's bar; only the mic → + swap | **Changed (F):** the lock is lifted; the design's composer is adopted |
 | L1 | Invoices: Newest / A–Z toggle, A–Z by client within each month, remembered per device | Stands (built, commit 2). The design's "A–Z by client" label becomes the toggle's caption |
-| L2 | Expenses: keep the weekly/monthly views and subtotals; only order inside groups changes | **Stands, but the design conflicts:** `4b` groups expenses by month. See Q2 |
+| L2 | Expenses: keep the weekly/monthly views and subtotals; only order inside groups changes | **Changed (Q2, locked 2026-10-03):** the expenses list gets a **Week / Month** group switch (Week by default, remembered per device). Each view shows its own group subtotals; Newest / A–Z sorts inside whichever grouping is active. The Books "View expenses" subtitle matches the active grouping ("A–Z by vendor, by week" / "…by month"; "Newest first, by …" when sorted newest) |
 | L3 | Recurring auto-log: real expenses, "Recurring" tag, Pause + Delete, cap never bypassed (skip + notify), daily cron, idempotent, user timezone | Stands. **Mapping to the design:** Pause = the "Log automatically" switch off (`3i`); Delete = "Stop & delete"; the "Recurring" tag = the ↻ icon on the row (`4b`). See Q8 |
 | L4 | Clients: silent upsert kept as history; "saved" flag; prompt on 2nd use; case-insensitive key (report duplicates, don't merge); privilege-check rows. Products and Recurring get the same prompt | Stands. **The design adds:** "Not now ends it until the next repeat" (it asks again on the next use), and linking past invoices on save (`3c`). See Q7 |
 | L5 | "View expenses" already on `main` | Stands |
@@ -86,6 +86,21 @@ circle with a ↗ arrow only**. There is no gold "Send invoice" pill and no text
 | L15 | Missed due dates: back-fill ≤ 3, each cap-checked; resume never back-fills | Stands |
 | L16 | Release frames coming; template waits | **Done:** the frames arrived (`66bb0be`) |
 | L17 | The 48-hour duplicate check moves to Send, shared by chat and template | Stands |
+
+**Locked 2026-10-03 (rev 2 answers):**
+
+| # | Decision |
+|---|---|
+| Q1 | Until the template lands (merge 2), **New invoice / New quote** start a fresh chat seeded "Invoice for " / "Quote for " and focused, subtitle **"Say or type it"**. Merge 2 switches them to the template and the subtitle to "Guided template" |
+| Q2 | Expenses: **Week / Month** group switch, Week default, remembered per device; per-view subtotals; sort inside the active grouping; Books subtitle follows the active grouping (see L2) |
+| Q3 | Template Send needs a client, ≥ 1 named item **and a price on every named item**; the hint names the missing price ("Add a price for Labor") |
+| Q4 | The Books button keeps the label **"Income & Expenses"** |
+| Q5 | Recurring uses the existing 10 expense categories (Software → Subscriptions, Equipment → Tools, Materials → Supplies, Storage → Other). No new categories |
+| Q6 | Deleting a client = un-save + clear phone / email / address / notes, 5 s undo; invoices and the history row stay |
+| Q7 | Save prompts: **"Not now"** closes this one; it asks again on the next repeat |
+| Q8 | Recurring **"Log automatically"** off = Pause (L3); **"Stop & delete"** = Delete |
+| Q9 | Help & feedback › **Contact us** opens `mailto:brandon@dynastyweb.co` |
+| Q10 | Chat greeting: time of day, no name ("Morning! Snap a receipt, or tap + to start an invoice or quote."); no new `profiles` column |
 
 ---
 
@@ -305,7 +320,7 @@ gesture. Guests get no prompts (they have no rows).
 |---|---|---|---|
 | ‹ Books · **+** | + → the Add expense sheet (extracted from Books into a shared component) | existing insert + cap | **New** (the sheet exists only on Books) |
 | **Search** ("Search vendor or category") | Client-side filter over the loaded rows | none | **New** |
-| Group headers with subtotal | Today: weekly groups. The design: monthly (Q2) | none | **Partial** |
+| **Week / Month** switch + group headers with subtotal | Week (default) or month groups, each with its own subtotal; remembered per device (`onit-expenses-group`); sort applies inside (Q2) | none | **Partial** (weekly only today) |
 | Row: initial avatar (or receipt thumb), vendor, **↻** when `recurring_id`, "Category · date", amount | Thumb → lightbox (kept); swipe → delete + undo (kept) | DB D for ↻ | **Partial** (no ↻) |
 | Sort toggle | L2 | none | **Built** (commit 3) |
 
@@ -317,9 +332,9 @@ gesture. Guests get no prompts (they have no rows).
 | **Net** card ("$9,267.42 · Net · all time · 41 invoices") | → `/summary?period=all` | existing | **Built** |
 | Tiles **Collected / Still owed / Spent** as buttons (number headline, press .97) | → income / unpaid / expenses | existing | **Built** |
 | **+ Add expense** | Sheet (kept); cap → paywall | existing | **Built** |
-| List card · **View expenses** ("A–Z by vendor, by month", count) | → `/expenses` | existing | **Partial.** A button today; becomes a list-card row with a count |
+| List card · **View expenses** (subtitle follows the expenses list's grouping and sort, e.g. "A–Z by vendor, by week"; count) | → `/expenses` | existing | **Partial.** A button today; becomes a list-card row with a count |
 | List card · **Recurring PRO** ("7 charges · next Oct 6", "$X /mo") | → Recurring | DB D | **New · DB D** |
-| **Summary & PDFs** | → `/summary` | existing | **Partial.** Labelled "Income & Expenses" today (Q4) |
+| **Income & Expenses** (design: "Summary & PDFs"; Q4 keeps today's label) | → `/summary` | existing | **Built** |
 
 ### 1.17 Settings (`0c` grouped; F3)
 
@@ -334,7 +349,7 @@ The main screen has grouped rows. Each row opens a sub-screen
 | **Recurring expenses** · "In Books" (MONEY) | → Books › Recurring | DB D | **New · DB D** (the row lands with the screen) |
 | **Payouts** · "Connected" / "Set up" | Sub-screen: the Stripe Connect card (all four states, card switch, payouts-paused note), PayPal / Cash App / Venmo, Zelle | existing | **Partial.** Inline today |
 | **Plan** · Free / Trial / Subscribed / Founder (ACCOUNT) | Sub-screen: subscription (manage / trial copy / past-due), free usage summary, subscribe/trial CTA + disclosure, **Have a code?**, founder row | existing | **Partial.** Inline today |
-| **Help & feedback** | Sub-screen: How On It works (`TutorialReference`), Replay the walkthrough, Contact us (Q9), Terms, Privacy | none | **New** (contact address: Q9) |
+| **Help & feedback** | Sub-screen: How On It works (`TutorialReference`), Replay the walkthrough, Contact us (`mailto:brandon@dynastyweb.co`, Q9), Terms, Privacy | none | **New** |
 
 ---
 
@@ -444,6 +459,20 @@ update. No DELETE (soft delete).
 
   It feeds the list status line, the "USED BEFORE · NOT SAVED" group, the 2nd-use
   prompt and the detail tiles.
+
+  **Dependency (not blocking): refunds.** `fix/disputes-refunds` adds
+  `invoices.refunded_amount` (migration `20261005000000_payment_reversals.sql`,
+  not applied). Once it is live, **"Total paid" = Σ(`amount_paid` −
+  `refunded_amount`)**. How A handles it, by apply order:
+  - refunds applied first → A's file sorts after `20261005000000` and
+    `client_summaries()` subtracts `refunded_amount` from the start;
+  - A applied first → A ships with Σ `amount_paid`, and the refunds branch
+    (or a small follow-up migration) does `create or replace function
+    client_summaries()` with the subtraction. The UI reads `total_paid`
+    either way, so no client change.
+
+  Check `npx supabase migration list` before writing A's file to pick the
+  branch.
 
 **Check rows** (new section Q):
 - RLS on;
@@ -635,6 +664,10 @@ pass in each merge's docs commit.
 - the receipt-motion merge (`b5c261d`);
 - this doc.
 
+Settings is moved out one group per commit (1·5–1·8) and the grouped main
+screen comes last (1·9), so every commit keeps every Settings feature
+reachable.
+
 Commit 4 (`b7d488d`, the gold + on today's bar) stays in history; the composer
 is redone on top of it in 1·1.
 
@@ -657,14 +690,14 @@ needs it. Never tap Connect / Finish setup on the preview.
 | 1·2 | **+ menu:** Voice / New invoice / New quote with subtitles and `1d` values. Voice = `micTap()` in the tap. New invoice/quote: Q1 | Medium |
 | 1·3 | **Chat thread visuals:** TODAY divider, bubble styles, typing dots + 8 px rise (MOTION-SPEC §2), greeting copy "Snap a receipt, or tap + to start an invoice or quote." (Q10) | Low |
 | 1·4 | **Nav to the frames:** Chat pill 64×36, Books dot, M5 disc + bounce + crossfade, Chat press depth | Medium |
-| 1·5 | **Settings main screen:** grouped rows (YOUR BUSINESS / MONEY / ACCOUNT), Clients + Products rows → Clients tab (no counts yet), sign out, delete account, footer | Medium |
-| 1·6 | Settings › **Business profile** sub-screen (business, logo, invoice style) | Low |
-| 1·7 | Settings › **Payouts** sub-screen + `/settings?connect=` and `connect` push forwarding (Stripe flow re-tested on preview without tapping Connect) | **High** (payments) |
-| 1·8 | Settings › **Plan** sub-screen + checkout / billing-portal return forwarding | Medium |
-| 1·9 | Settings › **Notifications**, **Records (Vault)**, **Invite**, **Help & feedback** rows | Low |
+| 1·5 | Settings › **Business profile** sub-screen (`/settings/business`: business, logo, invoice style), reached from a row; adds the shared section routing | Low |
+| 1·6 | Settings › **Payouts** sub-screen + `/settings?connect=` and `connect` push forwarding (Stripe flow re-tested on preview without tapping Connect) | **High** (payments) |
+| 1·7 | Settings › **Plan** sub-screen + checkout / billing-portal return forwarding | Medium |
+| 1·8 | Settings › **Notifications** sub-screen, **Invite** sheet, **Help & feedback** sub-screen | Low |
+| 1·9 | **Settings main screen** (`0c`): grouped rows (YOUR BUSINESS / MONEY / ACCOUNT), Clients + Products rows → Clients tab (no counts yet), Records (Vault), sign out, delete account, footer | Medium |
 | 1·10 | **Invoices list** to `4a`: tabs, summary, caption toggle, compact rows with DUE chips, filter crossfade, viewed flip | Medium |
-| 1·11 | **Expenses list** to `4b`: header +, shared Add expense sheet, search, grouping per Q2 | Medium |
-| 1·12 | **Books** to `5a`: Recaps row on top (all `RecapsCard` states), list card (View expenses + count), button label (Q4), daily count-up, dot pulse | Medium |
+| 1·11 | **Expenses list** to `4b`: header +, shared Add expense sheet, search, **Week / Month** switch (Q2) | Medium |
+| 1·12 | **Books** to `5a`: Recaps row on top (all `RecapsCard` states), list card (View expenses + count, subtitle follows the expenses grouping/sort), daily count-up, dot pulse | Medium |
 | 1·13 | **M4 marked paid** (replaces MOTION-SPEC §6) | Medium |
 | 1·14 | **Failed action:** shake + inline Retry (MOTION-SPEC §7) | Low |
 | 1·15 | Docs: MOTION-SPEC §14 (merge 1), Design Standard nav/composer, PUNCH-LIST rows | — |
@@ -716,7 +749,7 @@ needs it. Never tap Connect / Finish setup on the preview.
 
 ---
 
-## 6. Open questions (each has a default; work isn't blocked)
+## 6. Open questions — all answered 2026-10-03 and locked in §L (kept for the record)
 
 1. **Q1 — Merge 1 New invoice / New quote.** The template needs DB A/B, so it
    lands in merge 2. Until then, the two options keep commit 4's working path:
