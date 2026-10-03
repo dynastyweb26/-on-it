@@ -306,3 +306,17 @@
 .rc-quiet-card { width: 100%; max-width: 337px; display: flex; flex-direction: column; align-items: center; padding: 40px 28px 28px; border-radius: 28px; background: #fff; border: 1px solid rgba(31, 27, 19, .08); box-shadow: 0 30px 60px -36px rgba(115, 92, 0, .5); }
 .rc-quiet-card img { width: 72px; height: 72px; border-radius: 17px; display: block; box-shadow: 0 12px 24px -10px rgba(115, 92, 0, .6); }
 .rc-quiet-card .rc-btn { margin-top: 32px; }
+
+/* ── Month at a glance ── */
+.rc-gsub { margin-top: 10px; font: 400 15px/20px var(--onit-body); color: var(--onit-secondary); }
+.rc-gsub b { font: 800 15px var(--onit-display); color: var(--onit-ink); font-variant-numeric: tabular-nums; }
+.rc-gbars { margin-top: 36px; height: 300px; display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(31, 27, 19, .12); }
+.rc-gcol { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 8px; }
+.rc-gcol b { font: 700 14px var(--onit-display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-gbar { width: 100%; border-radius: 14px 14px 4px 4px; transform-origin: bottom center; background: linear-gradient(180deg, #efe4cf, #e3d5bb); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); }
+.rc-gbar.best { background: linear-gradient(180deg, #f1d57c, var(--onit-gold) 40%, #c49b22); box-shadow: 0 -6px 24px rgba(212, 175, 55, .45), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.rc-glbl { margin-top: 10px; display: flex; justify-content: space-between; gap: 14px; }
+.rc-glbl span { flex: 1; text-align: center; font: 400 12px/16px var(--onit-body); color: var(--onit-secondary); }
+.rc-best { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; border-radius: 20px; background: #fff; border: 2px solid var(--onit-gold); box-shadow: 0 0 0 4px rgba(212, 175, 55, .22), 0 18px 36px -24px rgba(115, 92, 0, .5); }
+.rc-best small { font: 600 12px/1 var(--onit-body); letter-spacing: .12em; text-transform: uppercase; color: var(--onit-gold-text); }
+.rc-best b { font: 700 18px/24px var(--onit-display); }
