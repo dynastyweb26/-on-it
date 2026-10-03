@@ -9,6 +9,7 @@
 //   npm run icons:build
 // and commit both this file and the regenerated woff2.
 export const ICON_NAMES = [
+  'account_balance',
   'account_balance_wallet',
   'add',
   'add_to_home_screen',

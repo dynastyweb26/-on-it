@@ -152,6 +152,15 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     let settled = false;
     const stuckTimer = setTimeout(() => { if (active && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
     const settle = () => { settled = true; clearTimeout(stuckTimer); };
+    // Stripe's Account Link return/refresh URLs land on /settings?connect=…
+    // (server-built, unchanged): hand them to the Payouts sub-screen, which
+    // runs the return-trip logic below.
+    const connectParam = new URLSearchParams(window.location.search).get('connect');
+    if (section === 'main' && connectParam) {
+      settled = true; clearTimeout(stuckTimer);
+      router.replace(`/settings/payouts?connect=${encodeURIComponent(connectParam)}`);
+      return () => { active = false; };
+    }
     (async () => {
       try {
         // Fast local gate FIRST: getSession() reads the persisted session from
@@ -189,9 +198,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         // incomplete, so a finished-elsewhere onboarding shows up. The param is
         // dropped from the URL first so a reload can't loop the redirect.
         // All of it is skipped unless the server says Connect is on here.
-        const connectParam = new URLSearchParams(window.location.search).get('connect');
-        if (connectParam) router.replace('/settings');
-        if (connectOn) {
+        if (connectParam) router.replace('/settings/payouts');
+        if (connectOn && (section === 'main' || section === 'payouts')) {
           if (connectParam === 'refresh') {
             void startConnect();
           } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
@@ -486,13 +494,20 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="space-y-4 px-4 py-4 overflow-x-hidden">
-      <SettingsTitle>{is('business') ? 'Business profile' : 'Settings'}</SettingsTitle>
+      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : 'Settings'}</SettingsTitle>
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
       {is('main') && (
         <SettingsGroup title="Your business">
           <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
+        </SettingsGroup>
+      )}
+      {is('main') && (
+        <SettingsGroup title="Money">
+          <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
+            value={connectOn && p.stripe_charges_enabled ? 'Connected'
+              : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
         </SettingsGroup>
       )}
 
@@ -539,7 +554,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       </section>
       </>)}
 
-      {is('main') && (<>
+      {is('payouts') && (<>
       {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
           Four states from the profile's mirrored Stripe status:
             not connected                        → Connect (creates the account)
