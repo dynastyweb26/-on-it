@@ -565,6 +565,14 @@ whoosh on every transition; the bed pauses while held or hidden, fades out
 `onit-recap-muted`. The licensed set replaces `play(name)` / the bed with
 decoded buffers of the same names.
 
+**Levels (On It build, 2026-10-03 — the prototype's were far too quiet on a
+phone speaker):** measured offline, not by ear. The bed's average is
+`music.db` dBFS (−24 RMS; peaks ≈ −6). Every cue peaks between −10 and
+−6 dBFS: the cue sheet's dB (−28 … −10) maps linearly onto that window, so the
+order above holds (ticks softest, snap loudest); each sound's measured peak at
+unity gain (`PEAK_AT_UNITY`) sets its gain. The chime/snap duck is unchanged.
+Re-measure the licensed set the same way.
+
 ## 7. Payload shape (one per recap)
 
 The prototype's scenario object is shaped like a real recap payload:
