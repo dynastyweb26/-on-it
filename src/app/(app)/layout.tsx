@@ -91,17 +91,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // get neither. Reduced motion: the global rule stops both.
   const tabIdx = tabIndexOf(path);
   const prevTabRef = useRef(tabIdx);
-  const [enterDir, setEnterDir] = useState<'onit-from-right' | 'onit-from-left' | null>(null);
+  // M5 (release frames / motion file): the new screen crossfades in 160ms,
+  // and the newly active tab's icon does a 4px bounce.
+  const [enterDir, setEnterDir] = useState<'onit-tab-enter' | null>(null);
+  const [bounceIdx, setBounceIdx] = useState(-1);
   useIsoLayoutEffect(() => {
     const prev = prevTabRef.current;
     prevTabRef.current = tabIdx;
     if (prev === -1 || tabIdx === -1 || prev === tabIdx) return;
-    setEnterDir(tabIdx > prev ? 'onit-from-right' : 'onit-from-left');
-    const t = setTimeout(() => setEnterDir(null), 320);
+    setEnterDir('onit-tab-enter');
+    setBounceIdx(tabIdx);
+    const t = setTimeout(() => { setEnterDir(null); setBounceIdx(-1); }, 420);
     return () => clearTimeout(t);
   }, [tabIdx]);
   const navRef = useRef<HTMLElement>(null);
-  const tabLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  // The disc sits behind each tab's icon pill (not the whole tab).
+  const tabLinkRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const [pill, setPill] = useState<{ x: number; y: number; w: number; h: number; animate: boolean } | null>(null);
   useIsoLayoutEffect(() => {
     function measure(animate: boolean) {
@@ -296,33 +301,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           or when install isn't possible on this device. Both step aside while
           the keyboard is open (data-kb-hide), leaving the room to the field. */}
       <InstallBanner />
-      <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-2 pb-[calc(env(safe-area-inset-bottom)_+_6px)]">
-        {/* The gliding gold pill; until it has measured, the active tab paints its own. */}
+      {/* Tab bar (release frames 0a, M5): each tab is an icon pill with the
+          label under it. Pills 58×32; Chat is the raised centre pill (64×36,
+          4px up) and keeps a soft gold fill at rest. The gold disc slides to
+          the active pill on the spring token. */}
+      <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px]">
         {pill && (
           <span
             aria-hidden
-            className="pointer-events-none absolute left-0 top-0 rounded-full bg-primary-container"
+            className="pointer-events-none absolute left-0 top-0 rounded-[18px] bg-primary-container"
             style={{
               width: pill.w,
               height: pill.h,
               transform: `translate(${pill.x}px, ${pill.y}px)`,
-              transition: pill.animate ? 'transform 300ms var(--ease-emphasized), width 300ms var(--ease-emphasized)' : 'none',
+              transition: pill.animate ? 'transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring), height var(--motion-slow) var(--ease-spring)' : 'none',
             }}
           />
         )}
         {TABS.map(({ href, label, icon }, i) => {
           const active = path.startsWith(href);
-          // Chat is the centre tab (M5): a slightly larger, raised pill that keeps
-          // a soft gold fill when another tab is active.
           const centre = href === '/chat';
           return (
-            <Link key={href} href={href} ref={(el) => { tabLinkRefs.current[i] = el; }}
-              className={`relative flex flex-col items-center justify-center gap-0.5 rounded-full text-[11.5px] tracking-wide transition-transform
-                ${centre ? '-mt-1 mb-1.5 min-h-[60px] px-3.5 active:scale-90' : 'my-1.5 min-h-touch px-2.5 active:scale-95'}
-                ${active ? `${pill ? '' : 'bg-primary-container '}font-bold text-on-primary-container` : `font-semibold text-on-surface-variant${centre ? ' bg-[#f0e3b8]' : ''}`}`}>
-              <Icon name={icon} size={centre ? 27 : 24} filled={active} />
-              {label}
-              {href === '/dashboard' && <BooksDot active={active} />}
+            <Link key={href} href={href}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => { if (!active) { try { navigator.vibrate?.(8); } catch { /* unsupported */ } } }}
+              className={`onit-tab group flex min-w-0 flex-1 flex-col items-center gap-1 pb-1 ${centre ? 'onit-tab-centre' : ''}`}>
+              <span ref={(el) => { tabLinkRefs.current[i] = el; }}
+                className={`relative grid place-items-center rounded-[18px]
+                  ${centre ? '-mt-1 h-9 w-16' : 'h-8 w-[58px]'}
+                  ${active ? (pill ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
+                <span className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}`}>
+                  <Icon name={icon} size={centre ? 27 : 24} filled={active} />
+                </span>
+                {href === '/dashboard' && <BooksDot />}
+              </span>
+              <span className={`text-[11.5px] leading-none tracking-[.01em] ${active ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>
+                {label}
+              </span>
             </Link>
           );
         })}
@@ -332,14 +347,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** (14d) Books tab dot: an unwatched recap from the last 14 days. */
-function BooksDot({ active }: { active: boolean }) {
+/** (14d) Books tab dot: an unwatched recap from the last 14 days. Red with a
+ *  cream ring, top-right of the Books pill (release frames 0a). */
+function BooksDot() {
   const { unwatched } = useRecaps();
   if (!unwatched) return null;
-  // Gold on the bar; ink on the active tab's gold pill (gold on gold disappears).
   return (
     <>
-      <span aria-hidden className={`absolute right-3 top-1.5 h-2 w-2 rounded-full ring-2 ${active ? 'bg-on-background ring-primary-container' : 'bg-[#d4af37] ring-background'}`} />
+      <span aria-hidden className="absolute right-[13px] top-0.5 h-[9px] w-[9px] rounded-full border-2 border-background bg-[#c8452c]" />
       <span className="sr-only">, new recap</span>
     </>
   );

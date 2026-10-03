@@ -467,10 +467,14 @@ html[data-splash=""] .onit-splash {
 .onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
 
 /* ---- Tabs + selected ring (MOTION-SPEC.md §10) ---- */
-@keyframes onit-from-right { from { opacity: 0; transform: translateX(28px); } }
-@keyframes onit-from-left { from { opacity: 0; transform: translateX(-28px); } }
-.onit-from-right { animation: onit-from-right 280ms var(--ease-standard) both; }
-.onit-from-left { animation: onit-from-left 280ms var(--ease-standard) both; }
+/* Tab switch (M5): the screen crossfades in; the new tab's icon bounces 4px;
+   Chat presses deeper than the others (.9 scale, 1px down). */
+.onit-tab-enter { animation: onit-fade var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-tab-bounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+.onit-tab-bounce { animation: onit-tab-bounce var(--motion-slow) var(--ease-spring) both; }
+.onit-tab { transition: transform 100ms var(--ease-emphasized); }
+.onit-tab:active { transform: scale(.95); }
+.onit-tab-centre:active { transform: scale(.9) translateY(1px); }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }
