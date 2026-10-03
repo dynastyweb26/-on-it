@@ -15,6 +15,8 @@ import { createClient } from '@/lib/supabase/client';
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
   if (path.startsWith('/invoices/') && path !== '/invoices') return '/invoices';
+  // A client's detail page backs to the list; New / Edit carry their own Cancel.
+  if (/^\/clients\/[^/]+$/.test(path) && path !== '/clients/new') return '/clients';
   if (path === '/expenses') return '/dashboard';
   if (path === '/summary') return '/dashboard';
   if (path === '/recaps') return '/dashboard';

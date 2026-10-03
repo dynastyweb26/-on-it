@@ -910,9 +910,14 @@ export default function Chat() {
     if (url.searchParams.get('new') !== '1') return;
     const t = setTimeout(() => {
       newFromParam.current = true;
+      // &seed= primes the field (a client's "Invoice" action, until the
+      // template lands in merge 2 · 2·12). Capped; never sent on its own.
+      const seed = (url.searchParams.get('seed') ?? '').slice(0, 140);
       url.searchParams.delete('new');
+      url.searchParams.delete('seed');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
       window.dispatchEvent(new Event('onit-new-chat'));
+      if (seed) setInput(seed);
     }, 0);
     return () => clearTimeout(t);
   }, [hydrated]);
