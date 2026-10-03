@@ -15,16 +15,19 @@ const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'products', label: 'Products & Services' },
 ];
 
+// "Coming soon" copy until merge 2 ships saved clients / products: the empty
+// states must not promise anything that isn't live, so no buttons either.
+// Merge 2 restores the design's empty-state copy (PUNCH-LIST).
 const EMPTY: Record<Segment, { icon: IconName; title: string; body: string }> = {
   clients: {
     icon: 'group',
-    title: 'Your saved clients live here',
-    body: 'When you bill someone a second time, On It will ask if you want to save them. Saved clients show up here, A–Z.',
+    title: 'Saved clients are coming soon.',
+    body: 'You’ll be able to save the people you bill and pick them in one tap.',
   },
   products: {
     icon: 'handyman',
-    title: 'Your products & services live here',
-    body: 'Things you charge for often can be saved, so they’re one tap away on your next invoice or quote.',
+    title: 'Saved products & services are coming soon.',
+    body: 'Save what you charge for often and add it to an invoice in one tap.',
   },
 };
 
