@@ -299,7 +299,7 @@ export default function Dashboard() {
         // on the keyboard; max-h tops out at that area (100%) and it scrolls.
         <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
           <div
-            className="max-h-[min(88dvh,100%)] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="max-h-[min(88dvh,100%)] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">

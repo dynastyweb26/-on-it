@@ -107,16 +107,48 @@ Layout as shipped: dark Net card with chevron, 3 tiles (Collected / Still owed /
 - Reduced motion: one static ring, icon swap only.
 - Performance: throttle level updates to ~9/sec; stop the analyser when not listening.
 
-## 12. Recap sheet (weekly / monthly "in review")
+## 12. Recaps (weekly / monthly)
 
-Built after Batch B, on `feat/recap` (`src/components/RecapSheet.tsx`). Opened from the recap push (`/dashboard?recap=<id>`) or on app open for the newest unseen recap.
+The old recap sheet (`RecapSheet.tsx`, "sheet rises, figures count up") was
+removed when the full-screen story shipped (`9eb43c0`, merged to `main` in
+`683301b`). Recap motion now lives in three places:
 
-- Sheet: full height, rises from the bottom edge (`onit-sheet-in`: translateY(100%) → 0, `--motion-slow`, `--ease-standard`).
-- Figures count up with `CountUpMoney`, 700ms each, 120ms apart: income → expenses → net, starting 300ms in (as the sheet lands). Net is the large figure, uncoloured; a negative shows a minus sign (Books' no-coloured-numbers rule).
-- After net lands (~1240ms): "Most spent on", the counts line, the PDF buttons and Done rise (`onit-rise`, 50ms apart).
-- Once per recap per session (sessionStorage `onit_recap_counted:<id>`): reopening shows the figures still.
-- Reduced motion: static values, no rise (the global rule).
-- The Summary / Detailed choice opens over it with the period-picker sheet's motion (`paywall-in 200ms ease-out`).
+- **Watch / Later sheet:** `src/components/recap/RecapProvider.tsx`. It rises
+  from the bottom edge (`onit-sheet-in`: translateY(100%) → 0, `--motion-slow`,
+  `--ease-standard`). The swoosh mark wears a gold ring.
+- **The story player:** `src/components/recap/RecapStory.tsx` and its slides.
+  One rAF clock drives paused WAAPI animations: a 700ms swoosh-wipe between
+  slides, count-ups, columns + ribbon, sound cues. Its timings live in
+  `src/lib/recap/config.ts` and are specified in `RECAP-SPEC.md` §2–§6, not
+  here. Reduce Motion: 350ms fades, 280ms cross-fade, final numbers, no ticks.
+- **History list** (`/recaps`) and the Books Recaps card: no motion beyond
+  press feedback.
+- The Totals / Itemized PDF choice opens with the period-picker sheet's motion
+  (`paywall-in 200ms ease-out`).
+
+## 13. Foundations for the UI redesign (`feat/ui-redesign`, 2026-10-03)
+
+The redesign's motion reference is `design-reference/on-it-motion.html`.
+**Easing stays on this spec's tokens (§1)**; the design's stand-in curves are
+not adopted. The shipped send (§4) and paid (§6) animations stay; the
+design's M1 / M4 heroes are deferred to the final motion pass.
+
+- **Reduced motion from JS:** `src/lib/use-reduced-motion.ts`
+  (`usePrefersReducedMotion`, live). Use it for WAAPI / rAF / carousel motion,
+  which the global CSS kill switch doesn't reach. CSS motion needs nothing.
+- **Sheets:** bottom sheets rise with `onit-sheet-in` (`--motion-slow`,
+  `--ease-standard`). Centred dialogs and small choice sheets keep `paywall-in`
+  (200ms). One entrance per sheet; exits stay instant (no exit animation yet).
+- **Toasts:** rise 12px and fade in (`onit-toast-in`, `--motion-base`,
+  `--ease-standard`). The keyframes keep the toast's own centring; the keyboard
+  lift uses the separate `translate` property, so the two never fight.
+- **Switches:** the knob moves with `transform` (`translate-x-6`, 160ms), never
+  `left` (the transform / opacity ground rule).
+- **Micro (≤ 180ms):** steppers, chips, tabs, segmented controls.
+  **Confirm (300–500ms):** add / remove, prompts, status.
+  **Hero (≤ 1.2s):** rare (send, save, paid).
+- **Haptics:** `navigator.vibrate` only, so Android only (iOS Safari / PWA has
+  no vibration API).
 
 ## Build order (one commit each)
 

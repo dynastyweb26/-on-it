@@ -32,6 +32,7 @@ import { slideTiming, type Cue, type SlideTiming } from '@/lib/recap/timing';
 import { createClock, type RecapAction, type SlideClock } from '@/components/recap/clock';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import { SLIDES } from '@/components/recap/slides';
+import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import './recap.css';
 
 const MUTE_KEY = 'onit-recap-muted';
@@ -46,17 +47,6 @@ const DT_MAX = 64;
 type Entry = { key: number; idx: number; clock: SlideClock; timing: SlideTiming };
 type Trans = { anims: Animation[]; p: number; dur: number; theme: 'light' | 'dark' };
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const on = () => setReduced(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return reduced;
-}
 
 export type RecapStoryProps = {
   payload: RecapPayload;

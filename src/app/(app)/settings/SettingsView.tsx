@@ -602,8 +602,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   ${p.card_payments_enabled ? 'bg-primary-container' : 'bg-outline-variant'}`}
               >
                 <span
-                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                    ${p.card_payments_enabled ? 'left-7' : 'left-1'}`}
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                    ${p.card_payments_enabled ? 'translate-x-6' : ''}`}
                 />
               </button>
             </div>
@@ -894,8 +894,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
               ${pushOn ? 'bg-primary-container' : 'bg-outline-variant'}`}
           >
             <span
-              className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                ${pushOn ? 'left-7' : 'left-1'}`}
+              className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                ${pushOn ? 'translate-x-6' : ''}`}
             />
           </button>
         </div>
@@ -918,8 +918,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 ${p.notify_draft_nudges !== false ? 'bg-primary-container' : 'bg-outline-variant'}`}
             >
               <span
-                className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                  ${p.notify_draft_nudges !== false ? 'left-7' : 'left-1'}`}
+                className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                  ${p.notify_draft_nudges !== false ? 'translate-x-6' : ''}`}
               />
             </button>
           </div>

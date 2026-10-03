@@ -353,6 +353,10 @@ html[data-splash=""] .onit-splash {
 /* Full-height sheet rising from the bottom edge (recap sheet; MOTION-SPEC §12). */
 @keyframes onit-sheet-in { from { transform: translateY(100%); } }
 .onit-sheet-in { animation: onit-sheet-in var(--motion-slow) var(--ease-standard) both; }
+/* Toasts rise in (MOTION-SPEC §13). The keyframes keep the toast's own
+   centring (-50% x); the keyboard lift uses the separate `translate` property. */
+@keyframes onit-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.onit-toast-in { animation: onit-toast-in var(--motion-base) var(--ease-standard) both; }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }

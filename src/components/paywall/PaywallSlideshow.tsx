@@ -17,6 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import {
   GRAPHIC_CONTENT_W, GRAPHIC_H, GRAPHIC_W, PaywallSlideGraphic, SLIDE_TITLE, type SlideId,
 } from '@/components/paywall/PaywallSlides';
+import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 
 const ADVANCE_MS = 4000;
 const RESUME_MS = 6000;
@@ -25,17 +26,6 @@ const TITLE_LH = 1.1;
 const TITLE_GAP = 6; // headline → graphic
 const MAX_GRAPHIC_SCALE = 1.5;
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const on = () => setReduced(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return reduced;
-}
 
 /** Headline size and graphic scale for a hero `height` (dots included) and track `width`. */
 function layout(height: number, width: number) {
