@@ -133,9 +133,10 @@ removed when the full-screen story shipped (`9eb43c0`, merged to `main` in
 ## 13. Foundations for the UI redesign (`feat/ui-redesign`, 2026-10-03)
 
 The redesign's motion reference is `design-reference/on-it-motion.html`.
-**Easing stays on this spec's tokens (§1)**; the design's stand-in curves are
-not adopted. The shipped send (§4) and paid (§6) animations stay; the
-design's M1 / M4 heroes are deferred to the final motion pass.
+**Easing stays on this spec's tokens (§1)** everywhere except the composer,
+its "+" menu and the template, which use the release frames' motion spec
+(1d) exactly (§14). **Superseded by §14 (audit rev 2):** M4 now replaces §6;
+M1 lands with the template (merge 2).
 
 - **Reduced motion from JS:** `src/lib/use-reduced-motion.ts`
   (`usePrefersReducedMotion`, live). Use it for WAAPI / rAF / carousel motion,
@@ -153,10 +154,57 @@ design's M1 / M4 heroes are deferred to the final motion pass.
   **Hero (≤ 1.2s):** rare (send, save, paid).
 - **Haptics:** `navigator.vibrate` only, so Android only (iOS Safari / PWA has
   no vibration API).
-- **Nav (5 tabs):** Clients · Invoices · Chat (centre) · Books · Settings. The
-  §10 pill glide and side entry are unchanged and measure each tab, so the
-  larger raised Chat pill (M5) needs nothing extra. Chat keeps a soft gold fill
-  when inactive.
+- **Nav (5 tabs):** Clients · Invoices · Chat (centre) · Books · Settings.
+  Superseded by §14 (M5).
+
+## 14. UI redesign merge 1 as built (`feat/ui-redesign`, 2026-10-03)
+
+Audit rev 2 (UI-REDESIGN-AUDIT.md §4, founder rule F5): the release frames'
+motion spec **1d** gives exact values for the composer, menu and template;
+everything else uses this spec's tokens (§1).
+
+**Composer + menu (1d, exact):**
+- "+" (44 px, soft gold `#f0e3b8`) → ×: glyph rotates 45° in
+  **300ms `cubic-bezier(.3,1.5,.5,1)`**; fill flips to ink in 200ms ease.
+- Scrim: cream frost (`background` at 85%) fades in **220ms ease**, portaled
+  to `<body>`; the bar is lifted above it (stays sharp).
+- Options: rise from `16 + 12 × distance` px and scale .88 → 1,
+  **340ms `cubic-bezier(.2,1.3,.4,1)`**, opacity 180ms ease, nearest the "+"
+  first, **45ms** apart; transform origin `22px 100%`.
+- Close (×, scrim, Escape, a pick): everything reverses together, **180ms**,
+  no stagger.
+- Voice session lives in the field: red level dot (MicRings, red tone) +
+  "Listening…" + Done; Speak between takes; the "+" slot is the ink × that
+  ends the session.
+
+**Chat thread (tokens):** a new bubble rises 8px (`--motion-base`,
+`--ease-emphasized`); "thinking" is a typing bubble (three dots, 900ms loop)
+— the On It spinner (§2) stays for "Reading your receipt…".
+
+**Tabs (M5, tokens; replaces §10's side entry):** the gold disc slides to the
+active icon pill (`--motion-slow`, `--ease-spring`); the new tab's icon
+bounces 4px (`--motion-slow` spring); the screen crossfades (`--motion-fast`);
+Chat presses .9 + 1px down, others .95; light haptic on a tab change.
+
+**Lists (tokens):** Invoices filter → list crossfades with a 12px shift
+toward the direction of travel (`--motion-fast`); status tags crossfade when
+they change (sent → viewed); segmented controls slide a white thumb
+(`--motion-fast` spring).
+
+**Books (tokens):** the count-up plays on the **first visit of the day**
+(localStorage `onit_books_counted_day`, was once per session); the Recaps dot
+pulses once (one ring, 600ms); tiles press .97 in 120ms.
+
+**Paid (M4, tokens; replaces §6's gold sweep):** status word fades (120ms),
+PAID stamp lands with a settle (200–700ms), the card dips 3px on impact, the
+due amount rolls down (500–1200ms, `RollMoney`), success tick at impact.
+
+**Failure (§7 update):** shake 6px, three decaying passes, 360ms
+emphasized; inline "Retry" label + icon; warning haptic `[10, 40, 10]` once
+per live failure and again on a failed retry.
+
+Reduce Motion: the global kill switch lands every CSS animation on its end
+state; RollMoney / CountUpMoney show the final figure.
 
 ## Build order (one commit each)
 

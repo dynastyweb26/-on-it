@@ -684,6 +684,10 @@ needs it. Never tap Connect / Finish setup on the preview.
 
 ### Merge 1: no-DB visual changes (composer, nav, Settings, sorting, motion)
 
+**Status 2026-10-03: built on `feat/ui-redesign`, awaiting the branch
+preview + iPhone pass** (hashes in PUNCH-LIST). Two small follow-ups rode
+along: `dfab3cf` (tutorial mock bubbles) and `9bc293d` (Books tile chevron).
+
 | # | Commit | Risk |
 |---|---|---|
 | 1·1 | **Composer bar:** 44 px + (left, `data-splash-target`), "Message On It…" field with gallery + camera inside, 44 px send (right). Voice session in the field (Listening… / Done = stop & send, Speak between takes, × in the + slot ends the session, level dot). Splash lands on the new +. Tutorial mocks + copy ("Tap +, then Voice") | **High** (iOS gesture, splash, keyboard) |
