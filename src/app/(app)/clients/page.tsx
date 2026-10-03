@@ -5,7 +5,7 @@
 // migrations land (audit commits 6–7, 11–12): nothing is read or written here
 // yet — chat still saves every client silently as history, and only clients
 // you choose to save will be listed.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 
@@ -30,6 +30,11 @@ const EMPTY: Record<Segment, { icon: IconName; title: string; body: string }> = 
 
 export default function Clients() {
   const [segment, setSegment] = useState<Segment>('clients');
+  // /clients?segment=products opens the Products & Services segment
+  // (Settings › Products & Services).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('segment') === 'products') setSegment('products');
+  }, []);
   const i = SEGMENTS.findIndex((s) => s.key === segment);
   const empty = EMPTY[segment];
   return (

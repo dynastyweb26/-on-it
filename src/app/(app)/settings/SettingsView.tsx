@@ -506,37 +506,37 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
-      {is('main') && (
+      {/* The grouped main screen (release frames 0c). Clients and Products &
+          Services open the Clients tab (founder rule F3); Recurring expenses
+          joins MONEY with the Recurring screen (merge 3). */}
+      {is('main') && (<>
         <SettingsGroup title="Your business">
+          <SettingsRow icon="group" tint="gold" title="Clients" href="/clients" />
+          <SettingsRow icon="handyman" tint="gold" title="Products & Services" href="/clients?segment=products" />
           <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
+          <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />
         </SettingsGroup>
-      )}
-      {is('main') && (
         <SettingsGroup title="Money">
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
               : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
         </SettingsGroup>
-      )}
-      {is('main') && (
-        <SettingsGroup title={access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) ? 'More' : 'Account'}>
+        <SettingsGroup title="Account">
+          {/* Plan: only when the Plan screen has something to show (founder, a
+              real subscription, or the paywall on) — the same rule as before. */}
+          {access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+            <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
+              value={access.tier === 'founder' ? 'Founder'
+                : access.tier === 'trialing' ? 'Free trial'
+                : access.tier === 'past_due' ? 'Payment due'
+                : access.tier === 'active' ? 'Subscribed' : 'Free'} />
+          )}
           <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
           {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
           <SettingsRow icon="help" title="Help & feedback" href="/settings/help" />
         </SettingsGroup>
-      )}
-      {/* Plan row: only when the Plan screen has something to show (founder,
-          a real subscription, or the paywall on) — same rule as before. */}
-      {is('main') && access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
-        <SettingsGroup title="Account">
-          <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
-            value={access.tier === 'founder' ? 'Founder'
-              : access.tier === 'trialing' ? 'Free trial'
-              : access.tier === 'past_due' ? 'Payment due'
-              : access.tier === 'active' ? 'Subscribed' : 'Free'} />
-        </SettingsGroup>
-      )}
+      </>)}
 
       {is('business') && (<>
       <section className="card space-y-3">
@@ -940,13 +940,6 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
 
       {is('main') && (<>
 
-      <section className="card space-y-3">
-        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Records</h2>
-        <p className="text-sm text-on-surface-variant">Every invoice and receipt, archived automatically — search and reopen any PDF.</p>
-        <button className="btn-outline w-full text-primary" onClick={() => router.push('/vault')}>
-          <Icon name="folder" size={18} /> Vault
-        </button>
-      </section>
 
 
       </>)}
