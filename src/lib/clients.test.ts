@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clientStatus, groupByLetter, initials, letterOf, matchesQuery, normalizeSummary } from './clients';
+import { usageNote, clientStatus, groupByLetter, initials, letterOf, matchesQuery, normalizeSummary } from './clients';
 
 const base = normalizeSummary({ id: 'x', name: 'Dan', saved: true });
 
@@ -39,4 +39,11 @@ test('matchesQuery: every word, any order, case-insensitive', () => {
   assert.ok(matchesQuery('Dan Okafor', 'okafor dan'));
   assert.ok(!matchesQuery('Dan Okafor', 'dan smith'));
   assert.ok(matchesQuery('Dan Okafor', '   '));
+});
+
+test('usageNote', () => {
+  assert.equal(usageNote('Mike', 0, 0), null);
+  assert.equal(usageNote('Mike', 1, 0), 'Mike is on 1 invoice already. It will link to this client.');
+  assert.equal(usageNote('Mike', 2, 0), 'Mike is on 2 invoices already. Both will link to this client.');
+  assert.equal(usageNote('Mike', 2, 1), 'Mike is on 2 invoices and 1 quote already. All 3 will link to this client.');
 });

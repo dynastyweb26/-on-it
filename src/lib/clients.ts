@@ -81,3 +81,15 @@ export function matchesQuery(name: string, query: string): boolean {
   const hay = name.toLowerCase();
   return words.every((w) => hay.includes(w));
 }
+
+/** "Mike is on 2 invoices already. Both will link to this client." */
+export function usageNote(first: string, invoices: number, quotes: number): string | null {
+  const n = invoices + quotes;
+  if (n === 0) return null;
+  const parts = [
+    invoices ? `${invoices} ${invoices === 1 ? 'invoice' : 'invoices'}` : '',
+    quotes ? `${quotes} ${quotes === 1 ? 'quote' : 'quotes'}` : '',
+  ].filter(Boolean).join(' and ');
+  const tail = n === 1 ? 'It will link to this client.' : n === 2 ? 'Both will link to this client.' : `All ${n} will link to this client.`;
+  return `${first} is on ${parts} already. ${tail}`;
+}
