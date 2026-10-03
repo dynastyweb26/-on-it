@@ -634,6 +634,21 @@ results(id, ok, expected, actual) as (
       else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.record_product_use(jsonb)'))
         || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE')
         || ' anon=' || has_function_privilege('anon', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE') end
+
+  -- S. Pay page line unit + detail (20261003000003). SKIP until pushed.
+  --    (H and I above still cover get_public_invoice's grants and definer.)
+  union all
+  select 'S1 get_public_invoice line keys',
+    case when not exists (select 1 from applied where version = '20261003000003') then null
+      else coalesce((select p.prosrc ilike '%''unit'',%' and p.prosrc ilike '%''detail'',%'
+          and p.prosrc ilike '%''description''%' and p.prosrc ilike '%''qty''%' and p.prosrc ilike '%''unit_price''%'
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)')), false) end,
+    'line elements pass description, qty, unit_price, unit, detail',
+    case when not exists (select 1 from applied where version = '20261003000003') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice(text, text)') is null then 'missing'
+      else concat_ws(' ',
+        (select case when p.prosrc ilike '%''unit'',%' then 'unit' end from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)')),
+        (select case when p.prosrc ilike '%''detail'',%' then 'detail' end from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)'))) end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
