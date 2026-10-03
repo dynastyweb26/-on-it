@@ -16,6 +16,7 @@ import { fixturePayload, INVOICE_COUNTS, onePaymentWeek, SCENARIO_LABELS, scenar
 import { recapSequence } from '@/lib/recap/payload';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import type { Cue } from '@/lib/recap/timing';
+import { primeRecapAudio } from '@/lib/recap/audio';
 
 // Same as the app will do: the story's code (and its CSS) loads only on open.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
@@ -118,10 +119,11 @@ function StoryPreview() {
           ))}
         </div>
       </div>
-      <button className="btn-primary w-full" onClick={() => { setLog([]); setOpen(true); }}>Open recap</button>
+      {/* primeRecapAudio inside the tap: iOS only starts Web Audio in a gesture. */}
+      <button className="btn-primary w-full" onClick={() => { primeRecapAudio(); setLog([]); setOpen(true); }}>Open recap</button>
       {log.length > 0 && (
         <div className="rounded-card bg-surface-container p-3 text-xs leading-5 text-on-surface-variant">
-          <div className="mb-1 font-semibold">Last cues / actions (sound lands in a later commit)</div>
+          <div className="mb-1 font-semibold">Last cues / actions (placeholder sounds)</div>
           {log.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       )}

@@ -15,12 +15,18 @@
 //  - Transition: the swoosh wipe, 700 ms inOut — transform/opacity only (see
 //    recap.css). Reduce Motion: a 280 ms cross-fade, no mark. A tap during a
 //    transition finishes it and starts the next.
-//  - Mute persists in localStorage 'onit-recap-muted'. Sound itself lands in
-//    its own commit; cues are already resolved and handed to `onCue`.
+//  - Sound (lib/recap/audio.ts, placeholder synthesis per the §6 cue sheet):
+//    the music bed starts when the story opens if the opening tap primed audio
+//    (primeRecapAudio), otherwise on the first tap inside the story; cues play
+//    as the clock crosses them, the whoosh on every transition; the bed pauses
+//    while held / hidden and fades out on close. Web Audio only, ambient
+//    session (the silent switch mutes it). Mute persists in localStorage
+//    'onit-recap-muted'. `onCue` still reports each cue (dev log).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { RECAP_CONFIG } from '@/lib/recap/config';
+import { recapAudio } from '@/lib/recap/audio';
 import { recapSequence, type RecapPayload } from '@/lib/recap/payload';
 import { slideTiming, type Cue, type SlideTiming } from '@/lib/recap/timing';
 import { createClock, type RecapAction, type SlideClock } from '@/components/recap/clock';
@@ -110,10 +116,33 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
 
   const setTheme = (t: 'light' | 'dark') => { if (rootRef.current) rootRef.current.dataset.theme = t; };
   const playing = () => !st.current.held && !st.current.spacePaused && !st.current.hidden;
-  const syncPaused = () => setPaused(st.current.held || st.current.spacePaused);
+  const syncPaused = () => {
+    setPaused(st.current.held || st.current.spacePaused);
+    recapAudio()?.pauseMusic(!playing());
+  };
+  // Sound starts on the first gesture if the opening tap didn't prime it.
+  const ensureSound = () => {
+    const a = recapAudio();
+    if (!a) return;
+    a.resume();
+    a.setMuted(st.current.muted);
+    if (!a.musicOn) a.startMusic();
+  };
+  const cue = (c: Cue) => {
+    if (st.current.muted) return;
+    recapAudio()?.play(c.sound, c.db);
+    cbs.current.onCue?.(c);
+  };
 
   useEffect(() => {
     try { const m = localStorage.getItem(MUTE_KEY) === '1'; st.current.muted = m; setMuted(m); } catch { /* storage blocked: unmuted */ }
+    // Music bed: now if the opening tap primed the audio context, else on the first tap.
+    const a = recapAudio();
+    if (a) {
+      a.setMuted(st.current.muted);
+      if (a.running) a.startMusic();
+    }
+    return () => { recapAudio()?.stopMusic(); };   // 600 ms fade-out on close
   }, []);
 
   const endTrans = useCallback(() => {
@@ -196,7 +225,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
       A(bandRef.current, [{ transform: `translateX(${b0}px)`, opacity: 0 }, { offset: 0.5, opacity: 1 }, { transform: `translateX(${b1}px)`, opacity: 0 }]);
     }
     st.current.trans = { anims, p: 0, dur, theme: timings[st.current.idx].theme };
-    if (!st.current.muted) cbs.current.onCue?.({ t: 0, sound: C.cue.sound, db: C.cue.db, label: C.cue.label });
+    cue({ t: 0, sound: C.cue.sound, db: C.cue.db, label: C.cue.label });
     setPendingTrans(null);
   }, [pendingTrans, reduced, timings]);
 
@@ -213,7 +242,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
         const D = cur.timing.duration;
         s.t = Math.min(D, s.t + dt);
         cur.clock.seek(s.t);
-        if (!s.muted && cbs.current.onCue) for (const c of cur.timing.cues) if (c.t > s.prevT && c.t <= s.t) cbs.current.onCue(c);
+        for (const c of cur.timing.cues) if (c.t > s.prevT && c.t <= s.t) cue(c);
         s.prevT = s.t;
         const T = s.trans;
         if (T) {
@@ -239,7 +268,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
 
   // Hidden tab / app in the background: hold the clock.
   useEffect(() => {
-    const on = () => { st.current.hidden = document.visibilityState === 'hidden'; };
+    const on = () => { st.current.hidden = document.visibilityState === 'hidden'; recapAudio()?.pauseMusic(!playing()); };
     document.addEventListener('visibilitychange', on);
     return () => document.removeEventListener('visibilitychange', on);
   }, []);
@@ -263,6 +292,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   }
   function onPointerUp(e: React.PointerEvent) {
     if (!e.isPrimary) return;
+    ensureSound();
     clearTimeout(holdT.current);
     if (st.current.held) { st.current.held = false; syncPaused(); return; }
     if (onAct(e)) return;
@@ -274,6 +304,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
     if (st.current.held) { st.current.held = false; syncPaused(); }
   }
   function onKeyDown(e: React.KeyboardEvent) {
+    ensureSound();
     if (e.key === 'Escape') { e.preventDefault(); cbs.current.onClose(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); go(st.current.idx + 1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); go(st.current.idx - 1); }
@@ -283,6 +314,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
     const m = !st.current.muted;
     st.current.muted = m;
     setMuted(m);
+    recapAudio()?.setMuted(m);
     try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* not persisted */ }
   }
   const action = useCallback((a: RecapAction) => cbs.current.onAction?.(a), []);

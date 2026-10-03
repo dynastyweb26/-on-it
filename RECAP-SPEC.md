@@ -552,6 +552,19 @@ Notes from the prototype panel: a browser can't read the iPhone silent switch;
 the plan is an ambient audio session so silent mode mutes it (see the audit for
 what a PWA can actually do).
 
+**On It build (commit 11, `src/lib/recap/audio.ts`):** the placeholder synth
+above, ported as-is. Web Audio only (no `<audio>`); `navigator.audioSession.type
+= 'ambient'` set before the first sound (Safari 16.4+), so the silent switch
+silences it and it mixes with other audio. One AudioContext per page, created
+and resumed synchronously in the tap that opens the recap
+(`primeRecapAudio()` — iOS's gesture rule), so the bed starts with the opener;
+if nothing primed it, sound starts on the first tap inside the story. Cues
+play as the clock crosses them (ticks too; none under Reduce Motion), the
+whoosh on every transition; the bed pauses while held or hidden, fades out
+600 ms on close, and stops scheduling while muted. Mute persists in
+`onit-recap-muted`. The licensed set replaces `play(name)` / the bed with
+decoded buffers of the same names.
+
 ## 7. Payload shape (one per recap)
 
 The prototype's scenario object is shaped like a real recap payload:
