@@ -2,11 +2,11 @@
 // ═══ Clients — saved clients and products & services ═══
 // The Clients tab (UI redesign, 5-tab nav). Two segments: Clients · Products &
 // Services (UI-REDESIGN-AUDIT §L14). Clients is the saved-clients list
-// (merge 2 · 2·3, components/clients/ClientsList). Products & Services keeps
-// its "coming soon" empty state until its table lands (merge 2 · 2·6–2·8).
+// (merge 2 · 2·3, components/clients/ClientsList); Products & Services is the
+// saved-items list (merge 2 · 2·8, components/clients/ProductsList).
 import { useEffect, useState } from 'react';
-import Icon from '@/components/Icon';
 import ClientsList from '@/components/clients/ClientsList';
+import ProductsList from '@/components/clients/ProductsList';
 
 type Segment = 'clients' | 'products';
 const SEGMENTS: { key: Segment; label: string }[] = [
@@ -41,17 +41,7 @@ export default function Clients() {
       </div>
 
       <div key={segment} role="tabpanel">
-        {segment === 'clients' ? <ClientsList /> : (
-          // "Coming soon" until merge 2 ships saved products: no promises, no
-          // buttons. Merge 2 restores the design's empty-state copy (PUNCH-LIST).
-          <div className="onit-rise mt-16 px-4 text-center">
-            <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-surface-container text-primary">
-              <Icon name="handyman" size={32} />
-            </span>
-            <h1 className="mt-4 font-display text-xl font-bold text-on-background">Saved products &amp; services are coming soon.</h1>
-            <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">Save what you charge for often and add it to an invoice in one tap.</p>
-          </div>
-        )}
+        {segment === 'clients' ? <ClientsList /> : <ProductsList />}
       </div>
     </div>
   );
