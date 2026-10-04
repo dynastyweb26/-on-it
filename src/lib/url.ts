@@ -4,12 +4,15 @@
 // raw value into a valid link href AT RENDER TIME only — the stored value and the
 // displayed text are never changed.
 //
-//   - empty / whitespace        → null  (caller renders no link)
-//   - starts with http:// / https:// → returned unchanged (case-insensitive)
+//   - empty / whitespace                → null  (caller renders no link)
+//   - dangerous pseudo-protocols        → null  (javascript:, data:, vbscript:, file:)
+//   - starts with http:// / https://   → returned unchanged (case-insensitive)
 //   - anything else (bare domain, www.) → prefixed with https://
 export function websiteHref(value: string | null | undefined): string | null {
   const v = value?.trim();
   if (!v) return null;
+  // SECURITY: Reject dangerous pseudo-protocols that could execute script or access local files when rendered as href.
+  if (/^(?:javascript|data|vbscript|file):/i.test(v)) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
