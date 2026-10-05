@@ -10,6 +10,11 @@
 export function websiteHref(value: string | null | undefined): string | null {
   const v = value?.trim();
   if (!v) return null;
+  // Strip control characters and whitespace when inspecting scheme to catch obfuscation
+  const cleanScheme = v.replace(/[\u0000-\u001F\u007F-\u009F\s]/g, '').toLowerCase();
+  if (/^(javascript|data|vbscript|file):/.test(cleanScheme)) {
+    return null;
+  }
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
