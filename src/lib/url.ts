@@ -8,8 +8,10 @@
 //   - starts with http:// / https:// → returned unchanged (case-insensitive)
 //   - anything else (bare domain, www.) → prefixed with https://
 export function websiteHref(value: string | null | undefined): string | null {
-  const v = value?.trim();
+  if (!value) return null;
+  const v = value.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
   if (!v) return null;
+  if (/^(?:javascript|data|vbscript|file):/i.test(v)) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
