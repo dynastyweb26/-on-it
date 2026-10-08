@@ -53,6 +53,28 @@ export default function PickerSheet<T extends PickRow>({
   const [creating, setCreating] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const backToList = () => setCreating(null);
+
+  // The focused field stays between the form's sticky Cancel · Save bar and
+  // the bottom of the (keyboard-fitted) sheet. Checked again once the
+  // keyboard has finished animating in and the sheet has been re-fitted.
+  const formScroll = useRef<HTMLDivElement>(null);
+  function keepFieldInView(e: React.FocusEvent<HTMLDivElement>) {
+    const field = e.target as HTMLElement;
+    if (!/^(INPUT|TEXTAREA)$/.test(field.tagName)) return;
+    const fit = () => {
+      const sc = formScroll.current;
+      if (!sc || !field.isConnected || document.activeElement !== field) return;
+      const box = sc.getBoundingClientRect();
+      const bar = sc.querySelector<HTMLElement>('[data-form-bar]');
+      const top = box.top + (bar ? bar.offsetHeight : 0) + 8;
+      const bottom = box.bottom - 12;
+      const r = field.getBoundingClientRect();
+      if (r.bottom > bottom) sc.scrollTop += r.bottom - bottom;
+      else if (r.top < top) sc.scrollTop -= top - r.top;
+    };
+    requestAnimationFrame(fit);
+    setTimeout(fit, 400);
+  }
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(creating !== null ? backToList : onClose, creating === null);
 
   useEffect(() => {
@@ -80,10 +102,15 @@ export default function PickerSheet<T extends PickRow>({
   // Portaled to <body>: the template card animates with a transform, which
   // would otherwise make this fixed sheet position against the card.
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-end justify-center" data-no-tab-swipe="true">
+    // data-kb-fit (lib/keyboard.ts): while the keyboard is up this layer is
+    // pinned to window.visualViewport (top = offsetTop, height = height,
+    // tracked on its resize and scroll), and the sheet fills it — so nothing
+    // sits under the keyboard, iOS has no reason to pan the page, and the
+    // scroll area never gets keyboard padding (2·10c).
+    <div className="fixed inset-0 z-[70] flex items-end justify-center" data-no-tab-swipe="true" data-kb-fit="">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-label={title} style={sheetStyle}
-        className="onit-sheet-in relative flex h-[92dvh] w-full max-w-lg flex-col rounded-t-card bg-background shadow-card-raised">
+        className="onit-sheet-in relative flex h-[min(92dvh,calc(100%-8px))] w-full max-w-lg flex-col rounded-t-card bg-background shadow-card-raised">
         {/* Drag handle: the grabber + header. Swipe down to close. */}
         <div data-sheet-handle="" className="shrink-0 cursor-grab select-none" {...handleProps}>
           <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />
@@ -93,7 +120,7 @@ export default function PickerSheet<T extends PickRow>({
           </div>}
         </div>
         {creating !== null && renderCreate ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div ref={formScroll} onFocus={keepFieldInView} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {renderCreate({ name: creating, barProps: { ...handleProps, 'data-sheet-handle': '' } as React.HTMLAttributes<HTMLDivElement>, onCancel: backToList })}
           </div>
         ) : (<>

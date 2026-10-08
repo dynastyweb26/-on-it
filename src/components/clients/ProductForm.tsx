@@ -101,7 +101,8 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-8">
-      <div {...barProps} className="flex h-14 items-center justify-between border-b border-outline-variant/60">
+      {/* Sticky: Save stays reachable while the form scrolls (and above the keyboard in a sheet). */}
+      <div {...barProps} data-form-bar="" className="sticky top-0 z-[1] flex h-14 items-center justify-between border-b border-outline-variant/60 bg-background">
         <button type="button" onClick={close} className="min-h-touch px-1 text-[17px] text-primary">Cancel</button>
         <h1 className="text-[17px] font-bold text-on-background">{mode === 'new' ? 'New item' : 'Edit item'}</h1>
         <button type="button" onClick={save} disabled={!canSave}
