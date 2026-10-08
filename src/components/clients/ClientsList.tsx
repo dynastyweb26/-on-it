@@ -13,6 +13,7 @@ import UndoToast from '@/components/UndoToast';
 import { AlphaSections, ListRow, ListSkeleton, RowMenu, SavedEmpty, SearchBar } from '@/components/lists/SavedList';
 import { createClient } from '@/lib/supabase/client';
 import { clientStatus, groupByLetter, initials, matchesQuery, normalizeSummary, type ClientSummary } from '@/lib/clients';
+import { takeNewEntry } from '@/lib/list-motion';
 
 type Removed = {
   row: ClientSummary;
@@ -26,13 +27,24 @@ export default function ClientsList() {
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{ row: ClientSummary; rect: DOMRect } | null>(null);
   const [removed, setRemoved] = useState<Removed | null>(null);
+  // 2·14: a just-saved client glows in its slot; an undone delete re-expands.
+  const [fresh, setFresh] = useState<{ id: string; motion: 'new' | 'expand' } | null>(null);
+  useEffect(() => {
+    if (!fresh) return;
+    if (fresh.motion === 'new') document.getElementById(`client-row-${fresh.id}`)?.scrollIntoView({ block: 'center' });
+    const t = setTimeout(() => setFresh(null), 1300);
+    return () => clearTimeout(t);
+  }, [fresh]);
 
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
       const { data } = await supabase.rpc('client_summaries');
-      setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeSummary).filter((c) => c.saved));
+      const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeSummary).filter((c) => c.saved);
+      setRows(list);
+      const id = takeNewEntry('clients');
+      if (id && list.some((c) => c.id === id)) setFresh({ id, motion: 'new' });
     })().catch(() => setRows([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,6 +72,7 @@ export default function ClientsList() {
     const { row, prev } = removed;
     setRemoved(null);
     setRows((rs) => [...(rs ?? []), row]);
+    setFresh({ id: row.id, motion: 'expand' });
     const { error } = await supabase.from('clients').update(prev).eq('id', row.id);
     if (error) setRows((rs) => (rs ?? []).filter((r) => r.id !== row.id));
   }
@@ -93,9 +106,9 @@ export default function ClientsList() {
       {shown.length === 0 ? (
         <p className="mt-10 text-center text-body-md text-on-surface-variant">No clients match “{query.trim()}”</p>
       ) : (
-        <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()}
+        <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()} query={query}
           renderRow={(c) => (
-            <ListRow key={c.id} onOpen={() => open(c)} onEdit={() => edit(c)} onDelete={() => remove(c)}
+            <ListRow key={c.id} id={`client-row-${c.id}`} motion={fresh?.id === c.id ? fresh.motion : null} onOpen={() => open(c)} onEdit={() => edit(c)} onDelete={() => remove(c)}
               onLongPress={(rect) => setMenu({ row: c, rect })}>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft text-[15px] font-bold text-primary-on-container">
                 {initials(c.name)}

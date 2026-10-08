@@ -40,6 +40,7 @@ import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard from '@/components/SavePromptCard';
+import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
@@ -2569,14 +2570,17 @@ export default function Chat() {
   }
   async function saveFromPrompt(p: SavePrompt): Promise<boolean> {
     if (p.kind === 'client') {
-      const { error } = await supabase.rpc('save_client', { p_name: p.name });
+      const { data, error } = await supabase.rpc('save_client', { p_name: p.name });
       if (error) return false;
+      const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
+      if (row?.id) markNewEntry('clients', row.id); // glows in Clients (2·14)
     } else {
       // Price / unit are the last used ones, already on the row (record_product_use).
       const { data, error } = await supabase.from('products')
         .update({ saved_at: new Date().toISOString(), deleted_at: null })
         .eq('name_key', p.name.trim().toLowerCase()).select('id');
       if (error || !data?.length) return false;
+      markNewEntry('products', clientNameKey(p.name));
     }
     setMessages((m) => [...m, aMsg(savedLine(p))]);
     return true;

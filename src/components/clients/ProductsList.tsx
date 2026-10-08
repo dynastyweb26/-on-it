@@ -13,6 +13,8 @@ import { AlphaSections, ListRow, ListSkeleton, RowMenu, SavedEmpty, SearchBar } 
 import { createClient } from '@/lib/supabase/client';
 import { groupByLetter, matchesQuery } from '@/lib/clients';
 import { PRODUCT_COLS, copyName, normalizeProduct, priceText, productSubtitle, type Product } from '@/lib/products';
+import { clientNameKey } from '@/lib/client-name';
+import { takeNewEntry } from '@/lib/list-motion';
 
 export default function ProductsList() {
   const supabase = createClient();
@@ -22,6 +24,14 @@ export default function ProductsList() {
   const [menu, setMenu] = useState<{ row: Product; rect: DOMRect } | null>(null);
   const [removed, setRemoved] = useState<Product | null>(null);
   const [failed, setFailed] = useState('');
+  // 2·14: a just-saved / duplicated item glows in its slot; Undo re-expands.
+  const [fresh, setFresh] = useState<{ id: string; motion: 'new' | 'expand' } | null>(null);
+  useEffect(() => {
+    if (!fresh) return;
+    if (fresh.motion === 'new') document.getElementById(`product-row-${fresh.id}`)?.scrollIntoView({ block: 'center' });
+    const t = setTimeout(() => setFresh(null), 1300);
+    return () => clearTimeout(t);
+  }, [fresh]);
 
   useEffect(() => {
     (async () => {
@@ -29,7 +39,11 @@ export default function ProductsList() {
       if (!session) { router.replace('/login'); return; }
       const { data } = await supabase.from('products').select(PRODUCT_COLS)
         .not('saved_at', 'is', null).is('deleted_at', null).limit(500);
-      setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeProduct));
+      const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeProduct);
+      setRows(list);
+      const key = takeNewEntry('products');
+      const hit = key ? list.find((p) => clientNameKey(p.name) === key) : undefined;
+      if (hit) setFresh({ id: hit.id, motion: 'new' });
     })().catch(() => setRows([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -53,6 +67,7 @@ export default function ProductsList() {
     const p = removed;
     setRemoved(null);
     setRows((rs) => [...(rs ?? []), p]);
+    setFresh({ id: p.id, motion: 'expand' });
     const { error } = await supabase.from('products').update({ deleted_at: null }).eq('id', p.id);
     if (error) setRows((rs) => (rs ?? []).filter((r) => r.id !== p.id));
   }
@@ -70,7 +85,9 @@ export default function ProductsList() {
       saved_at: new Date().toISOString(),
     }).select(PRODUCT_COLS).single();
     if (error || !data) { setFailed('Couldn’t duplicate — check your connection and try again.'); return; }
-    setRows((rs) => [...(rs ?? []), normalizeProduct(data as Record<string, unknown>)]);
+    const copy = normalizeProduct(data as Record<string, unknown>);
+    setRows((rs) => [...(rs ?? []), copy]);
+    setFresh({ id: copy.id, motion: 'new' });
   }
 
   if (rows === null) return <ListSkeleton />;
@@ -108,9 +125,9 @@ export default function ProductsList() {
       {shown.length === 0 ? (
         <p className="mt-10 text-center text-body-md text-on-surface-variant">No items match “{query.trim()}”</p>
       ) : (
-        <AlphaSections groups={groups} idPrefix="products" showRail={!query.trim()}
+        <AlphaSections groups={groups} idPrefix="products" showRail={!query.trim()} query={query}
           renderRow={(p) => (
-            <ListRow key={p.id} onOpen={() => edit(p)} onEdit={() => edit(p)} onDelete={() => remove(p)}
+            <ListRow key={p.id} id={`product-row-${p.id}`} motion={fresh?.id === p.id ? fresh.motion : null} onOpen={() => edit(p)} onEdit={() => edit(p)} onDelete={() => remove(p)}
               onLongPress={(rect) => setMenu({ row: p, rect })}>
               {body(p)}
             </ListRow>

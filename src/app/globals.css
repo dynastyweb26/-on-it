@@ -509,6 +509,19 @@ html[data-splash=""] .onit-splash {
   100% { opacity: 0; transform: translateY(-16px); }
 }
 .onit-plus-one { animation: onit-plus-one 900ms var(--ease-standard) both; }
+/* List motion (2·14, §4). New entry: slides into its A–Z slot and glows gold
+   for 1.2 s. Undo: the row re-expands. Long-press: the row lifts to 1.02 over
+   the dimmed list and the menu scales in. Form save: the Save label becomes a
+   ✓ before the screen moves on. */
+@keyframes onit-entry-in { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes onit-entry-glow { 0%, 30% { background-color: rgba(212, 175, 55, .4); } 100% { background-color: rgba(212, 175, 55, 0); } }
+.onit-new-entry { animation: onit-entry-in var(--motion-slow) var(--ease-emphasized) both, onit-entry-glow 1.2s var(--ease-standard) both; }
+@keyframes onit-row-expand { from { max-height: 0; opacity: 0; } to { max-height: 120px; opacity: 1; } }
+.onit-row-expand { overflow: hidden; animation: onit-row-expand var(--motion-base) var(--ease-emphasized) both; }
+@keyframes onit-lift { from { transform: scale(1); box-shadow: none; } }
+.onit-lift { transform: scale(1.02); animation: onit-lift var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-menu-in { from { opacity: 0; transform: scale(.92); } }
+.onit-menu-in { animation: onit-menu-in var(--motion-fast) var(--ease-standard) both; }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }

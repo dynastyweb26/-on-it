@@ -14,10 +14,12 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { usageNote } from '@/lib/clients';
+import { markNewEntry } from '@/lib/list-motion';
 
 export type ClientFields = { name: string; phone: string; email: string; address: string; notes: string };
 type Field = keyof ClientFields;
 
+const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
 const CAP: Record<Field, number> = { name: 120, phone: 30, email: 254, address: 300, notes: 500 };
 const EMPTY: ClientFields = { name: '', phone: '', email: '', address: '', notes: '' };
 
@@ -39,6 +41,7 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
   const start = useRef<ClientFields>({ ...EMPTY, ...initial });
   const [v, setV] = useState<ClientFields>(start.current);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const refs = useRef<Partial<Record<Field, HTMLInputElement | HTMLTextAreaElement | null>>>({});
@@ -84,23 +87,30 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
         p_address: clean(v.address), p_notes: clean(v.notes),
       });
       const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
-      setBusy(false);
-      if (err || !row?.id) { setError('Couldn’t save — check your connection and try again.'); return; }
-      if (onSaved) onSaved(row.id); else router.replace(`/clients/${row.id}`);
+      if (err || !row?.id) { setBusy(false); setError('Couldn’t save — check your connection and try again.'); return; }
+      markNewEntry('clients', row.id);
+      const cid = row.id;
+      saved(() => { if (onSaved) onSaved(cid); else router.replace(`/clients/${cid}`); });
       return;
     }
     const { error: err } = await supabase.from('clients').update({
       name: v.name.trim(), phone: clean(v.phone), email: clean(email),
       address: clean(v.address), notes: clean(v.notes),
     }).eq('id', id!);
-    setBusy(false);
     if (err) {
+      setBusy(false);
       setError(err.code === '23505'
         ? `You already have a client named “${v.name.trim()}”.`
         : 'Couldn’t save — check your connection and try again.');
       return;
     }
-    router.replace(`/clients/${id}`);
+    saved(() => router.replace(`/clients/${id}`));
+  }
+  // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
+  function saved(next: () => void) {
+    setBusy(false);
+    setDone(true);
+    setTimeout(next, SAVED_MS);
   }
 
   const input = (f: Exclude<Field, 'notes'>, label: string, placeholder: string, type = 'text', extra: Record<string, string> = {}) => (
@@ -117,9 +127,9 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
       <div {...barProps} data-form-bar="" className="sticky top-0 z-[1] flex h-14 items-center justify-between border-b border-outline-variant/60 bg-background">
         <button type="button" onClick={close} className="min-h-touch px-1 text-[17px] text-primary">Cancel</button>
         <h1 className="text-[17px] font-bold text-on-background">{mode === 'new' ? 'New client' : 'Edit client'}</h1>
-        <button type="button" onClick={save} disabled={!canSave}
-          className="min-h-touch px-1 text-[17px] font-bold text-primary disabled:opacity-40">
-          {busy ? 'Saving…' : 'Save'}
+        <button type="button" onClick={save} disabled={!canSave || done} aria-label={done ? 'Saved' : undefined}
+          className={`min-h-touch px-1 text-[17px] font-bold text-primary ${done ? '' : 'disabled:opacity-40'}`}>
+          {done ? <Icon name="check" size={24} className="onit-pop block" /> : busy ? 'Saving…' : 'Save'}
         </button>
       </div>
 

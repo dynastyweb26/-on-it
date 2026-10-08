@@ -43,7 +43,8 @@ export default function SwipeableRow({ children, onDelete, onEdit, className = '
     // Only allow swiping left (negative dx)
     if (dx < 0) {
       e.stopPropagation(); // Stop tab-swipe from hijacking
-      const offset = Math.max(dx, -maxSwipe);
+      // Past the actions the row resists (rubber band, 2·14) and settles back.
+      const offset = dx >= -maxSwipe ? dx : -maxSwipe - Math.min((-dx - maxSwipe) * 0.3, maxSwipe * 0.4);
       setTranslateX(offset);
     } else if (translateX < 0) {
       // Swiping back right
@@ -113,7 +114,8 @@ export default function SwipeableRow({ children, onDelete, onEdit, className = '
         className="relative bg-background transition-transform"
         style={{
           transform: `translateX(${translateX}px)`,
-          transitionDuration: isSwiping ? '0ms' : '200ms',
+          transitionDuration: isSwiping ? '0ms' : 'var(--motion-base)',
+          transitionTimingFunction: 'var(--ease-emphasized)',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

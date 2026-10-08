@@ -3,11 +3,14 @@
 // frames 3a / 3e): the search bar with its gold +, A–Z sections with a scrub
 // rail, a row that swipes left to Edit / Delete and long-presses to a menu,
 // and that menu (the row lifts over a dimmed list, actions below it).
+// List motion (2·14): search reflow, letter-jump header pulse, new-entry glow,
+// undo re-expand, long-press lift; JS-driven motion skips under Reduce Motion.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import SwipeableRow from '@/components/SwipeableRow';
 import { RAIL_LETTERS } from '@/lib/clients';
+import { reducedMotion } from '@/lib/list-motion';
 
 const LONG_PRESS_MS = 450;
 
@@ -31,15 +34,27 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
 }
 
 /** A–Z sticky headers plus the scrub rail (hidden while searching). */
-export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow }: {
+export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query = '' }: {
   groups: { letter: string; rows: T[] }[];
   idPrefix: string;
   showRail: boolean;
   renderRow: (row: T) => ReactNode;
+  /** The search text: each change reflows the list (fade + 6 px settle). */
+  query?: string;
 }) {
   const present = new Set(groups.map((g) => g.letter));
   const railRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const lastJump = useRef('');
+  const firstQuery = useRef(true);
+  useEffect(() => {
+    if (firstQuery.current) { firstQuery.current = false; return; }
+    if (reducedMotion()) return;
+    listRef.current?.animate?.(
+      [{ opacity: 0.55, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 160, easing: 'cubic-bezier(.2, 0, 0, 1)' },
+    );
+  }, [query]);
   // Tap or drag a letter → jump to it (or the next letter that has rows).
   function jumpAt(clientY: number) {
     const rail = railRef.current;
@@ -49,15 +64,25 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow }: {
     const target = RAIL_LETTERS.slice(i).find((l) => present.has(l)) ?? [...present].pop();
     if (!target || target === lastJump.current) return;
     lastJump.current = target;
-    document.getElementById(`${idPrefix}-letter-${target}`)?.scrollIntoView({ block: 'start' });
+    const header = document.getElementById(`${idPrefix}-letter-${target}`);
+    header?.scrollIntoView({ block: 'start' });
     try { navigator.vibrate?.(5); } catch { /* unsupported */ }
+    // The landed-on header pulses gold.
+    if (!reducedMotion()) {
+      header?.querySelector('span')?.animate?.(
+        [{ transform: 'scale(1)', color: '#8C6D10' }, { transform: 'scale(1.35)', color: '#D4AF37' }, { transform: 'scale(1)', color: '#8C6D10' }],
+        { duration: 240, easing: 'cubic-bezier(.65, 0, .35, 1)' },
+      );
+    }
   }
   return (
-    <div className="relative mt-2 pr-5">
+    <div ref={listRef} className="relative mt-2 pr-5">
       {groups.map((g) => (
         <section key={g.letter} aria-label={g.letter}>
           <h2 id={`${idPrefix}-letter-${g.letter}`}
-            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10]">{g.letter}</h2>
+            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10]">
+            <span className="inline-block origin-left">{g.letter}</span>
+          </h2>
           {g.rows.map(renderRow)}
         </section>
       ))}
@@ -79,9 +104,12 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow }: {
 }
 
 /** A list row: tap opens, swipe left shows Edit / Delete, long-press opens the menu. */
-export function ListRow({ onOpen, onEdit, onDelete, onLongPress, children }: {
+export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, children }: {
   onOpen: () => void; onEdit: () => void; onDelete: () => void;
   onLongPress: (rect: DOMRect) => void;
+  /** 'new': slides into its slot and glows; 'expand': re-opens after Undo. */
+  motion?: 'new' | 'expand' | null;
+  id?: string;
   children: ReactNode;
 }) {
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -91,9 +119,10 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, children }: {
   const cancel = () => { clearTimeout(timer.current); start.current = null; };
   useEffect(() => () => clearTimeout(timer.current), []);
   return (
+    <div id={id} className={motion === 'expand' ? 'onit-row-expand' : undefined}>
     <SwipeableRow flat onEdit={onEdit} onDelete={onDelete}>
       <button ref={ref} type="button"
-        className="flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container"
+        className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
         onPointerDown={(e) => {
           fired.current = false;
           start.current = { x: e.clientX, y: e.clientY };
@@ -114,6 +143,7 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, children }: {
         {children}
       </button>
     </SwipeableRow>
+    </div>
   );
 }
 
@@ -133,13 +163,15 @@ export function RowMenu({ rect, lifted, label, items, onClose }: {
   return (
     <div className="fixed inset-0 z-[60]" data-no-tab-swipe="true">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/30" onClick={onClose} />
-      <div className="onit-pop absolute rounded-card bg-surface-container-lowest px-4 py-2.5 shadow-card-raised"
+      <div className="onit-lift absolute rounded-card bg-surface-container-lowest px-4 py-2.5 shadow-card-raised"
         style={{ left: rect.left - 8, top: rect.top - 4, width: rect.width + 16 }}>
         {lifted}
       </div>
       <div role="menu" aria-label={label}
-        className="onit-pop absolute w-56 overflow-hidden rounded-card bg-surface-container-lowest shadow-card-raised"
-        style={below ? { left: rect.left, top: rect.bottom + 8 } : { left: rect.left, top: rect.top - 8 - menuH }}>
+        className="onit-menu-in absolute w-56 overflow-hidden rounded-card bg-surface-container-lowest shadow-card-raised"
+        style={below
+          ? { left: rect.left, top: rect.bottom + 8, transformOrigin: '24px 0' }
+          : { left: rect.left, top: rect.top - 8 - menuH, transformOrigin: '24px 100%' }}>
         {items.map((it) => (
           <button key={it.label} type="button" role="menuitem" onClick={it.onClick}
             className={`flex h-14 w-full items-center justify-between border-b border-outline-variant/50 px-4 text-body-lg last:border-b-0 active:bg-surface-container

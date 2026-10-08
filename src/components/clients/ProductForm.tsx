@@ -14,9 +14,11 @@ import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
 import { clientNameKey } from '@/lib/client-name';
+import { markNewEntry } from '@/lib/list-motion';
 import { UNITS, parsePrice, usedLine, type Product, type Unit } from '@/lib/products';
 
 const LIST = '/clients?segment=products';
+const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
 
 export type SavedItem = { name: string; unit: Unit; unit_price: number | null; detail: string | null };
 
@@ -39,6 +41,7 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
   const [unit, setUnit] = useState<Unit>(product?.unit ?? 'each');
   const [detail, setDetail] = useState(product?.detail ?? '');
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
@@ -87,7 +90,10 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
       setError(err.code === '23505' ? `You already have an item named “${fields.name}”.` : 'Couldn’t save — check your connection and try again.');
       return;
     }
-    if (onSaved) onSaved(fields); else router.replace(LIST);
+    if (mode === 'new') markNewEntry('products', clientNameKey(fields.name));
+    // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
+    setDone(true);
+    setTimeout(() => { if (onSaved) onSaved(fields); else router.replace(LIST); }, SAVED_MS);
   }
 
   async function remove() {
@@ -105,9 +111,9 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
       <div {...barProps} data-form-bar="" className="sticky top-0 z-[1] flex h-14 items-center justify-between border-b border-outline-variant/60 bg-background">
         <button type="button" onClick={close} className="min-h-touch px-1 text-[17px] text-primary">Cancel</button>
         <h1 className="text-[17px] font-bold text-on-background">{mode === 'new' ? 'New item' : 'Edit item'}</h1>
-        <button type="button" onClick={save} disabled={!canSave}
-          className="min-h-touch px-1 text-[17px] font-bold text-primary disabled:opacity-40">
-          {busy ? 'Saving…' : 'Save'}
+        <button type="button" onClick={save} disabled={!canSave || done} aria-label={done ? 'Saved' : undefined}
+          className={`min-h-touch px-1 text-[17px] font-bold text-primary ${done ? '' : 'disabled:opacity-40'}`}>
+          {done ? <Icon name="check" size={24} className="onit-pop block" /> : busy ? 'Saving…' : 'Save'}
         </button>
       </div>
 
