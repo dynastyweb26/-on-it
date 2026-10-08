@@ -3062,7 +3062,9 @@ export default function Chat() {
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
       {template ? (
-        <div className="border-t border-outline-variant/40 bg-background px-3 py-2.5">
+        // Capped so the card never pushes its own header off-screen on a short
+        // phone: past ~85% of the chat area it scrolls inside its slot.
+        <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
           <TemplateCard key="template" kind={template} onKindChange={setTemplate} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored} />
         </div>

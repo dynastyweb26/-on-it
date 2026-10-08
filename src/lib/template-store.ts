@@ -17,6 +17,8 @@ export type StoredTemplate = {
   kind: TemplateKind;
   client: TemplateClient | null;
   items: TemplateItem[];
+  /** Extra info text (2·12a). */
+  extra: string;
 };
 
 const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : null);
@@ -52,7 +54,7 @@ export function parseStored(raw: string | null, uid: string | null, now: number)
     }];
   });
   if (items.length === 0) return null;
-  return { v: 1, uid, savedAt, kind: o.kind, client, items };
+  return { v: 1, uid, savedAt, kind: o.kind, client, items, extra: str(o.extra, 500) ?? '' };
 }
 
 export function loadTemplate(uid: string | null): StoredTemplate | null {
