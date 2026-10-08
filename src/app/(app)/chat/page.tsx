@@ -2412,7 +2412,10 @@ export default function Chat() {
   // background pre-build already wrote for it (soft delete, drafts only) —
   // it never appears in Invoices or gets a "you have an unsent draft" nudge.
   // The chat's draft and row link reset so no card lingers.
-  function closeTemplate() {
+  // Drop the template's unsent draft row (soft delete, drafts only) and its
+  // pre-build, under a new conversation id — so the next insert can't hit the
+  // old finalize_key and be handed the old row back.
+  function discardTemplateRow() {
     const pending = pendingInvoiceRef.current;
     if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
       void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
@@ -2422,10 +2425,21 @@ export default function Chat() {
     preBuiltRef.current = null;
     preBuildIdRef.current++;
     setPrepState(null);
+    setConvoId(genId());
+  }
+  function closeTemplate() {
+    discardTemplateRow();
     setDraft(null);
     setReady(false);
-    setConvoId(genId());
     dropTemplate();
+  }
+  // "Make it a quote / an invoice": a row's kind is pinned once inserted
+  // (lock_document_identity), so a pre-built row of the old kind is
+  // discarded and the next pre-build / Send inserts one of the new kind.
+  function switchTemplateKind(k: TemplateKind) {
+    if (k === template) return;
+    if (pendingInvoiceRef.current) discardTemplateRow();
+    setTemplate(k);
   }
   // The template feeds the chat's draft: complete → draft + ready (the
   // pre-build writes the row and the PDF); incomplete → not ready.
@@ -3135,7 +3149,7 @@ export default function Chat() {
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
-          <TemplateCard key="template" kind={template} onKindChange={setTemplate} onClose={closeTemplate}
+          <TemplateCard key="template" kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
