@@ -104,3 +104,11 @@ export function clearTemplateRow(): void {
 export function saveTemplateRow(uid: string | null, row: TemplateRow): void {
   try { localStorage.setItem(ROW_KEY, JSON.stringify({ ...row, uid, savedAt: Date.now() })); } catch { /* storage full / blocked */ }
 }
+
+/** 2·13a: the confirm's title when a fresh template would replace this one —
+ *  only when it has a client or a named item; null = nothing worth keeping. */
+export function unfinishedTitle(t: Pick<StoredTemplate, 'kind' | 'client' | 'items'>): string | null {
+  if (!t.client && !t.items.some((x) => x.name.trim())) return null;
+  const noun = t.kind === 'quote' ? 'quote' : 'invoice';
+  return t.client ? `You have an unfinished ${noun} for ${t.client.name}` : `You have an unfinished ${noun}`;
+}

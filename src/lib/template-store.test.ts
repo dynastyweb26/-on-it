@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TEMPLATE_TTL_MS, parseStored, parseStoredRow } from './template-store';
+import { TEMPLATE_TTL_MS, parseStored, parseStoredRow, unfinishedTitle } from './template-store';
 
 const NOW = 1_800_000_000_000;
 const good = (o: Record<string, unknown> = {}) => JSON.stringify({
@@ -47,4 +47,12 @@ test('parseStoredRow: the template row link, scoped and expiring like the templa
   assert.equal(parseStoredRow(raw({ id: null }), 'u1', now), null);
   assert.equal(parseStoredRow('{bad', 'u1', now), null);
   assert.equal(parseStoredRow(null, 'u1', now), null);
+});
+
+test('unfinishedTitle: only with a client or a named item', () => {
+  const item = (name: string) => ({ key: name || 'k', name, unit: null, unit_price: null, qty: 1, detail: null });
+  const client = { name: 'Greenway HOA', id: null, address: null, phone: null };
+  assert.equal(unfinishedTitle({ kind: 'invoice', client: null, items: [item('')] }), null);
+  assert.equal(unfinishedTitle({ kind: 'invoice', client, items: [item('')] }), 'You have an unfinished invoice for Greenway HOA');
+  assert.equal(unfinishedTitle({ kind: 'quote', client: null, items: [item('Labor')] }), 'You have an unfinished quote');
 });

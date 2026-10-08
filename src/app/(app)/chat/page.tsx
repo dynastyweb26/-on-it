@@ -35,8 +35,9 @@ import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
+import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
-import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, type StoredTemplate } from '@/lib/template-store';
+import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard from '@/components/SavePromptCard';
 import { clientPrompt, enqueue, productPrompts, savedLine, type SavePrompt } from '@/lib/save-prompts';
@@ -2410,30 +2411,43 @@ export default function Chat() {
         url.searchParams.delete('template');
         url.searchParams.delete('client');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-        if (!uid || !cid || !UUID_RE.test(cid)) { openTemplate(t); return; }
+        if (!uid || !cid || !UUID_RE.test(cid)) { startNewTemplate(t); return; }
         createClient().from('clients').select('id, name, address, phone').eq('id', cid).maybeSingle()
           .then(({ data }) => {
             if (!live) return;
             const c = data as { id: string; name: string; address: string | null; phone: string | null } | null;
-            openTemplate(t, c ? { id: c.id, name: c.name, address: c.address, phone: c.phone } : null);
-          }, () => { if (live) openTemplate(t); });
+            startNewTemplate(t, c ? { id: c.id, name: c.name, address: c.address, phone: c.phone } : null);
+          }, () => { if (live) startNewTemplate(t); });
         return;
       }
-      // A saved template comes back with its pre-built row, under the same
-      // conversation id (= finalize_key), so Send updates that row instead of
-      // inserting a second one. An expired template's draft row is dropped.
-      const row = loadTemplateRow(uid);
-      const saved = loadTemplate(uid);
-      if (row && !pendingInvoiceRef.current) {
-        pendingInvoiceRef.current = { id: row.id, no: row.no };
-        if (saved) setConvoId(row.convoId);
-        else discardTemplateRow();
-      }
-      if (saved) { setTemplateRestored(saved); setTemplate(saved.kind); }
-      else clearTemplate();
+      resumeSavedTemplate();
     }, () => undefined);
     return () => { live = false; };
   }, [hydrated]);
+  // A saved template comes back with its pre-built row, under the same
+  // conversation id (= finalize_key), so Send updates that row instead of
+  // inserting a second one. An expired template's draft row is dropped.
+  function resumeSavedTemplate() {
+    const uid = templateUidRef.current;
+    const row = loadTemplateRow(uid);
+    const saved = loadTemplate(uid);
+    if (row && !pendingInvoiceRef.current) {
+      pendingInvoiceRef.current = { id: row.id, no: row.no };
+      if (saved) setConvoId(row.convoId);
+      else discardTemplateRow();
+    }
+    if (saved) { setTemplateRestored(saved); setTemplateNonce((n) => n + 1); setTemplate(saved.kind); }
+    else clearTemplate();
+  }
+  // 2·13a: a fresh template asks first when it would replace a saved one with
+  // a client or a named item (Keep editing / Start new).
+  const [replaceAsk, setReplaceAsk] = useState<{ title: string; kind: TemplateKind; client: TemplateClient | null } | null>(null);
+  function startNewTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+    const saved = loadTemplate(templateUidRef.current);
+    const title = saved ? unfinishedTitle(saved) : null;
+    if (title) setReplaceAsk({ title, kind: k, client });
+    else openTemplate(k, client);
+  }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
   // archived first (one conversation = one invoice row, keyed by convoId).
@@ -2594,7 +2608,7 @@ export default function Chat() {
     // menu closes and the field becomes the template card in that mode.
     setPlusMenu(null);
     clearTimeout(plusTimer.current);
-    openTemplate(k);
+    startNewTemplate(k);
   }
 
   function micTap() {
@@ -3240,6 +3254,11 @@ export default function Chat() {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
+      {replaceAsk && (
+        <ReplaceTemplateSheet title={replaceAsk.title}
+          onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
+          onStartNew={() => { const a = replaceAsk; setReplaceAsk(null); openTemplate(a.kind, a.client); }} />
+      )}
       {template ? (
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
