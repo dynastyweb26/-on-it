@@ -21,12 +21,18 @@ type Field = keyof ClientFields;
 const CAP: Record<Field, number> = { name: 120, phone: 30, email: 254, address: 300, notes: 500 };
 const EMPTY: ClientFields = { name: '', phone: '', email: '', address: '', notes: '' };
 
-export default function ClientForm({ mode, id, initial, focus }: {
+export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel, barProps }: {
   mode: 'new' | 'edit';
   id?: string;
   initial?: Partial<ClientFields>;
   /** Field to focus on open (a detail-page tap on a missing phone, …). */
   focus?: string | null;
+  /** Embedded use (the template's Client sheet, 2·10b): called instead of
+   *  navigating. Without them the form behaves as the /clients pages expect. */
+  onSaved?: (id: string) => void;
+  onCancel?: () => void;
+  /** Spread onto the Cancel · title · Save bar (the sheet makes it a drag handle). */
+  barProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -62,7 +68,8 @@ export default function ClientForm({ mode, id, initial, focus }: {
   };
   const dirty = (Object.keys(v) as Field[]).some((f) => v[f].trim() !== start.current[f].trim());
   const canSave = v.name.trim().length > 0 && dirty && !busy;
-  const close = () => (window.history.length > 1 ? router.back() : router.replace(id ? `/clients/${id}` : '/clients'));
+  const close = () => (onCancel ? onCancel()
+    : window.history.length > 1 ? router.back() : router.replace(id ? `/clients/${id}` : '/clients'));
 
   async function save() {
     if (!canSave) return;
@@ -79,7 +86,7 @@ export default function ClientForm({ mode, id, initial, focus }: {
       const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
       setBusy(false);
       if (err || !row?.id) { setError('Couldn’t save — check your connection and try again.'); return; }
-      router.replace(`/clients/${row.id}`);
+      if (onSaved) onSaved(row.id); else router.replace(`/clients/${row.id}`);
       return;
     }
     const { error: err } = await supabase.from('clients').update({
@@ -106,7 +113,7 @@ export default function ClientForm({ mode, id, initial, focus }: {
 
   return (
     <div className="px-4 pb-8">
-      <div className="flex h-14 items-center justify-between border-b border-outline-variant/60">
+      <div {...barProps} className="flex h-14 items-center justify-between border-b border-outline-variant/60">
         <button type="button" onClick={close} className="min-h-touch px-1 text-[17px] text-primary">Cancel</button>
         <h1 className="text-[17px] font-bold text-on-background">{mode === 'new' ? 'New client' : 'Edit client'}</h1>
         <button type="button" onClick={save} disabled={!canSave}

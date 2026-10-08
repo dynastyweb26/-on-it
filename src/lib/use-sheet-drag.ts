@@ -19,7 +19,15 @@ export function shouldDismiss(dy: number, ms: number): boolean {
   return dy > 24 && ms > 0 && dy / ms >= FLICK_PX_PER_MS;
 }
 
-export function useSheetDrag(onClose: () => void) {
+/**
+ * @param onDismiss  called when the gesture passes the threshold.
+ * @param slideOut   true: the sheet slides away first (closing). false: it
+ *                   springs back and onDismiss runs at once (e.g. a form
+ *                   inside the sheet returning to its list, 2·10b).
+ */
+export function useSheetDrag(onDismiss: () => void, slideOut = true) {
+  const latest = useRef({ onDismiss, slideOut });
+  latest.current = { onDismiss, slideOut };
   const [dy, setDy] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -45,9 +53,11 @@ export function useSheetDrag(onClose: () => void) {
     const recent = Math.max(0, e.clientY - from.y);
     const recentMs = Math.max(1, now - from.t);
     if (s.captured && (moved >= DISMISS_PX || (moved > 24 && shouldDismiss(recent, recentMs)))) {
+      const { onDismiss: done, slideOut: away } = latest.current;
+      if (!away) { setDy(0); done(); return; }
       setLeaving(true);
       setDy(window.innerHeight);
-      timer.current = setTimeout(onClose, OUT_MS);
+      timer.current = setTimeout(done, OUT_MS);
     } else {
       setDy(0);
     }

@@ -18,10 +18,23 @@ import { UNITS, parsePrice, usedLine, type Product, type Unit } from '@/lib/prod
 
 const LIST = '/clients?segment=products';
 
-export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; product?: Product }) {
+export type SavedItem = { name: string; unit: Unit; unit_price: number | null; detail: string | null };
+
+export default function ProductForm({ mode, product, initialName, onSaved, onCancel, barProps }: {
+  mode: 'new' | 'edit';
+  product?: Product;
+  /** New: pre-fills the name (the template sheet's search). */
+  initialName?: string;
+  /** Embedded use (the template's Product or service sheet, 2·10b): called
+   *  instead of navigating. Without them the form behaves as the pages expect. */
+  onSaved?: (item: SavedItem) => void;
+  onCancel?: () => void;
+  /** Spread onto the Cancel · title · Save bar (the sheet makes it a drag handle). */
+  barProps?: React.HTMLAttributes<HTMLDivElement>;
+}) {
   const router = useRouter();
   const supabase = createClient();
-  const [name, setName] = useState(product?.name ?? '');
+  const [name, setName] = useState(product?.name ?? initialName ?? '');
   const [price, setPrice] = useState(product?.unit_price != null ? money(product.unit_price) : '');
   const [unit, setUnit] = useState<Unit>(product?.unit ?? 'each');
   const [detail, setDetail] = useState(product?.detail ?? '');
@@ -29,8 +42,11 @@ export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; p
   const [error, setError] = useState('');
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // Keep a save error in view (inside a sheet the keyboard can cover it).
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [error]);
 
-  useEffect(() => { if (mode === 'new') nameRef.current?.focus(); }, [mode]);
+  useEffect(() => { if (mode === 'new' && !initialName) nameRef.current?.focus(); }, [mode, initialName]);
 
   const parsed = parsePrice(price);
   const dirty = mode === 'new'
@@ -39,7 +55,7 @@ export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; p
     || (detail.trim() || null) !== (product!.detail ?? null)
     || (Number.isNaN(parsed) ? true : parsed !== product!.unit_price);
   const canSave = name.trim().length > 0 && dirty && !busy;
-  const close = () => (window.history.length > 1 ? router.back() : router.replace(LIST));
+  const close = () => (onCancel ? onCancel() : window.history.length > 1 ? router.back() : router.replace(LIST));
 
   async function save() {
     if (!canSave) return;
@@ -71,7 +87,7 @@ export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; p
       setError(err.code === '23505' ? `You already have an item named “${fields.name}”.` : 'Couldn’t save — check your connection and try again.');
       return;
     }
-    router.replace(LIST);
+    if (onSaved) onSaved(fields); else router.replace(LIST);
   }
 
   async function remove() {
@@ -85,7 +101,7 @@ export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; p
 
   return (
     <div className="flex min-h-full flex-col px-4 pb-8">
-      <div className="flex h-14 items-center justify-between border-b border-outline-variant/60">
+      <div {...barProps} className="flex h-14 items-center justify-between border-b border-outline-variant/60">
         <button type="button" onClick={close} className="min-h-touch px-1 text-[17px] text-primary">Cancel</button>
         <h1 className="text-[17px] font-bold text-on-background">{mode === 'new' ? 'New item' : 'Edit item'}</h1>
         <button type="button" onClick={save} disabled={!canSave}
@@ -129,7 +145,7 @@ export default function ProductForm({ mode, product }: { mode: 'new' | 'edit'; p
       </label>
 
       {mode === 'edit' && product && <p className="mt-4 px-1 text-[14px] text-on-surface-variant">{usedLine(product)}</p>}
-      {error && <p role="status" className="mt-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{error}</p>}
+      {error && <p ref={errorRef} role="status" className="mt-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{error}</p>}
 
       {mode === 'edit' && (
         <button type="button" onClick={remove} disabled={busy}

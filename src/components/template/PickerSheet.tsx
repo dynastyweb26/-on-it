@@ -2,10 +2,16 @@
 // The template's picker sheet (release frames 1g Client, 1h Product or
 // service; UI-REDESIGN-AUDIT §1.4): Cancel · title, a real search field,
 // "USED BEFORE · NOT SAVED" (history rows), A–Z groups with the scrub rail,
-// a "Use '{q}'" row when the search names something new, and a pinned
-// "+ New …" button. "+ New" with no search focuses the field; with one it
-// uses it. Escape / the scrim / Cancel / a swipe down on the grabber or
-// header (2·10a, lib/use-sheet-drag) close without picking.
+// a "Use '{q}'" row when the search names something new (a one-off that
+// saves nothing), and a pinned "+ New …" button. Escape / the scrim / Cancel
+// / a swipe down on the grabber or header (2·10a, lib/use-sheet-drag) close
+// without picking.
+//
+// "+ New …" (2·10b) swaps the list for the existing create form (the
+// Clients tab's own form, embedded), with the search pre-filled; saving writes
+// the row and picks it. While the form is open, Cancel, Escape and a swipe
+// down on the grabber or the form's top bar go back to the list instead of
+// closing. Guests have nothing to save to, so they don't get "+ New".
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
@@ -16,8 +22,17 @@ import { useSheetDrag } from '@/lib/use-sheet-drag';
 
 export type PickRow = { id: string; name: string };
 
+export type CreateArgs = {
+  /** The search text, to pre-fill the form's name. */
+  name: string;
+  /** Spread onto the form's top bar: it drags like the sheet's header. */
+  barProps: React.HTMLAttributes<HTMLDivElement>;
+  /** Back to the list (the form's Cancel). */
+  onCancel: () => void;
+};
+
 export default function PickerSheet<T extends PickRow>({
-  title, searchNoun, idPrefix, saved, history, loading, renderRow, onPick, onUseName, newLabel, onClose,
+  title, searchNoun, idPrefix, saved, history, loading, renderRow, onPick, onUseName, newLabel, onClose, renderCreate,
 }: {
   title: string;
   /** "clients" / "items" — for "Search 18 clients". */
@@ -31,18 +46,22 @@ export default function PickerSheet<T extends PickRow>({
   onUseName: (name: string) => void;
   newLabel: string;
   onClose: () => void;
+  /** The embedded create form; omit it (guests) to hide "+ New …". */
+  renderCreate?: (args: CreateArgs) => ReactNode;
 }) {
   const [q, setQ] = useState('');
+  const [creating, setCreating] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
+  const backToList = () => setCreating(null);
+  const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(creating !== null ? backToList : onClose, creating === null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') (creating !== null ? setCreating(null) : onClose()); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onClose]);
+  }, [onClose, creating]);
 
   const query = q.trim();
   const savedShown = useMemo(() => saved.filter((r) => matchesQuery(r.name, q)), [saved, q]);
@@ -68,11 +87,16 @@ export default function PickerSheet<T extends PickRow>({
         {/* Drag handle: the grabber + header. Swipe down to close. */}
         <div data-sheet-handle="" className="shrink-0 cursor-grab select-none" {...handleProps}>
           <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />
-          <div className="relative flex h-12 items-center justify-center px-4">
+          {creating === null && <div className="relative flex h-12 items-center justify-center px-4">
             <button type="button" onClick={onClose} className="absolute left-3 min-h-touch px-1 text-[17px] text-primary">Cancel</button>
             <h2 className="text-[17px] font-bold text-on-background">{title}</h2>
-          </div>
+          </div>}
         </div>
+        {creating !== null && renderCreate ? (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {renderCreate({ name: creating, barProps: { ...handleProps, 'data-sheet-handle': '' } as React.HTMLAttributes<HTMLDivElement>, onCancel: backToList })}
+          </div>
+        ) : (<>
         <div className="shrink-0 px-4 pb-2">
           <label className="flex h-11 items-center gap-2 rounded-[12px] bg-surface-container px-3">
             <Icon name="search" size={20} className="shrink-0 text-on-surface-variant" />
@@ -119,13 +143,15 @@ export default function PickerSheet<T extends PickRow>({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-outline-variant/40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <button type="button"
-            onClick={() => (query ? onUseName(query) : inputRef.current?.focus())}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-primary-container bg-[#F6EBC6] text-[17px] font-bold text-on-background active:scale-[0.98]">
-            <Icon name="add" size={22} /> {newLabel}
-          </button>
-        </div>
+        {renderCreate && (
+          <div className="shrink-0 border-t border-outline-variant/40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+            <button type="button" onClick={() => setCreating(query)}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-primary-container bg-[#F6EBC6] text-[17px] font-bold text-on-background active:scale-[0.98]">
+              <Icon name="add" size={22} /> {newLabel}
+            </button>
+          </div>
+        )}
+        </>)}
       </div>
     </div>,
     document.body,

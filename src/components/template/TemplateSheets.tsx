@@ -4,9 +4,14 @@
 //   USED BEFORE · NOT SAVED ("Used once · Sep 18"), or a new name.
 //   Product or service: saved items A–Z with prices ("$85.00/hr", "No
 //   price"), unsaved history items with their last price, or a new name.
-// Guests (no rows) just get the search + "Use '{q}'".
+// "+ New client" / "+ New product or service" open the Clients tab's own
+// create forms inside the sheet (2·10b); saving writes the row and fills the
+// slot. Guests (no account to save to) get no "+ New" — just the search and
+// "Use '{q}'", which never saves.
 import { useEffect, useState } from 'react';
 import PickerSheet from '@/components/template/PickerSheet';
+import ClientForm from '@/components/clients/ClientForm';
+import ProductForm from '@/components/clients/ProductForm';
 import { createClient } from '@/lib/supabase/client';
 import { initials, normalizeSummary, type ClientSummary } from '@/lib/clients';
 import { PRODUCT_COLS, normalizeProduct, priceText, productSubtitle, type Product } from '@/lib/products';
@@ -14,19 +19,31 @@ import { clientDocsLine, usedBeforeLine, type TemplateClient } from '@/lib/templ
 
 const byRecent = (a: string | null, b: string | null) => (b ?? '').localeCompare(a ?? '');
 
+/** Signed in? null while checking (no "+ New" until known). */
+function useSignedIn(): boolean | null {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    createClient().auth.getSession().then(({ data }) => setSignedIn(!!data.session), () => setSignedIn(false));
+  }, []);
+  return signedIn;
+}
+
 export function ClientSheet({ onPick, onClose }: { onPick: (c: TemplateClient) => void; onClose: () => void }) {
   const [rows, setRows] = useState<ClientSummary[] | null>(null);
+  const signedIn = useSignedIn();
   useEffect(() => {
     createClient().rpc('client_summaries')
       .then(({ data }) => setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeSummary)), () => setRows([]));
   }, []);
 
-  async function pick(c: ClientSummary) {
-    // The contact on file rides along (invoice snapshot, the "Job at …" chip).
-    const { data } = await createClient().from('clients').select('address, phone').eq('id', c.id).maybeSingle();
-    const r = data as { address: string | null; phone: string | null } | null;
-    onPick({ name: c.name, id: c.id, address: r?.address ?? null, phone: r?.phone ?? null });
+  async function pickId(id: string, fallbackName: string) {
+    // The stored spelling and contact on file ride along (invoice snapshot,
+    // the "Job at …" chip).
+    const { data } = await createClient().from('clients').select('name, address, phone').eq('id', id).maybeSingle();
+    const r = data as { name: string; address: string | null; phone: string | null } | null;
+    onPick({ name: r?.name ?? fallbackName, id, address: r?.address ?? null, phone: r?.phone ?? null });
   }
+  const pick = (c: ClientSummary) => pickId(c.id, c.name);
 
   const saved = (rows ?? []).filter((c) => c.saved);
   const history = (rows ?? []).filter((c) => !c.saved && c.doc_count > 0).sort((a, b) => byRecent(a.last_used_at, b.last_used_at));
@@ -35,6 +52,10 @@ export function ClientSheet({ onPick, onClose }: { onPick: (c: TemplateClient) =
       saved={saved} history={history} loading={rows === null} onClose={onClose}
       onPick={pick}
       onUseName={(name) => onPick({ name, id: null, address: null, phone: null })}
+      renderCreate={signedIn ? ({ name, barProps, onCancel }) => (
+        <ClientForm mode="new" initial={{ name }} barProps={barProps} onCancel={onCancel}
+          onSaved={(id) => pickId(id, name)} />
+      ) : undefined}
       renderRow={(c, kind) => (
         <>
           <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-[14px] font-bold text-primary-on-container
@@ -57,6 +78,7 @@ export function ItemSheet({ onPick, onClose }: {
   onClose: () => void;
 }) {
   const [rows, setRows] = useState<ItemRow[] | null>(null);
+  const signedIn = useSignedIn();
   useEffect(() => {
     createClient().from('products').select(`${PRODUCT_COLS}, saved_at`).is('deleted_at', null).limit(500)
       .then(({ data }) => setRows(((data ?? []) as Record<string, unknown>[])
@@ -70,6 +92,10 @@ export function ItemSheet({ onPick, onClose }: {
       saved={saved} history={history} loading={rows === null} onClose={onClose}
       onPick={(p) => onPick({ name: p.name, unit: p.unit, unit_price: p.unit_price, detail: p.detail, saved: p.saved })}
       onUseName={(name) => onPick({ name, unit: 'each', unit_price: null, detail: null, saved: false })}
+      renderCreate={signedIn ? ({ name, barProps, onCancel }) => (
+        <ProductForm mode="new" initialName={name} barProps={barProps} onCancel={onCancel}
+          onSaved={(it) => onPick({ ...it, saved: true })} />
+      ) : undefined}
       renderRow={(p, kind) => {
         const price = priceText(p);
         return (
