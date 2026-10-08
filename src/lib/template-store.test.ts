@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TEMPLATE_TTL_MS, parseStored } from './template-store';
+import { TEMPLATE_TTL_MS, parseStored, parseStoredRow } from './template-store';
 
 const NOW = 1_800_000_000_000;
 const good = (o: Record<string, unknown> = {}) => JSON.stringify({
@@ -36,4 +36,15 @@ test('parseStored: cleans bad fields', () => {
   assert.equal(t.items[0].unit, null);
   assert.equal(t.items[0].unit_price, null);
   assert.equal(t.items[0].qty, 1);
+});
+
+test('parseStoredRow: the template row link, scoped and expiring like the template', () => {
+  const now = 1_800_000_000_000;
+  const raw = (o: object) => JSON.stringify({ uid: 'u1', savedAt: now - 1000, convoId: 'cv1', id: 'inv-1', no: 42, ...o });
+  assert.deepEqual(parseStoredRow(raw({}), 'u1', now), { convoId: 'cv1', id: 'inv-1', no: 42 });
+  assert.equal(parseStoredRow(raw({}), 'u2', now), null);
+  assert.equal(parseStoredRow(raw({ savedAt: now - TEMPLATE_TTL_MS - 1 }), 'u1', now), null);
+  assert.equal(parseStoredRow(raw({ id: null }), 'u1', now), null);
+  assert.equal(parseStoredRow('{bad', 'u1', now), null);
+  assert.equal(parseStoredRow(null, 'u1', now), null);
 });

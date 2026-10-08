@@ -8,6 +8,7 @@ import { isLineUnit } from '@/lib/line-units';
 import type { TemplateClient, TemplateItem, TemplateKind } from '@/lib/template';
 
 const KEY = 'onit-template-v1';
+const ROW_KEY = 'onit-template-row-v1';
 export const TEMPLATE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type StoredTemplate = {
@@ -70,5 +71,36 @@ export function saveTemplate(t: Omit<StoredTemplate, 'v' | 'savedAt'>): void {
 }
 
 export function clearTemplate(): void {
-  try { localStorage.removeItem(KEY); } catch { /* blocked */ }
+  try { localStorage.removeItem(KEY); localStorage.removeItem(ROW_KEY); } catch { /* blocked */ }
+}
+
+// The template's pre-built draft row (2·12c). A template conversation has no
+// messages yet, so the chat's own store doesn't keep it; without this link a
+// template restored after leaving Chat would insert a second row at Send, and
+// a replaced one couldn't soft-delete its draft. Same uid scope and expiry.
+export type TemplateRow = { convoId: string; id: string; no: number };
+
+export function parseStoredRow(raw: string | null, uid: string | null, now: number): TemplateRow | null {
+  if (!raw) return null;
+  let o: Record<string, unknown>;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || (o.uid ?? null) !== uid) return null;
+  const savedAt = num(o.savedAt);
+  if (savedAt == null || now - savedAt > TEMPLATE_TTL_MS || savedAt > now + 60_000) return null;
+  const convoId = str(o.convoId, 64);
+  const id = str(o.id, 64);
+  const no = num(o.no);
+  return convoId && id && no != null ? { convoId, id, no } : null;
+}
+
+export function loadTemplateRow(uid: string | null): TemplateRow | null {
+  try { return parseStoredRow(localStorage.getItem(ROW_KEY), uid, Date.now()); } catch { return null; }
+}
+
+export function clearTemplateRow(): void {
+  try { localStorage.removeItem(ROW_KEY); } catch { /* blocked */ }
+}
+
+export function saveTemplateRow(uid: string | null, row: TemplateRow): void {
+  try { localStorage.setItem(ROW_KEY, JSON.stringify({ ...row, uid, savedAt: Date.now() })); } catch { /* storage full / blocked */ }
 }

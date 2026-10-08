@@ -36,7 +36,7 @@ import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
-import { clearTemplate, loadTemplate, type StoredTemplate } from '@/lib/template-store';
+import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
@@ -1735,6 +1735,9 @@ export default function Chat() {
         invoiceId = newId;
         no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // A template's conversation isn't in the chat store (no messages yet),
+        // so its row link is kept with the template (2·12c).
+        if (template && convoId) saveTemplateRow(templateUidRef.current, { convoId, id: newId, no: newNo });
         // Freshly persisted as a draft — mirror that into the lock state so the
         // card stays editable (Commit B). A 23505-recovered non-draft row already
         // returned above, so reaching here means the row is a draft.
@@ -2410,15 +2413,39 @@ export default function Chat() {
           }, () => { if (live) openTemplate(t); });
         return;
       }
+      // A saved template comes back with its pre-built row, under the same
+      // conversation id (= finalize_key), so Send updates that row instead of
+      // inserting a second one. An expired template's draft row is dropped.
+      const row = loadTemplateRow(uid);
       const saved = loadTemplate(uid);
+      if (row && !pendingInvoiceRef.current) {
+        pendingInvoiceRef.current = { id: row.id, no: row.no };
+        if (saved) setConvoId(row.convoId);
+        else discardTemplateRow();
+      }
       if (saved) { setTemplateRestored(saved); setTemplate(saved.kind); }
+      else clearTemplate();
     }, () => undefined);
     return () => { live = false; };
   }, [hydrated]);
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
   // archived first (one conversation = one invoice row, keyed by convoId).
+  // A replaced template's pre-built row goes the way Close sends it (soft
+  // delete, drafts only): while a template is saved, the live conversation is
+  // that template's, so its pending row is the template's draft; after leaving
+  // Chat the row comes from the template's stored link.
   function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+    // The stored link only counts when the live conversation has no row of its
+    // own, or it is that same row — never a normal chat's draft.
+    const row = loadTemplateRow(templateUidRef.current);
+    const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
+    if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
+    if (template || linked || loadTemplate(templateUidRef.current)) {
+      discardTemplateRow();
+      setDraft(null);
+      setReady(false);
+    }
     clearTemplate();
     window.dispatchEvent(new Event('onit-new-chat'));
     setTemplateDraft(null);
@@ -2442,6 +2469,7 @@ export default function Chat() {
         .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
     }
     pendingInvoiceRef.current = null;
+    clearTemplateRow();
     preBuiltRef.current = null;
     preBuildIdRef.current++;
     setPrepState(null);
