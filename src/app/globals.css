@@ -493,6 +493,22 @@ html[data-splash=""] .onit-splash {
 .onit-tab { transition: transform 100ms var(--ease-emphasized); }
 .onit-tab:active { transform: scale(.95); }
 .onit-tab-centre:active { transform: scale(.9) translateY(1px); }
+/* Save prompts (2·13, UI-REDESIGN-AUDIT §1.5 / §4): the card rises 14 px on
+   a spring; Not now sinks it 10 px. M2: the saved thing lands on the Clients
+   tab — the icon bumps and a gold "+1" floats up and fades. */
+@keyframes onit-prompt-in { from { opacity: 0; transform: translateY(14px); } }
+@keyframes onit-prompt-out { to { opacity: 0; transform: translateY(10px); } }
+.onit-prompt-in { animation: onit-prompt-in var(--motion-base) var(--ease-spring) both; }
+.onit-prompt-out { animation: onit-prompt-out var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-tab-bump { 0% { transform: scale(1); } 45% { transform: scale(1.22); } 100% { transform: scale(1); } }
+.onit-tab-bump { animation: onit-tab-bump 420ms var(--ease-spring) both; }
+@keyframes onit-plus-one {
+  0% { opacity: 0; transform: translateY(4px) scale(.8); }
+  25% { opacity: 1; transform: translateY(-6px) scale(1); }
+  70% { opacity: 1; transform: translateY(-12px); }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
+.onit-plus-one { animation: onit-plus-one 900ms var(--ease-standard) both; }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }

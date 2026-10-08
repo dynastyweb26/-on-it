@@ -80,6 +80,7 @@ export const ICON_NAMES = [
   'request_quote',
   'schedule',
   'search',
+  'sell',
   'send',
   'settings',
   'share',

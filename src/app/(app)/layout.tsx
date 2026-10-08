@@ -98,6 +98,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // and the newly active tab's icon does a 4px bounce.
   const [enterDir, setEnterDir] = useState<'onit-tab-enter' | null>(null);
   const [bounceIdx, setBounceIdx] = useState(-1);
+  // M2 (2·13): a saved client / item lands on a tab — bump + "+1".
+  const [bump, setBump] = useState<{ href: string; n: number } | null>(null);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const onBump = (e: Event) => {
+      const href = (e as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+      clearTimeout(t);
+      setBump((b) => ({ href, n: (b?.n ?? 0) + 1 }));
+      t = setTimeout(() => setBump(null), 1000);
+    };
+    window.addEventListener('onit-tab-bump', onBump);
+    return () => { window.removeEventListener('onit-tab-bump', onBump); clearTimeout(t); };
+  }, []);
   useIsoLayoutEffect(() => {
     const prev = prevTabRef.current;
     prevTabRef.current = tabIdx;
@@ -341,13 +355,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               aria-current={active ? 'page' : undefined}
               onClick={() => { if (!active) { try { navigator.vibrate?.(8); } catch { /* unsupported */ } } }}
               className={`onit-tab group flex min-w-0 flex-1 flex-col items-center gap-1 pb-1 ${centre ? 'onit-tab-centre' : ''}`}>
-              <span ref={(el) => { tabLinkRefs.current[i] = el; }}
+              <span ref={(el) => { tabLinkRefs.current[i] = el; }} data-tab-target={href}
                 className={`relative grid place-items-center rounded-[18px]
                   ${centre ? '-mt-1 h-9 w-16' : 'h-8 w-[58px]'}
                   ${active ? (pill ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
-                <span className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}`}>
+                <span key={bump?.href === href ? `bump-${bump.n}` : 'icon'}
+                  className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}${bump?.href === href ? ' onit-tab-bump' : ''}`}>
                   <Icon name={icon} size={centre ? 27 : 24} filled={active} />
                 </span>
+                {bump?.href === href && (
+                  <span key={`plus-${bump.n}`} aria-hidden
+                    className="onit-plus-one pointer-events-none absolute -top-3 right-1 rounded-full bg-primary-container px-1.5 text-[11px] font-bold leading-[16px] text-on-background">
+                    +1
+                  </span>
+                )}
                 {href === '/dashboard' && <BooksDot />}
               </span>
               <span className={`text-[11.5px] leading-none tracking-[.01em] ${active ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>

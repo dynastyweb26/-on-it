@@ -38,6 +38,8 @@ import TemplateCard from '@/components/template/TemplateCard';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
+import SavePromptCard from '@/components/SavePromptCard';
+import { clientPrompt, enqueue, productPrompts, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
@@ -1406,14 +1408,18 @@ export default function Chat() {
     if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
     if (template) dropTemplate();   // sent: the template's job is done
     // Count each line's item for saved products (fire-and-forget; never blocks
-    // or changes the send). Its save-prompt candidates are used in 2·13.
+    // or changes the send); it returns the save-prompt candidates (2·13).
     // Template sends only for now: chat lines carry the AI's free-form wording,
     // which would fill Products' "used before" with sentences (PUNCH-LIST).
-    if (template && profile && draft?.line_items?.length) {
-      void supabase.rpc('record_product_use', {
-        p_items: (draft.line_items as LineItem[]).slice(0, 50).map((li) => ({ name: li.description, unit: li.unit ?? null, unit_price: li.unit_price })),
-      }).then(() => undefined, () => undefined);
-    }
+    const sentLines = ((draft?.line_items ?? []) as LineItem[]);
+    const productNames: PromiseLike<unknown> = template && profile && sentLines.length
+      ? supabase.rpc('record_product_use', {
+        p_items: sentLines.slice(0, 50).map((li) => ({ name: li.description, unit: li.unit ?? null, unit_price: li.unit_price })),
+      }).then(({ data }) => data, () => null)
+      : Promise.resolve(null);
+    // Save prompts (2·13) — after the share, never inside its gesture; signed
+    // in only (guests have no rows).
+    if (profile && draft?.client_name) void queueSavePrompts(String(draft.client_name), sentLines, productNames);
     // finished=true keeps this conversation from being re-archived as a draft by
     // a later new-chat / history-open. It is NOT cleared from storage: because
     // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
@@ -2516,6 +2522,51 @@ export default function Chat() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template, templateDraft, profile]);
+  // ── Save prompts (merge 2 · 2·13, UI-REDESIGN-AUDIT §1.5): after a send, an
+  // unsaved client on its 2nd+ document and unsaved items used twice (template
+  // sends) are offered for saving, one at a time, ~700 ms after the send.
+  const [promptQueue, setPromptQueue] = useState<SavePrompt[]>([]);
+  const [promptShown, setPromptShown] = useState<SavePrompt | null>(null);
+  const promptShownRef = useRef<SavePrompt | null>(null);
+  promptShownRef.current = promptShown;
+  useEffect(() => {
+    if (promptShown || promptQueue.length === 0) return;
+    const t = setTimeout(() => {
+      setPromptShown(promptQueue[0]);
+      setPromptQueue((q) => q.slice(1));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [promptShown, promptQueue]);
+  async function queueSavePrompts(name: string, lines: LineItem[], names: PromiseLike<unknown>) {
+    const key = name.trim().toLowerCase();
+    const [c, u, n] = await Promise.all([
+      supabase.from('clients').select('name, saved_at, deleted_at').eq('name_key', key).maybeSingle()
+        .then(({ data }) => data as { name: string; saved_at: string | null; deleted_at: string | null } | null, () => null),
+      supabase.rpc('client_name_usage', { p_name: name })
+        .then(({ data }) => (Array.isArray(data) ? data[0] : data) as { invoices: number; quotes: number } | null, () => null),
+      names,
+    ]);
+    const cp = clientPrompt(
+      c ? { name: c.name, saved: c.saved_at != null && c.deleted_at == null } : null,
+      u ? { invoices: Number(u.invoices ?? 0), quotes: Number(u.quotes ?? 0) } : null,
+    );
+    const add = [...(cp ? [cp] : []), ...productPrompts(n, lines)];
+    if (add.length) setPromptQueue((q) => enqueue(q, promptShownRef.current, add));
+  }
+  async function saveFromPrompt(p: SavePrompt): Promise<boolean> {
+    if (p.kind === 'client') {
+      const { error } = await supabase.rpc('save_client', { p_name: p.name });
+      if (error) return false;
+    } else {
+      // Price / unit are the last used ones, already on the row (record_product_use).
+      const { data, error } = await supabase.from('products')
+        .update({ saved_at: new Date().toISOString(), deleted_at: null })
+        .eq('name_key', p.name.trim().toLowerCase()).select('id');
+      if (error || !data?.length) return false;
+    }
+    setMessages((m) => [...m, aMsg(savedLine(p))]);
+    return true;
+  }
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -3200,7 +3251,14 @@ export default function Chat() {
             onSend={() => { void finalize(); }} />
         </div>
       ) : (
-        <div className={`border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' relative z-[46]' : ''}`}>
+        <div className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
+          {/* The save prompt floats just above the composer, no scrim (2·13). */}
+          {promptShown && !plusMenu && (
+            <div className="absolute inset-x-3 bottom-full z-30 mb-2">
+              <SavePromptCard key={promptShown.key} prompt={promptShown}
+                onSave={() => saveFromPrompt(promptShown)} onDone={() => setPromptShown(null)} />
+            </div>
+          )}
           {phase === 'preparing' && (
             <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
               <Icon name="photo_camera" size={20} className="text-primary" />
