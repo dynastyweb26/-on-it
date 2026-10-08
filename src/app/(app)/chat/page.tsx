@@ -37,6 +37,7 @@ import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import type { TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, type StoredTemplate } from '@/lib/template-store';
+import { escapeLike, templateSummary } from '@/lib/template-send';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
@@ -1372,9 +1373,12 @@ export default function Chat() {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
+    // A template send (2·12b) adds the user-turn summary bubble first, as a real
+    // message, so history and recaps read the same as a chat-made document.
+    const summary = template && draft && !retryId ? uMsg(templateSummary(draft), 'typed') : null;
     // On a finalize retry the done message replaces the failed bubble in place,
     // so neither the transcript nor the archived history keeps a dead error.
-    const archived = emitResult(messages, doneMsg, retryId);
+    const archived = emitResult(summary ? [...messages, summary] : messages, doneMsg, retryId);
     setMessages(archived);
     // Archive to history as sent. draft:null / ready:false is what the history
     // list stores; reopening rebuilds the locked card from the DB row (Commit B).
@@ -1402,6 +1406,15 @@ export default function Chat() {
     setLinkedAmountPaid(0);
     setRenderData(null);
     playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
+    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
+    if (template) dropTemplate();   // sent: the template's job is done
+    // Count each line's item for saved products (fire-and-forget; never blocks
+    // or changes the send). Its save-prompt candidates are used in 2·13.
+    if (profile && draft?.line_items?.length) {
+      void supabase.rpc('record_product_use', {
+        p_items: (draft.line_items as LineItem[]).slice(0, 50).map((li) => ({ name: li.description, unit: li.unit ?? null, unit_price: li.unit_price })),
+      }).then(() => undefined, () => undefined);
+    }
     // finished=true keeps this conversation from being re-archived as a draft by
     // a later new-chat / history-open. It is NOT cleared from storage: because
     // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
@@ -2362,7 +2375,15 @@ export default function Chat() {
   const [template, setTemplate] = useState<TemplateKind | null>(null);
   const [templateUid, setTemplateUid] = useState<string | null>(null);
   const [templateRestored, setTemplateRestored] = useState<StoredTemplate | null>(null);
+  // The template's sendable draft (2·12b) and the L17 duplicate note.
+  const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
+  const [templateDup, setTemplateDup] = useState<string | null>(null);
+  const templateInit = useRef(false);
   useEffect(() => {
+    // After hydration: a fresh template archives the live conversation first
+    // (one conversation = one invoice row, keyed by convoId).
+    if (!hydrated || templateInit.current) return;
+    templateInit.current = true;
     let live = true;
     createClient().auth.getSession().then(({ data }) => {
       if (!live) return;
@@ -2375,6 +2396,7 @@ export default function Chat() {
         url.searchParams.delete('template');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
         clearTemplate();
+        window.dispatchEvent(new Event('onit-new-chat'));
         setTemplate(t);
         return;
       }
@@ -2382,8 +2404,54 @@ export default function Chat() {
       if (saved) { setTemplateRestored(saved); setTemplate(saved.kind); }
     }, () => undefined);
     return () => { live = false; };
-  }, []);
-  const closeTemplate = () => { clearTemplate(); setTemplateRestored(null); setTemplate(null); };
+  }, [hydrated]);
+  const dropTemplate = () => { clearTemplate(); setTemplateRestored(null); setTemplateDraft(null); setTemplateDup(null); setTemplate(null); };
+  // Close × (unsent): the template is discarded, and so is any draft row the
+  // background pre-build already wrote for it (soft delete, drafts only) —
+  // it never appears in Invoices or gets a "you have an unsent draft" nudge.
+  // The chat's draft and row link reset so no card lingers.
+  function closeTemplate() {
+    const pending = pendingInvoiceRef.current;
+    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    pendingInvoiceRef.current = null;
+    preBuiltRef.current = null;
+    preBuildIdRef.current++;
+    setPrepState(null);
+    setDraft(null);
+    setReady(false);
+    setConvoId(genId());
+    dropTemplate();
+  }
+  // The template feeds the chat's draft: complete → draft + ready (the
+  // pre-build writes the row and the PDF); incomplete → not ready.
+  useEffect(() => {
+    if (!template) return;
+    if (templateDraft) { setDraft(templateDraft); setReady(true); }
+    else setReady(false);
+  }, [template, templateDraft]);
+  // L17 at Send, shared rule with the parse route: same client + same total in
+  // the last 48 h. Checked before the tap (no await may sit between the tap and
+  // the iOS share), shown as a note; Send still works.
+  useEffect(() => {
+    if (!template || !templateDraft || !profile) { setTemplateDup(null); return; }
+    const d = templateDraft;
+    const t = setTimeout(async () => {
+      const total = calculateInvoiceTotals((d.line_items ?? []) as LineItem[], 0, (d.deposit_type as DepositType) ?? 'none', Number(d.deposit_value ?? 0)).total;
+      const q = supabase.from('invoices').select('id').eq('user_id', profile.id).is('deleted_at', null)
+        .ilike('client_name', escapeLike(d.client_name ?? '')).eq('total', total)
+        .gte('created_at', new Date(Date.now() - 48 * 3600e3).toISOString()).limit(5);
+      const { data } = await q;
+      const others = ((data ?? []) as { id: string }[]).filter((r) => r.id !== pendingInvoiceRef.current?.id);
+      setTemplateDup(others.length
+        ? `Heads up — you already made one for ${d.client_name} at this amount in the last 2 days. Send makes a new one.`
+        : null);
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, templateDraft, profile]);
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -2684,7 +2752,7 @@ export default function Chat() {
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
-  const invoiceCard = ready && draft ? (
+  const invoiceCard = ready && draft && !template ? (
     // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
     <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
@@ -3066,7 +3134,10 @@ export default function Chat() {
         // phone: past ~85% of the chat area it scrolls inside its slot.
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
           <TemplateCard key="template" kind={template} onKindChange={setTemplate} onClose={closeTemplate}
-            uid={templateUid} restored={templateRestored} />
+            uid={templateUid} restored={templateRestored}
+            onDraft={setTemplateDraft} duplicateNote={templateDup}
+            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
+            onSend={() => { void finalize(); }} />
         </div>
       ) : (
         <div className={`border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' relative z-[46]' : ''}`}>

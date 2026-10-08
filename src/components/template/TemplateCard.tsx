@@ -29,13 +29,23 @@
 //   Footer: what's missing ("Add a client to send", "Add a price for Labor",
 //   Q3) or Subtotal · "50% deposit due now: $X" · Total. No tax (§1.4).
 //
-// Merge 2 · 2·10 (part 1) + 2·11 (part 2) + 2·12a. Send lands in 2·12b.
+//   Send ↗ (2·12b; founder lock): a black #2E2822 circle with a cream
+//   north_east arrow, no text, aria-label "Send invoice" / "Send quote".
+//   Disabled (#EFE7D8, arrow at 40 %, no press scale) until the template is
+//   complete; busy while the chat pre-builds the PDF, so the tap always takes
+//   the synchronous iOS share. The card hands its draft to the chat page,
+//   which runs the chat's own send (lib/template-send).
+//
+// Merge 2 · 2·10 (part 1) + 2·11 (part 2) + 2·12a/b.
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import { ClientSheet, ItemSheet } from '@/components/template/TemplateSheets';
 import KeypadSheet from '@/components/template/KeypadSheet';
+import OnItSpinner from '@/components/OnItSpinner';
 import ExtraInfoSheet from '@/components/template/ExtraInfoSheet';
 import { parseExtraInfo } from '@/lib/extra-info';
+import { templateToDraft } from '@/lib/template-send';
+import type { ExtractResult } from '@/lib/ai';
 import { money, calculateLineAmount, calculateInvoiceTotals } from '@/lib/financials';
 import type { KeypadKind } from '@/lib/keypad';
 import { clientContactLine, emptyItem, type TemplateClient, type TemplateItem, type TemplateKind } from '@/lib/template';
@@ -50,7 +60,9 @@ const qtyUnit = (u: TemplateItem['unit']) => (u === 'hour' ? 'hr' : u === 'sq ft
 
 type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind } | { type: 'extra' };
 
-export default function TemplateCard({ kind, onKindChange, onClose, uid, restored }: {
+export type SendState = 'disabled' | 'preparing' | 'ready' | 'busy';
+
+export default function TemplateCard({ kind, onKindChange, onClose, uid, restored, onDraft, sendState, onSend, duplicateNote }: {
   kind: TemplateKind;
   onKindChange: (k: TemplateKind) => void;
   onClose: () => void;
@@ -58,6 +70,13 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   uid: string | null;
   /** A template restored from storage (2·11a). */
   restored?: { client: TemplateClient | null; items: TemplateItem[]; extra?: string } | null;
+  /** The chat draft while the template is sendable, else null (2·12b). */
+  onDraft: (d: Partial<ExtractResult> | null) => void;
+  sendState: SendState;
+  /** Called synchronously in the tap (iOS share needs the gesture). */
+  onSend: () => void;
+  /** "You already made an invoice for … at this amount" (L17), shown above Send. */
+  duplicateNote?: string | null;
 }) {
   const [extra, setExtra] = useState(() => restored?.extra ?? '');
   const [client, setClient] = useState<TemplateClient | null>(() => restored?.client ?? null);
@@ -65,6 +84,10 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
 
   // ── Persist every change (2·11a).
   useEffect(() => { saveTemplate({ uid, kind, client, items, extra }); }, [uid, kind, client, items, extra]);
+  // Hand the chat its draft whenever the sendable content changes (2·12b).
+  useEffect(() => { onDraft(templateToDraft(kind, client, items, extra)); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kind, client, items, extra]);
 
   // ── After a restore, re-read the picked client and items (signed in only):
   // the chips show their current saved details; a keypad-set price stays.
@@ -290,19 +313,41 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           : <span className="min-w-0 flex-1 truncate text-[16px]">Extra info<span className="opacity-70"> · dates, notes, deposit</span></span>}
       </button>
 
-      {/* Footer: what's missing, or the totals. */}
-      <div className="mt-2.5 border-t border-outline-variant/50 pt-2.5" aria-live="polite">
-        {hint ? (
-          <p className="text-[14px] text-on-surface-variant">{hint}</p>
-        ) : (
-          <div className="leading-tight">
-            <p className="text-[13px] text-on-surface-variant">Subtotal {money(totals.subtotal)}</p>
-            {totals.depositAmount > 0 && (
-              <p className="text-[13px] font-bold text-primary">{depositLabel} due now: {money(totals.depositAmount)}</p>
-            )}
-            <p className="mt-0.5 text-[13px] text-on-surface-variant">Total <span className="font-display text-[22px] font-extrabold text-on-background tabular-nums">{money(totals.total)}</span></p>
-          </div>
-        )}
+      {duplicateNote && !hint && (
+        <p role="status" className="mt-2 flex items-start gap-2 rounded-[12px] bg-primary-soft px-3 py-2 text-[13.5px] text-on-background">
+          <Icon name="history" size={18} className="mt-0.5 shrink-0" />{duplicateNote}
+        </p>
+      )}
+
+      {/* Footer: what's missing, or the totals — and Send. */}
+      <div className="mt-2.5 flex items-end gap-3 border-t border-outline-variant/50 pt-2.5">
+        <div className="min-w-0 flex-1" aria-live="polite">
+          {hint ? (
+            <p className="text-[14px] text-on-surface-variant">{hint}</p>
+          ) : (
+            <div className="leading-tight">
+              <p className="text-[13px] text-on-surface-variant">Subtotal {money(totals.subtotal)}</p>
+              {totals.depositAmount > 0 && (
+                <p className="text-[13px] font-bold text-primary">{depositLabel} due now: {money(totals.depositAmount)}</p>
+              )}
+              <p className="mt-0.5 text-[13px] text-on-surface-variant">Total <span className="font-display text-[22px] font-extrabold text-on-background tabular-nums">{money(totals.total)}</span></p>
+            </div>
+          )}
+        </div>
+        {(() => {
+          const off = !!hint || sendState === 'disabled';
+          const waiting = !off && (sendState === 'preparing' || sendState === 'busy');
+          return (
+            <button type="button" onClick={onSend}
+              disabled={off || waiting} aria-disabled={off || waiting} aria-busy={waiting || undefined}
+              aria-label={`Send ${noun}`}
+              className={`relative grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full transition
+                ${off ? 'bg-[#EFE7D8] text-on-background/40' : 'bg-[#2E2822] text-[#FBF3E5] active:scale-90'}
+                ${waiting ? 'opacity-70' : ''}`}>
+              {waiting ? <OnItSpinner size={22} /> : <Icon name="north_east" size={26} />}
+            </button>
+          );
+        })()}
       </div>
 
       {sheet?.type === 'client' && (
