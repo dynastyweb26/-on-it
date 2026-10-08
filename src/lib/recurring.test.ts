@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, anchorFor, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
+  addDays, anchorFor, booksLine, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
   parseAmount, recurringSubtitle, shortDay, skipNotice, todayIn, upcoming, type Recurring,
 } from './recurring';
 
@@ -98,4 +98,13 @@ test('todayIn: zone-local date, UTC fallback', () => {
   assert.equal(todayIn('Asia/Tokyo', at), '2026-10-09');
   assert.equal(todayIn(null, at), '2026-10-09');
   assert.equal(todayIn('Not/AZone', at), '2026-10-09');
+});
+
+test('booksLine: count, next live charge, monthly total', () => {
+  assert.deepEqual(booksLine([], '2026-10-06'), { caption: 'Rent, software, insurance — set once', monthly: null });
+  assert.deepEqual(booksLine([
+    item({ next_on: '2026-11-02' }), item({ cadence: 'weekly', anchor_day: null, next_on: '2026-10-06', amount: 60 }),
+    item({ next_on: '2026-10-07', auto_log: false, amount: 10 }),
+  ], '2026-10-06'), { caption: '3 charges · next Oct 6', monthly: Math.round((54.99 + 260 + 10) * 100) / 100 });
+  assert.equal(booksLine([item({ auto_log: false })], '2026-10-06').caption, '1 charge · all paused');
 });

@@ -9,6 +9,7 @@ import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import RecapsCard from '@/components/recap/RecapsCard';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
+import RecurringBooksRow from '@/components/recurring/RecurringBooksRow';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
@@ -201,7 +202,7 @@ export default function Dashboard() {
           >
             <Icon name="add" size={22} /> Add expense
           </button>
-          {/* List card: Expenses (and Recurring with merge 3). */}
+          {/* List card: Expenses + Recurring (merge 3 · 3·3). */}
           <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}>
             <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
@@ -215,6 +216,7 @@ export default function Dashboard() {
               <span className="text-sm font-semibold text-on-surface-variant tabular-nums">{stats.expenseCount}</span>
               <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
             </Link>
+            <RecurringBooksRow />
           </div>
           <Link
             href="/summary"

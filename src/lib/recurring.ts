@@ -173,3 +173,12 @@ export function parseAmount(s: string): number | null {
   const n = Number(t);
   return n > 0 && n <= AMOUNT_MAX ? n : NaN;
 }
+
+/** The Books row (frame 5a): "7 charges · next Oct 6" and the monthly total. Paused items count but never set "next". */
+export function booksLine(items: Recurring[], today: string): { caption: string; monthly: number | null } {
+  if (items.length === 0) return { caption: 'Rent, software, insurance — set once', monthly: null };
+  const next = items.filter((r) => r.auto_log)
+    .map((r) => firstDueFrom(r.next_on, r.cadence, r.anchor_day, today)).sort()[0];
+  const n = `${items.length} ${items.length === 1 ? 'charge' : 'charges'}`;
+  return { caption: next ? `${n} · next ${shortDay(next, today)}` : `${n} · all paused`, monthly: monthlyTotal(items) };
+}

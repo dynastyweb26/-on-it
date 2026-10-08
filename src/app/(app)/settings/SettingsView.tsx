@@ -522,7 +522,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
 
       {/* The grouped main screen (release frames 0c). Clients and Products &
           Services open the Clients tab (founder rule F3); Recurring expenses
-          joins MONEY with the Recurring screen (merge 3). */}
+          ("In Books") opens Books › Recurring (merge 3 · 3·3). */}
       {is('main') && (<>
         <SettingsGroup title="Your business">
           <SettingsRow icon="group" tint="gold" title="Clients" value={clientCount ? String(clientCount) : null} href="/clients" />
@@ -531,6 +531,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />
         </SettingsGroup>
         <SettingsGroup title="Money">
+          <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
               : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
