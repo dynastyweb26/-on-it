@@ -4,13 +4,15 @@
 // "USED BEFORE · NOT SAVED" (history rows), A–Z groups with the scrub rail,
 // a "Use '{q}'" row when the search names something new, and a pinned
 // "+ New …" button. "+ New" with no search focuses the field; with one it
-// uses it. Escape / the scrim / Cancel close without picking.
+// uses it. Escape / the scrim / Cancel / a swipe down on the grabber or
+// header (2·10a, lib/use-sheet-drag) close without picking.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { AlphaSections } from '@/components/lists/SavedList';
 import { groupByLetter, matchesQuery } from '@/lib/clients';
 import { hasExactName } from '@/lib/template';
+import { useSheetDrag } from '@/lib/use-sheet-drag';
 
 export type PickRow = { id: string; name: string };
 
@@ -32,6 +34,7 @@ export default function PickerSheet<T extends PickRow>({
 }) {
   const [q, setQ] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -59,13 +62,16 @@ export default function PickerSheet<T extends PickRow>({
   // would otherwise make this fixed sheet position against the card.
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end justify-center" data-no-tab-swipe="true">
-      <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={title}
+      <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label={title} style={sheetStyle}
         className="onit-sheet-in relative flex h-[92dvh] w-full max-w-lg flex-col rounded-t-card bg-background shadow-card-raised">
-        <span aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-outline-variant" />
-        <div className="relative flex h-12 shrink-0 items-center justify-center px-4">
-          <button type="button" onClick={onClose} className="absolute left-3 min-h-touch px-1 text-[17px] text-primary">Cancel</button>
-          <h2 className="text-[17px] font-bold text-on-background">{title}</h2>
+        {/* Drag handle: the grabber + header. Swipe down to close. */}
+        <div data-sheet-handle="" className="shrink-0 cursor-grab select-none" {...handleProps}>
+          <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />
+          <div className="relative flex h-12 items-center justify-center px-4">
+            <button type="button" onClick={onClose} className="absolute left-3 min-h-touch px-1 text-[17px] text-primary">Cancel</button>
+            <h2 className="text-[17px] font-bold text-on-background">{title}</h2>
+          </div>
         </div>
         <div className="shrink-0 px-4 pb-2">
           <label className="flex h-11 items-center gap-2 rounded-[12px] bg-surface-container px-3">
