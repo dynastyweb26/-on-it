@@ -6,8 +6,7 @@
 // rows (tap → Edit); every invoice and quote linked to this client, newest
 // first, each opening its detail page.
 //
-// Invoice: until the guided template lands (2·12), it starts a fresh chat
-// seeded "Invoice for {name} " — the same interim as the + menu (§L Q1).
+// Invoice: opens the guided invoice template with this client picked (2·12c).
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -82,7 +81,7 @@ export default function ClientDetail() {
   const converted = new Set(docs.map((d) => d.converted_from).filter(Boolean) as string[]);
   // Dial / text with digits only ("(555) 014-2290" → "5550142290"); + kept.
   const dial = (client.phone ?? '').replace(/[^\d+]/g, '');
-  const invoiceSeed = `/chat?new=1&seed=${encodeURIComponent(`Invoice for ${client.name} `)}`;
+  const invoiceHref = `/chat?template=invoice&client=${client.id}`;
 
   return (
     <div className="relative px-4 pb-6 pt-4">
@@ -102,7 +101,7 @@ export default function ClientDetail() {
         <Action icon="call" label="Call" href={dial ? `tel:${dial}` : editHref('phone')} />
         <Action icon="sms" label="Text" href={dial ? `sms:${dial}` : editHref('phone')} />
         <Action icon="mail" label="Email" href={client.email ? `mailto:${client.email}` : editHref('email')} />
-        <Action icon="description" label="Invoice" href={invoiceSeed} gold />
+        <Action icon="description" label="Invoice" href={invoiceHref} gold />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2.5">

@@ -35,7 +35,7 @@ import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
-import type { TemplateKind } from '@/lib/template';
+import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
@@ -44,6 +44,8 @@ import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financial
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A failed assistant message carries what it takes to re-run the operation in
 // place: the op, plus (for send) the user text to resend. finalize needs no
@@ -914,14 +916,9 @@ export default function Chat() {
     if (url.searchParams.get('new') !== '1') return;
     const t = setTimeout(() => {
       newFromParam.current = true;
-      // &seed= primes the field (a client's "Invoice" action, until the
-      // template lands in merge 2 · 2·12). Capped; never sent on its own.
-      const seed = (url.searchParams.get('seed') ?? '').slice(0, 140);
       url.searchParams.delete('new');
-      url.searchParams.delete('seed');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
       window.dispatchEvent(new Event('onit-new-chat'));
-      if (seed) setInput(seed);
     }, 0);
     return () => clearTimeout(t);
   }, [hydrated]);
@@ -2370,9 +2367,9 @@ export default function Chat() {
   // session "+" opens Voice · New invoice · New quote; during one the same
   // button is the × that ends the session.
   // ── Guided template (merge 2 · 2·10, UI-REDESIGN-AUDIT §1.4): when set, the
-  // template card takes the composer's slot. Until Send lands (2·12) it opens
-  // only from /chat?template=invoice|quote (preview testing); the + menu
-  // keeps its seeded-chat interim (§L Q1).
+  // template card takes the composer's slot. It opens from the + menu, a
+  // client's Invoice action (/chat?template=invoice&client={id}) and
+  // /chat?template=invoice|quote.
   // Persisted (2·11a): an open template comes back when Chat opens again.
   const [template, setTemplate] = useState<TemplateKind | null>(null);
   const [templateUid, setTemplateUid] = useState<string | null>(null);
@@ -2381,6 +2378,9 @@ export default function Chat() {
   const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
   const [templateDup, setTemplateDup] = useState<string | null>(null);
   const templateInit = useRef(false);
+  const templateUidRef = useRef<string | null>(null);
+  // Remounts the card for each fresh template, so none of its state carries over.
+  const [templateNonce, setTemplateNonce] = useState(0);
   useEffect(() => {
     // After hydration: a fresh template archives the live conversation first
     // (one conversation = one invoice row, keyed by convoId).
@@ -2391,15 +2391,23 @@ export default function Chat() {
       if (!live) return;
       const uid = data.session?.user.id ?? null;
       setTemplateUid(uid);
+      templateUidRef.current = uid;
       const url = new URL(window.location.href);
       const t = url.searchParams.get('template');
       if (t === 'invoice' || t === 'quote') {
-        // An explicit new template replaces any saved one.
+        // An explicit new template replaces any saved one. &client={id}: a
+        // client's Invoice action (2·12c) opens it with that client picked.
+        const cid = url.searchParams.get('client');
         url.searchParams.delete('template');
+        url.searchParams.delete('client');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-        clearTemplate();
-        window.dispatchEvent(new Event('onit-new-chat'));
-        setTemplate(t);
+        if (!uid || !cid || !UUID_RE.test(cid)) { openTemplate(t); return; }
+        createClient().from('clients').select('id, name, address, phone').eq('id', cid).maybeSingle()
+          .then(({ data }) => {
+            if (!live) return;
+            const c = data as { id: string; name: string; address: string | null; phone: string | null } | null;
+            openTemplate(t, c ? { id: c.id, name: c.name, address: c.address, phone: c.phone } : null);
+          }, () => { if (live) openTemplate(t); });
         return;
       }
       const saved = loadTemplate(uid);
@@ -2407,6 +2415,18 @@ export default function Chat() {
     }, () => undefined);
     return () => { live = false; };
   }, [hydrated]);
+  // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
+  // ?template= link): it replaces any saved one, and the live conversation is
+  // archived first (one conversation = one invoice row, keyed by convoId).
+  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+    clearTemplate();
+    window.dispatchEvent(new Event('onit-new-chat'));
+    setTemplateDraft(null);
+    setTemplateDup(null);
+    setTemplateRestored(client ? { v: 1, uid: templateUidRef.current, savedAt: Date.now(), kind: k, client, items: [], extra: '' } : null);
+    setTemplateNonce((n) => n + 1);
+    setTemplate(k);
+  }
   const dropTemplate = () => { clearTemplate(); setTemplateRestored(null); setTemplateDraft(null); setTemplateDup(null); setTemplate(null); };
   // Close × (unsent): the template is discarded, and so is any draft row the
   // background pre-build already wrote for it (soft delete, drafts only) —
@@ -2491,15 +2511,11 @@ export default function Chat() {
       closePlusMenu(); // the menu reverses out (1d: an option pick closes it too)
       return;
     }
-    // New invoice / New quote: until the guided template lands (merge 2, §L Q1),
-    // start a fresh conversation with the field primed and focused (focus
-    // inside the tap, so iOS opens the keyboard).
-    window.dispatchEvent(new Event('onit-new-chat'));
-    const seed = k === 'quote' ? 'Quote for ' : 'Invoice for ';
-    setInput(seed);
-    inputRef.current?.focus();
-    requestAnimationFrame(() => inputRef.current?.setSelectionRange(seed.length, seed.length));
-    closePlusMenu();
+    // New invoice / New quote (2·12c, ends §L Q1's seeded-chat interim): the
+    // menu closes and the field becomes the template card in that mode.
+    setPlusMenu(null);
+    clearTimeout(plusTimer.current);
+    openTemplate(k);
   }
 
   function micTap() {
@@ -3149,7 +3165,7 @@ export default function Chat() {
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
-          <TemplateCard key="template" kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
+          <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}

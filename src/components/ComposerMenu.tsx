@@ -21,10 +21,9 @@ export type ComposerPick = 'mic' | 'invoice' | 'quote';
 // Top to bottom; the last one sits nearest the "+".
 const OPTIONS: { key: ComposerPick; label: string; sub: string; icon: IconName; disc: string }[] = [
   { key: 'mic', label: 'Voice', sub: 'Say it, On It writes it', icon: 'mic', disc: 'bg-primary-soft' },
-  // Until the guided template lands (merge 2), invoice and quote start a
-  // seeded chat (UI-REDESIGN-AUDIT §L Q1), so the subtitle says so.
-  { key: 'invoice', label: 'New invoice', sub: 'Say or type it', icon: 'description', disc: 'bg-primary-container' },
-  { key: 'quote', label: 'New quote', sub: 'Say or type it', icon: 'request_quote', disc: 'bg-primary-soft' },
+  // Invoice and quote open the guided template in place (merge 2 · 2·12c).
+  { key: 'invoice', label: 'New invoice', sub: 'Guided template', icon: 'description', disc: 'bg-primary-container' },
+  { key: 'quote', label: 'New quote', sub: 'Guided template', icon: 'request_quote', disc: 'bg-primary-soft' },
 ];
 export const MENU_CLOSE_MS = 180;
 
