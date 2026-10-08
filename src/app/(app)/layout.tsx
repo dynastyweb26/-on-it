@@ -18,6 +18,7 @@ function getParentRoute(path: string): string | null {
   // A client's detail page backs to the list; New / Edit carry their own Cancel.
   if (/^\/clients\/[^/]+$/.test(path) && path !== '/clients/new') return '/clients';
   if (path === '/expenses') return '/dashboard';
+  if (path === '/dashboard/recurring') return '/dashboard'; // New / Edit carry their own Cancel
   if (path === '/summary') return '/dashboard';
   if (path === '/recaps') return '/dashboard';
   if (path === '/vault') return '/settings';
