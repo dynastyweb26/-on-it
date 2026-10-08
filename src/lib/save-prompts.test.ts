@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clientPrompt, enqueue, productPrompts, savedLine } from './save-prompts';
+import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine } from './save-prompts';
 
 test('clientPrompt: unsaved and used twice or more', () => {
   assert.equal(clientPrompt({ name: 'Mike Davis', saved: false }, { invoices: 1, quotes: 0 }), null);
@@ -33,4 +33,14 @@ test('enqueue: one prompt per client / item', () => {
 test('savedLine', () => {
   assert.equal(savedLine({ kind: 'client', key: 'k', name: 'Mike Davis' }), 'Saved Mike Davis to Clients.');
   assert.equal(savedLine({ kind: 'product', key: 'k', name: 'Deck staining', price: 450 }), 'Saved Deck staining to Products & Services.');
+});
+
+test('recurringPrompt: next charge after this one, never before today', () => {
+  const p = recurringPrompt([{ vendor: 'Adobe', amount: '54.99', cadence: 'monthly', prior_on: '2026-09-02' }], 'subscriptions', '2026-10-02', '2026-10-08')!;
+  assert.deepEqual(p, { kind: 'recurring', key: 'recurring:adobe:monthly', name: 'Adobe', amount: 54.99, cadence: 'monthly', category: 'subscriptions', nextOn: '2026-11-02' });
+  assert.equal(savedLine(p, '2026-10-08'), "Done. Adobe is now a monthly recurring expense. I'll log $54.99 on Nov 2.");
+  // A back-dated weekly receipt: the next due date is moved up to today or later.
+  assert.equal((recurringPrompt({ vendor: 'Corner Fuel', amount: 60, cadence: 'weekly' }, 'fuel', '2026-09-01', '2026-10-08') as { nextOn: string }).nextOn, '2026-10-13');
+  assert.equal(recurringPrompt([], 'fuel', '2026-10-01', '2026-10-08'), null);
+  assert.equal(recurringPrompt({ vendor: 'X', amount: 5, cadence: 'daily' }, 'fuel', '2026-10-01', '2026-10-08'), null);
 });

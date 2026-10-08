@@ -522,6 +522,14 @@ html[data-splash=""] .onit-splash {
 .onit-lift { transform: scale(1.02); animation: onit-lift var(--motion-fast) var(--ease-standard) both; }
 @keyframes onit-menu-in { from { opacity: 0; transform: scale(.92); } }
 .onit-menu-in { animation: onit-menu-in var(--motion-fast) var(--ease-standard) both; }
+/* M3 make recurring (3·4, §4, ~950 ms): a gold loop draws round the ↻ disc,
+   ↻ spins once, the cadence tag pops in (onit-chip-in), a shimmer crosses. */
+@keyframes onit-m3-loop { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
+.onit-m3-loop { stroke-dasharray: 120; animation: onit-m3-loop 520ms var(--ease-emphasized) both; }
+@keyframes onit-m3-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.onit-m3-spin { animation: onit-m3-spin 600ms var(--ease-emphasized) 120ms both; }
+@keyframes onit-m3-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.onit-m3-shimmer { background: linear-gradient(100deg, transparent 30%, rgba(212, 175, 55, .22) 50%, transparent 70%); animation: onit-m3-shimmer 700ms var(--ease-standard) 200ms both; }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }

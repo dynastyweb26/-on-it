@@ -41,7 +41,8 @@ import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTem
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard from '@/components/SavePromptCard';
 import { markNewEntry } from '@/lib/list-motion';
-import { clientPrompt, enqueue, productPrompts, savedLine, type SavePrompt } from '@/lib/save-prompts';
+import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
+import { anchorFor, localToday } from '@/lib/recurring';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
@@ -2226,17 +2227,18 @@ export default function Chat() {
         }
       }
 
-      const { error: insErr } = await supabase.from('expenses').insert({
+      const spentOn = expenseDraft.occurred_on ?? today();
+      const { data: insRow, error: insErr } = await supabase.from('expenses').insert({
         user_id: profile.id,
         amount: expenseDraft.amount,
         category: expenseDraft.category,
         vendor: expenseDraft.vendor,
         // Blank → null (the column's length check rejects an empty string).
         description: expenseDraft.description?.trim() || null,
-        spent_on: expenseDraft.occurred_on ?? today(),
+        spent_on: spentOn,
         receipt_url: receiptPath,
         receipt_hash: receipt?.hash ?? null,
-      });
+      }).select('id').single();
       if (insErr) {
         // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
         // the pre-check if the same receipt was saved on another device while
@@ -2287,6 +2289,16 @@ export default function Chat() {
       void fetchUsageLine('expense').then((text) => {
         if (text) setMessages((m) => [...m, aMsg(text, { quiet: true })]);
       });
+      // "Make it recurring?" (3·4): same vendor, ±10 %, a cadence gap since the
+      // last one, no live recurring item — asked after the save, never during it.
+      const newId = (insRow as { id?: string } | null)?.id;
+      if (newId && expenseDraft.vendor?.trim()) {
+        const category = expenseDraft.category;
+        void supabase.rpc('repeat_candidate', { p_expense: newId }).then(({ data }) => {
+          const p = recurringPrompt(data, category, spentOn, localToday());
+          if (p) setPromptQueue((q) => enqueue(q, promptShownRef.current, [p]));
+        }, () => undefined);
+      }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
@@ -2569,6 +2581,17 @@ export default function Chat() {
     if (add.length) setPromptQueue((q) => enqueue(q, promptShownRef.current, add));
   }
   async function saveFromPrompt(p: SavePrompt): Promise<boolean> {
+    if (p.kind === 'recurring') {
+      if (!profile) return false;
+      const { error } = await supabase.from('recurring_expenses').insert({
+        user_id: profile.id, vendor: p.name, amount: p.amount, category: p.category,
+        cadence: p.cadence, anchor_day: anchorFor(p.cadence, p.nextOn), next_on: p.nextOn, auto_log: true,
+      });
+      // 23505: it's already recurring (another device, a moment ago) — that's the goal.
+      if (error && error.code !== '23505') return false;
+      setMessages((m) => [...m, aMsg(savedLine(p, localToday()))]);
+      return true;
+    }
     if (p.kind === 'client') {
       const { data, error } = await supabase.rpc('save_client', { p_name: p.name });
       if (error) return false;
