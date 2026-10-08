@@ -18,6 +18,11 @@
 //   The item list scrolls inside a capped area with fading edges; the Name
 //   row stays above it and the footer below.
 //
+// Persisted (2·11a, lib/template-store): every change is saved for this
+// user, so leaving Chat, a reload or iOS closing the PWA brings it back
+// (24 h). On a restore the picked client and items are re-read, so the chips
+// show their current saved details (a keypad-set price is kept).
+//
 // Merge 2 · 2·10 (part 1) + 2·11 (part 2). Part 3 (2·12) adds Extra info,
 // totals and Send.
 import { useEffect, useRef, useState } from 'react';
@@ -27,6 +32,10 @@ import KeypadSheet from '@/components/template/KeypadSheet';
 import { money, calculateLineAmount } from '@/lib/financials';
 import type { KeypadKind } from '@/lib/keypad';
 import { clientContactLine, emptyItem, type TemplateClient, type TemplateItem, type TemplateKind } from '@/lib/template';
+import { saveTemplate } from '@/lib/template-store';
+import { clientNameKey } from '@/lib/client-name';
+import { createClient } from '@/lib/supabase/client';
+import { normalizeProduct } from '@/lib/products';
 
 const UNDO_MS = 5000;
 /** Only these units print after the quantity (frames 7c / 7e: "3 hr", "120 sq ft"). */
@@ -34,13 +43,50 @@ const qtyUnit = (u: TemplateItem['unit']) => (u === 'hour' ? 'hr' : u === 'sq ft
 
 type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind };
 
-export default function TemplateCard({ kind, onKindChange, onClose }: {
+export default function TemplateCard({ kind, onKindChange, onClose, uid, restored }: {
   kind: TemplateKind;
   onKindChange: (k: TemplateKind) => void;
   onClose: () => void;
+  /** Signed-in user id (null = guest): scopes the saved template. */
+  uid: string | null;
+  /** A template restored from storage (2·11a). */
+  restored?: { client: TemplateClient | null; items: TemplateItem[] } | null;
 }) {
-  const [client, setClient] = useState<TemplateClient | null>(null);
-  const [items, setItems] = useState<TemplateItem[]>(() => [emptyItem()]);
+  const [client, setClient] = useState<TemplateClient | null>(() => restored?.client ?? null);
+  const [items, setItems] = useState<TemplateItem[]>(() => (restored?.items.length ? restored.items : [emptyItem()]));
+
+  // ── Persist every change (2·11a).
+  useEffect(() => { saveTemplate({ uid, kind, client, items }); }, [uid, kind, client, items]);
+
+  // ── After a restore, re-read the picked client and items (signed in only):
+  // the chips show their current saved details; a keypad-set price stays.
+  useEffect(() => {
+    if (!restored || !uid) return;
+    const supabase = createClient();
+    let live = true;
+    (async () => {
+      const id = restored.client?.id;
+      if (id) {
+        const { data } = await supabase.from('clients').select('name, address, phone').eq('id', id).maybeSingle();
+        const r = data as { name: string; address: string | null; phone: string | null } | null;
+        if (live && r) setClient((c) => (c && c.id === id ? { ...c, name: r.name, address: r.address, phone: r.phone } : c));
+      }
+      const keys = Array.from(new Set(restored.items.map((x) => clientNameKey(x.name)).filter(Boolean)));
+      if (keys.length) {
+        const { data } = await supabase.from('products').select('name, name_key, unit, unit_price, detail').in('name_key', keys).is('deleted_at', null);
+        const byKey = new Map(((data ?? []) as Record<string, unknown>[]).map((r) => [String(r.name_key), normalizeProduct({ id: '', ...r })]));
+        if (live && byKey.size) {
+          setItems((xs) => xs.map((x) => {
+            const p = byKey.get(clientNameKey(x.name));
+            if (!p) return x;
+            return { ...x, name: p.name, unit: p.unit, detail: p.detail, unit_price: x.priceSet ? x.unit_price : p.unit_price };
+          }));
+        }
+      }
+    })().catch(() => { /* keep what was stored */ });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [removed, setRemoved] = useState<{ item: TemplateItem; index: number } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -223,7 +269,7 @@ export default function TemplateCard({ kind, onKindChange, onClose }: {
       {sheet?.type === 'item' && (
         <ItemSheet onClose={() => setSheet(null)}
           onPick={(p) => {
-            update(sheet.key, { name: p.name, unit: p.unit, unit_price: p.unit_price, detail: p.detail, qty: 1 });
+            update(sheet.key, { name: p.name, unit: p.unit, unit_price: p.unit_price, detail: p.detail, qty: 1, priceSet: false });
             setSheet(null);
           }} />
       )}
@@ -233,7 +279,7 @@ export default function TemplateCard({ kind, onKindChange, onClose }: {
           otherValue={sheet.kind === 'qty' ? keypadItem.unit_price : keypadItem.qty}
           onClose={() => setSheet(null)}
           onSet={(v) => {
-            update(keypadItem.key, sheet.kind === 'qty' ? { qty: v ?? 1 } : { unit_price: v });
+            update(keypadItem.key, sheet.kind === 'qty' ? { qty: v ?? 1 } : { unit_price: v, priceSet: true });
             setSheet(null);
           }} />
       )}

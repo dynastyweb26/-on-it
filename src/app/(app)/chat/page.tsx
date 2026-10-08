@@ -36,6 +36,7 @@ import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import type { TemplateKind } from '@/lib/template';
+import { clearTemplate, loadTemplate, type StoredTemplate } from '@/lib/template-store';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
@@ -2357,15 +2358,32 @@ export default function Chat() {
   // template card takes the composer's slot. Until Send lands (2·12) it opens
   // only from /chat?template=invoice|quote (preview testing); the + menu
   // keeps its seeded-chat interim (§L Q1).
+  // Persisted (2·11a): an open template comes back when Chat opens again.
   const [template, setTemplate] = useState<TemplateKind | null>(null);
+  const [templateUid, setTemplateUid] = useState<string | null>(null);
+  const [templateRestored, setTemplateRestored] = useState<StoredTemplate | null>(null);
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const t = url.searchParams.get('template');
-    if (t !== 'invoice' && t !== 'quote') return;
-    url.searchParams.delete('template');
-    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-    setTemplate(t);
+    let live = true;
+    createClient().auth.getSession().then(({ data }) => {
+      if (!live) return;
+      const uid = data.session?.user.id ?? null;
+      setTemplateUid(uid);
+      const url = new URL(window.location.href);
+      const t = url.searchParams.get('template');
+      if (t === 'invoice' || t === 'quote') {
+        // An explicit new template replaces any saved one.
+        url.searchParams.delete('template');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        clearTemplate();
+        setTemplate(t);
+        return;
+      }
+      const saved = loadTemplate(uid);
+      if (saved) { setTemplateRestored(saved); setTemplate(saved.kind); }
+    }, () => undefined);
+    return () => { live = false; };
   }, []);
+  const closeTemplate = () => { clearTemplate(); setTemplateRestored(null); setTemplate(null); };
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -3045,7 +3063,8 @@ export default function Chat() {
           safe-area inset, so no bottom padding here. */}
       {template ? (
         <div className="border-t border-outline-variant/40 bg-background px-3 py-2.5">
-          <TemplateCard key="template" kind={template} onKindChange={setTemplate} onClose={() => setTemplate(null)} />
+          <TemplateCard key="template" kind={template} onKindChange={setTemplate} onClose={closeTemplate}
+            uid={templateUid} restored={templateRestored} />
         </div>
       ) : (
         <div className={`border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' relative z-[46]' : ''}`}>

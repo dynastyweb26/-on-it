@@ -58,3 +58,5 @@ export function carryUnitDetail(
   const detail = normalizeLineDetail(prev?.detail);
   return { ...(unit ? { unit } : {}), ...(detail ? { detail } : {}) };
 }
+
+export const isLineUnit = (u: unknown): u is LineUnit => (LINE_UNITS as readonly unknown[]).includes(u);

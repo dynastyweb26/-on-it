@@ -22,6 +22,8 @@ export type TemplateItem = {
   unit_price: number | null;
   qty: number;
   detail: string | null;
+  /** The price was set on the keypad (2·11a): a restore never overwrites it. */
+  priceSet?: boolean;
 };
 
 let seq = 0;
