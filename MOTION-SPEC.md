@@ -206,6 +206,49 @@ per live failure and again on a failed retry.
 Reduce Motion: the global kill switch lands every CSS animation on its end
 state; RollMoney / CountUpMoney show the final figure.
 
+## 15. UI redesign merge 2 as built (`feat/ui-redesign`, 2026-10-08)
+
+Same rule as §14: release-frame values where `1d` gives them, tokens (§1)
+everywhere else. UI-REDESIGN-AUDIT.md §4 lists the targets; this is what
+shipped.
+
+**Template card + sheets (tokens):** the card rises into the composer's
+slot (`onit-rise`); every sheet (pickers, keypads, Extra info, the
+replace confirm) slides up with `onit-sheet-in` over a scrim that fades in
+220ms. Sheets follow the finger from the grabber/header: release past
+100 px or a flick (≥ 0.5 px/ms over the last ~100 ms, ≥ 24 px) slides it out in 200ms,
+otherwise it springs back in 240ms `--ease-standard`; the scrim fades with
+the drag (`use-sheet-drag.ts`). Rows press .99.
+
+**Save prompts (2·13, tokens):** the dark card rises 14px
+(`--motion-base` `--ease-spring`); Not now sinks it 10px (`--motion-fast`
+standard). **M2:** on Save, a copy of the icon disc arcs into the Clients
+tab along a quadratic curve (700ms, `cubic-bezier(.4,0,.2,1)`, scale 1 →
+.55); on landing the tab icon bumps (scale 1.22, 420ms spring) and a gold
+"+1" floats up and fades (900ms); the bot line lands as a normal bubble.
+About 1 s in all.
+
+**Lists (2·14, tokens):** a new entry slides into its A–Z slot (−10px,
+`--motion-slow` emphasized) and glows gold for 1.2s; form Save turns into a
+✓ (`onit-pop`) for 380ms before the screen moves on; swipe rows resist past
+their actions (rubber band, ≤ 40% extra) and settle in `--motion-base`
+emphasized — app-wide, the shared `SwipeableRow` (founder, 2026-10-08);
+Undo re-expands the row (`--motion-base`); long-press lifts the row to
+1.02 over the dimmed list and the menu scales in from .92 at its corner
+(`--motion-fast`); a search change reflows the list (fade .55 → 1 + 6px
+settle, 160ms); an A–Z jump pulses the landed letter gold (scale 1.35,
+`--motion-base`).
+
+**Not built in merge 2 (follow-ups, PUNCH-LIST):** the template's
+micro-motion from §4 — slot filled 1.04 pop, pick hand-off, qty number roll
++ totals odometer, add / remove item expand / collapse, Send's fade/scale-in
+when it enables — and **M1** (send compress → ↗ → fold → sent card →
+SENT stamp). Template sends use §4 lock-on-send for now.
+
+Reduce Motion: CSS pieces land on their end state via the global kill
+switch; the JS-driven ones (M2 flight, search reflow, letter pulse) are
+skipped, and the tab still shows "+1".
+
 ## Build order (one commit each)
 
 Batch A (preview, test on phone, merge):
@@ -235,4 +278,5 @@ Batch B (preview, test on phone, merge):
 
 - Batch A (items 1–6): merged to `main` 2026-09-30, verified on preview.
 - Batch B (items 7–11): merged to `main` 2026-09-30 (`fa6866e`), verified on preview.
+- UI redesign merges 1 + 2 (§14, §15): on `feat/ui-redesign`, merge 2 signed off on preview 2026-10-08; merges 1–3 go to `main` together.
 - Deploy per CLAUDE.md: preview with the global `vercel` CLI plus `vercel alias set … onit-dynastyweb-preview.vercel.app`; production = merge `--no-ff` to `main` and push (never `vercel --prod`).
