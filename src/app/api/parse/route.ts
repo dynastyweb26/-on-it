@@ -6,6 +6,7 @@ import { extract, type ExtractResult } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
+import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -172,7 +173,13 @@ export async function POST(req: NextRequest) {
     let hasInvalidLineItem = false;
     let pricelessItem: string | null = null; // first item still needing a price
     if (Array.isArray(result.line_items)) {
-      const normalizedItems: { description: string; qty: number; unit_price: number | null }[] = [];
+      type NormItem = { description: string; qty: number; unit_price: number | null; unit?: LineUnit; detail?: string };
+      const normalizedItems: NormItem[] = [];
+      // unit / detail (merge 2 · 2·9): the model's unit, else the draft line's;
+      // detail only ever carries over from the draft (lib/line-units).
+      const draftLines = (draft as Record<string, unknown> | null)?.line_items;
+      const withUnitDetail = (item: NormItem, itemObj: Record<string, unknown>): NormItem =>
+        ({ ...item, ...carryUnitDetail(item.description, itemObj.unit, draftLines) });
 
       for (const rawItem of result.line_items) {
         const itemObj = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
@@ -188,7 +195,7 @@ export async function POST(req: NextRequest) {
         if (rawPrice === undefined) {
           if (!description) continue; // an empty item carries nothing — drop it
           pricelessItem ??= description;
-          normalizedItems.push({ description, qty, unit_price: null });
+          normalizedItems.push(withUnitDetail({ description, qty, unit_price: null }, itemObj));
           continue;
         }
         const unit_price = typeof rawPrice === 'number' ? rawPrice : Number(String(rawPrice).replace(/[$,\s]/g, ''));
@@ -196,7 +203,7 @@ export async function POST(req: NextRequest) {
           hasInvalidLineItem = true;
           break;
         }
-        normalizedItems.push({ description, qty, unit_price });
+        normalizedItems.push(withUnitDetail({ description, qty, unit_price }, itemObj));
       }
 
       if (hasInvalidLineItem) {

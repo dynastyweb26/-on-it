@@ -19,6 +19,7 @@ import { BrandTheme, onColor } from '@/lib/colors';
 import { websiteHref } from '@/lib/url';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import type { LineItem } from '@/lib/ai';
+import { normalizeLineDetail, normalizeLineUnit, qtyText } from '@/lib/line-units';
 import type { PaymentStage } from '@/lib/financials';
 
 export interface InvoiceRenderData {
@@ -325,6 +326,13 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+/** A line's description (a saved product's "shows on invoices" text), under its name. */
+function LineDetail({ li, color }: { li: LineItem; color: string }) {
+  const detail = normalizeLineDetail(li.detail);
+  if (!detail) return null;
+  return <div style={{ fontSize: 12.5, lineHeight: 1.35, color, marginTop: 3, whiteSpace: 'pre-line' }}>{detail}</div>;
+}
+
 function ItemsTable({ d, t, rounded = false }: { d: InvoiceRenderData; t: BrandTheme; rounded?: boolean }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
@@ -350,8 +358,11 @@ function ItemsTable({ d, t, rounded = false }: { d: InvoiceRenderData; t: BrandT
       <tbody>
         {d.lineItems.map((li, i) => (
           <tr key={i} style={{ borderBottom: `1px solid ${t.rule}` }}>
-            <td style={{ padding: '12pt 8pt', textAlign: 'left', wordBreak: 'break-word' }}>{li.description}</td>
-            <td style={{ padding: '12pt 8pt', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{li.qty}</td>
+            <td style={{ padding: '12pt 8pt', textAlign: 'left', wordBreak: 'break-word' }}>
+              {li.description}
+              <LineDetail li={li} color={t.muted} />
+            </td>
+            <td style={{ padding: '12pt 8pt', textAlign: 'center', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{qtyText(li.qty, normalizeLineUnit(li.unit))}</td>
             <td style={{ padding: '12pt 8pt', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{money(li.unit_price)}</td>
             <td style={{ padding: '12pt 8pt', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
               {money(li.qty * li.unit_price)}
@@ -578,8 +589,11 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         <tbody>
           {d.lineItems.map((li, i) => (
             <tr key={i}>
-              <td style={{ padding: '10px 4px' }}>{li.description}</td>
-              <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO }}>{li.qty}</td>
+              <td style={{ padding: '10px 4px', wordBreak: 'break-word' }}>
+                {li.description}
+                <LineDetail li={li} color={t.muted} />
+              </td>
+              <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO, whiteSpace: 'nowrap' }}>{qtyText(li.qty, normalizeLineUnit(li.unit))}</td>
               <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO }}>{money(li.unit_price)}</td>
               <td style={{ padding: '10px 4px', textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{money(li.qty * li.unit_price)}</td>
             </tr>

@@ -1,9 +1,10 @@
 // Saved products & services (release frames 3e / 3f / 3g; migration
 // 20261003000002). One row per owner per case-insensitive name.
 import { money } from '@/lib/financials';
+import { LINE_UNITS, type LineUnit } from '@/lib/line-units';
 
-export const UNITS = ['each', 'hour', 'sq ft', 'job'] as const;
-export type Unit = (typeof UNITS)[number];
+export const UNITS = LINE_UNITS;
+export type Unit = LineUnit;
 export const isUnit = (u: unknown): u is Unit => UNITS.includes(u as Unit);
 
 export type Product = {

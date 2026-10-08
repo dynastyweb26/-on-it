@@ -6,6 +6,7 @@ import { connectEnabled } from '@/lib/stripe/connect';
 import { rateLimit } from '@/lib/ratelimit';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { roundCurrency, calculateLineAmount, dueNowFromLedger } from '@/lib/financials';
+import { normalizeLineDetail, normalizeLineUnit, unitLabel } from '@/lib/line-units';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
@@ -42,7 +43,8 @@ interface PublicInvoiceRow {
   logo_url: string | null;
   invoice_number: number;
   kind: string | null;
-  line_items: { description?: string; qty?: unknown; unit_price?: unknown }[] | null;
+  // unit / detail: passed by get_public_invoice since 20261003000003 (merge 2 · 2·7).
+  line_items: { description?: string; qty?: unknown; unit_price?: unknown; unit?: unknown; detail?: unknown }[] | null;
   // subtotal/tax_rate/tax_amount added by 20260918000009; absent (undefined)
   // until that migration is applied — the model degrades to no breakdown.
   subtotal: number | string | null;
@@ -157,6 +159,8 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
       qty,
       unitPrice,
       amount: calculateLineAmount(qty, unitPrice),
+      unitLabel: unitLabel(normalizeLineUnit(li.unit)),
+      detail: normalizeLineDetail(li.detail),
     };
   });
 

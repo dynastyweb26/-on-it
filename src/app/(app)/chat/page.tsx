@@ -178,7 +178,7 @@ function draftFromRow(row: {
 // document content (Commit B lock check — an incoming parse that matches the
 // locked draft is a no-op question, not an edit, so it isn't refused).
 function draftFingerprint(d: Partial<ExtractResult> | null): string {
-  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price]);
+  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price, li.unit ?? null, li.detail ?? null]);
   return JSON.stringify({
     name: (d?.client_name ?? '').trim(),
     addr: (d?.client_address ?? '').trim(),

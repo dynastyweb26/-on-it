@@ -3,10 +3,19 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { parseJsonObject } from '@/lib/json-guard';
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/expenses';
+import type { LineUnit } from '@/lib/line-units';
 
 export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 
-export interface LineItem { description: string; qty: number; unit_price: number; }
+// unit / detail (merge 2 · 2·9): optional; the money math never reads them.
+// detail is the saved product's "shows on invoices" text — never from the model.
+export interface LineItem {
+  description: string;
+  qty: number;
+  unit_price: number;
+  unit?: LineUnit | null;
+  detail?: string | null;
+}
 export interface ExtractResult {
   intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
   // True only when the user's message THIS turn explicitly named the document
@@ -55,6 +64,7 @@ Rules:
 - NEVER state a dollar amount, price, subtotal, tax, deposit, or total in your reply — no "$" figures at all. The app computes and speaks every money figure itself, so any number you write would risk contradicting the real total. Your reply describes the job in words and asks for what's missing; it never quotes the bill.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
 - A job described without a price ("Car wash", "Fixed a leaky faucet") is still a line item: include it with unit_price null, put "price" in "missing", and keep it in the draft so a later "$20" fills that item's unit_price. Never guess a price, and never drop the item because the price is missing.
+- unit: set "hour" when the price is per hour ("3 hours at 65" → qty 3, unit_price 65, unit "hour"), "sq ft" when it is per square foot ("400 square feet at 3.25" → qty 400, unit_price 3.25, unit "sq ft"), "job" when the user calls it a flat price for the whole job; otherwise null. The unit never changes the math: qty times unit_price is still the line amount.
 - intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
 - If the user says a total price for the whole job, make it one line item. But a deposit, down payment, or money "up front" is NOT a line item and NOT the job price — route it to the deposit fields (see the deposit rule). "Fence job is 1000, 500 down" → one $1000 line item plus deposit_type "fixed", deposit_value 500 (never a $500 line item).
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
@@ -97,7 +107,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"hour|sq ft|job"|null}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,

@@ -41,6 +41,10 @@ export interface PayLineItem {
   qty: number;
   unitPrice: number;
   amount: number;
+  /** "hr" / "sq ft" / "job" label for the quantity, or '' (merge 2 · 2·9). */
+  unitLabel?: string;
+  /** The line's description from a saved product, if any. */
+  detail?: string | null;
 }
 
 export interface PayModel {
@@ -486,9 +490,10 @@ export default function PayView({ model }: { model: PayModel }) {
               <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
                   <p className="truncate text-body-md text-on-background">{li.description || 'Item'}</p>
-                  {li.qty !== 1 ? (
+                  {li.detail ? <p className="text-sm text-on-surface-variant">{li.detail}</p> : null}
+                  {li.qty !== 1 || li.unitLabel ? (
                     <p className="text-body-md text-on-surface-variant">
-                      {li.qty} × {money(li.unitPrice)}
+                      {li.qty}{li.unitLabel ? ` ${li.unitLabel}` : ''} × {money(li.unitPrice)}
                     </p>
                   ) : null}
                 </div>
