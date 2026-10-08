@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clientDocsLine, emptyItem, hasExactName, usedBeforeLine } from './template';
+import { clientContactLine, clientDocsLine, emptyItem, hasExactName, usedBeforeLine } from './template';
 
 test('usedBeforeLine', () => {
   assert.equal(usedBeforeLine(1, '2026-09-18T15:00:00Z'), 'Used once · Sep 18');
@@ -23,4 +23,11 @@ test('hasExactName and emptyItem', () => {
   assert.notEqual(a.key, b.key);
   assert.equal(a.qty, 1);
   assert.equal(a.name, '');
+});
+
+test('clientContactLine', () => {
+  assert.equal(clientContactLine({ address: '12 Elm St', phone: '(555) 014-2290' }), '12 Elm St · (555) 014-2290');
+  assert.equal(clientContactLine({ address: '12 Elm St\nAustin, TX', phone: null }), '12 Elm St, Austin, TX');
+  assert.equal(clientContactLine({ address: null, phone: '555' }), '555');
+  assert.equal(clientContactLine({ address: '  ', phone: null }), 'No address or phone on file');
 });

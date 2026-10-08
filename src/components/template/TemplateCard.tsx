@@ -4,9 +4,13 @@
 // stays, the chat above stays scrollable). Not a modal.
 //   Header: "New invoice" / "New quote" chip · "Make it a quote / an invoice"
 //   (keeps every slot) · close × (discards; nothing was written).
-//   Name slot: dashed "Name" → solid ink chip; opens the Client sheet.
+//   Name slot: dashed "Name" → solid ink chip; opens the Client sheet. Its
+//   second line (2·10d) shows what will print: "address · phone", or "No
+//   address or phone on file".
 //   Item row: dashed "Product/Service" → ink chip "Deck staining · job";
-//   opens the Item sheet (pick fills name, unit, price; qty resets to 1).
+//   opens the Item sheet (pick fills name, unit, price; qty resets to 1). A
+//   picked item's description shows as one truncated line under its name.
+//   To change either, tap the chip (the sheet reopens).
 //
 // Merge 2 · 2·10 (part 1). Part 2 (2·11) adds the qty / price keypads, more
 // rows, remove + undo and the capped list; part 3 (2·12) adds Extra info,
@@ -16,7 +20,7 @@ import Icon from '@/components/Icon';
 import { ClientSheet, ItemSheet } from '@/components/template/TemplateSheets';
 import { money, calculateLineAmount } from '@/lib/financials';
 import { unitLabel } from '@/lib/line-units';
-import { emptyItem, type TemplateClient, type TemplateItem, type TemplateKind } from '@/lib/template';
+import { clientContactLine, emptyItem, type TemplateClient, type TemplateItem, type TemplateKind } from '@/lib/template';
 
 export default function TemplateCard({ kind, onKindChange, onClose }: {
   kind: TemplateKind;
@@ -58,10 +62,17 @@ export default function TemplateCard({ kind, onKindChange, onClose }: {
       {/* Name slot */}
       <button type="button" onClick={() => setSheet({ type: 'client' })}
         aria-label={client ? `Client: ${client.name}. Change client` : 'Add a client'}
-        className={`mt-2.5 flex h-11 w-full items-center gap-2.5 rounded-[12px] px-3 text-left transition active:scale-[0.99]
-          ${client ? 'bg-inverse-surface text-inverse-on-surface' : 'border border-dashed border-outline-variant bg-surface-container-lowest/70 text-on-surface-variant'}`}>
+        className={`mt-2.5 flex min-h-[44px] w-full items-center gap-2.5 rounded-[12px] px-3 text-left transition active:scale-[0.99]
+          ${client ? 'bg-inverse-surface py-1.5 text-inverse-on-surface' : 'border border-dashed border-outline-variant bg-surface-container-lowest/70 text-on-surface-variant'}`}>
         <Icon name="person" size={20} className={client ? 'text-primary-fixed-dim' : ''} filled={!!client} />
-        <span className={`min-w-0 flex-1 truncate text-[17px] ${client ? 'font-bold' : ''}`}>{client ? client.name : 'Name'}</span>
+        {client ? (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[17px] font-bold leading-tight">{client.name}</span>
+            <span className="block truncate text-[13px] leading-snug opacity-70">{clientContactLine(client)}</span>
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-[17px]">Name</span>
+        )}
         {client && <Icon name="unfold_more" size={20} className="shrink-0 opacity-70" />}
       </button>
 
@@ -75,11 +86,14 @@ export default function TemplateCard({ kind, onKindChange, onClose }: {
             <div key={it.key} className="rounded-[14px] border border-outline-variant/50 bg-surface-container-lowest p-1.5">
               <button type="button" onClick={() => setSheet({ type: 'item', key: it.key })}
                 aria-label={named ? `Item: ${it.name}. Change item` : 'Add a product or service'}
-                className={`flex h-11 w-full items-center gap-2.5 rounded-[11px] px-3 text-left transition active:scale-[0.99]
-                  ${named ? 'bg-inverse-surface text-inverse-on-surface' : 'border border-dashed border-outline-variant text-on-surface-variant'}`}>
+                className={`flex min-h-[44px] w-full items-center gap-2.5 rounded-[11px] px-3 text-left transition active:scale-[0.99]
+                  ${named ? `bg-inverse-surface text-inverse-on-surface${it.detail ? ' py-1.5' : ''}` : 'border border-dashed border-outline-variant text-on-surface-variant'}`}>
                 <Icon name="handyman" size={20} className={named ? 'text-primary-fixed-dim' : ''} />
-                <span className="min-w-0 flex-1 truncate text-[16px]">
-                  {named ? (<><span className="font-bold">{it.name}</span>{it.unit ? <span className="opacity-60"> · {it.unit === 'hour' ? 'hr' : it.unit}</span> : null}</>) : 'Product/Service'}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] leading-tight">
+                    {named ? (<><span className="font-bold">{it.name}</span>{it.unit ? <span className="opacity-60"> · {it.unit === 'hour' ? 'hr' : it.unit}</span> : null}</>) : 'Product/Service'}
+                  </span>
+                  {named && it.detail && <span className="block truncate text-[13px] leading-snug opacity-70">{it.detail}</span>}
                 </span>
               </button>
               <div className="mt-1.5 flex items-center gap-2">

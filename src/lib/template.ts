@@ -52,3 +52,11 @@ export function hasExactName(names: string[], query: string): boolean {
   const q = query.trim().toLowerCase();
   return !!q && names.some((n) => n.trim().toLowerCase() === q);
 }
+
+/** The client chip's second line (2·10d): what will print on the document. */
+export function clientContactLine(c: Pick<TemplateClient, 'address' | 'phone'>): string {
+  const address = (c.address ?? '').replace(/\s*\n\s*/g, ', ').trim();
+  const phone = (c.phone ?? '').trim();
+  const parts = [address, phone].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'No address or phone on file';
+}
