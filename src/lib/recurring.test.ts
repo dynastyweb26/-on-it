@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, anchorFor, booksLine, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
+  addDays, anchorFor, booksLine, freshAutoLog, skipNotices, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
   parseAmount, recurringSubtitle, shortDay, skipNotice, todayIn, upcoming, type Recurring,
 } from './recurring';
 
@@ -107,4 +107,19 @@ test('booksLine: count, next live charge, monthly total', () => {
     item({ next_on: '2026-10-07', auto_log: false, amount: 10 }),
   ], '2026-10-06'), { caption: '3 charges · next Oct 6', monthly: Math.round((54.99 + 260 + 10) * 100) / 100 });
   assert.equal(booksLine([item({ auto_log: false })], '2026-10-06').caption, '1 charge · all paused');
+});
+
+test('skipNotices: active ones, newest first', () => {
+  assert.deepEqual(skipNotices([
+    item({ id: 'a', vendor: 'Rent', last_skipped_on: '2026-10-01', last_skip_reason: 'free_limit' }),
+    item({ id: 'b', vendor: 'Gym', last_skipped_on: '2026-10-05', last_skip_reason: 'error' }),
+    item({ id: 'c', vendor: 'Ok', last_skipped_on: '2026-09-01', last_skip_reason: 'free_limit', last_logged_on: '2026-10-01' }),
+  ]).map((n) => n.id), ['b', 'a']);
+});
+
+test('freshAutoLog: recurring rows created in the last 24 h', () => {
+  const now = Date.parse('2026-10-08T15:00:00Z');
+  assert.equal(freshAutoLog({ recurring_id: 'r', created_at: '2026-10-08T14:00:00Z' }, now), true);
+  assert.equal(freshAutoLog({ recurring_id: 'r', created_at: '2026-10-07T14:00:00Z' }, now), false);
+  assert.equal(freshAutoLog({ recurring_id: null, created_at: '2026-10-08T14:00:00Z' }, now), false);
 });

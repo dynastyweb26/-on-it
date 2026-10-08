@@ -10,6 +10,8 @@ import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import RecapsCard from '@/components/recap/RecapsCard';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
 import RecurringBooksRow from '@/components/recurring/RecurringBooksRow';
+import RecurringSkipBanner from '@/components/recurring/RecurringSkipBanner';
+import { useRecurringItems } from '@/components/recurring/useRecurringItems';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
@@ -54,6 +56,8 @@ export default function Dashboard() {
   // no path can hang it true. The post-save refresh (loadStats) never toggles it,
   // so adding an expense doesn't re-flash the skeleton.
   const [loading, setLoading] = useState(true);
+  // Recurring items for the list-card row and the skip banner (merge 3).
+  const recurring = useRecurringItems();
   // Books motion (MOTION-SPEC §9). `shown` is what the hero and tiles display;
   // it tweens toward `stats`. The first open per session counts up from 0 with
   // the entrance (intro); later refreshes (after adding an expense) roll the
@@ -159,6 +163,8 @@ export default function Dashboard() {
           dot), then Net, the three tiles, Add expense, the list card and
           Income & Expenses (§L Q4 keeps today's label). */}
       <RecapsCard />
+      {/* A recurring charge On It couldn't log (3·6, L3). */}
+      <RecurringSkipBanner items={recurring} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
@@ -216,7 +222,7 @@ export default function Dashboard() {
               <span className="text-sm font-semibold text-on-surface-variant tabular-nums">{stats.expenseCount}</span>
               <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
             </Link>
-            <RecurringBooksRow />
+            <RecurringBooksRow items={recurring} />
           </div>
           <Link
             href="/summary"

@@ -182,3 +182,16 @@ export function booksLine(items: Recurring[], today: string): { caption: string;
   const n = `${items.length} ${items.length === 1 ? 'charge' : 'charges'}`;
   return { caption: next ? `${n} · next ${shortDay(next, today)}` : `${n} · all paused`, monthly: monthlyTotal(items) };
 }
+
+/** Active skip notices across items, newest first (the Books banner, L3). */
+export function skipNotices(items: Recurring[]): { id: string; text: string; on: string }[] {
+  return items.flatMap((r) => { const t = skipNotice(r); return t ? [{ id: r.id, text: t, on: r.last_skipped_on! }] : []; })
+    .sort((a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0));
+}
+
+/** An auto-logged expense row (expenses.recurring_id set) still fresh enough to say "Logged automatically" (24 h). */
+export function freshAutoLog(row: { recurring_id?: string | null; created_at?: string | null }, now: number = Date.now()): boolean {
+  if (!row.recurring_id || !row.created_at) return false;
+  const t = Date.parse(row.created_at);
+  return Number.isFinite(t) && now - t >= 0 && now - t < 24 * 3600e3;
+}

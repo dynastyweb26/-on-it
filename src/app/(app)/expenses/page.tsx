@@ -3,11 +3,12 @@
 // Reached from the Books tab. Receipt photos live in a PRIVATE bucket, so
 // thumbnails are signed URLs, batch-signed in one round trip rather than one
 // request per row.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import SwipeableRow from '@/components/SwipeableRow';
+import { freshAutoLog } from '@/lib/recurring';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
@@ -37,6 +38,20 @@ interface ExpenseRow {
   description: string | null;
   spent_on: string;
   receipt_url: string | null;
+  /** Set when the recurring cron logged it (merge 3): ↻ on the row. */
+  recurring_id: string | null;
+  created_at: string | null;
+}
+
+// "Logged automatically" shimmers once per row per device (3·6).
+const AUTOLOG_SEEN_KEY = 'onit-autolog-seen';
+function takeUnseen(ids: string[]): Set<string> {
+  try {
+    const seen: string[] = JSON.parse(localStorage.getItem(AUTOLOG_SEEN_KEY) ?? '[]');
+    const fresh = ids.filter((id) => !seen.includes(id));
+    if (fresh.length) localStorage.setItem(AUTOLOG_SEEN_KEY, JSON.stringify([...fresh, ...seen].slice(0, 100)));
+    return new Set(fresh);
+  } catch { return new Set(); }
 }
 
 const SIGNED_URL_TTL = 3600;
@@ -67,13 +82,15 @@ export default function Books() {
   }
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  const [shimmer, setShimmer] = useState<Set<string>>(new Set());
+  const shimmerTaken = useRef<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     // spent_on is the user-facing date; created_at breaks ties so two expenses
     // logged on the same day keep a stable, genuinely-newest-first order.
     const { data } = await supabase
       .from('expenses')
-      .select('id, amount, category, vendor, description, spent_on, receipt_url')
+      .select('id, amount, category, vendor, description, spent_on, receipt_url, recurring_id, created_at')
       .is('deleted_at', null)
       .order('spent_on', { ascending: false })
       .order('created_at', { ascending: false })
@@ -82,6 +99,9 @@ export default function Books() {
     const list = (data ?? []) as ExpenseRow[];
     setRows(list);
     setLoading(false);
+    // Taken once per visit (a reload after add / delete keeps the same set).
+    if (!shimmerTaken.current) shimmerTaken.current = takeUnseen(list.filter((r) => freshAutoLog(r)).map((r) => r.id));
+    setShimmer(shimmerTaken.current);
 
     const paths = list.map((r) => r.receipt_url).filter((p): p is string => Boolean(p));
     if (!paths.length) return;
@@ -222,7 +242,7 @@ export default function Books() {
                     const name = e.vendor || e.description || 'Expense';
                     return (
                       <SwipeableRow key={e.id} flat onDelete={() => setDeleteTarget(e)}>
-                        <div className="flex min-h-[58px] items-center gap-3 border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2">
+                        <div className={`relative flex min-h-[58px] items-center gap-3 overflow-hidden border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2${shimmer.has(e.id) ? ' onit-autolog' : ''}`}>
                           {thumb ? (
                             <button
                               aria-label={`View the receipt from ${name}`}
@@ -238,9 +258,12 @@ export default function Books() {
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-[15.5px] font-semibold">{name}</div>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate text-[15.5px] font-semibold">{name}</span>
+                              {e.recurring_id && <><Icon name="autorenew" size={15} className="shrink-0 text-[#B8941F]" /><span className="sr-only">, recurring</span></>}
+                            </div>
                             <div className="text-[12.5px] text-on-surface-variant">
-                              {categoryOf(e)} · {localDate(e.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {freshAutoLog(e) ? 'Logged automatically' : categoryOf(e)} · {localDate(e.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </div>
                           </div>
                           <div className="shrink-0 font-display text-[15px] font-bold tabular-nums">{money(Number(e.amount))}</div>

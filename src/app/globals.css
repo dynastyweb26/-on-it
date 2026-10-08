@@ -530,6 +530,11 @@ html[data-splash=""] .onit-splash {
 .onit-m3-spin { animation: onit-m3-spin 600ms var(--ease-emphasized) 120ms both; }
 @keyframes onit-m3-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .onit-m3-shimmer { background: linear-gradient(100deg, transparent 30%, rgba(212, 175, 55, .22) 50%, transparent 70%); animation: onit-m3-shimmer 700ms var(--ease-standard) 200ms both; }
+/* Recurring auto-logged (3·6, §4): "Logged automatically" rows get one gold
+   shimmer (--motion-slow), once per row per device. */
+.onit-autolog::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(212, 175, 55, .25) 50%, transparent 70%);
+  animation: onit-m3-shimmer var(--motion-slow) var(--ease-standard) 250ms both; }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }
