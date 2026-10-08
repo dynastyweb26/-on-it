@@ -1410,7 +1410,9 @@ export default function Chat() {
     if (template) dropTemplate();   // sent: the template's job is done
     // Count each line's item for saved products (fire-and-forget; never blocks
     // or changes the send). Its save-prompt candidates are used in 2·13.
-    if (profile && draft?.line_items?.length) {
+    // Template sends only for now: chat lines carry the AI's free-form wording,
+    // which would fill Products' "used before" with sentences (PUNCH-LIST).
+    if (template && profile && draft?.line_items?.length) {
       void supabase.rpc('record_product_use', {
         p_items: (draft.line_items as LineItem[]).slice(0, 50).map((li) => ({ name: li.description, unit: li.unit ?? null, unit_price: li.unit_price })),
       }).then(() => undefined, () => undefined);
