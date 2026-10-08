@@ -19,6 +19,7 @@ export const ICON_NAMES = [
   'arrow_upward',
   'attach_file',
   'auto_awesome',
+  'backspace',
   'block',
   'build',
   'call',
