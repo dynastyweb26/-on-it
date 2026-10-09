@@ -1,100 +1,115 @@
-# Dead-code audit — 2026-10-09
+# Dead-code audit — 2026-10-08
 
-Branch `chore/deadcode-audit` from `main` at `a4b991d`. **Read-only: nothing
-was deleted or changed.** This file is the only change.
+Read-only audit. Nothing was deleted or changed except this file (branch
+`chore/deadcode-audit`, cut from `main` @ `a4b991d`).
 
-**Method.** `npx knip@5` (not added as a dependency; default config with the
-Next.js plugin, test files count as usage), then manual checks:
+Merged report: this session's audit is the base, with the env-var and
+feature-flag rows from a parallel audit of the same branch (`d8d9a4d`) added.
 
-- exact-token search for every class and `@keyframes` name in `globals.css`
-  and `recap.css`;
-- every dependency against its imports and config use;
-- every `process.env.*` read in `src/` and `scripts/` against the Vercel env
-  list (names only, no values read);
-- each knip "unused export" checked for use inside its own file.
+## Method
 
-**Treated as not dead:**
-- Next.js convention files;
-- the `vercel.json` cron routes;
-- dynamic imports;
-- the service worker;
-- `supabase/migrations`;
-- `package.json` scripts.
+- `npx knip@5` (not added as a dependency), run twice: default mode (test files
+  count as entry points) and `--production` (tests excluded).
+- `tsc --noEmit --noUnusedLocals --noUnusedParameters`: **0** unused locals,
+  imports or parameters.
+- Every export knip flagged was grepped inside its own file, to sort "symbol is
+  dead" from "symbol is used locally; only the `export` keyword is extra".
+- Every class, `@keyframes` and custom property in `src/app/globals.css` and
+  `src/components/recap/recap.css` was grepped across `src/` and `public/`, with
+  template-string class names checked by hand.
+- Every npm dependency was grepped across `src/`, `scripts/` and root configs.
+- Every `/api/*` route was checked for a caller (fetch, cron, or an external
+  webhook).
+- `process.env.*` reads were compared with `.env.example`, the names in
+  `.env.local`, and `vercel env ls` (names and scopes only; no values read).
+- The `/api/followups` import graph was walked: `route.ts` → cron-auth,
+  deploy-env, documents, expenses, financials, notify/{draft-nudges, index,
+  recaps, recurring, render, types, webpush}, payment-methods, paywall,
+  recap/{dates, payload}, recaps-live, recurring-run, recurring, supabase/admin,
+  tax-summary. Anything in those files is in **Batch 5 (after smoke test)**.
 
-**"After smoke test"** marks anything in `/api/followups` or the recurring
-code; it waits for the post-merge recurring cron smoke test (scheduled for
-2026-10-09 15:00 UTC).
+**Headline:** the codebase is lean. Knip found **no orphaned components** (nothing
+left over from the UI redesign is still a separate file), **no unused npm
+dependencies**, and **no unused CSS classes**. The real dead code is a few
+symbols, some static assets, and stale env vars.
 
-## Summary
+---
 
-| Area | Result |
-|---|---|
-| Unused files | 3 candidates (2 design references, 1 tooling script); knip's 4th (`public/sw.js`) is a false positive |
-| Unused components superseded by the redesign | No unused component **files**; one superseded component: `SortToggle` (default export) |
-| Unused exports | 4 symbols unused anywhere, plus 5 unused re-exports; ~60 exports and 67 types used only inside their own file (no need to export) |
-| Unused npm dependencies | **None** (knip and manual check agree) |
-| Unused CSS classes / keyframes | **None** |
-| Dead env vars | 2 branch-scoped Preview vars for merged branches; 4 vars never read by code |
-| Feature flags | `RECAPS_LIVE`, `PAYWALL_ENABLED`: both on in production since launch; their off branches only run on previews (decision, not cleanup) |
-
-## Batch 1 — Vercel env vars (no code change)
+## Batch 1: dead code and assets outside the cron path (safe first)
 
 | Item | Evidence it's unused | Confidence | Risk if wrong |
 |---|---|---|---|
-| `NEXT_PUBLIC_RECAPS_LIVE` · Preview (`feat/recap`) | `feat/recap` is merged into `main` (local and `origin`); nothing deploys that branch now | high | A new `feat/recap` preview would show "Coming soon" instead of recaps |
-| `NEXT_PUBLIC_PAYWALL_ENABLED` · Preview (`feat/paywall-v2`) | `feat/paywall-v2` is merged; paywall launched 2026-10-02 (PUNCH-LIST) | high | Same, for a `feat/paywall-v2` preview |
-| `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY`, `_SERVICE_ID`, `_TEMPLATE_ID` | Never read: no `EMAILJS` / `emailjs` anywhere in `src/`, `scripts/`, `public/` or `package.json`; only the stale ONIT-SPEC infra line names EmailJS | med-high | If something outside the repo uses them, it breaks. Copy the values somewhere before removing |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (Preview + Production) | Never read; no `loadStripe` / Stripe.js in the app (payments use Checkout redirects and server keys) | med | A future Stripe.js / Elements feature needs it again. Keep a copy |
+| `SortToggle` default export (segmented Newest/A–Z control) plus its `OPTIONS` const, `src/components/SortToggle.tsx:9-38` | Knip: default export unused. Both importers (`invoices/page.tsx:11`, `expenses/page.tsx:15`) import only `SortCaption`. It was replaced by `SortCaption` in `f50ebc7` ("list to the release frames"). The last `<SortToggle` JSX was removed by `eb496d1` (2026-10-03). Keep the file and `SortCaption`; `Icon` is still used by `SortCaption`. | high | Build error only (no runtime path). PUNCH-LIST rows "Invoice/Expense sort toggle" still name `SortToggle`, so update them too. |
+| `useClock` hook plus `useIsoLayoutEffect`, `src/components/recap/clock.ts:45-52` | Defined once and imported nowhere. Removing it also orphans the `useEffect`, `useLayoutEffect` and `useRef` imports on line 7. Check those aren't used elsewhere in the file. | high | Build error only. Slides subscribe through `SlideAnims` (anim.ts) instead. |
+| `--onit-ink-raised` custom property, `src/components/recap/recap.css:16` | Defined; no `var(--onit-ink-raised)` anywhere in src, tailwind config, or tokens. | high | Purely visual; nothing reads it. |
+| `public/icons/icon-16.png`, `public/icons/icon-48.png` | Not in `layout.tsx` metadata (which serves `favicon.ico` 16/32/48 + `icon-32.png` + `apple-icon-180.png`) or in `manifest.json`. Only `public/icons/README.md` mentions them. | high | A browser that ignores the .ico would fall back to icon-32. Negligible. |
+| `public/icons/favicon-preview.png` | Referenced nowhere, not even in the README. | high | None (preview image for the design handoff). |
+| `public/icons/onit-icon-maskable.svg` | Referenced nowhere. It's likely the source art for the maskable PNGs. | med | Loses the source vector for regenerating icons. Move it to `design/` instead of deleting. |
+| `SCENARIO_LABELS`, `src/lib/recap/fixtures.ts:186` | Used nowhere, including tests. `fixtures.ts` is a test-only fixture (knip `--production` lists the whole file as unused; its only importer is `copy.test.ts`). Keep the file. | high | None. Only a leftover from the prototype's scenario picker. |
 
-## Batch 2 — Unused files
-
-| Item | Evidence it's unused | Confidence | Risk if wrong |
-|---|---|---|---|
-| `tokens.css` (repo root) | knip: no importer. From the 2026-07-05 design-standard commit (`6569574`); only docs reference it (DESIGN-AUDIT, MIGRATION-PLAN, MOTION-SPEC) | med | Docs lose their reference. Suggest moving it to `design-reference/`, not deleting |
-| `tailwind.config.snippet.js` (repo root) | knip: no importer. Same commit; referenced only by DESIGN-AUDIT, MIGRATION-PLAN and a comment in `tailwind.config.ts` | med | Same; move, don't delete |
-| `scripts/build-paywall-validation.mjs` | knip: not in `package.json` scripts. It generates `supabase/tests/paywall_v2_validation.sql` (85fae70) | low | It's run by hand to rebuild that test SQL. **Recommend keep** (or add an npm script) |
-| ~~`public/sw.js`~~ | **Not dead:** registered at `src/app/(app)/chat/page.tsx:779` (`navigator.serviceWorker.register('/sw.js')`); knip can't see a URL string | — | — |
-
-## Batch 3 — Code unused anywhere (not even in its own file)
+## Batch 2: env vars (Vercel dashboard and `.env*`, no code change)
 
 | Item | Evidence it's unused | Confidence | Risk if wrong |
 |---|---|---|---|
-| `SortToggle` default export (`src/components/SortToggle.tsx:14`) | Only `SortCaption` from that file is imported (`expenses/page.tsx:15`, `invoices/page.tsx:11`); the old toggle was superseded by the redesign's caption | high | None at runtime; `tsc` would catch a missed import |
-| `useClock` (`src/components/recap/clock.ts:48`) | No caller; the story uses `createClock` | med-high | Low; recap slides use the clock object directly |
-| `SCENARIO_LABELS` (`src/lib/recap/fixtures.ts:186`) | No reader; fixtures are used by tests through other exports | med | Low; test-only file |
-| `CADENCES` (`src/lib/recurring.ts:11`) — **after smoke test** | No reader (the form lists the cadences itself) | med | Low; recurring code, so it waits for the smoke test |
-| Re-exports in `src/lib/notify/recaps.ts:70` (`DEFAULT_RECAP_TZ`, `resolveTimeZone`, `localYmd`, `addDays`, `periodsEndingBefore`, `zonedMidnight`) — **after smoke test** | Re-exported from `lib/recap/dates`; nobody imports them from `notify/recaps` | med-high | Low (`tsc` catches it); part of the `/api/followups` recap step |
+| `NEXT_PUBLIC_RECAPS_LIVE` scoped to **Preview (feat/recap)** | `feat/recap` is merged into `main` (`git branch --merged main`) and has had no commits for 6 days. A branch-scoped var only applies to deployments of that branch. | high | Re-deploying `feat/recap` itself would show recaps off. No other branch is affected. Note: generic Preview has **no** RECAPS_LIVE, so new preview branches run with recaps off. Decide whether you want a Preview-wide value instead. |
+| `NEXT_PUBLIC_PAYWALL_ENABLED` scoped to **Preview (feat/paywall-v2)** | `feat/paywall-v2` is merged into `main` (`f026fdf`). Same reasoning. | high | None for other branches. The flag defaults to ON when unset (`paywall.ts:6`). |
+| `NEXT_PUBLIC_EMAILJS_SERVICE_ID`, `_TEMPLATE_ID`, `_PUBLIC_KEY` (Production, `.env.local`, `.env.example`) | Zero reads in `src/` or `scripts/`, and no `emailjs` package. Email now goes through Resend (`lib/email/resend.ts`). Only the stale ONIT-SPEC infra line names EmailJS. | high | None in code. If something outside the repo uses them, it breaks, so copy the values somewhere before removing. They're public-by-design keys, so there's no secret exposure either way. |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (Production + Preview, `.env.example`) | Zero reads; no `loadStripe` / Stripe.js in the app. `.env.example` says it's kept "for future Stripe.js/Elements use"; Checkout is a hosted redirect. | med | Low. It's intentional future-proofing; removing it means re-adding it when Elements lands. Your call. |
+| `.env.example` drift (not dead; listed for completeness) | Read in code but missing from `.env.example`: `NEXT_PUBLIC_PAYWALL_ENABLED`, `PUSH_TEST_ENABLED`, `VAPID_SUBJECT`, `NEXT_PUBLIC_TRACE`, `NEXT_PUBLIC_TRACE_VERBOSE`. | — | Documentation gap only. Fix = add them, not delete. |
+| Read by code but not set in Vercel (not dead) | `NEXT_PUBLIC_TRACE`, `NEXT_PUBLIC_TRACE_VERBOSE` are opt-in debug switches; `NODE_ENV`, `VERCEL_ENV` are set by the platform. | — | Intentional. |
 
-## Batch 4 — Exports used only inside their own file (drop `export`, keep the code)
+## Batch 3: root design-handoff files
 
-Low value and low risk: `tsc` fails on any missed importer. Grouped by file.
-**After smoke test:** `lib/notify/*`, `lib/recurring.ts`,
-`lib/recurring-run.ts`, `lib/notify/recurring.ts`.
+| Item | Evidence it's unused | Confidence | Risk if wrong |
+|---|---|---|---|
+| `tailwind.config.snippet.js` | Knip: unused file. Its own header says it's a merge-in fallback ("Merge into theme.extend"). The real `tailwind.config.ts` doesn't import it. | high | None at runtime. Loses a handoff artifact that docs cite (DESIGN-AUDIT, MIGRATION-PLAN). Move it to `design/` instead of deleting. |
+| `tokens.css` | Knip: unused file. Not `@import`ed. `globals.css:7` only mentions it in a comment ("ported from tokens.css"). | high | Same as above. The docs (DESIGN-AUDIT, MOTION-SPEC, RECAP-SPEC) reference it as the token source of truth. Move it, don't delete it. |
 
-| File | Exports |
-|---|---|
-| `src/lib/notify/recaps.ts` — after smoke test | `rollUp`, `loadPeriodRows`, `loadRecapInput`, `buildOwnerRecaps`, `pushPick`, `recapEvent` |
-| `src/lib/notify/draft-nudges.ts` — after smoke test | `localHour` |
-| `src/lib/notify/index.ts` — after smoke test | `dedupeKey` |
-| `src/lib/recurring.ts` — after smoke test | `ymdOf`, `ERROR_GIVE_UP_DAYS`, `monthlyAmount`, `AMOUNT_MAX` |
-| `src/lib/colors.ts` | `luminance`, `contrastRatio`, `mixColors`, `adjustAccentForContrast`, `assertThemeContrast`, `darkenForWhite` |
-| `src/lib/recap/*` | `audio.ts` `RecapAudio`; `columns.ts` `PEAK_LIFT`, `LABEL_Y`, `screenColumns`; `dates.ts` `DEFAULT_RECAP_TZ`; `fixtures.ts` `scenarioPeriod`, `scenarioInput`; `payload.ts` `TOP_CATEGORIES`, `LIST_MAX`, `NAME_MAX`, `PAYMENT_METHODS`; `rows.ts` `RECAP_LIST_COLS`, `RECENT_DAYS`, `isRecent` |
-| `src/components/recap/anim.ts` | `SlideAnims` |
-| `src/components/tutorial/*` | `mocks.tsx` `MockTabBar`, `Spotlight`; `persistence.ts` `TUTORIAL_VERSION`, `getSeenVersion`; `slides.tsx` `SLIDES` |
-| `src/lib/pdf/*` | `build-summary.tsx` `supabaseSource`; `share.ts` `sharePayload`; `summary-template.tsx` `clip`, `INCOME_DISCLAIMER` |
-| Other `src/lib` | `chat-storage.ts` `CHAT_STORE_BASE`, `HISTORY_BASE`; `financials.ts` `calculateSubtotal`, `calculateTaxAmount`; `json-guard.ts` `isolateJsonObject`; `keyboard.ts` `isTextEntry`; `list-sort.ts` `EXPENSES_GROUP_KEY`; `paywall.ts` `PAID_TIERS`; `products.ts` `isUnit`; `receipt.ts` `MAX_INPUT_BYTES`, `sha256Hex`; `stripe/server.ts` `STRIPE_API_VERSION`; `tts.ts` `voicesReady`, `pickVoice`, `cleanForSpeech`; `usage.ts` `usageLine`; `use-sheet-drag.ts` `DISMISS_PX`, `FLICK_PX_PER_MS` |
-| Other components | `paywall/PaywallSlideshow.tsx` `DOTS_H` |
-| Unused exported **types** (67) | Same treatment. Most in `lib/pdf/summary-template.tsx` (7), `lib/notify/recaps.ts` (6, after smoke test), `lib/recap/columns.ts` (4), `lib/pdf/build-summary.tsx` (4), `lib/tax-summary.ts` (3); the rest are one or two per file (full list: rerun `npx knip@5`) |
+## Batch 4: trim needless `export` keywords (outside the cron path, low value)
 
-## Batch 5 — Feature flags (decision, not mechanical cleanup)
+Each symbol below is **used inside its own file** but imported nowhere else.
+Removing the `export` keyword changes no behaviour; it only shrinks the public
+surface. Confidence high, risk: build error at worst. This batch is optional.
+
+- **Values:** `EXPENSES_GROUP_KEY` (list-sort), `isUnit` (products), `DISMISS_PX`, `FLICK_PX_PER_MS` (use-sheet-drag), `scenarioPeriod`, `scenarioInput` (recap/fixtures), `TUTORIAL_VERSION`, `getSeenVersion` (tutorial/persistence), `luminance`, `contrastRatio`, `mixColors`, `adjustAccentForContrast`, `assertThemeContrast`, `darkenForWhite` (colors), `RecapAudio` (recap/audio), `PEAK_LIFT`, `LABEL_Y`, `screenColumns` (recap/columns), `RECAP_LIST_COLS`, `RECENT_DAYS`, `isRecent` (recap/rows), `sharePayload` (pdf/share), `CHAT_STORE_BASE`, `HISTORY_BASE` (chat-storage), `usageLine` (usage), `voicesReady`, `pickVoice`, `cleanForSpeech` (tts), `MAX_INPUT_BYTES`, `sha256Hex` (receipt), `supabaseSource` (pdf/build-summary), `clip`, `INCOME_DISCLAIMER` (pdf/summary-template), `STRIPE_API_VERSION` (stripe/server), `isolateJsonObject` (json-guard), `isTextEntry` (keyboard), `DOTS_H` (PaywallSlideshow), `SlideAnims` (recap/anim), `SLIDES`, `MockTabBar`, `Spotlight` (tutorial).
+- **Types:** `TagDoc`, `ExtraInfo`, `EntryList`, `DividerGranularity`, `TemplateRow`, `Scenario`, `RecapAccess`, `SlideConfig`, `RecapConfig`, `OpenerSeries`, `Col`, `Pt`, `ScreenColumns`, `RenderSnapshotSource`, `CheckoutReturn`, `UsageKind`, `UsageSnapshot`, `TracePoint`, `SendState`, `ExpensePrefill`, `SummaryPdfOptions`, `Row`, `SummaryPdfProfile`, `SummaryPdfSource`, `ConnectStatus`, `CapabilityStatuses`, `SummaryRowData`, `ExpenseSummaryData`, `ExpenseDetailedData`, `IncomePaymentRow`, `IncomeClientBlock`, `IncomeSummaryData`, `IncomeTotalsData`, `AccessTier`, `AccessResult`, `RateRoute`, `TrialReminderInput`, `EmailContent`, `MenuItem`, `SavedItem`, `SkeletonProps`, `PaymentBrand`, `AnimKind`, `AnimOpts`, `PickRow`, `CreateArgs`, `TabKey`.
+
+## Batch 5: AFTER SMOKE TEST (`/api/followups` graph and recurring code)
+
+Don't touch these until the post-merge smoke test in PUNCH-LIST passes
+(production `/api/recurring/test` → 404, and the next 15:00 UTC `/api/followups`
+returns `recurring: {…}` with `errors: 0`).
+
+| Item | Evidence it's unused | Confidence | Risk if wrong |
+|---|---|---|---|
+| `CADENCES`, `src/lib/recurring.ts:11` | Defined once; used nowhere, including tests (the form uses `CADENCE_LABEL`). | high | Build error only, but the file is on the cron path, so wait. |
+| `NotifyEventType`, `src/lib/notify/types.ts:55` | Defined once; used nowhere. | high | Build error only. |
+| `PaymentMethod` in the re-export at `src/lib/notify/index.ts:19` | Every consumer imports `PaymentMethod` from `./types` or `@/lib/notify/types` directly. Keep `NotifyEvent` and `ConnectProblem` in that line. | high | Build error only. |
+| Re-export block `src/lib/notify/recaps.ts:69-72` (`DEFAULT_RECAP_TZ, resolveTimeZone, localYmd, addDays, periodsEndingBefore, zonedMidnight, RecapKind, RecapPeriod`) | Nothing imports these via `notify/recaps`; consumers use `@/lib/recap/dates`. The file has its own separate import from `recap/dates` (lines 57-59), so deleting the re-export doesn't break local use. Verified: the only importer of `@/lib/notify/recaps` is `followups/route.ts`, and it imports `runRecaps` alone. `RecapPeriod` is still used locally, so keep it in the local import. | high | Build error only. The comment on line 68 explains the re-export, so remove both. |
+| Needless `export`s on the cron path: `ymdOf`, `ERROR_GIVE_UP_DAYS`, `monthlyAmount`, `AMOUNT_MAX`, `Upcoming` (recurring); `ItemRun` (recurring-run); `RecurringRun` (notify/recurring); `localHour` (draft-nudges); `dedupeKey` (notify/index); `rollUp`, `loadPeriodRows`, `loadRecapInput`, `buildOwnerRecaps`, `pushPick`, `recapEvent`, `RecapRunSummary`, `RecapNumbers`, `Built`, `OwnerRecaps` (notify/recaps); `DEFAULT_RECAP_TZ` (recap/dates); `TOP_CATEGORIES`, `LIST_MAX`, `NAME_MAX`, `PAYMENT_METHODS`, `RecapFlags` (recap/payload); `calculateSubtotal`, `calculateTaxAmount`, `FinancialTotals`, `LedgerDue` (financials); `PAID_TIERS` (paywall); `DocumentKind` (documents); `IncomeSummary`, `CategoryTotal`, `Summary` (tax-summary); `DeployEnv` (deploy-env) | All used in their own file; no outside importer. | high | Build error only. Optional cleanup. |
+
+---
+
+## Feature flags (decision, not mechanical cleanup)
 
 | Item | Evidence | Confidence | Risk if wrong |
 |---|---|---|---|
-| `RECAPS_LIVE` off branches (`lib/recaps-live.ts`; "Coming soon" in `RecapsCard`, the `/recaps` redirect, `PaywallModal` recap slide + row, `RecapProvider` inert, the cron's recap gating) | `NEXT_PUBLIC_RECAPS_LIVE` is set for Production; the off branches run only on previews and local dev | med (dead in production, live on previews) | Removing the flag turns recaps on for every preview, and previews share the production DB: opening a recap there stamps real rows. Recommend keeping it until previews have their own Supabase project (PUNCH-LIST) |
-| `PAYWALL_ENABLED` off branches (`lib/paywall.ts`, chat cap checks, PaywallModal) | Paywall launched 2026-10-02; Production has the var | med | Same: previews without the var run paywall-off. Values weren't read (names only), so confirm Production is `true` before removing anything |
+| `RECAPS_LIVE` off branches (`lib/recaps-live.ts`; "Coming soon" in `RecapsCard`, the `/recaps` redirect, `PaywallModal` recap slide + row, `RecapProvider` inert, the cron's recap gating) | `NEXT_PUBLIC_RECAPS_LIVE` is set for Production; the off branches run only on previews and local dev. | med (dead in production, live on previews) | Removing the flag turns recaps on for every preview, and **previews share the production DB**: opening a recap there stamps real `recaps` rows. Keep the flag until previews have their own Supabase project. Touches `notify/recaps.ts`, so after the smoke test regardless. |
+| `PAYWALL_ENABLED` off branches (`lib/paywall.ts`, chat cap checks, `PaywallModal`, `access.ts`, trial-reminders) | Paywall launched 2026-10-02; Production has the var. | med | Unset means ON (`paywall.ts:6`), so the off path only runs if someone sets it to `"false"`: it's a kill switch. Values weren't read, so confirm Production isn't `"false"` before removing anything. |
 
-## Not dead (checked)
+## Checked and NOT dead (no action)
 
-- **npm dependencies:** none unused. The packages with no `import` are tooling: `@types/*`, `typescript`, `postcss`, `autoprefixer`.
-- **CSS:** every class and `@keyframes` in `globals.css` and `recap.css` is referenced. `onit-list-from-left/right` are built dynamically (`invoices/page.tsx:188`); `.jsx` is in a comment.
-- **Env vars read by code but not set in Vercel** (`NEXT_PUBLIC_TRACE`, `NEXT_PUBLIC_TRACE_VERBOSE`, `NODE_ENV`, `VERCEL_ENV`): intentional. The trace flags are opt-in debug switches; the other two are set by the platform.
+| Item | Why it stays |
+|---|---|
+| `public/sw.js` | Service worker (knip false positive). Registered at `chat/page.tsx:779` and from `/install`. |
+| `scripts/build-paywall-validation.mjs` | Not in `package.json`, but it generates `supabase/tests/paywall_v2_validation.sql` (header documents `node scripts/…`). Optional: add a `db:paywall-test` npm script so it stops looking orphaned. |
+| Other `scripts/*.mjs` | Run by `package.json` scripts (knip `--production` only lists them because it ignores scripts). |
+| `public/splash/launch-*.png` (44) | Referenced dynamically (`layout.tsx:61`, `launch-${pw}x${ph}.png` from `lib/launch-screens.json`). PUNCH-LIST row 42 says iOS ignores them on this install. Dropping the whole launch-image pipeline is a product decision, not dead-code removal. |
+| `.onit-list-from-left/right` (globals.css) | Built at runtime: `invoices/page.tsx:188` uses `` `onit-list-from-${travel}` ``. |
+| All other CSS classes, every `@keyframes` | Each has at least one reference. |
+| All npm deps | Each is imported (`autoprefixer` via `postcss.config.mjs`, `svgo` via `build-splash-paths.mjs`, `server-only` in 3 files). |
+| `RECAPS_LIVE` / `NEXT_PUBLIC_RECAPS_LIVE` (Production) | Live launch switch, read in 4 modules. **Founder to confirm:** PUNCH-LIST row 461 says "Built — off", but row 536 has recaps verified on production on 2026-10-09 and the Production var was created 6 days ago. If it's `true` in Production and recaps are staying on, the `!RECAPS_LIVE` branches become removable later. That's a separate, deliberate change, and it touches `notify/recaps.ts` (after the smoke test). |
+| `PAYWALL_ENABLED`, `STRIPE_CONNECT_ENABLED`, `PUSH_TEST_ENABLED`, `NEXT_PUBLIC_TRACE(_VERBOSE)` | All read. They're kill switches or preview-only gates, which is intended. |
+| `/api/*` routes | Every route has a fetch caller, a cron (`followups`, `trial-reminders`), or is a Stripe webhook target. `/api/recurring/test` and `/api/push/test` are preview-only test routes (404 in production), so keep them. |
+| `src/lib/recap/fixtures.ts` | Test fixture for `copy.test.ts` (only its dead `SCENARIO_LABELS` is in Batch 1). |
+| `design/`, `design-reference/`, root `*-SPEC.md` / audit docs | Reference material, not code; out of scope. |
