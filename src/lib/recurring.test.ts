@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, anchorFor, booksLine, CATCH_UP_CAP, dueDates, freshAutoLog, givesUpOnError, skipNotices, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
+  addDays, anchorFor, booksLine, CATCH_UP_CAP, dueDates, freshAutoLog, givesUpOnError, pausedAfterError, skipKey, skipNotices, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
   parseAmount, recurringSubtitle, shortDay, skipNotice, todayIn, upcoming, type Recurring,
 } from './recurring';
 
@@ -115,6 +115,31 @@ test('skipNotices: active ones, newest first', () => {
     item({ id: 'b', vendor: 'Gym', last_skipped_on: '2026-10-05', last_skip_reason: 'error' }),
     item({ id: 'c', vendor: 'Ok', last_skipped_on: '2026-09-01', last_skip_reason: 'free_limit', last_logged_on: '2026-10-01' }),
   ]).map((n) => n.id), ['b', 'a']);
+});
+
+test('skipNotice: paused after the cron gave up on an error', () => {
+  const stuck = item({ vendor: 'Gym', auto_log: false, last_skipped_on: '2026-10-06', last_skip_reason: 'error' });
+  assert.equal(pausedAfterError(stuck), true);
+  assert.equal(skipNotice(stuck), 'Paused after Gym couldn’t log on Oct 6. Add it manually or turn auto-log back on.');
+  assert.equal(skipNotice(stuck, true), 'Paused, couldn’t log on Oct 6');
+  // Auto-log back on: a plain error notice until a later charge logs.
+  assert.equal(skipNotice({ ...stuck, auto_log: true }), 'Couldn’t log Gym on Oct 6');
+  assert.equal(pausedAfterError({ ...stuck, auto_log: true }), false);
+  // Paused by hand after a free-limit skip: not the error copy.
+  assert.equal(pausedAfterError({ ...stuck, last_skip_reason: 'free_limit' }), false);
+  assert.equal(skipNotice({ ...stuck, last_logged_on: '2026-10-06' }), null);
+});
+
+test('skipNotices: paused flag, item, and hidden (added by hand on this device)', () => {
+  const stuck = item({ id: 'g', vendor: 'Gym', auto_log: false, last_skipped_on: '2026-10-06', last_skip_reason: 'error' });
+  const rent = item({ id: 'a', vendor: 'Rent', last_skipped_on: '2026-10-01', last_skip_reason: 'free_limit' });
+  const all = skipNotices([stuck, rent]);
+  assert.deepEqual(all.map((n) => [n.id, n.paused]), [['g', true], ['a', false]]);
+  assert.equal(all[0].item, stuck);
+  assert.equal(skipKey(stuck), 'g:2026-10-06');
+  assert.deepEqual(skipNotices([stuck, rent], new Set(['g:2026-10-06'])).map((n) => n.id), ['a']);
+  // A later skip on the same item is a new key: it shows again.
+  assert.equal(skipNotices([{ ...stuck, last_skipped_on: '2026-11-06' }], new Set(['g:2026-10-06'])).length, 1);
 });
 
 test('freshAutoLog: recurring rows created in the last 24 h', () => {

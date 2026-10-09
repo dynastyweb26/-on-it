@@ -100,7 +100,7 @@ export default function RecurringPage() {
   }
 
   const body = (r: Recurring) => {
-    const notice = skipNotice(r);
+    const notice = skipNotice(r, true);
     return (
       <>
         <span className="min-w-0 flex-1">

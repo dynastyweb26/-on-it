@@ -13,6 +13,8 @@ import RecurringBooksRow from '@/components/recurring/RecurringBooksRow';
 import RecurringSkipBanner from '@/components/recurring/RecurringSkipBanner';
 import { useRecurringItems } from '@/components/recurring/useRecurringItems';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
+import { skipKey, type Recurring } from '@/lib/recurring';
+import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 
@@ -111,6 +113,11 @@ export default function Dashboard() {
     tweenRaf.current = requestAnimationFrame(step);
   }
   const [showForm, setShowForm] = useState(false);
+  // "Add it" on a paused-recurring banner (3·5): the sheet prefilled with that
+  // charge; saving hides the notice on this device.
+  const [manualFrom, setManualFrom] = useState<Recurring | null>(null);
+  const [hiddenSkips, setHiddenSkips] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => { setHiddenSkips(readHiddenSkips()); }, []);
   // Back from Stripe Checkout (returnTo 'books' → /dashboard?upgraded=1).
   useEffect(() => { noteUpgradeReturn(); }, []);
 
@@ -164,7 +171,7 @@ export default function Dashboard() {
           Income & Expenses (§L Q4 keeps today's label). */}
       <RecapsCard />
       {/* A recurring charge On It couldn't log (3·6, L3). */}
-      <RecurringSkipBanner items={recurring} />
+      <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
@@ -236,6 +243,16 @@ export default function Dashboard() {
 
       {showForm && (
         <AddExpenseSheet onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); void loadStats(); }} />
+      )}
+      {manualFrom && (
+        <AddExpenseSheet
+          initial={{
+            amount: manualFrom.amount, category: manualFrom.category, spentOn: manualFrom.last_skipped_on ?? localToday(),
+            note: manualFrom.vendor, fromPausedBanner: true,
+          }}
+          onClose={() => setManualFrom(null)}
+          onSaved={() => { setHiddenSkips(hideSkip(skipKey(manualFrom))); setManualFrom(null); void loadStats(); }}
+        />
       )}
     </div>
   );

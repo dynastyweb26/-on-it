@@ -177,14 +177,34 @@ export function nextLine(r: Pick<Recurring, 'auto_log' | 'next_on' | 'cadence' |
   return `Next ${shortDay(firstDueFrom(r.next_on, r.cadence, r.anchor_day, today), today)}`;
 }
 
-/** The skip notice on a row (L3): the latest charge On It couldn't log, if it hasn't logged one since. */
-export function skipNotice(r: Pick<Recurring, 'vendor' | 'last_skipped_on' | 'last_logged_on' | 'last_skip_reason'>): string | null {
+type SkipFields = Pick<Recurring, 'vendor' | 'auto_log' | 'last_skipped_on' | 'last_logged_on' | 'last_skip_reason'>;
+
+/**
+ * The cron gave up on an error (3·5): it retried the stuck charge for 3 days,
+ * then turned auto-log off. That charge won't log by itself; the notice says
+ * so until auto-log is back on (then it reads as a plain error skip).
+ */
+export const pausedAfterError = (r: SkipFields) =>
+  !r.auto_log && r.last_skip_reason === 'error' && !!r.last_skipped_on
+  && !(r.last_logged_on && r.last_logged_on >= r.last_skipped_on);
+
+/** The skip notice on a row (L3): the latest charge On It couldn't log, if it hasn't logged one since. `short`: the one-line Recurring row. */
+export function skipNotice(r: SkipFields, short = false): string | null {
   if (!r.last_skipped_on || !r.last_skip_reason) return null;
   if (r.last_logged_on && r.last_logged_on >= r.last_skipped_on) return null;
+  const on = `${MONTHS[parts(r.last_skipped_on)[1] - 1]} ${parts(r.last_skipped_on)[2]}`;
+  if (pausedAfterError(r)) {
+    return short
+      ? `Paused, couldn’t log on ${on}`
+      : `Paused after ${r.vendor} couldn’t log on ${on}. Add it manually or turn auto-log back on.`;
+  }
   return r.last_skip_reason === 'free_limit'
     ? `Couldn’t log ${r.vendor}, free limit reached`
-    : `Couldn’t log ${r.vendor} on ${MONTHS[parts(r.last_skipped_on)[1] - 1]} ${parts(r.last_skipped_on)[2]}`;
+    : `Couldn’t log ${r.vendor} on ${on}`;
 }
+
+/** One skip notice's identity (item + skipped date): a manual add from the banner hides it on that device. */
+export const skipKey = (r: Pick<Recurring, 'id' | 'last_skipped_on'>) => `${r.id}:${r.last_skipped_on ?? ''}`;
 
 // ── The edit form ───────────────────────────────────────────────────
 export const VENDOR_MAX = 120;
@@ -208,10 +228,12 @@ export function booksLine(items: Recurring[], today: string): { caption: string;
   return { caption: next ? `${n} · next ${shortDay(next, today)}` : `${n} · all paused`, monthly: monthlyTotal(items) };
 }
 
-/** Active skip notices across items, newest first (the Books banner, L3). */
-export function skipNotices(items: Recurring[]): { id: string; text: string; on: string }[] {
-  return items.flatMap((r) => { const t = skipNotice(r); return t ? [{ id: r.id, text: t, on: r.last_skipped_on! }] : []; })
-    .sort((a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0));
+/** Active skip notices across items, newest first (the Books banner, L3). `hidden`: skipKeys added by hand on this device. */
+export function skipNotices(items: Recurring[], hidden: ReadonlySet<string> = new Set()): { id: string; text: string; on: string; paused: boolean; item: Recurring }[] {
+  return items.flatMap((r) => {
+    const t = skipNotice(r);
+    return t && !hidden.has(skipKey(r)) ? [{ id: r.id, text: t, on: r.last_skipped_on!, paused: pausedAfterError(r), item: r }] : [];
+  }).sort((a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0));
 }
 
 /** An auto-logged expense row (expenses.recurring_id set) still fresh enough to say "Logged automatically" (24 h). */

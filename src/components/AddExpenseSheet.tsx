@@ -11,18 +11,33 @@ import { recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
-export default function AddExpenseSheet({ onClose, onSaved }: {
+/** A prefilled sheet (the Books paused-recurring banner's "Add it"). Everything stays editable. */
+export type ExpensePrefill = {
+  amount: number;
+  category: ExpenseCategory;
+  spentOn: string;   // yyyy-mm-dd
+  note?: string;     // the vendor: this sheet has no vendor field, so it rides in the note
+  /** Opened from the paused-recurring banner. This sheet never shows "Make it
+   *  recurring?" (3·4 asks after chat saves only: no vendor field here, so
+   *  repeat_candidate can't match). If a Vendor field is ever added and the
+   *  prompt follows sheet saves, it must stay off when this is set: the item
+   *  is already recurring. */
+  fromPausedBanner?: boolean;
+};
+
+export default function AddExpenseSheet({ onClose, onSaved, initial }: {
   onClose: () => void;
   /** After a successful insert (the sheet has already reset). */
   onSaved: () => void;
+  initial?: ExpensePrefill;
 }) {
   const supabase = createClient();
   const [showPaywall, setShowPaywall] = useState(false); // free expense cap hit
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
-  const [detail, setDetail] = useState('');        // optional note (normal chips) OR required text (Other)
-  const [showNote, setShowNote] = useState(false); // "Add a note" reveal, normal chips only
-  const [spentOn, setSpentOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState(() => (initial ? String(initial.amount) : ''));
+  const [category, setCategory] = useState<ExpenseCategory | ''>(() => initial?.category ?? ''); // 'other' reveals a required field
+  const [detail, setDetail] = useState(() => initial?.note ?? '');  // optional note (normal chips) OR required text (Other)
+  const [showNote, setShowNote] = useState(() => !!initial?.note);  // "Add a note" reveal, normal chips only
+  const [spentOn, setSpentOn] = useState(() => initial?.spentOn ?? new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
   // Field-level errors (replaces the old combined message)
