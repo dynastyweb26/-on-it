@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'push_subscribe' | 'push_test' | 'redeem';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'checkout' | 'checkout_confirm' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'push_subscribe' | 'push_test' | 'redeem';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -23,6 +23,9 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   zelle_read:     { tokens: 10, window: '60 s' },
   zelle_write:    { tokens: 5,  window: '60 s' },
   checkout:       { tokens: 5,  window: '60 s' }, // checkout-session spam guard
+  // Back from Checkout (POST /api/checkout/confirm): one call per return, plus
+  // a reload or two. Each call reads the session and subscription from Stripe.
+  checkout_confirm: { tokens: 10, window: '60 s' },
   billing_portal: { tokens: 5,  window: '60 s' }, // portal-session spam guard
   // Irreversible + does Stripe/Storage/auth work — the tightest bucket. A real
   // user deletes once; a few retries after a transient failure is the ceiling.

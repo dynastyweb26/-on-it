@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
         : { customer_email: user.email }),
       client_reference_id: user.id, // webhook maps the session back to the user
       metadata: { user_id: user.id },
-      success_url: `${origin}${returnPath}?upgraded=1`,
+      // {CHECKOUT_SESSION_ID} is filled in by Stripe; the return confirms the
+      // session with /api/checkout/confirm (lib/upgrade-return).
+      success_url: `${origin}${returnPath}?upgraded=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}${returnPath}`,
     });
     return NextResponse.json({ url: session.url });

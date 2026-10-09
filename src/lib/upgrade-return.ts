@@ -4,7 +4,10 @@
 //
 // The subscription reaches our database through the Stripe webhook, usually a
 // second or two AFTER the browser lands back here. Until then hasAccess() still
-// reports the free tier. Two things cover that gap:
+// reports the free tier. Three things cover that gap:
+// - The return itself: the success URL carries the Checkout session id, and
+//   /api/checkout/confirm records the subscription from Stripe straight away
+//   (the same write the webhook makes), so usually there is no gap at all.
 // - The gates: for a few minutes after an upgrade return, a gate that says
 //   "no" re-checks /api/access for a short while before giving that answer
 //   (waitForAccess).
@@ -74,12 +77,26 @@ export async function refreshAccess(): Promise<Access | null> {
   return a;
 }
 
-/** After an upgrade return: poll /api/access until the tier is paid (or the
- *  poll runs out), then announce the last read. One poll at a time — every
- *  caller shares it. */
-export function pollAccessAfterUpgrade(): Promise<Access | null> {
+/** Ask the server to record the Checkout session now (/api/checkout/confirm)
+ *  rather than wait for the webhook. Any failure is fine: the poll that
+ *  follows still waits for the webhook. */
+async function confirmCheckout(sessionId: string): Promise<void> {
+  try {
+    await fetch('/api/checkout/confirm', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+    });
+  } catch { /* unreachable — fall back to the webhook */ }
+}
+
+/** After an upgrade return: confirm the session when its id is known, then
+ *  poll /api/access until the tier is paid (or the poll runs out) and announce
+ *  the last read. One poll at a time — every caller shares it. */
+export function pollAccessAfterUpgrade(sessionId?: string): Promise<Access | null> {
   if (polling) return polling;
   polling = (async () => {
+    if (sessionId) await confirmCheckout(sessionId);
     const until = Date.now() + POLL_FOR_MS;
     let last: Access | null = null;
     for (;;) {
@@ -96,16 +113,19 @@ export function pollAccessAfterUpgrade(): Promise<Access | null> {
 
 /** Call on mount of any screen Checkout can return to (the app layout does,
  *  so every return screen is covered): records the return, drops ?upgraded=1
- *  from the address so a reload doesn't re-trigger it, and starts the poll.
- *  Only the first caller sees the parameter; later calls do nothing. */
+ *  and ?session_id= from the address so a reload doesn't re-trigger it, then
+ *  confirms the session and starts the poll. Only the first caller sees the
+ *  parameters; later calls do nothing. */
 export function noteUpgradeReturn(): void {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   if (url.searchParams.get('upgraded') !== '1') return;
   try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* storage blocked */ }
+  const sessionId = url.searchParams.get('session_id') ?? undefined;
   url.searchParams.delete('upgraded');
+  url.searchParams.delete('session_id');
   window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-  void pollAccessAfterUpgrade();
+  void pollAccessAfterUpgrade(sessionId);
 }
 
 /** Re-check access whenever the app comes back into view (tab switch, app
