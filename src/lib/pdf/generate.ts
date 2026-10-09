@@ -118,7 +118,14 @@ function measurePage(root: HTMLElement, { skipAbsBlocks = false } = {}): { limit
  *  100% while cutting capture time and memory on long multi-page documents.
  *  backgroundColor: null so templates paint their own background.
  *  Multi-page documents are measured and partitioned by DOM block rather than canvas-sliced,
- *  preserving split-free table rows and page-specific link annotations. */
+ *  preserving split-free table rows and page-specific link annotations.
+ *
+ *  Page model: the one table's rows are packed page by page (page 1 under the
+ *  masthead, then continuation pages under a short header). The last-page
+ *  blocks (data-pdf-block: totals, How to pay, notes, the summaries' total)
+ *  then follow the last rows one at a time, totals first, as many as fit;
+ *  the rest start a page of their own with no table on it. Each placement is
+ *  checked by laying the real page out offscreen and measuring it. */
 export async function elementToPdf(el: HTMLElement, filename: string, { scale = 3 }: { scale?: number } = {}): Promise<File> {
   // Wait for web fonts before capture: html2canvas snapshots synchronously and
   // uses fallback-font metrics if the display font isn't ready yet, which
@@ -130,7 +137,8 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
 
   const fullHeight = el.scrollHeight || el.offsetHeight;
   const table = el.querySelector('table');
-  const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+  const rows = table ? Array.from(table.querySelectorAll<HTMLElement>('tbody tr')) : [];
+  const totalRows = rows.length;
 
   // The page model paginates ONE table: everything above it is page-1 content,
   // everything below it moves to the last page. A second table would never be
@@ -142,17 +150,38 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
 
   // Page geometry, measured on the template itself (see measurePage).
   const root = (el.firstElementChild as HTMLElement | null) ?? el;
-  const page1 = measurePage(root, { skipAbsBlocks: true });
+  // page1: the whole document on one page, every pinned footer counted.
+  const page1 = measurePage(root);
   const rootTop = root.getBoundingClientRect().top;
 
+  // ── Last-page blocks ──────────────────────────────────────────
+  // Indexed by document order, which a clone of el shares. The Ledger rail
+  // stays on page 1 only. A block that is itself absolutely positioned (the
+  // summaries' footer) is page furniture: it goes on the final page, whatever
+  // that turns out to be. The rest flow, placed in units: totals first, then
+  // document order; a block marked data-pdf-keep-with-prev (Ledger's closing
+  // line) always travels with the unit before it.
+  const allBlocks = Array.from(el.querySelectorAll<HTMLElement>('[data-pdf-block]'));
+  const kindOf = (i: number) => allBlocks[i].getAttribute('data-pdf-block');
+  const isAbs = (i: number) => ['absolute', 'fixed'].includes(getComputedStyle(allBlocks[i]).position);
+  const isTotals = (i: number) => kindOf(i) === 'totals' || kindOf(i) === 'total';
+  const movable = allBlocks.map((_, i) => i).filter((i) => kindOf(i) !== 'ledger-rail');
+  const absBlocks = movable.filter(isAbs);
+  const flowBlocks = movable.filter((i) => !isAbs(i));
+  const units: number[][] = [];
+  [...flowBlocks.filter(isTotals), ...flowBlocks.filter((i) => !isTotals(i))].forEach((i) => {
+    if (units.length && allBlocks[i].hasAttribute('data-pdf-keep-with-prev')) units[units.length - 1].push(i);
+    else units.push([i]);
+  });
+
   // Single-page fast path: content ends above the template's own bottom limit,
-  // or there are no expandable table rows
-  if (page1.bottom <= page1.limit || rows.length <= 1) {
+  // or there is nothing to move to a second page
+  if (page1.bottom <= page1.limit || (totalRows <= 1 && units.length === 0)) {
     if (page1.bottom > page1.limit) {
       // Taller than a page with nothing to split across pages: it is drawn into
       // one page box and the overflow is clipped. No template produces this
       // today; the warning makes a future one visible instead of silent.
-      console.warn(`elementToPdf(${filename}): ${fullHeight}px of content with ${rows.length} table row(s) — clipped to one page`);
+      console.warn(`elementToPdf(${filename}): ${fullHeight}px of content with ${totalRows} table row(s) — clipped to one page`);
     }
     const canvas = await html2canvas(el, { scale, useCORS: true, backgroundColor: null });
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
@@ -163,7 +192,7 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
   }
 
   // ── Multi-page DOM Block Partitioning ──────────────────────────
-  const rowHeights = rows.map((r) => (r as HTMLElement).offsetHeight || 36);
+  const rowHeights = rows.map((r) => r.offsetHeight || 36);
   // Opt-in keep-with-next (summary group headers, a payment above its line
   // items): a page never ends on a row marked data-pdf-keep-with-next. The page
   // break moves up to before the marked run, keeping at least one row per page.
@@ -171,7 +200,7 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
   const keepWithNext = rows.map((r) => r.hasAttribute('data-pdf-keep-with-next'));
   const backOffKept = (start: number, end: number) => {
     let e = end;
-    while (e < rows.length && e - start > 1 && keepWithNext[e - 1]) e--;
+    while (e < totalRows && e - start > 1 && keepWithNext[e - 1]) e--;
     return e;
   };
   // Opt-in groups (summary documents: a client or a category). Every row of a
@@ -196,143 +225,6 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
     return groupHeaderIdx.get(g) ?? -1;
   };
   const tableHeader = table?.querySelector('thead') as HTMLElement | null;
-  const tableHeaderHeight = tableHeader ? tableHeader.offsetHeight : 32;
-
-  // Measure top content (masthead + meta) and bottom content
-  const tableTop = table ? (table as HTMLElement).offsetTop : 200;
-  const tableHeight = table ? (table as HTMLElement).offsetHeight : 300;
-  const bottomHeight = Math.max(200, fullHeight - (tableTop + tableHeight));
-  // First row's top and the table's bottom, in px from the page top.
-  const rowsTop = rows[0].getBoundingClientRect().top - rootTop;
-  const tableBottom = table!.getBoundingClientRect().bottom - rootTop;
-
-  const page1Capacity = Math.max(200, page1.limit - rowsTop);
-  const continuationCapacity = Math.max(300, 1040 - 80 - tableHeaderHeight); // continuation header ~80px
-
-  // Partition row indices into pages
-  const pageRowRanges: { start: number; end: number }[] = [];
-  let currentRow = 0;
-  const totalRows = rows.length;
-
-  // Page 1 rows
-  let p1Height = 0;
-  let p1End = 0;
-  while (p1End < totalRows && p1Height + rowHeights[p1End] <= page1Capacity) {
-    p1Height += rowHeights[p1End];
-    p1End++;
-  }
-  // Every row fits on page 1 but the blocks under the table would run past the
-  // page bottom (a single page would clip them): move rows onto a page 2 until
-  // they fit, so the trailing blocks follow them there. Measured against the
-  // same limit as the fast path, so this only fires when content would be cut off.
-  const trailingHeight = page1.bottom - tableBottom;
-  if (p1End === totalRows) {
-    while (p1End > 1 && rowsTop + p1Height + trailingHeight > page1.limit) {
-      p1End--;
-      p1Height -= rowHeights[p1End];
-    }
-  }
-  // Enforce orphan rule: if only 1 row left for Page 2+, pull one back unless Page 1 needs it
-  if (p1End === totalRows - 1 && p1End > 2) {
-    p1End--;
-  }
-  // Enforce widow rule: min 2 rows on Page 1 if any rows exist
-  if (p1End < 2 && totalRows >= 2) {
-    p1End = Math.min(2, totalRows);
-  }
-  p1End = backOffKept(0, p1End);
-  pageRowRanges.push({ start: 0, end: p1End });
-  currentRow = p1End;
-
-  // Pages 2+. Pack each continuation page to the FULL continuation capacity.
-  // The previous code reserved bottomHeight/2 on EVERY continuation page via an
-  // `isLastPageAttempt` flag that was always true (pEnd starts at currentRow,
-  // which is < totalRows on entry), so every page under-filled and the document
-  // trailed off into a sparse, mostly-empty final page. Now the reservation
-  // applies only to the page that actually carries the trailing blocks.
-  while (currentRow < totalRows) {
-    const contIdx = continuedHeaderFor(currentRow);
-    const capacity = continuationCapacity - (contIdx >= 0 ? rowHeights[contIdx] : 0);
-    let pHeight = 0;
-    let pEnd = currentRow;
-
-    while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
-      pHeight += rowHeights[pEnd];
-      pEnd++;
-    }
-
-    if (pEnd === currentRow) {
-      // At least one row per page (a single row taller than the page).
-      pEnd = currentRow + 1;
-      pHeight = rowHeights[currentRow] || 0;
-    }
-
-    if (pEnd === totalRows) {
-      // This page consumes the last row, so the trailing blocks (Totals,
-      // Payment, Notes) get appended beneath its rows. Guarantee a full
-      // bottomHeight of room so they can't overlap the table or be clipped by
-      // the page's overflow:hidden. If the packed rows leave too little, pull
-      // rows back (keeping at least one) so they spill onto a fresh final page
-      // that does have room for the block.
-      while (pEnd > currentRow + 1 && capacity - pHeight < bottomHeight) {
-        pEnd--;
-        pHeight -= rowHeights[pEnd];
-      }
-    } else if (pEnd === totalRows - 1 && pEnd - currentRow > 1) {
-      // Not the last page: keep the widow guard so the next page never carries a
-      // lone orphan row sitting by itself above the totals block.
-      pEnd--;
-    }
-    pEnd = backOffKept(currentRow, pEnd);
-
-    pageRowRanges.push({ start: currentRow, end: pEnd });
-    currentRow = pEnd;
-  }
-
-  const totalPages = pageRowRanges.length;
-
-  // ── Build DOM Node per Page ───────────────────────────────────
-  const pageNodes: HTMLElement[] = [];
-  const offscreenContainer = document.createElement('div');
-  offscreenContainer.style.position = 'fixed';
-  offscreenContainer.style.left = '-9999px';
-  offscreenContainer.style.top = '0px';
-  document.body.appendChild(offscreenContainer);
-  // Everything from here to the PDF output runs inside try/finally so a
-  // failed capture (html2canvas throwing mid-page) can't leave the offscreen
-  // container on the page. Body left at its original indent to keep the diff small.
-  try {
-
-  const getEffectiveBgAndColor = (node: HTMLElement) => {
-    const child = (node.firstElementChild || node) as HTMLElement;
-
-    let bg = node.style.backgroundColor || node.style.background || child.style.backgroundColor || child.style.background;
-    let color = node.style.color || child.style.color;
-    let fontFamily = node.style.fontFamily || child.style.fontFamily;
-
-    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
-      bg = getComputedStyle(node).backgroundColor;
-      if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
-        bg = getComputedStyle(child).backgroundColor;
-      }
-    }
-
-    if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
-      color = getComputedStyle(node).color;
-      if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
-        color = getComputedStyle(child).color;
-      }
-    }
-
-    if (!fontFamily) {
-      fontFamily = getComputedStyle(node).fontFamily || getComputedStyle(child).fontFamily;
-    }
-
-    const effectiveBg = (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') ? bg : '#FFFFFF';
-    const effectiveColor = (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') ? color : '#000000';
-
-    return { bg: effectiveBg, color: effectiveColor, fontFamily: fontFamily || "'Helvetica Neue', Arial, sans-serif" };
-  };
 
   const { bg: computedBg, color: computedColor, fontFamily: computedFont } = getEffectiveBgAndColor(el);
 
@@ -341,216 +233,376 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
   const docNumStr = el.querySelector('[data-pdf-doc-number]')?.textContent?.trim() || '';
   const docMark = (docNounStr && docNumStr) ? `${docNounStr} ${docNumStr}` : (docNounStr || docNumStr || 'INVOICE');
 
-  for (let p = 0; p < totalPages; p++) {
-    const range = pageRowRanges[p];
+  /** One page: rows [start, end) of the table, then `blocks` (indices into
+   *  allBlocks) in that order. `final` adds the absolutely positioned blocks. */
+  type Page = { start: number; end: number; blocks: number[] };
 
-    if (p === 0) {
-      // Page 1: Clone el content cleanly at full 794x1123 size
-      const pageNode = document.createElement('div');
-      pageNode.style.width = '794px';
-      pageNode.style.height = '1123px';
-      pageNode.style.boxSizing = 'border-box';
-      pageNode.style.position = 'relative';
-      pageNode.style.overflow = 'hidden';
-      pageNode.style.backgroundColor = computedBg;
-      pageNode.style.color = computedColor;
-      pageNode.style.fontFamily = computedFont;
-      pageNode.style.padding = '0px';
+  const pageIndicator = (label: string) => {
+    const pageInd = document.createElement('div');
+    pageInd.style.position = 'absolute';
+    pageInd.style.right = '56px';
+    pageInd.style.bottom = '14px';
+    pageInd.style.fontSize = '11px';
+    pageInd.style.opacity = '0.7';
+    pageInd.textContent = label;
+    return pageInd;
+  };
 
-      const clone = el.cloneNode(true) as HTMLElement;
-      clone.style.width = '794px';
-      clone.style.minHeight = '1123px';
-      clone.style.height = '1123px';
-      clone.style.boxSizing = 'border-box';
-      clone.style.backgroundColor = computedBg;
-      clone.style.color = computedColor;
+  const buildFirstPage = (page: Page, final: boolean, label: string | null) => {
+    // Page 1: Clone el content cleanly at full 794x1123 size
+    const pageNode = document.createElement('div');
+    pageNode.style.width = '794px';
+    pageNode.style.height = '1123px';
+    pageNode.style.boxSizing = 'border-box';
+    pageNode.style.position = 'relative';
+    pageNode.style.overflow = 'hidden';
+    pageNode.style.backgroundColor = computedBg;
+    pageNode.style.color = computedColor;
+    pageNode.style.fontFamily = computedFont;
+    pageNode.style.padding = '0px';
 
-      if (clone.firstElementChild) {
-        const templateRoot = clone.firstElementChild as HTMLElement;
-        templateRoot.style.width = '794px';
-        templateRoot.style.minHeight = '1123px';
-        templateRoot.style.height = '1123px';
-        templateRoot.style.boxSizing = 'border-box';
-        templateRoot.style.backgroundColor = computedBg;
-      }
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.style.width = '794px';
+    clone.style.minHeight = '1123px';
+    clone.style.height = '1123px';
+    clone.style.boxSizing = 'border-box';
+    clone.style.backgroundColor = computedBg;
+    clone.style.color = computedColor;
 
-      // Hide rows not belonging to Page 1
-      const cloneTable = clone.querySelector('table');
-      if (cloneTable) {
-        const cloneRows = Array.from(cloneTable.querySelectorAll('tbody tr'));
-        cloneRows.forEach((r, idx) => {
-          if (idx < range.start || idx >= range.end) {
-            r.remove();
-          }
-        });
-      }
-
-      // If more pages exist, remove bottom trailing blocks from Page 1 using data-pdf-block
-      if (totalPages > 1) {
-        clone.querySelectorAll('[data-pdf-block]').forEach((b) => {
-          // Keep ledger rail on page 1 if present
-          if (b.getAttribute('data-pdf-block') !== 'ledger-rail') {
-            b.remove();
-          }
-        });
-
-        // Add Page 1 of M indicator
-        const pageInd = document.createElement('div');
-        pageInd.style.position = 'absolute';
-        pageInd.style.right = '56px';
-        pageInd.style.bottom = '14px';
-        pageInd.style.fontSize = '11px';
-        pageInd.style.opacity = '0.7';
-        pageInd.textContent = `Page 1 of ${totalPages}`;
-        clone.appendChild(pageInd);
-      }
-
-      pageNode.appendChild(clone);
-      offscreenContainer.appendChild(pageNode);
-      pageNodes.push(pageNode);
-    } else {
-      // Page 2+: Build continuation page
-      const pageNode = document.createElement('div');
-      pageNode.style.width = '794px';
-      pageNode.style.height = '1123px';
-      pageNode.style.boxSizing = 'border-box';
-      pageNode.style.position = 'relative';
-      pageNode.style.overflow = 'hidden';
-      pageNode.style.backgroundColor = computedBg;
-      pageNode.style.color = computedColor;
-      pageNode.style.fontFamily = computedFont;
-      pageNode.style.padding = '48px 56px';
-
-      // 1. Continuation Header (Business name + document number only, ~50% masthead height)
-      const contHeader = document.createElement('div');
-      contHeader.style.display = 'flex';
-      contHeader.style.justifyContent = 'space-between';
-      contHeader.style.alignItems = 'center';
-      contHeader.style.paddingBottom = '12px';
-      contHeader.style.marginBottom = '20px';
-      contHeader.style.borderBottom = `1px solid ${computedColor}33`;
-
-      const leftHead = document.createElement('div');
-      leftHead.style.fontWeight = '800';
-      leftHead.style.fontSize = '16px';
-      leftHead.style.lineHeight = '1.2';
-      leftHead.style.color = computedColor;
-      leftHead.textContent = businessName;
-
-      const rightHead = document.createElement('div');
-      rightHead.style.fontSize = '12px';
-      rightHead.style.fontWeight = '700';
-      rightHead.style.letterSpacing = '0.08em';
-      rightHead.style.textTransform = 'uppercase';
-      rightHead.style.opacity = '0.8';
-      rightHead.style.color = computedColor;
-      rightHead.textContent = docMark;
-
-      contHeader.appendChild(leftHead);
-      contHeader.appendChild(rightHead);
-      pageNode.appendChild(contHeader);
-
-      // 2. Table with repeated header and assigned rows
-      if (table) {
-        const pageTable = document.createElement('table');
-        pageTable.style.width = '100%';
-        pageTable.style.borderCollapse = 'collapse';
-        pageTable.style.fontSize = '15px';
-        // Carry the template's explicit line-height (summary documents set one)
-        // so rows measure and paint the same as on page 1.
-        pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
-        // ...and its table-layout, so a fixed-layout table wraps rows to the
-        // same widths (and so the same measured heights) on every page.
-        pageTable.style.tableLayout = (table as HTMLElement).style.tableLayout;
-
-        if (tableHeader) {
-          pageTable.appendChild(tableHeader.cloneNode(true));
-        }
-
-        const tbody = document.createElement('tbody');
-        const contIdx = continuedHeaderFor(range.start);
-        if (contIdx >= 0) {
-          const cont = rows[contIdx].cloneNode(true) as HTMLElement;
-          cont.removeAttribute('data-pdf-keep-with-next');
-          cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
-          const name = cont.querySelector('[data-pdf-group-name]');
-          const suffix = rows[range.start].getAttribute('data-pdf-continued-suffix');
-          if (name) name.textContent = `${name.textContent ?? ''}${suffix ? ` · ${suffix}` : ''} (continued)`;
-          tbody.appendChild(cont);
-        }
-        for (let rIdx = range.start; rIdx < range.end; rIdx++) {
-          if (rows[rIdx]) {
-            tbody.appendChild(rows[rIdx].cloneNode(true));
-          }
-        }
-        pageTable.appendChild(tbody);
-        pageNode.appendChild(pageTable);
-      }
-
-      // 3. Final Page: clone trailing blocks (Totals, PaymentBlock, Notes)
-      if (p === totalPages - 1) {
-        const trailingBlocks = Array.from(el.querySelectorAll('[data-pdf-block]')).filter(
-          (b) => b.getAttribute('data-pdf-block') !== 'ledger-rail'
-        );
-
-        if (trailingBlocks.length > 0) {
-          const trailingWrapper = document.createElement('div');
-          trailingWrapper.style.marginTop = '24px';
-          trailingWrapper.style.display = 'flex';
-          trailingWrapper.style.flexDirection = 'column';
-          trailingWrapper.style.gap = '20px';
-
-          trailingBlocks.forEach((block) => {
-            trailingWrapper.appendChild(block.cloneNode(true));
-          });
-          pageNode.appendChild(trailingWrapper);
-        }
-      }
-
-      // Ledger special case (PDF-SPEC 6.5 & 9.4): drop payment rail on pages 2+
-      pageNode.querySelectorAll('[data-pdf-block="ledger-rail"]').forEach((rail) => rail.remove());
-
-      // 4. Page N of M Indicator
-      const pageInd = document.createElement('div');
-      pageInd.style.position = 'absolute';
-      pageInd.style.right = '56px';
-      pageInd.style.bottom = '14px';
-      pageInd.style.fontSize = '11px';
-      pageInd.style.opacity = '0.7';
-      pageInd.textContent = `Page ${p + 1} of ${totalPages}`;
-      pageNode.appendChild(pageInd);
-
-      offscreenContainer.appendChild(pageNode);
-      pageNodes.push(pageNode);
+    if (clone.firstElementChild) {
+      const templateRoot = clone.firstElementChild as HTMLElement;
+      templateRoot.style.width = '794px';
+      templateRoot.style.minHeight = '1123px';
+      templateRoot.style.height = '1123px';
+      templateRoot.style.boxSizing = 'border-box';
+      templateRoot.style.backgroundColor = computedBg;
     }
-  }
 
-  // Render each page into jsPDF
-  const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
-
-  for (let p = 0; p < pageNodes.length; p++) {
-    if (p > 0) {
-      pdf.addPage([794, 1123]);
+    // Hide rows not belonging to Page 1
+    const cloneTable = clone.querySelector('table');
+    if (cloneTable) {
+      const cloneRows = Array.from(cloneTable.querySelectorAll('tbody tr'));
+      cloneRows.forEach((r, idx) => {
+        if (idx < page.start || idx >= page.end) {
+          r.remove();
+        }
+      });
     }
-    const pageNode = pageNodes[p];
-    const canvas = await html2canvas(pageNode, {
-      scale,
-      useCORS: true,
-      backgroundColor: computedBg,
-      width: 794,
-      height: 1123,
-      windowWidth: 794,
-      windowHeight: 1123,
+
+    // Drop the blocks that print on a later page. The Ledger rail always stays.
+    clone.querySelectorAll('[data-pdf-block]').forEach((b, i) => {
+      const keep = kindOf(i) === 'ledger-rail' || page.blocks.includes(i) || (final && absBlocks.includes(i));
+      if (!keep) b.remove();
     });
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
-    addPageLinks(pdf, pageNode);
-  }
 
-  const blob = pdf.output('blob');
-  return new File([blob], filename, { type: 'application/pdf' });
+    if (label) clone.appendChild(pageIndicator(label));
+
+    pageNode.appendChild(clone);
+    return pageNode;
+  };
+
+  const buildContinuationPage = (page: Page, final: boolean, label: string) => {
+    // Page 2+: Build continuation page
+    const pageNode = document.createElement('div');
+    pageNode.style.width = '794px';
+    pageNode.style.height = '1123px';
+    pageNode.style.boxSizing = 'border-box';
+    pageNode.style.position = 'relative';
+    pageNode.style.overflow = 'hidden';
+    pageNode.style.backgroundColor = computedBg;
+    pageNode.style.color = computedColor;
+    pageNode.style.fontFamily = computedFont;
+    pageNode.style.padding = '48px 56px';
+
+    // 1. Continuation Header (Business name + document number only, ~50% masthead height)
+    const contHeader = document.createElement('div');
+    contHeader.style.display = 'flex';
+    contHeader.style.justifyContent = 'space-between';
+    contHeader.style.alignItems = 'center';
+    contHeader.style.paddingBottom = '12px';
+    contHeader.style.marginBottom = '20px';
+    contHeader.style.borderBottom = `1px solid ${computedColor}33`;
+
+    const leftHead = document.createElement('div');
+    leftHead.style.fontWeight = '800';
+    leftHead.style.fontSize = '16px';
+    leftHead.style.lineHeight = '1.2';
+    leftHead.style.color = computedColor;
+    leftHead.textContent = businessName;
+
+    const rightHead = document.createElement('div');
+    rightHead.style.fontSize = '12px';
+    rightHead.style.fontWeight = '700';
+    rightHead.style.letterSpacing = '0.08em';
+    rightHead.style.textTransform = 'uppercase';
+    rightHead.style.opacity = '0.8';
+    rightHead.style.color = computedColor;
+    rightHead.textContent = docMark;
+
+    contHeader.appendChild(leftHead);
+    contHeader.appendChild(rightHead);
+    pageNode.appendChild(contHeader);
+
+    // 2. Table with repeated header and assigned rows — only when this page
+    // carries rows: a page of blocks alone (How to pay after a full page 1)
+    // has no table.
+    const hasRows = table && page.end > page.start;
+    if (hasRows) {
+      const pageTable = document.createElement('table');
+      pageTable.style.width = '100%';
+      pageTable.style.borderCollapse = 'collapse';
+      pageTable.style.fontSize = '15px';
+      // Carry the template's explicit line-height (summary documents set one)
+      // so rows measure and paint the same as on page 1.
+      pageTable.style.lineHeight = (table as HTMLElement).style.lineHeight;
+      // ...and its table-layout, so a fixed-layout table wraps rows to the
+      // same widths (and so the same measured heights) on every page.
+      pageTable.style.tableLayout = (table as HTMLElement).style.tableLayout;
+
+      if (tableHeader) {
+        pageTable.appendChild(tableHeader.cloneNode(true));
+      }
+
+      const tbody = document.createElement('tbody');
+      const contIdx = continuedHeaderFor(page.start);
+      if (contIdx >= 0) {
+        const cont = rows[contIdx].cloneNode(true) as HTMLElement;
+        cont.removeAttribute('data-pdf-keep-with-next');
+        cont.querySelectorAll('[data-pdf-continued-hide]').forEach((n) => n.remove());
+        const name = cont.querySelector('[data-pdf-group-name]');
+        const suffix = rows[page.start].getAttribute('data-pdf-continued-suffix');
+        if (name) name.textContent = `${name.textContent ?? ''}${suffix ? ` · ${suffix}` : ''} (continued)`;
+        tbody.appendChild(cont);
+      }
+      for (let rIdx = page.start; rIdx < page.end; rIdx++) {
+        if (rows[rIdx]) {
+          tbody.appendChild(rows[rIdx].cloneNode(true));
+        }
+      }
+      pageTable.appendChild(tbody);
+      pageNode.appendChild(pageTable);
+    }
+
+    // 3. This page's trailing blocks (Totals, PaymentBlock, Notes), in placement order
+    if (page.blocks.length > 0) {
+      const trailingWrapper = document.createElement('div');
+      trailingWrapper.style.marginTop = hasRows ? '24px' : '0px';
+      trailingWrapper.style.display = 'flex';
+      trailingWrapper.style.flexDirection = 'column';
+      trailingWrapper.style.gap = '20px';
+
+      page.blocks.forEach((i) => {
+        trailingWrapper.appendChild(allBlocks[i].cloneNode(true));
+      });
+      pageNode.appendChild(trailingWrapper);
+    }
+
+    // Absolutely positioned blocks (the summaries' footer) sit directly on the
+    // final page, so they position against it and measurePage sees them.
+    if (final) {
+      absBlocks.forEach((i) => pageNode.appendChild(allBlocks[i].cloneNode(true)));
+    }
+
+    // Ledger special case (PDF-SPEC 6.5 & 9.4): drop payment rail on pages 2+
+    pageNode.querySelectorAll('[data-pdf-block="ledger-rail"]').forEach((rail) => rail.remove());
+
+    // 4. Page N of M Indicator
+    pageNode.appendChild(pageIndicator(label));
+    return pageNode;
+  };
+
+  const buildPage = (page: Page, index: number, final: boolean, label: string | null) =>
+    index === 0 ? buildFirstPage(page, final, label) : buildContinuationPage(page, final, label ?? '');
+
+  const offscreenContainer = document.createElement('div');
+  offscreenContainer.style.position = 'fixed';
+  offscreenContainer.style.left = '-9999px';
+  offscreenContainer.style.top = '0px';
+  document.body.appendChild(offscreenContainer);
+  // Everything from here to the PDF output runs inside try/finally so a
+  // failed capture (html2canvas throwing mid-page) can't leave the offscreen
+  // container on the page.
+  try {
+    /** Lay the page out offscreen and check its content ends above its limit.
+     *  The indicator text is a stand-in; only its box matters here. */
+    const fits = (page: Page, index: number, final: boolean) => {
+      const node = buildPage(page, index, final, 'Page 1 of 2');
+      offscreenContainer.appendChild(node);
+      const target = index === 0
+        ? ((node.firstElementChild?.firstElementChild as HTMLElement | null) ?? node)
+        : node;
+      const m = measurePage(target);
+      node.remove();
+      return m.bottom <= m.limit;
+    };
+
+    // Continuation pages: where their first row starts and where content must
+    // end, measured on a probe page holding row 0.
+    let continuationCapacity = 0;
+    if (totalRows > 0) {
+      const probe = buildContinuationPage({ start: 0, end: 1, blocks: [] }, false, 'Page 1 of 2');
+      offscreenContainer.appendChild(probe);
+      const firstRow = probe.querySelector('tbody tr') as HTMLElement | null;
+      const rowTop = firstRow ? firstRow.getBoundingClientRect().top - probe.getBoundingClientRect().top : 0;
+      continuationCapacity = Math.max(300, measurePage(probe).limit - rowTop);
+      probe.remove();
+    }
+
+    // Partition row indices into pages
+    const pages: Page[] = [];
+
+    // Page 1 rows, packed under the masthead to the template's bottom limit.
+    const rowsTop = totalRows > 0 ? rows[0].getBoundingClientRect().top - rootTop : 0;
+    // Page 1 of a split: its pinned footer blocks move to the final page.
+    const page1Capacity = Math.max(200, measurePage(root, { skipAbsBlocks: true }).limit - rowsTop);
+    let p1Height = 0;
+    let p1End = 0;
+    while (p1End < totalRows && p1Height + rowHeights[p1End] <= page1Capacity) {
+      p1Height += rowHeights[p1End];
+      p1End++;
+    }
+    // Enforce orphan rule: if only 1 row left for Page 2+, pull one back unless Page 1 needs it
+    if (p1End === totalRows - 1 && p1End > 2) {
+      p1End--;
+    }
+    // Enforce widow rule: min 2 rows on Page 1 if any rows exist
+    if (p1End < 2 && totalRows >= 2) {
+      p1End = Math.min(2, totalRows);
+    }
+    p1End = backOffKept(0, p1End);
+    pages.push({ start: 0, end: p1End, blocks: [] });
+    let currentRow = p1End;
+
+    // Pages 2+, each packed to the full continuation capacity.
+    while (currentRow < totalRows) {
+      const contIdx = continuedHeaderFor(currentRow);
+      const capacity = continuationCapacity - (contIdx >= 0 ? rowHeights[contIdx] : 0);
+      let pHeight = 0;
+      let pEnd = currentRow;
+
+      while (pEnd < totalRows && pHeight + rowHeights[pEnd] <= capacity) {
+        pHeight += rowHeights[pEnd];
+        pEnd++;
+      }
+
+      if (pEnd === currentRow) {
+        // At least one row per page (a single row taller than the page).
+        pEnd = currentRow + 1;
+      } else if (pEnd === totalRows - 1 && pEnd - currentRow > 1) {
+        // Widow guard: the next page never carries a lone orphan row sitting by
+        // itself above the totals block.
+        pEnd--;
+      }
+      pEnd = backOffKept(currentRow, pEnd);
+
+      pages.push({ start: currentRow, end: pEnd, blocks: [] });
+      currentRow = pEnd;
+    }
+
+    // ── Place the last-page blocks ──────────────────────────────
+    /** How many units, from unit `from` on, fit on page pi after its rows. */
+    const place = (pi: number, from: number) => {
+      for (let k = units.length - from; k > 0; k--) {
+        const page = { ...pages[pi], blocks: units.slice(from, from + k).flat() };
+        if (fits(page, pi, from + k === units.length)) return k;
+      }
+      return 0;
+    };
+
+    let last = pages.length - 1; // the page holding the last rows
+    let placed = place(last, 0);
+    // Stuck: the totals can't follow the last rows (or, with no blocks, the
+    // rows plus whatever trails the table overrun the page). Carry the last two
+    // rows to a fresh page so the totals keep ≥ 2 rows above them, as long as
+    // two stay behind; a page of 3 or fewer rows keeps them, and the blocks
+    // start the next page on their own.
+    const stuck = units.length > 0 ? placed === 0 : !fits(pages[last], last, true);
+    const lastRows = pages[last].end - pages[last].start;
+    if (stuck && lastRows >= 4) {
+      const cut = backOffKept(pages[last].start, pages[last].end - 2);
+      pages.push({ start: cut, end: pages[last].end, blocks: [] });
+      pages[last] = { ...pages[last], end: cut };
+      last++;
+      placed = place(last, 0);
+    }
+    pages[last].blocks = units.slice(0, placed).flat();
+
+    // Whatever didn't fit starts a page of blocks alone, as many per page as
+    // fit (at least one: a block taller than a page is clipped, not lost).
+    while (placed < units.length) {
+      pages.push({ start: totalRows, end: totalRows, blocks: [] });
+      const pi = pages.length - 1;
+      const k = Math.max(1, place(pi, placed));
+      pages[pi].blocks = units.slice(placed, placed + k).flat();
+      placed += k;
+    }
+
+    const totalPages = pages.length;
+
+    // Render each page into jsPDF
+    const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
+
+    for (let p = 0; p < totalPages; p++) {
+      if (p > 0) {
+        pdf.addPage([794, 1123]);
+      }
+      const pageNode = buildPage(
+        pages[p], p, p === totalPages - 1,
+        totalPages > 1 ? `Page ${p + 1} of ${totalPages}` : null,
+      );
+      offscreenContainer.appendChild(pageNode);
+      const canvas = await html2canvas(pageNode, {
+        scale,
+        useCORS: true,
+        backgroundColor: computedBg,
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
+      });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
+      addPageLinks(pdf, pageNode);
+    }
+
+    const blob = pdf.output('blob');
+    return new File([blob], filename, { type: 'application/pdf' });
   } finally {
     offscreenContainer.remove();
   }
+}
+
+/** The page colours and font a continuation page paints with: the template's
+ *  inline style first, its computed style otherwise, white/black/Helvetica last. */
+function getEffectiveBgAndColor(el: HTMLElement) {
+  const node = el;
+  const child = (node.firstElementChild || node) as HTMLElement;
+
+  let bg = node.style.backgroundColor || node.style.background || child.style.backgroundColor || child.style.background;
+  let color = node.style.color || child.style.color;
+  let fontFamily = node.style.fontFamily || child.style.fontFamily;
+
+  if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
+    bg = getComputedStyle(node).backgroundColor;
+    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
+      bg = getComputedStyle(child).backgroundColor;
+    }
+  }
+
+  if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
+    color = getComputedStyle(node).color;
+    if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
+      color = getComputedStyle(child).color;
+    }
+  }
+
+  if (!fontFamily) {
+    fontFamily = getComputedStyle(node).fontFamily || getComputedStyle(child).fontFamily;
+  }
+
+  const effectiveBg = (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') ? bg : '#FFFFFF';
+  const effectiveColor = (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') ? color : '#000000';
+
+  return { bg: effectiveBg, color: effectiveColor, fontFamily: fontFamily || "'Helvetica Neue', Arial, sans-serif" };
 }
 
 /** Trigger a browser download of a File without sending it anywhere. Used by the
