@@ -411,7 +411,7 @@ html[data-splash=""] .onit-splash {
   position: absolute; left: 50%; top: 50%; z-index: 2; pointer-events: none;
   padding: 4px 12px; border: 3px solid #0f6d31; border-radius: 10px;
   color: #0f6d31; background: rgb(201 242 212 / .92);
-  font: 800 22px/1 Montserrat, sans-serif; letter-spacing: .12em;
+  font: 800 22px/1 var(--font-montserrat), sans-serif; letter-spacing: .12em;
   animation: onit-paid-stamp 1300ms var(--ease-emphasized) both;
 }
 @keyframes onit-paid-stamp {
