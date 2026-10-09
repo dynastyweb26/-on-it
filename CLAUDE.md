@@ -69,3 +69,10 @@ Deploy workflow:
   Do NOT run `vercel --prod` — it creates a duplicate production build.
 - Only merge/push to `main` after the preview passes and the user confirms.
   Any push to `main` is a production deploy, including docs-only commits.
+## Token budget rules
+- Screenshots only when layout or visuals changed. Verify logic with DOM assertions and test output.
+- Don't re-read files already read this session unless they changed.
+- Reports: max 15 lines. Commits, decisions needed, risks. No step-by-step narration.
+- Run the full build once per commit, not after every edit.
+- Pipe long command output through tail/grep; never dump full logs.
+- Stop and ask instead of exploring when the next step is unclear.
