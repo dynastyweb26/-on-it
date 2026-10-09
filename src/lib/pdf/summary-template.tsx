@@ -188,9 +188,9 @@ const WRAP: React.CSSProperties = { whiteSpace: 'normal', overflowWrap: 'anywher
 // continuation table elementToPdf builds) wraps a row to the same height.
 const FIXED: React.CSSProperties = { tableLayout: 'fixed' };
 
-// Room for the absolutely-positioned footer. It sits in the flow under the
-// total so the partitioner sees the footer's height: a page that is nearly
-// full spills onto a second page instead of running rows under the footer.
+// Room for the absolutely-positioned footer, in the flow under the total.
+// elementToPdf skips it (data-pdf-footer-spacer) and measures the footer
+// itself, so rows still never run under the footer.
 const FOOTER_CLEARANCE = 104;
 
 interface DocHeaderData {
@@ -265,7 +265,7 @@ function DetailedTotal({ label, total, accent }: { label: string; total: number;
 function DetailedFooter({ text }: { text: string }) {
   return (
     <>
-      <div style={{ height: FOOTER_CLEARANCE }} />
+      <div data-pdf-footer-spacer style={{ height: FOOTER_CLEARANCE }} />
       <div data-pdf-block="footer" style={{ position: 'absolute', left: 56, right: 56, bottom: 44 }}>
         <div style={{ height: 1, background: '#e0e0e0', marginBottom: 12 }} />
         <p style={{ fontSize: 11, lineHeight: 1.6, color: MUTED, margin: 0 }}>{text}</p>
