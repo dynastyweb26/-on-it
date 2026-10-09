@@ -548,6 +548,16 @@ previewed, so each must stay additive and safe for the live `main` code.
 - Production `GET /api/recurring/test` returns **404** (gate is `VERCEL_ENV === 'preview'` only).
 - The next 15:00 UTC `/api/followups` response includes `recurring: { due, logged, skipped, errors, paused, pushed }` with `errors` 0.
 
+## Next after the smoke test — logged 2026-10-09
+
+_Founder, 2026-10-09. Work these in order, after the post-merge smoke test
+above. Not audited yet: each starts with an audit of the current code._
+
+| Item | Status | Evidence |
+|---|---|---|
+| 1 · Quote/invoice PDF breaks to page 2 too early | **Open — next after the smoke test** (founder, 2026-10-09) | Reported: quote Q-0024 has 6 line items; page 1 shows 4 rows and then a large empty gap, and the remaining rows spill onto page 2. Audit the PDF pagination under `lib/pdf` (`wrap` / `break` / `minPresenceAhead` on the rows and the totals block, and any rows-per-page limit) before fixing. |
+| 2 · Paid features don't unlock instantly after paying | **Open — after item 1** (founder, 2026-10-09) | Reported: after a subscription payment or a discount code, paid features stay locked until a later refresh. Entitlements must refresh automatically with minimal delay (webhook → client via Supabase realtime or short polling). Audit the current flow first (checkout return, webhook writes to `profiles`, how the client reads the tier). |
+
 ## Receipt capture motion — logged 2026-10-01 (`feat/receipt-motion`; hotfix `fix/shutter-reduced-motion`, merged `9a6b8f7`)
 
 _Board "05 · Receipt capture", MOTION-SPEC §8 (as built). Checked in headless
