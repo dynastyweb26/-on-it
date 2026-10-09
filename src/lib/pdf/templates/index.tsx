@@ -602,10 +602,11 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-        {/* marginLeft:auto keeps this block right-aligned by its own style, to
-            match the shared Totals component (consistency; Ledger's totals are
-            not paginated to a continuation page). */}
-        <div style={{ width: 300, marginLeft: 'auto', borderTop: rule, paddingTop: 10 }}>
+        {/* marginLeft:auto keeps this block right-aligned by its own style, like
+            the shared Totals component, so it stays right on a continuation
+            page too. data-pdf-block: on a multi-page document the totals move
+            under the last rows instead of printing on page 1. */}
+        <div data-pdf-block="totals" style={{ width: 300, marginLeft: 'auto', borderTop: rule, paddingTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
             <span>Subtotal</span><span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
           </div>
@@ -648,7 +649,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {/* A quote has no payment rail (see the invoice-only rail below): say
           when paying becomes possible instead. */}
       {!isInvoice && (
-        <div style={{ marginTop: 24 }}>
+        <div data-pdf-block="payment" style={{ marginTop: 24 }}>
           <div style={eyebrow}>How to pay</div>
           <div style={{ fontSize: 13, marginTop: 6 }}>{QUOTE_PAY_NOTE}</div>
         </div>
@@ -660,7 +661,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
       )}
 
-      <div style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
+      {/* The closing line ends the document: it travels with the block before it. */}
+      <div data-pdf-block="closing" data-pdf-keep-with-prev="true" style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
         {isInvoice ? 'Thank you for your business.' : 'This estimate is valid for 30 days.'}
       </div>
     </div>
@@ -676,8 +678,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
         <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-          <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
+          <div data-pdf-doc-noun="true" style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
+          <div data-pdf-doc-number="true" style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
           <div style={{ fontSize: 12, marginTop: 8 }}><span style={eyebrow}>Issued</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.issuedDate}</span></div>
           {d.dueDate && <div style={{ fontSize: 12, marginTop: 2 }}><span style={eyebrow}>Due</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.dueDate}</span></div>}
         </div>
@@ -731,9 +733,9 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         fontWeight: 800, textTransform: 'uppercase', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
+        <span data-pdf-doc-noun="true" style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
         <span style={{ fontSize: 14, letterSpacing: 3 }}>
-          {formatDocNumber(d.kind, d.invoiceNumber)}&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
+          <span data-pdf-doc-number="true">{formatDocNumber(d.kind, d.invoiceNumber)}</span>&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
         </span>
       </div>
       <div style={{ padding: '36px 56px' }}>
