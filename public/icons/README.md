@@ -11,7 +11,7 @@ baked into the art. Do not regenerate — see ON-IT-DESIGN-STANDARD.md §10.
 - `icon-144.png` — Android/Windows tile
 - `icon-128.png` — Chrome Web Store listing
 - `icon-96.png`, `icon-72.png` — Android launcher densities
-- `icon-48.png`, `icon-32.png`, `icon-16.png` — favicon sizes
+- `icon-32.png` — favicon size (16 and 48 ship only inside `favicon.ico`)
 - `favicon.ico` — multi-resolution favicon (16/32/48/64/128/256)
 
 ## Where these go in the repo
@@ -31,7 +31,6 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/icon-16.png', sizes: '16x16', type: 'image/png' },
     ],
     apple: '/icons/icon-180.png',
   },
