@@ -754,7 +754,11 @@ along: `dfab3cf` (tutorial mock bubbles) and `9bc293d` (Books tile chevron).
 - 3·5: runs as step 4, **after** recaps (not before). On a normal day the
   order doesn't matter (today's charge belongs to the new period). After a
   missed cron day it can: a catch-up charge dated in the period a recap just
-  snapshotted lands after the snapshot (recaps are insert-once). Catch-up is ≤ 12 due dates per item per run, never
+  snapshotted lands after the snapshot (recaps are insert-once). Kept after
+  recaps on purpose (founder, 2026-10-08): recaps build only on the owner's
+  local Monday / 1st with no catch-up, so a recurring step that ran first
+  and hit the function timeout would lose that period's recap outright. A
+  late charge missing from one snapshot is the smaller cost. Catch-up is ≤ 12 due dates per item per run, never
   before the item's created day (not "≤ 3"). The first skip ends that item's
   run. Free-limit skips send **one digest push per owner per day**, not one
   per item. Errors don't push; they retry daily and after 3 calendar days
