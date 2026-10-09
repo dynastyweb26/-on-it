@@ -108,6 +108,31 @@ export function firstDueFrom(nextOn: string, cadence: Cadence, anchorDay: number
   return d;
 }
 
+// ── The cron (3·5) ──────────────────────────────────────────────────
+/** At most this many due dates per item per run; the rest drain on later runs. */
+export const CATCH_UP_CAP = 12;
+/** Error retries stop once the stuck date is this many days behind today (D, D+1, D+2 = 3 days). */
+export const ERROR_GIVE_UP_DAYS = 2;
+
+/**
+ * What the cron tries for one item this run. `start` is the first due date on
+ * or after the day the item was created (owner-local), so it never logs a
+ * charge from before the item existed; when it differs from next_on the cron
+ * moves next_on there even if nothing is due. `dates` are the due dates on or
+ * before today, oldest first, at most `cap`.
+ */
+export function dueDates(
+  nextOn: string, cadence: Cadence, anchorDay: number | null, today: string, createdOn: string, cap = CATCH_UP_CAP,
+): { start: string; dates: string[] } {
+  const start = firstDueFrom(nextOn, cadence, anchorDay, createdOn);
+  const dates: string[] = [];
+  for (let d = start; d <= today && dates.length < cap; d = nextDue(d, cadence, anchorDay)) dates.push(d);
+  return { start, dates };
+}
+
+/** After an error on `dueOn`: stop retrying (pause the item) once it's been stuck for 3 calendar days. */
+export const givesUpOnError = (dueOn: string, today: string) => daysBetween(dueOn, today) >= ERROR_GIVE_UP_DAYS;
+
 /** What one item costs per month: weekly × 52 / 12, yearly / 12. */
 export function monthlyAmount(r: Pick<Recurring, 'amount' | 'cadence'>): number {
   return r.cadence === 'weekly' ? (r.amount * 52) / 12 : r.cadence === 'yearly' ? r.amount / 12 : r.amount;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, anchorFor, booksLine, freshAutoLog, skipNotices, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
+  addDays, anchorFor, booksLine, CATCH_UP_CAP, dueDates, freshAutoLog, givesUpOnError, skipNotices, daysBetween, firstDueFrom, monthlyTotal, nextDue, nextLine, normalizeRecurring,
   parseAmount, recurringSubtitle, shortDay, skipNotice, todayIn, upcoming, type Recurring,
 } from './recurring';
 
@@ -122,4 +122,55 @@ test('freshAutoLog: recurring rows created in the last 24 h', () => {
   assert.equal(freshAutoLog({ recurring_id: 'r', created_at: '2026-10-08T14:00:00Z' }, now), true);
   assert.equal(freshAutoLog({ recurring_id: 'r', created_at: '2026-10-07T14:00:00Z' }, now), false);
   assert.equal(freshAutoLog({ recurring_id: null, created_at: '2026-10-08T14:00:00Z' }, now), false);
+});
+
+test('dueDates: nothing due before next_on; today itself is due', () => {
+  assert.deepEqual(dueDates('2026-10-09', 'monthly', 9, '2026-10-08', '2026-10-01').dates, []);
+  assert.deepEqual(dueDates('2026-10-08', 'monthly', 8, '2026-10-08', '2026-10-01'), { start: '2026-10-08', dates: ['2026-10-08'] });
+});
+
+test('dueDates: catch-up after missed runs, oldest first, anchor 31 across short months', () => {
+  assert.deepEqual(dueDates('2026-01-31', 'monthly', 31, '2026-04-30', '2026-01-01').dates,
+    ['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30']);
+  assert.deepEqual(dueDates('2028-01-29', 'monthly', 29, '2028-03-29', '2028-01-01').dates,
+    ['2028-01-29', '2028-02-29', '2028-03-29']);
+  assert.deepEqual(dueDates('2026-01-30', 'monthly', 30, '2026-03-30', '2026-01-01').dates,
+    ['2026-01-30', '2026-02-28', '2026-03-30']);
+});
+
+test('dueDates: Feb 29 yearly → Feb 28, back to the 29th in a leap year', () => {
+  assert.deepEqual(dueDates('2028-02-29', 'yearly', 29, '2032-03-01', '2028-01-01').dates,
+    ['2028-02-29', '2029-02-28', '2030-02-28', '2031-02-28', '2032-02-29']);
+});
+
+test('dueDates: at most CATCH_UP_CAP per run', () => {
+  const r = dueDates('2026-01-05', 'weekly', null, '2026-10-08', '2026-01-01');
+  assert.equal(r.dates.length, CATCH_UP_CAP);
+  assert.equal(r.dates[0], '2026-01-05');
+  assert.equal(r.dates[CATCH_UP_CAP - 1], '2026-03-23');
+});
+
+test('dueDates: never a date before the item was created', () => {
+  // next_on somehow before creation: skipped forward, not logged.
+  assert.deepEqual(dueDates('2026-09-01', 'monthly', 1, '2026-10-08', '2026-09-15'), { start: '2026-10-01', dates: ['2026-10-01'] });
+  // Created today with next_on today: due.
+  assert.deepEqual(dueDates('2026-10-08', 'weekly', null, '2026-10-08', '2026-10-08').dates, ['2026-10-08']);
+  // Floor moves start even when nothing is due yet.
+  assert.deepEqual(dueDates('2026-09-01', 'monthly', 1, '2026-09-20', '2026-09-15'), { start: '2026-10-01', dates: [] });
+});
+
+test('dueDates: owner-local today and created day (zone ahead of UTC)', () => {
+  const run = new Date('2026-10-08T15:00:00Z'); // the cron's 15:00 UTC
+  const today = todayIn('Pacific/Auckland', run); // already Oct 9 there
+  assert.equal(today, '2026-10-09');
+  const createdOn = todayIn('Pacific/Auckland', new Date('2026-10-08T12:30:00Z')); // created Oct 9 local
+  assert.deepEqual(dueDates('2026-10-09', 'weekly', null, today, createdOn).dates, ['2026-10-09']);
+  assert.deepEqual(dueDates('2026-10-09', 'weekly', null, todayIn('America/Chicago', run), '2026-10-08').dates, []);
+});
+
+test('givesUpOnError: stuck on D, D+1 retry; D+2 gives up', () => {
+  assert.equal(givesUpOnError('2026-10-06', '2026-10-06'), false);
+  assert.equal(givesUpOnError('2026-10-06', '2026-10-07'), false);
+  assert.equal(givesUpOnError('2026-10-06', '2026-10-08'), true);
+  assert.equal(givesUpOnError('2026-09-01', '2026-10-08'), true); // a catch-up date already 3+ days old
 });
