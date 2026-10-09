@@ -602,10 +602,11 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-        {/* marginLeft:auto keeps this block right-aligned by its own style, to
-            match the shared Totals component (consistency; Ledger's totals are
-            not paginated to a continuation page). */}
-        <div style={{ width: 300, marginLeft: 'auto', borderTop: rule, paddingTop: 10 }}>
+        {/* marginLeft:auto keeps this block right-aligned by its own style, like
+            the shared Totals component, so it stays right on a continuation
+            page too. data-pdf-block: on a multi-page document the totals move
+            under the last rows instead of printing on page 1. */}
+        <div data-pdf-block="totals" style={{ width: 300, marginLeft: 'auto', borderTop: rule, paddingTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '2px 4px' }}>
             <span>Subtotal</span><span style={{ fontFamily: MONO }}>{money(d.subtotal)}</span>
           </div>
@@ -648,7 +649,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {/* A quote has no payment rail (see the invoice-only rail below): say
           when paying becomes possible instead. */}
       {!isInvoice && (
-        <div style={{ marginTop: 24 }}>
+        <div data-pdf-block="payment" style={{ marginTop: 24 }}>
           <div style={eyebrow}>How to pay</div>
           <div style={{ fontSize: 13, marginTop: 6 }}>{QUOTE_PAY_NOTE}</div>
         </div>
@@ -660,7 +661,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
       )}
 
-      <div style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
+      {/* The closing line ends the document: it travels with the block before it. */}
+      <div data-pdf-block="closing" data-pdf-keep-with-prev="true" style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
         {isInvoice ? 'Thank you for your business.' : 'This estimate is valid for 30 days.'}
       </div>
     </div>
