@@ -12,6 +12,8 @@ import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
+import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
+import type { SettingsSection } from './sections';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -84,7 +86,10 @@ const AUTH_TIMEOUT_MS = 8000;
 // server by settings/page.tsx and passed in, so the Stripe card renders its
 // real state on first paint instead of flashing "Coming soon" while a client
 // fetch resolves. Fail closed: anything but true renders "Coming soon".
-export default function SettingsView({ connectEnabled }: { connectEnabled: boolean }) {
+// One component, several screens (release frames 0c): /settings shows the
+// grouped rows, /settings/<section> one sub-screen. Every screen loads the same
+// profile and keeps the same save paths; only what renders differs.
+export default function SettingsView({ connectEnabled, section = 'main' }: { connectEnabled: boolean; section?: SettingsSection }) {
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
@@ -109,6 +114,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   const [pushTestOn, setPushTestOn] = useState(false);
   const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [redirecting, setRedirecting] = useState(false); // decided to leave — never hang on Loading
   // Auth resolution exceeded AUTH_TIMEOUT_MS without settling (see effect) — show
   // an actionable state instead of an indefinite spinner. A late-resolving `p`
@@ -137,6 +143,20 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // YOUR BUSINESS › Clients count: saved clients only (merge 2 · 2·3).
+  const [clientCount, setClientCount] = useState<number | null>(null);
+  const [productCount, setProductCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (section !== 'main') return;
+    supabase.from('clients').select('id', { count: 'exact', head: true })
+      .not('saved_at', 'is', null).is('deleted_at', null)
+      .then(({ count }) => setClientCount(count ?? null), () => undefined);
+    // Products & Services count (merge 2 · 2·8); quietly absent until the table exists.
+    supabase.from('products').select('id', { count: 'exact', head: true })
+      .not('saved_at', 'is', null).is('deleted_at', null)
+      .then(({ count }) => setProductCount(count ?? null), () => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
 
   useEffect(() => {
     let active = true;
@@ -147,6 +167,22 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
     let settled = false;
     const stuckTimer = setTimeout(() => { if (active && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
     const settle = () => { settled = true; clearTimeout(stuckTimer); };
+    // Stripe's Account Link return/refresh URLs land on /settings?connect=…
+    // (server-built, unchanged): hand them to the Payouts sub-screen, which
+    // runs the return-trip logic below.
+    const connectParam = new URLSearchParams(window.location.search).get('connect');
+    // Checkout's success URL for Settings is /settings?upgraded=1: show the
+    // Plan sub-screen (it re-reads access on load).
+    if (section === 'main' && !connectParam && new URLSearchParams(window.location.search).get('upgraded') === '1') {
+      settled = true; clearTimeout(stuckTimer);
+      router.replace('/settings/plan');
+      return () => { active = false; };
+    }
+    if (section === 'main' && connectParam) {
+      settled = true; clearTimeout(stuckTimer);
+      router.replace(`/settings/payouts?connect=${encodeURIComponent(connectParam)}`);
+      return () => { active = false; };
+    }
     (async () => {
       try {
         // Fast local gate FIRST: getSession() reads the persisted session from
@@ -184,9 +220,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         // incomplete, so a finished-elsewhere onboarding shows up. The param is
         // dropped from the URL first so a reload can't loop the redirect.
         // All of it is skipped unless the server says Connect is on here.
-        const connectParam = new URLSearchParams(window.location.search).get('connect');
-        if (connectParam) router.replace('/settings');
-        if (connectOn) {
+        if (connectParam) router.replace('/settings/payouts');
+        if (connectOn && (section === 'main' || section === 'payouts')) {
           if (connectParam === 'refresh') {
             void startConnect();
           } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
@@ -478,14 +513,50 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
   if (!p) return <SettingsSkeleton />;
   const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
+  const is = (s: SettingsSection) => section === s;
   return (
     <div className="space-y-4 px-4 py-4 overflow-x-hidden">
+      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : 'Settings'}</SettingsTitle>
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
+      {/* The grouped main screen (release frames 0c). Clients and Products &
+          Services open the Clients tab (founder rule F3); Recurring expenses
+          ("In Books") opens Books › Recurring (merge 3 · 3·3). */}
+      {is('main') && (<>
+        <SettingsGroup title="Your business">
+          <SettingsRow icon="group" tint="gold" title="Clients" value={clientCount ? String(clientCount) : null} href="/clients" />
+          <SettingsRow icon="handyman" tint="gold" title="Products & Services" value={productCount ? String(productCount) : null} href="/clients?segment=products" />
+          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
+          <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />
+        </SettingsGroup>
+        <SettingsGroup title="Money">
+          <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
+          <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
+            value={connectOn && p.stripe_charges_enabled ? 'Connected'
+              : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
+        </SettingsGroup>
+        <SettingsGroup title="Account">
+          {/* Plan: only when the Plan screen has something to show (founder, a
+              real subscription, or the paywall on) — the same rule as before. */}
+          {access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+            <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
+              value={access.tier === 'founder' ? 'Founder'
+                : access.tier === 'trialing' ? 'Free trial'
+                : access.tier === 'past_due' ? 'Payment due'
+                : access.tier === 'active' ? 'Subscribed' : 'Free'} />
+          )}
+          <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
+            value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
+          {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
+          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" />
+        </SettingsGroup>
+      </>)}
+
+      {is('business') && (<>
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
-        <input className="input" value={p.business_name ?? ''}
+        <input className="input" aria-label="Business name" placeholder="Business name" value={p.business_name ?? ''}
           onChange={(e) => setP({ ...p, business_name: e.target.value })}
           onBlur={(e) => save({ business_name: e.target.value })} />
         <input className="input" placeholder="Website"
@@ -523,7 +594,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           )}
         </div>
       </section>
+      </>)}
 
+      {is('payouts') && (<>
       {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
           Four states from the profile's mirrored Stripe status:
             not connected                        → Connect (creates the account)
@@ -602,8 +675,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                   ${p.card_payments_enabled ? 'bg-primary-container' : 'bg-outline-variant'}`}
               >
                 <span
-                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                    ${p.card_payments_enabled ? 'left-7' : 'left-1'}`}
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                    ${p.card_payments_enabled ? 'translate-x-6' : ''}`}
                 />
               </button>
             </div>
@@ -700,6 +773,9 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         <p className="font-body text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
       </section>
 
+      </>)}
+
+      {is('business') && (
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
         <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
@@ -751,13 +827,23 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
           </div>
         )}
       </section>
+      )}
 
-      {p.referral_code && (() => {
+      {is('main') && (<>
+      {inviteOpen && p.referral_code && (() => {
         // host read dynamically so the link survives the custom-domain move
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
         return (
-          <section className="card space-y-3">
-            <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invite</h2>
+          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setInviteOpen(false)}>
+          <div role="dialog" aria-label="Invite a contractor"
+            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold">Invite a contractor</h2>
+              <button aria-label="Close" className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant" onClick={() => setInviteOpen(false)}>
+                <Icon name="close" size={24} />
+              </button>
+            </div>
             <p className="text-sm text-on-surface-variant">Share On It with another contractor.</p>
             <div className="break-all rounded-input border border-outline-variant bg-surface-container px-3 py-2.5 font-mono text-sm">
               {inviteUrl}
@@ -780,15 +866,18 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 </button>
               )}
             </div>
-          </section>
+          </div>
+        </div>
         );
       })()}
+
+      </>)}
 
       {/* Paywall kill switch: with the paywall off, only show this section to
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
-      {access?.tier === 'founder' && (
+      {is('plan') && access?.tier === 'founder' && (
         // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
         <section className="card space-y-1">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
@@ -797,7 +886,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         </section>
       )}
 
-      {access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+      {is('plan') && access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
           {SUBSCRIBED.has(access.tier) ? (
@@ -864,15 +953,13 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         </section>
       )}
 
-      <section className="card space-y-3">
-        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Records</h2>
-        <p className="text-sm text-on-surface-variant">Every invoice and receipt, archived automatically — search and reopen any PDF.</p>
-        <button className="btn-outline w-full text-primary" onClick={() => router.push('/vault')}>
-          <Icon name="folder" size={18} /> Vault
-        </button>
-      </section>
+      {is('main') && (<>
 
 
+
+      </>)}
+
+      {is('notifications') && (
       <section className="card space-y-2">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Notifications</h2>
         <div className="flex items-center justify-between gap-3">
@@ -894,8 +981,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
               ${pushOn ? 'bg-primary-container' : 'bg-outline-variant'}`}
           >
             <span
-              className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                ${pushOn ? 'left-7' : 'left-1'}`}
+              className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                ${pushOn ? 'translate-x-6' : ''}`}
             />
           </button>
         </div>
@@ -918,8 +1005,8 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
                 ${p.notify_draft_nudges !== false ? 'bg-primary-container' : 'bg-outline-variant'}`}
             >
               <span
-                className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow transition-all
-                  ${p.notify_draft_nudges !== false ? 'left-7' : 'left-1'}`}
+                className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
+                  ${p.notify_draft_nudges !== false ? 'translate-x-6' : ''}`}
               />
             </button>
           </div>
@@ -965,6 +1052,20 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         )}
       </section>
 
+      )}
+
+      {is('help') && (
+        <SettingsGroup title="Help">
+          <SettingsRow icon="help" title="How On It works" onClick={() => window.dispatchEvent(new Event('onit-open-reference'))} />
+          <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event('onit-replay-walkthrough'))} />
+          {/* §L Q9 */}
+          <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
+          <SettingsRow icon="description" title="Terms" href="/terms" />
+          <SettingsRow icon="lock" title="Privacy" href="/privacy" />
+        </SettingsGroup>
+      )}
+
+      {is('main') && (<>
       <button className="w-full py-3 text-sm text-error underline"
         onClick={async () => {
           clearChatStorage(p?.id);
@@ -1022,6 +1123,7 @@ export default function SettingsView({ connectEnabled }: { connectEnabled: boole
         <a href="/privacy" className="underline">Privacy</a>
       </div>
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
+      </>)}
     </div>
   );
 }

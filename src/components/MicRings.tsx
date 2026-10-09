@@ -8,7 +8,8 @@
 // back to the old fixed pulse. Reduced motion: one static ring.
 import { useEffect, useRef, useState } from 'react';
 
-export default function MicRings({ stream, active }: { stream: MediaStream | null; active: boolean }) {
+/** `tone` is the rings' RGB triplet ("r, g, b"); gold by default. */
+export default function MicRings({ stream, active, tone = '212, 175, 55' }: { stream: MediaStream | null; active: boolean; tone?: string }) {
   const r1 = useRef<HTMLSpanElement>(null);
   const r2 = useRef<HTMLSpanElement>(null);
   const r3 = useRef<HTMLSpanElement>(null);
@@ -81,9 +82,9 @@ export default function MicRings({ stream, active }: { stream: MediaStream | nul
         <span className="voice-listening absolute inset-0 rounded-full" />
       ) : (
         <>
-          <span ref={r3} className="onit-mic-ring" style={{ background: 'rgba(212, 175, 55, 0.16)', opacity: 0 }} />
-          <span ref={r2} className="onit-mic-ring" style={{ background: 'rgba(212, 175, 55, 0.26)' }} />
-          <span ref={r1} className="onit-mic-ring" style={{ background: 'rgba(212, 175, 55, 0.38)' }} />
+          <span ref={r3} className="onit-mic-ring" style={{ background: `rgba(${tone}, 0.16)`, opacity: 0 }} />
+          <span ref={r2} className="onit-mic-ring" style={{ background: `rgba(${tone}, 0.26)` }} />
+          <span ref={r1} className="onit-mic-ring" style={{ background: `rgba(${tone}, 0.38)` }} />
         </>
       )}
     </span>

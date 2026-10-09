@@ -1,6 +1,6 @@
 'use client';
-// Shared line-item list with inline editing of description, quantity, and unit
-// price — used by the chat confirmation card and the draft invoice detail page,
+// Shared line-item list with inline editing of description, quantity, unit
+// (each · hr · sq ft · job), unit price and the optional line description — used by the chat confirmation card and the draft invoice detail page,
 // so the edit interaction can't drift between them. Tap a value to edit it;
 // blur or Enter commits, Escape cancels. The component never persists: it emits
 // the new items via onChange and the parent decides what to do (a draft in
@@ -9,16 +9,20 @@
 import { useState } from 'react';
 import Icon from '@/components/Icon';
 import { money, calculateLineAmount } from '@/lib/financials';
+import { LINE_UNITS, DETAIL_MAX, normalizeLineDetail, unitLabel, type LineUnit } from '@/lib/line-units';
 
 export interface EditableLineItem {
   description: string;
   qty: number;
   unit_price: number;
+  // Optional unit and description (merge 2 · 2·9); amount stays qty × price.
+  unit?: LineUnit | null;
+  detail?: string | null;
   // Preserved through edits (item 3 training signal); this component never sets it.
   original_description?: string | null;
 }
 
-type Field = 'description' | 'qty' | 'unit_price';
+type Field = 'description' | 'qty' | 'unit_price' | 'detail';
 
 // qty: 0..100000, up to 2 decimals (fractional hours are legitimate).
 const clampQty = (n: number) => Math.min(100000, Math.max(0, Math.round(n * 100) / 100));
@@ -53,6 +57,10 @@ export default function LineItemsEditor({
       const t = text.trim();
       if (t === cur.description) return; // unchanged — no-op
       next = { ...cur, description: t };
+    } else if (f === 'detail') {
+      const d = normalizeLineDetail(text);
+      if (d === (cur.detail ?? null)) return;
+      next = { ...cur, detail: d };
     } else {
       const raw = text.trim();
       if (raw === '') return; // cleared — keep the previous value
@@ -64,6 +72,12 @@ export default function LineItemsEditor({
       next = { ...cur, [f]: v };
     }
     onChange(items.map((li, idx) => (idx === i ? next : li)));
+  }
+
+  function setUnit(i: number, u: LineUnit) {
+    const cur = items[i];
+    if (!cur || (cur.unit ?? 'each') === u) return;
+    onChange(items.map((li, idx) => (idx === i ? { ...li, unit: u } : li)));
   }
 
   function move(i: number, dir: -1 | 1) {
@@ -158,6 +172,36 @@ export default function LineItemsEditor({
             </span>
           </div>
 
+          {/* Description (a saved product's "shows on invoices" text). */}
+          {editingHere(i, 'detail') ? (
+            <div className="mt-1 flex pl-5">
+              <input
+                autoFocus
+                className="min-w-0 flex-1 rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-sm text-on-background outline-none focus:border-primary"
+                value={text}
+                maxLength={DETAIL_MAX}
+                placeholder="Shows under this line on the invoice"
+                onChange={(e) => setText(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                  else if (e.key === 'Escape') { e.preventDefault(); setCell(null); }
+                }}
+                aria-label="Edit line description"
+              />
+            </div>
+          ) : li.detail ? (
+            editable ? (
+              <button type="button" className={`ml-5 max-w-[calc(100%-1.25rem)] text-sm text-on-surface-variant ${editBtnStyle} min-h-[36px]`}
+                onClick={() => start(i, 'detail', li.detail ?? '')} aria-label={`Edit line description: ${li.detail}`}>
+                <span className="line-clamp-2">{li.detail}</span>
+                <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
+              </button>
+            ) : (
+              <p className="mt-0.5 pl-5 text-sm text-on-surface-variant">{li.detail}</p>
+            )
+          ) : null}
+
           {/* Sub-row: Qty x Unit price */}
           <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-sm text-on-surface-variant">
             {editingHere(i, 'qty') ? (
@@ -175,6 +219,19 @@ export default function LineItemsEditor({
             ) : (
               <span>{li.qty}</span>
             )}
+
+            {editable ? (
+              <select
+                value={li.unit ?? 'each'}
+                onChange={(e) => setUnit(i, e.target.value as LineUnit)}
+                aria-label={`Unit for line ${i + 1}`}
+                className="min-h-[36px] rounded-md bg-surface-container-high px-1.5 text-sm text-on-surface"
+              >
+                {LINE_UNITS.map((u) => <option key={u} value={u}>{u === 'hour' ? 'hr' : u}</option>)}
+              </select>
+            ) : unitLabel(li.unit) ? (
+              <span>{unitLabel(li.unit)}</span>
+            ) : null}
 
             <span className="text-on-surface-variant/60">×</span>
 
@@ -217,6 +274,17 @@ export default function LineItemsEditor({
               >
                 Down
               </button>
+
+              {!li.detail && (
+                <button
+                  type="button"
+                  onClick={() => start(i, 'detail', '')}
+                  className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95"
+                  aria-label={`Add a description to line ${i + 1}`}
+                >
+                  + Description
+                </button>
+              )}
 
               <button
                 type="button"

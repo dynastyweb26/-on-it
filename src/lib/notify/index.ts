@@ -26,13 +26,16 @@ const OPTIONS: Record<NotifyEvent['type'], SendOptions> = {
   draft_unsent: { ttl: 12 * 3600, urgency: 'low' },
   // A recap is good for the day it's built; tomorrow it's yesterday's news.
   recap: { ttl: 24 * 3600, urgency: 'normal' },
+  // Today's digest; tomorrow's run sends its own if it still can't log.
+  recurring_skipped: { ttl: 24 * 3600, urgency: 'normal' },
 };
 
 /** The dedupe identity of an event. A payment is its ledger row; an account
  *  problem is the user + problem + the Stripe event that revealed it (the
  *  atomic flag flip in lib/stripe/connect.ts already guarantees one winner); a
  *  view and a draft nudge are one per invoice, ever; a recap is one per owner
- *  per period. Exhaustive: a new event
+ *  per period; a recurring skip digest is one per owner per local day.
+ *  Exhaustive: a new event
  *  type fails to compile here instead of borrowing another type's key. */
 export function dedupeKey(userId: string, event: NotifyEvent): string {
   switch (event.type) {
@@ -41,6 +44,7 @@ export function dedupeKey(userId: string, event: NotifyEvent): string {
     case 'invoice_viewed': return `viewed:${event.invoiceId}`;
     case 'draft_unsent': return `draft:${event.invoiceId}`;
     case 'recap': return `recap:${event.kind}:${userId}:${event.periodStart}`;
+    case 'recurring_skipped': return `recurring_skipped:${userId}:${event.localDate}`;
   }
 }
 

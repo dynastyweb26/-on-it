@@ -14,10 +14,11 @@ import type { IconName } from '@/components/icon-names';
 // The real bottom-nav tabs. `active` is the tab the mock screen sits on; a
 // slide about Expenses or Tax passes 'books' so the user sees where in the app
 // the feature lives (§ the tab bar is part of "this is a real screen").
-export type TabKey = 'chat' | 'invoices' | 'books' | 'settings';
+export type TabKey = 'clients' | 'invoices' | 'chat' | 'books' | 'settings';
 const MOCK_TABS: { key: TabKey; label: string; icon: IconName }[] = [
-  { key: 'chat', label: 'Chat', icon: 'mic' },
+  { key: 'clients', label: 'Clients', icon: 'group' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
+  { key: 'chat', label: 'Chat', icon: 'chat_bubble' },
   { key: 'books', label: 'Books', icon: 'payments' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
@@ -28,8 +29,8 @@ export function MockTabBar({ active }: { active: TabKey }) {
       {MOCK_TABS.map(({ key, label, icon }) => (
         <div
           key={key}
-          className={`flex flex-col items-center gap-0.5 rounded-full px-3 py-1 text-[10px] font-semibold tracking-wide
-            ${active === key ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'}`}
+          className={`flex flex-col items-center gap-0.5 rounded-full px-1.5 py-1 text-[9.5px] font-semibold tracking-wide
+            ${active === key ? 'bg-primary-container text-on-primary-container' : key === 'chat' ? 'bg-[#f0e3b8] text-on-surface-variant' : 'text-on-surface-variant'}`}
         >
           <Icon name={icon} size={18} filled={active === key} />
           {label}
@@ -63,8 +64,8 @@ export function MockBubble({ role, children }: { role: 'user' | 'assistant'; chi
       <div
         className={`max-w-[85%] rounded-card px-3 py-2 text-[13px] leading-snug
           ${role === 'user'
-            ? 'rounded-br-md bg-primary-container text-on-primary-container'
-            : 'rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest'}`}
+            ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
+            : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}`}
       >
         {children}
       </div>
@@ -72,30 +73,31 @@ export function MockBubble({ role, children }: { role: 'user' | 'assistant'; chi
   );
 }
 
-/** The chat composer row (camera/gallery stack, mic FAB, field, send), scaled
+/** The chat composer row (the small "+" for Voice · New invoice · New quote,
+ *  the "Message On It…" field with gallery + camera inside, send), scaled
  *  down. `captureId`/`micId` mark whichever control a slide spotlights. */
 export function MockComposer({ captureId, micId }: { captureId?: string; micId?: string }) {
   return (
-    <div className="mt-3 flex items-end gap-1.5">
-      <div data-spotlight={captureId} className="flex flex-col gap-1">
-        <span className="grid h-7 w-7 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary">
-          <Icon name="photo_camera" size={15} />
-        </span>
-        <span className="grid h-7 w-7 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary">
-          <Icon name="photo_library" size={15} />
-        </span>
-      </div>
+    <div className="mt-3 flex items-center gap-1.5">
       <span
         data-spotlight={micId}
-        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background"
       >
-        <Icon name="mic" size={24} filled />
+        <Icon name="add" size={20} />
       </span>
-      <div className="input flex h-10 min-h-0 flex-1 items-center py-0 text-[13px] text-on-surface-variant/60">
-        Or type it…
+      <div className="flex h-8 min-w-0 flex-1 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-lowest pl-3 pr-0.5 text-[13px] text-on-surface-variant/60">
+        <span className="flex-1 truncate">Message On It…</span>
+        <span data-spotlight={captureId} className="flex items-center gap-0.5">
+          <span className="grid h-6 w-6 place-items-center rounded-full text-on-surface-variant">
+            <Icon name="image" size={15} />
+          </span>
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary-soft text-on-background">
+            <Icon name="photo_camera" size={14} />
+          </span>
+        </span>
       </div>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface">
-        <Icon name="send" size={16} filled />
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface">
+        <Icon name="arrow_upward" size={16} />
       </span>
     </div>
   );

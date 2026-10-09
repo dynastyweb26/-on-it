@@ -3,7 +3,8 @@
    Speak or type a job → "On it!" → follow-up questions →
    invoice preview card → PDF → native share sheet → follow-up engine.
    Works for guests (5 free parses), saves for signed-in users.
-   Text mode is silent. Tapping the mic opens full-screen voice mode.  */
+   Text mode is silent. The gold circle is a "+": Mic starts a voice session
+   (the circle is then the mic/stop button until the session ends).  */
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -27,14 +28,29 @@ import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
 import ExpenseCard from '@/components/ExpenseCard';
+import ReceiptBubble from '@/components/ReceiptBubble';
+import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
+import TemplateCard from '@/components/template/TemplateCard';
+import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
+import type { TemplateClient, TemplateKind } from '@/lib/template';
+import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
+import { escapeLike, templateSummary } from '@/lib/template-send';
+import SavePromptCard from '@/components/SavePromptCard';
+import { markNewEntry } from '@/lib/list-motion';
+import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
+import { anchorFor, localToday } from '@/lib/recurring';
+import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
+import { clientNameKey } from '@/lib/client-name';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A failed assistant message carries what it takes to re-run the operation in
 // place: the op, plus (for send) the user text to resend. finalize needs no
@@ -43,7 +59,14 @@ type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   // A quiet status line (free-tier usage): secondary small text, no bubble,
   // and never sent to /api/parse as conversation history.
-  quiet?: boolean; }
+  quiet?: boolean;
+  /** A receipt photo bubble: a small JPEG data URL. '' = a bubble whose image
+   *  wasn't kept in storage (see forStorage) — it restores as a placeholder. */
+  receipt?: string;
+  /** A saved expense, shown as the compact logged card (content keeps the text
+   *  confirmation for the model's context). Its thumbnail is the photo
+   *  bubble's image, referenced by id — never a second copy. */
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null }; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -166,7 +189,7 @@ function draftFromRow(row: {
 // document content (Commit B lock check — an incoming parse that matches the
 // locked draft is a no-op question, not an edit, so it isn't refused).
 function draftFingerprint(d: Partial<ExtractResult> | null): string {
-  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price]);
+  const items = ((d?.line_items ?? []) as LineItem[]).map((li) => [li.description, li.qty, li.unit_price, li.unit ?? null, li.detail ?? null]);
   return JSON.stringify({
     name: (d?.client_name ?? '').trim(),
     addr: (d?.client_address ?? '').trim(),
@@ -222,7 +245,49 @@ const STORE_VERSION = 5;
 // An in-progress invoice older than this is stale — don't resurrect a job the
 // user started a day ago and forgot about. updatedAt is refreshed on every write.
 const STORE_TTL_MS = 24 * 60 * 60 * 1000;
-const GREETING: Msg = aMsg("Hey! Tell me about the job — who it's for and what you did. I'll take care of the rest.");
+
+// Receipt shutter (MOTION-SPEC §8). The camera / photo sheet covers the page
+// until it's dismissed, and a flash fired under it is never seen (on iPhone it
+// read as no flash at all). So: wait until the page is visible again, then two
+// animation frames for the sheet's dismissal to clear, then flash.
+function afterSheetGone(): Promise<void> {
+  return new Promise((resolve) => {
+    const twoFrames = () => requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    if (document.visibilityState === 'visible') { twoFrames(); return; }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', onVisible);
+      twoFrames();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+  });
+}
+// The flash's peak: 40ms up + 80ms hold (.onit-shutter in globals.css). The
+// photo's flight into its bubble starts here, as the white starts to fade.
+const FLASH_PEAK_MS = 120;
+// The opening line (release frames; §L Q10: time of day, no name). Built per
+// conversation so the time of day is current. Never sent to /api/parse (the
+// history starts after it).
+function greeting(): Msg {
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  return aMsg(`${part}! Snap a receipt, or tap + to start an invoice or quote.`);
+}
+
+// The day label over the conversation ("TODAY", "YESTERDAY", or the date),
+// from the first message's id, which carries its creation time.
+function dayLabel(messages: Msg[]): string | null {
+  const t = /^m-([0-9a-z]+)-/.exec(messages[0]?.id ?? '')?.[1];
+  if (!t) return null;
+  const d = new Date(parseInt(t, 36));
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diff === 0) return 'TODAY';
+  if (diff === 1) return 'YESTERDAY';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
+}
 
 const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -308,6 +373,34 @@ function withMessageIds(messages: Msg[]): Msg[] {
   return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
 }
 
+// Receipt thumbnails are ~40–50K characters each as data URLs, and
+// localStorage holds ~5MB per origin (less in practice on iOS Safari). Only
+// the newest few are written; older bubbles restore as a placeholder. Archived
+// history keeps none. In memory (this session) every image stays.
+const PERSIST_THUMBS = 8;
+function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
+  let kept = 0;
+  const out = messages.slice();
+  for (let i = out.length - 1; i >= 0; i--) {
+    const m = out[i];
+    if (!m.receipt) continue;
+    if (kept < keep) kept++;
+    else out[i] = { ...m, receipt: '' };
+  }
+  return out;
+}
+
+/** Write the live conversation. On a quota error, retry once with no images,
+ *  so storage never silently keeps an older copy (a stale restore). A second
+ *  failure throws to the caller, as before. */
+function writeStoredChat(ns: string, payload: StoredChat) {
+  try {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages) }));
+  } catch {
+    localStorage.setItem(chatKey(ns), JSON.stringify({ ...payload, messages: forStorage(payload.messages, 0) }));
+  }
+}
+
 function loadStoredChat(ns: string): StoredChat | null {
   try {
     const raw = localStorage.getItem(chatKey(ns));
@@ -345,7 +438,9 @@ function loadHistory(ns: string): HistoryEntry[] {
 
 function pushHistory(ns: string, entry: HistoryEntry) {
   try {
-    const list = [entry, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
+    // History is a nicety: archived conversations keep no receipt images.
+    const slim = { ...entry, messages: forStorage(entry.messages, 0) };
+    const list = [slim, ...loadHistory(ns).filter((e) => e.id !== entry.id)].slice(0, HISTORY_MAX);
     localStorage.setItem(historyKey(ns), JSON.stringify(list));
   } catch { /* storage full — history is a nicety */ }
 }
@@ -368,7 +463,7 @@ type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving'
 export default function Chat() {
   const supabase = createClient();
   const router = useRouter();
-  const [messages, setMessages] = useState<Msg[]>([GREETING]);
+  const [messages, setMessages] = useState<Msg[]>(() => [greeting()]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>(null);
   // Failure + retry motion (MOTION-SPEC §7). Messages that arrived by restore
@@ -378,9 +473,32 @@ export default function Chat() {
   const restoredMsgIdsRef = useRef<Set<string>>(new Set());
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [retryShake, setRetryShake] = useState<Record<string, number>>({});
+  // Failure haptic (MOTION-SPEC §7 / motion inventory "Failed action"): one
+  // warning buzz per live failure, and again when a retry fails. Restored
+  // failures stay quiet. Android only (iOS has no vibration API).
+  const buzzedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const m of messages) {
+      if (!m.failed || restoredMsgIdsRef.current.has(m.id)) continue;
+      const key = `${m.id}:${retryShake[m.id] ?? 0}`;
+      if (buzzedRef.current.has(key)) continue;
+      buzzedRef.current.add(key);
+      try { navigator.vibrate?.([10, 40, 10]); } catch { /* unsupported */ }
+    }
+  }, [messages, retryShake]);
   // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
   // back. Keyed so every capture replays it; 0 = never shown.
   const [shutterKey, setShutterKey] = useState(0);
+  // The receipt bubble captured in THIS session that should play its flight
+  // (MOTION-SPEC §8). Never set for restored messages, so they render static.
+  const liveReceiptRef = useRef<{ id: string; flashPeak: Promise<void> } | null>(null);
+  // Same for the logged card a live save collapses into; and the expense
+  // card's fold-away while that happens.
+  const liveLoggedIdRef = useRef<string | null>(null);
+  // The photo bubble of the receipt on the open expense card (its logged card
+  // references it). Cleared with the card.
+  const receiptBubbleIdRef = useRef<string | null>(null);
+  const [expenseExiting, setExpenseExiting] = useState(false);
   const [draft, setDraft] = useState<Partial<ExtractResult> | null>(null);
   const [draftHistory, setDraftHistory] = useState<Array<Partial<ExtractResult>>>([]);
   const [ready, setReady] = useState(false);
@@ -719,7 +837,7 @@ export default function Chat() {
           cardAfterId,
           updatedAt: Date.now(),
         };
-        localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+        writeStoredChat(ns, payload);
         appliedUpdatedAtRef.current = payload.updatedAt; // our own write — don't re-restore it
       }
     } catch { /* storage full or blocked — nothing to do */ }
@@ -770,7 +888,7 @@ export default function Chat() {
           messages, draft, ready, cardAfterId,
         });
       }
-      setMessages([GREETING]);
+      setMessages([greeting()]);
       setInvoiceUsage(null);
       setDraft(null);
       setDraftHistory([]);
@@ -902,7 +1020,9 @@ export default function Chat() {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet), draft }),
+        // Role + text only: a receipt bubble's photo stays on the device;
+        // quiet usage lines are never sent as history.
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet).map(({ role, content }) => ({ role, content })), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -964,7 +1084,9 @@ export default function Chat() {
             .from('clients')
             .select('address, phone')
             .eq('user_id', profile.id)
-            .ilike('name', data.client_name)
+            // Exact match on the case-insensitive key (an ilike pattern would
+            // treat % and _ in a name as wildcards).
+            .eq('name_key', clientNameKey(data.client_name))
             .limit(1)
             .maybeSingle();
           if (known) {
@@ -1238,7 +1360,7 @@ export default function Chat() {
         cardAfterId,
         updatedAt: Date.now(),
       };
-      localStorage.setItem(chatKey(ns), JSON.stringify(payload));
+      writeStoredChat(ns, payload);
       appliedUpdatedAtRef.current = payload.updatedAt;
     } catch { /* storage blocked — the persist effect retries on the next change */ }
   }
@@ -1253,9 +1375,12 @@ export default function Chat() {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
+    // A template send (2·12b) adds the user-turn summary bubble first, as a real
+    // message, so history and recaps read the same as a chat-made document.
+    const summary = template && draft && !retryId ? uMsg(templateSummary(draft), 'typed') : null;
     // On a finalize retry the done message replaces the failed bubble in place,
     // so neither the transcript nor the archived history keeps a dead error.
-    const archived = emitResult(messages, doneMsg, retryId);
+    const archived = emitResult(summary ? [...messages, summary] : messages, doneMsg, retryId);
     setMessages(archived);
     // Archive to history as sent. draft:null / ready:false is what the history
     // list stores; reopening rebuilds the locked card from the DB row (Commit B).
@@ -1283,6 +1408,21 @@ export default function Chat() {
     setLinkedAmountPaid(0);
     setRenderData(null);
     playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
+    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
+    if (template) dropTemplate();   // sent: the template's job is done
+    // Count each line's item for saved products (fire-and-forget; never blocks
+    // or changes the send); it returns the save-prompt candidates (2·13).
+    // Template sends only for now: chat lines carry the AI's free-form wording,
+    // which would fill Products' "used before" with sentences (PUNCH-LIST).
+    const sentLines = ((draft?.line_items ?? []) as LineItem[]);
+    const productNames: PromiseLike<unknown> = template && profile && sentLines.length
+      ? supabase.rpc('record_product_use', {
+        p_items: sentLines.slice(0, 50).map((li) => ({ name: li.description, unit: li.unit ?? null, unit_price: li.unit_price })),
+      }).then(({ data }) => data, () => null)
+      : Promise.resolve(null);
+    // Save prompts (2·13) — after the share, never inside its gesture; signed
+    // in only (guests have no rows).
+    if (profile && draft?.client_name) void queueSavePrompts(String(draft.client_name), sentLines, productNames);
     // finished=true keeps this conversation from being re-archived as a draft by
     // a later new-chat / history-open. It is NOT cleared from storage: because
     // it's locked (linkedStatus='sent'), the persist effect keeps it, so a reload
@@ -1460,6 +1600,10 @@ export default function Chat() {
       if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
       const { data: client } = await supabase
         .from('clients')
+        // (user_id, name) stays the conflict target: the clients_canonical_name
+        // trigger snaps a case variant ("cyril") onto the stored spelling
+        // ("Cyril") first, so this updates that row instead of hitting the
+        // unique name_key index (migration 20261003000001).
         .upsert(clientRow, { onConflict: 'user_id,name' })
         .select('id').single();
 
@@ -1600,6 +1744,9 @@ export default function Chat() {
         invoiceId = newId;
         no = newNo;
         pendingInvoiceRef.current = { id: newId, no: newNo };
+        // A template's conversation isn't in the chat store (no messages yet),
+        // so its row link is kept with the template (2·12c).
+        if (template && convoId) saveTemplateRow(templateUidRef.current, { convoId, id: newId, no: newNo });
         // Freshly persisted as a draft — mirror that into the lock state so the
         // card stays editable (Commit B). A 23505-recovered non-draft row already
         // returned above, so reaching here means the row is a draft.
@@ -1912,7 +2059,20 @@ export default function Chat() {
       try {
         prepared = await prepareReceipt(file);
         setReceipt(prepared);
-        setShutterKey((k) => k + 1);
+        // Flash once the camera sheet is gone; resolves at the flash's peak.
+        const flashPeak = afterSheetGone().then(() => {
+          setShutterKey((k) => k + 1);
+          return new Promise<void>((r) => setTimeout(r, FLASH_PEAK_MS));
+        });
+        // The photo joins the thread as the user's message. It stays even if
+        // the read then fails or turns out to be a duplicate.
+        if (prepared.thumbUrl) {
+          const bubble: Msg = { ...uMsg('Receipt photo'), receipt: prepared.thumbUrl };
+          liveReceiptRef.current = { id: bubble.id, flashPeak };
+          receiptBubbleIdRef.current = bubble.id;
+          nearBottomRef.current = true; // follow the photo, even if scrolled up
+          setMessages((m) => [...m, bubble]);
+        }
       } catch (err) {
         // ReceiptError messages are written for the user; anything else isn't.
         setMessages((m) => [...m, aMsg(err instanceof ReceiptError
@@ -2067,17 +2227,18 @@ export default function Chat() {
         }
       }
 
-      const { error: insErr } = await supabase.from('expenses').insert({
+      const spentOn = expenseDraft.occurred_on ?? today();
+      const { data: insRow, error: insErr } = await supabase.from('expenses').insert({
         user_id: profile.id,
         amount: expenseDraft.amount,
         category: expenseDraft.category,
         vendor: expenseDraft.vendor,
         // Blank → null (the column's length check rejects an empty string).
         description: expenseDraft.description?.trim() || null,
-        spent_on: expenseDraft.occurred_on ?? today(),
+        spent_on: spentOn,
         receipt_url: receiptPath,
         receipt_hash: receipt?.hash ?? null,
-      });
+      }).select('id').single();
       if (insErr) {
         // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
         // the pre-check if the same receipt was saved on another device while
@@ -2103,12 +2264,41 @@ export default function Chat() {
 
       const where = expenseDraft.vendor ? ` at ${expenseDraft.vendor}` : '';
       const saved = `Got it — ${money(expenseDraft.amount)}${where}, filed under ${CATEGORY_LABEL[expenseDraft.category].toLowerCase()}.`;
-      setMessages((m) => [...m, aMsg(saved)]);
+      // The compact logged card replaces the text confirmation (it shows the
+      // same facts); the text stays as content for the model's context.
+      const logged: Msg = aMsg(saved, {
+        logged: {
+          amount: expenseDraft.amount,
+          vendor: expenseDraft.vendor?.trim() || null,
+          category: CATEGORY_LABEL[expenseDraft.category],
+          date: expenseDraft.occurred_on ?? today(),
+          receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
+        },
+      });
+      // Fold the expense card away first (150ms, onit-card-exit), then the
+      // logged card arrives in its place. Reduced motion: straight swap.
+      if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        setExpenseExiting(true);
+        await new Promise((r) => setTimeout(r, 150));
+        liveLoggedIdRef.current = logged.id;
+      }
+      setMessages((m) => [...m, logged]);
       discardExpense();
+      setExpenseExiting(false);
       // Free-tier usage line under the confirmation (null when uncapped).
       void fetchUsageLine('expense').then((text) => {
         if (text) setMessages((m) => [...m, aMsg(text, { quiet: true })]);
       });
+      // "Make it recurring?" (3·4): same vendor, ±10 %, a cadence gap since the
+      // last one, no live recurring item — asked after the save, never during it.
+      const newId = (insRow as { id?: string } | null)?.id;
+      if (newId && expenseDraft.vendor?.trim()) {
+        const category = expenseDraft.category;
+        void supabase.rpc('repeat_candidate', { p_expense: newId }).then(({ data }) => {
+          const p = recurringPrompt(data, category, spentOn, localToday());
+          if (p) setPromptQueue((q) => enqueue(q, promptShownRef.current, [p]));
+        }, () => undefined);
+      }
     } finally {
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
@@ -2117,6 +2307,7 @@ export default function Chat() {
   /** Drop the in-flight expense and its photo. Used by cancel, and before a
    *  new pick so two receipts can never share one card. */
   function discardExpense() {
+    receiptBubbleIdRef.current = null;
     setReceipt(null);
     setExpenseDraft(null);
     setExpenseError(null);
@@ -2193,6 +2384,258 @@ export default function Chat() {
       streamRef.current = null;
       setMessages((m) => [...m, aMsg('Mic access is blocked. You can type instead.')]);
     }
+  }
+
+  // ── The composer's "+" menu (release frames 1b, motion 1d). Outside a voice
+  // session "+" opens Voice · New invoice · New quote; during one the same
+  // button is the × that ends the session.
+  // ── Guided template (merge 2 · 2·10, UI-REDESIGN-AUDIT §1.4): when set, the
+  // template card takes the composer's slot. It opens from the + menu, a
+  // client's Invoice action (/chat?template=invoice&client={id}) and
+  // /chat?template=invoice|quote.
+  // Persisted (2·11a): an open template comes back when Chat opens again.
+  const [template, setTemplate] = useState<TemplateKind | null>(null);
+  const [templateUid, setTemplateUid] = useState<string | null>(null);
+  const [templateRestored, setTemplateRestored] = useState<StoredTemplate | null>(null);
+  // The template's sendable draft (2·12b) and the L17 duplicate note.
+  const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
+  const [templateDup, setTemplateDup] = useState<string | null>(null);
+  const templateInit = useRef(false);
+  const templateUidRef = useRef<string | null>(null);
+  // Remounts the card for each fresh template, so none of its state carries over.
+  const [templateNonce, setTemplateNonce] = useState(0);
+  useEffect(() => {
+    // After hydration: a fresh template archives the live conversation first
+    // (one conversation = one invoice row, keyed by convoId).
+    if (!hydrated || templateInit.current) return;
+    templateInit.current = true;
+    let live = true;
+    createClient().auth.getSession().then(({ data }) => {
+      if (!live) return;
+      const uid = data.session?.user.id ?? null;
+      setTemplateUid(uid);
+      templateUidRef.current = uid;
+      const url = new URL(window.location.href);
+      const t = url.searchParams.get('template');
+      if (t === 'invoice' || t === 'quote') {
+        // An explicit new template replaces any saved one. &client={id}: a
+        // client's Invoice action (2·12c) opens it with that client picked.
+        const cid = url.searchParams.get('client');
+        url.searchParams.delete('template');
+        url.searchParams.delete('client');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        if (!uid || !cid || !UUID_RE.test(cid)) { startNewTemplate(t); return; }
+        createClient().from('clients').select('id, name, address, phone').eq('id', cid).maybeSingle()
+          .then(({ data }) => {
+            if (!live) return;
+            const c = data as { id: string; name: string; address: string | null; phone: string | null } | null;
+            startNewTemplate(t, c ? { id: c.id, name: c.name, address: c.address, phone: c.phone } : null);
+          }, () => { if (live) startNewTemplate(t); });
+        return;
+      }
+      resumeSavedTemplate();
+    }, () => undefined);
+    return () => { live = false; };
+  }, [hydrated]);
+  // A saved template comes back with its pre-built row, under the same
+  // conversation id (= finalize_key), so Send updates that row instead of
+  // inserting a second one. An expired template's draft row is dropped.
+  function resumeSavedTemplate() {
+    const uid = templateUidRef.current;
+    const row = loadTemplateRow(uid);
+    const saved = loadTemplate(uid);
+    if (row && !pendingInvoiceRef.current) {
+      pendingInvoiceRef.current = { id: row.id, no: row.no };
+      if (saved) setConvoId(row.convoId);
+      else discardTemplateRow();
+    }
+    if (saved) { setTemplateRestored(saved); setTemplateNonce((n) => n + 1); setTemplate(saved.kind); }
+    else clearTemplate();
+  }
+  // 2·13a: a fresh template asks first when it would replace a saved one with
+  // a client or a named item (Keep editing / Start new).
+  const [replaceAsk, setReplaceAsk] = useState<{ title: string; kind: TemplateKind; client: TemplateClient | null } | null>(null);
+  function startNewTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+    const saved = loadTemplate(templateUidRef.current);
+    const title = saved ? unfinishedTitle(saved) : null;
+    if (title) setReplaceAsk({ title, kind: k, client });
+    else openTemplate(k, client);
+  }
+  // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
+  // ?template= link): it replaces any saved one, and the live conversation is
+  // archived first (one conversation = one invoice row, keyed by convoId).
+  // A replaced template's pre-built row goes the way Close sends it (soft
+  // delete, drafts only): while a template is saved, the live conversation is
+  // that template's, so its pending row is the template's draft; after leaving
+  // Chat the row comes from the template's stored link.
+  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+    // The stored link only counts when the live conversation has no row of its
+    // own, or it is that same row — never a normal chat's draft.
+    const row = loadTemplateRow(templateUidRef.current);
+    const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
+    if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
+    if (template || linked || loadTemplate(templateUidRef.current)) {
+      discardTemplateRow();
+      setDraft(null);
+      setReady(false);
+    }
+    clearTemplate();
+    window.dispatchEvent(new Event('onit-new-chat'));
+    setTemplateDraft(null);
+    setTemplateDup(null);
+    setTemplateRestored(client ? { v: 1, uid: templateUidRef.current, savedAt: Date.now(), kind: k, client, items: [], extra: '' } : null);
+    setTemplateNonce((n) => n + 1);
+    setTemplate(k);
+  }
+  const dropTemplate = () => { clearTemplate(); setTemplateRestored(null); setTemplateDraft(null); setTemplateDup(null); setTemplate(null); };
+  // Close × (unsent): the template is discarded, and so is any draft row the
+  // background pre-build already wrote for it (soft delete, drafts only) —
+  // it never appears in Invoices or gets a "you have an unsent draft" nudge.
+  // The chat's draft and row link reset so no card lingers.
+  // Drop the template's unsent draft row (soft delete, drafts only) and its
+  // pre-build, under a new conversation id — so the next insert can't hit the
+  // old finalize_key and be handed the old row back.
+  function discardTemplateRow() {
+    const pending = pendingInvoiceRef.current;
+    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    pendingInvoiceRef.current = null;
+    clearTemplateRow();
+    preBuiltRef.current = null;
+    preBuildIdRef.current++;
+    setPrepState(null);
+    setConvoId(genId());
+  }
+  function closeTemplate() {
+    discardTemplateRow();
+    setDraft(null);
+    setReady(false);
+    dropTemplate();
+  }
+  // "Make it a quote / an invoice": a row's kind is pinned once inserted
+  // (lock_document_identity), so a pre-built row of the old kind is
+  // discarded and the next pre-build / Send inserts one of the new kind.
+  function switchTemplateKind(k: TemplateKind) {
+    if (k === template) return;
+    if (pendingInvoiceRef.current) discardTemplateRow();
+    setTemplate(k);
+  }
+  // The template feeds the chat's draft: complete → draft + ready (the
+  // pre-build writes the row and the PDF); incomplete → not ready.
+  useEffect(() => {
+    if (!template) return;
+    if (templateDraft) { setDraft(templateDraft); setReady(true); }
+    else setReady(false);
+  }, [template, templateDraft]);
+  // L17 at Send, shared rule with the parse route: same client + same total in
+  // the last 48 h. Checked before the tap (no await may sit between the tap and
+  // the iOS share), shown as a note; Send still works.
+  useEffect(() => {
+    if (!template || !templateDraft || !profile) { setTemplateDup(null); return; }
+    const d = templateDraft;
+    const t = setTimeout(async () => {
+      const total = calculateInvoiceTotals((d.line_items ?? []) as LineItem[], 0, (d.deposit_type as DepositType) ?? 'none', Number(d.deposit_value ?? 0)).total;
+      const q = supabase.from('invoices').select('id').eq('user_id', profile.id).is('deleted_at', null)
+        .ilike('client_name', escapeLike(d.client_name ?? '')).eq('total', total)
+        .gte('created_at', new Date(Date.now() - 48 * 3600e3).toISOString()).limit(5);
+      const { data } = await q;
+      const others = ((data ?? []) as { id: string }[]).filter((r) => r.id !== pendingInvoiceRef.current?.id);
+      setTemplateDup(others.length
+        ? `Heads up — you already made one for ${d.client_name} at this amount in the last 2 days. Send makes a new one.`
+        : null);
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, templateDraft, profile]);
+  // ── Save prompts (merge 2 · 2·13, UI-REDESIGN-AUDIT §1.5): after a send, an
+  // unsaved client on its 2nd+ document and unsaved items used twice (template
+  // sends) are offered for saving, one at a time, ~700 ms after the send.
+  const [promptQueue, setPromptQueue] = useState<SavePrompt[]>([]);
+  const [promptShown, setPromptShown] = useState<SavePrompt | null>(null);
+  const promptShownRef = useRef<SavePrompt | null>(null);
+  promptShownRef.current = promptShown;
+  useEffect(() => {
+    if (promptShown || promptQueue.length === 0) return;
+    const t = setTimeout(() => {
+      setPromptShown(promptQueue[0]);
+      setPromptQueue((q) => q.slice(1));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [promptShown, promptQueue]);
+  async function queueSavePrompts(name: string, lines: LineItem[], names: PromiseLike<unknown>) {
+    const key = name.trim().toLowerCase();
+    const [c, u, n] = await Promise.all([
+      supabase.from('clients').select('name, saved_at, deleted_at').eq('name_key', key).maybeSingle()
+        .then(({ data }) => data as { name: string; saved_at: string | null; deleted_at: string | null } | null, () => null),
+      supabase.rpc('client_name_usage', { p_name: name })
+        .then(({ data }) => (Array.isArray(data) ? data[0] : data) as { invoices: number; quotes: number } | null, () => null),
+      names,
+    ]);
+    const cp = clientPrompt(
+      c ? { name: c.name, saved: c.saved_at != null && c.deleted_at == null } : null,
+      u ? { invoices: Number(u.invoices ?? 0), quotes: Number(u.quotes ?? 0) } : null,
+    );
+    const add = [...(cp ? [cp] : []), ...productPrompts(n, lines)];
+    if (add.length) setPromptQueue((q) => enqueue(q, promptShownRef.current, add));
+  }
+  async function saveFromPrompt(p: SavePrompt): Promise<boolean> {
+    if (p.kind === 'recurring') {
+      if (!profile) return false;
+      const { error } = await supabase.from('recurring_expenses').insert({
+        user_id: profile.id, vendor: p.name, amount: p.amount, category: p.category,
+        cadence: p.cadence, anchor_day: anchorFor(p.cadence, p.nextOn), next_on: p.nextOn, auto_log: true,
+      });
+      // 23505: it's already recurring (another device, a moment ago) — that's the goal.
+      if (error && error.code !== '23505') return false;
+      setMessages((m) => [...m, aMsg(savedLine(p, localToday()))]);
+      return true;
+    }
+    if (p.kind === 'client') {
+      const { data, error } = await supabase.rpc('save_client', { p_name: p.name });
+      if (error) return false;
+      const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
+      if (row?.id) markNewEntry('clients', row.id); // glows in Clients (2·14)
+    } else {
+      // Price / unit are the last used ones, already on the row (record_product_use).
+      const { data, error } = await supabase.from('products')
+        .update({ saved_at: new Date().toISOString(), deleted_at: null })
+        .eq('name_key', p.name.trim().toLowerCase()).select('id');
+      if (error || !data?.length) return false;
+      markNewEntry('products', clientNameKey(p.name));
+    }
+    setMessages((m) => [...m, aMsg(savedLine(p))]);
+    return true;
+  }
+  const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
+  const plusTimer = useRef<ReturnType<typeof setTimeout>>();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => () => clearTimeout(plusTimer.current), []);
+  function closePlusMenu() {
+    if (plusMenu !== 'open') return;
+    setPlusMenu('closing');
+    clearTimeout(plusTimer.current);
+    plusTimer.current = setTimeout(() => setPlusMenu(null), MENU_CLOSE_MS);
+  }
+  function plusTap() {
+    if (plusMenu === 'open') { closePlusMenu(); return; }
+    clearTimeout(plusTimer.current);
+    setPlusMenu('open');
+  }
+  function pickFromPlus(k: ComposerPick) {
+    if (k === 'mic') {
+      // Voice = exactly today's mic: micTap() runs synchronously inside this tap, so
+      // iOS still allows the speech priming and the mic permission prompt.
+      micTap();
+      closePlusMenu(); // the menu reverses out (1d: an option pick closes it too)
+      return;
+    }
+    // New invoice / New quote (2·12c, ends §L Q1's seeded-chat interim): the
+    // menu closes and the field becomes the template card in that mode.
+    setPlusMenu(null);
+    clearTimeout(plusTimer.current);
+    startNewTemplate(k);
   }
 
   function micTap() {
@@ -2382,11 +2825,12 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setInvoiceUsage(null);
-    setMessages([GREETING]);
+    const hello = greeting();
+    setMessages([hello]);
     setDraft(seed);
     setReady(true);
     playCardAnim('enter', 1800);
-    setCardAfterId(GREETING.id);
+    setCardAfterId(hello.id);
     setDuplicateHint(false);
     setPendingChange(null);
   }
@@ -2447,7 +2891,7 @@ export default function Chat() {
     setFinished(false);
     setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
-    setMessages([GREETING, startMsg]);
+    setMessages([greeting(), startMsg]);
     setDraft(seed);
     setReady(true);
     setCardAfterId(startMsg.id);
@@ -2460,7 +2904,7 @@ export default function Chat() {
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
-  const invoiceCard = ready && draft ? (
+  const invoiceCard = ready && draft && !template ? (
     // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
     <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
@@ -2676,6 +3120,9 @@ export default function Chat() {
         onScroll={onListScroll}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
       >
+        {hydrated && dayLabel(messages) && (
+          <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
+        )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
           m.quiet ? (
@@ -2688,18 +3135,21 @@ export default function Chat() {
               <div className="flex max-w-[82%] flex-col items-start gap-1">
                 <div
                   key={`${m.id}-${retryShake[m.id] ?? 0}`}
-                  className={`whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md${
+                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
                   {m.content}
                 </div>
+                {/* Inline Retry under the item (no modal): it keeps its width; the
+                    icon spins in place while retrying. */}
                 <button
                   aria-label={retryingId === m.id ? 'Retrying' : 'Retry'}
-                  className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
+                  className="flex min-h-11 items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 text-label-lg font-semibold text-primary transition onit-fade-in active:scale-95 disabled:opacity-40"
                   disabled={phase !== null}
                   onClick={() => retry(m)}
                 >
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
+                  Retry
                 </button>
               </div>
             </div>
@@ -2710,7 +3160,7 @@ export default function Chat() {
             // act on by hunting for the header button.
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
-                <div className="whitespace-pre-wrap rounded-card rounded-bl-md border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-body-md">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
                   {m.content}
                 </div>
                 <button
@@ -2721,13 +3171,30 @@ export default function Chat() {
                 </button>
               </div>
             </div>
+          ) : m.logged ? (
+            <LoggedExpenseCard
+              key={m.id}
+              e={{ ...m.logged, thumb: m.logged.receiptMsgId ? messages.find((x) => x.id === m.logged?.receiptMsgId)?.receipt || null : null }}
+              animate={liveLoggedIdRef.current === m.id}
+            />
+          ) : m.receipt !== undefined ? (
+            <ReceiptBubble
+              key={m.id}
+              src={m.receipt}
+              animate={liveReceiptRef.current?.id === m.id}
+              startAfter={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.flashPeak : undefined}
+            />
           ) : (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {/* Release frames: On It = cream bubble, you = ink bubble. A
+                  message that just arrived rises 8px (motion inventory "New On
+                  It message", 240ms); restored ones are static. */}
               <div
-                className={`max-w-[82%] whitespace-pre-wrap rounded-card px-4 py-3 text-body-md
+                className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
                   ${m.role === 'user'
-                    ? 'rounded-br-md bg-primary-container text-on-primary-container'
-                    : 'rounded-bl-md bg-surface-container-lowest border border-outline-variant/30'}`}
+                    ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
+                    : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
+                  restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
               >
                 {m.content}
               </div>
@@ -2762,7 +3229,7 @@ export default function Chat() {
 
         {expenseDraft && (
           // Only ever set live (never restored), so the build-in plays once per capture.
-          <div className="onit-card-enter">
+          <div className={expenseExiting ? 'onit-card-exit' : 'onit-card-enter'}>
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
@@ -2801,67 +3268,50 @@ export default function Chat() {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading') && (
-          <div className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
+        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
+          <div role="status" className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
-            {phase === 'reading' ? 'Reading your receipt…' : 'On It is thinking…'}
+            {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
           </div>
         )}
       </div>
 
-      {/* Plain py-3: the composer sits ABOVE the bottom nav, which carries the
-          safe-area inset — padding here too would double the gap. */}
-      <div className="border-t border-outline-variant/40 bg-background px-3 py-3">
-        {recording && (
-          // Static "Listening" label doubles as the reduced-motion fallback
-          // for the mic pulse (§ voice spec).
-          <div className="mb-2 px-2 text-body-lg italic text-on-surface-variant">Listening… tap the mic when you&rsquo;re done.</div>
-        )}
-
-        {phase === 'preparing' && (
-          <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
-            <Icon name="photo_camera" size={20} className="text-primary" />
-            Getting that photo ready…
-          </div>
-        )}
-
-        <div className="flex items-end gap-2">
-          {voiceSession && (
-            <button
-              aria-label="End voice session"
-              className="grid h-touch w-touch shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface-variant transition active:scale-90"
-              onClick={endVoiceSession}
-            >
-              <Icon name="close" size={24} />
-            </button>
-          )}
-          {/* Receipt capture sits beside the mic — hidden mid-voice-session,
-              where the row already carries an X + mic + send. Two stacked
-              circular buttons keep the leftmost slot one control wide (no
-              squeeze on the text field) while giving camera and gallery each
-              their own tap target: top = shoot with the rear camera, bottom =
-              pick from the gallery. Both fire the same onPickReceipt. */}
-          {!voiceSession && (
-            <div className="flex shrink-0 flex-col gap-1.5">
-              <button
-                aria-label="Take a receipt photo"
-                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => cameraRef.current?.click()}
-              >
-                <Icon name="photo_camera" size={20} />
-              </button>
-              <button
-                aria-label="Upload receipt from gallery"
-                className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary transition active:scale-90 disabled:opacity-40"
-                disabled={phase !== null}
-                onClick={() => galleryRef.current?.click()}
-              >
-                <Icon name="photo_library" size={20} />
-              </button>
+      {/* The composer (UI redesign, release frames 1a): a small "+" on the
+          left, the "Message On It…" field with gallery + camera inside it, and
+          send on the right. It sits ABOVE the bottom nav, which carries the
+          safe-area inset, so no bottom padding here. */}
+      {replaceAsk && (
+        <ReplaceTemplateSheet title={replaceAsk.title}
+          onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
+          onStartNew={() => { const a = replaceAsk; setReplaceAsk(null); openTemplate(a.kind, a.client); }} />
+      )}
+      {template ? (
+        // Capped so the card never pushes its own header off-screen on a short
+        // phone: past ~85% of the chat area it scrolls inside its slot.
+        <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+          <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
+            uid={templateUid} restored={templateRestored}
+            onDraft={setTemplateDraft} duplicateNote={templateDup}
+            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
+            onSend={() => { void finalize(); }} />
+        </div>
+      ) : (
+        <div className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
+          {/* The save prompt floats just above the composer, no scrim (2·13). */}
+          {promptShown && !plusMenu && (
+            <div className="absolute inset-x-3 bottom-full z-30 mb-2">
+              <SavePromptCard key={promptShown.key} prompt={promptShown}
+                onSave={() => saveFromPrompt(promptShown)} onDone={() => setPromptShown(null)} />
             </div>
           )}
+          {phase === 'preparing' && (
+            <div className="mb-2 flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant">
+              <Icon name="photo_camera" size={20} className="text-primary" />
+              Getting that photo ready…
+            </div>
+          )}
+
           <input
             ref={cameraRef}
             type="file"
@@ -2877,46 +3327,105 @@ export default function Chat() {
             className="hidden"
             onChange={onPickReceipt}
           />
-          {/* Level rings sit behind the button while recording (MOTION-SPEC §11). */}
-          <div className="relative shrink-0">
-          <MicRings stream={streamRef.current} active={recording} />
-          <button
-            aria-label={recording ? 'Stop and send' : voiceSession ? 'Speak' : 'Start voice'}
-            // The splash's white rings fly onto this button on a cold start
-            // (components/Splash.tsx measures it at runtime).
-            data-splash-target=""
-            className="relative grid h-fab w-fab shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card-raised transition active:scale-90 disabled:opacity-40"
-            disabled={phase !== null}
-            onClick={micTap}
-          >
-            <Icon name="mic" size={32} filled />
-          </button>
+
+          <div className="flex items-end gap-2">
+            <div className="relative shrink-0">
+              {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
+              {/* One button, two jobs: outside a voice session it's the "+" that
+                  opens Voice · New invoice · New quote; during a session it's the
+                  ink × that ends it. The splash's rings fly onto it on a cold
+                  start (components/Splash.tsx measures it at runtime). */}
+              <button
+                aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new quote'}
+                aria-haspopup={voiceSession ? undefined : 'menu'}
+                aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
+                data-splash-target=""
+                className={`onit-plus-btn relative z-[46] grid h-11 w-11 place-items-center rounded-full active:scale-90 disabled:opacity-40
+                  ${voiceSession || plusMenu === 'open' ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-soft text-on-background'}`}
+                disabled={!voiceSession && phase !== null}
+                onClick={voiceSession ? endVoiceSession : plusTap}
+              >
+                <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
+                  <Icon name="add" size={28} />
+                </span>
+              </button>
+            </div>
+
+            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-4 pr-1">
+              {voiceSession ? (
+                // The voice session lives in the field: a live level dot and
+                // "Listening…" with Done (stop → transcribe → send) while
+                // recording, and Speak to take the next turn between takes.
+                // Both call today's micTap() inside the tap.
+                <>
+                  <span className="relative grid h-3 w-3 shrink-0 place-items-center">
+                    <MicRings stream={streamRef.current} active={recording} tone="232, 85, 60" />
+                    <span className={`relative h-2 w-2 rounded-full ${recording ? 'bg-[#c8452c]' : 'bg-outline'}`} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate pl-2 text-body-md font-medium text-on-surface-variant" aria-live="polite">
+                    {recording ? 'Listening…' : phase !== null ? 'On It is on it…' : 'Tap Speak to keep going'}
+                  </span>
+                  <button
+                    aria-label={recording ? 'Stop and send' : 'Speak'}
+                    className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
+                      ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
+                    disabled={!recording && phase !== null}
+                    onClick={micTap}
+                  >
+                    {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <textarea
+                    ref={inputRef}
+                    aria-label="Message On It"
+                    className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
+                    placeholder="Message On It…"
+                    value={input}
+                    rows={1}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
+                    }}
+                  />
+                  <button
+                    aria-label="Upload receipt from gallery"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
+                    disabled={phase !== null}
+                    onClick={() => galleryRef.current?.click()}
+                  >
+                    <Icon name="image" size={22} />
+                  </button>
+                  <button
+                    aria-label="Take a receipt photo"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
+                    disabled={phase !== null}
+                    onClick={() => cameraRef.current?.click()}
+                  >
+                    <Icon name="photo_camera" size={20} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <button
+              aria-label="Send"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-colors active:scale-90
+                disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
+              disabled={voiceSession || !input.trim() || phase !== null}
+              onClick={() => void send(input)}
+            >
+              <Icon name="arrow_upward" size={24} />
+            </button>
           </div>
-          <textarea
-            className="input max-h-32 flex-1 resize-none py-3.5"
-            placeholder="Or type it…"
-            value={input}
-            rows={1}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
-            }}
-          />
-          <button
-            aria-label="Send"
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface active:scale-90 disabled:opacity-30"
-            disabled={!input.trim() || phase !== null}
-            onClick={() => void send(input)}
-          >
-            <Icon name="send" size={22} filled />
-          </button>
         </div>
-      </div>
+      )}
 
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
-            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-3 font-display text-lg font-bold">Recent conversations</h2>

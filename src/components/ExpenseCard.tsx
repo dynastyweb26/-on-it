@@ -55,7 +55,7 @@ export default function ExpenseCard({
           <img
             src={previewUrl}
             alt="The receipt you photographed"
-            className="onit-photo-in h-16 w-16 shrink-0 rounded-input border border-outline-variant/40 object-cover"
+            className="h-16 w-16 shrink-0 rounded-input border border-outline-variant/40 object-cover"
           />
           <p className="text-sm text-on-surface-variant">
             Here&apos;s what I read. Fix anything that&apos;s off.

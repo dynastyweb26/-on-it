@@ -503,6 +503,303 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261002000001') then 'not applied yet'
       else coalesce((select pg_get_constraintdef(oid) from pg_constraint
         where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), 'missing') end
+
+  -- Q. Saved clients (20261003000001). SKIP until pushed.
+  union all
+  select 'Q1 clients RLS + policies',
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else (select c.relrowsecurity from pg_class c where c.oid = 'public.clients'::regclass)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients') = 3
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'SELECT' and p.qual = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'INSERT' and p.with_check = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'
+          and p.cmd = 'UPDATE' and p.qual = '(auth.uid() = user_id)' and p.with_check = '(auth.uid() = user_id)') end,
+    'RLS on; exactly 3 owner policies: SELECT, INSERT, UPDATE (no DELETE, no FOR ALL)',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else (select 'rls=' || c.relrowsecurity from pg_class c where c.oid = 'public.clients'::regclass)
+        || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+          from pg_policies p where p.schemaname = 'public' and p.tablename = 'clients'), 'none') end
+  union all
+  select 'Q2 clients ' || t.role,
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else has_table_privilege(t.role, 'public.clients', 'SELECT') = t.rw
+        and has_table_privilege(t.role, 'public.clients', 'INSERT') = t.rw
+        and has_table_privilege(t.role, 'public.clients', 'UPDATE') = t.rw
+        and not has_table_privilege(t.role, 'public.clients', 'DELETE')
+        and not has_table_privilege(t.role, 'public.clients', 'TRUNCATE')
+        and not has_table_privilege(t.role, 'public.clients', 'REFERENCES')
+        and not has_table_privilege(t.role, 'public.clients', 'TRIGGER') end,
+    case when t.rw then 'select/insert/update only (no delete/truncate/references/trigger)' else 'no privileges' end,
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else concat_ws(' ',
+        case when has_table_privilege(t.role, 'public.clients', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(t.role, 'public.clients', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(t.role, 'public.clients', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege(t.role, 'public.clients', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege(t.role, 'public.clients', 'TRIGGER') then 'TRIGGER' end) end
+  from (values ('anon', false), ('authenticated', true)) t(role, rw)
+  union all
+  select 'Q3 clients name_key + notes cap + canonical trigger',
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.tablename = 'clients'
+          and i.indexname = 'clients_user_name_key_idx' and i.indexdef ilike 'create unique index%(user_id, name_key)%')
+        and exists (select 1 from pg_constraint where conrelid = 'public.clients'::regclass
+          and conname = 'clients_notes_chk' and pg_get_constraintdef(oid) ilike '%500%')
+        and exists (select 1 from pg_trigger where tgrelid = 'public.clients'::regclass
+          and tgname = 'clients_canonical_name' and not tgisinternal) end,
+    'unique (user_id, name_key); clients_notes_chk <= 500; clients_canonical_name trigger',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      else 'index=' || exists (select 1 from pg_indexes i where i.schemaname = 'public' and i.indexname = 'clients_user_name_key_idx')
+        || ' notes_chk=' || exists (select 1 from pg_constraint where conrelid = 'public.clients'::regclass and conname = 'clients_notes_chk')
+        || ' trigger=' || exists (select 1 from pg_trigger where tgrelid = 'public.clients'::regclass and tgname = 'clients_canonical_name') end
+  union all
+  select 'Q4 ' || f.sig,
+    case when not exists (select 1 from applied where version = '20261003000001') then null
+      else coalesce((select not p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig)), false)
+        and coalesce(has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE'), false)
+        and not coalesce(has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE'), true) end,
+    'security invoker; EXECUTE to authenticated, not anon',
+    case when not exists (select 1 from applied where version = '20261003000001') then 'not applied yet'
+      when to_regprocedure(f.sig) is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig))
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE') end
+  from (values ('public.save_client(text,text,text,text,text)'), ('public.client_name_usage(text)'),
+               ('public.client_summaries()')) f(sig)
+
+  -- R. Saved products & services (20261003000002). SKIP until pushed.
+  union all
+  select 'R1 products RLS + policies',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else coalesce((select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.products')), false)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'products') = 3
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'SELECT' and p.qual = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'INSERT' and p.with_check = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'
+          and p.cmd = 'UPDATE' and p.qual = '(auth.uid() = user_id)' and p.with_check = '(auth.uid() = user_id)') end,
+    'RLS on; exactly 3 owner policies: SELECT, INSERT, UPDATE (no DELETE)',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity from pg_class c where c.oid = to_regclass('public.products')), 'missing')
+        || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+          from pg_policies p where p.schemaname = 'public' and p.tablename = 'products'), 'none') end
+  union all
+  select 'R2 products ' || t.role,
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      when to_regclass('public.products') is null then false
+      else has_table_privilege(t.role, 'public.products', 'SELECT') = t.rw
+        and has_table_privilege(t.role, 'public.products', 'INSERT') = t.rw
+        and has_table_privilege(t.role, 'public.products', 'UPDATE') = t.rw
+        and not has_table_privilege(t.role, 'public.products', 'DELETE')
+        and not has_table_privilege(t.role, 'public.products', 'TRUNCATE')
+        and not has_table_privilege(t.role, 'public.products', 'REFERENCES')
+        and not has_table_privilege(t.role, 'public.products', 'TRIGGER') end,
+    case when t.rw then 'select/insert/update only (no delete/truncate/references/trigger)' else 'no privileges' end,
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      when to_regclass('public.products') is null then 'missing'
+      else concat_ws(' ',
+        case when has_table_privilege(t.role, 'public.products', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(t.role, 'public.products', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(t.role, 'public.products', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(t.role, 'public.products', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(t.role, 'public.products', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege(t.role, 'public.products', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege(t.role, 'public.products', 'TRIGGER') then 'TRIGGER' end) end
+  from (values ('anon', false), ('authenticated', true)) t(role, rw)
+  union all
+  select 'R3 products name_key + checks',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else exists (select 1 from pg_constraint where conrelid = to_regclass('public.products')
+          and conname = 'products_user_name_key' and contype = 'u')
+        and (select count(*) from pg_constraint where conrelid = to_regclass('public.products')
+          and conname in ('products_name_chk', 'products_unit_chk', 'products_price_chk', 'products_detail_chk', 'products_use_count_chk')) = 5 end,
+    'unique (user_id, name_key); name / unit / price / detail / use_count checks',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      else coalesce((select string_agg(conname, ',' order by conname) from pg_constraint
+        where conrelid = to_regclass('public.products') and contype in ('u', 'c')), 'missing') end
+  union all
+  select 'R4 public.record_product_use(jsonb)',
+    case when not exists (select 1 from applied where version = '20261003000002') then null
+      else coalesce((select not p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.record_product_use(jsonb)')), false)
+        and coalesce(has_function_privilege('authenticated', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE'), false)
+        and not coalesce(has_function_privilege('anon', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE'), true) end,
+    'security invoker; EXECUTE to authenticated, not anon',
+    case when not exists (select 1 from applied where version = '20261003000002') then 'not applied yet'
+      when to_regprocedure('public.record_product_use(jsonb)') is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.record_product_use(jsonb)'))
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.record_product_use(jsonb)'), 'EXECUTE') end
+
+  -- S. Pay page line unit + detail (20261003000003). SKIP until pushed.
+  --    (H and I above still cover get_public_invoice's grants and definer.)
+  union all
+  select 'S1 get_public_invoice line keys',
+    case when not exists (select 1 from applied where version = '20261003000003') then null
+      else coalesce((select p.prosrc ilike '%''unit'',%' and p.prosrc ilike '%''detail'',%'
+          and p.prosrc ilike '%''description''%' and p.prosrc ilike '%''qty''%' and p.prosrc ilike '%''unit_price''%'
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)')), false) end,
+    'line elements pass description, qty, unit_price, unit, detail',
+    case when not exists (select 1 from applied where version = '20261003000003') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice(text, text)') is null then 'missing'
+      else concat_ws(' ',
+        (select case when p.prosrc ilike '%''unit'',%' then 'unit' end from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)')),
+        (select case when p.prosrc ilike '%''detail'',%' then 'detail' end from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice(text, text)'))) end
+  -- T. Recurring expenses (20261004000001). SKIP until pushed.
+  union all
+  select 'T1 recurring_expenses RLS + policies',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      else coalesce((select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.recurring_expenses')), false)
+        and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'recurring_expenses') = 3
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'recurring_expenses'
+          and p.cmd = 'SELECT' and p.qual = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'recurring_expenses'
+          and p.cmd = 'INSERT' and p.with_check = '(auth.uid() = user_id)')
+        and exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'recurring_expenses'
+          and p.cmd = 'UPDATE' and p.qual = '(auth.uid() = user_id)' and p.with_check = '(auth.uid() = user_id)') end,
+    'RLS on; exactly 3 owner policies: SELECT, INSERT, UPDATE (no DELETE)',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity from pg_class c where c.oid = to_regclass('public.recurring_expenses')), 'missing')
+        || ' policies=' || coalesce((select string_agg(p.cmd, ',' order by p.cmd)
+          from pg_policies p where p.schemaname = 'public' and p.tablename = 'recurring_expenses'), 'none') end
+  union all
+  select 'T2 recurring_expenses anon',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      when to_regclass('public.recurring_expenses') is null then false
+      else not has_any_column_privilege('anon', 'public.recurring_expenses', 'SELECT')
+        and not has_any_column_privilege('anon', 'public.recurring_expenses', 'INSERT')
+        and not has_any_column_privilege('anon', 'public.recurring_expenses', 'UPDATE')
+        and not has_table_privilege('anon', 'public.recurring_expenses', 'DELETE')
+        and not has_table_privilege('anon', 'public.recurring_expenses', 'TRUNCATE')
+        and not has_table_privilege('anon', 'public.recurring_expenses', 'REFERENCES')
+        and not has_table_privilege('anon', 'public.recurring_expenses', 'TRIGGER') end,
+    'no privileges',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      when to_regclass('public.recurring_expenses') is null then 'missing'
+      else concat_ws(' ',
+        case when has_any_column_privilege('anon', 'public.recurring_expenses', 'SELECT') then 'SELECT' end,
+        case when has_any_column_privilege('anon', 'public.recurring_expenses', 'INSERT') then 'INSERT' end,
+        case when has_any_column_privilege('anon', 'public.recurring_expenses', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege('anon', 'public.recurring_expenses', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege('anon', 'public.recurring_expenses', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege('anon', 'public.recurring_expenses', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege('anon', 'public.recurring_expenses', 'TRIGGER') then 'TRIGGER' end) end
+  union all
+  select 'T3 recurring_expenses authenticated',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      when to_regclass('public.recurring_expenses') is null then false
+      else has_table_privilege('authenticated', 'public.recurring_expenses', 'SELECT')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'DELETE')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'TRUNCATE')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'REFERENCES')
+        and not has_table_privilege('authenticated', 'public.recurring_expenses', 'TRIGGER')
+        and (select bool_and(has_column_privilege('authenticated', 'public.recurring_expenses', c, 'INSERT'))
+          from unnest(array['user_id', 'vendor', 'description', 'amount', 'category', 'cadence', 'anchor_day', 'next_on', 'auto_log']) c)
+        and (select bool_and(has_column_privilege('authenticated', 'public.recurring_expenses', c, 'UPDATE'))
+          from unnest(array['vendor', 'description', 'amount', 'category', 'cadence', 'anchor_day', 'next_on', 'auto_log', 'deleted_at']) c)
+        and not (select bool_or(has_column_privilege('authenticated', 'public.recurring_expenses', c, 'INSERT')
+            or has_column_privilege('authenticated', 'public.recurring_expenses', c, 'UPDATE'))
+          from unnest(array['id', 'last_logged_on', 'last_skipped_on', 'last_skip_reason', 'created_at', 'updated_at']) c)
+        and not has_column_privilege('authenticated', 'public.recurring_expenses', 'user_id', 'UPDATE') end,
+    'select; insert/update on the user columns only — never last_*, id, user_id (update), timestamps; no delete',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      when to_regclass('public.recurring_expenses') is null then 'missing'
+      else 'cron-only writable by authenticated: ' || coalesce((select string_agg(c, ',') from unnest(array['id', 'last_logged_on', 'last_skipped_on', 'last_skip_reason', 'created_at', 'updated_at']) c
+          where has_column_privilege('authenticated', 'public.recurring_expenses', c, 'INSERT')
+            or has_column_privilege('authenticated', 'public.recurring_expenses', c, 'UPDATE')), 'none')
+        || '; table-level: ' || concat_ws(' ',
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'INSERT') then 'INSERT' end,
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'UPDATE') then 'UPDATE' end,
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'DELETE') then 'DELETE' end,
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'TRUNCATE') then 'TRUNCATE' end,
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'REFERENCES') then 'REFERENCES' end,
+          case when has_table_privilege('authenticated', 'public.recurring_expenses', 'TRIGGER') then 'TRIGGER' end) end
+  union all
+  select 'T4 expenses anon',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      else not has_any_column_privilege('anon', 'public.expenses', 'SELECT')
+        and not has_any_column_privilege('anon', 'public.expenses', 'INSERT')
+        and not has_any_column_privilege('anon', 'public.expenses', 'UPDATE')
+        and not has_table_privilege('anon', 'public.expenses', 'DELETE')
+        and not has_table_privilege('anon', 'public.expenses', 'TRUNCATE')
+        and not has_table_privilege('anon', 'public.expenses', 'REFERENCES')
+        and not has_table_privilege('anon', 'public.expenses', 'TRIGGER') end,
+    'no privileges',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      else concat_ws(' ',
+        case when has_any_column_privilege('anon', 'public.expenses', 'SELECT') then 'SELECT' end,
+        case when has_any_column_privilege('anon', 'public.expenses', 'INSERT') then 'INSERT' end,
+        case when has_any_column_privilege('anon', 'public.expenses', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege('anon', 'public.expenses', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege('anon', 'public.expenses', 'TRUNCATE') then 'TRUNCATE' end,
+        case when has_table_privilege('anon', 'public.expenses', 'REFERENCES') then 'REFERENCES' end,
+        case when has_table_privilege('anon', 'public.expenses', 'TRIGGER') then 'TRIGGER' end) end
+  union all
+  select 'T5 expenses authenticated',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      when not exists (select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'expenses' and column_name = 'recurring_id') then false
+      else has_table_privilege('authenticated', 'public.expenses', 'SELECT')
+        and not has_table_privilege('authenticated', 'public.expenses', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.expenses', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.expenses', 'DELETE')
+        and not has_table_privilege('authenticated', 'public.expenses', 'TRUNCATE')
+        and not has_table_privilege('authenticated', 'public.expenses', 'REFERENCES')
+        and not has_table_privilege('authenticated', 'public.expenses', 'TRIGGER')
+        and (select bool_and(has_column_privilege('authenticated', 'public.expenses', c, 'INSERT'))
+          from unnest(array['user_id', 'description', 'amount', 'category', 'spent_on', 'vendor', 'note', 'receipt_url', 'receipt_hash']) c)
+        and has_column_privilege('authenticated', 'public.expenses', 'deleted_at', 'UPDATE')
+        and not (select bool_or(has_column_privilege('authenticated', 'public.expenses', c, 'INSERT')
+            or has_column_privilege('authenticated', 'public.expenses', c, 'UPDATE'))
+          from unnest(array['recurring_id', 'id', 'created_at']) c)
+        and not has_column_privilege('authenticated', 'public.expenses', 'user_id', 'UPDATE') end,
+    'select; insert on the app columns; recurring_id never client-writable; no delete',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      when not exists (select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'expenses' and column_name = 'recurring_id') then 'recurring_id missing'
+      else 'recurring_id insert=' || has_column_privilege('authenticated', 'public.expenses', 'recurring_id', 'INSERT')
+        || ' update=' || has_column_privilege('authenticated', 'public.expenses', 'recurring_id', 'UPDATE')
+        || '; table-level: ' || concat_ws(' ',
+          case when has_table_privilege('authenticated', 'public.expenses', 'INSERT') then 'INSERT' end,
+          case when has_table_privilege('authenticated', 'public.expenses', 'UPDATE') then 'UPDATE' end,
+          case when has_table_privilege('authenticated', 'public.expenses', 'DELETE') then 'DELETE' end,
+          case when has_table_privilege('authenticated', 'public.expenses', 'TRUNCATE') then 'TRUNCATE' end,
+          case when has_table_privilege('authenticated', 'public.expenses', 'REFERENCES') then 'REFERENCES' end,
+          case when has_table_privilege('authenticated', 'public.expenses', 'TRIGGER') then 'TRIGGER' end) end
+  union all
+  select 'T6 unique indexes + type check',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      else coalesce((select i.indisunique and i.indpred is null from pg_index i
+          where i.indexrelid = to_regclass('public.expenses_recurring_due_idx')), false)
+        and coalesce((select i.indisunique from pg_index i
+          where i.indexrelid = to_regclass('public.recurring_expenses_user_vendor_cadence_idx')), false)
+        and coalesce((select pg_get_constraintdef(c.oid) ilike '%recurring_skipped%' from pg_constraint c
+          where c.conname = 'notification_log_type_chk'), false) end,
+    'expenses (recurring_id, spent_on) unique (not partial); one live item per vendor + cadence; notification type recurring_skipped',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      else concat_ws(' ',
+        case when to_regclass('public.expenses_recurring_due_idx') is not null then 'due_idx' end,
+        case when to_regclass('public.recurring_expenses_user_vendor_cadence_idx') is not null then 'vendor_idx' end,
+        (select case when pg_get_constraintdef(c.oid) ilike '%recurring_skipped%' then 'type_ok' end
+          from pg_constraint c where c.conname = 'notification_log_type_chk')) end
+  union all
+  select 'T7 public.repeat_candidate(uuid)',
+    case when not exists (select 1 from applied where version = '20261004000001') then null
+      else coalesce((select not p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.repeat_candidate(uuid)')), false)
+        and coalesce(has_function_privilege('authenticated', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE'), false)
+        and not coalesce(has_function_privilege('anon', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE'), true) end,
+    'security invoker; EXECUTE to authenticated, not anon',
+    case when not exists (select 1 from applied where version = '20261004000001') then 'not applied yet'
+      when to_regprocedure('public.repeat_candidate(uuid)') is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.repeat_candidate(uuid)'))
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

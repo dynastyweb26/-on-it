@@ -32,7 +32,7 @@ export default function UndoToast({ message, onUndo, onDismiss }: UndoToastProps
   }, [pathname]);
 
   return (
-    <div data-kb-lift="" className="fixed bottom-20 left-1/2 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center justify-between rounded-card bg-inverse-surface px-4 py-3 text-inverse-on-surface shadow-card-raised transition-all">
+    <div data-kb-lift="" className="fixed bottom-20 left-1/2 z-[90] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center justify-between rounded-card bg-inverse-surface px-4 py-3 text-inverse-on-surface shadow-card-raised onit-toast-in">
       <span className="truncate text-body-md font-medium text-inverse-on-surface">{message}</span>
       <div className="flex shrink-0 items-center gap-2">
         <button

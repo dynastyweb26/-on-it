@@ -45,6 +45,11 @@ export type NotifyEvent =
       recapId: string;            // recaps.id — the tap opens /dashboard?recap=<id>
       kind: 'week' | 'month';
       periodStart: string;        // yyyy-mm-dd; with kind + user, the dedupe identity
+    }
+  | {
+      type: 'recurring_skipped';  // the cron couldn't log recurring charges: free limit (lib/notify/recurring)
+      vendors: string[];          // every item skipped this run, oldest due first (the copy names the first)
+      localDate: string;          // the owner's local yyyy-mm-dd; with user, the dedupe identity (one digest a day)
     };
 
 export type NotifyEventType = NotifyEvent['type'];

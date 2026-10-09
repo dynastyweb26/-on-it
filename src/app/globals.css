@@ -353,6 +353,31 @@ html[data-splash=""] .onit-splash {
 /* Full-height sheet rising from the bottom edge (recap sheet; MOTION-SPEC §12). */
 @keyframes onit-sheet-in { from { transform: translateY(100%); } }
 .onit-sheet-in { animation: onit-sheet-in var(--motion-slow) var(--ease-standard) both; }
+/* Toasts rise in (MOTION-SPEC §13). The keyframes keep the toast's own
+   centring (-50% x); the keyboard lift uses the separate `translate` property. */
+@keyframes onit-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.onit-toast-in { animation: onit-toast-in var(--motion-base) var(--ease-standard) both; }
+/* Composer "+" expand (UI redesign): + rotates 45° into ×, a cream scrim fades
+   over the chat, options rise out nearest first (delays set inline, 45ms
+   apart). Closing reverses everything together in 180ms. */
+.onit-plus { transition: transform 300ms cubic-bezier(.3, 1.5, .5, 1); } /* release frames 1d "Tap +" */
+.onit-plus-btn { transition: background-color 200ms ease, color 200ms ease; }
+.onit-plus.is-open { transform: rotate(45deg); }
+@keyframes onit-fade-out { to { opacity: 0; } }
+@keyframes onit-option-rise { from { transform: translateY(var(--rise, 16px)) scale(.88); } }
+@keyframes onit-option-out { to { opacity: 0; transform: translateY(var(--rise, 16px)) scale(.88); } }
+/* Release frames 1d: scrim 220ms ease; options 340ms cubic-bezier(.2,1.3,.4,1)
+   (opacity 180ms ease, same delay); close 180ms, no stagger. */
+.onit-composer-scrim { animation: onit-fade 220ms ease both; }
+.onit-composer-scrim.is-closing { animation: onit-fade-out 180ms ease both; }
+.onit-composer-option { transform-origin: 22px 100%; animation: onit-option-rise 340ms cubic-bezier(.2, 1.3, .4, 1) both, onit-fade 180ms ease both; }
+.onit-composer-option.is-closing { animation: onit-option-out 180ms ease both; }
+
+/* Chat messages (release frames + motion inventory "New On It message"):
+   a new bubble rises 8px in 240ms. "On It is thinking…" uses the On It
+   spinner (MOTION-SPEC §2), not typing dots. */
+@keyframes onit-msg-in { from { opacity: 0; transform: translateY(8px); } }
+.onit-msg-in { animation: onit-msg-in var(--motion-base) var(--ease-emphasized) both; }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
@@ -378,58 +403,138 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-lock-drop { from { transform: translateY(-6px) rotate(-18deg); } }
 .onit-lock-drop { display: inline-block; animation: onit-lock-drop 360ms var(--ease-spring) 80ms both; }
 
-/* ---- Sent -> Paid (MOTION-SPEC.md §6) ----
-   A translucent gold wipe crosses the invoice header left to right, then
-   dissolves. Sits under pointer events; the card must be relative + clipped. */
-.onit-paid-sweep {
-  position: absolute;
-  inset: 0;
-  background: #d4af37;
-  transform-origin: left center;
-  pointer-events: none;
-  animation: onit-paid-sweep 900ms var(--ease-emphasized) both;
+/* ---- Sent -> Paid (M4; replaces MOTION-SPEC.md §6's gold sweep) ----
+   The status word fades (120ms), a PAID stamp lands with a small settle
+   (200–700ms), the card dips 3px on impact, the stamp clears at the end and
+   the status reads "paid". Card must be relative + clipped. */
+.onit-paid-stamp {
+  position: absolute; left: 50%; top: 50%; z-index: 2; pointer-events: none;
+  padding: 4px 12px; border: 3px solid #0f6d31; border-radius: 10px;
+  color: #0f6d31; background: rgb(201 242 212 / .92);
+  font: 800 22px/1 Montserrat, sans-serif; letter-spacing: .12em;
+  animation: onit-paid-stamp 1300ms var(--ease-emphasized) both;
 }
-@keyframes onit-paid-sweep {
-  0% { transform: scaleX(0); opacity: .3; }
-  45% { transform: scaleX(1); opacity: .3; }
-  100% { transform: scaleX(1); opacity: 0; }
+@keyframes onit-paid-stamp {
+  0%, 15% { opacity: 0; transform: translate(-50%, -50%) scale(1.8) rotate(-14deg); }
+  35% { opacity: 1; transform: translate(-50%, -50%) scale(.94) rotate(-8deg); }
+  54% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1) rotate(-9deg); }
 }
+.onit-paid-dip { animation: onit-paid-dip 1300ms var(--ease-emphasized) both; }
+@keyframes onit-paid-dip { 0%, 30% { transform: translateY(0); } 36% { transform: translateY(3px); } 50%, 100% { transform: translateY(0); } }
+.onit-paid-word { animation: onit-paid-word 1300ms var(--ease-standard) both; }
+@keyframes onit-paid-word { 0% { opacity: 1; } 9% { opacity: 0; } 50% { opacity: 0; } 62%, 100% { opacity: 1; } }
 
-/* ---- Failure + retry (MOTION-SPEC.md §7) ---- */
+/* ---- Failure + retry (MOTION-SPEC.md §7; motion inventory "Failed action")
+   A gentle shake: 6px, three decaying passes, 360ms emphasized. ---- */
 @keyframes onit-shake {
-  20% { transform: translateX(-5px); }
-  40% { transform: translateX(5px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
+  14% { transform: translateX(-6px); }
+  28% { transform: translateX(6px); }
+  44% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  76% { transform: translateX(-2px); }
+  90% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
 }
-.onit-shake { animation: onit-shake 320ms cubic-bezier(.36, .07, .19, .97) both; }
+.onit-shake { animation: onit-shake 360ms var(--ease-emphasized) both; }
 @keyframes onit-spin { to { transform: rotate(360deg); } }
 .onit-spin { display: inline-block; animation: onit-spin 800ms linear infinite; }
 
 /* ---- Receipt capture (MOTION-SPEC.md §8) ----
-   Shutter: a full-screen white flash that never blocks touches. Photo: the
-   thumbnail lands from larger, as if the shot shrinks into the expense card. */
+   Shutter: a full-screen white flash that never blocks touches. */
 .onit-shutter {
   position: fixed;
   inset: 0;
   z-index: 60;
   background: #ffffff;
+  /* Resting state is invisible: under reduced motion (animation: none) the
+     flash must not leave a white layer over the screen. */
+  opacity: 0;
   pointer-events: none;
-  animation: onit-shutter 220ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: onit-shutter 380ms linear both;
 }
-@keyframes onit-shutter { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
-.onit-photo-in { animation: onit-photo-in 460ms var(--ease-emphasized) both; }
-@keyframes onit-photo-in { from { opacity: .4; transform: scale(2.2); } }
+/* A real flash: 0 → 1 in 40ms, hold 80ms, then 1 → 0 over 260ms ease-out
+   (380ms). Pure white. The photo's flight starts at the end of the hold. */
+@keyframes onit-shutter {
+  0%     { opacity: 0; }
+  10.53% { opacity: 1; }
+  31.58% { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+  100%   { opacity: 0; }
+}
+/* Save: the expense card folds away (onit-card-exit) and the compact logged
+   card arrives as if it collapsed out of it — down from slightly larger. */
+@keyframes onit-logged-in { from { opacity: 0; transform: translateY(-10px) scale(1.04); } }
+.onit-logged-in { animation: onit-logged-in 240ms var(--ease-standard) both; }
+/* The photo's flight into its chat bubble runs in ReceiptBubble (Web
+   Animations, after img.decode()); the card's thumbnail no longer animates. */
 
 /* ---- Books (MOTION-SPEC.md §9) ---- */
 @keyframes onit-nudge { 35% { transform: translateX(5px); } 65% { transform: translateX(-1px); } }
 .onit-nudge { display: inline-block; animation: onit-nudge 520ms cubic-bezier(.45, 0, .55, 1) 900ms both; }
 
 /* ---- Tabs + selected ring (MOTION-SPEC.md §10) ---- */
-@keyframes onit-from-right { from { opacity: 0; transform: translateX(28px); } }
-@keyframes onit-from-left { from { opacity: 0; transform: translateX(-28px); } }
-.onit-from-right { animation: onit-from-right 280ms var(--ease-standard) both; }
-.onit-from-left { animation: onit-from-left 280ms var(--ease-standard) both; }
+/* Books recaps dot: one ring grows and fades (600ms), then the dot stays still. */
+@keyframes onit-dot-ring { from { transform: scale(1); opacity: .6; } to { transform: scale(3); opacity: 0; } }
+.onit-dot-pulse::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: inherit; animation: onit-dot-ring 600ms var(--ease-emphasized) 300ms both; }
+
+/* Invoices filter switch: the list crossfades with a 12px shift toward the
+   direction of travel (--motion-fast). */
+@keyframes onit-list-from-right { from { opacity: 0; transform: translateX(12px); } }
+@keyframes onit-list-from-left { from { opacity: 0; transform: translateX(-12px); } }
+.onit-list-from-right { animation: onit-list-from-right var(--motion-fast) var(--ease-standard) both; }
+.onit-list-from-left { animation: onit-list-from-left var(--motion-fast) var(--ease-standard) both; }
+
+/* Tab switch (M5): the screen crossfades in; the new tab's icon bounces 4px;
+   Chat presses deeper than the others (.9 scale, 1px down). */
+.onit-tab-enter { animation: onit-fade var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-tab-bounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+.onit-tab-bounce { animation: onit-tab-bounce var(--motion-slow) var(--ease-spring) both; }
+.onit-tab { transition: transform 100ms var(--ease-emphasized); }
+.onit-tab:active { transform: scale(.95); }
+.onit-tab-centre:active { transform: scale(.9) translateY(1px); }
+/* Save prompts (2·13, UI-REDESIGN-AUDIT §1.5 / §4): the card rises 14 px on
+   a spring; Not now sinks it 10 px. M2: the saved thing lands on the Clients
+   tab — the icon bumps and a gold "+1" floats up and fades. */
+@keyframes onit-prompt-in { from { opacity: 0; transform: translateY(14px); } }
+@keyframes onit-prompt-out { to { opacity: 0; transform: translateY(10px); } }
+.onit-prompt-in { animation: onit-prompt-in var(--motion-base) var(--ease-spring) both; }
+.onit-prompt-out { animation: onit-prompt-out var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-tab-bump { 0% { transform: scale(1); } 45% { transform: scale(1.22); } 100% { transform: scale(1); } }
+.onit-tab-bump { animation: onit-tab-bump 420ms var(--ease-spring) both; }
+@keyframes onit-plus-one {
+  0% { opacity: 0; transform: translateY(4px) scale(.8); }
+  25% { opacity: 1; transform: translateY(-6px) scale(1); }
+  70% { opacity: 1; transform: translateY(-12px); }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
+.onit-plus-one { animation: onit-plus-one 900ms var(--ease-standard) both; }
+/* List motion (2·14, §4). New entry: slides into its A–Z slot and glows gold
+   for 1.2 s. Undo: the row re-expands. Long-press: the row lifts to 1.02 over
+   the dimmed list and the menu scales in. Form save: the Save label becomes a
+   ✓ before the screen moves on. */
+@keyframes onit-entry-in { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes onit-entry-glow { 0%, 30% { background-color: rgba(212, 175, 55, .4); } 100% { background-color: rgba(212, 175, 55, 0); } }
+.onit-new-entry { animation: onit-entry-in var(--motion-slow) var(--ease-emphasized) both, onit-entry-glow 1.2s var(--ease-standard) both; }
+@keyframes onit-row-expand { from { max-height: 0; opacity: 0; } to { max-height: 120px; opacity: 1; } }
+.onit-row-expand { overflow: hidden; animation: onit-row-expand var(--motion-base) var(--ease-emphasized) both; }
+@keyframes onit-lift { from { transform: scale(1); box-shadow: none; } }
+.onit-lift { transform: scale(1.02); animation: onit-lift var(--motion-fast) var(--ease-standard) both; }
+@keyframes onit-menu-in { from { opacity: 0; transform: scale(.92); } }
+.onit-menu-in { animation: onit-menu-in var(--motion-fast) var(--ease-standard) both; }
+/* M3 make recurring (3·4, §4, ~950 ms): a gold loop draws round the ↻ disc,
+   ↻ spins once, the cadence tag pops in (onit-chip-in), a shimmer crosses. */
+@keyframes onit-m3-loop { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
+.onit-m3-loop { stroke-dasharray: 120; animation: onit-m3-loop 520ms var(--ease-emphasized) both; }
+@keyframes onit-m3-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.onit-m3-spin { animation: onit-m3-spin 600ms var(--ease-emphasized) 120ms both; }
+@keyframes onit-m3-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.onit-m3-shimmer { background: linear-gradient(100deg, transparent 30%, rgba(212, 175, 55, .22) 50%, transparent 70%); animation: onit-m3-shimmer 700ms var(--ease-standard) 200ms both; }
+/* Recurring auto-logged (3·6, §4): "Logged automatically" rows get one gold
+   shimmer (--motion-slow), once per row per device. */
+.onit-autolog::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(212, 175, 55, .25) 50%, transparent 70%);
+  animation: onit-m3-shimmer var(--motion-slow) var(--ease-standard) 250ms both; }
 /* The gold selection ring tightens in from a soft halo whenever something
    becomes selected (the class is added on select, so it plays each time). */
 @keyframes onit-ring-in { from { outline-offset: 6px; outline-color: rgba(212, 175, 55, 0); } }

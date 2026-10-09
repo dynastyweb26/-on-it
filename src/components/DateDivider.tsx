@@ -1,21 +1,20 @@
-// Shared date-divider pill — a small gold capsule chip (never a section header),
-// matching the "Similar invoice sent recently" badge style. It scrolls with the
-// list (in-flow, not sticky). Label on the left; when a subtotal is passed it
-// sits on the right inside the same capsule. Books passes a subtotal; Invoices
-// omits it (a bare label chip).
+// Shared group header (release frames 4a/4b): a soft-gold pill with the period
+// label ("OCTOBER 2026"). It scrolls with the list (in-flow, not sticky). With
+// a subtotal, the amount sits on the right of the row, outside the pill
+// (Expenses); without one, the pill stands alone (Invoices).
 const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 export default function DateDivider({ label, subtotal }: { label: string; subtotal?: number | null }) {
-  const base =
-    'mt-4 mb-1 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary';
-  if (subtotal == null) {
-    // Bare label — a small chip that shrinks to its content, on its own line.
-    return <div className={`${base} flex w-fit`}>{label}</div>;
-  }
+  const pill = (
+    <span className="inline-flex h-7 items-center rounded-full bg-primary-soft px-3.5 text-[12.5px] font-bold uppercase tracking-[.06em] text-primary-on-container">
+      {label}
+    </span>
+  );
+  if (subtotal == null) return <div className="mb-1 mt-4 flex">{pill}</div>;
   return (
-    <div className={`${base} flex items-center justify-between gap-2`}>
-      <span>{label}</span>
-      <span className="tabular-nums">{money(subtotal)}</span>
+    <div className="mb-2 mt-4 flex items-center justify-between gap-2">
+      {pill}
+      <span className="font-display text-[15px] font-bold tabular-nums text-on-surface-variant">{money(subtotal)}</span>
     </div>
   );
 }

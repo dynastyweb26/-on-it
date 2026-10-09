@@ -77,10 +77,14 @@ Revise opens a NEW conversation seeded from the locked invoice (the original car
 
 ## 8. Receipt capture
 
-- Photo returned from camera: white flash overlay 0 → 1 → 0 over 220ms.
-- Full-bleed photo scales into its chat bubble (scale 1 → .36, radius 0 → 40px, fades at the end), 460ms emphasized.
-- Thinking row uses the spinner (item 2) with "Reading your receipt…".
-- Expense card rises; amount counts up 500ms; LOGGED chip (#c9f2d4 / #0f6d31) springs in 200ms after.
+As built on `feat/receipt-motion` (board "05 · Receipt capture"; supersedes the Batch B note below). Transform and opacity only.
+
+- **Flash** (`.onit-shutter`): fires once the camera / photo sheet is gone — the page is visible (`document.visibilityState`, or the `visibilitychange` back to visible) plus two animation frames. Fired under the sheet it was never seen on iPhone. Pure white, 0 → 1 in 40ms, hold at 1 for 80ms, 1 → 0 over 260ms ease-out (`cubic-bezier(0,0,.2,1)`): 380ms. Rests at opacity 0; `display:none` under reduced motion.
+- **Photo → bubble** (`ReceiptBubble`): the photo is a real chat message on the user's side (a ~264px JPEG data URL). After `img.decode()` and the flash's peak (end of the hold, `FLASH_PEAK_MS` 120), a full-bleed copy shrinks into the bubble's place, 460ms `--ease-emphasized`, and crossfades into the rounded bubble, so the corners read 0 → 16px without animating border-radius. Decode failure or reduced motion: the bubble just appears.
+- **Reading**: "Reading your receipt…" with the spinner (§2) sits under the bubble. The Expense card's own thumbnail no longer animates.
+- **Save → logged card** (`LoggedExpenseCard`): the Expense card folds away (`onit-card-exit`, 150ms) and a compact card arrives (`onit-logged-in`, 240ms: down from slightly larger) — thumbnail, store, category · date, amount. The amount counts up 500ms (`CountUpMoney`); the LOGGED chip (#c9f2d4 / #0f6d31, `check_circle`) springs in 200ms after (scale .7 → 1, `--ease-spring`). It replaces the old text confirmation.
+- **Restore / errors**: restored chats show the bubble and the logged card static, no replay. A duplicate receipt or a read error keeps the bubble, then the normal message.
+- **Storage**: only the newest 8 thumbnails are persisted with the chat (older bubbles restore as a "Receipt photo" placeholder; archived history keeps none), with an image-free retry on a quota error.
 
 ## 9. Books
 
@@ -107,16 +111,177 @@ Layout as shipped: dark Net card with chevron, 3 tiles (Collected / Still owed /
 - Reduced motion: one static ring, icon swap only.
 - Performance: throttle level updates to ~9/sec; stop the analyser when not listening.
 
-## 12. Recap sheet (weekly / monthly "in review")
+## 12. Recaps (weekly / monthly)
 
-Built after Batch B, on `feat/recap` (`src/components/RecapSheet.tsx`). Opened from the recap push (`/dashboard?recap=<id>`) or on app open for the newest unseen recap.
+The old recap sheet (`RecapSheet.tsx`, "sheet rises, figures count up") was
+removed when the full-screen story shipped (`9eb43c0`, merged to `main` in
+`683301b`). Recap motion now lives in three places:
 
-- Sheet: full height, rises from the bottom edge (`onit-sheet-in`: translateY(100%) → 0, `--motion-slow`, `--ease-standard`).
-- Figures count up with `CountUpMoney`, 700ms each, 120ms apart: income → expenses → net, starting 300ms in (as the sheet lands). Net is the large figure, uncoloured; a negative shows a minus sign (Books' no-coloured-numbers rule).
-- After net lands (~1240ms): "Most spent on", the counts line, the PDF buttons and Done rise (`onit-rise`, 50ms apart).
-- Once per recap per session (sessionStorage `onit_recap_counted:<id>`): reopening shows the figures still.
-- Reduced motion: static values, no rise (the global rule).
-- The Summary / Detailed choice opens over it with the period-picker sheet's motion (`paywall-in 200ms ease-out`).
+- **Watch / Later sheet:** `src/components/recap/RecapProvider.tsx`. It rises
+  from the bottom edge (`onit-sheet-in`: translateY(100%) → 0, `--motion-slow`,
+  `--ease-standard`). The swoosh mark wears a gold ring.
+- **The story player:** `src/components/recap/RecapStory.tsx` and its slides.
+  One rAF clock drives paused WAAPI animations: a 700ms swoosh-wipe between
+  slides, count-ups, columns + ribbon, sound cues. Its timings live in
+  `src/lib/recap/config.ts` and are specified in `RECAP-SPEC.md` §2–§6, not
+  here. Reduce Motion: 350ms fades, 280ms cross-fade, final numbers, no ticks.
+- **History list** (`/recaps`) and the Books Recaps card: no motion beyond
+  press feedback.
+- The Totals / Itemized PDF choice opens with the period-picker sheet's motion
+  (`paywall-in 200ms ease-out`).
+
+## 13. Foundations for the UI redesign (`feat/ui-redesign`, 2026-10-03)
+
+The redesign's motion reference is `design-reference/on-it-motion.html`.
+**Easing stays on this spec's tokens (§1)** everywhere except the composer,
+its "+" menu and the template, which use the release frames' motion spec
+(1d) exactly (§14). **Superseded by §14 (audit rev 2):** M4 now replaces §6;
+M1 lands with the template (merge 2).
+
+- **Reduced motion from JS:** `src/lib/use-reduced-motion.ts`
+  (`usePrefersReducedMotion`, live). Use it for WAAPI / rAF / carousel motion,
+  which the global CSS kill switch doesn't reach. CSS motion needs nothing.
+- **Sheets:** bottom sheets rise with `onit-sheet-in` (`--motion-slow`,
+  `--ease-standard`). Centred dialogs and small choice sheets keep `paywall-in`
+  (200ms). One entrance per sheet; exits stay instant (no exit animation yet).
+- **Toasts:** rise 12px and fade in (`onit-toast-in`, `--motion-base`,
+  `--ease-standard`). The keyframes keep the toast's own centring; the keyboard
+  lift uses the separate `translate` property, so the two never fight.
+- **Switches:** the knob moves with `transform` (`translate-x-6`, 160ms), never
+  `left` (the transform / opacity ground rule).
+- **Micro (≤ 180ms):** steppers, chips, tabs, segmented controls.
+  **Confirm (300–500ms):** add / remove, prompts, status.
+  **Hero (≤ 1.2s):** rare (send, save, paid).
+- **Haptics:** `navigator.vibrate` only, so Android only (iOS Safari / PWA has
+  no vibration API).
+- **Nav (5 tabs):** Clients · Invoices · Chat (centre) · Books · Settings.
+  Superseded by §14 (M5).
+
+## 14. UI redesign merge 1 as built (`feat/ui-redesign`, 2026-10-03)
+
+Audit rev 2 (UI-REDESIGN-AUDIT.md §4, founder rule F5): the release frames'
+motion spec **1d** gives exact values for the composer, menu and template;
+everything else uses this spec's tokens (§1).
+
+**Composer + menu (1d, exact):**
+- "+" (44 px, soft gold `#f0e3b8`) → ×: glyph rotates 45° in
+  **300ms `cubic-bezier(.3,1.5,.5,1)`**; fill flips to ink in 200ms ease.
+- Scrim: cream frost (`background` at 85%) fades in **220ms ease**, portaled
+  to `<body>`; the bar is lifted above it (stays sharp).
+- Options: rise from `16 + 12 × distance` px and scale .88 → 1,
+  **340ms `cubic-bezier(.2,1.3,.4,1)`**, opacity 180ms ease, nearest the "+"
+  first, **45ms** apart; transform origin `22px 100%`.
+- Close (×, scrim, Escape, a pick): everything reverses together, **180ms**,
+  no stagger.
+- Voice session lives in the field: red level dot (MicRings, red tone) +
+  "Listening…" + Done; Speak between takes; the "+" slot is the ink × that
+  ends the session.
+
+**Chat thread (tokens):** a new bubble rises 8px (`--motion-base`,
+`--ease-emphasized`). "On It is thinking…" and "Reading your receipt…" both
+use the On It spinner (§2) row — no typing dots (device pass, merge 1).
+
+**Tabs (M5, tokens; replaces §10's side entry):** the gold disc slides to the
+active icon pill (`--motion-slow`, `--ease-spring`); the new tab's icon
+bounces 4px (`--motion-slow` spring); the screen crossfades (`--motion-fast`);
+Chat presses .9 + 1px down, others .95; light haptic on a tab change.
+
+**Lists (tokens):** Invoices filter → list crossfades with a 12px shift
+toward the direction of travel (`--motion-fast`); status tags crossfade when
+they change (sent → viewed); segmented controls slide a white thumb
+(`--motion-fast` spring).
+
+**Books (tokens):** the count-up plays on the **first visit of the day**
+(localStorage `onit_books_counted_day`, was once per session); the Recaps dot
+pulses once (one ring, 600ms); tiles press .97 in 120ms.
+
+**Paid (M4, tokens; replaces §6's gold sweep):** status word fades (120ms),
+PAID stamp lands with a settle (200–700ms), the card dips 3px on impact, the
+due amount rolls down (500–1200ms, `RollMoney`), success tick at impact.
+
+**Failure (§7 update):** shake 6px, three decaying passes, 360ms
+emphasized; inline "Retry" label + icon; warning haptic `[10, 40, 10]` once
+per live failure and again on a failed retry.
+
+Reduce Motion: the global kill switch lands every CSS animation on its end
+state; RollMoney / CountUpMoney show the final figure.
+
+## 15. UI redesign merge 2 as built (`feat/ui-redesign`, 2026-10-08)
+
+Same rule as §14: release-frame values where `1d` gives them, tokens (§1)
+everywhere else. UI-REDESIGN-AUDIT.md §4 lists the targets; this is what
+shipped.
+
+**Template card + sheets (tokens):** the card rises into the composer's
+slot (`onit-rise`); every sheet (pickers, keypads, Extra info, the
+replace confirm) slides up with `onit-sheet-in` over a scrim that fades in
+220ms. Sheets follow the finger from the grabber/header: release past
+100 px or a flick (≥ 0.5 px/ms over the last ~100 ms, ≥ 24 px) slides it out in 200ms,
+otherwise it springs back in 240ms `--ease-standard`; the scrim fades with
+the drag (`use-sheet-drag.ts`). Rows press .99.
+
+**Save prompts (2·13, tokens):** the dark card rises 14px
+(`--motion-base` `--ease-spring`); Not now sinks it 10px (`--motion-fast`
+standard). **M2:** on Save, a copy of the icon disc arcs into the Clients
+tab along a quadratic curve (700ms, `cubic-bezier(.4,0,.2,1)`, scale 1 →
+.55); on landing the tab icon bumps (scale 1.22, 420ms spring) and a gold
+"+1" floats up and fades (900ms); the bot line lands as a normal bubble.
+About 1 s in all.
+
+**Lists (2·14, tokens):** a new entry slides into its A–Z slot (−10px,
+`--motion-slow` emphasized) and glows gold for 1.2s; form Save turns into a
+✓ (`onit-pop`) for 380ms before the screen moves on; swipe rows resist past
+their actions (rubber band, ≤ 40% extra) and settle in `--motion-base`
+emphasized — app-wide, the shared `SwipeableRow` (founder, 2026-10-08);
+Undo re-expands the row (`--motion-base`); long-press lifts the row to
+1.02 over the dimmed list and the menu scales in from .92 at its corner
+(`--motion-fast`); a search change reflows the list (fade .55 → 1 + 6px
+settle, 160ms); an A–Z jump pulses the landed letter gold (scale 1.35,
+`--motion-base`).
+
+**Not built in merge 2 (follow-ups, PUNCH-LIST):** the template's
+micro-motion from §4 — slot filled 1.04 pop, pick hand-off, qty number roll
++ totals odometer, add / remove item expand / collapse, Send's fade/scale-in
+when it enables — and **M1** (send compress → ↗ → fold → sent card →
+SENT stamp). Template sends use §4 lock-on-send for now.
+
+Reduce Motion: CSS pieces land on their end state via the global kill
+switch; the JS-driven ones (M2 flight, search reflow, letter pulse) are
+skipped, and the tab still shows "+1".
+
+## 16. UI redesign merge 3 as built (`feat/ui-redesign`, 2026-10-08)
+
+Same rule as §14 / §15. Merge 3 is Recurring: the screen, the Books and
+Settings rows, "Make it recurring?", the cron (no motion), the ↻ markers.
+
+**Recurring list (3·2, tokens):** the shared saved-list rows (Clients /
+Products): press .99, swipe left to Edit / Stop & delete, long-press lifts
+the row into the menu; Stop & delete collapses the row with Undo. The form
+saves to a ✓ and goes back.
+
+**M3 make recurring (3·4, ~950 ms in the save-prompt card):** on Make
+recurring a gold ring draws round the ↻ disc (stroke-dashoffset, 520ms
+`--ease-emphasized`), ↻ spins once (600ms emphasized, 120ms in), the
+cadence tag pops in (`onit-chip-in`, 280ms spring), a gold shimmer crosses
+the card (700ms standard, 200ms in); then the card leaves the usual way.
+No flight (unlike M2).
+
+**Auto-logged rows (3·6):** a cron-logged expense shows a small gold ↻
+after its name; for 24 h its sub-line reads "Logged automatically · Oct 8"
+and the row gets one gold shimmer (`--motion-slow`, 250ms in), once per row
+per device (`onit-autolog-seen`).
+
+**Banners (3·6 / 3·5):** the Books skip banner rises in (`onit-rise`),
+presses .99, opens Recurring. The paused-after-errors banner (3·5) is the
+same card, not a link, with **Add it** (opens the Add expense sheet,
+prefilled, `onit-sheet-in`) and **Recurring** chips.
+
+**Not built in merge 3:** "Make it recurring?" after Books / Expenses
+sheet saves (that sheet has no vendor field; PUNCH-LIST, parked).
+
+Reduce Motion: the M3 ring / spin / shimmer and the auto-log shimmer land
+on their end state via the global kill switch; the banner and card still
+appear, without the rise.
 
 ## Build order (one commit each)
 
@@ -138,7 +303,7 @@ Batch B (preview, test on phone, merge):
 ## Batch B as built (differences from the canvas)
 
 - §7 Failure + retry: the existing icon-only Retry button spins in place (no "Trying…" label). Live failures shake on arrival; restored chats don't. A retry that fails again re-shakes. No failure haptic yet.
-- §8 Receipt capture: the photo lives as a thumbnail inside the Expense card, not a chat bubble. So: white shutter flash on capture, the Expense card builds in, and its thumbnail lands from 2.2× scale. No LOGGED chip; the save confirmation stays a chat message.
+- §8 Receipt capture (Batch B, superseded by §8 as built on `feat/receipt-motion`): the photo lived as a thumbnail inside the Expense card. On device nothing showed: the flash fired under the camera sheet, and the thumbnail's scale-in ran above the viewport (the list pins to the bottom of the tall card). Under reduced motion the flash left an opaque white layer (hotfix `9a6b8f7`).
 - §9 Books: count-up once per session (sessionStorage `onit_books_counted`); after adding an expense, Spent and Net roll in 400ms and Spent bumps once (no colour, per the no-coloured-numbers rule). The buttons' rise (300ms, 350ms) was missed in Batch B and added on `feat/recap`: Add expense 300ms, Income & Expenses 350ms, View expenses 400ms.
 - §10 Tabs: the nav pill is measured per tab and glides (transform + width); tab-to-tab content enters from the side you're heading. Swipe-follows-finger not built. The selection ring animation applies to every `.chip-selected` and `.ring-gold-selected`.
 - §11 Mic rings: `src/components/MicRings.tsx`; falls back to the old `.voice-listening` pulse when the AudioContext isn't running within 600ms.
@@ -147,4 +312,5 @@ Batch B (preview, test on phone, merge):
 
 - Batch A (items 1–6): merged to `main` 2026-09-30, verified on preview.
 - Batch B (items 7–11): merged to `main` 2026-09-30 (`fa6866e`), verified on preview.
+- UI redesign merges 1 + 2 (§14, §15): on `feat/ui-redesign`, merge 2 signed off on preview 2026-10-08; merges 1–3 go to `main` together.
 - Deploy per CLAUDE.md: preview with the global `vercel` CLI plus `vercel alias set … onit-dynastyweb-preview.vercel.app`; production = merge `--no-ff` to `main` and push (never `vercel --prod`).

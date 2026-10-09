@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import RollMoney from '@/components/RollMoney';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
 import { createClient } from '@/lib/supabase/client';
@@ -108,17 +109,27 @@ export default function InvoiceDetail() {
   const [payAmount, setPayAmount] = useState('');
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
-  // One-shot "paid" moment (MOTION-SPEC §6): only when a payment recorded here
-  // brings the balance to zero. Loading an already-paid invoice never plays it.
+  // One-shot "paid" moment (M4, replaces MOTION-SPEC §6's gold sweep): only
+  // when a payment recorded here brings the balance to zero. Loading an
+  // already-paid invoice never plays it. The status word fades (120ms), a PAID
+  // stamp lands with a small settle (200–700ms), the card dips 3px on impact,
+  // and the amount rolls down to what's left (500–1200ms).
   const [paidAnim, setPaidAnim] = useState(false);
+  const [paidFrom, setPaidFrom] = useState<number | null>(null);
   const paidAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current); }, []);
-  function celebratePaid() {
+  const paidTickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
     if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current);
+    if (paidTickRef.current) clearTimeout(paidTickRef.current);
+  }, []);
+  function celebratePaid(dueBefore: number) {
+    if (paidAnimTimerRef.current) clearTimeout(paidAnimTimerRef.current);
+    if (paidTickRef.current) clearTimeout(paidTickRef.current);
+    setPaidFrom(dueBefore);
     setPaidAnim(true);
-    paidAnimTimerRef.current = setTimeout(() => setPaidAnim(false), 1000);
-    // Short tick as it lands (Android; iOS ignores vibrate).
-    try { navigator.vibrate?.(12); } catch { /* unsupported */ }
+    paidAnimTimerRef.current = setTimeout(() => setPaidAnim(false), 1300);
+    // Success tick as the stamp lands (Android; iOS ignores vibrate).
+    paidTickRef.current = setTimeout(() => { try { navigator.vibrate?.(12); } catch { /* unsupported */ } }, 450);
   }
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -317,6 +328,7 @@ export default function InvoiceDetail() {
   // directly — so we refetch the invoice afterward to pick up the new total.
   async function recordPayment(amount: number) {
     if (!(amount > 0)) return;
+    const dueBefore = totals.dueNow;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
@@ -339,7 +351,7 @@ export default function InvoiceDetail() {
     const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     if (updated) {
       setInv(updated);
-      if (!wasFullyPaid && fullyPaid(updated)) celebratePaid();
+      if (!wasFullyPaid && fullyPaid(updated)) celebratePaid(dueBefore);
     }
     setPayMode('none');
     setPayAmount('');
@@ -594,15 +606,14 @@ export default function InvoiceDetail() {
 
   return (
     <div className="px-4 py-4">
-      <div className="card relative mb-4 overflow-hidden">
-        {paidAnim && <div aria-hidden className="onit-paid-sweep" />}
+      <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
+        {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
         <div className="flex items-center justify-between">
           <div>
             <div className="font-display text-lg font-bold">{inv.client_name}</div>
             <div className="text-xs text-on-surface-variant">
               {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} ·{' '}
-              <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-chip-in' : ''}`}
-                style={paidAnim ? { animationDelay: '380ms' } : undefined}>
+              <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-paid-word' : ''}`}>
                 {inv.status}
               </span>
             </div>
@@ -612,8 +623,9 @@ export default function InvoiceDetail() {
             )}
           </div>
           <div className="text-right">
-            <div className={`font-display text-xl font-bold text-primary${paidAnim ? ' onit-bump' : ''}`}
-              style={paidAnim ? { animationDelay: '380ms', transformOrigin: 'right center' } : undefined}>{money(totals.dueNow)}</div>
+            <div className="font-display text-xl font-bold text-primary tabular-nums">
+              <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
+            </div>
             {/* The headline is what's due right now (a deposit, or the balance
                 after payments). Show the full project total beneath it so it's
                 never hidden — but only when it differs, so a plain unpaid

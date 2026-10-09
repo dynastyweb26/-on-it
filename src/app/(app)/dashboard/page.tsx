@@ -7,11 +7,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
-import PaywallModal from '@/components/PaywallModal';
 import RecapsCard from '@/components/recap/RecapsCard';
-import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import AddExpenseSheet from '@/components/AddExpenseSheet';
+import RecurringBooksRow from '@/components/recurring/RecurringBooksRow';
+import RecurringSkipBanner from '@/components/recurring/RecurringSkipBanner';
+import { useRecurringItems } from '@/components/recurring/useRecurringItems';
+import { noteUpgradeReturn } from '@/lib/upgrade-return';
+import { skipKey, type Recurring } from '@/lib/recurring';
+import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
+import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
-import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -31,8 +36,11 @@ function tileMoney(n: number): string {
 // Signed exact money for the hero: a negative net reads "−$120.00" (sign, not
 // red — no colored numbers on this screen).
 const signedMoney = (n: number) => (n < 0 ? `−${money(-n)}` : money(n));
-// sessionStorage flag: the Books count-up already played this session (MOTION-SPEC §9).
-const BOOKS_COUNTED_KEY = 'onit_books_counted';
+// The Books count-up plays on the first visit of the day (motion inventory
+// "Books › First visit of the day"); later visits that day are static. The
+// stored value is the local date it last played (MOTION-SPEC §9 mechanics).
+const BOOKS_COUNTED_KEY = 'onit_books_counted_day';
+const localToday = () => new Date().toLocaleDateString('en-CA');
 
 // The old chips (Gas / Materials / Meals / Phone / Insurance) predate the
 // category CHECK and would now be rejected on save. Same eight values as the
@@ -41,12 +49,17 @@ const BOOKS_COUNTED_KEY = 'onit_books_counted';
 export default function Dashboard() {
   const supabase = createClient();
   const router = useRouter();
-  const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0 });
+  const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0, expenseCount: 0 });
+  // The "View expenses" subtitle names what that list will show (§L Q2).
+  const [expensesCaption, setExpensesCaption] = useState('');
+  useEffect(() => { setExpensesCaption(expensesListCaption(readListSort(EXPENSES_SORT_KEY), readExpenseGrouping())); }, []);
   // Initial-load only: without it the totals flash $0.00 / "0 invoices created"
   // before real data arrives, reading as an empty account. Cleared in finally so
   // no path can hang it true. The post-save refresh (loadStats) never toggles it,
   // so adding an expense doesn't re-flash the skeleton.
   const [loading, setLoading] = useState(true);
+  // Recurring items for the list-card row and the skip banner (merge 3).
+  const recurring = useRecurringItems();
   // Books motion (MOTION-SPEC §9). `shown` is what the hero and tiles display;
   // it tweens toward `stats`. The first open per session counts up from 0 with
   // the entrance (intro); later refreshes (after adding an expense) roll the
@@ -68,7 +81,7 @@ export default function Dashboard() {
     const prev = shownRef.current;
     let first = false;
     if (!prev) {
-      try { first = !sessionStorage.getItem(BOOKS_COUNTED_KEY); sessionStorage.setItem(BOOKS_COUNTED_KEY, '1'); } catch { first = false; }
+      try { first = localStorage.getItem(BOOKS_COUNTED_KEY) !== localToday(); localStorage.setItem(BOOKS_COUNTED_KEY, localToday()); } catch { first = false; }
     }
     if (reduced || (!prev && !first)) { setShown(next); return; }
     if (prev && next.spent > prev.spent) setSpentFlash((n) => n + 1);
@@ -100,21 +113,13 @@ export default function Dashboard() {
     tweenRaf.current = requestAnimationFrame(step);
   }
   const [showForm, setShowForm] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false); // free expense cap hit
+  // "Add it" on a paused-recurring banner (3·5): the sheet prefilled with that
+  // charge; saving hides the notice on this device.
+  const [manualFrom, setManualFrom] = useState<Recurring | null>(null);
+  const [hiddenSkips, setHiddenSkips] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => { setHiddenSkips(readHiddenSkips()); }, []);
   // Back from Stripe Checkout (returnTo 'books' → /dashboard?upgraded=1).
   useEffect(() => { noteUpgradeReturn(); }, []);
-
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory | ''>(''); // 'other' reveals a required field
-  const [detail, setDetail] = useState('');        // optional note (normal chips) OR required text (Other)
-  const [showNote, setShowNote] = useState(false); // "Add a note" reveal, normal chips only
-  const [spentOn, setSpentOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [saving, setSaving] = useState(false);
-
-  // Field-level errors (replaces the old combined message)
-  const [amountError, setAmountError] = useState('');
-  const [categoryError, setCategoryError] = useState('');
-  const [detailError, setDetailError] = useState('');
 
   async function loadStats() {
     const [{ data: invs }, { data: pays }, { data: exps }] = await Promise.all([
@@ -138,7 +143,7 @@ export default function Dashboard() {
       .filter((i) => ['sent', 'overdue'].includes(i.status))
       .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({ collected, outstanding, spent, count: rows.length });
+    setStats({ collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length });
     showStats({ net: collected - spent, collected, outstanding, spent });
   }
 
@@ -157,79 +162,16 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function resetForm() {
-    setAmount(''); setCategory(''); setDetail(''); setShowNote(false);
-    setSpentOn(new Date().toISOString().slice(0, 10));
-    setAmountError(''); setCategoryError(''); setDetailError('');
-  }
-
-  function selectCategory(c: ExpenseCategory) {
-    const next = category === c ? '' : c;
-    setCategory(next);
-    // switching category resets the text field's meaning (note vs. required)
-    setDetail('');
-    setShowNote(false);
-    setCategoryError('');
-    setDetailError('');
-  }
-
-  async function saveExpense() {
-    const value = Number(amount);
-    const trimmedDetail = detail.trim();
-
-    // Amount always required; description satisfied by a chip (or chip + note),
-    // or by "Other" + filled text. Field-level errors, no combined message.
-    let ok = true;
-    if (!value || value <= 0) { setAmountError('Enter an amount.'); ok = false; } else setAmountError('');
-    if (!category) { setCategoryError('Pick a category.'); ok = false; } else setCategoryError('');
-    if (category === 'other' && !trimmedDetail) { setDetailError('What was it for?'); ok = false; } else setDetailError('');
-    if (!ok || !category) return;
-
-    // Chip label is the description; an optional note is appended for good records.
-    const label = CATEGORY_LABEL[category];
-    const description =
-      category === 'other'
-        ? trimmedDetail
-        : trimmedDetail ? `${label} — ${trimmedDetail}` : label;
-
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setAmountError('Sign in to log expenses.'); return; }
-      const insert = () => supabase.from('expenses').insert({
-        user_id: user.id,
-        description,
-        amount: value,
-        category,
-        spent_on: spentOn,
-      });
-      let { error } = await insert();
-      // Just back from Stripe: the subscription reaches the DB via the webhook a
-      // moment later, so the cap trigger can still say no. Wait for access to
-      // flip (lib/upgrade-return.ts), then try the save once more.
-      if (error?.hint === 'PAYWALL_LIMIT_EXPENSE' && recentlyUpgraded()) {
-        const a = await waitForAccess((x) => x.canExpense === true);
-        if (a?.canExpense === true) ({ error } = await insert());
-      }
-      if (error) {
-        // Free expense cap (enforce_free_expense_limit): the wall, not the raw
-        // DB message. The form stays filled so it saves after upgrading.
-        if (error.hint === 'PAYWALL_LIMIT_EXPENSE') { setShowPaywall(true); return; }
-        setAmountError(error.message);
-        return;
-      }
-      setShowForm(false);
-      resetForm();
-      void loadStats();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;
   return (
-    <div className="space-y-3 px-4 py-4">
+    <div className="space-y-3 px-4 pb-4 pt-3.5">
+      {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
+          dot), then Net, the three tiles, Add expense, the list card and
+          Income & Expenses (§L Q4 keeps today's label). */}
+      <RecapsCard />
+      {/* A recurring charge On It couldn't log (3·6, L3). */}
+      <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
@@ -252,7 +194,7 @@ export default function Dashboard() {
           </Link>
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
-              Each opens the list whose total equals its number. */}
+              Each is a button to the list whose total equals its number. */}
           <div className="grid grid-cols-3 gap-2">
             <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
             <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
@@ -261,13 +203,9 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Weekly / monthly recaps: the latest one, or the locked card (free).
-          Between the tiles and the Summary / Expenses buttons (decided 2026-10-03). */}
-      <RecapsCard />
-
-      {/* Buttons rise last on the first open per session (MOTION-SPEC §9:
-          300ms, 350ms; View expenses 50ms after). Mounted with the totals, like
-          the tiles, so the entrance never starts on buttons already on screen. */}
+      {/* The rest rises last on the first visit of the day (MOTION-SPEC §9:
+          300 / 350 / 400ms). Mounted with the totals, like the tiles, so the
+          entrance never starts on buttons already on screen. */}
       {!loading && (
         <>
           <button
@@ -277,109 +215,45 @@ export default function Dashboard() {
           >
             <Icon name="add" size={22} /> Add expense
           </button>
+          {/* List card: Expenses + Recurring (merge 3 · 3·3). */}
+          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
+            style={intro ? { animationDelay: '350ms' } : undefined}>
+            <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-container-high">
+                <Icon name="receipt_long" size={21} />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-base font-semibold text-on-background">View expenses</span>
+                <span className="truncate text-[13px] text-on-surface-variant">{expensesCaption}</span>
+              </span>
+              <span className="text-sm font-semibold text-on-surface-variant tabular-nums">{stats.expenseCount}</span>
+              <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
+            </Link>
+            <RecurringBooksRow items={recurring} />
+          </div>
           <Link
             href="/summary"
             className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
-            style={intro ? { animationDelay: '350ms' } : undefined}
-          >
-            <Icon name="description" size={18} /> Income &amp; Expenses
-          </Link>
-          <Link
-            href="/expenses"
-            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '400ms' } : undefined}
           >
-            <Icon name="receipt_long" size={18} /> View expenses
+            <Icon name="description" size={18} /> Income &amp; Expenses
           </Link>
         </>
       )}
 
       {showForm && (
-        // data-kb-fit: pinned to the visible area while typing, so the sheet sits
-        // on the keyboard; max-h tops out at that area (100%) and it scrolls.
-        <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowForm(false)}>
-          <div
-            className="max-h-[min(88dvh,100%)] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold">Add expense</h2>
-              <button aria-label="Close" className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant"
-                onClick={() => setShowForm(false)}>
-                <Icon name="close" size={24} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <input
-                  className="input font-display font-bold text-lg"
-                  placeholder="$ Amount" inputMode="decimal" value={amount}
-                  onChange={(e) => { setAmount(e.target.value.replace(/[^0-9.]/g, '')); if (amountError) setAmountError(''); }}
-                />
-                {amountError && <p className="mt-1 text-sm text-error">{amountError}</p>}
-              </div>
-
-              {/* Chips are the primary input — a selection satisfies the description */}
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <button key={c} className={`chip ${category === c ? 'chip-selected' : ''}`}
-                      aria-pressed={category === c}
-                      onClick={() => selectCategory(c)}>
-                      {CATEGORY_LABEL[c]}
-                    </button>
-                  ))}
-                </div>
-                {categoryError && <p className="mt-1 text-sm text-error">{categoryError}</p>}
-              </div>
-
-              {/* Normal chips: optional note, hidden behind a quiet link */}
-              {category && category !== 'other' && !showNote && (
-                <button
-                  className="min-h-touch text-left text-label-lg font-semibold text-primary"
-                  onClick={() => setShowNote(true)}
-                >
-                  Add a note
-                </button>
-              )}
-              {category && category !== 'other' && showNote && (
-                <input
-                  className="input"
-                  autoFocus
-                  placeholder="Add a note (optional)"
-                  maxLength={280}
-                  value={detail}
-                  onChange={(e) => setDetail(e.target.value)}
-                />
-              )}
-
-              {/* Other: required free text */}
-              {category === 'other' && (
-                <div>
-                  <input
-                    className="input"
-                    autoFocus
-                    placeholder="What was it for?"
-                    maxLength={300}
-                    value={detail}
-                    onChange={(e) => { setDetail(e.target.value); if (detailError) setDetailError(''); }}
-                  />
-                  {detailError && <p className="mt-1 text-sm text-error">{detailError}</p>}
-                </div>
-              )}
-
-              <input
-                type="date" className="input"
-                value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
-              />
-              <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
-                {saving ? 'Saving…' : 'Save expense'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddExpenseSheet onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); void loadStats(); }} />
       )}
-      {showPaywall && <PaywallModal variant="expense" returnTo="books" onClose={() => setShowPaywall(false)} />}
+      {manualFrom && (
+        <AddExpenseSheet
+          initial={{
+            amount: manualFrom.amount, category: manualFrom.category, spentOn: manualFrom.last_skipped_on ?? localToday(),
+            note: manualFrom.vendor, fromPausedBanner: true,
+          }}
+          onClose={() => setManualFrom(null)}
+          onSaved={() => { setHiddenSkips(hideSkip(skipKey(manualFrom))); setManualFrom(null); void loadStats(); }}
+        />
+      )}
     </div>
   );
 }
@@ -395,10 +269,11 @@ function Tile({ href, value, label, dot, hint, intro = false, order = 0, flash =
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`card flex min-h-touch flex-col justify-center gap-1 p-3 transition-transform active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`relative flex min-h-touch flex-col justify-center gap-2 rounded-[18px] border border-outline-variant/60 bg-surface-container-low py-3.5 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(34,30,24,.06)] transition-transform duration-[120ms] active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <div className={`truncate font-display text-[20px] font-bold leading-tight tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
+      <Icon name="chevron_right" size={14} className="absolute right-1.5 top-2 text-outline" />
+      <div className={`truncate font-display text-[21px] font-extrabold leading-none tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
         {tileMoney(value)}
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-on-surface-variant">

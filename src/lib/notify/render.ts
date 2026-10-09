@@ -38,7 +38,7 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         payouts_paused: ['Payouts are paused', 'Stripe needs something before it can pay you out. Tap to fix.'],
         disconnected:   ['Stripe is disconnected', 'Card payments are off. Tap to reconnect in Settings.'],
       }[event.problem];
-      return { title: copy[0], body: copy[1], url: '/settings', tag: 'connect' };
+      return { title: copy[0], body: copy[1], url: '/settings/payouts', tag: 'connect' };
     }
     case 'invoice_viewed': {
       const no = formatDocNumber('invoice', event.invoiceNumber);
@@ -68,6 +68,17 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         body: 'Tap to see how you did.',
         url: `/dashboard?recap=${event.recapId}`,
         tag: `recap-${event.kind}-${event.periodStart}`,
+      };
+    }
+    case 'recurring_skipped': {
+      // Free-limit skips only (errors never push). Names the first item; the
+      // rest are a count. No amounts: the Recurring screen has the detail.
+      const more = event.vendors.length - 1;
+      return {
+        title: more > 0 ? `Couldn't log ${event.vendors[0]} + ${more} more` : `Couldn't log ${event.vendors[0]}`,
+        body: 'Free limit reached. Tap to see your recurring expenses.',
+        url: '/dashboard/recurring',
+        tag: 'recurring-skipped',
       };
     }
   }

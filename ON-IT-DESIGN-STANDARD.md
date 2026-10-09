@@ -100,8 +100,11 @@ emoji-removal item) and any mixed icon libraries.
 - Icons accompany text on chips, nav items, and stat cards; icons stand alone only
   for universally understood actions (mic, send, back, notifications).
 - Icon color follows text color rules (§2 contrast rule).
-- Canonical assignments: Chat `mic`, Invoices `description`, Money `payments`,
-  Settings `settings`, notifications `notifications`, send `send`, preview
+- Canonical assignments (nav, UI redesign 2026-10-03): Clients `group`,
+  Invoices `description`, Chat `chat_bubble` (centre tab), Books `payments`,
+  Settings `settings`. Voice is `mic` (the composer's "+" menu); composer send
+`arrow_upward`; gallery `image`; Recaps `auto_awesome`; sort captions
+`sort_by_alpha` / `schedule`. Also: notifications `notifications`, send `send`, preview
   `preview`, share `attach_file`/native share icon, paid `check_circle`,
   overdue `warning`, draft `history`, expense `shopping_cart`, deductible `receipt_long`.
 
@@ -138,9 +141,13 @@ Tonal layering, not shadows:
 **Primary button** — 56px min height, pill, `#d4af37` fill, `#1f1b13` text, Inter 600.
 Active: scale 0.97 + gold ring.
 
-**Voice FAB** — 72px circle, `#d4af37`, `mic` icon in `#1f1b13`. Pulse animation while
-listening (respect `prefers-reduced-motion`: swap pulse for a static FILL-1 icon +
-"Listening" label).
+**Composer** (UI redesign, release frames 1a) — a 44px soft-gold (`#f0e3b8`) "+"
+on the left (Voice · New invoice · New quote; it turns ink × while open or during a
+voice session), a 44px pill field "Message On It…" (`surface-container-lowest`,
+`outline-variant` border) with gallery (`image`) and camera (`photo_camera` on soft
+gold) inside its right edge, and a 44px ink send (`arrow_upward`) on the right,
+muted when disabled. During a voice session the field shows a red level dot,
+"Listening…" and Done / Speak.
 
 **Invoice card** — 20px radius, `surface-container-low`. Status chip top-right,
 client name headline top-left, amount bottom-left in `numeric-xl`, chevron affordance
@@ -152,17 +159,28 @@ right. 64px+ rows.
 **Voice transcription field** — live transcript in `body-lg` italic,
 `on-surface-variant`, with a small animated waveform glyph. Confirms the app heard you.
 
-**Chat bubbles** — App: white (`surface-container-lowest`), 20px radius. User:
-`#d4af37` fill with `#3a2f00`-range text, 20px radius. Timestamps `label-lg`
-in `on-surface-variant`.
+**Chat bubbles** (release frames) — On It: `surface-container` with an
+`outline-variant` hairline; you: `inverse-surface` (ink) with cream text. 18px
+radius with the tail corner at 6px, 15px text. A day label ("TODAY") sits over
+the conversation.
 
 **Dark stat card** (Money screen net earnings) — `inverse-surface` background,
 label in `inverse-primary` at `label-lg`, figure in `#e9c349` Montserrat 700.
 This is the one deliberately dark element per screen — don't multiply it.
 
-**Bottom nav** — glass (blur 20px over `background` at ~80% opacity). Active tab:
-pill highlight `#d4af37` at full or `primary` text + FILL-1 icon. Inactive:
-`on-surface-variant`.
+**Bottom nav** (release frames 0a) — glass (blur 20px over `background` at ~80%
+opacity). Each tab is an icon pill (58×32) with an 11.5px label under it; Chat is
+the raised centre pill (64×36, 4px up) with a soft-gold fill at rest. Active: the
+gold `#d4af37` disc behind the pill, FILL-1 icon, bold label. Books carries a red
+unread-recap dot.
+
+**Grouped rows** (Settings, Books list card) — uppercase group label, then a
+`surface-container-lowest` card (16–18px radius, `outline-variant` border) of
+54–64px rows: 32–36px icon tile, title, muted value, chevron.
+
+**Status tags** (Invoices) — 24px, 7px radius, 11px bold uppercase with
+letter-spacing, always icon + text: "DUE OCT 16" (soft gold), PAID, OVERDUE,
+DRAFT, VOID, CONVERTED; a viewed invoice shows the eye.
 
 ## 9. Voice & copy
 
