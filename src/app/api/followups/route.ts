@@ -1,8 +1,8 @@
 // GET /api/followups — Vercel Cron target (see vercel.json).
 // Every run: find sent/unpaid invoices not nudged in 2+ days and not due in
 // the future, push a notification to the owner, stamp last_nudge_at. Then, in
-// production only, send draft nudges (step 2) and build weekly/monthly recaps
-// (step 3).
+// production only, send draft nudges (step 2), build weekly/monthly recaps
+// (step 3) and log recurring expenses (step 4).
 // Delivery goes through the shared web-push channel (lib/notify/webpush):
 // parallel sends under a 4s cap, only this environment's devices, and a
 // device is dropped only on 404/410 — not on any error, as before.
@@ -14,7 +14,11 @@ import { verifyCronAuth } from '@/lib/cron-auth';
 import { sendWebPush } from '@/lib/notify/webpush';
 import { runDraftNudges } from '@/lib/notify/draft-nudges';
 import { runRecaps } from '@/lib/notify/recaps';
+import { runRecurring } from '@/lib/notify/recurring';
 import { deployEnv } from '@/lib/deploy-env';
+
+// Four steps in one invocation (Hobby: one cron entry); room for a long day.
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) {
@@ -100,5 +104,17 @@ export async function GET(req: NextRequest) {
     ? await runRecaps()
     : { candidates: 0, built: 0, existing: 0, quiet: 0, skipped_inactive: 0, pushed: 0, skipped: 'not production' };
 
-  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts, recaps });
+  // Step 4: recurring expenses (lib/notify/recurring). Production only, for the
+  // same reason: a preview run would log real owners' charges and claim their
+  // digest keys. Preview tests it for the signed-in user via /api/recurring/test.
+  // Its own try/catch, so a throw here never loses the steps above.
+  let recurring: Awaited<ReturnType<typeof runRecurring>> | { skipped: string };
+  try {
+    recurring = deployEnv() === 'production' ? await runRecurring() : { skipped: 'not production' };
+  } catch (e) {
+    console.error('followups: recurring step failed', (e as Error)?.message);
+    recurring = { skipped: 'failed' };
+  }
+
+  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts, recaps, recurring });
 }
