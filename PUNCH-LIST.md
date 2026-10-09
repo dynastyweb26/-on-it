@@ -555,8 +555,12 @@ above. Not audited yet: each starts with an audit of the current code._
 
 | Item | Status | Evidence |
 |---|---|---|
-| 1 · Quote/invoice PDF breaks to page 2 too early | **Open — next after the smoke test** (founder, 2026-10-09) | Reported: quote Q-0024 has 6 line items; page 1 shows 4 rows and then a large empty gap, and the remaining rows spill onto page 2. Audit the PDF pagination under `lib/pdf` (`wrap` / `break` / `minPresenceAhead` on the rows and the totals block, and any rows-per-page limit) before fixing. |
+| 1 · Quote/invoice PDF breaks to page 2 too early | **Built — awaiting preview** (`fix/pdf-pagination`) | Reported: quote Q-0024 has 6 line items; page 1 shows 4 rows and then a large empty gap, and the remaining rows spill onto page 2. Cause (audit 2026-10-09): `elementToPdf` shed rows from page 1 to make room for totals + How to pay + notes as one unit, then removed those blocks from page 1 anyway; any 6–12 item document capped page 1 at ~5 rows, while 13+ filled it. Fix: C `31b6d7d` measured per-template bottom limit (no hard-coded 56 / 1060); B `e661beb` blocks placed one at a time after the last rows, totals first, overflow on a table-less page (Friendly's last page now prints totals before notes); D `4f61627` Ledger totals / How to pay / closing line are last-page blocks (they printed on page 1 above page-2 rows); plus a follow-up commit so Ledger and Industrial quote continuation pages are headed "QUOTE", not "INVOICE". Temporary `console.debug` commit to drop before merge. The old "scaled to fit one page" P1 is a separate bug, fixed 2026-09-30. |
 | 2 · Paid features don't unlock instantly after paying | **Open — after item 1** (founder, 2026-10-09) | Reported: after a subscription payment or a discount code, paid features stay locked until a later refresh. Entitlements must refresh automatically with minimal delay (webhook → client via Supabase realtime or short polling). Audit the current flow first (checkout return, webhook writes to `profiles`, how the client reads the tier). |
+
+PDF paginator is slated for replacement by @react-pdf/renderer (Batch 6, plan in Notion On It decisions page) — this fix is interim.
+
+Logged, not fixed: Friendly's "Thank you for your business." line isn't a last-page block, so on a document whose rows overflow page 1 it stays on page 1 under the rows and can be clipped at the page bottom (pre-existing).
 
 ## Scaling plan, before launch — logged 2026-10-09
 
