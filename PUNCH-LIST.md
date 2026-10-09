@@ -558,6 +558,25 @@ above. Not audited yet: each starts with an audit of the current code._
 | 1 · Quote/invoice PDF breaks to page 2 too early | **Open — next after the smoke test** (founder, 2026-10-09) | Reported: quote Q-0024 has 6 line items; page 1 shows 4 rows and then a large empty gap, and the remaining rows spill onto page 2. Audit the PDF pagination under `lib/pdf` (`wrap` / `break` / `minPresenceAhead` on the rows and the totals block, and any rows-per-page limit) before fixing. |
 | 2 · Paid features don't unlock instantly after paying | **Open — after item 1** (founder, 2026-10-09) | Reported: after a subscription payment or a discount code, paid features stay locked until a later refresh. Entitlements must refresh automatically with minimal delay (webhook → client via Supabase realtime or short polling). Audit the current flow first (checkout return, webhook writes to `profiles`, how the client reads the tier). |
 
+## Scaling plan, before launch — logged 2026-10-09
+
+_From the scaling plan on the Notion decisions page ("Scaling plan — 500+
+concurrent users", §10). Only the "before public launch" items are listed;
+code and live DB checked 2026-10-09._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Connection pooler on all server code | **Not needed today** | No Postgres driver in `package.json`; every query goes through supabase-js (PostgREST over HTTP), which Supabase pools. Revisit if a direct `pg` connection is ever added. |
+| Indexes + EXPLAIN on the top queries | **Open** | Live `pg_indexes` (read-only, 2026-10-09): `user_id` composites already exist on expenses (`user_id, spent_on desc`), notification_log, recaps, vault_documents, clients, products. Gap: `invoices` has only `(user_id)` and `(user_id, status)`, no `(user_id, <date>)`. Run EXPLAIN on the invoice list, Books dashboard and recap queries before adding any index. |
+| Client-side receipt compression | **Done** | `src/lib/receipt.ts`: longest edge 1600px, JPEG quality steps 0.82 → 0.5 until ≤ 900KB (`TARGET_BYTES`), HEIC converted. The Notion plan's ~300KB is a tighter target, so treat it as optional. |
+| Private buckets + signed URLs | **Partial** | `receipts` and `vault` are private and read through signed URLs (`expenses/page.tsx:108`, `vault/page.tsx:46`). `logos` is public (`getPublicUrl`, `SettingsView.tsx:330`, `onboarding/page.tsx:90`), already tracked on Notion as "pay page: logo URL leaks owner UUID". |
+| Staging DB | **See existing** | "Separate preview database" (Pre-launch) and "Separate Supabase project for previews" (UI redesign). |
+| Error tracking | **Open** | No error tracker installed (no Sentry or similar in `package.json`); server errors exist only in Vercel logs. |
+| Log retention | **Open** | Production Vercel logs reached back only ~35 min on 2026-10-09 (oldest 14:41 UTC at 15:16), so a cron run can't be checked after the fact. Needs a log drain or longer retention. |
+| Recap idempotency + catch-up | **Idempotency done; catch-up see existing** | Unique `(user_id, kind, period_start)` on `recaps` (live index). Catch-up: "Recap catch-up for missed periods" (UI redesign). |
+
+Later stages (~100–300 users, when chat hub / Plaid / voice ship, only if metrics demand it): see [the Notion decisions page](https://app.notion.com/p/3defb55d231681e988e1c786e0ae1a02), "Scaling plan" §10. Not logged here.
+
 ## Receipt capture motion — logged 2026-10-01 (`feat/receipt-motion`; hotfix `fix/shutter-reduced-motion`, merged `9a6b8f7`)
 
 _Board "05 · Receipt capture", MOTION-SPEC §8 (as built). Checked in headless
