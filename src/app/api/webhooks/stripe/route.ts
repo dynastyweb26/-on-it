@@ -122,7 +122,13 @@ export async function POST(req: NextRequest) {
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        await applySubscription(event.data.object as Stripe.Subscription);
+        // Fetch the subscription fresh rather than trusting the event's
+        // snapshot: Stripe doesn't guarantee delivery order, so a late,
+        // older event could otherwise roll a paid user back (e.g. an
+        // 'incomplete' snapshot landing after the 'active' one).
+        const snapshot = event.data.object as Stripe.Subscription;
+        const sub = await stripe.subscriptions.retrieve(snapshot.id);
+        await applySubscription(sub);
         break;
       }
       case 'customer.subscription.deleted': {
