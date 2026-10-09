@@ -70,5 +70,16 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         tag: `recap-${event.kind}-${event.periodStart}`,
       };
     }
+    case 'recurring_skipped': {
+      // Free-limit skips only (errors never push). Names the first item; the
+      // rest are a count. No amounts: the Recurring screen has the detail.
+      const more = event.vendors.length - 1;
+      return {
+        title: more > 0 ? `Couldn't log ${event.vendors[0]} + ${more} more` : `Couldn't log ${event.vendors[0]}`,
+        body: 'Free limit reached. Tap to see your recurring expenses.',
+        url: '/dashboard/recurring',
+        tag: 'recurring-skipped',
+      };
+    }
   }
 }
