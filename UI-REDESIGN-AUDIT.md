@@ -747,6 +747,20 @@ along: `dfab3cf` (tutorial mock bubbles) and `9bc293d` (Books tile chevron).
 | 3·6 | **↻ on expense rows** + "Logged automatically" shimmer + skip notice (Recurring row + Books banner) | needs 3·1 | Low |
 | 3·7 | Docs (MOTION-SPEC, PUNCH-LIST, SECURITY.md cron line) | — | — |
 
+**As built (2026-10-08; the plan above is unchanged, PUNCH-LIST has detail):**
+- 3·4: the prompt follows chat expenses and receipts only. Not after Books
+  sheet saves: the sheet has no vendor field, so `repeat_candidate` can't
+  match (founder; parked).
+- 3·5: runs as step 4, **after** recaps (not before). On a normal day the
+  order doesn't matter (today's charge belongs to the new period). After a
+  missed cron day it can: a catch-up charge dated in the period a recap just
+  snapshotted lands after the snapshot (recaps are insert-once). Catch-up is ≤ 12 due dates per item per run, never
+  before the item's created day (not "≤ 3"). The first skip ends that item's
+  run. Free-limit skips send **one digest push per owner per day**, not one
+  per item. Errors don't push; they retry daily and after 3 calendar days
+  auto-log turns off, and the Books banner says it paused with a prefilled
+  "Add it". No Migration E.
+
 **Why this order:**
 - Merge 1 touches no table and can ship alone.
 - In merge 2, each table lands before its UI, and units land before the

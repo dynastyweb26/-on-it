@@ -249,6 +249,40 @@ Reduce Motion: CSS pieces land on their end state via the global kill
 switch; the JS-driven ones (M2 flight, search reflow, letter pulse) are
 skipped, and the tab still shows "+1".
 
+## 16. UI redesign merge 3 as built (`feat/ui-redesign`, 2026-10-08)
+
+Same rule as §14 / §15. Merge 3 is Recurring: the screen, the Books and
+Settings rows, "Make it recurring?", the cron (no motion), the ↻ markers.
+
+**Recurring list (3·2, tokens):** the shared saved-list rows (Clients /
+Products): press .99, swipe left to Edit / Stop & delete, long-press lifts
+the row into the menu; Stop & delete collapses the row with Undo. The form
+saves to a ✓ and goes back.
+
+**M3 make recurring (3·4, ~950 ms in the save-prompt card):** on Make
+recurring a gold ring draws round the ↻ disc (stroke-dashoffset, 520ms
+`--ease-emphasized`), ↻ spins once (600ms emphasized, 120ms in), the
+cadence tag pops in (`onit-chip-in`, 280ms spring), a gold shimmer crosses
+the card (700ms standard, 200ms in); then the card leaves the usual way.
+No flight (unlike M2).
+
+**Auto-logged rows (3·6):** a cron-logged expense shows a small gold ↻
+after its name; for 24 h its sub-line reads "Logged automatically · Oct 8"
+and the row gets one gold shimmer (`--motion-slow`, 250ms in), once per row
+per device (`onit-autolog-seen`).
+
+**Banners (3·6 / 3·5):** the Books skip banner rises in (`onit-rise`),
+presses .99, opens Recurring. The paused-after-errors banner (3·5) is the
+same card, not a link, with **Add it** (opens the Add expense sheet,
+prefilled, `onit-sheet-in`) and **Recurring** chips.
+
+**Not built in merge 3:** "Make it recurring?" after Books / Expenses
+sheet saves (that sheet has no vendor field; PUNCH-LIST, parked).
+
+Reduce Motion: the M3 ring / spin / shimmer and the auto-log shimmer land
+on their end state via the global kill switch; the banner and card still
+appear, without the rise.
+
 ## Build order (one commit each)
 
 Batch A (preview, test on phone, merge):
