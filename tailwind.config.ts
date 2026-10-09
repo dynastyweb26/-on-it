@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 // ═══ On It — Warm Premium tokens (Design Standard v1.0) ═══
-// Source of truth: ON-IT-DESIGN-STANDARD.md + tailwind.config.snippet.js.
+// Source of truth: ON-IT-DESIGN-STANDARD.md + design/tailwind.config.snippet.js.
 // Gold rule: primary (#735c00) = gold as TEXT/ICON on light surfaces;
 // primary-container (#d4af37) = gold as FILL with dark text only;
 // inverse-primary (#e9c349) = gold on dark surfaces. Never white on #d4af37.

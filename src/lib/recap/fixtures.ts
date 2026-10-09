@@ -183,10 +183,6 @@ export const stressWeek: Scenario = {
 
 export const SCENARIOS = { normalWeek, quietWeek, investmentWeek, caughtUp, nothing, busyMonth, quietMonth, spikyMonth };
 export type ScenarioId = keyof typeof SCENARIOS;
-export const SCENARIO_LABELS: Record<ScenarioId, string> = {
-  normalWeek: 'Normal week', quietWeek: 'Quiet week ($0 in)', investmentWeek: 'Investment week', caughtUp: 'Caught up', nothing: 'Nothing at all',
-  busyMonth: 'Busy month', quietMonth: 'Quiet month', spikyMonth: 'Spiky month',
-};
 
 /** The prototype's getScenario: invoiceCount (1|3|7|20) replaces the unpaid
  *  list ("Still on the table") or, when nothing is owed, the paid list. */

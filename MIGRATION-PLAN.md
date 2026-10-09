@@ -19,7 +19,7 @@ selected state (B2), app-wide emoji removal (B2), Sidebar template polish decisi
 
 ## Step 1 — Audit (no changes, output an inventory file)
 Produce `DESIGN-AUDIT.md` in the repo root containing:
-- Tailwind version (v3 or v4) — this decides tokens.css vs config snippet.
+- Tailwind version (v3 or v4) — this decides design/tokens.css vs config snippet.
 - Every hardcoded hex/rgb color in `app/` and `components/` (grep `#[0-9a-fA-F]{3,8}`
   and `rgb(`), grouped by file.
 - Current font imports and where font classes are applied.
@@ -35,9 +35,9 @@ Produce `DESIGN-AUDIT.md` in the repo root containing:
 - Add Material Symbols Outlined (variable font) — prefer self-hosted or
   `next/font` if feasible; otherwise the Google Fonts stylesheet link with
   `display=swap`.
-- Install tokens: Tailwind v4 → merge `tokens.css` into `app/globals.css`;
-  v3 → merge `tailwind.config.snippet.js` into config + keep the base/body,
-  ring, pulse, glass, and icon classes from tokens.css.
+- Install tokens: Tailwind v4 → merge `design/tokens.css` into `app/globals.css`;
+  v3 → merge `design/tailwind.config.snippet.js` into config + keep the base/body,
+  ring, pulse, glass, and icon classes from design/tokens.css.
 - Remove old font setup.
 - Commit: `feat(design): warm premium token foundation (fonts, colors, radii)`
 

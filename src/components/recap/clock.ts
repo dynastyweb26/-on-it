@@ -42,11 +42,3 @@ export type SlideProps = {
   onAction: (a: RecapAction) => void;
 };
 
-const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
-/** Runs `fn(t)` on every clock tick (and once now). */
-export function useClock(clock: SlideClock, fn: (t: number) => void) {
-  const ref = useRef(fn);
-  ref.current = fn;
-  useIsoLayoutEffect(() => clock.subscribe((t) => ref.current(t)), [clock]);
-}

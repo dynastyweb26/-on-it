@@ -4,7 +4,7 @@
 
 /* Warm Premium (Design Standard v1.0). Tokens live in tailwind.config.ts;
    this file holds the base layer + the handful of stateful classes from
-   tokens.css (ring, pulse, glass, icon defaults). */
+   design/tokens.css (ring, pulse, glass, icon defaults). */
 
 /* Explicit cream canvas on BOTH html and body (also inlined on <html> in
    layout.tsx) so no frame can paint black or white, and color-scheme: light so

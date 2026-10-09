@@ -13,7 +13,7 @@
   --onit-cream: #fff8f0; --onit-ink: #1f1b13; --onit-secondary: #4d4635;
   --onit-gold: #d4af37; --onit-gold-light: #f1d57c; --onit-gold-deep: #b8952a; --onit-gold-text: #735c00;
   --onit-success: #2e6b3f; --onit-success-tint: #e3efe3; --onit-neutral-chip: #efe8dc; --onit-track: #efe6d6;
-  --onit-ink-raised: #2a251c; --onit-on-ink-muted: #cfc3ad; --onit-on-ink-body: #e9dfcc;
+  --onit-on-ink-muted: #cfc3ad; --onit-on-ink-body: #e9dfcc;
   --onit-data-1: #d4af37; --onit-data-2: #2f8a83; --onit-data-3: #c0693f; --onit-data-4: #5b77a8; --onit-data-5: #6f8c5c;
   --onit-muted-dot: #a39a86;
   --onit-display: var(--font-montserrat), system-ui, sans-serif;
