@@ -678,8 +678,8 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
         </div>
         <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
-          <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
+          <div data-pdf-doc-noun="true" style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
+          <div data-pdf-doc-number="true" style={{ fontSize: 16, fontWeight: 700, color: t.accent, marginTop: 2, fontFamily: MONO }}>{formatDocNumber(d.kind, d.invoiceNumber)}</div>
           <div style={{ fontSize: 12, marginTop: 8 }}><span style={eyebrow}>Issued</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.issuedDate}</span></div>
           {d.dueDate && <div style={{ fontSize: 12, marginTop: 2 }}><span style={eyebrow}>Due</span>&nbsp; <span style={{ fontFamily: MONO }}>{d.dueDate}</span></div>}
         </div>
@@ -733,9 +733,9 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         fontWeight: 800, textTransform: 'uppercase', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
+        <span data-pdf-doc-noun="true" style={{ fontSize: 22, letterSpacing: 6 }}>{docNoun(d.kind)}</span>
         <span style={{ fontSize: 14, letterSpacing: 3 }}>
-          {formatDocNumber(d.kind, d.invoiceNumber)}&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
+          <span data-pdf-doc-number="true">{formatDocNumber(d.kind, d.invoiceNumber)}</span>&nbsp;&nbsp;·&nbsp;&nbsp;{d.issuedDate}{d.dueDate ? `  ·  DUE ${d.dueDate}` : ''}
         </span>
       </div>
       <div style={{ padding: '36px 56px' }}>
