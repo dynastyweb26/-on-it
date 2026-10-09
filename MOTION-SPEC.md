@@ -12,7 +12,7 @@ Source of truth for the designs: the "On It Motion Kit" canvas in Claude Design 
 
 ## 1. Motion tokens (build first)
 
-Add to `tokens.css` / `globals.css` and use everywhere below:
+Add to `design/tokens.css` / `globals.css` and use everywhere below:
 
 ```css
 --motion-fast: 160ms;   /* exits, taps, toggles */

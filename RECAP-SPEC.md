@@ -23,7 +23,7 @@ decode, gunzip where `compressed: true`. The JS files are:
 
 ## 0. Rules (On It build)
 
-- On It design tokens only (`tailwind.config.ts`, `tokens.css`); `#d4af37` is
+- On It design tokens only (`tailwind.config.ts`, `design/tokens.css`); `#d4af37` is
   never text (labels use `#735c00` on light, on-ink tokens on dark).
 - Material Symbols Outlined only (add names to `icon-names.ts` + `npm run icons:build`).
   No emojis. No tax / deductible wording anywhere in the recap.

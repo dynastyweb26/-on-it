@@ -7,8 +7,8 @@ Vercel project confirmed: `on-it` (`prj_keV87af0b41itCq78ol0ajSHbdXA`).
 
 **v3.4.15** (`tailwindcss: ^3.4.15` in package.json, classic `tailwind.config.ts` +
 `@tailwind` directives in globals.css).
-→ Per Migration Plan Step 2: merge `tailwind.config.snippet.js` into the config and
-carry over the base/body, ring, pulse, glass, and icon classes from `tokens.css`
+→ Per Migration Plan Step 2: merge `design/tailwind.config.snippet.js` into the config and
+carry over the base/body, ring, pulse, glass, and icon classes from `design/tokens.css`
 (both files present in `design-reference/files (1)/on-it-warm-premium/on-it-design/`).
 
 ## 2. Hardcoded colors, grouped by file
