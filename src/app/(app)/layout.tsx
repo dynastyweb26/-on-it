@@ -11,6 +11,8 @@ import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
+import { noteUpgradeReturn, watchAccessOnReturn } from '@/lib/upgrade-return';
+import { PAYWALL_ENABLED } from '@/lib/paywall';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -101,6 +103,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [bounceIdx, setBounceIdx] = useState(-1);
   // M2 (2·13): a saved client / item lands on a tab — bump + "+1".
   const [bump, setBump] = useState<{ href: string; n: number } | null>(null);
+  // Paid access without a reload: every Checkout return screen (Chat, Summary,
+  // Books, Invoices, Settings) sits under this layout, so noting the return
+  // here covers them all; then re-check whenever the app comes back into view
+  // (Checkout may have finished in another browser). lib/upgrade-return.
+  useEffect(() => {
+    noteUpgradeReturn();
+    return PAYWALL_ENABLED ? watchAccessOnReturn() : undefined;
+  }, []);
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const onBump = (e: Event) => {

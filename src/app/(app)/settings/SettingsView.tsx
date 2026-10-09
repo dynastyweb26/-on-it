@@ -12,6 +12,7 @@ import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
+import { onAccessChange } from '@/lib/upgrade-return';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import type { SettingsSection } from './sections';
 
@@ -125,6 +126,13 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     hasAccess: boolean; tier: string; invoiceCount: number; expenseCount?: number;
     invoiceLimit?: number | null; expenseLimit?: number | null; trialEligible?: boolean;
   } | null>(null);
+  // A tier change seen elsewhere (back from Checkout, a code redeemed, the app
+  // back in view) turns the Subscribe row into the plan row without a reload.
+  useEffect(() => onAccessChange((a) => {
+    if (typeof a.tier === 'string' && typeof a.hasAccess === 'boolean' && typeof a.invoiceCount === 'number') {
+      setAccess(a as NonNullable<typeof access>);
+    }
+  }), []);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
   // Stripe Connect: busy covers both the onboarding redirect and a status

@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PdfChoiceSheet from '@/components/PdfChoiceSheet';
 import PaywallModal from '@/components/PaywallModal';
-import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { noteUpgradeReturn, onAccessChange, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
@@ -79,6 +79,11 @@ export default function TaxSummary() {
     })();
     return () => { active = false; };
   }, []);
+  // A tier change seen elsewhere (a code redeemed on the reports wall, the
+  // post-upgrade poll, the app back in view) unlocks the exports in place.
+  useEffect(() => onAccessChange((a) => {
+    if (typeof a.canExport === 'boolean') setCanExport(a.canExport);
+  }), []);
   /** An export tap: the Totals / Itemized sheet, or the reports wall. */
   function openExport(kind: SummaryPdfKind) {
     if (canExport === false) { setReportsWall(true); return; }

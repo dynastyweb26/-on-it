@@ -22,7 +22,7 @@ import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { noteUpgradeReturn, onAccessChange, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { fetchUsageLine } from '@/lib/usage';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
@@ -1310,6 +1310,12 @@ export default function Chat() {
   // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
   // wait out the webhook instead of re-showing the wall.
   useEffect(() => { noteUpgradeReturn(); }, []);
+  // A tier change seen elsewhere (upgrade return, code redeem, app back in
+  // view) updates this screen's profile copy, so the pre-build and the
+  // over-cap reply stop treating a paid user as capped.
+  useEffect(() => onAccessChange((a) => {
+    if (typeof a.tier === 'string') setProfile((p) => (p ? { ...p, access_tier: a.tier as string } : p));
+  }), []);
 
   /** The card summary, posted once when the card first appears: what we have,
    *  any contact pulled from the saved client record (so a stale one can be
