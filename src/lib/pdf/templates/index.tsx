@@ -182,7 +182,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           by the block's single pay-page link; no link of its own. */}
       {card && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
-          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
           <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
         </div>
       )}
@@ -516,7 +516,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {/* Card line — first, in the rail's own row style, no brand mark. */}
       {card && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
           <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
         </div>
       )}
