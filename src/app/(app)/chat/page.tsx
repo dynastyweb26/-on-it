@@ -2892,7 +2892,14 @@ export default function Chat() {
     setFinished(false);
     setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
-    setMessages([greeting(), startMsg]);
+    // The revision opens on the original conversation (so you, and the AI on
+    // the next change, still see the job as first described), then the start
+    // line, with the new card under it. Dropped so nothing stale is tappable:
+    // failed bubbles (their retry button), old "start new chat" buttons, and
+    // quiet usage lines. Copies only — the original's History entry is keyed
+    // by the old convoId and is never rewritten.
+    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet);
+    setMessages([...(carried.length ? carried : [greeting()]), startMsg]);
     setDraft(seed);
     setReady(true);
     setCardAfterId(startMsg.id);
