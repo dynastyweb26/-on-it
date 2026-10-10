@@ -24,6 +24,7 @@ import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { fetchUsageLine } from '@/lib/usage';
+import DepositValueInput from '@/components/DepositValueInput';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -2891,7 +2892,14 @@ export default function Chat() {
     setFinished(false);
     setInvoiceUsage(null);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
-    setMessages([greeting(), startMsg]);
+    // The revision opens on the original conversation (so you, and the AI on
+    // the next change, still see the job as first described), then the start
+    // line, with the new card under it. Dropped so nothing stale is tappable:
+    // failed bubbles (their retry button), old "start new chat" buttons, and
+    // quiet usage lines. Copies only — the original's History entry is keyed
+    // by the old convoId and is never rewritten.
+    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet);
+    setMessages([...(carried.length ? carried : [greeting()]), startMsg]);
     setDraft(seed);
     setReady(true);
     setCardAfterId(startMsg.id);
@@ -2946,18 +2954,13 @@ export default function Chat() {
               <option value="fixed">Fixed ($)</option>
             </select>
             {((draft as any).deposit_type === 'percentage' || (draft as any).deposit_type === 'fixed') && (
-              <input
-                type="number"
-                min="0"
-                max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
+              <DepositValueInput
+                mode={(draft as any).deposit_type}
                 disabled={locked}
                 className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
-                value={(draft as any).deposit_value ?? ''}
+                value={(draft as any).deposit_value}
                 placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
-                onChange={(e) => {
-                  const v = Math.max(0, Number(e.target.value) || 0);
-                  applyDraftDeposit((draft as any).deposit_type as DepositType, v);
-                }}
+                onChange={(v) => applyDraftDeposit((draft as any).deposit_type as DepositType, v)}
               />
             )}
           </div>

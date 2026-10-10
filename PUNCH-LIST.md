@@ -561,6 +561,15 @@ above. Not audited yet: each starts with an audit of the current code._
 
 PDF paginator is slated for replacement by @react-pdf/renderer (Batch 6, plan in Notion On It decisions page) — this fix is interim.
 
+## Chat fixes, Batch A — logged 2026-10-10 (`claude/chat-deposit-revision-fixes-ywsm1b`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| A1 · Deposit field stuck at "0" | **Built — awaiting preview / iPhone check** (`6f309be`) | Chat card and invoice detail both turned the typed text straight into a number: clearing forced `0`, then typing 45 showed "045" (same number, no redraw); the 100% cap was only a hint, so 150 saved. New `components/DepositValueInput.tsx` (text logic in `lib/deposit-input.ts`, unit-tested) keeps the text as state: leading zeros stripped as you type (`0.5` stays), every change saves the number as before (empty saves 0), on blur empty shows `0` and percentage caps at 100. `type="text"` + `inputMode="decimal"` (a `type="number"` input compares loosely and skips the redraw). Same classes on both screens; only visible difference is no desktop spinner arrows. |
+| A4 · Revision loses the original conversation | **Built — awaiting preview** (`1c954a0`) | `startRevision()` reset messages to greeting + "Starting a revision…". Now carries the original conversation, then the start line, new card anchored under it. Dropped: failed bubbles (retry), "start new chat" buttons, quiet usage lines. Original invoice + its History entry (old convoId) untouched; revision still inserts a new number. The AI now sees the original job text on the next change. |
+| B2 · PDF: drop the Pay online button | **Not started — waiting on "go B"** | Spec in the 2026-10-10 chat. |
+| B5 · Advertise Apple Pay / Google Pay | **Not started — gated on founder's iPhone Apple Pay test** | Spec in the 2026-10-10 chat. |
+
 ## Scaling plan, before launch — logged 2026-10-09
 
 _From the scaling plan on the Notion decisions page ("Scaling plan — 500+
