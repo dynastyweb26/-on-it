@@ -1,6 +1,6 @@
 // Client-side view of Stripe Connect availability, for PDF rendering.
 //
-// Whether a PDF shows the "Card or Cash App Pay — pay online" line depends on
+// Whether a PDF shows the "Card, Apple Pay, Google Pay or Cash App Pay — pay online" line depends on
 // two things the browser can't read from the profile alone:
 //   1. Connect is switched on in THIS deployment (server env
 //      STRIPE_CONNECT_ENABLED) — asked once via GET /api/connect/status, the

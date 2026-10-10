@@ -58,10 +58,10 @@ export interface InvoiceRenderData {
   // unstyled tappable annotation to it — no per-row app links. Omitted for
   // drafts (no usable pay page) and quotes.
   payUrl?: string | null;
-  // The pro can take card / Cash App Pay on the pay page right now: Connect is
+  // The pro can take card / Apple Pay / Google Pay / Cash App Pay on the pay page right now: Connect is
   // on in this deployment AND their account is connected, charges enabled, and
   // their card switch is on. Live (never snapshotted), like Zelle. Adds a first
-  // "Card or Cash App Pay — pay online" line to the How to pay block, shown
+  // "Card, Apple Pay, Google Pay or Cash App Pay — pay online" line to the How to pay block, shown
   // only alongside payUrl (the block's link is how the client gets there).
   cardAvailable?: boolean;
 }
@@ -182,7 +182,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           by the block's single pay-page link; no link of its own. */}
       {card && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
-          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
           <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
         </div>
       )}
@@ -516,7 +516,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {/* Card line — first, in the rail's own row style, no brand mark. */}
       {card && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card or Cash App Pay</div>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
           <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
         </div>
       )}
