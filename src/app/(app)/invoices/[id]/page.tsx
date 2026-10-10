@@ -21,6 +21,7 @@ import { paymentMethodLabel } from '@/lib/payment-methods';
 import PaywallModal from '@/components/PaywallModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
+import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 
 const money = (n: number) =>
@@ -842,17 +843,12 @@ export default function InvoiceDetail() {
                     <option value="fixed">Fixed ($)</option>
                   </select>
                   {(inv.deposit_type === 'percentage' || inv.deposit_type === 'fixed') && (
-                    <input
-                      type="number"
-                      min="0"
-                      max={inv.deposit_type === 'percentage' ? 100 : 1000000}
+                    <DepositValueInput
+                      mode={inv.deposit_type}
                       className="w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none"
-                      value={inv.deposit_value ?? ''}
+                      value={inv.deposit_value}
                       placeholder={inv.deposit_type === 'percentage' ? '40' : '100'}
-                      onChange={(e) => {
-                        const v = Math.max(0, Number(e.target.value) || 0);
-                        void applyDeposit(inv.deposit_type as DepositType, v);
-                      }}
+                      onChange={(v) => void applyDeposit(inv.deposit_type as DepositType, v)}
                     />
                   )}
                 </div>

@@ -24,6 +24,7 @@ import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { fetchUsageLine } from '@/lib/usage';
+import DepositValueInput from '@/components/DepositValueInput';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
 import { prepareReceipt, ReceiptError, type PreparedReceipt } from '@/lib/receipt';
@@ -2946,18 +2947,13 @@ export default function Chat() {
               <option value="fixed">Fixed ($)</option>
             </select>
             {((draft as any).deposit_type === 'percentage' || (draft as any).deposit_type === 'fixed') && (
-              <input
-                type="number"
-                min="0"
-                max={(draft as any).deposit_type === 'percentage' ? 100 : 1000000}
+              <DepositValueInput
+                mode={(draft as any).deposit_type}
                 disabled={locked}
                 className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
-                value={(draft as any).deposit_value ?? ''}
+                value={(draft as any).deposit_value}
                 placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
-                onChange={(e) => {
-                  const v = Math.max(0, Number(e.target.value) || 0);
-                  applyDraftDeposit((draft as any).deposit_type as DepositType, v);
-                }}
+                onChange={(v) => applyDraftDeposit((draft as any).deposit_type as DepositType, v)}
               />
             )}
           </div>
