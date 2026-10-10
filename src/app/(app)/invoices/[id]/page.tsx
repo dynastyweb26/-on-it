@@ -671,7 +671,7 @@ export default function InvoiceDetail() {
             </button>
           )}
           <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
-            <Icon name="download" size={18} /> {downloading ? 'Preparing…' : 'Download'}
+            <Icon name="download" size={18} /> {downloading ? 'Preparing…' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download'}
           </button>
           <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
             <Icon name="preview" size={18} /> View PDF
