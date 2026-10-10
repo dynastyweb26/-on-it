@@ -2838,7 +2838,7 @@ export default function Chat() {
 
   // ── Revise a locked, sent, unpaid invoice (Commit C) ────────
   // Opens a NEW draft invoice in a fresh conversation, seeded from the original's
-  // content plus a "Revises INV-XXXX" note. The original row is never touched —
+  // content plus a "Replaces INV-XXXX" note. The original row is never touched —
   // this inserts a brand-new invoice (next number) on its first save because the
   // conversation (and thus finalize_key) is fresh and the link is cleared. Only
   // offered when status is 'sent' and amount_paid is 0; paid/partly-paid stays
@@ -2868,8 +2868,15 @@ export default function Chat() {
     const kind = docKind(draft);
     const originalNo = pendingInvoiceRef.current?.no ?? null;
     const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
-    const reviseNote = `Revises ${label}`;
-    const existingNotes = (draft.notes ?? '').trim();
+    // One line naming the invoice this one replaces. Revising a revision drops
+    // the earlier line (older "Revises …" wording included), so the client only
+    // ever sees the latest invoice to ignore.
+    const reviseNote = `Replaces ${label}`;
+    const existingNotes = (draft.notes ?? '')
+      .split('\n')
+      .filter((line) => !/^(Replaces|Revises) ((INV|Q)-\d+|the original)$/i.test(line.trim()))
+      .join('\n')
+      .trim();
     // Spread copies line items, tax, client, due date, and the deposit fields
     // (which ride on the draft as snake_case); reset intent_explicit and append
     // the revision note.
