@@ -77,17 +77,11 @@ const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && payLin
 // Shown under "How to pay" on every quote, in place of any pay link.
 const QUOTE_PAY_NOTE = 'Payment options become active once this quote is converted to an invoice.';
 
-// Fallback line under the pay block: the whole block is one tappable link to
-// the pay page, and this note prints the full URL in the same quiet style so a
-// printed copy (or a viewer that ignores PDF links) still gets the client there.
-// Only on an invoice that carries a pay link (sent invoices: the caller sets
-// payUrl only then) — the same rule as the card line.
-function PayNote({ url, style }: { url: string; style: React.CSSProperties }) {
-  return (
-    <div style={{ ...style, wordBreak: 'break-all' }}>
-      Tap anywhere to pay online. Link not working? Go to {url}
-    </div>
-  );
+// One quiet line under the pay block: the whole block is a single tappable
+// link to the pay page (invoices with a pay link only — the caller sets payUrl
+// only on sent invoices, the same rule as the card line).
+function PayNote({ style }: { style: React.CSSProperties }) {
+  return <div style={style}>Tap payment rows to pay.</div>;
 }
 
 const money = (n: number) =>
@@ -197,7 +191,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         );
       })}
       {link && (
-        <PayNote url={link} style={{ fontSize: 13, color: t.muted, marginTop: 4 }} />
+        <PayNote style={{ fontSize: 13, color: t.muted, marginTop: 4 }} />
       )}
     </div>
   );
@@ -531,7 +525,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
       ))}
       {link && (
-        <PayNote url={link} style={{ fontSize: 12, color: t.accent }} />
+        <PayNote style={{ fontSize: 12, color: t.accent }} />
       )}
     </div>
   );
