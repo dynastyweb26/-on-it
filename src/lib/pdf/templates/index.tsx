@@ -77,33 +77,16 @@ const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && payLin
 // Shown under "How to pay" on every quote, in place of any pay link.
 const QUOTE_PAY_NOTE = 'Payment options become active once this quote is converted to an invoice.';
 
-// Warm Premium primary button (ON-IT-DESIGN-STANDARD): gold FILL #d4af37 with
-// #1f1b13 text, pill, heavy weight. Fixed On It colours, not the pro's brand
-// theme: it's the pay-page CTA, the same gold as the pay page's card button,
-// and it reads on both light and dark template backgrounds.
-const PAY_BUTTON: React.CSSProperties = {
-  display: 'inline-block',
-  background: '#d4af37',
-  color: '#1f1b13',
-  borderRadius: 9999,
-  padding: '10px 26px',
-  fontSize: 16,
-  fontWeight: 800,
-  letterSpacing: '0.02em',
-  lineHeight: 1.2,
-};
-
-// "Pay online" button plus the full pay URL printed as text, so a printed copy
-// still gets the client there. Only on an invoice that carries a pay link (sent
-// invoices: the caller sets payUrl only then) — the same rule as the card line.
-// It sits inside the block's single pay-page annotation, so the button, the URL
-// and the method rows below are all tappable.
-function PayOnline({ url, t, stacked = false }: { url: string; t: BrandTheme; stacked?: boolean }) {
+// The block's closing note. The whole block is already one tappable link to
+// the pay page; the URL is printed here too so a printed copy, or a viewer
+// that drops link annotations, still gets the client there. Inherits the
+// note's own font, size and colour; a long link wraps.
+function TapToPay({ url }: { url: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: stacked ? 'column' : 'row', alignItems: stacked ? 'flex-start' : 'center', gap: stacked ? 8 : 14, marginBottom: stacked ? 18 : 10 }}>
-      <span style={PAY_BUTTON}>Pay online</span>
-      <span style={{ minWidth: 0, fontSize: 13, fontWeight: 600, color: t.text, wordBreak: 'break-all' }}>{url}</span>
-    </div>
+    <>
+      Tap anywhere to pay online. Link not working? Go to{' '}
+      <span style={{ wordBreak: 'break-all' }}>{url}</span>
+    </>
   );
 }
 
@@ -194,7 +177,6 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           {QUOTE_PAY_NOTE}
         </div>
       )}
-      {link && <PayOnline url={link} t={t} />}
       {/* Card line — first, same row format as the handles, neutral theme
           colours (no brand mark: it's Stripe checkout, not a handle). Covered
           by the block's single pay-page link; no link of its own. */}
@@ -215,7 +197,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         );
       })}
       {link && (
-        <div style={{ fontSize: 13, color: t.muted, marginTop: 4 }}>Tap anywhere to pay online.</div>
+        <div style={{ fontSize: 13, color: t.muted, marginTop: 4 }}><TapToPay url={link} /></div>
       )}
     </div>
   );
@@ -531,7 +513,6 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         Payment methods
       </div>
       <div style={{ borderBottom: `1px solid ${t.accent}`, marginTop: 8, marginBottom: 18 }} />
-      {link && <PayOnline url={link} t={t} stacked />}
       {/* Card line — first, in the rail's own row style, no brand mark. */}
       {card && (
         <div style={{ marginBottom: 18 }}>
@@ -550,7 +531,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         </div>
       ))}
       {link && (
-        <div style={{ fontSize: 12, color: t.accent }}>Tap anywhere to pay online.</div>
+        <div style={{ fontSize: 12, color: t.accent }}><TapToPay url={link} /></div>
       )}
     </div>
   );
