@@ -565,6 +565,8 @@ export default function Chat() {
   // or 'install' (iPhone Safari tab: Home Screen hint). See maybeOfferReminders.
   const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
   const [convoId, setConvoId] = useState('');
+  // The (i) note under "Download draft" (chat invoice card).
+  const [draftInfoOpen, setDraftInfoOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   // Passive duplicate indicator: the server flagged a similar recent invoice
@@ -2838,7 +2840,7 @@ export default function Chat() {
 
   // ── Revise a locked, sent, unpaid invoice (Commit C) ────────
   // Opens a NEW draft invoice in a fresh conversation, seeded from the original's
-  // content plus a "Revises INV-XXXX" note. The original row is never touched —
+  // content plus a "Replaces INV-XXXX" note. The original row is never touched —
   // this inserts a brand-new invoice (next number) on its first save because the
   // conversation (and thus finalize_key) is fresh and the link is cleared. Only
   // offered when status is 'sent' and amount_paid is 0; paid/partly-paid stays
@@ -2868,8 +2870,15 @@ export default function Chat() {
     const kind = docKind(draft);
     const originalNo = pendingInvoiceRef.current?.no ?? null;
     const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
-    const reviseNote = `Revises ${label}`;
-    const existingNotes = (draft.notes ?? '').trim();
+    // One line naming the invoice this one replaces. Revising a revision drops
+    // the earlier line (older "Revises …" wording included), so the client only
+    // ever sees the latest invoice to ignore.
+    const reviseNote = `Replaces ${label}`;
+    const existingNotes = (draft.notes ?? '')
+      .split('\n')
+      .filter((line) => !/^(Replaces|Revises) ((INV|Q)-\d+|the original)$/i.test(line.trim()))
+      .join('\n')
+      .trim();
     // Spread copies line items, tax, client, due date, and the deposit fields
     // (which ride on the draft as snake_case); reset intent_explicit and append
     // the revision note.
@@ -3082,12 +3091,38 @@ export default function Chat() {
             )}
           </button>
           {/* Quiet secondary exit: download the PDF without sending. Saves the
-              draft (sendable later); does not mark sent or archive. */}
-          <button className="mt-1 min-h-touch w-full inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
-            disabled={phase !== null || !isValidTotal}
-            onClick={() => finalize(false, undefined, 'download')}>
-            <Icon name="download" size={18} /> Download without sending
-          </button>
+              draft (sendable later); does not mark sent or archive. An invoice
+              downloaded this way has no pay link (a draft's pay page doesn't
+              take payment), so it's labelled a draft with an (i) that says so. */}
+          <div className="mt-1 flex items-center justify-center gap-1">
+            <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+              disabled={phase !== null || !isValidTotal}
+              onClick={() => finalize(false, undefined, 'download')}>
+              <Icon name="download" size={18} />
+              {docKind(draft) === 'invoice' ? 'Download draft' : 'Download without sending'}
+            </button>
+            {docKind(draft) === 'invoice' && (
+              <button
+                type="button"
+                className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant"
+                aria-label="About draft downloads"
+                aria-expanded={draftInfoOpen}
+                onClick={() => setDraftInfoOpen((v) => !v)}
+              >
+                {/* Inline (i): the icon font is a fixed subset without "info". */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <line x1="12" y1="11" x2="12" y2="16" />
+                  <circle cx="12" cy="7.75" r="0.6" fill="currentColor" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {draftInfoOpen && docKind(draft) === 'invoice' && (
+            <p role="note" className="-mt-1 text-center text-xs text-on-surface-variant">
+              Drafts don&apos;t hold a live pay page.
+            </p>
+          )}
           <div className="mt-1 flex items-center justify-between gap-2">
             <button
               type="button"
