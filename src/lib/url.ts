@@ -5,11 +5,16 @@
 // displayed text are never changed.
 //
 //   - empty / whitespace        → null  (caller renders no link)
+//   - dangerous pseudo-protocols → null  (javascript:, data:, vbscript:, file:, blob:)
 //   - starts with http:// / https:// → returned unchanged (case-insensitive)
 //   - anything else (bare domain, www.) → prefixed with https://
+const DANGEROUS_PROTOCOLS_RE = /^(?:javascript|data|vbscript|file|blob):/i;
+
 export function websiteHref(value: string | null | undefined): string | null {
   const v = value?.trim();
   if (!v) return null;
+  // Security guard: reject unsafe pseudo-protocols to prevent URI scheme abuse and XSS.
+  if (DANGEROUS_PROTOCOLS_RE.test(v)) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
