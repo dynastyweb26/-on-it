@@ -5,11 +5,14 @@
 // displayed text are never changed.
 //
 //   - empty / whitespace        → null  (caller renders no link)
+//   - dangerous pseudo-protocol → null  (javascript:, data:, vbscript:, file:, blob:)
 //   - starts with http:// / https:// → returned unchanged (case-insensitive)
 //   - anything else (bare domain, www.) → prefixed with https://
 export function websiteHref(value: string | null | undefined): string | null {
   const v = value?.trim();
   if (!v) return null;
+  // Reject dangerous pseudo-protocols to prevent XSS / script execution in href
+  if (/^(?:javascript|data|vbscript|file|blob):/i.test(v)) return null;
   return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
