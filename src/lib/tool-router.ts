@@ -65,16 +65,27 @@ export async function executeToolAction(req: ToolExecutionRequest): Promise<Tool
       if (!req.userId) return { success: false, message: 'Authentication required' };
       const period = (req.params.period as 'week' | 'month' | 'year') || 'month';
 
+      const now = new Date();
+      let startDateISO = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      if (period === 'week') {
+        const weekAgo = new Date(now.getTime() - 7 * 86400000);
+        startDateISO = weekAgo.toISOString();
+      } else if (period === 'year') {
+        startDateISO = new Date(now.getFullYear(), 0, 1).toISOString();
+      }
+
       const { data: invoices } = await supabase
         .from('invoices')
         .select('total, status, created_at')
         .eq('user_id', req.userId)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .gte('created_at', startDateISO);
 
       const { data: expenses } = await supabase
         .from('expenses')
         .select('amount, category, occurred_on')
-        .eq('user_id', req.userId);
+        .eq('user_id', req.userId)
+        .gte('occurred_on', startDateISO.slice(0, 10));
 
       const rev = (invoices ?? []).reduce((acc, i) => acc + (Number(i.total) || 0), 0);
       const exp = (expenses ?? []).reduce((acc, e) => acc + (Number(e.amount) || 0), 0);

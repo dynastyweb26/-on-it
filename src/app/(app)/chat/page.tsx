@@ -41,6 +41,7 @@ import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard from '@/components/SavePromptCard';
+import { VisualChart, type VisualChartProps } from '@/components/VisualChart';
 import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import { anchorFor, localToday } from '@/lib/recurring';
@@ -58,6 +59,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  chartData?: VisualChartProps;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
   // and never sent to /api/parse as conversation history.
   quiet?: boolean;
@@ -1062,7 +1064,18 @@ export default function Chat() {
         } catch { /* unreachable — fail open, keep the model's reply */ }
       }
       const reply: string = data.reply ?? 'Say that again?';
-      const replyMsg = aMsg(reply);
+      let chartData: VisualChartProps | undefined = undefined;
+
+      // Handle client-side tool execution results (navigation, financial charts)
+      if (data.toolResult) {
+        if (data.toolResult.redirect_url) {
+          router.push(data.toolResult.redirect_url);
+        } else if (data.toolResult.data && data.tool_action?.tool === 'financial_summary') {
+          chartData = data.toolResult.data as VisualChartProps;
+        }
+      }
+
+      const replyMsg = aMsg(reply, { chartData });
       setMessages((m) => emitResult(m, replyMsg, retryId));
       // Text renders first (above); speech is additive and follows the input
       // modality of THIS message — voice in, voice out; typed in, silent.
@@ -3227,14 +3240,25 @@ export default function Chat() {
               {/* Release frames: On It = cream bubble, you = ink bubble. A
                   message that just arrived rises 8px (motion inventory "New On
                   It message", 240ms); restored ones are static. */}
-              <div
-                className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
-                  ${m.role === 'user'
-                    ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
-                    : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
-                  restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
-              >
-                {m.content}
+              <div className="flex max-w-[85%] flex-col gap-2">
+                <div
+                  className={`whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
+                    ${m.role === 'user'
+                      ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
+                      : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
+                    restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
+                >
+                  {m.content}
+                </div>
+                {m.chartData && (
+                  <VisualChart
+                    title={m.chartData.title}
+                    period={m.chartData.period}
+                    revenue={m.chartData.revenue}
+                    expenses={m.chartData.expenses}
+                    netIncome={m.chartData.netIncome}
+                  />
+                )}
               </div>
             </div>
           )}

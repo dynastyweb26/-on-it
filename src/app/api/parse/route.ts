@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     }));
 
   try {
-    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
+    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10), user?.id);
 
     // Normalize and validate line items. Each item is one of:
     //   priced    — a finite price (a "$20" / "1,200" string is cleaned first)
@@ -405,6 +405,15 @@ export async function POST(req: NextRequest) {
         params: result.tool_action.params,
         userId: user.id,
       });
+
+      // Enrich reply on first turn for financial summary tool execution
+      if (result.tool_action.tool === 'financial_summary' && toolResult.data) {
+        const summaryData = toolResult.data as { revenue: number; expenses: number; netIncome: number; period: string };
+        const revFormatted = money(summaryData.revenue);
+        const expFormatted = money(summaryData.expenses);
+        const netFormatted = money(summaryData.netIncome);
+        result.reply = `Here is your financial summary for this ${summaryData.period}: Revenue of ${revFormatted}, expenses of ${expFormatted}, giving a net income of ${netFormatted}.`;
+      }
     }
 
     const res = NextResponse.json({ ...result, duplicateWarning, toolResult });
