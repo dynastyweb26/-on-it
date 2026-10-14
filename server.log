@@ -1,0 +1,35 @@
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ⚠ Next.js can't recognize the exported `config` field in route "/src/middleware":
+Unsupported node type "BinaryExpression" at "config.matcher[0]".
+The default config will be used instead.
+Read More - https://nextjs.org/docs/messages/invalid-page-config
+ ✓ Ready in 2.1s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 1340ms (126 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 6.1s (514 modules)
+ HEAD / 307 in 6450ms
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (106kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (250kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ○ Compiling /chat ...
+ ✓ Compiled /chat in 8s (1250 modules)
+ GET /chat 200 in 8934ms
+ ○ Compiling /api/connect/status ...
+ ✓ Compiled /invoices in 2.1s (987 modules)
+ ✓ Compiled in 457ms (620 modules)
+ GET /api/connect/status 200 in 3442ms
+ GET /invoices 200 in 2069ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ○ Compiling /login ...
+ ✓ Compiled /login in 638ms (1627 modules)
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1044ms (1649 modules)
+ GET /dashboard 200 in 1435ms
+ GET /chat 200 in 197ms
+ GET /api/connect/status 200 in 151ms
+ GET /invoices 200 in 70ms
+ GET /chat 200 in 56ms
+ GET /api/connect/status 200 in 43ms

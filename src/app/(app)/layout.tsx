@@ -267,7 +267,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // data-kb-fit: while the keyboard is open the shell is pinned to the visible
     // area (lib/keyboard.ts), so the chat composer sits right on the keyboard
     // and every tab's scroller ends where the keyboard starts.
-    <div data-app-shell="" data-kb-fit="" className="mx-auto flex h-dvh w-full max-w-7xl flex-col md:flex-row">
+    <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
       <RecapProvider suppressed={showFirstRun || showReference}>
