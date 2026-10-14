@@ -7,6 +7,7 @@ import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
+import { executeToolAction } from '@/lib/tool-router';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
     }));
 
   try {
-    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
+    const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10), user?.id);
 
     // Normalize and validate line items. Each item is one of:
     //   priced    — a finite price (a "$20" / "1,200" string is cleaned first)
@@ -396,7 +397,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const res = NextResponse.json({ ...result, duplicateWarning });
+    // Tool execution handling
+    let toolResult = null;
+    if (result.tool_action && user) {
+      toolResult = await executeToolAction({
+        tool: result.tool_action.tool,
+        params: result.tool_action.params,
+        userId: user.id,
+      });
+
+      // Enrich reply on first turn for financial summary tool execution
+      if (result.tool_action.tool === 'financial_summary' && toolResult.data) {
+        const summaryData = toolResult.data as { revenue: number; expenses: number; netIncome: number; period: string };
+        const revFormatted = money(summaryData.revenue);
+        const expFormatted = money(summaryData.expenses);
+        const netFormatted = money(summaryData.netIncome);
+        result.reply = `Here is your financial summary for this ${summaryData.period}: Revenue of ${revFormatted}, expenses of ${expFormatted}, giving a net income of ${netFormatted}.`;
+      }
+    }
+
+    const res = NextResponse.json({ ...result, duplicateWarning, toolResult });
     if (!user) {
       const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
       res.cookies.set('onit_guest', String(guestCount + 1), { httpOnly: true, sameSite: 'lax' });
