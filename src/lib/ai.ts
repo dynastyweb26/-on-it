@@ -16,8 +16,13 @@ export interface LineItem {
   unit?: LineUnit | null;
   detail?: string | null;
 }
+export interface ToolAction {
+  tool: 'create_invoice' | 'create_expense' | 'search_records' | 'financial_summary' | 'generate_report_pdf' | 'navigate_ui' | 'save_preference';
+  params: Record<string, unknown>;
+}
+
 export interface ExtractResult {
-  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
+  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'navigate' | 'search' | 'summary' | 'report' | 'preference' | 'other';
   // True only when the user's message THIS turn explicitly named the document
   // type. When false, intent was re-derived by the model with no naming cue, so
   // the client keeps the in-progress draft's intent instead of letting a bare
@@ -52,11 +57,21 @@ export interface ExtractResult {
   missing: string[];                // fields still needed before we can finalize
   reply: string;                    // what On It says back — short, friendly, spoken-aloud-safe
   ready: boolean;                   // true when we have enough to build the document
+  tool_action?: ToolAction | null;  // optional structured action for navigation, search, charts, or PDFs
 }
 
-const SYSTEM = `You are "On It", an invoice assistant for blue collar workers — handymen, truckers, landscapers, electricians. Many users speak instead of type, and some cannot read well, so every "reply" you write must sound natural when read aloud: short sentences, no jargon, no markdown, no lists.
+const SYSTEM = `You are "On It", an omnipresent business operator for contractors and small business owners. Every "reply" you write must sound natural when read aloud: short sentences, no jargon, no markdown, no bullet lists.
 
-Your job: extract structured invoice, quote, or expense data from what the user says.
+Your job: extract structured data or execute app functions based on what the user says.
+
+Intents:
+- "invoice" | "quote" | "expense": creating or modifying draft business records.
+- "navigate": user wants to go to a screen ("take me to my settings", "show my expenses"). Include tool_action: {"tool": "navigate_ui", "params": {"destination": "invoices|expenses|settings|dashboard|summary|clients"}}.
+- "search": user wants to find records ("find invoice for John", "show unpaid quotes"). Include tool_action: {"tool": "search_records", "params": {"query": "...", "record_type": "invoice|quote|expense|client"}}.
+- "summary": user asks for financial totals, charts, or breakdown ("how much did I make this week", "show expense categories"). Include tool_action: {"tool": "financial_summary", "params": {"period": "week|month|year", "category_breakdown": boolean}}.
+- "report": user asks for a report or PDF ("make a transaction PDF for this week"). Include tool_action: {"tool": "generate_report_pdf", "params": {"type": "transactions|expenses|tax"}}.
+- "preference": user state a permanent workflow preference ("I always call jobs service calls"). Include tool_action: {"tool": "save_preference", "params": {"key": "service_term", "value": "..."}}.
+- "question" | "other": questions or general chatter.
 
 Rules:
 - First message of a new job: the "reply" FIELD (not your raw output) must begin with exactly "On it!" (no emoji, ever), then ask for ONE missing thing at a time. "On it!" goes INSIDE the JSON reply string — never as leading text before the JSON.
@@ -107,7 +122,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"hour|sq ft|job"|null}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|navigate|search|summary|report|preference|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"hour|sq ft|job"|null}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean,"tool_action":{"tool":"create_invoice|create_expense|search_records|financial_summary|generate_report_pdf|navigate_ui|save_preference","params":object}|null}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,

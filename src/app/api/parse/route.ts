@@ -7,6 +7,7 @@ import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
+import { executeToolAction } from '@/lib/tool-router';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -396,7 +397,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const res = NextResponse.json({ ...result, duplicateWarning });
+    // Tool execution handling
+    let toolResult = null;
+    if (result.tool_action && user) {
+      toolResult = await executeToolAction({
+        tool: result.tool_action.tool,
+        params: result.tool_action.params,
+        userId: user.id,
+      });
+    }
+
+    const res = NextResponse.json({ ...result, duplicateWarning, toolResult });
     if (!user) {
       const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
       res.cookies.set('onit_guest', String(guestCount + 1), { httpOnly: true, sameSite: 'lax' });
