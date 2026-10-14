@@ -267,118 +267,160 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // data-kb-fit: while the keyboard is open the shell is pinned to the visible
     // area (lib/keyboard.ts), so the chat composer sits right on the keyboard
     // and every tab's scroller ends where the keyboard starts.
-    <div data-app-shell="" data-kb-fit="" className="mx-auto flex h-dvh max-w-lg flex-col">
+    <div data-app-shell="" data-kb-fit="" className="mx-auto flex h-dvh w-full max-w-7xl flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
       <RecapProvider suppressed={showFirstRun || showReference}>
-      <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-        <div className="flex items-center gap-1">
-          {parentRoute && <BackButton parentHref={parentRoute} />}
-          <span className="font-display text-xl font-extrabold">
+
+      {/* Desktop/Tablet Sidebar (Option A) */}
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low p-4">
+        <div className="flex items-center justify-between pb-6 pt-2 px-2">
+          <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
-        </div>
-        <div className="flex items-center gap-1">
-          {path.startsWith('/chat') && (
-            <>
-              <button
-                aria-label="New chat"
-                className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
-                onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
-              >
-                <Icon name="edit_square" size={24} />
-              </button>
-              <button
-                aria-label="Recent conversations"
-                className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
-                onClick={() => window.dispatchEvent(new Event('onit-history'))}
-              >
-                <Icon name="history" size={24} />
-              </button>
-            </>
-          )}
-          {/* Labeled gold capsule (matches the install banner's "Show how"):
-              gold FILL + dark on-gold text — never white on this gold (fails
-              contrast). Label carries the meaning, so no "?" glyph. */}
           <button
             aria-label="How On It works"
-            className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
+            className="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
             onClick={() => setShowReference(true)}
           >
-            How On It works
+            How it works
           </button>
         </div>
-      </header>
-      {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
-      {/* Reference doc — tabbed, always available from the pill. Never gated,
-          never marks seen (see closeReference). */}
-      {showReference && <TutorialReference onClose={closeReference} />}
-      {/* One scroll owner per screen. Chat owns its scrolling (the message list
-          between the header and the composer), so here main must NOT also be a
-          scroller: nested scroll containers let iOS hand a gesture to the
-          wrong one (the reversal "freeze"). Every other tab scrolls main. */}
-      <main
-        className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchCancel}
-      >
-        {children}
-      </main>
-      {/* Slim install strip: in-flow above the tab bar (never fixed), so it can't
-          cover the tab bar or the chat input. Self-hides when installed/dismissed
-          or when install isn't possible on this device. Both step aside while
-          the keyboard is open (data-kb-hide), leaving the room to the field. */}
-      <InstallBanner />
-      {/* Tab bar (release frames 0a, M5): each tab is an icon pill with the
-          label under it. Pills 58×32; Chat is the raised centre pill (64×36,
-          4px up) and keeps a soft gold fill at rest. The gold disc slides to
-          the active pill on the spring token. */}
-      <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px]">
-        {pill && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute left-0 top-0 rounded-[18px] bg-primary-container"
-            style={{
-              width: pill.w,
-              height: pill.h,
-              transform: `translate(${pill.x}px, ${pill.y}px)`,
-              transition: pill.animate ? 'transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring), height var(--motion-slow) var(--ease-spring)' : 'none',
-            }}
-          />
-        )}
-        {TABS.map(({ href, label, icon }, i) => {
-          const active = path.startsWith(href);
-          const centre = href === '/chat';
-          return (
-            <Link key={href} href={href}
-              aria-current={active ? 'page' : undefined}
-              onClick={() => { if (!active) { try { navigator.vibrate?.(8); } catch { /* unsupported */ } } }}
-              className={`onit-tab group flex min-w-0 flex-1 flex-col items-center gap-1 pb-1 ${centre ? 'onit-tab-centre' : ''}`}>
-              <span ref={(el) => { tabLinkRefs.current[i] = el; }} data-tab-target={href}
-                className={`relative grid place-items-center rounded-[18px]
-                  ${centre ? '-mt-1 h-9 w-16' : 'h-8 w-[58px]'}
-                  ${active ? (pill ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
-                <span key={bump?.href === href ? `bump-${bump.n}` : 'icon'}
-                  className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}${bump?.href === href ? ' onit-tab-bump' : ''}`}>
-                  <Icon name={icon} size={centre ? 27 : 24} filled={active} />
-                </span>
+
+        <nav className="flex flex-1 flex-col gap-1.5">
+          {TABS.map(({ href, label, icon }) => {
+            const active = path.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? 'page' : undefined}
+                className={`flex items-center gap-3.5 rounded-2xl px-4 py-3 transition-colors ${
+                  active
+                    ? 'bg-primary-container font-bold text-on-background shadow-sm'
+                    : 'font-semibold text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                <div className="relative">
+                  <Icon name={icon} size={24} filled={active} />
+                  {href === '/dashboard' && <BooksDot />}
+                </div>
+                <span className="text-base">{label}</span>
                 {bump?.href === href && (
-                  <span key={`plus-${bump.n}`} aria-hidden
-                    className="onit-plus-one pointer-events-none absolute -top-3 right-1 rounded-full bg-primary-container px-1.5 text-[11px] font-bold leading-[16px] text-on-background">
+                  <span className="ml-auto rounded-full bg-primary-container px-2 py-0.5 text-xs font-bold text-on-background">
                     +1
                   </span>
                 )}
-                {href === '/dashboard' && <BooksDot />}
-              </span>
-              <span className={`text-[11.5px] leading-none tracking-[.01em] ${active ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>
-                {label}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto pt-4">
+          <InstallBanner />
+        </div>
+      </aside>
+
+      <div className="flex flex-1 flex-col min-w-0 h-full">
+        <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3 md:px-6">
+          <div className="flex items-center gap-2">
+            {parentRoute && <BackButton parentHref={parentRoute} />}
+            <span className="font-display text-xl font-extrabold md:hidden">
+              On It<span className="text-primary">.</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {path.startsWith('/chat') && (
+              <>
+                <button
+                  aria-label="New chat"
+                  className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                  onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+                >
+                  <Icon name="edit_square" size={24} />
+                </button>
+                <button
+                  aria-label="Recent conversations"
+                  className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                  onClick={() => window.dispatchEvent(new Event('onit-history'))}
+                >
+                  <Icon name="history" size={24} />
+                </button>
+              </>
+            )}
+            <button
+              aria-label="How On It works"
+              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
+              onClick={() => setShowReference(true)}
+            >
+              How On It works
+            </button>
+          </div>
+        </header>
+
+        {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
+        {showReference && <TutorialReference onClose={closeReference} />}
+
+        <main
+          className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchCancel}
+        >
+          {children}
+        </main>
+
+        <div className="md:hidden">
+          <InstallBanner />
+        </div>
+
+        {/* Bottom tab bar for Mobile viewports */}
+        <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
+          {pill && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-0 top-0 rounded-[18px] bg-primary-container"
+              style={{
+                width: pill.w,
+                height: pill.h,
+                transform: `translate(${pill.x}px, ${pill.y}px)`,
+                transition: pill.animate ? 'transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring), height var(--motion-slow) var(--ease-spring)' : 'none',
+              }}
+            />
+          )}
+          {TABS.map(({ href, label, icon }, i) => {
+            const active = path.startsWith(href);
+            const centre = href === '/chat';
+            return (
+              <Link key={href} href={href}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => { if (!active) { try { navigator.vibrate?.(8); } catch { /* unsupported */ } } }}
+                className={`onit-tab group flex min-w-0 flex-1 flex-col items-center gap-1 pb-1 ${centre ? 'onit-tab-centre' : ''}`}>
+                <span ref={(el) => { tabLinkRefs.current[i] = el; }} data-tab-target={href}
+                  className={`relative grid place-items-center rounded-[18px]
+                    ${centre ? '-mt-1 h-9 w-16' : 'h-8 w-[58px]'}
+                    ${active ? (pill ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
+                  <span key={bump?.href === href ? `bump-${bump.n}` : 'icon'}
+                    className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}${bump?.href === href ? ' onit-tab-bump' : ''}`}>
+                    <Icon name={icon} size={centre ? 27 : 24} filled={active} />
+                  </span>
+                  {bump?.href === href && (
+                    <span key={`plus-${bump.n}`} aria-hidden
+                      className="onit-plus-one pointer-events-none absolute -top-3 right-1 rounded-full bg-primary-container px-1.5 text-[11px] font-bold leading-[16px] text-on-background">
+                      +1
+                    </span>
+                  )}
+                  {href === '/dashboard' && <BooksDot />}
+                </span>
+                <span className={`text-[11.5px] leading-none tracking-[.01em] ${active ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>
+                  {label}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
       </RecapProvider>
     </div>
   );

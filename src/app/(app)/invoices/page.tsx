@@ -195,7 +195,7 @@ export default function Invoices() {
           {groups.map((g) => (
             <div key={g.key}>
               <DateDivider label={g.label} />
-              <div className="space-y-2.5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {g.items.map((r) => {
                   const tag = tagFor(r, isConvertedQuote(r));
                   // On Unpaid, a part-paid invoice shows what it still owes
@@ -204,7 +204,7 @@ export default function Invoices() {
                   return (
                     <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
                       <Link href={`/invoices/${r.id}`}
-                        className="flex items-center gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
+                        className="flex h-full items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                           <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
                           <span className="text-[13.5px] text-on-surface-variant">

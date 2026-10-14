@@ -251,7 +251,7 @@ export default function TaxSummary() {
   }, [loading]);
 
   return (
-    <div className="space-y-4 px-4 py-4">
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-4 md:px-6">
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books summary</h1>
 
       {/* Period selector — full-width trigger; taps open the two-step sheet. */}

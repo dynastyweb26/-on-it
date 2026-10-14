@@ -165,7 +165,7 @@ export default function Dashboard() {
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;
   return (
-    <div className="space-y-3 px-4 pb-4 pt-3.5">
+    <div className="mx-auto max-w-5xl space-y-4 px-4 pb-4 pt-3.5 md:px-6">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the three tiles, Add expense, the list card and
           Income & Expenses (§L Q4 keeps today's label). */}
@@ -175,7 +175,7 @@ export default function Dashboard() {
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
-        <>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Net hero — the ONE deliberately dark element on this screen (§8).
               Number first (cream, never colored; a negative reads "−$…"), label
               under it. Opens the Books summary at All time, whose "Kept" is the
@@ -183,38 +183,49 @@ export default function Dashboard() {
           <Link
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
-            className={`flex items-center justify-between gap-3 rounded-card bg-inverse-surface p-6 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
+            className={`lg:col-span-1 flex flex-col justify-between rounded-card bg-inverse-surface p-6 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
-            <div className="min-w-0">
-              <div className="font-display text-numeric-xl tracking-tight text-inverse-on-surface tabular-nums">{signedMoney(net)}</div>
-              <div className="mt-1 text-label-lg font-semibold text-inverse-on-surface/70">Net · all time</div>
-              <div className="text-xs text-inverse-on-surface/50">{stats.count} {stats.count === 1 ? 'invoice' : 'invoices'}</div>
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0">
+                <div className="font-display text-numeric-xl tracking-tight text-inverse-on-surface tabular-nums">{signedMoney(net)}</div>
+                <div className="mt-1 text-label-lg font-semibold text-inverse-on-surface/70">Net · all time</div>
+                <div className="text-xs text-inverse-on-surface/50">{stats.count} {stats.count === 1 ? 'invoice' : 'invoices'}</div>
+              </div>
+              <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
             </div>
-            <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
           </Link>
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
               Each is a button to the list whose total equals its number. */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="lg:col-span-2 grid grid-cols-3 gap-2 md:gap-4">
             <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
             <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
             <Tile key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} />
           </div>
-        </>
+        </div>
       )}
 
       {/* The rest rises last on the first visit of the day (MOTION-SPEC §9:
           300 / 350 / 400ms). Mounted with the totals, like the tiles, so the
           entrance never starts on buttons already on screen. */}
       {!loading && (
-        <>
-          <button
-            className={`btn-primary w-full${intro ? ' onit-rise' : ''}`}
-            style={intro ? { animationDelay: '300ms' } : undefined}
-            onClick={() => setShowForm(true)}
-          >
-            <Icon name="add" size={22} /> Add expense
-          </button>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            <button
+              className={`btn-primary w-full${intro ? ' onit-rise' : ''}`}
+              style={intro ? { animationDelay: '300ms' } : undefined}
+              onClick={() => setShowForm(true)}
+            >
+              <Icon name="add" size={22} /> Add expense
+            </button>
+            <Link
+              href="/summary"
+              className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+              style={intro ? { animationDelay: '400ms' } : undefined}
+            >
+              <Icon name="description" size={18} /> Income &amp; Expenses
+            </Link>
+          </div>
           {/* List card: Expenses + Recurring (merge 3 · 3·3). */}
           <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}>
@@ -231,14 +242,7 @@ export default function Dashboard() {
             </Link>
             <RecurringBooksRow items={recurring} />
           </div>
-          <Link
-            href="/summary"
-            className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
-            style={intro ? { animationDelay: '400ms' } : undefined}
-          >
-            <Icon name="description" size={18} /> Income &amp; Expenses
-          </Link>
-        </>
+        </div>
       )}
 
       {showForm && (

@@ -190,7 +190,7 @@ export default function Books() {
   }
 
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div className="mx-auto max-w-5xl px-4 pb-4 pt-2 md:px-6">
       {/* Release frames 4b: title + gold "+" (the same Add expense sheet as
           Books), search, Week / Month + sort, then the groups. */}
       <div className="flex items-center justify-between px-1 pb-2.5">
