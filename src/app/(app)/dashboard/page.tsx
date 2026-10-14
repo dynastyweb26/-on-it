@@ -157,7 +157,16 @@ export default function Dashboard() {
       if (!session) { router.replace('/login'); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace('/login'); return; }
-      try { await loadStats(); } finally { setLoading(false); }
+      try {
+        await Promise.race([
+          loadStats(),
+          new Promise((resolve) => setTimeout(resolve, 1500))
+        ]);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -209,10 +218,10 @@ export default function Dashboard() {
           300 / 350 / 400ms). Mounted with the totals, like the tiles, so the
           entrance never starts on buttons already on screen. */}
       {!loading && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="flex flex-col gap-3">
+        <div className="space-y-6">
+          <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center">
             <button
-              className={`btn-primary w-full${intro ? ' onit-rise' : ''}`}
+              className={`btn-primary flex-1${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '300ms' } : undefined}
               onClick={() => setShowForm(true)}
             >
@@ -220,13 +229,13 @@ export default function Dashboard() {
             </button>
             <Link
               href="/summary"
-              className={`btn-outline w-full text-primary${intro ? ' onit-rise' : ''}`}
+              className={`btn-outline flex-1 text-primary justify-center${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '400ms' } : undefined}
             >
               <Icon name="description" size={18} /> Income &amp; Expenses
             </Link>
           </div>
-          {/* List card: Expenses + Recurring (merge 3 · 3·3). */}
+          {/* List card: Expenses + Recurring (merge 3 · 3·3) at bottom. */}
           <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}>
             <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
