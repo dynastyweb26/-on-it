@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
 import TutorialReference from '@/components/tutorial/TutorialReference';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
+import type { SlideTab } from '@/components/tutorial/slides';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -158,6 +159,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   //   showReference — the always-available "How On It works" reference doc.
   const [showFirstRun, setShowFirstRun] = useState(false);
   const [showReference, setShowReference] = useState(false);
+  const [referenceTab, setReferenceTab] = useState<SlideTab | 'all'>('clients');
   // The signed-in user, so the walkthrough's last-seen version is stored
   // per-user. Null until resolved (or a guest — guests get no auto-show).
   const [userId, setUserId] = useState<string | null>(null);
@@ -204,13 +206,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // the first-run carousel they never actually saw. Only closeFirstRun marks
   // seen — keep these two paths separate.
   // Settings › Help & feedback opens these two from inside a screen.
+  // Deep-link support via query string ?walkthrough=clients|invoices|chat|books|settings|all
   useEffect(() => {
-    const openReference = () => setShowReference(true);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const w = url.searchParams.get('walkthrough');
+    if (w && ['clients', 'invoices', 'chat', 'books', 'settings', 'all'].includes(w)) {
+      setReferenceTab(w as SlideTab | 'all');
+      setShowReference(true);
+    }
+  }, [path]);
+
+  useEffect(() => {
+    const openReference = () => {
+      setReferenceTab('clients');
+      setShowReference(true);
+    };
+    const openWalkthrough = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: SlideTab | 'all' }>).detail?.tab || 'clients';
+      setReferenceTab(tab);
+      setShowReference(true);
+    };
     const replayWalkthrough = () => setShowFirstRun(true);
+
     window.addEventListener('onit-open-reference', openReference);
+    window.addEventListener('onit-open-walkthrough', openWalkthrough);
     window.addEventListener('onit-replay-walkthrough', replayWalkthrough);
     return () => {
       window.removeEventListener('onit-open-reference', openReference);
+      window.removeEventListener('onit-open-walkthrough', openWalkthrough);
       window.removeEventListener('onit-replay-walkthrough', replayWalkthrough);
     };
   }, []);
@@ -312,7 +336,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
       {/* Reference doc — tabbed, always available from the pill. Never gated,
           never marks seen (see closeReference). */}
-      {showReference && <TutorialReference onClose={closeReference} />}
+      {showReference && <TutorialReference onClose={closeReference} initialTab={referenceTab} />}
       {/* One scroll owner per screen. Chat owns its scrolling (the message list
           between the header and the composer), so here main must NOT also be a
           scroller: nested scroll containers let iOS hand a gesture to the

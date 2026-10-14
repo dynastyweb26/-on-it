@@ -24,7 +24,7 @@ import { MockShell, MockBubble, MockComposer, MiniStat } from '@/components/tuto
 // A slide's home tab, matching app nav. Drives the reference doc's grouping.
 // (Settings is intentionally not a tab here — the reference doc covers Chat,
 // Invoices, and Books only.)
-export type SlideTab = 'chat' | 'invoices' | 'books';
+export type SlideTab = 'clients' | 'invoices' | 'chat' | 'books' | 'settings';
 
 export interface Slide {
   id: string;
@@ -34,9 +34,108 @@ export interface Slide {
   mock: React.ReactNode;
   // id of the [data-spotlight] element inside `mock` the gold ring highlights.
   spotlight: string;
+  // Label for toaster/tooltip pointing to the element
+  tooltipTitle?: string;
+  tooltipText?: string;
 }
 
 export const SLIDES: Slide[] = [
+  // ── Clients: manage client profiles & saved catalog ──────────────
+  {
+    id: 'clientlist',
+    tab: 'clients',
+    headline: 'All your clients in one place',
+    body: 'Tap any client to see their invoice history, balance owed, and quick contact details.',
+    spotlight: 'clientcard',
+    tooltipTitle: 'Client Cards',
+    tooltipText: 'Tap a client card to view past invoices, phone number, email, and balance owed.',
+    mock: (
+      <MockShell active="clients">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1.5 text-[12px] text-on-surface-variant/70">
+            <Icon name="search" size={16} /> Search clients...
+          </div>
+          <div data-spotlight="clientcard" className="card p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-display text-sm font-bold text-on-background">Cyril Smith</div>
+                <div className="text-[11px] text-on-surface-variant">cyril@example.com · (555) 019-2834</div>
+              </div>
+              <span className="chip min-h-0 px-2 py-0.5 text-[10px] font-bold text-primary">3 Invoices</span>
+            </div>
+          </div>
+          <div className="card p-3 opacity-80">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-display text-sm font-bold text-on-background">Apex Builders</div>
+                <div className="text-[11px] text-on-surface-variant">billing@apex.com · (555) 012-9876</div>
+              </div>
+              <span className="chip min-h-0 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">1 Invoice</span>
+            </div>
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
+    id: 'addclient',
+    tab: 'clients',
+    headline: 'Add a new client in seconds',
+    body: 'Tap + Add Client to record contact details, billing preferences, and default tax rates.',
+    spotlight: 'addclientbtn',
+    tooltipTitle: 'Add Client Button',
+    tooltipText: 'Tap here to add a new client to your directory.',
+    mock: (
+      <MockShell active="clients">
+        <div className="space-y-3">
+          <div data-spotlight="addclientbtn" className="btn-primary min-h-0 w-full py-2.5 text-[13px]">
+            <Icon name="person_add" size={16} /> Add new client
+          </div>
+          <div className="rounded-input border border-outline-variant bg-surface-container-lowest p-3 space-y-2">
+            <div className="text-[11px] font-semibold text-on-surface-variant">Quick Client Setup</div>
+            <div className="h-2 w-32 rounded bg-surface-variant" />
+            <div className="h-2 w-48 rounded bg-surface-variant/60" />
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
+    id: 'products',
+    tab: 'clients',
+    headline: 'Saved Items & Services catalog',
+    body: 'Save standard services and fixed prices so On It can draft invoices automatically when mentioned.',
+    spotlight: 'catalog',
+    tooltipTitle: 'Services & Products Catalog',
+    tooltipText: 'Store rates, descriptions, and standard pricing for quick invoicing.',
+    mock: (
+      <MockShell active="clients">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-bold text-on-background">Saved Services & Rates</span>
+            <span className="text-[11px] font-semibold text-primary">+ New Item</span>
+          </div>
+          <div data-spotlight="catalog" className="space-y-1.5">
+            <div className="card p-2.5 flex items-center justify-between text-[12px]">
+              <div>
+                <div className="font-semibold text-on-background">Door Installation</div>
+                <div className="text-[10px] text-on-surface-variant">Standard exterior framing & hanging</div>
+              </div>
+              <span className="font-display font-bold text-primary">$400.00</span>
+            </div>
+            <div className="card p-2.5 flex items-center justify-between text-[12px]">
+              <div>
+                <div className="font-semibold text-on-background">Hardware Fitting</div>
+                <div className="text-[10px] text-on-surface-variant">Handles, deadbolts & strike plates</div>
+              </div>
+              <span className="font-display font-bold text-primary">$35.00</span>
+            </div>
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+
   // ── Invoices: the full create-to-paid flow ──────────────────────
   {
     id: 'mic',
@@ -44,6 +143,8 @@ export const SLIDES: Slide[] = [
     headline: 'Talk or type the job',
     body: "Tap +, then Voice, and talk — or type it: “Invoice Cyril four fifty for a door install.” On It writes it up.",
     spotlight: 'mic',
+    tooltipTitle: 'Voice & Action Menu',
+    tooltipText: 'Tap + or the Mic to speak your job details or draft an invoice by voice.',
     mock: (
       <MockShell active="chat">
         <div className="space-y-2">
@@ -226,6 +327,8 @@ export const SLIDES: Slide[] = [
     headline: 'Every expense lands in Books',
     body: "Snap it or say it — either way it drops straight into Books, sorted by category, so nothing's lost.",
     spotlight: 'seeall',
+    tooltipTitle: 'Expense Tracker',
+    tooltipText: 'View all logged expenses with receipts and details.',
     mock: (
       <MockShell active="books">
         <div className="space-y-2">
@@ -263,6 +366,8 @@ export const SLIDES: Slide[] = [
     headline: 'Books adds it all up',
     body: "Money collected, what's still owed, and what you've spent — totaled for you and updated as you work.",
     spotlight: 'totals',
+    tooltipTitle: 'Financial Totals',
+    tooltipText: 'Track total revenue, money collected, outstanding balances, and total spending in real-time.',
     mock: (
       <MockShell active="books">
         <div data-spotlight="totals" className="space-y-2">
@@ -286,6 +391,8 @@ export const SLIDES: Slide[] = [
     headline: 'Your books in one PDF',
     body: 'Your spending and income, totaled or itemized, for any stretch of the year. Export it and send it to whoever keeps your books.',
     spotlight: 'taxsummary',
+    tooltipTitle: 'PDF Tax & Expense Summaries',
+    tooltipText: 'Export clean PDF reports for tax prep or client accounting in one tap.',
     mock: (
       <MockShell active="books">
         <div className="grid grid-cols-2 gap-2">
@@ -300,6 +407,93 @@ export const SLIDES: Slide[] = [
           </div>
           <div data-spotlight="taxsummary" className="btn-outline min-h-0 w-full py-2 text-[13px] text-primary">
             <Icon name="receipt_long" size={14} /> Expense summary
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+
+  // ── Settings: preferences, payments, vault & tools ───────────────
+  {
+    id: 'settingsprofile',
+    tab: 'settings',
+    headline: 'Your business branding & details',
+    body: 'Set up your business name, logo, tax rate, and invoice header information.',
+    spotlight: 'businessprofile',
+    tooltipTitle: 'Business Profile',
+    tooltipText: 'Customize business details and headers shown on every customer PDF invoice.',
+    mock: (
+      <MockShell active="settings">
+        <div className="space-y-2.5">
+          <div data-spotlight="businessprofile" className="card p-3 flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-primary-container font-display text-lg font-bold text-on-background">
+              OB
+            </div>
+            <div>
+              <div className="font-display text-sm font-bold text-on-background">On It Carpentry</div>
+              <div className="text-[11px] text-on-surface-variant">carpentry@example.com · Tax 8.25%</div>
+            </div>
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
+    id: 'settingspayments',
+    tab: 'settings',
+    headline: 'Accept payments your way',
+    body: 'Add your Zelle, Venmo, Cash App, PayPal handles or connect Stripe to collect direct card payments.',
+    spotlight: 'paymenthandles',
+    tooltipTitle: 'Payment Handles & Stripe',
+    tooltipText: 'Include your preferred payment links or QR handles directly on sent invoices.',
+    mock: (
+      <MockShell active="settings">
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">Payment Options</div>
+          <div data-spotlight="paymenthandles" className="card p-3 space-y-2">
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="flex items-center gap-1.5 font-semibold"><Icon name="payments" size={16} /> Venmo / Cash App</span>
+              <span className="text-[11px] text-primary font-bold">Configured</span>
+            </div>
+            <div className="flex items-center justify-between text-[12px] border-t border-outline-variant/40 pt-2">
+              <span className="flex items-center gap-1.5 font-semibold"><Icon name="account_balance" size={16} /> Stripe Card Payments</span>
+              <span className="chip min-h-0 px-2 py-0.5 text-[10px]">Connected</span>
+            </div>
+          </div>
+        </div>
+      </MockShell>
+    ),
+  },
+  {
+    id: 'settingsvault',
+    tab: 'settings',
+    headline: 'PDF Vault & Recurring Billing',
+    body: 'Access your document vault for past records and automate recurring job billing seamlessly.',
+    spotlight: 'vaultrecurring',
+    tooltipTitle: 'Vault & Recurring Tools',
+    tooltipText: 'Manage auto-invoicing and access all generated PDFs in one secure place.',
+    mock: (
+      <MockShell active="settings">
+        <div data-spotlight="vaultrecurring" className="space-y-2">
+          <div className="card p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon name="folder" size={18} className="text-primary" />
+              <div>
+                <div className="text-[12px] font-bold text-on-background">PDF Document Vault</div>
+                <div className="text-[10px] text-on-surface-variant">24 stored invoice PDFs</div>
+              </div>
+            </div>
+            <Icon name="chevron_right" size={18} className="text-on-surface-variant" />
+          </div>
+          <div className="card p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon name="autorenew" size={18} className="text-primary" />
+              <div>
+                <div className="text-[12px] font-bold text-on-background">Recurring Schedules</div>
+                <div className="text-[10px] text-on-surface-variant">2 active monthly retainers</div>
+              </div>
+            </div>
+            <Icon name="chevron_right" size={18} className="text-on-surface-variant" />
           </div>
         </div>
       </MockShell>

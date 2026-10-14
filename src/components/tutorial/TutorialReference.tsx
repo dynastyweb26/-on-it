@@ -1,45 +1,65 @@
 'use client';
-/* ═══ TutorialReference — the always-available "How On It works" doc ═══
-   Three tabs in app nav order (Invoices / Chat / Books), opening on Invoices.
-   Tabs use the app's existing gold selected-state (.chip-selected) — the same
-   ring every selectable element uses, no new pattern. Within a tab, slides are
-   VERTICALLY SCROLLABLE (not swipeable): the app already swipes horizontally
-   between tabs at the layout level, so a horizontal swipe inside a tab would
-   fight that gesture; every real screen presents stacked cards in a vertical
-   scroll; and reference material reads better scanned than gated one at a time.
 
-   This surface is NOT gated by TUTORIAL_VERSION and needs no session — it holds
-   no persistence state, so it opens clean for a deferred-auth guest. */
-import { useLayoutEffect, useRef, useState } from 'react';
+/* ═══ TutorialReference — the always-available "How On It works" hub ═══
+   5 sub-tabs matching the app tabs: Clients, Invoices, Chat, Books, Settings.
+   Displays an overview reference for each tab with an immediate option to
+   launch the interactive animated walkthrough for that single section or
+   play all 5 sections as one continuous tour.
+*/
+
+import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { SlideMock } from '@/components/tutorial/mocks';
 import { slidesForTab, type SlideTab } from '@/components/tutorial/slides';
+import AnimatedWalkthrough from '@/components/tutorial/AnimatedWalkthrough';
 
-// Reference tabs, in nav order. Icons match the app's bottom nav (Design
-// Standard §4): Invoices description, Chat chat_bubble, Books payments.
+// 5 reference sub-tabs in app nav order
 const TABS: { key: SlideTab; label: string; icon: IconName }[] = [
+  { key: 'clients', label: 'Clients', icon: 'group' },
   { key: 'invoices', label: 'Invoices', icon: 'description' },
   { key: 'chat', label: 'Chat', icon: 'chat_bubble' },
   { key: 'books', label: 'Books', icon: 'payments' },
+  { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
-export default function TutorialReference({ onClose }: { onClose: () => void }) {
-  // Opens on Invoices — the surface a user reaches for most.
-  const [active, setActive] = useState<SlideTab>('invoices');
-  const slides = slidesForTab(active);
+export default function TutorialReference({
+  onClose,
+  initialTab = 'clients',
+}: {
+  onClose: () => void;
+  initialTab?: SlideTab | 'all';
+}) {
+  const [activeTab, setActiveTab] = useState<SlideTab>(() => {
+    if (initialTab === 'all') return 'clients';
+    return initialTab;
+  });
 
-  // The scroll container is one stable DOM node across tab switches, so its
-  // scrollTop survives a change of `active` — landing the next tab mid-page.
-  // Reset it to the top on every tab change, before paint (useLayoutEffect), so
-  // there's no flash of the previous scroll position.
+  const [activeWalkthrough, setActiveWalkthrough] = useState<SlideTab | 'all' | null>(() => {
+    return initialTab === 'all' ? 'all' : null;
+  });
+
+  const slides = slidesForTab(activeTab);
   const scrollRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { scrollRef.current?.scrollTo(0, 0); }, [active]);
+
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo(0, 0);
+  }, [activeTab]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-        <span className="font-display text-lg font-extrabold">How On It works</span>
+      {/* If activeWalkthrough is set, render the full screen AnimatedWalkthrough over the hub */}
+      {activeWalkthrough && (
+        <AnimatedWalkthrough
+          initialTab={activeWalkthrough}
+          onClose={() => setActiveWalkthrough(null)}
+          onTabSelect={(tab) => setActiveTab(tab)}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3 bg-surface-container-lowest">
+        <span className="font-display text-lg font-extrabold text-on-background">How On It Works</span>
         <button
           aria-label="Close"
           className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
@@ -49,39 +69,63 @@ export default function TutorialReference({ onClose }: { onClose: () => void }) 
         </button>
       </div>
 
-      {/* Tabs — existing gold selected-state, FILL-1 icon on the active tab */}
-      <div className="flex gap-2 border-b border-outline-variant/40 px-4 py-3">
+      {/* 5 Sub-Tabs Navigation */}
+      <div className="flex overflow-x-auto gap-1 border-b border-outline-variant/40 px-3 py-2 scrollbar-none">
         {TABS.map(({ key, label, icon }) => {
-          const on = active === key;
+          const on = activeTab === key;
           return (
             <button
               key={key}
               aria-pressed={on}
-              className={`chip flex flex-1 items-center justify-center gap-1.5 ${on ? 'chip-selected' : ''}`}
-              onClick={() => setActive(key)}
+              className={`chip flex shrink-0 items-center gap-1 px-3 py-1.5 text-xs font-semibold ${
+                on ? 'chip-selected bg-primary-container text-on-background' : 'text-on-surface-variant'
+              }`}
+              onClick={() => setActiveTab(key)}
             >
-              <Icon name={icon} size={18} filled={on} /> {label}
+              <Icon name={icon} size={16} filled={on} /> {label}
             </button>
           );
         })}
       </div>
 
-      {/* Vertically scrollable slides for the active tab */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        {/* Tightened top rhythm (pt-4 pb-8, gap-8) lifts the stack so the top
-            strip of the next mock card peeks above the fold — a self-explanatory
-            scroll affordance, no indicator/arrow/fade. Content-driven heights
-            mean the peek isn't guaranteed on landscape / sub-600px viewports;
-            that's an accepted tradeoff over clipping content or rescaling mocks. */}
+      {/* Hero Tour Banner */}
+      <div className="border-b border-outline-variant/30 bg-primary-soft/40 px-4 py-3 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-bold text-on-background">Interactive Walkthroughs</div>
+          <div className="text-[11px] text-on-surface-variant">Follow along step-by-step</div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="btn-primary min-h-0 py-1.5 px-3 text-xs font-bold flex items-center gap-1 shadow-xs"
+            onClick={() => setActiveWalkthrough(activeTab)}
+          >
+            <Icon name="play_arrow" size={16} /> Launch {TABS.find((t) => t.key === activeTab)?.label} Tour
+          </button>
+          <button
+            className="btn-outline min-h-0 py-1.5 px-3 text-xs font-bold flex items-center gap-1 bg-surface-container-lowest"
+            onClick={() => setActiveWalkthrough('all')}
+          >
+            Play All 5
+          </button>
+        </div>
+      </div>
+
+      {/* Vertically scrollable slide preview cards */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-[360px] flex-col items-center gap-8 pt-4 pb-8">
           {slides.map((s) => (
-            <div key={s.id} className="flex w-full flex-col items-center gap-4">
-              {/* Static ring in the reference — see .spotlight-ring-static. */}
+            <div key={s.id} className="flex w-full flex-col items-center gap-3 card p-4 border border-outline-variant/40">
               <SlideMock mock={s.mock} spotlight={s.spotlight} active pulse={false} />
-              <div className="text-center">
-                <h2 className="font-display text-xl font-extrabold">{s.headline}</h2>
-                <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">{s.body}</p>
+              <div className="text-center mt-1">
+                <h2 className="font-display text-base font-bold text-on-background">{s.headline}</h2>
+                <p className="mx-auto mt-1 max-w-xs text-xs text-on-surface-variant">{s.body}</p>
               </div>
+              <button
+                className="mt-2 text-xs font-bold text-primary flex items-center gap-1 hover:underline"
+                onClick={() => setActiveWalkthrough(activeTab)}
+              >
+                <Icon name="play_arrow" size={14} /> Tap to follow along
+              </button>
             </div>
           ))}
         </div>
