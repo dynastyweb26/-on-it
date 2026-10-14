@@ -168,7 +168,7 @@ export default function Invoices() {
   }
 
   return (
-    <div className="px-4 pb-4 pt-3.5">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-4 md:px-8">
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
       <div role="tablist" aria-label="Show" className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (

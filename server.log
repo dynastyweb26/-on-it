@@ -33,3 +33,24 @@ Read More - https://nextjs.org/docs/messages/invalid-page-config
  GET /invoices 200 in 70ms
  GET /chat 200 in 56ms
  GET /api/connect/status 200 in 43ms
+ ✓ Compiled in 9.5s (647 modules)
+ ✓ Compiled in 2.6s (647 modules)
+ ✓ Compiled in 2.1s (647 modules)
+ ✓ Compiled in 953ms (647 modules)
+ ✓ Compiled in 10.4s (647 modules)
+ ○ Compiling /chat ...
+ ✓ Compiled /chat in 3.6s (605 modules)
+ GET /chat 200 in 4675ms
+ ○ Compiling /api/connect/status ...
+ ✓ Compiled /api/connect/status in 526ms (979 modules)
+ GET /api/connect/status 200 in 1077ms
+ ✓ Compiled /invoices in 367ms (991 modules)
+ GET /invoices 200 in 706ms
+ ✓ Compiled /login in 293ms (996 modules)
+ ✓ Compiled /dashboard in 399ms (1008 modules)
+ GET /dashboard 200 in 836ms
+ GET /chat 200 in 262ms
+ GET /api/connect/status 200 in 148ms
+ GET /invoices 200 in 88ms
+ GET /chat 200 in 72ms
+ GET /api/connect/status 200 in 43ms

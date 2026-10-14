@@ -273,8 +273,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <RecapProvider suppressed={showFirstRun || showReference}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
-      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low p-4">
-        <div className="flex items-center justify-between pb-6 pt-2 px-2">
+      <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
+        <div className="flex items-center justify-between pb-8 pt-1 px-1">
           <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
@@ -287,7 +287,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1.5">
+        <nav className="flex flex-col gap-2.5">
           {TABS.map(({ href, label, icon }) => {
             const active = path.startsWith(href);
             return (
@@ -295,13 +295,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3.5 rounded-2xl px-4 py-3 transition-colors ${
+                className={`flex items-center gap-3.5 rounded-2xl px-4 py-3.5 transition-colors ${
                   active
                     ? 'bg-primary-container font-bold text-on-background shadow-sm'
                     : 'font-semibold text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
-                <div className="relative">
+                <div className="relative flex items-center justify-center">
                   <Icon name={icon} size={24} filled={active} />
                   {href === '/dashboard' && <BooksDot />}
                 </div>
@@ -316,47 +316,64 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-6">
           <InstallBanner />
         </div>
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
-        <header className="flex items-center justify-between border-b border-outline-variant px-4 py-3 md:px-6">
-          <div className="flex items-center gap-2">
-            {parentRoute && <BackButton parentHref={parentRoute} />}
-            <span className="font-display text-xl font-extrabold md:hidden">
-              On It<span className="text-primary">.</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {path.startsWith('/chat') && (
-              <>
-                <button
-                  aria-label="New chat"
-                  className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
-                  onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
-                >
-                  <Icon name="edit_square" size={24} />
-                </button>
-                <button
-                  aria-label="Recent conversations"
-                  className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
-                  onClick={() => window.dispatchEvent(new Event('onit-history'))}
-                >
-                  <Icon name="history" size={24} />
-                </button>
-              </>
-            )}
+        {(parentRoute || path.startsWith('/chat')) ? (
+          <header className="flex items-center justify-between border-b border-outline-variant/60 px-4 py-3 md:px-6">
+            <div className="flex items-center gap-2">
+              {parentRoute && <BackButton parentHref={parentRoute} />}
+              <span className="font-display text-xl font-extrabold md:hidden">
+                On It<span className="text-primary">.</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {path.startsWith('/chat') && (
+                <>
+                  <button
+                    aria-label="New chat"
+                    className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                    onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+                  >
+                    <Icon name="edit_square" size={24} />
+                  </button>
+                  <button
+                    aria-label="Recent conversations"
+                    className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                    onClick={() => window.dispatchEvent(new Event('onit-history'))}
+                  >
+                    <Icon name="history" size={24} />
+                  </button>
+                </>
+              )}
+              <button
+                aria-label="How On It works"
+                className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
+                onClick={() => setShowReference(true)}
+              >
+                How On It works
+              </button>
+            </div>
+          </header>
+        ) : (
+          <header className="flex items-center justify-between border-b border-outline-variant/60 px-4 py-3 md:hidden">
+            <div className="flex items-center gap-2">
+              <span className="font-display text-xl font-extrabold">
+                On It<span className="text-primary">.</span>
+              </span>
+            </div>
             <button
               aria-label="How On It works"
-              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
+              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
               onClick={() => setShowReference(true)}
             >
               How On It works
             </button>
-          </div>
-        </header>
+          </header>
+        )}
 
         {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
         {showReference && <TutorialReference onClose={closeReference} />}
