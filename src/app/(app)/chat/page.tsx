@@ -1401,9 +1401,8 @@ export default function Chat() {
     // payment processor connected yet — one tap takes them to /settings/payouts.
     const pi = pendingInvoiceRef.current;
     const sentKind = draft ? docKind(draft) : null;
-    console.log('[sentCard debug]', { pi, draft: !!draft, sentKind, connectOn, profile: !!profile });
     const withCards: Msg[] = (() => {
-      if (!pi || !draft || !sentKind) { console.log('[sentCard debug] bailing — missing:', { pi, draft: !!draft, sentKind }); return archived; }
+      if (!pi || !draft || !sentKind) return archived;
       const items = (draft.line_items ?? []) as LineItem[];
       const taxRate = draft.tax_rate ?? 0;
       const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
