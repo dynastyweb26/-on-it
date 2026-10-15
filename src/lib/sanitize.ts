@@ -28,7 +28,13 @@ export function sanitizeForAI(raw: string): string {
     .trim();
 }
 
+/** Sanitize general string input: strips angle brackets and ASCII control
+ *  characters (including null bytes) to prevent HTML and control-character injection. */
 export function sanitizeField(raw: unknown, maxLen = 300): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[<>]/g, '').slice(0, maxLen).trim();
+  return raw
+    .replace(/[<>]/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .slice(0, maxLen)
+    .trim();
 }
