@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { extract, type ExtractResult } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
-import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpDaily } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 
@@ -128,9 +128,25 @@ export async function POST(req: NextRequest) {
 
   // Deferred auth: unauthenticated users get 5 free parses per session
   // via a signed cookie counter — enough to feel the magic, then sign up.
+  // Two additional hard walls stop cookie-cycling / IP-rotating abuse:
+  //   1. Per-IP daily cap (5/day) — cookie-clearing is useless.
+  //   2. Global guest daily cap (300/day) — IP rotation still hits the wall.
   if (!user) {
     const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
     if (guestCount >= 5) {
+      return NextResponse.json(
+        { authRequired: true, reply: "Let's save your work — create your free account to keep going." },
+        { status: 401 }
+      );
+    }
+    const ip = clientIp(req);
+    if (!(await reserveGuestIpDaily('parse', ip))) {
+      return NextResponse.json(
+        { authRequired: true, reply: "Let's save your work — create your free account to keep going." },
+        { status: 401 }
+      );
+    }
+    if (!(await reserveGuestDaily('parse'))) {
       return NextResponse.json(
         { authRequired: true, reply: "Let's save your work — create your free account to keep going." },
         { status: 401 }
@@ -148,6 +164,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'draft too large', reply: 'Let’s start that one fresh.' }, { status: 400 });
   }
 
+  // Client-supplied history is untrusted: user turns are wrapped in
+  // <user_input> tags; assistant turns are wrapped in <prior_reply> tags so
+  // the model treats them as client-provided context, not authoritative output.
+  // A client cannot forge model instructions by crafting a "prior reply".
   const history = rawHistory
     .slice(-12) // bound context
     .map((m) => ({
@@ -155,7 +175,7 @@ export async function POST(req: NextRequest) {
       content:
         m.role === 'user'
           ? `<user_input>${sanitizeForAI(m.content)}</user_input>`
-          : sanitizeForAI(m.content).slice(0, 1000),
+          : `<prior_reply>${sanitizeForAI(m.content).slice(0, 1000)}</prior_reply>`,
     }));
 
   try {

@@ -1,7 +1,8 @@
 // GET/POST /api/zelle — the ONLY path to the encrypted Zelle column.
 // Server-side only: the encryption key and the admin client never reach the
-// browser. The set_zelle/get_zelle SQL functions are revoked from anon and
-// authenticated roles, so even direct PostgREST calls can't touch them.
+// browser. The set_zelle/get_zelle SQL functions are revoked from PUBLIC,
+// anon, and authenticated — only service_role may execute them, so a direct
+// PostgREST /rpc/ call from any client role is rejected.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
