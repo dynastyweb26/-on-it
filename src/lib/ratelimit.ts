@@ -123,6 +123,11 @@ const DAILY_GUEST_CAP: Partial<Record<RateRoute, number>> = {
   // cheap if abused — worst case is a few dollars of AssemblyAI, not a runaway
   // bill, no matter how many fresh cookies/IPs an attacker throws at it.
   transcribe: 500,
+  // ~300 AI text parses/day globally across all guests. A real demo funnel
+  // (visitors trying the voice flow) stays well under this; the unsigned
+  // onit_guest cookie is the per-device nudge-wall — this is the global backstop
+  // so cookie-clearing plus IP rotation still hits a hard wall.
+  parse: 300,
 };
 
 /**
@@ -150,6 +155,42 @@ export async function reserveGuestDaily(route: RateRoute): Promise<boolean> {
     return n <= cap;
   } catch (e) {
     console.error('guest daily cap error (failing open)', route, e);
+    return true;
+  }
+}
+
+// ═══ Per-IP guest daily ceiling ═══
+// Cookie-clearing resets the onit_guest nudge-wall. This counter is keyed by
+// IP instead of cookie, so a single IP can't silently exhaust the per-route
+// budget by cycling cookies. Complements reserveGuestDaily (which is a single
+// shared counter across ALL guests) — both checks run; either rejection blocks.
+const DAILY_GUEST_IP_CAP: Partial<Record<RateRoute, number>> = {
+  // 5 parses/day per IP, matching the onit_guest cookie nudge limit.
+  // A real demo visitor tries a handful of examples; 5 is generous while
+  // making cookie-cycling useless.
+  parse: 5,
+};
+
+/**
+ * Reserves one unit of today's per-IP guest budget for `route` and returns
+ * true if still within budget. Keyed by `ip` so cookie-clearing is useless.
+ * Fails OPEN on Redis outage, matching the other rate functions.
+ */
+export async function reserveGuestIpDaily(route: RateRoute, ip: string): Promise<boolean> {
+  const cap = DAILY_GUEST_IP_CAP[route];
+  if (cap == null) return true;
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return true;
+  }
+  if (!redis) redis = Redis.fromEnv();
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `guestip:${route}:${ip}:${day}`;
+  try {
+    const n = await redis.incr(key);
+    if (n === 1) await redis.expire(key, 60 * 60 * 48);
+    return n <= cap;
+  } catch (e) {
+    console.error('guest ip daily cap error (failing open)', route, e);
     return true;
   }
 }

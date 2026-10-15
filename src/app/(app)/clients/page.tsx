@@ -23,7 +23,7 @@ export default function Clients() {
   }, []);
   const i = SEGMENTS.findIndex((s) => s.key === segment);
   return (
-    <div className="px-4 py-4">
+    <div className="mx-auto max-w-5xl px-4 py-4 md:px-6">
       {/* Segmented control: the gold thumb slides by transform (MOTION-SPEC §13). */}
       <div role="tablist" aria-label="Clients or products"
         className="relative grid h-14 grid-cols-2 rounded-full bg-surface-container p-1">

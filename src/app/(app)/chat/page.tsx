@@ -67,7 +67,11 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   /** A saved expense, shown as the compact logged card (content keeps the text
    *  confirmation for the model's context). Its thumbnail is the photo
    *  bubble's image, referenced by id — never a second copy. */
-  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null }; }
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null };
+  /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
+  sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
+  /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
+  payoutsNudge?: true; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -225,6 +229,8 @@ const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
 const NEAR_BOTTOM_PX = 120;
 // localStorage flag: the payment-alerts offer was answered (Yes or Not now).
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
+// localStorage flag: the payouts nudge was dismissed — never show again.
+const PAYOUTS_NUDGE_DISMISSED_KEY = 'onit_payouts_nudge_dismissed';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
 // effect during SSR, where React 18 warns on useLayoutEffect.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -567,6 +573,10 @@ export default function Chat() {
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
+  // Tracks whether the empty-state payouts nudge has been dismissed this session.
+  const [payoutsNudgeDismissed, setPayoutsNudgeDismissed] = useState(
+    () => { try { return !!localStorage.getItem(PAYOUTS_NUDGE_DISMISSED_KEY); } catch { return false; } }
+  );
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   // Passive duplicate indicator: the server flagged a similar recent invoice
@@ -1384,7 +1394,38 @@ export default function Chat() {
     // On a finalize retry the done message replaces the failed bubble in place,
     // so neither the transcript nor the archived history keeps a dead error.
     const archived = emitResult(summary ? [...messages, summary] : messages, doneMsg, retryId);
-    setMessages(archived);
+    // Sent invoice summary card + optional payouts nudge — appended after the
+    // done message so they appear right below the confirmation bubble.
+    // Only for invoices/quotes (not downloads), and only when a real invoice number
+    // is known. The payouts nudge fires when Connect is on but the pro has no
+    // payment processor connected yet — one tap takes them to /settings/payouts.
+    const pi = pendingInvoiceRef.current;
+    const sentKind = draft ? docKind(draft) : null;
+    console.log('[sentCard debug]', { pi, draft: !!draft, sentKind, connectOn, profile: !!profile });
+    const withCards: Msg[] = (() => {
+      if (!pi || !draft || !sentKind) { console.log('[sentCard debug] bailing — missing:', { pi, draft: !!draft, sentKind }); return archived; }
+      const items = (draft.line_items ?? []) as LineItem[];
+      const taxRate = draft.tax_rate ?? 0;
+      const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
+      const depositValue = Number((draft as any).deposit_value ?? 0);
+      const totals = calculateInvoiceTotals(items, taxRate, depositType, depositValue);
+      const cardMsg = aMsg('', {
+        sentCard: {
+          clientName: draft.client_name ?? 'Client',
+          invoiceNo: formatDocNumber(sentKind, pi.no),
+          amount: money(totals.amountDueNow),
+          dueDate: formatDate(draft.due_date ?? defaultDueDate()),
+          kind: sentKind,
+        },
+      });
+      const result: Msg[] = [...archived, cardMsg];
+      // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
+      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
+        result.push(aMsg('', { payoutsNudge: true }));
+      }
+      return result;
+    })();
+    setMessages(withCards);
     // Archive to history as sent. draft:null / ready:false is what the history
     // list stores; reopening rebuilds the locked card from the DB row (Commit B).
     pushHistory(storageNsRef.current ?? 'guest', {
@@ -3147,7 +3188,7 @@ export default function Chat() {
   ) : null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col">
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -3156,10 +3197,45 @@ export default function Chat() {
       <div
         ref={listRef}
         onScroll={onListScroll}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
           <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
+        )}
+        {/* Payouts empty-state nudge — shown once at the top of a blank chat when
+            Connect is enabled but no payment processor is connected yet. Same
+            dismissal flag as the post-send nudge so one "Not now" silences both. */}
+        {hydrated && messages.length === 0 && !payoutsNudgeDismissed && profile && connectOn &&
+          !cardAvailableFor(profile, connectOn) && (
+          <div className="rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Icon name="payments" size={15} className="text-primary" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
+            </div>
+            <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
+              Connect a payment processor to your invoices
+            </p>
+            <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">
+              Clients can pay online the moment they get an invoice — no cash, no chasing. Takes 30 seconds to set up.
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95"
+                onClick={() => router.push('/settings/payouts')}
+              >
+                Set up Payouts
+              </button>
+              <button
+                className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
+                onClick={() => {
+                  try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+                  setPayoutsNudgeDismissed(true);
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
@@ -3207,6 +3283,61 @@ export default function Chat() {
                 >
                   <Icon name="edit_square" size={18} /> New chat
                 </button>
+              </div>
+            </div>
+          ) : m.sentCard ? (
+            // Sent invoice summary chip — a compact confirmation card showing the
+            // client, doc number, amount due, and due date. Appears right after
+            // the "Sent!" confirmation bubble. Static (no animation needed; the
+            // bubble above already signals the moment).
+            <div key={m.id} className="flex justify-start">
+              <div className="flex w-full max-w-[82%] items-center justify-between gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-bold leading-tight text-on-surface">{m.sentCard.clientName}</p>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">{m.sentCard.invoiceNo} · Due {m.sentCard.dueDate}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-base font-extrabold text-on-surface">{m.sentCard.amount}</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                    {m.sentCard.kind === 'quote' ? 'Sent' : '▶ Sent'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : m.payoutsNudge ? (
+            // Payouts nudge — shown once after a sent invoice when the pro has no
+            // payment processor connected. "Set up Payouts" routes to the connect
+            // screen; "Not now" dismisses by replacing this message with nothing.
+            <div key={m.id} className="flex justify-start">
+              <div className="w-full max-w-[82%] rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
+                <div className="mb-1.5 flex items-center gap-1.5">
+                  <Icon name="payments" size={15} className="text-primary" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
+                </div>
+                <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
+                  Connect a payment processor to your invoices?
+                </p>
+                <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">
+                  {draft?.client_name ? `${draft.client_name} can` : 'Clients can'} pay online the moment they get this — no cash, no chasing. Takes 30 seconds to set up.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95"
+                    onClick={() => router.push('/settings/payouts')}
+                  >
+                    Set up Payouts
+                  </button>
+                  <button
+                    className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
+                    onClick={() => {
+                      try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+                      setPayoutsNudgeDismissed(true);
+                      setMessages((msgs) => msgs.filter((x) => x.id !== m.id));
+                    }}
+                  >
+                    Not now
+                  </button>
+                </div>
               </div>
             </div>
           ) : m.logged ? (
