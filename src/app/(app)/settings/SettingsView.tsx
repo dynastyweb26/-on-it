@@ -1072,7 +1072,11 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           // Forget this device first (needs the session): a shared phone must
           // not keep getting this account's payment alerts after sign-out.
           await unsubscribeFromPush().catch(() => false);
-          await supabase.auth.signOut();
+          // scope 'local' signs out THIS device only. supabase-js defaults to
+          // 'global', which deletes every session for the account, so signing
+          // out on one device logged the user out on all their others
+          // (refresh_token_not_found in the auth logs, 2026-10-15).
+          await supabase.auth.signOut({ scope: 'local' });
           router.push('/login');
         }}>
         Sign out
