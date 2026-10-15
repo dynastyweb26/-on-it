@@ -573,6 +573,10 @@ export default function Chat() {
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
+  // Tracks whether the empty-state payouts nudge has been dismissed this session.
+  const [payoutsNudgeDismissed, setPayoutsNudgeDismissed] = useState(
+    () => { try { return !!localStorage.getItem(PAYOUTS_NUDGE_DISMISSED_KEY); } catch { return false; } }
+  );
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   // Passive duplicate indicator: the server flagged a similar recent invoice
@@ -1415,8 +1419,7 @@ export default function Chat() {
       });
       const result: Msg[] = [...archived, cardMsg];
       // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
-      const nudgeDismissed = (() => { try { return !!localStorage.getItem(PAYOUTS_NUDGE_DISMISSED_KEY); } catch { return false; } })();
-      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !nudgeDismissed) {
+      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
         result.push(aMsg('', { payoutsNudge: true }));
       }
       return result;
@@ -3198,6 +3201,41 @@ export default function Chat() {
         {hydrated && dayLabel(messages) && (
           <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
         )}
+        {/* Payouts empty-state nudge — shown once at the top of a blank chat when
+            Connect is enabled but no payment processor is connected yet. Same
+            dismissal flag as the post-send nudge so one "Not now" silences both. */}
+        {hydrated && messages.length === 0 && !payoutsNudgeDismissed && profile && connectOn &&
+          !cardAvailableFor(profile, connectOn) && (
+          <div className="rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Icon name="credit_card" size={15} className="text-primary" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
+            </div>
+            <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
+              Connect a payment processor to your invoices
+            </p>
+            <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">
+              Clients can pay online the moment they get an invoice — no cash, no chasing. Takes 30 seconds to set up.
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95"
+                onClick={() => router.push('/settings/payouts')}
+              >
+                Set up Payouts
+              </button>
+              <button
+                className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
+                onClick={() => {
+                  try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+                  setPayoutsNudgeDismissed(true);
+                }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
           m.quiet ? (
@@ -3292,6 +3330,7 @@ export default function Chat() {
                     className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
                     onClick={() => {
                       try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+                      setPayoutsNudgeDismissed(true);
                       setMessages((msgs) => msgs.filter((x) => x.id !== m.id));
                     }}
                   >
