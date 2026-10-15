@@ -800,6 +800,37 @@ results(id, ok, expected, actual) as (
       else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.repeat_candidate(uuid)'))
         || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE')
         || ' anon=' || has_function_privilege('anon', to_regprocedure('public.repeat_candidate(uuid)'), 'EXECUTE') end
+
+  -- U. Zelle encryption functions (20261015000001): EXECUTE revoked from PUBLIC,
+  --    anon, authenticated; service_role only. (M1 security fix.)
+  union all
+  select 'U1 ' || fn.f || ' ' || ro.r,
+    not has_function_privilege(ro.r, fn.f, 'execute'),
+    'not executable',
+    case when has_function_privilege(ro.r, fn.f, 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_zelle(uuid, text, text)'),
+               ('public.get_zelle(uuid, text)')) fn(f)
+  cross join (values ('public'), ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'U2 ' || fn.f || ' service_role',
+    has_function_privilege('service_role', fn.f, 'execute'),
+    'executable by service_role',
+    case when has_function_privilege('service_role', fn.f, 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_zelle(uuid, text, text)'),
+               ('public.get_zelle(uuid, text)')) fn(f)
+
+  -- V. referred_by FK on delete set null (20261015000002): confdeltype = 'n'. (M3 security fix.)
+  union all
+  select 'V1 profiles_referred_by_fkey on delete set null',
+    coalesce((select contype = 'f' and confdeltype = 'n'
+      from pg_constraint
+      where conname = 'profiles_referred_by_fkey'
+        and conrelid = 'public.profiles'::regclass), false),
+    'FK present; confdeltype=n (SET NULL)',
+    coalesce((select 'type=' || contype || ' deltype=' || confdeltype
+      from pg_constraint
+      where conname = 'profiles_referred_by_fkey'
+        and conrelid = 'public.profiles'::regclass), 'missing')
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
