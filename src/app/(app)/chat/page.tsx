@@ -229,6 +229,8 @@ const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
 const NEAR_BOTTOM_PX = 120;
 // localStorage flag: the payment-alerts offer was answered (Yes or Not now).
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
+// localStorage flag: the payouts nudge was dismissed — never show again.
+const PAYOUTS_NUDGE_DISMISSED_KEY = 'onit_payouts_nudge_dismissed';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
 // effect during SSR, where React 18 warns on useLayoutEffect.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -1412,8 +1414,9 @@ export default function Chat() {
         },
       });
       const result: Msg[] = [...archived, cardMsg];
-      // Nudge only if Connect is on and the pro has no payment processor set up.
-      if (connectOn && profile && !cardAvailableFor(profile, connectOn)) {
+      // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
+      const nudgeDismissed = (() => { try { return !!localStorage.getItem(PAYOUTS_NUDGE_DISMISSED_KEY); } catch { return false; } })();
+      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !nudgeDismissed) {
         result.push(aMsg('', { payoutsNudge: true }));
       }
       return result;
@@ -3287,7 +3290,10 @@ export default function Chat() {
                   </button>
                   <button
                     className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
-                    onClick={() => setMessages((msgs) => msgs.filter((x) => x.id !== m.id))}
+                    onClick={() => {
+                      try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+                      setMessages((msgs) => msgs.filter((x) => x.id !== m.id));
+                    }}
                   >
                     Not now
                   </button>
