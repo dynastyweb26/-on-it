@@ -827,7 +827,7 @@ results(id, ok, expected, actual) as (
       where conname = 'profiles_referred_by_fkey'
         and conrelid = 'public.profiles'::regclass), false),
     'FK present; confdeltype=n (SET NULL)',
-    coalesce((select 'type=' || contype || ' deltype=' || confdeltype
+    coalesce((select 'type=' || contype::text || ' deltype=' || confdeltype::text
       from pg_constraint
       where conname = 'profiles_referred_by_fkey'
         and conrelid = 'public.profiles'::regclass), 'missing')
