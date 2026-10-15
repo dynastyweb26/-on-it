@@ -3147,7 +3147,7 @@ export default function Chat() {
   ) : null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col">
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -3156,7 +3156,7 @@ export default function Chat() {
       <div
         ref={listRef}
         onScroll={onListScroll}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
           <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
