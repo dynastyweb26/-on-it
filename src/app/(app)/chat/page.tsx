@@ -3209,7 +3209,7 @@ export default function Chat() {
           !cardAvailableFor(profile, connectOn) && (
           <div className="rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
             <div className="mb-1.5 flex items-center gap-1.5">
-              <Icon name="credit_card" size={15} className="text-primary" />
+              <Icon name="payments" size={15} className="text-primary" />
               <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
             </div>
             <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
@@ -3311,7 +3311,7 @@ export default function Chat() {
             <div key={m.id} className="flex justify-start">
               <div className="w-full max-w-[82%] rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
                 <div className="mb-1.5 flex items-center gap-1.5">
-                  <Icon name="credit_card" size={15} className="text-primary" />
+                  <Icon name="payments" size={15} className="text-primary" />
                   <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
                 </div>
                 <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
