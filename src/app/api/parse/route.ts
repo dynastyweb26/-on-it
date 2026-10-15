@@ -164,6 +164,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'draft too large', reply: 'Let’s start that one fresh.' }, { status: 400 });
   }
 
+  // Client-supplied history is untrusted: user turns are wrapped in
+  // <user_input> tags; assistant turns are wrapped in <prior_reply> tags so
+  // the model treats them as client-provided context, not authoritative output.
+  // A client cannot forge model instructions by crafting a "prior reply".
   const history = rawHistory
     .slice(-12) // bound context
     .map((m) => ({
@@ -171,7 +175,7 @@ export async function POST(req: NextRequest) {
       content:
         m.role === 'user'
           ? `<user_input>${sanitizeForAI(m.content)}</user_input>`
-          : sanitizeForAI(m.content).slice(0, 1000),
+          : `<prior_reply>${sanitizeForAI(m.content).slice(0, 1000)}</prior_reply>`,
     }));
 
   try {
