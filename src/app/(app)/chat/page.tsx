@@ -3196,6 +3196,7 @@ export default function Chat() {
       <div
         ref={listRef}
         onScroll={onListScroll}
+        data-coach="chat-messages"
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
@@ -3465,7 +3466,7 @@ export default function Chat() {
             onSend={() => { void finalize(); }} />
         </div>
       ) : (
-        <div className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
+        <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
           {/* The save prompt floats just above the composer, no scrim (2·13). */}
           {promptShown && !plusMenu && (
             <div className="absolute inset-x-3 bottom-full z-30 mb-2">

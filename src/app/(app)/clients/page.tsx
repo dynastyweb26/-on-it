@@ -40,7 +40,7 @@ export default function Clients() {
         ))}
       </div>
 
-      <div key={segment} role="tabpanel">
+      <div key={segment} role="tabpanel" data-coach={segment === 'clients' ? 'clients-list' : undefined}>
         {segment === 'clients' ? <ClientsList /> : <ProductsList />}
       </div>
     </div>

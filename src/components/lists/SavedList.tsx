@@ -25,7 +25,7 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
         <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label}
           className="min-w-0 flex-1 bg-transparent text-body-lg text-on-background outline-none placeholder:text-on-surface-variant" />
       </label>
-      <button type="button" aria-label={addLabel} onClick={onAdd}
+      <button type="button" aria-label={addLabel} onClick={onAdd} data-coach="clients-add"
         className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card transition active:scale-90">
         <Icon name="add" size={26} />
       </button>

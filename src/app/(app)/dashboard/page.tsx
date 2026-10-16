@@ -192,6 +192,7 @@ export default function Dashboard() {
           <Link
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
+            data-coach="books-net"
             className={`lg:col-span-1 flex flex-col justify-between rounded-[22px] bg-inverse-surface p-6 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
             <div className="flex items-center justify-between gap-3 min-w-0">
@@ -206,7 +207,7 @@ export default function Dashboard() {
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
               Each is a button to the list whose total equals its number. */}
-          <div className="lg:col-span-2 grid grid-cols-3 gap-3 md:gap-5">
+          <div data-coach="books-stats" className="lg:col-span-2 grid grid-cols-3 gap-3 md:gap-5">
             <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
             <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
             <Tile key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} />
@@ -221,6 +222,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center">
             <button
+              data-coach="books-add-expense"
               className={`btn-primary flex-1${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '300ms' } : undefined}
               onClick={() => setShowForm(true)}

@@ -509,6 +509,16 @@ html[data-splash=""] .onit-splash {
   100% { opacity: 0; transform: translateY(-16px); }
 }
 .onit-plus-one { animation: onit-plus-one 900ms var(--ease-standard) both; }
+/* Coach marks overlay animations */
+@keyframes coach-pulse {
+  0%   { box-shadow: 0 0 0 3px #c9a227, 0 0 0 6px rgba(201,162,39,.35); }
+  60%  { box-shadow: 0 0 0 3px #c9a227, 0 0 0 14px rgba(201,162,39,0); }
+  100% { box-shadow: 0 0 0 3px #c9a227, 0 0 0 14px rgba(201,162,39,0); }
+}
+@keyframes coach-up {
+  from { opacity: 0; transform: translateY(20px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
 /* List motion (2·14, §4). New entry: slides into its A–Z slot and glows gold
    for 1.2 s. Undo: the row re-expands. Long-press: the row lifts to 1.02 over
    the dimmed list and the menu scales in. Form save: the Save label becomes a

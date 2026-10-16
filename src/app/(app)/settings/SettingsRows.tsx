@@ -15,11 +15,12 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
   );
 }
 
-export function SettingsRow({ icon, title, value, href, onClick, tint = 'muted' }: {
+export function SettingsRow({ icon, title, value, href, onClick, tint = 'muted', 'data-coach': dataCoach }: {
   icon: IconName; title: string; value?: string | null;
   href?: string; onClick?: () => void;
   /** 'gold' = the soft-gold tile the frames give saved lists; 'muted' otherwise. */
   tint?: 'gold' | 'muted';
+  'data-coach'?: string;
 }) {
   const body = (
     <>
@@ -33,8 +34,8 @@ export function SettingsRow({ icon, title, value, href, onClick, tint = 'muted' 
   );
   const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container';
   return href
-    ? <Link href={href} className={cls}>{body}</Link>
-    : <button type="button" onClick={onClick} className={cls}>{body}</button>;
+    ? <Link href={href} data-coach={dataCoach} className={cls}>{body}</Link>
+    : <button type="button" onClick={onClick} data-coach={dataCoach} className={cls}>{body}</button>;
 }
 
 /** Big screen title ("Settings", "Business profile", …). */

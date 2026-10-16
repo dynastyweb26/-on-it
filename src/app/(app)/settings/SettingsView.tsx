@@ -527,12 +527,13 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         <SettingsGroup title="Your business">
           <SettingsRow icon="group" tint="gold" title="Clients" value={clientCount ? String(clientCount) : null} href="/clients" />
           <SettingsRow icon="handyman" tint="gold" title="Products & Services" value={productCount ? String(productCount) : null} href="/clients?segment=products" />
-          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" />
+          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" data-coach="settings-profile" />
           <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />
         </SettingsGroup>
         <SettingsGroup title="Money">
           <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
+            data-coach="settings-payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
               : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
         </SettingsGroup>
@@ -549,7 +550,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
           <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
           {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
-          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" />
+          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" data-coach="settings-replay" />
         </SettingsGroup>
       </>)}
 

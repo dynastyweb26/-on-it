@@ -2,8 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import FirstRunTutorial from '@/components/tutorial/FirstRunTutorial';
-import TutorialReference from '@/components/tutorial/TutorialReference';
+import CoachMarks from '@/components/tutorial/CoachMarks';
 import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
@@ -153,71 +152,51 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // are ignored meanwhile so one gesture can never chain into two tabs.
   const navigating = useRef<number | null>(null); // start time, or null
   useEffect(() => { navigating.current = null; }, [path]);
-  // Two independent surfaces (do not merge — see closeReference):
-  //   showFirstRun  — the gated 4-slide first-run carousel (auto-show once).
-  //   showReference — the always-available "How On It works" reference doc.
-  const [showFirstRun, setShowFirstRun] = useState(false);
-  const [showReference, setShowReference] = useState(false);
-  // The signed-in user, so the walkthrough's last-seen version is stored
-  // per-user. Null until resolved (or a guest — guests get no auto-show).
+  // showCoachMarks: true while the per-tab coach marks tour is active.
+  // Gated: auto-shows once for onboarded users behind TUTORIAL_VERSION,
+  // and re-opens on every "How On It works" tap (dispatches
+  // onit-replay-walkthrough). The showReference path for the old slide
+  // reference doc is removed — coach marks replace both surfaces.
+  const [showCoachMarks, setShowCoachMarks] = useState(false);
+  // The signed-in user, so the seen-version is stored per-user.
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Auto-show once when an ONBOARDED user is behind the current walkthrough
-  // version. Two explicit gates, so it can never surface at the wrong moment:
-  //   1. A real session — guests get nothing.
-  //   2. A profile row exists — this is the onboarding-completion signal
-  //      (onboarding's finish() is the only thing that creates it). Without it
-  //      we don't infer "onboarded" from the mere absence of a stored version,
-  //      which is true from the instant an account is created. A brand-new,
-  //      pre-onboarding user who lands on an (app) screen (e.g. /chat via '/')
-  //      is redirected to /onboarding by the page itself, and this gate keeps
-  //      the carousel from flashing in that window.
-  // Login and onboarding live OUTSIDE this route group, so this layout never
-  // mounts over them at all.
-  // A fresh account, once onboarded, has seen version 0 (< current) → the
-  // carousel opens on the first app screen; a version bump re-shows it once.
+  // Auto-show once when an ONBOARDED user is behind the current tutorial
+  // version. Same two-gate logic as the old first-run carousel.
   useEffect(() => {
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return; // guest — nothing to auto-show against
+      if (!user) return;
       setUserId(user.id);
       void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
       if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
       const { data: profile } = await supabase
         .from('profiles').select('id').eq('id', user.id).maybeSingle();
-      if (profile) setShowFirstRun(true); // onboarded + behind → show
+      if (profile) setShowCoachMarks(true); // onboarded + behind → show tour
     })();
   }, []);
 
-  // Closing the first-run carousel records the seen-version so it never
-  // auto-shows again (until TUTORIAL_VERSION is bumped).
-  function closeFirstRun() {
+  // "How On It works" re-opens coach marks and dispatches the replay event
+  // so CoachMarks resets step state from the current tab.
+  function openCoachMarks() {
+    setShowCoachMarks(true);
+    window.dispatchEvent(new Event('onit-replay-walkthrough'));
+  }
+
+  // Called when CoachMarks finishes or is fully skipped.
+  function closeCoachMarks() {
     if (userId) markTutorialSeen(userId);
-    setShowFirstRun(false);
+    setShowCoachMarks(false);
   }
 
-  // The reference doc deliberately does NOT call markTutorialSeen(). It is
-  // always available from the header pill, including for a guest with no
-  // session. Marking seen here would push getSeenVersion() up to the current
-  // version for a brand-new user who only tapped the pill, silently suppressing
-  // the first-run carousel they never actually saw. Only closeFirstRun marks
-  // seen — keep these two paths separate.
-  // Settings › Help & feedback opens these two from inside a screen.
+  // Settings › Help & feedback still dispatches onit-replay-walkthrough.
   useEffect(() => {
-    const openReference = () => setShowReference(true);
-    const replayWalkthrough = () => setShowFirstRun(true);
-    window.addEventListener('onit-open-reference', openReference);
-    window.addEventListener('onit-replay-walkthrough', replayWalkthrough);
-    return () => {
-      window.removeEventListener('onit-open-reference', openReference);
-      window.removeEventListener('onit-replay-walkthrough', replayWalkthrough);
-    };
+    const onReplay = () => openCoachMarks();
+    window.addEventListener('onit-replay-walkthrough', onReplay);
+    return () => window.removeEventListener('onit-replay-walkthrough', onReplay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function closeReference() {
-    setShowReference(false);
-  }
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -270,7 +249,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={showFirstRun || showReference}>
+      <RecapProvider suppressed={showCoachMarks}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -281,7 +260,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             aria-label="How On It works"
             className="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
-            onClick={() => setShowReference(true)}
+            onClick={openCoachMarks}
           >
             How it works
           </button>
@@ -352,7 +331,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 aria-label="How On It works"
                 className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
-                onClick={() => setShowReference(true)}
+                onClick={openCoachMarks}
               >
                 How On It works
               </button>
@@ -368,15 +347,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               aria-label="How On It works"
               className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
-              onClick={() => setShowReference(true)}
+              onClick={openCoachMarks}
             >
               How On It works
             </button>
           </header>
         )}
 
-        {showFirstRun && <FirstRunTutorial onClose={closeFirstRun} />}
-        {showReference && <TutorialReference onClose={closeReference} />}
+        {showCoachMarks && <CoachMarks currentPath={path} onDone={closeCoachMarks} />}
 
         <main
           className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
@@ -393,7 +371,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Bottom tab bar for Mobile viewports */}
-        <nav ref={navRef} data-kb-hide="" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
+        <nav ref={navRef} data-kb-hide="" data-coach="tab-bar" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
           {pill && (
             <span
               aria-hidden

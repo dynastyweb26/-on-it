@@ -170,7 +170,7 @@ export default function Invoices() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-4 md:px-8">
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
-      <div role="tablist" aria-label="Show" className="flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Show" data-coach="invoices-filter" className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f}
             className={`h-[42px] shrink-0 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
@@ -185,7 +185,7 @@ export default function Invoices() {
       {loading ? (
         <InvoicesSkeleton />
       ) : (
-        <div key={filter} className={travel ? `onit-list-from-${travel}` : undefined}>
+        <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
             <p className="mt-16 text-center text-on-surface-variant">
               {filter === 'all' ? 'Nothing here yet. Head to Chat and tell me about a job.'
