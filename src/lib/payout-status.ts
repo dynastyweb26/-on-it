@@ -21,20 +21,25 @@ export interface StripeFields {
   stripe_charges_enabled?: boolean | null;
   stripe_details_submitted?: boolean | null;
   stripe_payouts_enabled?: boolean | null;
+  /** The seller's "Accept card payments" switch. */
+  card_payments_enabled?: boolean | null;
 }
 
 /**
- * Same four states as the Stripe detail view, plus the deployment switch:
+ * Priority (founder, 2026-10-16): Not connected > Action needed (only while the
+ * card switch is on) > Off > Connected. Around it:
  *   Connect off in this deployment          → Coming soon
  *   no account                              → Not connected
- *   seller owes a detail (not submitted)    → Action needed
- *   submitted, Stripe still reviewing       → In review
- *   charging, but payouts paused            → Action needed
- *   charging and paying out                 → Connected
+ *   switch on, seller owes a detail         → Action needed
+ *   switch on, payouts paused               → Action needed
+ *   switch on, submitted, Stripe reviewing  → In review
+ *   switch off                              → Off
+ *   switch on, charging and paying out      → Connected
  */
 export function stripeStatus(p: StripeFields, connectOn: boolean): PayoutStatus {
   if (!connectOn) return { text: 'Coming soon', tone: 'muted' };
   if (!p.stripe_account_id) return { text: 'Not connected', tone: 'muted' };
+  if (!p.card_payments_enabled) return { text: 'Off', tone: 'muted' };
   if (!p.stripe_charges_enabled) {
     return p.stripe_details_submitted
       ? { text: 'In review', tone: 'muted' }

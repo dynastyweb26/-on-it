@@ -12,24 +12,42 @@ test('stripe: no account → Not connected', () => {
   assert.deepEqual(stripeStatus({ stripe_account_id: null }, true), { text: 'Not connected', tone: 'muted' });
 });
 
-test('stripe: account but seller owes details → Action needed', () => {
-  assert.deepEqual(stripeStatus({ stripe_account_id: 'acct_1', stripe_charges_enabled: false, stripe_details_submitted: false }, true),
+const ACCT = { stripe_account_id: 'acct_1' };
+const LIVE = { ...ACCT, stripe_charges_enabled: true, stripe_details_submitted: true, stripe_payouts_enabled: true };
+
+test('stripe: switch on, seller owes details → Action needed', () => {
+  assert.deepEqual(stripeStatus({ ...ACCT, card_payments_enabled: true, stripe_charges_enabled: false, stripe_details_submitted: false }, true),
     { text: 'Action needed', tone: 'error' });
 });
 
-test('stripe: submitted, not yet charging → In review', () => {
-  assert.deepEqual(stripeStatus({ stripe_account_id: 'acct_1', stripe_charges_enabled: false, stripe_details_submitted: true }, true),
+test('stripe: switch on, payouts paused → Action needed', () => {
+  assert.deepEqual(stripeStatus({ ...LIVE, card_payments_enabled: true, stripe_payouts_enabled: false }, true),
+    { text: 'Action needed', tone: 'error' });
+});
+
+test('stripe: switch on, submitted, not yet charging → In review', () => {
+  assert.deepEqual(stripeStatus({ ...ACCT, card_payments_enabled: true, stripe_charges_enabled: false, stripe_details_submitted: true }, true),
     { text: 'In review', tone: 'muted' });
 });
 
-test('stripe: charging but payouts paused → Action needed', () => {
-  assert.deepEqual(stripeStatus({ stripe_account_id: 'acct_1', stripe_charges_enabled: true, stripe_details_submitted: true, stripe_payouts_enabled: false }, true),
-    { text: 'Action needed', tone: 'error' });
+test('stripe: connected but card switch off → Off', () => {
+  assert.deepEqual(stripeStatus({ ...LIVE, card_payments_enabled: false }, true), { text: 'Off', tone: 'muted' });
+  assert.deepEqual(stripeStatus({ ...LIVE, card_payments_enabled: null }, true), { text: 'Off', tone: 'muted' });
 });
 
-test('stripe: charging and paying out → Connected', () => {
-  assert.deepEqual(stripeStatus({ stripe_account_id: 'acct_1', stripe_charges_enabled: true, stripe_details_submitted: true, stripe_payouts_enabled: true }, true),
-    { text: 'Connected', tone: 'default' });
+test('stripe: switch off outranks Action needed', () => {
+  assert.deepEqual(stripeStatus({ ...LIVE, card_payments_enabled: false, stripe_payouts_enabled: false }, true),
+    { text: 'Off', tone: 'muted' });
+  assert.deepEqual(stripeStatus({ ...ACCT, card_payments_enabled: false, stripe_charges_enabled: false, stripe_details_submitted: false }, true),
+    { text: 'Off', tone: 'muted' });
+});
+
+test('stripe: Not connected outranks Off', () => {
+  assert.deepEqual(stripeStatus({ card_payments_enabled: false }, true), { text: 'Not connected', tone: 'muted' });
+});
+
+test('stripe: switch on, charging and paying out → Connected', () => {
+  assert.deepEqual(stripeStatus({ ...LIVE, card_payments_enabled: true }, true), { text: 'Connected', tone: 'default' });
 });
 
 test('bank: not set / off / on', () => {
