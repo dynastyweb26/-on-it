@@ -9,7 +9,10 @@ export function clientNameKey(name: string): string {
 // The question /api/parse asks when an invoice or quote has no client.
 const WHO_QUESTION = /who'?s this for\?\s*$/i;
 const NAME_LEAD = /^(?:(?:it'?s|it is|this is|that'?s|that is)\s+)?(?:for\s+)?(?:(?:the\s+)?(?:client|customer)(?:'s name)?\s*(?:is|:)\s*)?/i;
-const NOT_A_NAME = /^(?:yes|yeah|yep|no|nope|ok|okay|sure|idk|not sure|skip|later|none|n\/a)$/i;
+// Replies that answer or dodge the question without naming anyone. "cancel"
+// only stayed out of the name field on the preview because the model called
+// that turn a non-invoice; this list doesn't rely on that.
+const NOT_A_NAME = /^(?:yes|yeah|yep|no|nope|nah|ok|okay|sure|idk|i don'?t know|not sure|skip|later|none|nobody|no one|n\/a|cancel|cancel it|stop|never ?mind|forget it|wait|hold on|hang on|what|huh|why|start over|undo)$/i;
 
 /**
  * The client name in a short reply to "Who's this for?". The model has

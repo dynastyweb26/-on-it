@@ -23,6 +23,9 @@ test('nameFromAnswer: a short answer to "Who\'s this for?" is the name', async (
   assert.equal(nameFromAnswer(asked, 'The customer is Maria'), 'Maria');
   assert.equal(nameFromAnswer(asked, '80'), null);
   assert.equal(nameFromAnswer(asked, 'no'), null);
+  for (const dodge of ['cancel', 'Cancel.', 'never mind', 'nevermind', 'forget it', 'wait', 'I don\'t know', 'nobody']) {
+    assert.equal(nameFromAnswer(asked, dodge), null, dodge);
+  }
   assert.equal(nameFromAnswer(asked, 'add a labor charge of 120 to that one please ok'), null);
   assert.equal(nameFromAnswer('Any labor charge on this?', 'Taco Spot'), null);
 });
