@@ -668,3 +668,25 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | Item | Status | Evidence |
 |---|---|---|
 | Sign out + Delete account moved off main Settings | **Merged to main 2026-10-16 (founder-approved direct merge, no preview pass)** | `86affd8`: new `login` section (`settings/sections.ts`) → `/settings/login`, titled "Manage login" (name chosen by founder). Main Settings gets a "Manage login" row (`person` icon) at the end of Account. Sign out is now a row in a "This device" group (same handler: local-scope sign-out, push unsubscribe, chat storage clear); the Delete account card is unchanged below it. Terms/Privacy footer links removed from main Settings (still in Help & feedback and on the pay page). 250/250 tests, build passes. No migration. |
+
+## Cancel flow — logged 2026-10-16 (`feat/cancel-flow`, spec `CANCEL-FLOW-SPEC.md`)
+
+**Step 0 audit (spec §0b), 2026-10-16:**
+
+1. **Plan today — confirmed.** `src/app/(app)/settings/SettingsView.tsx:658-680`: `SUBSCRIBED` (`trialing`/`active`/`past_due`) see "Manage subscription" → `/api/billing-portal` and "Cancel or update your card in the billing portal." Founders get the separate "Free access · via code" card (`:649`); free/canceled get the Checkout CTA. Routing is `settings/[section]/page.tsx`, so `/settings/plan/cancel` needs its own static route folder.
+2. **Webhook — confirmed.** `applySubscription` (`src/app/api/webhooks/stripe/route.ts:39-62`) writes `stripe_customer_id`, `subscription_status`, `current_period_end`, `trial_ends_at` only. No `cancel_at_period_end`, no `pause_collection`. `tierFromStatus` maps `paused` → `canceled`, but `pause_collection` keeps status `active`, so a paused sub keeps full access today.
+3. **Redeem — confirmed.** `src/app/api/redeem/route.ts` `stopBilling()` sets `cancel_at_period_end: true` on live subs. Once the webhook records that column, a founder profile will have `cancel_at_period_end = true`; the Plan screen must check `tier === 'founder'` first (it already renders the founder card before the subscription block).
+4. **Stats sources — differs from spec:**
+   - `invoices.sent_at` is "last shared" (bumped on every resend, `20260918000006_invoice_first_sent_at.sql`). The stable date is `first_sent_at`. Invoices table also holds quotes (`kind`). Proposed: count `kind='invoice'`, `first_sent_at` not null, `deleted_at` null; days-to-paid = `paid_at - first_sent_at` over `status='paid'`.
+   - Collected: Books uses `invoice_payments` joined `invoices!inner(kind, deleted_at)`, `kind='invoice'`, `deleted_at` null (`dashboard/page.tsx:129`). Use the same query so test 8 matches Books.
+   - Clients: `saved_at` not null and `deleted_at` null (same as Settings count, `SettingsView.tsx:109`).
+5. **Stripe — answer.** SDK `stripe@22.3.1`, pinned `2026-06-24.dahlia` (`src/lib/stripe/server.ts:10`). Top-level `coupon` no longer exists on `SubscriptionUpdateParams`; use `discounts: [{ coupon }]`. `pause_collection: { behavior, resumes_at }` exists; `pause_collection: ''` clears it.
+
+**Other disagreements found:**
+- Free-tier copy "3 invoices and 5 expenses a month": the caps are not monthly. They count from a fixed `paywall_reset_at()` (`20261001000001`), not a monthly window. Proposed copy: "after that you're on the free plan (3 invoices and 5 expenses)", numbers from `/api/access` limits.
+- Stats footer "Recaps, reports and unlimited invoices end with your plan": paywall also gates unlimited expenses; recaps only when `RECAPS_LIVE`. Proposed: "Your history stays. Unlimited invoices and expenses, and PDF reports, end with your plan." (+ "recaps" when live).
+- 50% of $9.99 = 499.5 cents; Stripe may round the charge to $5.00, not $4.99. Verify on the test upcoming invoice; if it's $5.00, copy says "$5.00" or the coupon becomes `amount_off: 500`.
+- Stripe access in this session: test mode only (`acct_1TR131R0bVSrpkbB`, livemode false). The live coupon can't be created from here.
+
+| Item | Status | Evidence |
+|---|---|---|
