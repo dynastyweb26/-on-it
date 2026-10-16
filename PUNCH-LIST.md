@@ -663,3 +663,8 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | Yearly subscription reminder email (California) | **Open — due before any subscriber reaches 12 months** | California auto-renewal law needs an annual reminder for yearly plans. Not built. |
 | Test invoice marked "viewed" | **Open (founder, in app)** | INV-0093 (sent test invoice). Opened during the legal-update preview and production checks on 2026-10-16, so it's marked viewed. Soft-delete with the other test rows. |
 | `app-store-terms.md` + attorney review | **Open — before the native launch** | No App Store terms file exists. Write it, then have an attorney review it along with `privacy-policy.md` and `terms-of-service.md`. |
+
+## Settings: Manage login screen — logged 2026-10-16 (`feat/settings-manage-login`)
+| Item | Status | Evidence |
+|---|---|---|
+| Sign out + Delete account moved off main Settings | **Merged to main 2026-10-16 (founder-approved direct merge, no preview pass)** | `86affd8`: new `login` section (`settings/sections.ts`) → `/settings/login`, titled "Manage login" (name chosen by founder). Main Settings gets a "Manage login" row (`person` icon) at the end of Account. Sign out is now a row in a "This device" group (same handler: local-scope sign-out, push unsubscribe, chat storage clear); the Delete account card is unchanged below it. Terms/Privacy footer links removed from main Settings (still in Help & feedback and on the pay page). 250/250 tests, build passes. No migration. |

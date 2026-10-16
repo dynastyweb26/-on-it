@@ -452,7 +452,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
-      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : 'Settings'}</SettingsTitle>}
+      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -488,6 +488,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
           {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
           <SettingsRow icon="help" title="Help & feedback" href="/settings/help" data-coach="settings-replay" />
+          {/* Sign out + Delete account live on their own screen so they're
+              never one stray tap away on the main Settings list. */}
+          <SettingsRow icon="person" title="Manage login" href="/settings/login" />
         </SettingsGroup>
       </>)}
 
@@ -831,9 +834,10 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </SettingsGroup>
       )}
 
-      {is('main') && (<>
-      <button className="w-full py-3 text-sm text-error underline"
-        onClick={async () => {
+      {is('login') && (<>
+      <SettingsGroup title="This device">
+        <SettingsRow icon="lock_open" title="Sign out"
+          onClick={async () => {
           clearChatStorage(p?.id);
           // Forget this device first (needs the session): a shared phone must
           // not keep getting this account's payment alerts after sign-out.
@@ -844,9 +848,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           // (refresh_token_not_found in the auth logs, 2026-10-15).
           await supabase.auth.signOut({ scope: 'local' });
           router.push('/login');
-        }}>
-        Sign out
-      </button>
+        }} />
+      </SettingsGroup>
 
       {/* Danger zone — deliberately its own error-bordered card, separated from
           Sign out, gated behind a typed "DELETE" confirmation. */}
@@ -887,13 +890,11 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           </>
         )}
       </section>
-
-      <div className="flex justify-center gap-4 text-sm text-on-surface-variant">
-        <a href="/terms" className="underline">Terms</a>
-        <a href="/privacy" className="underline">Privacy</a>
-      </div>
-      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
       </>)}
+
+      {is('main') && (
+      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
+      )}
     </div>
   );
 }
