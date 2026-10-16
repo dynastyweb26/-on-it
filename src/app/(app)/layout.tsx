@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { TOUR_TABS } from '@/components/tutorial/coach-marks';
+import { TOURS } from '@/components/tutorial/coach-marks';
+import TourPicker from '@/components/tutorial/TourPicker';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -165,12 +166,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // "How On It works" runs the tour for the tab you're on.
-  function openCoachMarks() {
-    const tab = TOUR_TABS.find((k) => path === k || path.startsWith(k + '/'));
-    if (tab) setCoachTab(tab);
-  }
   const closeCoachMarks = useCallback(() => setCoachTab(null), []);
+
+  // Tab picker → go to that tab, wait for its first target, run its tour.
+  // pendingTour holds the pick across the navigation; a newer pick or any
+  // other navigation simply replaces / abandons it.
+  const pendingTour = useRef<string | null>(null);
+  const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runWhenMounted = useCallback((tab: string) => {
+    if (waitTimer.current) clearTimeout(waitTimer.current);
+    const selector = TOURS[tab].steps[0].selector;
+    const started = Date.now();
+    const tick = () => {
+      if (window.location.pathname !== tab) return; // navigated elsewhere — drop it
+      const ready = Array.from(document.querySelectorAll(selector))
+        .some((el) => el.getClientRects().length > 0);
+      // Start anyway after 4s: the overlay keeps looking for the target.
+      if (ready || Date.now() - started > 4000) setCoachTab(tab);
+      else waitTimer.current = setTimeout(tick, 80);
+    };
+    tick();
+  }, []);
+  function startTour(tab: string) {
+    setCoachTab(null);
+    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); return; }
+    pendingTour.current = tab;
+    router.push(tab);
+  }
+  useEffect(() => {
+    const tab = pendingTour.current;
+    if (!tab) return;
+    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); }
+  }, [path, runWhenMounted]);
+  useEffect(() => () => { if (waitTimer.current) clearTimeout(waitTimer.current); }, []);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -231,13 +259,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
-          <button
-            aria-label="How On It works"
-            className="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
-            onClick={openCoachMarks}
+          <TourPicker
+            align="left"
+            onPick={startTour}
+            buttonClassName="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
           >
             How it works
-          </button>
+          </TourPicker>
         </div>
 
         <nav data-coach="side-nav" className="flex flex-col gap-2.5">
@@ -302,13 +330,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </button>
                 </>
               )}
-              <button
-                aria-label="How On It works"
-                className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
-                onClick={openCoachMarks}
-              >
-                How On It works
-              </button>
+              <div className="md:hidden">
+                <TourPicker
+                  onPick={startTour}
+                  buttonClassName="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
+                >
+                  How On It works
+                </TourPicker>
+              </div>
             </div>
           </header>
         ) : (
@@ -318,13 +347,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 On It<span className="text-primary">.</span>
               </span>
             </div>
-            <button
-              aria-label="How On It works"
-              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
-              onClick={openCoachMarks}
+            <TourPicker
+              onPick={startTour}
+              buttonClassName="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
             >
               How On It works
-            </button>
+            </TourPicker>
           </header>
         )}
 
