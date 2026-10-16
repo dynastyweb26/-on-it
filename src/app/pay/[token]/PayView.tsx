@@ -174,11 +174,13 @@ function RowAction({ icon, text, flip = false }: { icon: 'arrow_forward' | 'open
 // because the payer has to copy it). Taps here never collapse the row.
 function BankDetails({ bank, docNumber, onCopied }: { bank: PayBank; docNumber: string; onCopied: (label: string) => void }) {
   const [shown, setShown] = useState(false);
-  const line = (label: string, value: React.ReactNode, copy: string | null) => (
+  // Text wraps on words only (the memo once split "mem / o"). Digit-only
+  // values (routing, account) have no words, so they may break anywhere.
+  const line = (label: string, value: React.ReactNode, copy: string | null, digits = false) => (
     <div className="flex min-h-touch items-center gap-2">
       <div className="min-w-0 flex-1">
         <p className="text-xs text-on-surface-variant">{label}</p>
-        <div className="break-all text-body-md text-on-background">{value}</div>
+        <div className={`${digits ? 'break-all' : ''} text-body-md text-on-background`}>{value}</div>
       </div>
       {copy ? <CopyButton value={copy} label={label} onCopied={() => onCopied(label)} /> : null}
     </div>
@@ -191,9 +193,9 @@ function BankDetails({ bank, docNumber, onCopied }: { bank: PayBank; docNumber: 
     >
       {line('Account holder', bank.holderName, bank.holderName)}
       {line('Bank', bank.bankName, bank.bankName)}
-      {line('Routing number', bank.routing, bank.routing)}
+      {line('Routing number', bank.routing, bank.routing, true)}
       {shown
-        ? line('Account number', bank.account, bank.account)
+        ? line('Account number', bank.account, bank.account, true)
         : line(
             'Account number',
             <button
