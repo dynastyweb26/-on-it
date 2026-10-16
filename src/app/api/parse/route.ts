@@ -8,7 +8,7 @@ import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpD
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
-import { nameFromAnswer } from '@/lib/client-name';
+import { resolveClientName } from '@/lib/client-name';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -87,16 +87,6 @@ function statedTaxRates(text: string): number[] {
   return out;
 }
 
-// A client_name that is a role or pronoun, not a name. The WHOLE value must be
-// one of these words (optionally after an article/possessive), so a real name
-// that happens to follow "the" survives ("the Johnsons", "The Home Depot").
-// Words that are also real first names (Guy, Man…) only count with an article.
-const GENERIC_BARE = /^(?:client|customer|homeowner|home owner|owner|tenant|landlord|someone|somebody|person|him|her|them|unknown|n\/?a|none|tbd|name|client name|customer name)s?$/i;
-const GENERIC_WITH_ARTICLE = /^(?:the|a|an|my|our|this|that|some)\s+(?:client|customer|homeowner|home owner|owner|tenant|landlord|person|guy|lady|man|woman|gentleman|family)s?$/i;
-function isGenericClientName(name: string): boolean {
-  const s = name.trim().replace(/^["'“‘]+|["'”’.,!?]+$/g, '').replace(/\s+/g, ' ');
-  return !s || GENERIC_BARE.test(s) || GENERIC_WITH_ARTICLE.test(s);
-}
 
 // Reserved for real parse failures (a price present but unreadable). Compared
 // against the previous assistant message so it's never sent twice in a row.
@@ -272,20 +262,23 @@ export async function POST(req: NextRequest) {
     // name already on the draft is kept (so "send it to the client" can't wipe
     // "Maria"); otherwise the name is cleared, the document is not ready, and
     // the reply asks for it. An invalid-amounts reply above is left standing.
+    // A short plain reply to "Who's this for?" is the name exactly as typed —
+    // even a generic word like "Client" (founder call 2026-10-15) — because
+    // the generic-word guard exists to stop the MODEL inventing one, not to
+    // overrule the user (lib/client-name resolveClientName).
     if (result.intent === 'invoice' || result.intent === 'quote') {
-      const name = typeof result.client_name === 'string' ? result.client_name.trim() : '';
-      if (!name || isGenericClientName(name)) {
-        const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
-        const draftName = typeof draftNameRaw === 'string' ? draftNameRaw.trim() : '';
-        // A short plain reply to "Who's this for?" is the name, even when the
-        // model didn't take it as one (seen on the preview with a pasted card).
-        const lastAssistant = [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '';
-        const latestUser = [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
-        const answered = nameFromAnswer(lastAssistant, latestUser);
-        if (draftName && !isGenericClientName(draftName)) {
-          result.client_name = draftName;
-        } else if (answered && !isGenericClientName(answered)) {
-          result.client_name = answered;
+      const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
+      const resolved = resolveClientName({
+        modelName: result.client_name,
+        draftName: typeof draftNameRaw === 'string' ? draftNameRaw : null,
+        lastAssistant: [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '',
+        latestUser: [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '',
+      });
+      if (resolved.source !== 'model') {
+        if (resolved.source === 'draft') {
+          result.client_name = resolved.name;
+        } else if (resolved.source === 'answer') {
+          result.client_name = resolved.name;
           result.missing = (Array.isArray(result.missing) ? result.missing : []).filter((k) => k !== 'client_name');
           // The model's reply was written without a name, so it may still ask
           // for one; and with every item priced the draft is now ready.

@@ -29,3 +29,23 @@ test('nameFromAnswer: a short answer to "Who\'s this for?" is the name', async (
   assert.equal(nameFromAnswer(asked, 'add a labor charge of 120 to that one please ok'), null);
   assert.equal(nameFromAnswer('Any labor charge on this?', 'Taco Spot'), null);
 });
+
+test('DECISION 2026-10-15: "Client" typed as the answer is accepted as the name', async () => {
+  const { resolveClientName } = await import('./client-name');
+  const asked = "On it! Total: $200.00. Who's this for?";
+  // The user typed it: kept exactly as typed, even though it's a generic word.
+  assert.deepEqual(resolveClientName({ modelName: null, draftName: null, lastAssistant: asked, latestUser: 'Client' }),
+    { name: 'Client', source: 'answer' });
+  assert.deepEqual(resolveClientName({ modelName: 'client', draftName: null, lastAssistant: asked, latestUser: 'Client' }),
+    { name: 'Client', source: 'answer' });
+  // The model inventing it (nobody was asked) is still rejected — the 56b0703 guard.
+  assert.deepEqual(resolveClientName({ modelName: 'Client', draftName: null, lastAssistant: '', latestUser: 'Invoice for gutters, $200' }),
+    { name: null, source: null });
+  // Dodges are never a name, typed or not.
+  for (const dodge of ['cancel', 'no']) {
+    assert.equal(resolveClientName({ modelName: null, draftName: null, lastAssistant: asked, latestUser: dodge }).name, null);
+  }
+  // A real draft name survives a later generic mention ("send it to the client").
+  assert.deepEqual(resolveClientName({ modelName: 'the client', draftName: 'Maria', lastAssistant: 'Got it.', latestUser: 'send it to the client' }),
+    { name: 'Maria', source: 'draft' });
+});

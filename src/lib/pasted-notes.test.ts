@@ -188,3 +188,20 @@ test('scrubCostPrices removes C$ tokens and $-prefixed cost figures only', () =>
   assert.equal(scrubCostPrices('Part was C$56, billed $80. Qty 56.', [56]), 'Part was, billed $80. Qty 56.');
   assert.equal(scrubCostPrices('Switch $27.30 each', [27.3]), 'Switch each');
 });
+
+test('DECISION 2026-10-15: labor question is pasted-card only — never on a plain invoice', () => {
+  // "Invoice Mike for drywall repair, $350" already says what to bill: no
+  // paste context, so the guard (the only place LABOR_QUESTION is asked) never runs.
+  const plain = [
+    [{ role: 'user', content: 'Invoice Mike for drywall repair, $350' }],
+    [{ role: 'user', content: 'Quote for 1028 sqft flooring at $4.50/sqft' },
+     { role: 'assistant', content: "On it! Total: $4,626.00. Who's this for?" },
+     { role: 'user', content: 'Test Flooring' }],
+    [{ role: 'user', content: TYPED_BULLETED_INVOICE }],
+  ];
+  for (const history of plain) assert.equal(pasteContext(history), null, history[0].content);
+  // A work card in the same shape of turn does get it.
+  const ctx = pasteContext([{ role: 'user', content: CARD_2_TORTILLA_WARMER }])!;
+  const r = applyPasteReplies(applyPasteItems(badModelResult({ client_name: 'Taco Spot' }), ctx), ctx);
+  assert.equal(r.reply, LABOR_QUESTION);
+});
