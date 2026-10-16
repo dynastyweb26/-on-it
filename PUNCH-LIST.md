@@ -715,3 +715,10 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 2. Plan screen from the profile | **Built on branch** | `af94d22`: everything but the usage counts from the profile; limits in parallel with the profile; usage row fixed-height placeholder. |
 | 3. Faster `/api/access` | **Built on branch** | `49a82f0`: 2 parallel DB rounds; client fetch starts after the session check. Preview-only `access-timing` log for measurement. |
 | Measurement | **Done (preview, 2026-10-16)** | `/api/access` total: cold 847 / 757 ms, warm 697 / 839 ms. Old sequential path from the same step times: ~1.09-1.26 s (35-40% faster). Each DB round 100-340 ms; the 4s was mostly the client chain (fixed by 1-3). Founder check passed: Plan row from first frame, no shift, Plan content immediate. |
+
+### Cancel flow — merged 2026-10-16
+| Item | Status | Evidence |
+|---|---|---|
+| Merge to main | **Merged + deployed** | `5a138c5` (`--no-ff` from `feat/cancel-flow`). Production `on-gpoeicodb` Ready, aliased to onit.dynastyweb.co. Smoke: signed-out `/api/subscription/cancel-summary` 401; `/settings/plan` and `/settings/plan/cancel` 200. |
+| Spec §6 test 11: Billing Portal cancellation off | **Open (founder, dashboard)** | Not touched by Claude. Confirm the portal still updates the card. |
+| Test rows to soft-delete / clean up | **Open (founder)** | On It accounts `deffeudynasty+cancel1@gmail.com` (profile `1f58b401-e1b1-41e9-b11f-df5530872007`, past_due after test 7) and `deffeudynasty+cancel2@gmail.com`, plus their `cancel_events` rows and test-mode subscriptions (+cancel1: `cus_VS927CNI51gfGG` / `sub_1UREkZR0bVSrpkbBaNl43OKx`). Live Stripe customer `cus_VS8zjyrtSJGyZL` (empty, from a production checkout by mistake). Test clocks A `clock_1URDvTR0bVSrpkbBcDmwVICl`, B `clock_1URDvVR0bVSrpkbBuWMBIVZG`, C `clock_1URE0YR0bVSrpkbBWekTZDCK` (deleting a clock removes its TEST cancel-flow customers; auto-delete ~30 days). |
