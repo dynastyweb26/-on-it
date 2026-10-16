@@ -90,8 +90,9 @@ export default function CoachMarkOverlay({
   // Position the tooltip: below the spotlight when it's in the top 55% of
   // the screen, above it otherwise.
   const spotBottom = spot.top + spot.h;
+  const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
   const vpH = typeof window !== 'undefined' ? window.innerHeight : 844;
-  const tooltipBelow = spot.top - window.scrollY < vpH * 0.55;
+  const tooltipBelow = spot.top - scrollY < vpH * 0.55;
   const tooltipTop = tooltipBelow
     ? spotBottom + 18
     : spot.top - 18 - 180; // 180 ≈ max tooltip height
