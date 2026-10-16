@@ -175,7 +175,9 @@ is set, the access tier is the free tier (`canceled`), not `active`, through
 `setTierUnlessFounder`. When the pause clears, the normal status mapping takes
 over again.
 
-Env: `STRIPE_RETENTION_COUPON_ID` in both Preview (test-mode coupon) and
+Env: `STRIPE_RETENTION_COUPON_ID` (2 months) and `STRIPE_RETENTION_COUPON_X3_ID`
+(3 months, founder 2026-10-16: used when the second renewal is not more than
+24h before now + 2 months, so "next 2 months" always covers two renewals) in both Preview (test-mode coupons) and
 Production (live coupon). Founder creates both coupons in the Stripe dashboard.
 `NEXT_PUBLIC_` is not needed (server only).
 

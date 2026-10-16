@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accessEndsISO, PAUSE_FROM_KEY, pauseStartsAt, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
-import { offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, type OfferState } from './offers';
+import { addMonthsClamped, nextRenewal, offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, pickRetentionCoupon, type OfferState } from './offers';
 import { averageDaysToPaid, statTiles } from './stats';
 import { cleanDetail, isCancelReason } from './reasons';
 import { discountLine, endsWithPlanLine, freePlanAfterLine, offerNotice, pausedLine, pauseOfferLine } from './copy';
@@ -214,4 +214,68 @@ test('email: honest, no emoji, escapes the business name', () => {
   assert.match(e.html, /A&amp;B &lt;Roofing&gt;/);
   assert.ok(!/\p{Extended_Pictographic}/u.test(e.text + e.html));
   assert.ok(!/miss you|leaving us/i.test(e.text));
+});
+
+// ── Retention coupon choice (x2 / x3) ─────────────────────────────
+
+const D = (iso: string) => new Date(iso);
+const pick = (now: string, periodEnd: string, anchor: string) =>
+  pickRetentionCoupon({ now: D(now), periodEnd: D(periodEnd), anchor: D(anchor) });
+
+test('calendar: clamping matches Stripe (end and renewals)', () => {
+  assert.equal(addMonthsClamped(D('2026-10-17T00:00:00Z'), 2).toISOString(), '2026-12-17T00:00:00.000Z'); // clock A discount end
+  assert.equal(addMonthsClamped(D('2027-12-31T05:00:00Z'), 2).toISOString(), '2028-02-29T05:00:00.000Z');
+  // Anchor on the 31st: Jan 31 → Feb 28 → Mar 31 (back to the anchor day).
+  assert.equal(nextRenewal(D('2027-01-31T00:00:00Z'), D('2026-10-31T00:00:00Z')).toISOString(), '2027-02-28T00:00:00.000Z');
+  assert.equal(nextRenewal(D('2027-02-28T00:00:00Z'), D('2026-10-31T00:00:00Z')).toISOString(), '2027-03-31T00:00:00.000Z');
+});
+
+test('coupon: applied exactly at the renewal (clock A) → x3', () => {
+  // Second renewal Dec 17 00:00 == the 2-month end.
+  assert.equal(pick('2026-10-17T00:00:00Z', '2026-11-17T00:00:00Z', '2026-10-17T00:00:00Z'), 'x3');
+});
+
+test('coupon: right after a renewal → x3', () => {
+  assert.equal(pick('2026-11-17T01:00:00Z', '2026-12-17T00:00:00Z', '2026-10-17T00:00:00Z'), 'x3');
+});
+
+test('coupon: mid-period → x2', () => {
+  assert.equal(pick('2026-11-01T00:00:00Z', '2026-11-17T00:00:00Z', '2026-10-17T00:00:00Z'), 'x2');
+});
+
+test('coupon: 24h margin boundary', () => {
+  // 2-month end Dec 18 00:00 vs second renewal Dec 17 00:00: exactly 24h → x3, a second more → x2.
+  assert.equal(pick('2026-10-18T00:00:00Z', '2026-11-17T00:00:00Z', '2026-10-17T00:00:00Z'), 'x3');
+  assert.equal(pick('2026-10-18T00:00:01Z', '2026-11-17T00:00:00Z', '2026-10-17T00:00:00Z'), 'x2');
+});
+
+test('coupon: anchor on the 31st, incl. February', () => {
+  const a = '2026-10-31T00:00:00Z';
+  // Right after the clamped Feb 28 renewal: next are Mar 31 and Apr 30; x2 ends Apr 28.
+  assert.equal(pick('2027-02-28T01:00:00Z', '2027-03-31T00:00:00Z', a), 'x3');
+  // Right after Mar 31: next are Apr 30 and May 31; x2 ends May 31 01:00.
+  assert.equal(pick('2027-03-31T01:00:00Z', '2027-04-30T00:00:00Z', a), 'x3');
+  // Right after Jan 31: next are Feb 28 and Mar 31; x2 ends Mar 31 01:00.
+  assert.equal(pick('2027-01-31T01:00:00Z', '2027-02-28T00:00:00Z', a), 'x3');
+  // Mid-period.
+  assert.equal(pick('2027-03-15T00:00:00Z', '2027-03-31T00:00:00Z', a), 'x2');
+  assert.equal(pick('2027-02-10T00:00:00Z', '2027-02-28T00:00:00Z', a), 'x2');
+});
+
+test('coupon: anchor on the 30th, incl. February', () => {
+  const a = '2026-10-30T00:00:00Z';
+  assert.equal(pick('2027-02-28T01:00:00Z', '2027-03-30T00:00:00Z', a), 'x3'); // next Mar 30, Apr 30; x2 ends Apr 28
+  assert.equal(pick('2027-03-10T00:00:00Z', '2027-03-30T00:00:00Z', a), 'x2');
+  assert.equal(pick('2027-02-10T00:00:00Z', '2027-02-28T00:00:00Z', a), 'x2'); // next Feb 28, Mar 30; x2 ends Apr 10
+});
+
+test('coupon: anchor on the 29th, leap and non-leap February', () => {
+  const a = '2026-10-29T00:00:00Z';
+  assert.equal(pick('2027-02-28T01:00:00Z', '2027-03-29T00:00:00Z', a), 'x3'); // non-leap: next Mar 29, Apr 29; x2 ends Apr 28
+  assert.equal(pick('2028-02-29T01:00:00Z', '2028-03-29T00:00:00Z', a), 'x3'); // leap: next Mar 29, Apr 29; x2 ends Apr 29 01:00
+  assert.equal(pick('2027-03-05T00:00:00Z', '2027-03-29T00:00:00Z', a), 'x2');
+});
+
+test('coupon: trial (anchor = trial end) mid-trial → x2', () => {
+  assert.equal(pick('2026-10-16T12:00:00Z', '2026-10-30T12:00:00Z', '2026-10-30T12:00:00Z'), 'x2');
 });

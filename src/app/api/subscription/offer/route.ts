@@ -1,7 +1,8 @@
 // POST /api/subscription/offer — take the one retention offer (CANCEL-FLOW-
 // SPEC.md §3, §4). Body: { kind: 'discount' | 'pause', months?: 1 | 2 | 3 }.
-//   discount → the STRIPE_RETENTION_COUPON_ID coupon (50% off, repeating,
-//              2 months) added to the subscription's discounts
+//   discount → STRIPE_RETENTION_COUPON_ID (50% off, repeating 2 months) or
+//              STRIPE_RETENTION_COUPON_X3_ID (3 months) when 2 wouldn't cover
+//              the next two renewals; added to the subscription's discounts
 //   pause    → N months from the end of the paid period:
 //              pause_collection { behavior: 'void', resumes_at } + metadata
 //              onit_pause_from. Full access until the pause starts, then
@@ -12,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { adminClient } from '@/lib/supabase/admin';
 import { applySubscription } from '@/lib/subscription/sync';
-import { isPauseMonths, OFFER_WINDOW_MS, offerAllowed, pauseResumesAt, type OfferKind } from '@/lib/subscription/offers';
+import { isPauseMonths, OFFER_WINDOW_MS, offerAllowed, pauseResumesAt, pickRetentionCoupon, type OfferKind } from '@/lib/subscription/offers';
 import { fail, logEvent, subscriptionContext } from '@/lib/subscription/route';
 import { PAUSE_FROM_KEY, periodEndISO } from '@/lib/subscription/state';
 
@@ -27,8 +28,11 @@ export async function POST(req: NextRequest) {
   if (!kind) return fail(400, 'That offer isn’t available.', 'bad_request');
   if (kind === 'pause' && !isPauseMonths(body?.months)) return fail(400, 'Pick 1, 2 or 3 months.', 'bad_request');
 
-  const coupon = process.env.STRIPE_RETENTION_COUPON_ID?.trim();
-  if (kind === 'discount' && !coupon) {
+  const coupons = {
+    x2: process.env.STRIPE_RETENTION_COUPON_ID?.trim(),
+    x3: process.env.STRIPE_RETENTION_COUPON_X3_ID?.trim(),
+  };
+  if (kind === 'discount' && (!coupons.x2 || !coupons.x3)) {
     return fail(503, 'That offer isn’t available right now.', 'offer_not_configured');
   }
 
@@ -51,9 +55,16 @@ export async function POST(req: NextRequest) {
   let resumesAt: Date | null = null;
   let pausedFrom: Date | null = null;
   if (kind === 'discount') {
-    // Keep any discount already on the subscription; add the retention coupon.
+    // 2- or 3-month coupon, whichever covers the next two renewals
+    // (lib/subscription/offers: pickRetentionCoupon). Keep any discount
+    // already on the subscription; add the retention coupon.
+    const periodEnd = periodEndISO(sub);
+    if (!periodEnd) return fail(409, 'That offer isn’t available on your plan.', 'not_eligible');
+    const pick = pickRetentionCoupon({
+      now, periodEnd: new Date(periodEnd), anchor: new Date(sub.billing_cycle_anchor * 1000),
+    });
     const existing = (sub.discounts ?? []).map((d) => ({ discount: discountRef(d) }));
-    params = { discounts: [...existing, { coupon: coupon! }] };
+    params = { discounts: [...existing, { coupon: coupons[pick]! }] };
   } else {
     // The pause starts when the period already paid for ends (full access
     // until then) and lasts N months from there. pause_collection is set now
