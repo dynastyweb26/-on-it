@@ -1,9 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
+import { TOUR_TABS } from '@/components/tutorial/coach-marks';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -152,51 +152,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // are ignored meanwhile so one gesture can never chain into two tabs.
   const navigating = useRef<number | null>(null); // start time, or null
   useEffect(() => { navigating.current = null; }, [path]);
-  // showCoachMarks: true while the per-tab coach marks tour is active.
-  // Gated: auto-shows once for onboarded users behind TUTORIAL_VERSION,
-  // and re-opens on every "How On It works" tap (dispatches
-  // onit-replay-walkthrough). The showReference path for the old slide
-  // reference doc is removed — coach marks replace both surfaces.
-  const [showCoachMarks, setShowCoachMarks] = useState(false);
-  // The signed-in user, so the seen-version is stored per-user.
-  const [userId, setUserId] = useState<string | null>(null);
+  // The coach-marks tour that is running (a TOURS key), or null. Tours are
+  // on-demand only — nothing here starts one by itself.
+  const [coachTab, setCoachTab] = useState<string | null>(null);
 
-  // Auto-show once when an ONBOARDED user is behind the current tutorial
-  // version. Same two-gate logic as the old first-run carousel.
   useEffect(() => {
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setUserId(user.id);
       void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
-      if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
-      const { data: profile } = await supabase
-        .from('profiles').select('id').eq('id', user.id).maybeSingle();
-      if (profile) setShowCoachMarks(true); // onboarded + behind → show tour
     })();
   }, []);
 
-  // "How On It works" re-opens coach marks and dispatches the replay event
-  // so CoachMarks resets step state from the current tab.
+  // "How On It works" runs the tour for the tab you're on.
   function openCoachMarks() {
-    setShowCoachMarks(true);
-    window.dispatchEvent(new Event('onit-replay-walkthrough'));
+    const tab = TOUR_TABS.find((k) => path === k || path.startsWith(k + '/'));
+    if (tab) setCoachTab(tab);
   }
-
-  // Called when CoachMarks finishes or is fully skipped.
-  function closeCoachMarks() {
-    if (userId) markTutorialSeen(userId);
-    setShowCoachMarks(false);
-  }
-
-  // Settings › Help & feedback still dispatches onit-replay-walkthrough.
-  useEffect(() => {
-    const onReplay = () => openCoachMarks();
-    window.addEventListener('onit-replay-walkthrough', onReplay);
-    return () => window.removeEventListener('onit-replay-walkthrough', onReplay);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const closeCoachMarks = useCallback(() => setCoachTab(null), []);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -249,7 +223,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={showCoachMarks}>
+      <RecapProvider suppressed={coachTab !== null}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -354,7 +328,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </header>
         )}
 
-        {showCoachMarks && <CoachMarks currentPath={path} onDone={closeCoachMarks} />}
+        {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
 
         <main
           className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
