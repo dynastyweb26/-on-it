@@ -607,6 +607,11 @@ export default function PayView({ model }: { model: PayModel }) {
 
       <footer className="mt-auto pt-10 text-center">
         <p className="text-body-md text-on-surface-variant">Sent with On It</p>
+        <p className="mt-2 text-xs text-on-surface-variant">
+          <a href="/privacy" className="underline underline-offset-2">Privacy</a>
+          {' · '}
+          <a href="/terms" className="underline underline-offset-2">Terms</a>
+        </p>
       </footer>
     </main>
   );
