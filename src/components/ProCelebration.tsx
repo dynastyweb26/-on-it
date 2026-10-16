@@ -1,7 +1,7 @@
 'use client';
 // Full-screen "You're on On It Pro" celebration (direction C, "Swoosh").
 //
-// Plays once, over whatever screen the user is on, when the unlock poll sees the
+// Plays once (at half speed, 6.0s), over whatever screen the user is on, when the unlock poll sees the
 // paid tier arrive (lib/upgrade-return.ts: a Stripe Checkout return or a
 // redeemed code). Mounted once in the (app) layout. Tap anywhere to dismiss.
 //
@@ -42,6 +42,11 @@ const SETTLE: Keyframe[] = [{ transform: 'scale(1)' }, { transform: 'scale(.97)'
 const SHOW: Keyframe[] = [{ opacity: 1, transform: 'none' }, { opacity: 1, transform: 'none' }];
 
 type Beat = { el: string; start: number; dur: number; ease: string; kf: Keyframe[] };
+
+// Playback speed for the full animation (the design's "1/2x" setting): every
+// delay, duration and the confetti physics clock are scaled by it. Timings in
+// the header comment and the beats below are at 1x; the real run is 6.0s.
+const RATE = 0.5;
 
 const FULL_TOTAL = 3000;
 const FULL: Beat[] = [
@@ -86,7 +91,7 @@ type Piece = {
 /** Gold confetti from both bottom corners, aimed 10-35 degrees off vertical
  *  toward the centre. dt-scaled physics so 60 Hz and 120 Hz look identical.
  *  Returns a cancel function. */
-function fireConfetti(cv: HTMLCanvasElement, root: HTMLElement): () => void {
+function fireConfetti(cv: HTMLCanvasElement, root: HTMLElement, rate: number): () => void {
   const W = root.clientWidth, H = root.clientHeight;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = W * dpr; cv.height = H * dpr;
@@ -126,7 +131,7 @@ function fireConfetti(cv: HTMLCanvasElement, root: HTMLElement): () => void {
   let raf = 0, last = performance.now(), stopped = false;
   const tick = (now: number) => {
     if (stopped) return;
-    const dt = Math.min(3, (now - last) / 16.667), ms = dt * 16.667;
+    const dt = Math.min(3, (now - last) / 16.667) * rate, ms = dt * 16.667;
     last = now;
     ctx.clearRect(0, 0, W, H);
     let alive = 0;
@@ -225,17 +230,18 @@ export default function ProCelebration() {
       for (const b of beats) {
         const el = els[b.el];
         if (!el) continue;
-        const a = el.animate(b.kf, { delay: b.start, duration: b.dur, easing: b.ease, fill: 'both' });
+        const k = isReduced ? 1 : RATE;
+        const a = el.animate(b.kf, { delay: b.start / k, duration: b.dur / k, easing: b.ease, fill: 'both' });
         (a as Animation & { _el?: string })._el = b.el;
         anims.current.push(a);
       }
       if (!isReduced) {
         timers.current.push(window.setTimeout(() => {
           const cv = rCanvas.current, root = rRoot.current;
-          if (cv && root) stopConfetti.current = fireConfetti(cv, root);
-        }, CONFETTI_START));
+          if (cv && root) stopConfetti.current = fireConfetti(cv, root, RATE);
+        }, CONFETTI_START / RATE));
       }
-      timers.current.push(window.setTimeout(finish, total + 40));
+      timers.current.push(window.setTimeout(finish, total / (isReduced ? 1 : RATE) + 40));
     });
     return () => { cancelAnimationFrame(raf); stopAll(); };
   }, [active, finish, stopAll]);
