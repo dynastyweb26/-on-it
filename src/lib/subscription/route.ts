@@ -18,10 +18,12 @@ export type SubscriptionProfile = {
   access_tier: string | null;
   stripe_customer_id: string | null;
   retention_offer_used_at: string | null;
+  business_name: string | null;
 };
 
 export type SubscriptionContext = {
   userId: string;
+  email: string | null;
   stripe: Stripe;
   profile: SubscriptionProfile;
   sub: Stripe.Subscription;
@@ -43,7 +45,7 @@ export async function subscriptionContext(req: NextRequest): Promise<Subscriptio
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('access_tier, stripe_customer_id, retention_offer_used_at')
+    .select('access_tier, stripe_customer_id, retention_offer_used_at, business_name')
     .eq('id', user.id)
     .maybeSingle();
   if (error) return fail(500, UNAVAILABLE);
@@ -65,7 +67,7 @@ export async function subscriptionContext(req: NextRequest): Promise<Subscriptio
   }
   if (!sub) return fail(409, 'There’s no active subscription on this account.', 'no_subscription');
 
-  return { userId: user.id, stripe, profile: profile as SubscriptionProfile, sub };
+  return { userId: user.id, email: user.email ?? null, stripe, profile: profile as SubscriptionProfile, sub };
 }
 
 export type CancelEventKind = 'cancel' | 'resume' | 'offer_discount' | 'offer_pause';

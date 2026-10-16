@@ -12,12 +12,20 @@ export const fmtPlanDate = (d: string | null | undefined): string | null =>
 /** "after that you're on the free plan (3 invoices and 5 expenses)." The
  *  numbers come from the same SQL limits the paywall uses; not monthly —
  *  the caps count from a fixed reset (PUNCH-LIST cancel-flow audit). */
-export function freePlanAfterLine(limits: { invoices: number | null; expenses: number | null } | null | undefined): string {
+export type FreeLimits = { invoices: number | null; expenses: number | null };
+
+/** "the free plan (3 invoices and 5 expenses)", or "the free plan" when the
+ *  limits aren't known (paywall off). */
+export function freePlanLabel(limits: FreeLimits | null | undefined): string {
   const inv = limits?.invoices;
   const exp = limits?.expenses;
   return typeof inv === 'number' && typeof exp === 'number'
-    ? `after that you’re on the free plan (${inv} invoices and ${exp} expenses).`
-    : 'after that you’re on the free plan.';
+    ? `the free plan (${inv} invoices and ${exp} expenses)`
+    : 'the free plan';
+}
+
+export function freePlanAfterLine(limits: FreeLimits | null | undefined): string {
+  return `after that you’re on ${freePlanLabel(limits)}.`;
 }
 
 /** What ends with the plan, matching what the paywall actually gates. */
