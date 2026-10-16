@@ -8,7 +8,7 @@ import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpD
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
-import { resolveClientName } from '@/lib/client-name';
+import { isGenericClientName, resolveClientName } from '@/lib/client-name';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -278,11 +278,18 @@ export async function POST(req: NextRequest) {
         if (resolved.source === 'draft') {
           result.client_name = resolved.name;
         } else if (resolved.source === 'answer') {
+          // When the model didn't take the answer as a real name, its reply
+          // was written around that ("I need the actual name. Who am I
+          // billing?"), so it's replaced. Read before client_name is set.
+          const modelName = typeof result.client_name === 'string' ? result.client_name.trim() : '';
+          const modelTookIt = !!modelName && !isGenericClientName(modelName)
+            && modelName.toLowerCase() === (resolved.name ?? '').toLowerCase();
+          if (!modelTookIt || /\bwho'?s this for\b|\bwho am i billing\b|\bactual name\b/i.test(result.reply ?? '')) {
+            result.reply = 'Got it.';
+          }
           result.client_name = resolved.name;
           result.missing = (Array.isArray(result.missing) ? result.missing : []).filter((k) => k !== 'client_name');
-          // The model's reply was written without a name, so it may still ask
-          // for one; and with every item priced the draft is now ready.
-          if (/who'?s this for/i.test(result.reply ?? '')) result.reply = 'Got it.';
+          // With every item priced the draft is now ready.
           if (!hasInvalidLineItem && !pricelessItem && result.line_items.length > 0) result.ready = true;
         } else {
           result.client_name = null;
