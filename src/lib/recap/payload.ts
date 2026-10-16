@@ -21,7 +21,7 @@ export const LIST_MAX = 3;         // owed / paid cards, receipts
 export const TRIPS_MAX = 12;       // trip bars under "Most of it at …"
 export const NAME_MAX = 120;       // matches clients.name / expenses.vendor caps
 
-export const PAYMENT_METHODS = ['zelle', 'cashapp', 'card', 'cash', 'check', 'other'] as const;
+export const PAYMENT_METHODS = ['zelle', 'cashapp', 'card', 'bank', 'cash', 'check', 'other'] as const;
 export type PaymentMethodKey = (typeof PAYMENT_METHODS)[number];
 
 // ── Inputs (rows as the cron reads them) ─────────────────────────────

@@ -2,7 +2,7 @@
 // Zelle, Cash App and card (Stripe, which processes card payments on the pay
 // page) are their simple-icons marks in each brand's own hex (never
 // recoloured; same approach as the paywall's PaymentLogos). Methods without a
-// brand mark (cash, check, other) show a Material Symbol in a neutral chip, with a data
+// brand mark (bank, cash, check, other) show a Material Symbol in a neutral chip, with a data
 // colour so their bar segment stays distinct.
 import { siCashapp, siStripe, siZelle, type SimpleIcon } from 'simple-icons';
 import type { IconName } from '@/components/icon-names';
@@ -13,6 +13,7 @@ export type PayMark =
 
 const BRANDS: Record<string, SimpleIcon> = { zelle: siZelle, cashapp: siCashapp, card: siStripe };
 const NEUTRAL: Record<string, { icon: IconName; color: string }> = {
+  bank: { icon: 'account_balance', color: '#5b77a8' }, // --onit-data-4
   cash: { icon: 'payments', color: '#2f8a83' },      // --onit-data-2
   check: { icon: 'checkbook', color: '#c0693f' },    // --onit-data-3
   other: { icon: 'more_horiz', color: '#a39a86' },   // --onit-muted-dot

@@ -105,7 +105,7 @@ export default function InvoiceDetail() {
   const printRef = useRef<HTMLDivElement>(null);
   // Record-payment entry (a ledger insert, never a direct amount_paid write).
   const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
-  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'other'>('zelle');
+  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'bank' | 'other'>('zelle');
   const [payDate, setPayDate] = useState(() => localDateString(new Date()));
   const [payAmount, setPayAmount] = useState('');
   // The invoice_payments ledger rows for this invoice (payment history).
@@ -722,6 +722,7 @@ export default function InvoiceDetail() {
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
                 <option value="card">Card</option>
+                <option value="bank">Bank transfer</option>
                 <option value="other">Other</option>
               </select>
               <span className="ml-2 font-semibold text-on-surface-variant">Date</span>

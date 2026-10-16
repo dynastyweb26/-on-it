@@ -246,3 +246,10 @@ test('periods: Monday → previous week; the 1st → previous month; previousPer
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-03-01', end: '2026-03-31' }), { kind: 'month', start: '2026-02-01', end: '2026-02-28' });
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-01-01', end: '2026-01-31' }), { kind: 'month', start: '2025-12-01', end: '2025-12-31' });
 });
+
+test('bank transfer payments keep their own method (not folded into other)', () => {
+  const p = buildRecapPayload(base({
+    payments: [{ amount: 250, paid_at: '2026-09-22T15:00:00Z', method: 'bank', client_name: 'Test Client' }],
+  }));
+  assert.deepEqual(p.paymentMethods, [{ method: 'bank', amount: 250 }]);
+});
