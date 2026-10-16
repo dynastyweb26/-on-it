@@ -10,6 +10,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
+import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
@@ -469,6 +470,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </div>
       </RecapProvider>
+      {/* Plays once when the unlock poll sees the paid tier arrive. */}
+      <ProCelebration />
     </div>
   );
 }
