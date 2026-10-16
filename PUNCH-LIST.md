@@ -690,3 +690,9 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 
 | Item | Status | Evidence |
 |---|---|---|
+| 1. Migration `20261016200000_cancel_flow.sql` (+ `platform`) | **Applied to production 2026-10-16** (founder yes) | `d37b48e`, `44650ee` (platform). Verification A/B/C PASS. Privcheck rows `fe9a1ab` (3 profiles columns privileged; Z1-Z4 cancel_events): 132 PASS / 0 FAIL. |
+| Stripe retention coupons + env | **Done** | Test `FXark2Ik` (created here) → Vercel Preview. Live `RETENTION50X2` (founder, dashboard; not verifiable from this session, test-mode access only) → Vercel Production. |
+| 2. Webhook records cancel + pause | **Built on branch** | `3fb81e2`: mapping in `lib/subscription/state.ts` + `sync.ts`; paused → `canceled` tier via `setTierUnlessFounder`. |
+| 3. Cancel / resume routes | **Built on branch** | `bce7466`: `/api/subscription/cancel`, `/resume`; `lib/subscription-actions.ts` is the only UI entry point. |
+| 4. Retention offer route | **Built on branch** | `a2ea1b1`: `/api/subscription/offer`; eligibility re-checked server-side, window claimed atomically. |
+| 5-9 | **Open** | Not started. |
