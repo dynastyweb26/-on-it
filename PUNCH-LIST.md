@@ -700,5 +700,8 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 7. Cancel screen | **Built on branch** | `39a0cdf`: `settings/plan/cancel/CancelScreen.tsx`; `/settings/plan` got its own route. |
 | 8. Cancellation email | **Built on branch** | `9962cc1`: `lib/email/cancellation.ts`, sent from the cancel route. |
 | 9. Tests | **Done** | `4450a9a`: 22 new, 272/272 pass. |
-| Preview | **Deployed, awaiting founder phone tests** | `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
-| Copy risk: $4.99 | **Unverified** | 50% of $9.99 = 499.5 cents; check test 3 upcoming invoice shows $4.99, not $5.00. |
+| Preview | **Redeployed after review fixes** | first build `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
+| Pause starts at period end (founder review) | **Built on branch** | `c1048a0`: anchor in subscription metadata `onit_pause_from`; `43fc0bc`: period start as a floor for now (test clocks). |
+| Discount copy | **Built on branch** | `c1048a0`: "Half price for your next 2 months" (no hard-coded price). Stripe test clocks: 50% of $9.99 = 500 off, charged $4.99. |
+| 2- vs 3-month coupon | **Built on branch** | `52a98cb`: `pickRetentionCoupon`. Env `STRIPE_RETENTION_COUPON_X3_ID` = `RETENTION50X3` (Preview + Production; test coupon verified). |
+| Test clock results 2026-10-16 | **Verified** | A (X2 applied at the exact period start Oct 17): Nov 17 $4.99, Dec 17 $9.99, so the invoice at the discount's exact end is NOT discounted (1 invoice; the picker would choose X3). B (X2 at Nov 1, picker said X2): Nov 17 $4.99, Dec 17 $4.99, Jan 17 $9.99. C (pause from Nov 17 to Jan 17): Nov 17 void; `customer.subscription.updated` fired at that renewal (`evt_1URENCR0bVSrpkbBws0esscY`). C stopped near Dec 17 00:00 (Dec 17 invoice still draft); the Jan 17 resume is not yet observed. |
