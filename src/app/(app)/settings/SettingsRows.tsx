@@ -20,7 +20,7 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
 const VALUE_TONE = { muted: 'text-on-surface-variant', default: 'text-on-background', error: 'text-error' } as const;
 export type SettingsValueTone = keyof typeof VALUE_TONE;
 
-export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, tint = 'muted', 'data-coach': dataCoach }: {
+export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, tint = 'muted', 'data-coach': dataCoach, 'data-payouts-set': payoutsSet }: {
   icon?: IconName;
   /** Custom tile content (e.g. a brand mark) in place of the Material icon; same tile. */
   tile?: React.ReactNode;
@@ -30,6 +30,8 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
   /** 'gold' = the soft-gold tile the frames give saved lists; 'muted' otherwise. */
   tint?: 'gold' | 'muted';
   'data-coach'?: string;
+  /** Payouts row only: "yes" / "no" once known (read by the walkthrough). */
+  'data-payouts-set'?: string;
 }) {
   const body = (
     <>
@@ -43,8 +45,8 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
   );
   const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container';
   return href
-    ? <Link href={href} data-coach={dataCoach} className={cls}>{body}</Link>
-    : <button type="button" onClick={onClick} data-coach={dataCoach} className={cls}>{body}</button>;
+    ? <Link href={href} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</Link>
+    : <button type="button" onClick={onClick} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</button>;
 }
 
 /** Big screen title ("Settings", "Business profile", …). */

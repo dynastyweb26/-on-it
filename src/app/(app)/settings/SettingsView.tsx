@@ -420,6 +420,14 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   // /api/access, so the Plan row and screen render at once instead of
   // popping in seconds later. planTier mirrors hasAccess()'s mapping of the
   // stored access_tier (lib/access.ts): anything unknown is 'free'.
+  // The Payouts row's status, and the walkthrough's "no payout method yet"
+  // test (data-payouts-set; absent until Zelle has loaded, so the tour never
+  // reads a half-loaded row as "none").
+  const payoutsAny = Boolean(p) && ((connectOn && p.stripe_charges_enabled)
+    || [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked, p.bank_account_last4].some(Boolean));
+  const payoutsValue = !p ? null : connectOn && p.stripe_charges_enabled ? 'Connected'
+    : payoutsAny ? 'Set up' : zelleMasked === undefined ? null : 'Not set';
+  const payoutsSet = payoutsAny ? 'yes' : zelleMasked === undefined ? undefined : 'no';
   const planTier: string = PLAN_TIERS.has(p?.access_tier ?? '') ? p.access_tier : 'free';
   const planBillable = SUBSCRIBED.has(p?.subscription_status ?? '') && planTier !== 'founder';
   const planPaused = planBillable && Boolean(p?.paused_until);
@@ -574,9 +582,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             data-coach="settings-payouts"
-            value={connectOn && p.stripe_charges_enabled ? 'Connected'
-              : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked, p.bank_account_last4].some(Boolean) ? 'Set up'
-              : zelleMasked === undefined ? null : 'Not set'} />
+            data-payouts-set={payoutsSet}
+            value={payoutsValue} />
         </SettingsGroup>
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a

@@ -48,7 +48,26 @@ export default function CoachMarks({ tab, currentPath, onDone }: Props) {
     check();
     return () => clearTimeout(t);
   }, [tour, isEmpty]);
-  const steps = useMemo(() => (tour && isEmpty !== null ? stepsFor(tour, isEmpty) : []), [tour, isEmpty]);
+  // Tours whose steps depend on loaded data (tour.settle): wait for it, or 4s.
+  const [settled, setSettled] = useState<boolean>(!tour?.settle);
+  useEffect(() => {
+    if (!tour?.settle || settled) return;
+    const sel = tour.settle;
+    const started = Date.now();
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      if (document.querySelector(sel) || Date.now() - started > 4000) setSettled(true);
+      else t = setTimeout(check, 100);
+    };
+    check();
+    return () => clearTimeout(t);
+  }, [tour, settled]);
+  const steps = useMemo(
+    () => (tour && isEmpty !== null && settled
+      ? stepsFor(tour, isEmpty, (sel) => document.querySelector(sel) !== null)
+      : []),
+    [tour, isEmpty, settled],
+  );
 
   // Navigated away from the tour's tab → the tour is over.
   useEffect(() => {
