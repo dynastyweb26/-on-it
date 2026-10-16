@@ -23,7 +23,10 @@ import PayView, { type PayModel } from './PayView';
 // an explicit whitelist (no owner id, no client PII, no tax/subtotal, line
 // items re-projected) and decrypts Zelle server-side with ZELLE_ENC_KEY. This
 // component runs the admin client (RLS-bypassing) — so it must call NOTHING
-// else against the DB. Never add a table query here.
+// else against the DB. Never add a table query here. The one other call is
+// get_public_invoice_bank (20261016000000), the same kind of whitelisted
+// service-role RPC: bank details only for a sent/overdue, unpaid invoice
+// whose owner has bank transfer on — gated in SQL, not here.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic'; // per-request: headers + live invoice data
@@ -65,8 +68,16 @@ interface PublicInvoiceRow {
   card_available?: boolean | null;
 }
 
+interface PublicBankRow {
+  holder_name: string | null;
+  bank_name: string | null;
+  routing: string | null;
+  account: string | null;
+  account_type: string | null;
+}
+
 type FetchResult =
-  | { ok: true; row: PublicInvoiceRow }
+  | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null }
   | { ok: false; reason: 'notfound' | 'error' };
 
 const num = (v: unknown): number => {
@@ -85,17 +96,22 @@ async function fetchPublicInvoice(token: string): Promise<FetchResult> {
   // a false not-found.
   const key = process.env.ZELLE_ENC_KEY ?? '';
   try {
-    const { data, error } = await adminClient().rpc('get_public_invoice', {
-      p_token: token,
-      p_key: key,
-    });
+    const admin = adminClient();
+    const [{ data, error }, bankRes] = await Promise.all([
+      admin.rpc('get_public_invoice', { p_token: token, p_key: key }),
+      admin.rpc('get_public_invoice_bank', { p_token: token, p_key: key }),
+    ]);
     if (error) {
       console.error('get_public_invoice failed', error.message);
       return { ok: false, reason: 'error' };
     }
     const rows = (data as PublicInvoiceRow[] | null) ?? [];
     if (!rows.length) return { ok: false, reason: 'notfound' };
-    return { ok: true, row: rows[0]! };
+    // A bank lookup failure only drops the bank row; the rest of the page
+    // still loads.
+    if (bankRes.error) console.error('get_public_invoice_bank failed', bankRes.error.message);
+    const bank = ((bankRes.data as PublicBankRow[] | null) ?? [])[0] ?? null;
+    return { ok: true, row: rows[0]!, bank };
   } catch (e) {
     console.error('get_public_invoice threw', e);
     return { ok: false, reason: 'error' };
@@ -120,7 +136,7 @@ function Notice({ icon, title, body }: { icon: IconName; title: string; body: st
   );
 }
 
-function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): PayModel {
+function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token: string, paidReturn: boolean): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
   const subtotal = num(row.subtotal);
   const taxRate = num(row.tax_rate);
@@ -180,6 +196,19 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
         zelle: clean(row.zelle),
       };
 
+  // Bank transfer: the RPC already returns nothing unless the invoice is
+  // sent/overdue, unpaid and the owner turned it on. Re-checked against the
+  // model (belt and braces) and dropped unless every field is present.
+  const holderName = clean(bankRow?.holder_name ?? null);
+  const bankName = clean(bankRow?.bank_name ?? null);
+  const routing = clean(bankRow?.routing ?? null);
+  const account = clean(bankRow?.account ?? null);
+  const accountType: 'checking' | 'savings' | null = bankRow?.account_type === 'savings' ? 'savings' : bankRow?.account_type === 'checking' ? 'checking' : null;
+  const bank =
+    !fullyPaid && !voided && kind === 'invoice' && holderName && bankName && routing && account && accountType
+      ? { holderName, bankName, routing, account, accountType }
+      : null;
+
   return {
     businessName: clean(row.business_name) ?? 'This business',
     logoUrl: clean(row.logo_url),
@@ -200,7 +229,8 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
     amountPaid: paid,
     fullyPaid,
     voided,
-    hasHandles: Object.values(handles).some(Boolean),
+    hasHandles: Object.values(handles).some(Boolean) || bank !== null,
+    bank,
     handles,
     // "Pay with card" is offered only when Connect is on in this deployment,
     // the seller can take cards (card_available), and there's something
@@ -273,5 +303,5 @@ export default async function PayPage({
     );
   }
 
-  return <PayView model={buildModel(res.row, params.token, searchParams?.paid === '1')} />;
+  return <PayView model={buildModel(res.row, res.bank, params.token, searchParams?.paid === '1')} />;
 }

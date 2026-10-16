@@ -919,6 +919,47 @@ results(id, ok, expected, actual) as (
   from (values ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
                ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')) c(col)
   cross join (values ('anon'), ('authenticated')) ro(r)
+
+  -- Y. Pay page bank RPC (20261016000000). SKIP until pushed. Service-role
+  --    only, definer with search_path '', and the bank columns reach the
+  --    public pay page through this gated function alone (Y4).
+  union all
+  select 'Y1 get_public_invoice_bank ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else to_regprocedure('public.get_public_invoice_bank(text, text)') is not null
+        and not has_function_privilege(ro.r, to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') end,
+    'not executable',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_bank(text, text)') is null then 'missing'
+      when has_function_privilege(ro.r, to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') then 'EXECUTE' else '' end
+  from (values ('public'), ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'Y2 get_public_invoice_bank service_role',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce(has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute'), false) end,
+    'executable by service_role',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_bank(text, text)') is null then 'missing'
+      when has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') then 'EXECUTE' else '' end
+  union all
+  select 'Y3 get_public_invoice_bank definer + search_path',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce((select p.prosecdef and p.proconfig = array['search_path=""']
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), false) end,
+    'prosecdef true, search_path ""',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(array_to_string(p.proconfig, ','), 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), 'missing') end
+  union all
+  select 'Y4 other public RPCs never read bank_*',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else count(*) filter (where p.prosrc ilike '%bank_%') = 0 end,
+    'get_public_invoice / get_public_invoice_checkout do not mention bank_',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce(string_agg(case when p.prosrc ilike '%bank_%' then p.proname end, ', '), '') end
+  from pg_proc p
+  where p.pronamespace = 'public'::regnamespace
+    and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
