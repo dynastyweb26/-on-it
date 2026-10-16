@@ -258,6 +258,8 @@ export default function InvoiceDetail() {
     // Live (never snapshotted), like Zelle: can the pay page take card / Cash
     // App Pay right now? Shown only with payUrl.
     cardAvailable: cardAvailableFor(profile, connectOn),
+    // Flag only; the bank details stay on the pay page, never on the PDF.
+    bankTransferAvailable: profile?.bank_transfer_enabled === true,
   };
 
   // The SHARED copy carries the pay link even while the invoice is still a draft

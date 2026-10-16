@@ -82,6 +82,7 @@ interface Profile {
   // Connect flags (select(*)) — for the PDF card line only.
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
   card_payments_enabled?: boolean | null;
+  bank_transfer_enabled?: boolean | null; // PDF bank line flag (20261015200000)
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -1319,6 +1320,8 @@ export default function Chat() {
       venmoUsername: profile.venmo_username,
       // Live, like Zelle; the template shows it only when payUrl is set (send).
       cardAvailable: cardAvailableFor(profile, connectOn),
+      // Flag only; the bank details stay on the pay page, never on the PDF.
+      bankTransferAvailable: profile?.bank_transfer_enabled === true,
     };
   }
 
