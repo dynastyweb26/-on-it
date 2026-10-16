@@ -266,7 +266,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-col gap-2.5">
+        <nav data-coach="side-nav" className="flex flex-col gap-2.5">
           {TABS.map(({ href, label, icon }) => {
             const active = path.startsWith(href);
             return (

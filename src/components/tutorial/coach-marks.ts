@@ -42,7 +42,8 @@ export const TOURS: Record<string, CoachTour> = {
         body: 'Tap + to save a name, phone and address. You\'ll pick them when you send an invoice.',
       },
       {
-        selector: '[data-coach="tab-bar"]',
+        // Bottom tab bar on phones; the sidebar nav from md (768px) up.
+        selector: '[data-coach="tab-bar"], [data-coach="side-nav"]',
         pad: 2, r: 18,
         title: 'Get around fast',
         body: 'Five tabs, one thumb. Invoices, Chat, Books and Settings are always a tap away.',
