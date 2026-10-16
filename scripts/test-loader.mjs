@@ -20,3 +20,27 @@ export async function resolve(specifier, context, next) {
   }
   return file ? next(pathToFileURL(file).href, context) : next(specifier, context);
 }
+
+// .tsx: Node's type stripping doesn't do JSX, so transpile with the project's
+// own TypeScript (react-jsx runtime). Lets a test render a component to a
+// string with react-dom/server (e.g. the PDF templates in
+// src/lib/pdf/templates/bank-line.test.ts). Only for files under src/.
+let ts;
+export async function load(url, context, next) {
+  if (url.endsWith('.tsx') && url.startsWith('file:') && fileURLToPath(url).startsWith(SRC)) {
+    ts ??= (await import('typescript')).default;
+    const { readFileSync } = await import('node:fs');
+    const out = ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
+      compilerOptions: {
+        jsx: ts.JsxEmit.ReactJSX,
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+        esModuleInterop: true,
+        verbatimModuleSyntax: false,
+      },
+      fileName: fileURLToPath(url),
+    });
+    return { format: 'module', source: out.outputText, shortCircuit: true };
+  }
+  return next(url, context);
+}

@@ -10,6 +10,7 @@ import { normalizeLineDetail, normalizeLineUnit, unitLabel } from '@/lib/line-un
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
+import { publicBank, type PublicBankRow } from '@/lib/pay-bank';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public, unauthenticated pay page: /pay/[token].
@@ -68,13 +69,6 @@ interface PublicInvoiceRow {
   card_available?: boolean | null;
 }
 
-interface PublicBankRow {
-  holder_name: string | null;
-  bank_name: string | null;
-  routing: string | null;
-  account: string | null;
-  account_type: string | null;
-}
 
 type FetchResult =
   | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null }
@@ -197,17 +191,8 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token:
       };
 
   // Bank transfer: the RPC already returns nothing unless the invoice is
-  // sent/overdue, unpaid and the owner turned it on. Re-checked against the
-  // model (belt and braces) and dropped unless every field is present.
-  const holderName = clean(bankRow?.holder_name ?? null);
-  const bankName = clean(bankRow?.bank_name ?? null);
-  const routing = clean(bankRow?.routing ?? null);
-  const account = clean(bankRow?.account ?? null);
-  const accountType: 'checking' | 'savings' | null = bankRow?.account_type === 'savings' ? 'savings' : bankRow?.account_type === 'checking' ? 'checking' : null;
-  const bank =
-    !fullyPaid && !voided && kind === 'invoice' && holderName && bankName && routing && account && accountType
-      ? { holderName, bankName, routing, account, accountType }
-      : null;
+  // sent/overdue, unpaid and the owner turned it on; publicBank re-checks.
+  const bank = publicBank(bankRow, { kind, status: row.status, fullyPaid });
 
   return {
     businessName: clean(row.business_name) ?? 'This business',

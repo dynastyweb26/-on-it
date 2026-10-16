@@ -960,6 +960,28 @@ results(id, ok, expected, actual) as (
   from pg_proc p
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
+  union all
+  -- Y5: the gate itself. A later CREATE OR REPLACE that drops any of these
+  --     predicates would expose bank details on paid / void / draft / quote
+  --     invoices or for a pro who turned bank transfer off.
+  select 'Y5 get_public_invoice_bank gate predicates',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce((select
+            p.prosrc ilike '%i.kind = ''invoice''%'
+        and p.prosrc ilike '%i.status in (''sent'', ''overdue'')%'
+        and p.prosrc ilike '%i.deleted_at is null%'
+        and p.prosrc ilike '%coalesce(i.amount_paid, 0) < i.total%'
+        and p.prosrc ilike '%p.bank_transfer_enabled is true%'
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), false) end,
+    'invoice only, sent/overdue, not deleted, unpaid, enabled',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce((select concat_ws(' ',
+            case when p.prosrc not ilike '%i.kind = ''invoice''%' then 'no-kind' end,
+            case when p.prosrc not ilike '%i.status in (''sent'', ''overdue'')%' then 'no-status' end,
+            case when p.prosrc not ilike '%i.deleted_at is null%' then 'no-deleted' end,
+            case when p.prosrc not ilike '%coalesce(i.amount_paid, 0) < i.total%' then 'no-unpaid' end,
+            case when p.prosrc not ilike '%p.bank_transfer_enabled is true%' then 'no-enabled' end)
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

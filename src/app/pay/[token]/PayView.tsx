@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
 import { cashAppUrl, payPalUrl, venmoUrl } from '@/lib/url';
+// Bank details: only when the RPC returned them and publicBank let them through.
+import type { PayBank } from '@/lib/pay-bank';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public pay page view. Receives a fully-shaped, already-whitelisted model
@@ -36,15 +38,6 @@ export interface PayHandles {
   zelle: string | null;
 }
 
-// Bank transfer details (BANK-TRANSFER-SPEC.md). Present only when the server
-// RPC returned them: sent/overdue, unpaid invoice with bank transfer on.
-export interface PayBank {
-  holderName: string;
-  bankName: string;
-  routing: string;
-  account: string; // full number: the payer must copy it; masked on screen until tapped
-  accountType: 'checking' | 'savings';
-}
 
 export interface PayLineItem {
   description: string;
