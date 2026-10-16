@@ -695,4 +695,10 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 2. Webhook records cancel + pause | **Built on branch** | `3fb81e2`: mapping in `lib/subscription/state.ts` + `sync.ts`; paused → `canceled` tier via `setTierUnlessFounder`. |
 | 3. Cancel / resume routes | **Built on branch** | `bce7466`: `/api/subscription/cancel`, `/resume`; `lib/subscription-actions.ts` is the only UI entry point. |
 | 4. Retention offer route | **Built on branch** | `a2ea1b1`: `/api/subscription/offer`; eligibility re-checked server-side, window claimed atomically. |
-| 5-9 | **Open** | Not started. |
+| 5. Cancel summary endpoint | **Built on branch** | `cefb0ca`: `/api/subscription/cancel-summary`; tile rules `lib/subscription/stats.ts`. |
+| 6. Plan states (Cancel / Resume / Paused) | **Built on branch** | `490611d`: `SettingsView.tsx` Plan block; copy in `lib/subscription/copy.ts`. |
+| 7. Cancel screen | **Built on branch** | `39a0cdf`: `settings/plan/cancel/CancelScreen.tsx`; `/settings/plan` got its own route. |
+| 8. Cancellation email | **Built on branch** | `9962cc1`: `lib/email/cancellation.ts`, sent from the cancel route. |
+| 9. Tests | **Done** | `4450a9a`: 22 new, 272/272 pass. |
+| Preview | **Deployed, awaiting founder phone tests** | `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
+| Copy risk: $4.99 | **Unverified** | 50% of $9.99 = 499.5 cents; check test 3 upcoming invoice shows $4.99, not $5.00. |
