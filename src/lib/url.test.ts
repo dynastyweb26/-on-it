@@ -22,6 +22,8 @@ test('websiteHref rejects dangerous pseudo-protocols', () => {
   assert.equal(websiteHref('file:///etc/passwd'), null);
   assert.equal(websiteHref('blob:https://example.com/uuid'), null);
   assert.equal(websiteHref('   javascript:void(0)   '), null);
+  assert.equal(websiteHref('\u0000javascript:alert(1)'), null);
+  assert.equal(websiteHref('   \u0007javascript:alert(1)   '), null);
 });
 
 test('payment URL helpers sanitize handles and build valid deep links', () => {

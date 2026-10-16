@@ -11,7 +11,7 @@
 const DANGEROUS_PROTOCOLS_RE = /^(?:javascript|data|vbscript|file|blob):/i;
 
 export function websiteHref(value: string | null | undefined): string | null {
-  const v = value?.trim();
+  const v = value?.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
   if (!v) return null;
   // Security guard: reject unsafe pseudo-protocols to prevent URI scheme abuse and XSS.
   if (DANGEROUS_PROTOCOLS_RE.test(v)) return null;
