@@ -700,7 +700,7 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 7. Cancel screen | **Built on branch** | `39a0cdf`: `settings/plan/cancel/CancelScreen.tsx`; `/settings/plan` got its own route. |
 | 8. Cancellation email | **Built on branch** | `9962cc1`: `lib/email/cancellation.ts`, sent from the cancel route. |
 | 9. Tests | **Done** | `4450a9a`: 22 new, 272/272 pass. |
-| Preview | **Redeployed after review fixes** | first build `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
+| Preview | **Passed (founder, 2026-10-16): tests 1-10** (test 5 on +cancel2 after its trial was ended in test mode; test 7 on +cancel1 made past_due with tok_chargeCustomerFail + trial_end now) | first build `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
 | Pause starts at period end (founder review) | **Built on branch** | `c1048a0`: anchor in subscription metadata `onit_pause_from`; `43fc0bc`: period start as a floor for now (test clocks). |
 | Discount copy | **Built on branch** | `c1048a0`: "Half price for your next 2 months" (no hard-coded price). Stripe test clocks: 50% of $9.99 = 500 off, charged $4.99. |
 | 2- vs 3-month coupon | **Built on branch** | `52a98cb`: `pickRetentionCoupon`. Env `STRIPE_RETENTION_COUPON_X3_ID` = `RETENTION50X3` (Preview + Production; test coupon verified). |
@@ -714,4 +714,4 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 1. Plan row with the page | **Built on branch** | `c0024ce`: visibility + value from the profile (`planTier`). |
 | 2. Plan screen from the profile | **Built on branch** | `af94d22`: everything but the usage counts from the profile; limits in parallel with the profile; usage row fixed-height placeholder. |
 | 3. Faster `/api/access` | **Built on branch** | `49a82f0`: 2 parallel DB rounds; client fetch starts after the session check. Preview-only `access-timing` log for measurement. |
-| Measurement | **Pending founder session on preview** | Read `access-timing` lines with `vercel logs`. Before = sum of the sequential steps (the old path), after = wall time. |
+| Measurement | **Done (preview, 2026-10-16)** | `/api/access` total: cold 847 / 757 ms, warm 697 / 839 ms. Old sequential path from the same step times: ~1.09-1.26 s (35-40% faster). Each DB round 100-340 ms; the 4s was mostly the client chain (fixed by 1-3). Founder check passed: Plan row from first frame, no shift, Plan content immediate. |
