@@ -19,10 +19,23 @@ Testing rules:
 
 Pre-deploy checklist (every push/deploy):
 - Confirm the current git branch and the Vercel project name (`on-it`).
-- If the branch touches the database (any file under `supabase/`, or code that
-  writes a new table/column): its migrations are applied and the privilege
-  check passes (see "Database migrations") before anything is pushed or
-  deployed.
+- Preview and production share ONE database, so when a migration may reach
+  prod depends on what kind it is:
+  - Additive (new nullable column, incl. a check on that new column; new
+    table; new index): may be pushed from
+    a feature branch before the merge, so the preview can test it. Still the
+    full "Database migrations" flow: dry run → full SQL shown → the user's
+    explicit yes for that push → `db push` → privilege check. Safe because
+    the code on `main` ignores what it doesn't know about.
+  - Destructive or changing (drop, rename, type change, NOT NULL, a new
+    constraint on existing columns): ONLY from `main` after the merge. No
+    exceptions. Order: merge to `main` locally (`--no-ff`) → dry run / SQL /
+    yes → `db push` → privilege check → `git push origin main`.
+  - A migration that mixes both counts as destructive. Split it so the
+    additive part can go first.
+- Preview testing writes real rows to prod (invoices burn real invoice
+  numbers). Use an obvious test client name, and list the test rows for the
+  user to soft-delete afterwards. Expect invoice numbers to skip.
 - Never infer migration state from local files — check it with
   `npx supabase migration list` (and, when in doubt, a read-only query).
 
