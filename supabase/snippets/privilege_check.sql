@@ -30,7 +30,10 @@ privileged(col) as (values
   ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('role'),
   ('granted_via'), ('referred_by'), ('referral_code'), ('next_invoice_number'), ('next_quote_number'),
   ('stripe_account_id'), ('stripe_charges_enabled'), ('stripe_details_submitted'),
-  ('stripe_payouts_enabled'), ('created_at')
+  ('stripe_payouts_enabled'), ('created_at'),
+  -- Bank transfer (20261015200000): written only via /api/bank service-role RPCs.
+  ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
+  ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')
 ),
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
@@ -859,6 +862,45 @@ results(id, ok, expected, actual) as (
   from pg_proc p
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
+
+  -- X. Bank transfer (20261015200000). SKIP until pushed. The bank columns
+  --    are on the privileged list (B): written only by /api/bank through
+  --    these service-role functions. X3: the encrypted account number never
+  --    reaches audit_log detail.
+  union all
+  select 'X1 ' || fn.f || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else to_regprocedure(fn.f) is not null
+        and not has_function_privilege(ro.r, to_regprocedure(fn.f), 'execute') end,
+    'not executable',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when to_regprocedure(fn.f) is null then 'missing'
+      when has_function_privilege(ro.r, to_regprocedure(fn.f), 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_bank_transfer(uuid, text, text, text, text, text, boolean, text)'),
+               ('public.set_bank_transfer_enabled(uuid, boolean)'),
+               ('public.clear_bank_transfer(uuid)')) fn(f)
+  cross join (values ('public'), ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'X2 ' || fn.f || ' service_role',
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else to_regprocedure(fn.f) is not null
+        and has_function_privilege('service_role', to_regprocedure(fn.f), 'execute') end,
+    'executable by service_role',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when to_regprocedure(fn.f) is null then 'missing'
+      when has_function_privilege('service_role', to_regprocedure(fn.f), 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_bank_transfer(uuid, text, text, text, text, text, boolean, text)'),
+               ('public.set_bank_transfer_enabled(uuid, boolean)'),
+               ('public.clear_bank_transfer(uuid)')) fn(f)
+  union all
+  select 'X3 log_audit drops bank_account_enc',
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else coalesce((select p.prosrc ilike '%- ''bank_account_enc''%' and p.prosrc ilike '%- ''zelle_info_enc''%'
+        from pg_proc p where p.oid = to_regprocedure('public.log_audit()')), false) end,
+    'audit detail excludes zelle_info_enc and bank_account_enc',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when (select p.prosrc ilike '%- ''bank_account_enc''%' from pg_proc p where p.oid = to_regprocedure('public.log_audit()'))
+        then '' else 'bank_account_enc not excluded' end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
