@@ -163,6 +163,15 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         if (!active) return;
         if (!session) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
+        // The one /api/access read, started now — in parallel with getUser,
+        // the profile and /api/zelle instead of after all of them. The route
+        // authenticates the cookie itself; only the free-plan usage counts
+        // wait on it, so it applies whenever it lands.
+        void fetch('/api/access')
+          .then((a) => (a.ok ? a.json() : null))
+          .then((a) => { if (active && a) setAccess(a); })
+          .catch(() => { /* leave null → the usage row keeps its placeholder */ });
+
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
         // must land on login, never sit on "Loading…". getUser() can reject on
         // a token-refresh/network failure, so the whole check is guarded — any
@@ -228,10 +237,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
           if (active && z) setZelleMasked(z.set ? z.masked : null);
         }
-        try {
-          const a = await fetch('/api/access');
-          if (active && a.ok) setAccess(await a.json());
-        } catch { /* leave null → the section simply doesn't render */ }
         if (active) setPushAvail(pushAvailability());
         try {
           const t = await fetch('/api/push/test');

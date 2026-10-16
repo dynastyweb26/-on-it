@@ -48,23 +48,36 @@ export interface AccessResult {
 export const displayLimit = (n: unknown): number | null =>
   typeof n === 'number' && n < 1000 ? n : null;
 
-export async function hasAccess(userId: string): Promise<AccessResult> {
+/** Optional per-step durations (ms), filled in when passed. /api/access
+ *  logs them on preview to measure the request (see that route). */
+export type AccessTiming = Record<string, number>;
+
+async function timed<T>(timing: AccessTiming | undefined, key: string, p: PromiseLike<T>): Promise<T> {
+  if (!timing) return p;
+  const t0 = performance.now();
+  try { return await p; } finally { timing[key] = Math.round(performance.now() - t0); }
+}
+
+export async function hasAccess(userId: string, timing?: AccessTiming): Promise<AccessResult> {
   const supabase = await createClient();
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('access_tier')
-    .eq('id', userId)
-    .maybeSingle();
+  // Two rounds instead of four sequential ones. Round 1: the tier and the
+  // reset moment, which nothing else depends on. Round 2: the counts (they
+  // need the reset) and both limits (constant; fetched alongside so a free
+  // user pays no extra round). Paid tiers and the paywall-off path ignore
+  // the limits, exactly as before.
+  const [{ data: profile }, { data: resetData }] = await Promise.all([
+    timed(timing, 'profile', supabase.from('profiles').select('access_tier').eq('id', userId).maybeSingle()),
+    // Before the reset migration is pushed the rpc doesn't exist; count
+    // all-time then, as before (the limits are still the kill-switch value).
+    timed(timing, 'reset', supabase.rpc('paywall_reset_at')),
+  ]);
   const raw = (profile?.access_tier ?? 'free') as string;
+  const resetAt = typeof resetData === 'string' ? resetData : null;
 
   // Count the same rows the triggers count: real invoices (kind='invoice', not
   // quotes) and all expenses, created since the paywall reset, soft-deleted
   // included (RLS select is auth.uid() = user_id, so deleted rows are visible).
-  // Before the reset migration is pushed the rpc doesn't exist; count all-time
-  // then, as before (the limits are still the kill-switch value at that point).
-  const { data: resetData } = await supabase.rpc('paywall_reset_at');
-  const resetAt = typeof resetData === 'string' ? resetData : null;
   let invoiceQuery = supabase
     .from('invoices')
     .select('id', { count: 'exact', head: true })
@@ -78,7 +91,14 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     invoiceQuery = invoiceQuery.gte('created_at', resetAt);
     expenseQuery = expenseQuery.gte('created_at', resetAt);
   }
-  const [{ count: invCount }, { count: expCount }] = await Promise.all([invoiceQuery, expenseQuery]);
+  // Each cap is read from the SAME SQL function its trigger uses, so the
+  // numbers are never duplicated.
+  const [{ count: invCount }, { count: expCount }, { data: invLimit }, { data: expLimit }] = await Promise.all([
+    timed(timing, 'invoiceCount', invoiceQuery),
+    timed(timing, 'expenseCount', expenseQuery),
+    timed(timing, 'invoiceLimit', supabase.rpc('free_invoice_limit')),
+    timed(timing, 'expenseLimit', supabase.rpc('free_expense_limit')),
+  ]);
   const invoiceCount = invCount ?? 0;
   const expenseCount = expCount ?? 0;
   const counts = { invoiceCount, expenseCount, invoiceLimit: null, expenseLimit: null };
@@ -101,13 +121,8 @@ export async function hasAccess(userId: string): Promise<AccessResult> {
     return { hasAccess: true, canExpense: true, canExport: true, tier, ...counts };
   }
 
-  // Each cap is read from the SAME SQL function its trigger uses, so the
-  // numbers are never duplicated. If an rpc fails we do NOT false-block — the
-  // triggers are the real enforcement, and hasAccess is only the UX hint.
-  const [{ data: invLimit }, { data: expLimit }] = await Promise.all([
-    supabase.rpc('free_invoice_limit'),
-    supabase.rpc('free_expense_limit'),
-  ]);
+  // If an rpc failed we do NOT false-block — the triggers are the real
+  // enforcement, and hasAccess is only the UX hint.
   const invoiceLimit = typeof invLimit === 'number' ? invLimit : Number.MAX_SAFE_INTEGER;
   const expenseLimit = typeof expLimit === 'number' ? expLimit : Number.MAX_SAFE_INTEGER;
   return {
