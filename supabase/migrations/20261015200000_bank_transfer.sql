@@ -28,7 +28,7 @@
 --
 -- Additive: new nullable columns, checks on those new columns only, new
 -- functions. Idempotent. Verify after applying: npm run db:privcheck — B and
--- X1–X3 must PASS.
+-- X1–X4 must PASS.
 -- ═══════════════════════════════════════════════════════════════
 
 -- 1 ── profiles: bank columns ─────────────────────────────────────
@@ -84,6 +84,17 @@ begin
         and bank_account_type is not null));
   end if;
 end $$;
+
+-- Clients never write these columns. profiles has no table-level UPDATE or
+-- INSERT for anon/authenticated (20260723130946), so new columns start
+-- unwritable; this makes it explicit and keeps it true if a stray grant
+-- ever lands. Privilege checks B and X4 verify it.
+revoke update (bank_holder_name, bank_name, bank_routing, bank_account_enc,
+               bank_account_last4, bank_account_type, bank_transfer_enabled)
+  on public.profiles from anon, authenticated;
+revoke insert (bank_holder_name, bank_name, bank_routing, bank_account_enc,
+               bank_account_last4, bank_account_type, bank_transfer_enabled)
+  on public.profiles from anon, authenticated;
 
 -- 2 ── Write functions (service_role only, via /api/bank) ─────────
 -- Save details. p_account null = keep the stored account number (editing
@@ -155,8 +166,7 @@ begin
     tg_op,
     coalesce(new.id, old.id),
     -- DELETE = account teardown: keep the event, drop the personal data.
-    -- INSERT / UPDATE: full row minus the encrypted Zelle handle and bank
-    -- account number.
+    -- INSERT / UPDATE: unchanged — full row minus the encrypted Zelle handle.
     case
       when tg_op = 'DELETE' then jsonb_build_object('redacted', true)
       else to_jsonb(new) - 'zelle_info_enc' - 'bank_account_enc'

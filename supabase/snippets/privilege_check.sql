@@ -863,7 +863,8 @@ results(id, ok, expected, actual) as (
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
 
-  -- X. Bank transfer (20261015200000). SKIP until pushed. The bank columns
+  -- X. Bank transfer (20261015200000). SKIP until pushed. X4: no client role
+  --    can UPDATE or INSERT any bank column (also in B). The bank columns
   --    are on the privileged list (B): written only by /api/bank through
   --    these service-role functions. X3: the encrypted account number never
   --    reaches audit_log detail.
@@ -901,6 +902,23 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
       when (select p.prosrc ilike '%- ''bank_account_enc''%' from pg_proc p where p.oid = to_regprocedure('public.log_audit()'))
         then '' else 'bank_account_enc not excluded' end
+  union all
+  select 'X4 profiles.' || c.col || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles' and column_name = c.col)
+        and not has_column_privilege(ro.r, 'public.profiles', c.col, 'UPDATE')
+        and not has_column_privilege(ro.r, 'public.profiles', c.col, 'INSERT') end,
+    'no client UPDATE / INSERT (written only via /api/bank)',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when not exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles' and column_name = c.col) then 'missing'
+      else concat_ws(' ',
+        case when has_column_privilege(ro.r, 'public.profiles', c.col, 'UPDATE') then 'UPDATE' end,
+        case when has_column_privilege(ro.r, 'public.profiles', c.col, 'INSERT') then 'INSERT' end) end
+  from (values ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
+               ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')) c(col)
+  cross join (values ('anon'), ('authenticated')) ro(r)
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
