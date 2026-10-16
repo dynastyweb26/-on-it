@@ -831,6 +831,34 @@ results(id, ok, expected, actual) as (
       from pg_constraint
       where conname = 'profiles_referred_by_fkey'
         and conrelid = 'public.profiles'::regclass), 'missing')
+
+  -- W. invoices.private_notes (20261015100000). SKIP until pushed.
+  --    Owner-only text: present with its length cap, and no public RPC reads it.
+  union all
+  select 'W1 invoices.private_notes column',
+    case when not exists (select 1 from applied where version = '20261015100000') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'private_notes' and data_type = 'text' and is_nullable = 'YES')
+        and exists (select 1 from pg_constraint
+          where conname = 'invoices_private_notes_len' and conrelid = 'public.invoices'::regclass) end,
+    'text null + invoices_private_notes_len check',
+    case when not exists (select 1 from applied where version = '20261015100000') then 'not applied yet'
+      else coalesce((select data_type || ' ' || is_nullable from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices' and column_name = 'private_notes'), 'missing')
+        || case when exists (select 1 from pg_constraint
+          where conname = 'invoices_private_notes_len' and conrelid = 'public.invoices'::regclass)
+          then ' +check' else ' no check' end end
+  union all
+  select 'W2 public RPCs never read private_notes',
+    case when not exists (select 1 from applied where version = '20261015100000') then null
+      else count(*) filter (where p.prosrc ilike '%private_notes%') = 0 end,
+    'get_public_invoice / get_public_invoice_checkout do not mention private_notes',
+    case when not exists (select 1 from applied where version = '20261015100000') then 'not applied yet'
+      else coalesce(string_agg(case when p.prosrc ilike '%private_notes%' then p.proname end, ', '), '') end
+  from pg_proc p
+  where p.pronamespace = 'public'::regnamespace
+    and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

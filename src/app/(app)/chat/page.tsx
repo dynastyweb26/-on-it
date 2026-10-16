@@ -171,6 +171,7 @@ function draftFromRow(row: {
   tax_rate?: number | null;
   due_date?: string | null;
   notes?: string | null;
+  private_notes?: string | null;
   deposit_type?: string | null;
   deposit_value?: number | null;
 }): Partial<ExtractResult> {
@@ -184,6 +185,7 @@ function draftFromRow(row: {
     tax_rate: row.tax_rate ?? null,
     due_date: row.due_date ?? null,
     notes: row.notes ?? null,
+    private_notes: row.private_notes ?? null,
     deposit_type: row.deposit_type ?? 'none',
     deposit_value: row.deposit_value ?? null,
   };
@@ -204,6 +206,7 @@ function draftFingerprint(d: Partial<ExtractResult> | null): string {
     depType: (d as any)?.deposit_type ?? 'none',
     depVal: (d as any)?.deposit_value ?? null,
     notes: d?.notes ?? null,
+    privateNotes: d?.private_notes ?? null,
     due: d?.due_date ?? null,
   });
 }
@@ -1152,6 +1155,11 @@ export default function Chat() {
             data.notes == null
               ? (draft?.notes ?? null)
               : (typeof data.notes === 'string' && data.notes.trim() === '' ? null : data.notes),
+          // Owner-only notes from a pasted work card: same merge rule.
+          private_notes:
+            data.private_notes == null
+              ? (draft?.private_notes ?? null)
+              : (typeof data.private_notes === 'string' && data.private_notes.trim() === '' ? null : data.private_notes),
         } as Partial<ExtractResult>;
 
         // Commit B lock: the linked invoice has left 'draft' (sent/paid) and is
@@ -1681,6 +1689,9 @@ export default function Chat() {
         deposit_value: rd0.depositValue ?? null,
         deposit_amount: rd0.depositAmount ?? null,
         notes: rd0.notes,
+        // Owner-only (pasted card names/narrative). Not in rd0: the PDF and
+        // pay page never render it.
+        private_notes: draft?.private_notes ?? null,
         // rd0.dueDate is now a formatted display string (M/D/YYYY, Jules F8);
         // the DB column is a `date`, so write the raw ISO value instead.
         due_date: draft?.due_date ?? defaultDueDate(),
@@ -2754,7 +2765,7 @@ export default function Chat() {
       try {
         const { data: row } = await supabase
           .from('invoices')
-          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, line_items, tax_rate, notes, due_date, deposit_type, deposit_value')
+          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, line_items, tax_rate, notes, private_notes, due_date, deposit_type, deposit_value')
           .eq('finalize_key', entry.id)
           .is('deleted_at', null)
           .maybeSingle();

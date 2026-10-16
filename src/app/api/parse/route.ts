@@ -7,6 +7,8 @@ import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpDaily } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
+import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
+import { isGenericClientName, resolveClientName } from '@/lib/client-name';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -85,16 +87,6 @@ function statedTaxRates(text: string): number[] {
   return out;
 }
 
-// A client_name that is a role or pronoun, not a name. The WHOLE value must be
-// one of these words (optionally after an article/possessive), so a real name
-// that happens to follow "the" survives ("the Johnsons", "The Home Depot").
-// Words that are also real first names (Guy, Man…) only count with an article.
-const GENERIC_BARE = /^(?:client|customer|homeowner|home owner|owner|tenant|landlord|someone|somebody|person|him|her|them|unknown|n\/?a|none|tbd|name|client name|customer name)s?$/i;
-const GENERIC_WITH_ARTICLE = /^(?:the|a|an|my|our|this|that|some)\s+(?:client|customer|homeowner|home owner|owner|tenant|landlord|person|guy|lady|man|woman|gentleman|family)s?$/i;
-function isGenericClientName(name: string): boolean {
-  const s = name.trim().replace(/^["'“‘]+|["'”’.,!?]+$/g, '').replace(/\s+/g, ' ');
-  return !s || GENERIC_BARE.test(s) || GENERIC_WITH_ARTICLE.test(s);
-}
 
 // Reserved for real parse failures (a price present but unreadable). Compared
 // against the previous assistant message so it's never sent twice in a row.
@@ -181,6 +173,16 @@ export async function POST(req: NextRequest) {
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
+    // Pasted work cards (lib/pasted-notes): on the paste turn the card's priced
+    // lines become the line items, list price billed, cost price nowhere; the
+    // notes are sorted into customer-facing and private. Read from the same
+    // sanitized, 12-turn history the model saw, with the wrapper tags removed.
+    const paste = pasteContext(history.map((m) => ({
+      role: m.role,
+      content: m.content.replace(/^<(?:user_input|prior_reply)>|<\/(?:user_input|prior_reply)>$/g, ''),
+    })));
+    if (paste) applyPasteItems(result, paste, (draft as Record<string, unknown> | null)?.intent as string | null);
+
     // Normalize and validate line items. Each item is one of:
     //   priced    — a finite price (a "$20" / "1,200" string is cleaned first)
     //   priceless — a description with NO price yet ("Car wash"): valid partial
@@ -198,8 +200,15 @@ export async function POST(req: NextRequest) {
       // unit / detail (merge 2 · 2·9): the model's unit, else the draft line's;
       // detail only ever carries over from the draft (lib/line-units).
       const draftLines = (draft as Record<string, unknown> | null)?.line_items;
-      const withUnitDetail = (item: NormItem, itemObj: Record<string, unknown>): NormItem =>
-        ({ ...item, ...carryUnitDetail(item.description, itemObj.unit, draftLines) });
+      // The one exception to "detail never from the model": a pasted card's
+      // part number, which the paste guard (not the model) set on the line.
+      const pastedDetail = new Map((paste?.all ?? []).flatMap((p) => p.items)
+        .filter((i) => i.detail).map((i) => [i.description, i.detail as string]));
+      const withUnitDetail = (item: NormItem, itemObj: Record<string, unknown>): NormItem => {
+        const carried = carryUnitDetail(item.description, itemObj.unit, draftLines);
+        const pd = pastedDetail.get(item.description);
+        return { ...item, ...carried, ...(pd && itemObj.detail === pd ? { detail: pd } : {}) };
+      };
 
       for (const rawItem of result.line_items) {
         const itemObj = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
@@ -253,13 +262,35 @@ export async function POST(req: NextRequest) {
     // name already on the draft is kept (so "send it to the client" can't wipe
     // "Maria"); otherwise the name is cleared, the document is not ready, and
     // the reply asks for it. An invalid-amounts reply above is left standing.
+    // A short plain reply to "Who's this for?" is the name exactly as typed —
+    // even a generic word like "Client" (founder call 2026-10-15) — because
+    // the generic-word guard exists to stop the MODEL inventing one, not to
+    // overrule the user (lib/client-name resolveClientName).
     if (result.intent === 'invoice' || result.intent === 'quote') {
-      const name = typeof result.client_name === 'string' ? result.client_name.trim() : '';
-      if (!name || isGenericClientName(name)) {
-        const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
-        const draftName = typeof draftNameRaw === 'string' ? draftNameRaw.trim() : '';
-        if (draftName && !isGenericClientName(draftName)) {
-          result.client_name = draftName;
+      const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
+      const resolved = resolveClientName({
+        modelName: result.client_name,
+        draftName: typeof draftNameRaw === 'string' ? draftNameRaw : null,
+        lastAssistant: [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '',
+        latestUser: [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '',
+      });
+      if (resolved.source !== 'model') {
+        if (resolved.source === 'draft') {
+          result.client_name = resolved.name;
+        } else if (resolved.source === 'answer') {
+          // When the model didn't take the answer as a real name, its reply
+          // was written around that ("I need the actual name. Who am I
+          // billing?"), so it's replaced. Read before client_name is set.
+          const modelName = typeof result.client_name === 'string' ? result.client_name.trim() : '';
+          const modelTookIt = !!modelName && !isGenericClientName(modelName)
+            && modelName.toLowerCase() === (resolved.name ?? '').toLowerCase();
+          if (!modelTookIt || /\bwho'?s this for\b|\bwho am i billing\b|\bactual name\b/i.test(result.reply ?? '')) {
+            result.reply = 'Got it.';
+          }
+          result.client_name = resolved.name;
+          result.missing = (Array.isArray(result.missing) ? result.missing : []).filter((k) => k !== 'client_name');
+          // With every item priced the draft is now ready.
+          if (!hasInvalidLineItem && !pricelessItem && result.line_items.length > 0) result.ready = true;
         } else {
           result.client_name = null;
           result.ready = false;
@@ -276,6 +307,12 @@ export async function POST(req: NextRequest) {
         result.reply = /^\s*on it!/i.test(result.reply ?? '') ? `On it! ${q}` : q;
       }
     }
+
+    // Paste follow-through: ask for prices when none were found, ask once
+    // about labor, scrub cost prices from every field. After the name guard so
+    // the price question isn't overwritten by it.
+    if (paste) applyPasteReplies(result, paste);
+    if (typeof result.private_notes === 'string') result.private_notes = result.private_notes.slice(0, 4000) || null;
 
     // tax_rate is a percent (8 = 8%). Drop a non-finite or out-of-range value
     // rather than trust it — no fraction→percent guessing here (a real 0.5%
@@ -391,7 +428,11 @@ export async function POST(req: NextRequest) {
 
       if (changed) {
         // Money sentence FIRST so a trailing question in the prose stays last.
-        result.reply = stripped ? `${moneySentence} ${stripped}` : moneySentence;
+        // ...except a first-turn "On it!", which always opens the reply.
+        const opener = /^\s*on it!\s*/i.exec(stripped);
+        result.reply = opener
+          ? `On it! ${moneySentence}${stripped.slice(opener[0].length) ? ` ${stripped.slice(opener[0].length)}` : ''}`
+          : stripped ? `${moneySentence} ${stripped}` : moneySentence;
       } else {
         // No change: keep the prose. Fall back to the money sentence only if
         // stripping emptied the reply, so we never emit an empty bubble.

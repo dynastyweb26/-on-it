@@ -27,12 +27,13 @@ export function normalizeLineDetail(d: unknown): string | null {
   return t ? t.slice(0, DETAIL_MAX) : null;
 }
 
-/** Short unit label after a quantity: "hr", "sq ft", "job"; none for each. */
+/** Short unit label after a quantity: "hr", "sq ft", "job", "ea". A line with
+ *  no unit is "each" — the unit always shows on the invoice. */
 export function unitLabel(u: LineUnit | null | undefined): string {
-  return u === 'hour' ? 'hr' : u === 'sq ft' ? 'sq ft' : u === 'job' ? 'job' : '';
+  return u === 'hour' ? 'hr' : u === 'sq ft' ? 'sq ft' : u === 'job' ? 'job' : 'ea';
 }
 
-/** "2 hr", "120 sq ft", "1 job", "3" (each / no unit). */
+/** "2 hr", "120 sq ft", "1 job", "3 ea" (each / no unit). */
 export function qtyText(qty: number, u: LineUnit | null | undefined): string {
   const label = unitLabel(u);
   return label ? `${qty} ${label}` : String(qty);

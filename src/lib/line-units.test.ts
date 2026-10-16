@@ -26,9 +26,9 @@ test('qtyText and unitLabel', () => {
   assert.equal(qtyText(2, 'hour'), '2 hr');
   assert.equal(qtyText(120, 'sq ft'), '120 sq ft');
   assert.equal(qtyText(1, 'job'), '1 job');
-  assert.equal(qtyText(3, 'each'), '3');
-  assert.equal(qtyText(3, null), '3');
-  assert.equal(unitLabel(undefined), '');
+  assert.equal(qtyText(3, 'each'), '3 ea');
+  assert.equal(qtyText(3, null), '3 ea');
+  assert.equal(unitLabel(undefined), 'ea');
 });
 
 test('carryUnitDetail: model unit wins, draft fills the rest, detail only from draft', () => {
