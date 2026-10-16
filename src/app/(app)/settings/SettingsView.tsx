@@ -12,6 +12,8 @@ import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
+import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actions';
+import { fmtPlanDate, freePlanAfterLine, offerNotice } from '@/lib/subscription/copy';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
@@ -85,6 +87,11 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
+  // Cancel flow (CANCEL-FLOW-SPEC.md §1): server state for the Plan screen
+  // (free limits for the "ends" line) and the notice an offer returns with.
+  const [planSummary, setPlanSummary] = useState<CancelSummary | null>(null);
+  const [planNotice, setPlanNotice] = useState<'discount' | 'paused' | null>(null);
+  const [resumeBusy, setResumeBusy] = useState(false);
   // Stripe Connect: busy covers both the onboarding redirect and a status
   // refresh; notice carries the 503/failure message inline (billing pattern).
   const [connectBusy, setConnectBusy] = useState(false);
@@ -323,6 +330,59 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
     }
   }
 
+  // Plan screen: read the subscription summary, and pick up the notice the
+  // cancel screen hands back after an offer (/settings/plan?done=discount|paused),
+  // then drop the param so a refresh doesn't repeat it.
+  useEffect(() => {
+    if (section !== 'plan') return;
+    const done = new URLSearchParams(window.location.search).get('done');
+    if (done === 'discount' || done === 'paused') {
+      setPlanNotice(done);
+      router.replace('/settings/plan');
+    }
+    let active = true;
+    void getSummary().then((s) => { if (active) setPlanSummary(s); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  // Resume a canceling or paused subscription, then re-read the profile,
+  // access and summary so the Plan screen shows the server's state.
+  async function resumePlan() {
+    if (resumeBusy) return;
+    setResumeBusy(true);
+    setBillingNotice('');
+    setPlanNotice(null);
+    const r = await resume();
+    if (!r.ok) {
+      setBillingNotice(r.message);
+    } else {
+      const [{ data: { user } }, a, s] = await Promise.all([
+        supabase.auth.getUser(),
+        fetch('/api/access').then((x) => (x.ok ? x.json() : null)).catch(() => null),
+        getSummary(),
+      ]);
+      if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if (data) setP(data);
+      }
+      if (a) setAccess(a);
+      setPlanSummary(s);
+    }
+    setResumeBusy(false);
+  }
+
+  // Plan states (spec §1), from the profile the webhook and routes keep in
+  // sync. A paused subscription is still live in billing (status 'active')
+  // but its tier is the free one, so it's detected from paused_until. A
+  // founder whose old subscription is winding down (redeem sets
+  // cancel_at_period_end) never gets here: the founder card renders instead.
+  const planBillable = SUBSCRIBED.has(p?.subscription_status ?? '') && access?.tier !== 'founder';
+  const planPaused = planBillable && Boolean(p?.paused_until);
+  const planCanceling = planBillable && Boolean(p?.cancel_at_period_end);
+  const planLive = Boolean(access && (SUBSCRIBED.has(access.tier) || planPaused));
+  const planEnds: string | null = (p?.subscription_status === 'trialing' ? p?.trial_ends_at : p?.current_period_end) ?? null;
+
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
   // Free/canceled users → Checkout ($9.99/mo; a 14-day free trial for
   // first-time customers only, lib/trial.ts).
@@ -477,9 +537,11 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a
               real subscription, or the paywall on) — the same rule as before. */}
-          {access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+          {access && (access.tier === 'founder' || PAYWALL_ENABLED || planLive) && (
             <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
               value={access.tier === 'founder' ? 'Founder'
+                : planPaused ? 'Paused'
+                : planCanceling ? 'Ending'
                 : access.tier === 'trialing' ? 'Free trial'
                 : access.tier === 'past_due' ? 'Payment due'
                 : access.tier === 'active' ? 'Subscribed' : 'Free'} />
@@ -655,10 +717,44 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </section>
       )}
 
-      {is('plan') && access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+      {is('plan') && access && access.tier !== 'founder' && (PAYWALL_ENABLED || planLive) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
-          {SUBSCRIBED.has(access.tier) ? (
+          {planNotice && (
+            <p className="flex items-center gap-2 text-sm font-semibold text-on-surface" role="status">
+              <Icon name="check_circle" size={18} className="text-primary" />
+              {offerNotice(planNotice, p?.paused_until)}
+            </p>
+          )}
+          {planPaused ? (
+            <>
+              {/* Paused (offer): billing and full access pick back up on the date. */}
+              <p className="text-sm text-on-surface-variant">
+                {fmtPlanDate(p.paused_until)
+                  ? `Paused until ${fmtPlanDate(p.paused_until)}. Your plan picks back up then.`
+                  : 'Paused. Your plan picks back up when you resume.'}
+              </p>
+              <button className="btn-primary w-full" disabled={resumeBusy} onClick={() => void resumePlan()}>
+                {resumeBusy ? 'Resuming…' : 'Resume now'}
+              </button>
+            </>
+          ) : planCanceling ? (
+            <>
+              <p className="text-sm text-on-surface-variant">
+                {fmtPlanDate(planEnds)
+                  ? `Your plan ends ${fmtPlanDate(planEnds)}. You keep everything; ${freePlanAfterLine(planSummary?.freeLimits)}`
+                  : `Your plan is set to end. You keep everything; ${freePlanAfterLine(planSummary?.freeLimits)}`}
+              </p>
+              <button className="btn-primary w-full" disabled={resumeBusy} onClick={() => void resumePlan()}>
+                {resumeBusy ? 'Resuming…' : 'Resume subscription'}
+              </button>
+              <button className="btn-outline w-full" disabled={billingBusy}
+                onClick={() => billingAction('/api/billing-portal')}>
+                <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
+              </button>
+              <p className="text-sm text-on-surface-variant">Update your card in the billing portal.</p>
+            </>
+          ) : SUBSCRIBED.has(access.tier) ? (
             <>
               <p className="text-sm text-on-surface-variant">
                 {access.tier === 'past_due'
@@ -676,7 +772,12 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
                 onClick={() => billingAction('/api/billing-portal')}>
                 <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
               </button>
-              <p className="text-sm text-on-surface-variant">Cancel or update your card in the billing portal.</p>
+              <p className="text-sm text-on-surface-variant">Update your card in the billing portal.</p>
+              {/* Cancel is two taps from Plan (spec rule 3): this, then the
+                  cancel screen's own button. A real button, never a link. */}
+              <button className="btn-outline w-full" onClick={() => router.push('/settings/plan/cancel')}>
+                Cancel subscription
+              </button>
             </>
           ) : (
             <>
