@@ -293,6 +293,12 @@ export function applyPasteItems<R extends GuardResult>(result: R, ctx: PasteCont
     result.notes = customerNotes(p);
     result.private_notes = privateNotes(p);
   } else {
+    // A follow-up in a card conversation stays the draft's document: the
+    // model has called "look at the prices" a question, which skipped the
+    // price question below.
+    if ((result.intent === 'question' || result.intent === 'other') && (draftIntent === 'invoice' || draftIntent === 'quote')) {
+      result.intent = draftIntent;
+    }
     const pasted = new Map(ctx.all.flatMap((p) => p.items).map((i) => [norm(i.description), i]));
     const saidNow = (n: number) => [String(n), n.toFixed(2)].some((f) =>
       new RegExp(String.raw`(?<![\d.])${f.replace('.', '\\.')}(?!\d)`).test(ctx.latestUserText));
@@ -303,6 +309,10 @@ export function applyPasteItems<R extends GuardResult>(result: R, ctx: PasteCont
         return src ? { ...li, unit_price: src.unit_price, unit: li.unit ?? src.unit, ...(src.detail ? { detail: src.detail } : {}) } : li;
       })
       .filter((li) => !titles.has(norm(li?.description)))
+      // Only text with a price is a line item: a finding the model turned into
+      // a price-less line ("Partially frozen evap") is dropped, so the reply
+      // asks for that price instead of moving on to the client name.
+      .filter((li) => li?.unit_price != null && String(li.unit_price).trim() !== '')
       .filter((li) => {
         if (pasted.has(norm(li?.description))) return true;
         const price = Number(li?.unit_price);

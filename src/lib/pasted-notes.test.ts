@@ -143,6 +143,19 @@ test('card 1: an answer with no figure asks again naming the item', () => {
   ])!;
   const r = applyPasteReplies(applyPasteItems(badModelResult({ intent: 'invoice', line_items: [] }), ctx), ctx);
   assert.equal(r.reply, 'I still need a price. How much for partially frozen evap ( Defrosted with hose)?');
+
+  // Seen on the preview: the model called the answer a question and turned
+  // the findings into price-less lines, so the name question came instead.
+  const r2 = applyPasteReplies(applyPasteItems(badModelResult({
+    intent: 'question', reply: "Who's this for?",
+    line_items: [
+      { description: 'Partially frozen evap ( Defrosted with hose)', qty: 1, unit_price: null },
+      { description: 'Drain line insulation not installed properly (Repaired)', qty: 1, unit_price: null },
+    ],
+  }), ctx, 'invoice'), ctx);
+  assert.deepEqual(r2.line_items, []);
+  assert.equal(r2.intent, 'invoice');
+  assert.equal(r2.reply, 'I still need a price. How much for partially frozen evap ( Defrosted with hose)?');
 });
 
 test('qty + unit from the text: "1028 sqft" → qty 1028, unit sq ft', () => {
