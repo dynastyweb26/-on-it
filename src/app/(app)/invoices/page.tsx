@@ -187,7 +187,7 @@ export default function Invoices() {
       ) : (
         <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
-            <p className="mt-16 text-center text-on-surface-variant">
+            <p data-coach="invoices-empty" className="mx-auto mt-16 max-w-sm text-center text-on-surface-variant">
               {filter === 'all' ? 'Nothing here yet. Head to Chat and tell me about a job.'
                 : filter === 'quote' ? 'No quotes right now.' : `No ${FILTER_LABEL[filter].toLowerCase()} invoices right now.`}
             </p>
