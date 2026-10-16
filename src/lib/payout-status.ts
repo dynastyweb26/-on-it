@@ -13,6 +13,8 @@ export const isPayoutMethod = (v: string): v is PayoutMethod =>
 export interface PayoutStatus { text: string; tone: 'default' | 'muted' | 'error' }
 
 const NOT_SET: PayoutStatus = { text: 'Not set', tone: 'muted' };
+/** Still loading: blank, never "Not set" before the data has arrived. */
+export const LOADING: PayoutStatus = { text: '', tone: 'muted' };
 
 export interface StripeFields {
   stripe_account_id?: string | null;
@@ -48,8 +50,14 @@ export function bankStatus(p: { bank_account_last4?: string | null; bank_transfe
   return { text: `••••${p.bank_account_last4}`, tone: 'default' };
 }
 
-/** Zelle is encrypted at rest; the index only ever has the server's mask. */
+/**
+ * Zelle is encrypted at rest and has no plain "configured" column; the index
+ * only ever has the mask from GET /api/zelle, which loads after the profile.
+ *   undefined → not loaded yet (or the lookup failed): blank
+ *   null / '' → loaded, nothing stored: Not set
+ */
 export function zelleStatus(masked: string | null | undefined): PayoutStatus {
+  if (masked === undefined) return LOADING;
   return masked ? { text: masked, tone: 'default' } : NOT_SET;
 }
 

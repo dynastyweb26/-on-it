@@ -89,7 +89,7 @@ const tileMark = (m: PayoutMethod) => {
 
 // ── Index ─────────────────────────────────────────────────────────────
 // Section order matches the pay page: card, then bank, then the apps.
-export function PayoutsIndex({ p, zelleMasked, connectOn }: { p: any; zelleMasked: string | null; connectOn: boolean }) {
+export function PayoutsIndex({ p, zelleMasked, connectOn }: { p: any; zelleMasked: string | null | undefined; connectOn: boolean }) {
   const row = (m: PayoutMethod, s: PayoutStatus, visual: { icon?: 'credit_card' | 'account_balance' }) => (
     <SettingsRow key={m} title={METHOD_INFO[m].label} href={`${PAYOUTS_INDEX}/${m}`}
       icon={visual.icon} tile={visual.icon ? undefined : tileMark(m)}
@@ -149,7 +149,8 @@ export interface PayoutDetailProps {
   method: PayoutMethod;
   p: any;
   connectOn: boolean;
-  zelleMasked: string | null;
+  /** undefined until GET /api/zelle has answered. */
+  zelleMasked: string | null | undefined;
   onZelleChange: (masked: string | null) => void;
   /** SettingsView.save(): optimistic profiles update; false when the write failed. */
   save: (patch: Record<string, unknown>) => Promise<boolean>;

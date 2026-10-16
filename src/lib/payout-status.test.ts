@@ -58,3 +58,12 @@ test('isPayoutMethod: only the six routes', () => {
   assert.equal(isPayoutMethod('cash-app'), false);
   assert.equal(isPayoutMethod(''), false);
 });
+
+test('zelle: before /api/zelle answers (or if it fails) → blank, never Not set', () => {
+  assert.deepEqual(zelleStatus(undefined), { text: '', tone: 'muted' });
+  assert.notEqual(zelleStatus(undefined).text, 'Not set');
+});
+
+test('zelle: configured mask shows as soon as it loads', () => {
+  assert.deepEqual(zelleStatus('••••4558'), { text: '••••4558', tone: 'default' });
+});

@@ -60,7 +60,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const [saveFailed, setSaveFailed] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
-  const [zelleMasked, setZelleMasked] = useState<string | null>(null);
+  // undefined = not loaded yet (or the lookup failed) — never shown as "Not set".
+  const [zelleMasked, setZelleMasked] = useState<string | null | undefined>(undefined);
   // real subscription state, not a fire-and-forget button
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
@@ -162,6 +163,11 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         if (!active) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
+        // Zelle's mask comes from its own route; start it alongside the profile
+        // read so the payouts statuses land together. Only the screens that show it.
+        const zelleReq = section === 'main' || section === 'payouts'
+          ? fetch('/api/zelle').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+          : null;
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (!active) return;
         // Signed in but no profile yet → finish onboarding (matches chat's pattern).
@@ -193,11 +199,11 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           }
         }
 
-        try {
-          const res = await fetch('/api/zelle');
-          const z = await res.json();
-          if (active && z.set) setZelleMasked(z.masked);
-        } catch { /* leave unset */ }
+        if (zelleReq) {
+          const z = await zelleReq;
+          // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
+          if (active && z) setZelleMasked(z.set ? z.masked : null);
+        }
         try {
           const a = await fetch('/api/access');
           if (active && a.ok) setAccess(await a.json());
@@ -465,7 +471,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
             data-coach="settings-payouts"
             value={connectOn && p.stripe_charges_enabled ? 'Connected'
-              : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked].some(Boolean) ? 'Set up' : 'Not set'} />
+              : [p.paypal_me, p.cashapp_tag, p.venmo_username, zelleMasked, p.bank_account_last4].some(Boolean) ? 'Set up'
+              : zelleMasked === undefined ? null : 'Not set'} />
         </SettingsGroup>
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a
