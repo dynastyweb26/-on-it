@@ -13,56 +13,12 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
-import BankTransferCard from './BankTransferCard';
+import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
+import type { PayoutMethod } from '@/lib/payout-status';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
-
-// PayPal / Cash App / Venmo are plain profiles columns saved through the shared
-// save() path (on blur), exactly like every other field on this page. Zelle is
-// NOT here — it keeps its encrypted /api/zelle path.
-// Users paste full URLs and prefixed handles; each field normalizes ON BLUR to
-// the bare handle that gets stored, stripping the site / scheme / www and the
-// method's sigil. Zelle is intentionally NOT normalized — it's a phone or email,
-// both valid as typed.
-const normalizePaypal = (v: string) =>
-  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '').replace(/\/+$/, '');
-const normalizeCashapp = (v: string) =>
-  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?cash\.app\//i, '').replace(/^\$/, '').replace(/\/+$/, '');
-const normalizeVenmo = (v: string) =>
-  v.trim().replace(/^(?:https?:\/\/)?(?:www\.)?venmo\.com\/u\//i, '').replace(/^@/, '').replace(/\/+$/, '');
-// A bare PayPal username has no dots or slashes; anything with them (e.g. a
-// domain like "mypaypal.com") would build a broken paypal.me/<...> link.
-const isValidPaypalHandle = (v: string) => !/[./\\]/.test(v);
-
-const PAY_HANDLES = [
-  { key: 'paypal_me',      label: 'PayPal',   hint: 'paypal.me/username', placeholder: 'Enter your paypal.me username', mark: '/brands/paypal.svg',  color: '#003087', normalize: normalizePaypal },
-  { key: 'cashapp_tag',    label: 'Cash App', hint: '$cashtag',           placeholder: 'Enter your $cashtag',           mark: '/brands/cashapp.svg', color: '#00D632', normalize: normalizeCashapp },
-  { key: 'venmo_username', label: 'Venmo',    hint: '@username',          placeholder: 'Enter your username',           mark: '/brands/venmo.svg',   color: '#008CFF', normalize: normalizeVenmo },
-] as const;
-
-// Brand marks: Simple Icons monochrome glyphs in public/brands/, recolored to the
-// brand's own color. The SVG is a CSS mask (its shape only) and the brand color
-// is the fill, so the glyph shape is never restyled. Slot sizing is unchanged.
-function BrandMark({ src, color }: { src: string; color: string }) {
-  return (
-    <span aria-hidden
-      className="h-11 w-11 shrink-0"
-      style={{
-        display: 'inline-block',
-        backgroundColor: color,
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
-        WebkitMaskRepeat: 'no-repeat',
-        maskRepeat: 'no-repeat',
-        WebkitMaskPosition: 'center',
-        maskPosition: 'center',
-        WebkitMaskSize: 'contain',
-        maskSize: 'contain',
-      }} />
-  );
-}
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -91,7 +47,10 @@ const AUTH_TIMEOUT_MS = 8000;
 // One component, several screens (release frames 0c): /settings shows the
 // grouped rows, /settings/<section> one sub-screen. Every screen loads the same
 // profile and keeps the same save paths; only what renders differs.
-export default function SettingsView({ connectEnabled, section = 'main' }: { connectEnabled: boolean; section?: SettingsSection }) {
+// method: on /settings/payouts/<method>, which payout method's detail view.
+export default function SettingsView({ connectEnabled, section = 'main', method }: {
+  connectEnabled: boolean; section?: SettingsSection; method?: PayoutMethod;
+}) {
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
@@ -99,13 +58,9 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   // save() applies optimistically; on a failed write it reverts and raises this,
   // mirroring the Saved banner so a swallowed error can no longer look like success.
   const [saveFailed, setSaveFailed] = useState(false);
-  // Inline PayPal.me validation message (username, not a URL/domain).
-  const [paypalError, setPaypalError] = useState('');
   const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
   const [zelleMasked, setZelleMasked] = useState<string | null>(null);
-  const [zelleInput, setZelleInput] = useState('');
-  const [zelleBusy, setZelleBusy] = useState(false);
   // real subscription state, not a fire-and-forget button
   const [pushOn, setPushOn] = useState<boolean | null>(null); // null = checking
   const [pushBusy, setPushBusy] = useState(false);
@@ -170,8 +125,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     const stuckTimer = setTimeout(() => { if (active && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
     const settle = () => { settled = true; clearTimeout(stuckTimer); };
     // Stripe's Account Link return/refresh URLs land on /settings?connect=…
-    // (server-built, unchanged): hand them to the Payouts sub-screen, which
-    // runs the return-trip logic below.
+    // (server-built, unchanged): hand them to the Stripe payout view, which
+    // runs the return-trip logic below and shows any Connect notice.
     const connectParam = new URLSearchParams(window.location.search).get('connect');
     // Checkout's success URL for Settings is /settings?upgraded=1: show the
     // Plan sub-screen (it re-reads access on load).
@@ -182,7 +137,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     }
     if (section === 'main' && connectParam) {
       settled = true; clearTimeout(stuckTimer);
-      router.replace(`/settings/payouts?connect=${encodeURIComponent(connectParam)}`);
+      router.replace(`${PAYOUTS_INDEX}/stripe?connect=${encodeURIComponent(connectParam)}`);
       return () => { active = false; };
     }
     (async () => {
@@ -214,6 +169,13 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         settle();
         setAuthStuck(false); // late resolve after a timeout: recover and render
         setP(data);
+        // A payout detail view saved and came back here (?saved=1): the usual
+        // "Saved" banner, then drop the param so a reload doesn't repeat it.
+        if (section === 'payouts' && !method && new URLSearchParams(window.location.search).get('saved') === '1') {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1500);
+          router.replace(PAYOUTS_INDEX);
+        }
 
         // Stripe Connect return trip. ?connect=refresh means the Account Link
         // expired or was reused — get a fresh one (Stripe's documented flow).
@@ -222,7 +184,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         // incomplete, so a finished-elsewhere onboarding shows up. The param is
         // dropped from the URL first so a reload can't loop the redirect.
         // All of it is skipped unless the server says Connect is on here.
-        if (connectParam) router.replace('/settings/payouts');
+        if (connectParam) router.replace(`${PAYOUTS_INDEX}/stripe`);
         if (connectOn && (section === 'main' || section === 'payouts')) {
           if (connectParam === 'refresh') {
             void startConnect();
@@ -258,27 +220,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function saveZelle() {
-    setZelleBusy(true);
-    try {
-      const res = await fetch('/api/zelle', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ value: zelleInput }),
-      });
-      const z = await res.json();
-      if (res.ok) {
-        setZelleMasked(z.set ? z.masked : null);
-        setZelleInput('');
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1500);
-      }
-    } finally {
-      setZelleBusy(false);
-    }
-  }
-
-  async function save(patch: Record<string, unknown>) {
+  // Resolves false when the write failed (and was reverted).
+  async function save(patch: Record<string, unknown>): Promise<boolean> {
     const prev = p;                         // snapshot for rollback on failure
     setP({ ...p, ...patch });               // optimistic
     const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
@@ -291,26 +234,11 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       setP(prev);                           // revert — the write did not land
       setSaveFailed(true);
       setTimeout(() => setSaveFailed(false), 2500);
-      return;
+      return false;
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
-  }
-
-  // Explicit confirm for the three profile-backed handles. The per-field onBlur
-  // saves still fire; this is an additional "save all three at once" button. Zelle
-  // is deliberately excluded — it keeps its own encrypted Save/Remove path.
-  function savePaymentHandles() {
-    const paypal = (p.paypal_me ?? '').trim();
-    if (paypal && !isValidPaypalHandle(paypal)) {
-      setPaypalError('Enter just your PayPal.me username — no URLs, dots, or slashes.');
-      return;
-    }
-    save({
-      paypal_me: paypal || null,
-      cashapp_tag: p.cashapp_tag || null,
-      venmo_username: p.venmo_username || null,
-    });
+    return true;
   }
 
   // ── Logo manager: upload / replace / remove ─────────────────
@@ -518,7 +446,7 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
-      <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : 'Settings'}</SettingsTitle>
+      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -599,190 +527,12 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       </section>
       </>)}
 
-      {is('payouts') && (<>
-      {/* ── Block 1 — Stripe Connect, its own cream-tinted card ────────
-          Four states from the profile's mirrored Stripe status:
-            not connected                        → Connect (creates the account)
-            can't charge, seller owes a due item → Finish setup (resumes onboarding)
-            can't charge, nothing due from them  → In review, no button; Stripe is
-                                                   verifying. Status is re-read on
-                                                   every load until it flips.
-            charges enabled                      → Connected + the card-payments opt-in
-          The stripe_* columns are server-written only; the switch saves
-          card_payments_enabled through the normal save() path.
-          Gated on connectOn (server-rendered prop): unless Connect is switched
-          on in this deployment (STRIPE_CONNECT_ENABLED + a secret key), render
-          the original disabled "Coming soon" card instead — no tappable
-          Connect, no stored-account state, no card switch. */}
-      {connectOn !== true ? (
-      <section className="card space-y-3" style={{ background: '#fff8f0' }}>
-        <div className="flex items-center gap-3">
-          <BrandMark src="/brands/stripe.svg" color="#635BFF" />
-          <div className="min-w-0 flex-1">
-            <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
-            <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
-          </div>
-          <button type="button" disabled
-            className="shrink-0 rounded-button px-4 py-2 font-body text-sm font-semibold text-white pointer-events-none"
-            style={{ background: '#5f09b2' }}>
-            Coming soon
-          </button>
-        </div>
-      </section>
-      ) : (
-      <section className="card space-y-3" style={{ background: '#fff8f0' }}>
-        <div className="flex items-center gap-3">
-          <BrandMark src="/brands/stripe.svg" color="#635BFF" />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h3 className="font-display text-xl font-bold text-on-background">Stripe</h3>
-              {p.stripe_account_id && (
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${p.stripe_charges_enabled ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
-                  {p.stripe_charges_enabled ? 'Connected' : p.stripe_details_submitted ? 'In review' : 'Setup incomplete'}
-                </span>
-              )}
-            </div>
-            <p className="font-body text-sm text-on-surface-variant">Accept cards &amp; online payments</p>
-          </div>
-        </div>
-        {p.stripe_account_id && !p.stripe_charges_enabled && (
-          <p className="font-body text-sm text-on-surface-variant">
-            {p.stripe_details_submitted
-              ? 'Stripe is reviewing your account. Card payments turn on once they approve it.'
-              : 'Finish setting up your Stripe account to start taking card payments.'}
-          </p>
-        )}
-        {/* Action only when the seller has something to do: not yet connected,
-            or a requirement is currently/past due on them. Never while in review.
-            Its own full-width row below the description, so it can't collide
-            with the title + status badge at phone width. */}
-        {!p.stripe_charges_enabled && (!p.stripe_account_id || !p.stripe_details_submitted) && (
-          <button type="button" disabled={connectBusy} onClick={startConnect}
-            className="w-full rounded-button px-4 py-3 font-body text-sm font-semibold text-white disabled:opacity-60"
-            style={{ background: '#5f09b2' }}>
-            {connectBusy ? 'Opening…' : p.stripe_account_id ? 'Finish setup' : 'Connect'}
-          </button>
-        )}
-        {p.stripe_charges_enabled && (
-          <>
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-body text-sm text-on-surface-variant">
-                Let clients pay invoices by card. Money goes straight to your Stripe account; Stripe’s card fees apply.
-              </p>
-              <button
-                role="switch"
-                aria-checked={Boolean(p.card_payments_enabled)}
-                aria-label="Accept card payments"
-                onClick={() => save({ card_payments_enabled: !p.card_payments_enabled })}
-                className={`relative h-8 w-14 shrink-0 rounded-full transition-colors
-                  ${p.card_payments_enabled ? 'bg-primary-container' : 'bg-outline-variant'}`}
-              >
-                <span
-                  className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow left-1 transition-transform duration-[160ms]
-                    ${p.card_payments_enabled ? 'translate-x-6' : ''}`}
-                />
-              </button>
-            </div>
-            {!p.stripe_payouts_enabled && (
-              <p className="font-body text-sm text-on-surface-variant">
-                Payouts are paused until Stripe has everything it needs. Check your Stripe dashboard.
-              </p>
-            )}
-          </>
-        )}
-        {connectNotice && <p className="font-body text-sm text-on-surface-variant">{connectNotice}</p>}
-      </section>
-      )}
-
-      {/* ── Block 2 — PayPal / Cash App / Venmo, one card, three rows ──
-          Wiring UNCHANGED: per-field save() on blur (PayPal strips/validates),
-          and the bottom Save button fires the existing savePaymentHandles() —
-          the same three-field save(). Zelle is deliberately NOT in this group. */}
-      <section className="card space-y-5">
-        {PAY_HANDLES.map(({ key, label, hint, placeholder, mark, color, normalize }) => {
-          const on = Boolean(p[key]);
-          const isPaypal = key === 'paypal_me';
-          return (
-            <div key={key} className="space-y-2">
-              <div className="flex items-center gap-3">
-                <BrandMark src={mark} color={color} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display text-xl font-bold text-on-background">{label}</h3>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${on ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
-                      {on ? 'Configured' : 'Not set'}
-                    </span>
-                  </div>
-                  <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>{hint}</p>
-                </div>
-              </div>
-              {/* PayPal & Venmo get flagged by password-manager extensions as
-                  credential fields. autoComplete="off" alone didn't clear the
-                  indicator (Chrome ignores it on such fields), so we also tell
-                  1Password (data-1p-ignore) and LastPass (data-lpignore) to skip
-                  them. Not autoComplete="username" — that would mark the field AS
-                  a credential. Cash App isn't flagged, so it's left untouched. */}
-              <input className="input" placeholder={placeholder}
-                {...(key === 'cashapp_tag'
-                  ? {}
-                  : { autoComplete: 'off', 'data-1p-ignore': true, 'data-lpignore': 'true' })}
-                value={p[key] ?? ''}
-                onChange={(e) => {
-                  setP({ ...p, [key]: e.target.value }); // store raw while typing
-                  if (isPaypal) setPaypalError('');      // clear as they edit
-                }}
-                onBlur={(e) => {
-                  const v = normalize(e.target.value);   // → bare handle, on blur
-                  if (isPaypal && v && !isValidPaypalHandle(v)) {
-                    setPaypalError('Enter just your PayPal.me username — no URLs, dots, or slashes.');
-                    setP({ ...p, [key]: v });            // show the normalized (still-invalid) value
-                    return;                              // don't save a handle that would build a broken link
-                  }
-                  save({ [key]: v || null });            // save() sets p[key]=v, so the field shows the bare handle
-                }} />
-              {isPaypal && paypalError && <p className="font-body text-xs text-error">{paypalError}</p>}
-            </div>
-          );
-        })}
-        {/* Full-width gold Save — fires the SAME savePaymentHandles() as before. */}
-        <button className="btn-primary w-full" onClick={savePaymentHandles}>Save PayPal, Cash App &amp; Venmo</button>
-      </section>
-
-      {/* ── Block 3 — Zelle, its own card ─────────────────────────────
-          Wiring UNCHANGED: encrypted column via /api/zelle (saveZelle), masked
-          placeholder, own Save/Remove button. Never folded into the group save. */}
-      <section className="card space-y-3">
-        <div className="flex items-center gap-3">
-          <BrandMark src="/brands/zelle.svg" color="#6D1ED4" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-display text-xl font-bold text-on-background">Zelle</h3>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${zelleMasked ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
-                {zelleMasked ? 'Configured' : 'Not set'}
-              </span>
-            </div>
-            <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>Phone or email</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <input className="input flex-1"
-            placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Phone or email'}
-            value={zelleInput} onChange={(e) => setZelleInput(e.target.value)} />
-          <button className="btn-primary px-4 py-2 text-sm" disabled={zelleBusy || (!zelleInput.trim() && !zelleMasked)}
-            onClick={saveZelle}>
-            {zelleBusy ? 'Saving…' : zelleMasked && !zelleInput.trim() ? 'Remove' : 'Save'}
-          </button>
-        </div>
-        <p className="font-body text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
-      </section>
-
-      <BankTransferCard initial={p} onSaved={(b) => {
-        setP((cur: any) => ({ ...cur, ...b }));
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1500);
-      }} />
-
-      </>)}
+      {is('payouts') && (method
+        ? <PayoutDetail method={method} p={p} connectOn={connectOn} save={save}
+            zelleMasked={zelleMasked} onZelleChange={setZelleMasked}
+            onBankSaved={(b) => setP((cur: any) => ({ ...cur, ...b }))}
+            connect={{ busy: connectBusy, notice: connectNotice, start: () => void startConnect() }} />
+        : <PayoutsIndex p={p} zelleMasked={zelleMasked} connectOn={connectOn} />)}
 
       {is('business') && (
       <section className="card space-y-3">
