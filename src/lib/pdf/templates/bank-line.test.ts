@@ -52,3 +52,15 @@ for (const t of templates) {
     assert.doesNotMatch(render(t, { kind: 'quote', bankTransferAvailable: true }), /Bank transfer/);
   });
 }
+
+for (const t of templates) {
+  test(`${t}: bank line sits directly under the card line, above the handles`, () => {
+    const html = render(t, { bankTransferAvailable: true, cardAvailable: true });
+    const card = html.indexOf('Card, Apple Pay, Google Pay or Cash App Pay');
+    const bank = html.indexOf('Bank transfer / Direct deposit');
+    const cashapp = html.indexOf('$testtag');
+    const zelle = html.indexOf('test@example.com');
+    assert.ok(card >= 0 && bank > card, 'bank after card');
+    assert.ok(cashapp > bank && zelle > bank, 'handles after bank');
+  });
+}

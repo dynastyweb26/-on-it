@@ -190,6 +190,14 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
         </div>
       )}
+      {/* Bank transfer line — directly under the card line (the pay page's
+          order), the card line's exact format. Pay-page link only; no numbers. */}
+      {bank && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
+          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>{BANK_LINE}</div>
+          <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
+        </div>
+      )}
       {rows.map((r) => {
         const color = PAY_COLOR[r.kind];
         return (
@@ -200,14 +208,6 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
         );
       })}
-      {/* Bank transfer line — after the handles (the pay page's order), the
-          card line's exact format. Pay-page link only; no numbers here. */}
-      {bank && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
-          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>{BANK_LINE}</div>
-          <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
-        </div>
-      )}
       {link && (
         <PayNote style={{ fontSize: 13, color: t.muted, marginTop: 4 }} />
       )}
@@ -533,6 +533,13 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
         </div>
       )}
+      {/* Bank transfer line — directly under the card line, the rail's format. */}
+      {bank && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{BANK_LINE}</div>
+          <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
+        </div>
+      )}
       {rows.map((r) => (
         <div key={r.method}
           style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 18 }}>
@@ -543,13 +550,6 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
         </div>
       ))}
-      {/* Bank transfer line — after the handles, the rail's card-line format. */}
-      {bank && (
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{BANK_LINE}</div>
-          <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
-        </div>
-      )}
       {link && (
         <PayNote style={{ fontSize: 12, color: t.accent }} />
       )}

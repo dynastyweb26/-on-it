@@ -494,6 +494,25 @@ export default function PayView({ model }: { model: PayModel }) {
                   <RowAction icon="arrow_forward" text={cardBusy ? 'Opening…' : 'Pay'} />
                 </PayRow>
               ) : null}
+              {/* Bank transfer — directly under the card row, above the handles.
+                  Same row format; the row toggles the details open (Show / Hide). */}
+              {model.bank ? (
+                <PayRow
+                  label={bankOpen ? 'Hide bank transfer details' : 'Show bank transfer details'}
+                  onActivate={() => setBankOpen((o) => !o)}
+                  expanded={bankOpen}
+                  below={bankOpen ? (
+                    <BankDetails bank={model.bank} docNumber={model.docNumber} onCopied={(l) => showToast(`${l} copied`)} />
+                  ) : null}
+                >
+                  <Icon name="account_balance" size={20} className="shrink-0 text-on-surface-variant" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-label-lg text-on-background">Bank transfer</p>
+                    <p className="truncate text-body-md text-on-surface-variant">Direct deposit / ACH</p>
+                  </div>
+                  <RowAction icon="expand_more" text={bankOpen ? 'Hide' : 'Show'} flip={bankOpen} />
+                </PayRow>
+              ) : null}
               {methods.map((m) => {
                 const dot = (
                   <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: m.color }} aria-hidden />
@@ -533,25 +552,6 @@ export default function PayView({ model }: { model: PayModel }) {
                   </PayRow>
                 );
               })}
-              {/* Bank transfer — with the manual methods, after them. Same row
-                  format; the row toggles the details open (Show / Hide). */}
-              {model.bank ? (
-                <PayRow
-                  label={bankOpen ? 'Hide bank transfer details' : 'Show bank transfer details'}
-                  onActivate={() => setBankOpen((o) => !o)}
-                  expanded={bankOpen}
-                  below={bankOpen ? (
-                    <BankDetails bank={model.bank} docNumber={model.docNumber} onCopied={(l) => showToast(`${l} copied`)} />
-                  ) : null}
-                >
-                  <Icon name="account_balance" size={20} className="shrink-0 text-on-surface-variant" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-label-lg text-on-background">Bank transfer</p>
-                    <p className="truncate text-body-md text-on-surface-variant">Direct deposit / ACH</p>
-                  </div>
-                  <RowAction icon="expand_more" text={bankOpen ? 'Hide' : 'Show'} flip={bankOpen} />
-                </PayRow>
-              ) : null}
             </ul>
           ) : !model.cardAvailable ? (
             // No handles and no card — the business hasn't saved a way to pay.
