@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { createClient, createEmailAuthClient } from '@/lib/supabase/client';
 import PasswordInput from '@/components/PasswordInput';
+import { markSignInThrob } from '@/components/tutorial/throb';
 
 // Client-side throttle on the resend button. Supabase SMTP is 30/hr project-wide;
 // this just stops one user spamming the button.
@@ -167,6 +168,8 @@ export default function Login() {
         refresh_token: data.session.refresh_token,
       });
     }
+    // Signed in: the "How On It works" pill pulses for 10s on the next screen.
+    markSignInThrob();
     // New accounts go to onboarding; profile check handles returning users.
     const { data: profile } = await supabase
       .from('profiles').select('id').eq('id', data.session!.user.id).maybeSingle();

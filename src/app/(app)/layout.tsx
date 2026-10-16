@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
 import { TOURS } from '@/components/tutorial/coach-marks';
 import TourPicker from '@/components/tutorial/TourPicker';
+import { stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -168,6 +169,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const closeCoachMarks = useCallback(() => setCoachTab(null), []);
 
+  // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
+  const [throb, setThrob] = useState(false);
+  useEffect(() => {
+    const ms = throbRemaining();
+    if (ms <= 0) return;
+    setThrob(true);
+    const t = setTimeout(() => { setThrob(false); stopThrob(); }, ms);
+    return () => clearTimeout(t);
+  }, []);
+  const endThrob = useCallback(() => { setThrob(false); stopThrob(); }, []);
+  const throbClass = throb ? ' onit-help-throb' : '';
+
   // Tab picker → go to that tab, wait for its first target, run its tour.
   // pendingTour holds the pick across the navigation; a newer pick or any
   // other navigation simply replaces / abandons it.
@@ -262,7 +275,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <TourPicker
             align="left"
             onPick={startTour}
-            buttonClassName="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
+            onButtonPress={endThrob}
+            buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
           >
             How it works
           </TourPicker>
@@ -333,7 +347,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="md:hidden">
                 <TourPicker
                   onPick={startTour}
-                  buttonClassName="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
+                  onButtonPress={endThrob}
+                  buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
                 >
                   How On It works
                 </TourPicker>
@@ -349,7 +364,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
             <TourPicker
               onPick={startTour}
-              buttonClassName="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
+              onButtonPress={endThrob}
+              buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
             >
               How On It works
             </TourPicker>
