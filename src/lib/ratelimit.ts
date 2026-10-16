@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -53,6 +53,12 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // IP. Fired at most once per page load; a client reloading a few times stays
   // well under this, while a token sweep from one source is capped.
   pay_viewed:      { tokens: 20, window: '60 s' },
+  // "Show account number" on the pay page (POST /api/pay/[token]/bank): the
+  // only path that returns a full bank account number. A payer taps it once
+  // or twice per visit. Two buckets, both must pass: per IP (a token sweep
+  // from one source) and per token (one link hammered from many IPs).
+  pay_bank_ip:     { tokens: 20, window: '3600 s' },
+  pay_bank_token:  { tokens: 10, window: '3600 s' },
   // Save/forget this device's push subscription (toggle, prompt, sign-out).
   // A person flips it a few times at most.
   push_subscribe:  { tokens: 10, window: '60 s' },

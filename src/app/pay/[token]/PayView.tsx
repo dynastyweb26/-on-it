@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
 import { cashAppUrl, payPalUrl, venmoUrl } from '@/lib/url';
-// Bank details: only when the RPC returned them and publicBank let them through.
+// Bank details: only when the RPC returned them and publicBank let them through;
+// the account number arrives masked (last 4) until the payer taps to show it.
 import type { PayBank } from '@/lib/pay-bank';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -170,10 +171,31 @@ function RowAction({ icon, text, flip = false }: { icon: 'arrow_forward' | 'open
 }
 
 // Expanded Bank transfer details: one field per line, each with Copy. The
-// account number is masked until tapped (display only — it's in the page data
-// because the payer has to copy it). Taps here never collapse the row.
-function BankDetails({ bank, docNumber, onCopied }: { bank: PayBank; docNumber: string; onCopied: (label: string) => void }) {
-  const [shown, setShown] = useState(false);
+// page data carries the account number masked to its last 4; "Show account
+// number" fetches the full one from POST /api/pay/[token]/bank (rate limited,
+// same gates as the page), and Copy then copies it. Taps here never collapse
+// the row.
+function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; token: string; docNumber: string; onCopied: (label: string) => void }) {
+  const [account, setAccount] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState('');
+  async function reveal() {
+    if (revealing) return;
+    setRevealing(true);
+    setRevealError('');
+    try {
+      const res = await fetch(`/api/pay/${encodeURIComponent(token)}/bank`, { method: 'POST', cache: 'no-store' });
+      const body = (await res.json().catch(() => null)) as { account?: unknown } | null;
+      if (res.ok && typeof body?.account === 'string') setAccount(body.account);
+      else if (res.status === 429) setRevealError('Too many tries. Please wait a while and try again.');
+      else if (res.status === 404) setRevealError('Bank details are no longer available for this invoice.');
+      else setRevealError('Couldn’t load the account number. Please try again.');
+    } catch {
+      setRevealError('Couldn’t load the account number. Please try again.');
+    } finally {
+      setRevealing(false);
+    }
+  }
   // Text wraps on words only (the memo once split "mem / o"). Digit-only
   // values (routing, account) have no words, so they may break anywhere.
   const line = (label: string, value: React.ReactNode, copy: string | null, digits = false) => (
@@ -194,24 +216,26 @@ function BankDetails({ bank, docNumber, onCopied }: { bank: PayBank; docNumber: 
       {line('Account holder', bank.holderName, bank.holderName)}
       {line('Bank', bank.bankName, bank.bankName)}
       {line('Routing number', bank.routing, bank.routing, true)}
-      {shown
-        ? line('Account number', bank.account, bank.account, true)
+      {account
+        ? line('Account number', account, account, true)
         : line(
             'Account number',
             <button
               type="button"
-              onClick={() => setShown(true)}
+              onClick={reveal}
+              disabled={revealing}
               aria-label="Show account number"
               className="flex items-center gap-1 text-body-md text-on-background"
             >
-              {`••••${bank.account.slice(-4)}`}
+              {`••••${bank.accountLast4}`}
               <span className="flex items-center gap-1 text-label-lg text-primary">
                 <Icon name="visibility" size={18} />
-                Tap to show
+                {revealing ? 'Showing…' : 'Show account number'}
               </span>
             </button>,
             null,
           )}
+      {revealError ? <p role="alert" className="pb-1 text-xs text-error">{revealError}</p> : null}
       {line('Account type', bank.accountType === 'savings' ? 'Savings' : 'Checking', null)}
       {line('Memo', <>Include <span className="font-semibold">{docNumber}</span> in the memo</>, docNumber)}
       <p className="pb-1 pt-1 text-xs text-on-surface-variant">Bank transfers usually take 1–3 business days.</p>
@@ -504,7 +528,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   onActivate={() => setBankOpen((o) => !o)}
                   expanded={bankOpen}
                   below={bankOpen ? (
-                    <BankDetails bank={model.bank} docNumber={model.docNumber} onCopied={(l) => showToast(`${l} copied`)} />
+                    <BankDetails bank={model.bank} token={model.token} docNumber={model.docNumber} onCopied={(l) => showToast(`${l} copied`)} />
                   ) : null}
                 >
                   <Icon name="account_balance" size={20} className="shrink-0 text-on-surface-variant" />

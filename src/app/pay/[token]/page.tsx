@@ -10,7 +10,7 @@ import { normalizeLineDetail, normalizeLineUnit, unitLabel } from '@/lib/line-un
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
-import { publicBank, type PublicBankRow } from '@/lib/pay-bank';
+import { publicBank, pageBank, type PublicBankRow } from '@/lib/pay-bank';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public, unauthenticated pay page: /pay/[token].
@@ -27,7 +27,8 @@ import { publicBank, type PublicBankRow } from '@/lib/pay-bank';
 // else against the DB. Never add a table query here. The one other call is
 // get_public_invoice_bank (20261016000000), the same kind of whitelisted
 // service-role RPC: bank details only for a sent/overdue, unpaid invoice
-// whose owner has bank transfer on — gated in SQL, not here.
+// whose owner has bank transfer on — gated in SQL, not here. The account
+// number reaches the model masked (last 4); the full one is fetched on tap.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic'; // per-request: headers + live invoice data
@@ -192,7 +193,9 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token:
 
   // Bank transfer: the RPC already returns nothing unless the invoice is
   // sent/overdue, unpaid and the owner turned it on; publicBank re-checks.
-  const bank = publicBank(bankRow, { kind, status: row.status, fullyPaid });
+  // pageBank masks the account to its last 4: the full number never reaches
+  // the page data, only POST /api/pay/[token]/bank on tap.
+  const bank = pageBank(publicBank(bankRow, { kind, status: row.status, fullyPaid }));
 
   return {
     businessName: clean(row.business_name) ?? 'This business',
