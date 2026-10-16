@@ -8,6 +8,7 @@ import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpD
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
+import { nameFromAnswer } from '@/lib/client-name';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -276,8 +277,20 @@ export async function POST(req: NextRequest) {
       if (!name || isGenericClientName(name)) {
         const draftNameRaw = (draft as Record<string, unknown> | null)?.client_name;
         const draftName = typeof draftNameRaw === 'string' ? draftNameRaw.trim() : '';
+        // A short plain reply to "Who's this for?" is the name, even when the
+        // model didn't take it as one (seen on the preview with a pasted card).
+        const lastAssistant = [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+        const latestUser = [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
+        const answered = nameFromAnswer(lastAssistant, latestUser);
         if (draftName && !isGenericClientName(draftName)) {
           result.client_name = draftName;
+        } else if (answered && !isGenericClientName(answered)) {
+          result.client_name = answered;
+          result.missing = (Array.isArray(result.missing) ? result.missing : []).filter((k) => k !== 'client_name');
+          // The model's reply was written without a name, so it may still ask
+          // for one; and with every item priced the draft is now ready.
+          if (/who'?s this for/i.test(result.reply ?? '')) result.reply = 'Got it.';
+          if (!hasInvalidLineItem && !pricelessItem && result.line_items.length > 0) result.ready = true;
         } else {
           result.client_name = null;
           result.ready = false;
@@ -415,7 +428,11 @@ export async function POST(req: NextRequest) {
 
       if (changed) {
         // Money sentence FIRST so a trailing question in the prose stays last.
-        result.reply = stripped ? `${moneySentence} ${stripped}` : moneySentence;
+        // ...except a first-turn "On it!", which always opens the reply.
+        const opener = /^\s*on it!\s*/i.exec(stripped);
+        result.reply = opener
+          ? `On it! ${moneySentence}${stripped.slice(opener[0].length) ? ` ${stripped.slice(opener[0].length)}` : ''}`
+          : stripped ? `${moneySentence} ${stripped}` : moneySentence;
       } else {
         // No change: keep the prose. Fall back to the money sentence only if
         // stripping emptied the reply, so we never emit an empty bubble.
