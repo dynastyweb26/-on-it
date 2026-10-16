@@ -3,7 +3,6 @@
 // Stripe words. Honest copy (spec rule 5): canceling never deletes data.
 
 export const PRICE = '$9.99';
-export const DISCOUNT_PRICE = '$4.99';
 
 /** "Oct 16, 2026", or null when the date is missing (callers drop the clause). */
 export const fmtPlanDate = (d: string | null | undefined): string | null =>
@@ -35,7 +34,33 @@ export function endsWithPlanLine(recapsLive: boolean): string {
     : 'Your history stays. Unlimited invoices and expenses, and PDF reports, end with your plan.';
 }
 
-export const offerNotice = (kind: 'discount' | 'paused', pausedUntil: string | null | undefined): string =>
-  kind === 'discount'
-    ? 'Done. 50% off your next 2 months.'
-    : fmtPlanDate(pausedUntil) ? `Paused until ${fmtPlanDate(pausedUntil)}.` : 'Paused.';
+// Discount offer. No price is hard-coded: 50% of $9.99 is 499.5 cents and
+// Stripe does the rounding, so the copy says "half price".
+export const discountTitle = 'Half price for your next 2 months';
+export const discountLine = (trialing: boolean): string =>
+  trialing
+    ? `When your trial ends, half price for 2 months, then ${PRICE}/month.`
+    : `Half price for your next 2 months, then ${PRICE}/month. Cancel anytime.`;
+
+/** A pause starts when the paid period ends. Before then: full access, with
+ *  the dates of both ends. Once it has started: the resume date. */
+export function pausedLine(pausedFrom: string | null | undefined, pausedUntil: string | null | undefined, started: boolean): string {
+  const from = fmtPlanDate(pausedFrom);
+  const until = fmtPlanDate(pausedUntil);
+  if (!started && from && until) return `Paused from ${from} until ${until}. You keep full access until ${from}.`;
+  if (until) return `Paused until ${until}. Your plan picks back up then.`;
+  return 'Paused. Your plan picks back up when you resume.';
+}
+
+/** The pause offer's line on the cancel screen, before it's taken. */
+export function pauseOfferLine(pausedFrom: string | null | undefined, pausedUntil: string | null | undefined): string {
+  const from = fmtPlanDate(pausedFrom);
+  const until = fmtPlanDate(pausedUntil);
+  return from && until
+    ? `No charges while paused. You keep full access until ${from}, then your plan picks back up ${until}.`
+    : 'No charges while paused. You keep full access until the end of this period.';
+}
+
+/** The notice Plan shows after an offer; the Plan line under it has the dates. */
+export const offerNotice = (kind: 'discount' | 'paused'): string =>
+  kind === 'discount' ? `Done. ${discountTitle}.` : 'Done. Your pause is set.';

@@ -20,7 +20,7 @@ import { applyOffer, cancel, getSummary, resume, type CancelSummary } from '@/li
 import { DETAIL_MAX, type CancelReason } from '@/lib/subscription/reasons';
 import { offerFor, pauseResumesAt, PAUSE_MONTHS, type PauseMonths } from '@/lib/subscription/offers';
 import type { StatTile } from '@/lib/subscription/stats';
-import { DISCOUNT_PRICE, PRICE, endsWithPlanLine, fmtPlanDate } from '@/lib/subscription/copy';
+import { discountLine, discountTitle, endsWithPlanLine, fmtPlanDate, pauseOfferLine } from '@/lib/subscription/copy';
 
 
 const REASONS: { key: CancelReason; label: string; icon: IconName }[] = [
@@ -121,7 +121,10 @@ export default function CancelScreen() {
 
   const tiles = summary.tiles ?? [];
   const offer = offerFor(reason, summary.status ?? '', Boolean(summary.offerEligible));
-  const pauseEnd = fmtPlanDate(pauseResumesAt(months).toISOString());
+  // The pause starts when the paid period ends (summary.endsAt for a paid
+  // period) and lasts N months from there — the same dates the route sets.
+  const pauseFrom = summary.endsAt;
+  const pauseUntil = pauseFrom ? pauseResumesAt(months, new Date(pauseFrom)).toISOString() : null;
 
   async function takeOffer(kind: 'discount' | 'pause') {
     setBusy('offer'); setNotice('');
@@ -187,12 +190,8 @@ export default function CancelScreen() {
         {/* The one offer for the picked reason (or none). */}
         {offer === 'discount' && (
           <div className="space-y-2 rounded-card bg-surface-container p-4">
-            <p className="font-display text-[17px] font-bold text-on-background">50% off your next 2 months</p>
-            <p className="text-sm text-on-surface-variant">
-              {trialing
-                ? `When your trial ends, ${DISCOUNT_PRICE}/month for 2 months, then ${PRICE}/month.`
-                : `${DISCOUNT_PRICE}/month for your next 2 months, then ${PRICE}/month. Cancel anytime.`}
-            </p>
+            <p className="font-display text-[17px] font-bold text-on-background">{discountTitle}</p>
+            <p className="text-sm text-on-surface-variant">{discountLine(trialing)}</p>
             <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeOffer('discount')}>
               {busy === 'offer' ? 'Applying…' : 'Take 50% off'}
             </button>
@@ -210,9 +209,7 @@ export default function CancelScreen() {
                 </button>
               ))}
             </div>
-            <p className="text-sm text-on-surface-variant">
-              No charges while paused. Your plan picks back up {pauseEnd ?? 'then'}.
-            </p>
+            <p className="text-sm text-on-surface-variant">{pauseOfferLine(pauseFrom, pauseUntil)}</p>
             <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeOffer('pause')}>
               {busy === 'offer' ? 'Pausing…' : `Pause for ${months} ${months === 1 ? 'month' : 'months'}`}
             </button>

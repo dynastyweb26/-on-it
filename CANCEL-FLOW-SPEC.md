@@ -80,7 +80,7 @@ Subscribed and canceling (`cancel_at_period_end` true, not a founder):
   (sets `cancel_at_period_end: false`). No offer, no friction.
 - "Cancel subscription" is hidden while canceling.
 
-Paused (§4): "Paused until {date}. Your plan picks back up then." plus
+Paused (§4): before the pause starts, "Paused from {period end} until {resume date}. You keep full access until {period end}."; once it has started, "Paused until {date}. Your plan picks back up then." Both with
 **"Resume now"** (clears `pause_collection`).
 
 ## 2. Stats panel ("What you've built")
@@ -115,8 +115,8 @@ Single-select rows (Material Symbols icon + label):
 
 | Reason key | Label | Offer (if `offerEligible`) |
 |---|---|---|
-| `price` | Too expensive | **50% off your next 2 months.** "$4.99/month for your next 2 months, then $9.99/month. Cancel anytime." Button: "Take 50% off". |
-| `seasonal` | Slow season / not using it right now | **Pause instead.** Segmented 1 / 2 / 3 months. "No charges while paused. Your plan picks back up {date}." Button: "Pause for N months". |
+| `price` | Too expensive | **50% off your next 2 months.** "Half price for your next 2 months, then $9.99/month. Cancel anytime." (no hard-coded discounted price: 50% of $9.99 is 499.5 cents and Stripe rounds; founder 2026-10-16) Button: "Take 50% off". |
+| `seasonal` | Slow season / not using it right now | **Pause instead.** Segmented 1 / 2 / 3 months. Starts when the paid period ends (founder 2026-10-16). "No charges while paused. You keep full access until {period end}, then your plan picks back up {resume date}." Button: "Pause for N months". |
 | `feature` | Missing something I need | Text field "What's missing?" (optional, 500 chars) → saved with the reason. Line: "Your data stays on the free plan, and we read every request." No discount. |
 | `switching` | Switching to another app | none |
 | `other` | Something else | Optional text field, no offer |
@@ -125,12 +125,12 @@ Offer rules:
 
 - Only one offer card is ever visible: the one for the picked reason.
 - `trialing`: `price` offer applies to the first 2 paid months (copy: "When
-  your trial ends, $4.99/month for 2 months, then $9.99/month."). `seasonal`
+  your trial ends, half price for 2 months, then $9.99/month."). `seasonal`
   is not offered during a trial (nothing to pause); show no offer.
 - `past_due`: no offers.
 - Not `offerEligible` (D4): reasons still selectable, no offer card.
-- Taking an offer: apply it, log it, return to Plan with a notice ("Done. 50%
-  off your next 2 months." / "Paused until {date}."). No cancel happens.
+- Taking an offer: apply it, log it, return to Plan with a notice ("Done. Half price
+  for your next 2 months." / "Done. Your pause is set."). No cancel happens.
 
 Bottom of the screen, always visible: **"Cancel subscription"** (`btn-outline`,
 full width) + one line: "You keep your plan until {date}."
@@ -152,7 +152,7 @@ for the offer — eligibility is re-checked server-side):
 - `POST /api/subscription/offer` with `{ kind: 'discount' | 'pause', months? }`
   → discount: apply coupon from env `STRIPE_RETENTION_COUPON_ID` (50% off,
   `duration: repeating`, `duration_in_months: 2`); pause:
-  `pause_collection: { behavior: 'void', resumes_at }`. Log row.
+  `pause_collection: { behavior: 'void', resumes_at }` with `resumes_at` = current period end + N months, and subscription metadata `onit_pause_from` = the period end (the tier stays paid until then; `current_period_end` moves at each voided renewal, so it cannot be the anchor). Log row.
 - `GET /api/subscription/cancel-summary` (§2).
 
 Migration (founder approval before applying, as usual):
@@ -197,11 +197,15 @@ Production (live coupon). Founder creates both coupons in the Stripe dashboard.
    shows `cancel_at_period_end`. Plan shows end date + Resume. Email arrives.
 2. Resume from (1): flag cleared in Stripe and in the profile; Plan back to
    normal.
-3. `price` → Take 50% off: next upcoming invoice in Stripe is $4.99; second is
-   $4.99; third is $9.99. Plan unchanged, notice shown, `cancel_events` row.
+3. `price` → Take 50% off: the next 2 upcoming invoices in Stripe are half of
+   $9.99 (whatever Stripe rounds 499.5 cents to); the third is $9.99. Plan
+   unchanged, notice shown, `cancel_events` row.
 4. Same user tries again within 12 months: reasons show, no offer card.
-5. `seasonal` → Pause 2 months: no invoice while paused; access drops to free
-   limits; Plan shows "Paused until"; Resume now restores access.
+5. `seasonal` → Pause 2 months: Plan shows "Paused from {period end} until
+   {resume date}. You keep full access until {period end}." Full access until
+   the period end; at the renewal the invoice is voided (no charge) and access
+   drops to free limits; Plan then shows "Paused until {date}". Resume now
+   restores full access at any point.
 6. Trialing user: `price` shows the post-trial copy; `seasonal` shows no offer;
    cancel ends at `trial_ends_at` and no charge happens.
 7. `past_due` user: Cancel visible, no offer.

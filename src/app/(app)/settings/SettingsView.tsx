@@ -13,7 +13,7 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
 import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actions';
-import { fmtPlanDate, freePlanAfterLine, offerNotice } from '@/lib/subscription/copy';
+import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine } from '@/lib/subscription/copy';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
@@ -723,16 +723,16 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           {planNotice && (
             <p className="flex items-center gap-2 text-sm font-semibold text-on-surface" role="status">
               <Icon name="check_circle" size={18} className="text-primary" />
-              {offerNotice(planNotice, p?.paused_until)}
+              {offerNotice(planNotice)}
             </p>
           )}
           {planPaused ? (
             <>
-              {/* Paused (offer): billing and full access pick back up on the date. */}
+              {/* Paused (offer). The pause starts when the paid period ends:
+                  until then the tier is still paid and current_period_end is
+                  the start date; once it has started the tier is free. */}
               <p className="text-sm text-on-surface-variant">
-                {fmtPlanDate(p.paused_until)
-                  ? `Paused until ${fmtPlanDate(p.paused_until)}. Your plan picks back up then.`
-                  : 'Paused. Your plan picks back up when you resume.'}
+                {pausedLine(p.current_period_end, p.paused_until, !SUBSCRIBED.has(access.tier))}
               </p>
               <button className="btn-primary w-full" disabled={resumeBusy} onClick={() => void resumePlan()}>
                 {resumeBusy ? 'Resuming…' : 'Resume now'}

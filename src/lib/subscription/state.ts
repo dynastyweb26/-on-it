@@ -15,7 +15,22 @@ export type SubscriptionLike = {
   trial_end?: number | null;
   current_period_end?: number | null;
   items?: { data?: Array<{ current_period_end?: number | null }> } | null;
+  metadata?: Record<string, string> | null;
 };
+
+/** Subscription metadata key: when an in-app pause takes effect (unix
+ *  seconds) — the period end at the moment the pause was taken. Stored on
+ *  the subscription because current_period_end moves forward at every
+ *  renewal, including the voided ones while paused, so it can't be the
+ *  anchor after the first rollover. */
+export const PAUSE_FROM_KEY = 'onit_pause_from';
+
+/** When the pause takes effect (unix seconds), or null (no anchor: a pause
+ *  set outside the app takes effect immediately). */
+export function pauseStartsAt(sub: SubscriptionLike): number | null {
+  const raw = Number(sub.metadata?.[PAUSE_FROM_KEY]);
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
 
 const iso = (secs: number | null | undefined): string | null =>
   secs ? new Date(secs * 1000).toISOString() : null;
@@ -29,12 +44,19 @@ export function tierFromStatus(status: string): SubscriptionTier {
   return 'canceled'; // canceled, unpaid, incomplete, incomplete_expired, paused
 }
 
-/** The access tier for a subscription. pause_collection leaves the Stripe
- *  status 'active', so a paused subscription is checked first: while it is
- *  set the user is on the free tier ('canceled'). Once Stripe clears it the
- *  status mapping takes over again. */
-export function tierForSubscription(sub: SubscriptionLike): SubscriptionTier {
-  if (sub.pause_collection) return 'canceled';
+/** The access tier for a subscription at `now`. pause_collection leaves the
+ *  Stripe status 'active', so a paused subscription is checked first. The
+ *  pause starts at the end of the period already paid for: until then the
+ *  status mapping applies (full access); from then on, while
+ *  pause_collection is set, the free tier ('canceled'). Once Stripe clears
+ *  it the status mapping takes over again. The renewal at the pause start
+ *  fires customer.subscription.updated, which re-syncs the tier. */
+export function tierForSubscription(sub: SubscriptionLike, now: Date = new Date()): SubscriptionTier {
+  if (sub.pause_collection) {
+    const from = pauseStartsAt(sub);
+    if (from !== null && now.getTime() < from * 1000) return tierFromStatus(sub.status);
+    return 'canceled';
+  }
   return tierFromStatus(sub.status);
 }
 

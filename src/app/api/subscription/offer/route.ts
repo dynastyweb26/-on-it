@@ -2,8 +2,10 @@
 // SPEC.md §3, §4). Body: { kind: 'discount' | 'pause', months?: 1 | 2 | 3 }.
 //   discount → the STRIPE_RETENTION_COUPON_ID coupon (50% off, repeating,
 //              2 months) added to the subscription's discounts
-//   pause    → pause_collection { behavior: 'void', resumes_at } (the webhook
-//              mapping puts a paused user on the free tier until it clears)
+//   pause    → N months from the end of the paid period:
+//              pause_collection { behavior: 'void', resumes_at } + metadata
+//              onit_pause_from. Full access until the pause starts, then
+//              the free tier until it clears (lib/subscription/state).
 // No cancel happens. Eligibility is re-checked here against the LIVE Stripe
 // subscription and the profile's retention_offer_used_at — never the client.
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,6 +14,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { applySubscription } from '@/lib/subscription/sync';
 import { isPauseMonths, OFFER_WINDOW_MS, offerAllowed, pauseResumesAt, type OfferKind } from '@/lib/subscription/offers';
 import { fail, logEvent, subscriptionContext } from '@/lib/subscription/route';
+import { PAUSE_FROM_KEY, periodEndISO } from '@/lib/subscription/state';
 
 export const runtime = 'nodejs';
 
@@ -46,13 +49,24 @@ export async function POST(req: NextRequest) {
 
   let params: Stripe.SubscriptionUpdateParams;
   let resumesAt: Date | null = null;
+  let pausedFrom: Date | null = null;
   if (kind === 'discount') {
     // Keep any discount already on the subscription; add the retention coupon.
     const existing = (sub.discounts ?? []).map((d) => ({ discount: discountRef(d) }));
     params = { discounts: [...existing, { coupon: coupon! }] };
   } else {
-    resumesAt = pauseResumesAt(body.months as 1 | 2 | 3, now);
-    params = { pause_collection: { behavior: 'void', resumes_at: Math.floor(resumesAt.getTime() / 1000) } };
+    // The pause starts when the period already paid for ends (full access
+    // until then) and lasts N months from there. pause_collection is set now
+    // so that renewal's invoice is voided; the start is anchored in metadata
+    // (lib/subscription/state: tierForSubscription).
+    const periodEnd = periodEndISO(sub);
+    if (!periodEnd) return fail(409, 'That offer isn’t available on your plan.', 'not_eligible');
+    pausedFrom = new Date(periodEnd);
+    resumesAt = pauseResumesAt(body.months as 1 | 2 | 3, pausedFrom);
+    params = {
+      pause_collection: { behavior: 'void', resumes_at: Math.floor(resumesAt.getTime() / 1000) },
+      metadata: { [PAUSE_FROM_KEY]: String(Math.floor(pausedFrom.getTime() / 1000)) },
+    };
   }
 
   // Claim the 12-month window BEFORE touching Stripe, atomically: the UPDATE
@@ -90,5 +104,9 @@ export async function POST(req: NextRequest) {
     ? { kind: 'offer_discount', reason: 'price' }
     : { kind: 'offer_pause', reason: 'seasonal', months: body.months as number });
 
-  return NextResponse.json({ ok: true, kind, pausedUntil: resumesAt?.toISOString() ?? null });
+  return NextResponse.json({
+    ok: true, kind,
+    pausedFrom: pausedFrom?.toISOString() ?? null,
+    pausedUntil: resumesAt?.toISOString() ?? null,
+  });
 }

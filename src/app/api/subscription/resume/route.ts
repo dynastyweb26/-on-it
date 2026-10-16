@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { applySubscription } from '@/lib/subscription/sync';
 import { fail, logEvent, subscriptionContext } from '@/lib/subscription/route';
+import { PAUSE_FROM_KEY } from '@/lib/subscription/state';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +18,10 @@ export async function POST(req: NextRequest) {
   const { userId, stripe, sub } = ctx;
 
   const params: Stripe.SubscriptionUpdateParams = {};
-  if (sub.pause_collection) params.pause_collection = '';
+  if (sub.pause_collection) {
+    params.pause_collection = '';
+    params.metadata = { [PAUSE_FROM_KEY]: '' }; // '' unsets the pause anchor
+  }
   if (sub.cancel_at_period_end) params.cancel_at_period_end = false;
   if (Object.keys(params).length === 0) return NextResponse.json({ ok: true, changed: false });
 

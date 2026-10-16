@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { accessEndsISO, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
+import { accessEndsISO, PAUSE_FROM_KEY, pauseStartsAt, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
 import { offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, type OfferState } from './offers';
 import { averageDaysToPaid, statTiles } from './stats';
 import { cleanDetail, isCancelReason } from './reasons';
-import { endsWithPlanLine, freePlanAfterLine, offerNotice } from './copy';
+import { discountLine, endsWithPlanLine, freePlanAfterLine, offerNotice, pausedLine, pauseOfferLine } from './copy';
 import { cancellationEmail } from '../email/cancellation';
 
 const NOW = new Date('2026-10-16T12:00:00Z');
@@ -21,11 +21,39 @@ test('tier: status mapping (paused / unpaid / incomplete collapse to canceled)',
   }
 });
 
-test('tier: pause_collection on an active subscription is the free tier, not active', () => {
-  assert.equal(tierForSubscription({ status: 'active', pause_collection: { resumes_at: T('2026-12-16T12:00:00Z') } }), 'canceled');
-  assert.equal(tierForSubscription({ status: 'active', pause_collection: null }), 'active');
+test('tier: pause set outside the app (no anchor) is the free tier at once', () => {
+  assert.equal(tierForSubscription({ status: 'active', pause_collection: { resumes_at: T('2026-12-16T12:00:00Z') } }, NOW), 'canceled');
+  assert.equal(tierForSubscription({ status: 'active', pause_collection: null }, NOW), 'active');
   // Cleared pause → the status mapping takes over again.
-  assert.equal(tierForSubscription({ status: 'active' }), 'active');
+  assert.equal(tierForSubscription({ status: 'active' }, NOW), 'active');
+});
+
+// In-app pause taken Oct 16 on a period ending Nov 16, for 2 months.
+const PAUSED = {
+  status: 'active',
+  pause_collection: { resumes_at: T('2027-01-16T12:00:00Z') },
+  metadata: { [PAUSE_FROM_KEY]: String(T('2026-11-16T12:00:00Z')) },
+  items: { data: [{ current_period_end: T('2026-11-16T12:00:00Z') }] },
+};
+
+test('pause: before the paid period ends → full access (status mapping)', () => {
+  assert.equal(tierForSubscription(PAUSED, NOW), 'active');
+  assert.equal(tierForSubscription(PAUSED, new Date('2026-11-16T11:59:59Z')), 'active');
+});
+
+test('pause: from the period end → free tier, even after the renewal moved the period forward', () => {
+  assert.equal(tierForSubscription(PAUSED, new Date('2026-11-16T12:00:00Z')), 'canceled');
+  // The voided renewal advances current_period_end to Dec 16; the anchor
+  // (metadata), not the period end, decides.
+  const rolled = { ...PAUSED, items: { data: [{ current_period_end: T('2026-12-16T12:00:00Z') }] } };
+  assert.equal(tierForSubscription(rolled, new Date('2026-11-16T12:05:00Z')), 'canceled');
+  assert.equal(tierForSubscription(rolled, new Date('2027-01-10T00:00:00Z')), 'canceled');
+});
+
+test('pause: cleared → full access again; bad anchor → treated as no anchor', () => {
+  assert.equal(tierForSubscription({ ...PAUSED, pause_collection: null }, new Date('2026-12-01T00:00:00Z')), 'active');
+  assert.equal(pauseStartsAt({ status: 'active', metadata: { [PAUSE_FROM_KEY]: '' } }), null);
+  assert.equal(pauseStartsAt({ status: 'active', metadata: { [PAUSE_FROM_KEY]: 'x' } }), null);
 });
 
 test('tier: cancel_at_period_end keeps access until the period ends', () => {
@@ -158,8 +186,25 @@ test('copy: free plan line uses the real limits, never "a month"', () => {
 test('copy: ends-with-plan line matches what the paywall gates', () => {
   assert.match(endsWithPlanLine(false), /invoices and expenses, and PDF reports/);
   assert.match(endsWithPlanLine(true), /recaps/);
-  assert.equal(offerNotice('discount', null), 'Done. 50% off your next 2 months.');
-  assert.equal(offerNotice('paused', '2026-12-16T12:00:00Z'), 'Paused until Dec 16, 2026.');
+  assert.equal(offerNotice('discount'), 'Done. Half price for your next 2 months.');
+  assert.equal(offerNotice('paused'), 'Done. Your pause is set.');
+});
+
+test('copy: discount never hard-codes the discounted price', () => {
+  for (const t of [true, false]) {
+    assert.match(discountLine(t), /half price/i);
+    assert.ok(!/\$4\.99|\$5\.00/.test(discountLine(t)));
+  }
+});
+
+test('copy: pause lines name both dates before it starts, resume date after', () => {
+  const from = '2026-11-16T12:00:00Z';
+  const until = '2027-01-16T12:00:00Z';
+  assert.equal(pausedLine(from, until, false), 'Paused from Nov 16, 2026 until Jan 16, 2027. You keep full access until Nov 16, 2026.');
+  assert.equal(pausedLine(from, until, true), 'Paused until Jan 16, 2027. Your plan picks back up then.');
+  assert.equal(pauseOfferLine(from, until), 'No charges while paused. You keep full access until Nov 16, 2026, then your plan picks back up Jan 16, 2027.');
+  // The route's dates: N months from the period end.
+  assert.equal(pauseResumesAt(2, new Date(from)).toISOString(), '2027-01-16T12:00:00.000Z');
 });
 
 test('email: honest, no emoji, escapes the business name', () => {
