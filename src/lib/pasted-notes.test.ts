@@ -5,7 +5,9 @@ import {
   pasteContext, parsePastedNotes, PRICES_QUESTION, privateNotes, scrubCostPrices,
 } from './pasted-notes';
 import { calculateInvoiceTotals } from './financials';
-import { CARD_1_NO_PRICES, CARD_2_TORTILLA_WARMER } from './__fixtures__/pasted-cards';
+import {
+  CARD_1_NO_PRICES, CARD_2_TORTILLA_WARMER, TYPED_BULLETED_INVOICE, TYPED_NUMBERED_INVOICE,
+} from './__fixtures__/pasted-cards';
 
 type Item = { description: string; qty: number; unit_price: number | null; unit?: null; detail?: string | null };
 
@@ -41,6 +43,25 @@ test('both cards are detected as pasted notes; a spoken job is not', () => {
   assert.equal(isPastedNotes(CARD_1_NO_PRICES), true);
   assert.equal(isPastedNotes(CARD_2_TORTILLA_WARMER), true);
   assert.equal(isPastedNotes('Fixed the leaky faucet for Maria, 150'), false);
+});
+
+test('a typed list without a work-card marker is NOT pasted-card mode', () => {
+  assert.equal(isPastedNotes(TYPED_BULLETED_INVOICE), false);
+  assert.equal(isPastedNotes(TYPED_NUMBERED_INVOICE), false);
+  // ...so the whole conversation stays on the normal path: no guard runs,
+  // price-less "railing fix" keeps its normal price question.
+  assert.equal(pasteContext([
+    { role: 'user', content: TYPED_BULLETED_INVOICE },
+    { role: 'assistant', content: 'How much for the railing fix?' },
+    { role: 'user', content: 'look at the prices' },
+  ]), null);
+  // Each marker on its own still enters the mode on a 3+-line message.
+  const base = 'Walk-in cooler down\n1. Bad fan motor\n';
+  assert.equal(isPastedNotes(base + 'Tech ~ Dean'), true);
+  assert.equal(isPastedNotes(base + 'Upon inspection I found the following:'), true);
+  assert.equal(isPastedNotes(base + 'WO# 12345'), true);
+  assert.equal(isPastedNotes('Fan motor ~ C$40 ~ L$95'), true);
+  assert.equal(isPastedNotes(base + 'Technician visit $90'), false);
 });
 
 test('card 2: exactly two items, verbatim names + part numbers, list price billed', () => {

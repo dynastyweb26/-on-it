@@ -79,14 +79,21 @@ function pricesOn(line: string): { sell: number[]; cost: number[]; plain: number
   return { sell, cost, plain, rest };
 }
 
-/** True when a message looks like a pasted work card rather than a spoken job:
- *  it carries cost/list price tags, or it is several lines with work-card
- *  structure (findings list, tech/manager line, WO#, "found the following"). */
+// Detection only: a role line needs a separator and a name after it ("Tech ~
+// Dean", "Mod -Fallon"), so an item that merely starts with the word
+// ("Technician visit $90") isn't a work-card marker.
+const ROLE_LINE_RE = /^(?:techs?|technicians?|mods?|managers?|mgrs?|supervisors?)\s*[~:\-–—]\s*[A-Za-z]/i;
+
+/** True when a message is a pasted work card, not a typed or spoken job. It
+ *  needs a work-card marker: cost/list price tags (C$/L$, cost/list), or — on
+ *  a message of 3+ lines — a tech/manager line, an inspection phrase ("found
+ *  the following") or a WO#. A numbered or bulleted list alone is not enough:
+ *  "Invoice Maria\n- deck stain $450\n- railing fix" is an ordinary invoice. */
 export function isPastedNotes(text: string): boolean {
   if (/\b[CL]\s?\$\s*\d/.test(text) || /\bcost\s*\/\s*(?:list|sell)\b/i.test(text)) return true;
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length < 3) return false;
-  return lines.some((l) => FINDING_RE.test(l) || ROLE_RE.test(l) || FILLER_RE.test(l) || WO_RE.test(l));
+  return lines.some((l) => ROLE_LINE_RE.test(l) || FILLER_RE.test(l) || WO_RE.test(l));
 }
 
 export function parsePastedNotes(text: string): PastedNotes {
