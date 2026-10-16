@@ -61,11 +61,12 @@ export default function CoachMarkOverlay({
       }
       const r = el.getBoundingClientRect();
       const p = step.pad ?? 6;
+      const h = r.height + 2 * p;
       setSpot({
         top: r.top + window.scrollY - p,
         left: r.left + window.scrollX - p,
         w: r.width + 2 * p,
-        h: r.height + 2 * p,
+        h: step.maxH !== undefined ? Math.min(h, step.maxH) : h,
         r: step.r ?? 20,
       });
     }

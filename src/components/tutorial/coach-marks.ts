@@ -12,6 +12,9 @@ export interface CoachStep {
   pad?: number;
   /** Border-radius of the spotlight cutout (px or 9999 for a pill/circle). */
   r?: number;
+  /** Max spotlight height (px). Caps tall targets like scroll containers;
+   *  the cutout stays anchored to the target's top edge. */
+  maxH?: number;
   title: string;
   body: string;
 }
@@ -68,7 +71,7 @@ export const TOURS: Record<string, CoachTour> = {
     steps: [
       {
         selector: '[data-coach="chat-messages"]',
-        pad: 6, r: 20,
+        pad: 6, r: 20, maxH: 260,
         title: 'Meet your assistant',
         body: 'Tell On It what you did in plain words. It writes the invoice for you.',
       },
