@@ -65,9 +65,12 @@ export const config = {
   // webhook (machine-to-machine, no session and must be left untouched), _next,
   // the manifest / service worker / icons / brand assets, and static files by
   // extension.
+  //
+  // MUST stay ONE plain string literal. Next.js reads `config` statically at
+  // build time; a `+` concatenation is a BinaryExpression it cannot evaluate,
+  // so it warns and silently falls back to the default matcher — middleware on
+  // EVERY request, assets and webhooks included.
   matcher: [
-    '/((?!login|auth/|i/|pay/|api/followups|api/trial-reminders|api/webhooks/stripe' +
-      '|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico' +
-      '|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
+    '/((?!login|auth/|i/|pay/|api/followups|api/trial-reminders|api/webhooks/stripe|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
   ],
 };
