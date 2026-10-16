@@ -706,3 +706,12 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | 2- vs 3-month coupon | **Built on branch** | `52a98cb`: `pickRetentionCoupon`. Env `STRIPE_RETENTION_COUPON_X3_ID` = `RETENTION50X3` (Preview + Production; test coupon verified). |
 | Test clock results 2026-10-16 | **Verified** | A (X2 applied at the exact period start Oct 17): Nov 17 $4.99, Dec 17 $9.99, so the invoice at the discount's exact end is NOT discounted (1 invoice; the picker would choose X3). B (X2 at Nov 1, picker said X2): Nov 17 $4.99, Dec 17 $4.99, Jan 17 $9.99. C (pause from Nov 17 to Jan 17): Nov 17 void; `customer.subscription.updated` fired at that renewal (`evt_1URENCR0bVSrpkbBws0esscY`). C at Jan 18: Dec 17 void, Jan 17 $9.99 paid (`in_1UREXzR0bVSrpkbBiLsUp7He`), pause cleared (`evt_1UREY1R0bVSrpkbBmcuViXPg`). Tier not observable (test customer has no profile); logic gives active. |
 | Webhook: out-of-order events | **Built on branch, not deployed (batched with phone-test fixes)** | Jan 17 sent renewal (pause set) then pause-cleared 1s apart; the webhook trusts each payload, so reversed delivery would leave a paying user on free. Fix: re-read the subscription from Stripe before applySubscription. Batch with phone-test fixes. |
+
+## Settings Plan row shift / Plan screen blank — logged 2026-10-16 (`feat/cancel-flow`, founder-reported)
+| Item | Status | Evidence |
+|---|---|---|
+| Audit | **Done** | Plan row (`SettingsView.tsx`, was `:540`) and Plan screen gated on `access`; `/api/access` started only after getSession → getUser → profile → `/api/zelle`. hasAccess: profile → reset rpc → counts → limits (4 sequential DB rounds after getUser + rate limit). Only ONE `/api/access` fetch on load (the others are Resume and code redeem), so nothing to de-duplicate. |
+| 1. Plan row with the page | **Built on branch** | `c0024ce`: visibility + value from the profile (`planTier`). |
+| 2. Plan screen from the profile | **Built on branch** | `af94d22`: everything but the usage counts from the profile; limits in parallel with the profile; usage row fixed-height placeholder. |
+| 3. Faster `/api/access` | **Built on branch** | `49a82f0`: 2 parallel DB rounds; client fetch starts after the session check. Preview-only `access-timing` log for measurement. |
+| Measurement | **Pending founder session on preview** | Read `access-timing` lines with `vercel logs`. Before = sum of the sequential steps (the old path), after = wall time. |
