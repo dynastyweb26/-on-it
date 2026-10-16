@@ -519,6 +519,12 @@ export default function InvoiceDetail() {
     await supabase.from('invoices').update({ notes }).eq('id', id);
   }
 
+  // Owner-only; never part of the render data, so never on the PDF/pay page.
+  async function applyPrivateNotes(private_notes: string) {
+    setInv({ ...inv, private_notes });
+    await supabase.from('invoices').update({ private_notes: private_notes.trim() ? private_notes : null }).eq('id', id);
+  }
+
   async function applyDeposit(deposit_type: DepositType, deposit_value: number) {
     const totals = calculateInvoiceTotals(
       inv.line_items ?? [],
@@ -865,6 +871,20 @@ export default function InvoiceDetail() {
                   placeholder="Deposit due before materials are ordered. 3-5 day lead time."
                   value={inv.notes ?? ''}
                   onChange={(e) => void applyNotes(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="private-notes-input" className="block text-xs font-semibold text-on-surface-variant mb-1">
+                  Private notes · only you see these
+                </label>
+                <textarea
+                  id="private-notes-input"
+                  className="w-full rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2.5 py-1.5 text-xs text-on-surface outline-none resize-none"
+                  rows={2}
+                  maxLength={4000}
+                  placeholder="Tech, manager, anything not for the customer."
+                  value={inv.private_notes ?? ''}
+                  onChange={(e) => void applyPrivateNotes(e.target.value)}
                 />
               </div>
             </div>

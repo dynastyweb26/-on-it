@@ -7,6 +7,7 @@ import { sanitizeForAI } from '@/lib/sanitize';
 import { rateLimit, rateIdentifier, clientIp, reserveGuestDaily, reserveGuestIpDaily } from '@/lib/ratelimit';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
+import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -181,6 +182,16 @@ export async function POST(req: NextRequest) {
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
 
+    // Pasted work cards (lib/pasted-notes): on the paste turn the card's priced
+    // lines become the line items, list price billed, cost price nowhere; the
+    // notes are sorted into customer-facing and private. Read from the same
+    // sanitized, 12-turn history the model saw, with the wrapper tags removed.
+    const paste = pasteContext(history.map((m) => ({
+      role: m.role,
+      content: m.content.replace(/^<(?:user_input|prior_reply)>|<\/(?:user_input|prior_reply)>$/g, ''),
+    })));
+    if (paste) applyPasteItems(result, paste, (draft as Record<string, unknown> | null)?.intent as string | null);
+
     // Normalize and validate line items. Each item is one of:
     //   priced    — a finite price (a "$20" / "1,200" string is cleaned first)
     //   priceless — a description with NO price yet ("Car wash"): valid partial
@@ -198,8 +209,15 @@ export async function POST(req: NextRequest) {
       // unit / detail (merge 2 · 2·9): the model's unit, else the draft line's;
       // detail only ever carries over from the draft (lib/line-units).
       const draftLines = (draft as Record<string, unknown> | null)?.line_items;
-      const withUnitDetail = (item: NormItem, itemObj: Record<string, unknown>): NormItem =>
-        ({ ...item, ...carryUnitDetail(item.description, itemObj.unit, draftLines) });
+      // The one exception to "detail never from the model": a pasted card's
+      // part number, which the paste guard (not the model) set on the line.
+      const pastedDetail = new Map((paste?.all ?? []).flatMap((p) => p.items)
+        .filter((i) => i.detail).map((i) => [i.description, i.detail as string]));
+      const withUnitDetail = (item: NormItem, itemObj: Record<string, unknown>): NormItem => {
+        const carried = carryUnitDetail(item.description, itemObj.unit, draftLines);
+        const pd = pastedDetail.get(item.description);
+        return { ...item, ...carried, ...(pd && itemObj.detail === pd ? { detail: pd } : {}) };
+      };
 
       for (const rawItem of result.line_items) {
         const itemObj = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
@@ -276,6 +294,12 @@ export async function POST(req: NextRequest) {
         result.reply = /^\s*on it!/i.test(result.reply ?? '') ? `On it! ${q}` : q;
       }
     }
+
+    // Paste follow-through: ask for prices when none were found, ask once
+    // about labor, scrub cost prices from every field. After the name guard so
+    // the price question isn't overwritten by it.
+    if (paste) applyPasteReplies(result, paste);
+    if (typeof result.private_notes === 'string') result.private_notes = result.private_notes.slice(0, 4000) || null;
 
     // tax_rate is a percent (8 = 8%). Drop a non-finite or out-of-range value
     // rather than trust it — no fraction→percent guessing here (a real 0.5%

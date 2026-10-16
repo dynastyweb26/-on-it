@@ -33,6 +33,10 @@ export interface ExtractResult {
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
   notes: string | null;
+  // Owner-only notes saved on the invoice row, never printed on the PDF or the
+  // pay page: tech/manager names, long narrative from a pasted work card.
+  // Same merge rule as notes (null = not mentioned, keep the draft's).
+  private_notes?: string | null;
   // Deposit the user explicitly asked for, as structured fields (not a line
   // item or a note). Reported for what THIS message said: null when a deposit
   // wasn't mentioned (the client keeps the draft's), 'none' when the user
@@ -64,12 +68,12 @@ Rules:
 - NEVER state a dollar amount, price, subtotal, tax, deposit, or total in your reply — no "$" figures at all. The app computes and speaks every money figure itself, so any number you write would risk contradicting the real total. Your reply describes the job in words and asks for what's missing; it never quotes the bill.
 - An invoice/quote is ready when you have: client_name and at least one line item with a price.
 - A job described without a price ("Car wash", "Fixed a leaky faucet") is still a line item: include it with unit_price null, put "price" in "missing", and keep it in the draft so a later "$20" fills that item's unit_price. Never guess a price, and never drop the item because the price is missing.
-- unit: set "hour" when the price is per hour ("3 hours at 65" → qty 3, unit_price 65, unit "hour"), "sq ft" when it is per square foot ("400 square feet at 3.25" → qty 400, unit_price 3.25, unit "sq ft"), "job" when the user calls it a flat price for the whole job; otherwise null. The unit never changes the math: qty times unit_price is still the line amount.
+- unit: set "hour" when the price is per hour ("3 hours at 65" → qty 3, unit_price 65, unit "hour"), "sq ft" when it is per square foot ("400 square feet at 3.25" → qty 400, unit_price 3.25, unit "sq ft"), "job" when the user calls it a flat price for the whole job; otherwise "each". qty is 1 unless the user gives a number. The unit never changes the math: qty times unit_price is still the line amount.
 - intent_explicit: set true ONLY when the user's message THIS turn explicitly names the document type — the words "quote", "invoice", "bill", or "estimate". If the user did not name it this turn (e.g. "send it", "just make it", or only adding a line item or detail), set intent_explicit false, even though you still return your best-guess intent.
 - If the user says a total price for the whole job, make it one line item. But a deposit, down payment, or money "up front" is NOT a line item and NOT the job price — route it to the deposit fields (see the deposit rule). "Fence job is 1000, 500 down" → one $1000 line item plus deposit_type "fixed", deposit_value 500 (never a $500 line item).
 - Never invent. Prices, names, and dates that weren't said are missing, not guessed.
 - client_name must be the customer's actual name (a person, family, or business: "Maria", "the Johnsons", "Acme Roofing"). A generic word is NOT a name: "client", "customer", "the homeowner", "someone", "a guy", "him", "her". When no real name was said, set client_name null, put "client_name" in "missing", and ask "Who's this for?". Never fill a placeholder.
-- Line item descriptions: rephrase what the user said into clean, professional wording — strip filler ("um", "like", "a buncha") and possessives ("his front door" -> "front door"), and write it as a short noun phrase ("fixed the leaky faucet upstairs" -> "Repaired leaking faucet, upstairs"). Rephrasing is ALL you may do. "Never invent" applies in full here: do NOT add materials, tools, measurements, extra scope, or a second service the user did not state, and do NOT sharpen a vague description into a specific one ("cleaned up the yard a bit" -> "Yard cleanup", never "Comprehensive debris removal"; "unclogged the toilet" -> "Unclogged toilet", never adding an inspection).
+- Line item descriptions for a SPOKEN or short typed job (for a pasted work card, see PASTED WORK CARDS below — copy it exactly instead): rephrase what the user said into clean, professional wording — strip filler ("um", "like", "a buncha") and possessives ("his front door" -> "front door"), and write it as a short noun phrase ("fixed the leaky faucet upstairs" -> "Repaired leaking faucet, upstairs"). Rephrasing is ALL you may do. "Never invent" applies in full here: do NOT add materials, tools, measurements, extra scope, or a second service the user did not state, and do NOT sharpen a vague description into a specific one ("cleaned up the yard a bit" -> "Yard cleanup", never "Comprehensive debris removal"; "unclogged the toilet" -> "Unclogged toilet", never adding an inspection).
 - Capitalization: always sentence case — capitalize the first letter. Capitalize proper nouns correctly even when the user dictated them lowercase: brand names, place and city names, street names, product names ("repaired the gate at 45 maple avenue" -> "Repaired gate, 45 Maple Avenue"; "hauled junk from home depot" keeps "Home Depot").
 - Preserve the specific object and any stated quantity or location that carries information — these are billable specifics ("installed 3 blinds in the master bedroom" stays "Installed 3 blinds in master bedroom", never "Blind installation"; a street, city, or brand is real information, keep it). But a vague placeholder reference that carries no information ("the new place", "over there", "his spot") may be dropped ("drove her couch across town to the new place" -> "Drove couch across town"). Never invent an address to replace a vague one. Drop personal descriptors about the customer that are not the work ("changed a bulb for the old lady" -> "Replaced light bulb").
 - tax_rate: a PERCENT number, never a fraction ("8 percent tax" → 8, "8.25%" → 8.25, "half a percent" → 0.5). Never divide by 100 and never return a decimal like 0.08. Set it ONLY when the user states a tax rate; otherwise leave it null. Never invent or assume a rate, and never ask for one.
@@ -77,6 +81,17 @@ Rules:
 - notes: capture any note, policy, lead time, or special instruction volunteered by the user. Do NOT put a deposit amount here — a deposit is a structured field (see the deposit rule below), not a note. A note that only sets a payment condition tied to the deposit is fine as English ("a note that materials are ordered once the deposit clears"), but the deposit figure itself belongs in deposit_type/deposit_value. Leave notes null when not mentioned this message (the app keeps any note already on the draft). Set notes to an empty string "" ONLY when the user explicitly removes the note ("drop the note", "no note"). Never invent note text. Extracting a note MUST NEVER alter document intent.
 - deposit: when the user explicitly asks for a deposit, down payment, money up front, or a retainer, set it as structured fields — NEVER as a line item and NEVER as note text. deposit_type is "percentage" for a percent ("40% deposit", "40 percent down" → deposit_type "percentage", deposit_value 40) or "fixed" for a dollar amount ("500 down", "half up front on a stated total is a fixed dollar figure", "$500 deposit" → deposit_type "fixed", deposit_value 500). Use exactly the spelling "percentage" (never "percent"). Set deposit_type "none" and deposit_value null ONLY when the user explicitly declines or removes a deposit ("no deposit", "actually no deposit", "remove the deposit"). When the user does not mention a deposit at all this message, set deposit_type null and deposit_value null — do NOT restate a deposit already on the draft; the app keeps it. "half up front" means deposit_type "percentage", deposit_value 50. Never invent a deposit the user didn't state.
 - client_address and client_phone: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field.
+
+PASTED WORK CARDS — when the user pastes service notes (several lines: a job line, "found the following", a numbered list of findings, tech/manager names, part numbers, prices):
+- Copy item names and descriptions EXACTLY as written, part numbers included ("Hatco thermostat", "P# 02-16-039"). Do not rephrase, expand abbreviations, fix capitalization, or clean up wording.
+- A line item is an item's text + qty + unit + price, kept together. A price belongs to exactly one item: never move a price onto a different item and never reuse one item's price for another.
+- Only text that has a price becomes a line item. The reported problem or job description ("tortilla warmer will not turn on") is NEVER a line item, and neither is a finding with no price.
+- Two prices on one line ("C$56 ~ L$80", cost/list, cost/sell): bill the list/sell price (L$). The cost price (C$, cost) must never appear anywhere — not as a price, not in notes, not in the reply.
+- notes (printed for the customer): the reported problem as a short job title, one "Work performed:" line listing the findings in the user's own words (drop filler like "Upon inspection I found the following"), and a "Reference:" line for any work order / WO# number.
+- private_notes (saved, never printed): tech and manager names, long narrative ("Notes: ..."), and anything else left over. Leave private_notes null when nothing was pasted this message.
+- No prices on the card: ask for them. Never invent a price. If the user's answer is unclear ("look at the prices"), ask again naming the specific item.
+- Labor: when no labor or service charge is on the card, the app asks "Any labor charge on this?" once. If your previous reply asked that and the user gives a number, add a line item "Labor", qty 1, unit "each", at that price. "No", or no number, means no labor line.
+- A card with list/sell prices (L$, list, sell) is an invoice. Never ask whether it is a bill or an expense.
 
 INVOICE OR EXPENSE — decide this first, before anything else:
 The test is WHICH WAY THE MONEY MOVES.
@@ -107,11 +122,11 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"hour|sq ft|job"|null}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"each|hour|sq ft|job"}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"private_notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: 1536, // room for a pasted work card's notes + private_notes
     system: SYSTEM,
     messages: [
       { role: 'user', content: contextMsg },
@@ -159,6 +174,7 @@ function clarifyFallback(): ExtractResult {
     tax_rate: null,
     due_date: null,
     notes: null,
+    private_notes: null,
     deposit_type: null,
     deposit_value: null,
     expense: null,
