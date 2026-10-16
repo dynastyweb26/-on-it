@@ -668,3 +668,50 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | Item | Status | Evidence |
 |---|---|---|
 | Sign out + Delete account moved off main Settings | **Merged to main 2026-10-16 (founder-approved direct merge, no preview pass)** | `86affd8`: new `login` section (`settings/sections.ts`) → `/settings/login`, titled "Manage login" (name chosen by founder). Main Settings gets a "Manage login" row (`person` icon) at the end of Account. Sign out is now a row in a "This device" group (same handler: local-scope sign-out, push unsubscribe, chat storage clear); the Delete account card is unchanged below it. Terms/Privacy footer links removed from main Settings (still in Help & feedback and on the pay page). 250/250 tests, build passes. No migration. |
+
+## Cancel flow — logged 2026-10-16 (`feat/cancel-flow`, spec `CANCEL-FLOW-SPEC.md`)
+
+**Step 0 audit (spec §0b), 2026-10-16:**
+
+1. **Plan today — confirmed.** `src/app/(app)/settings/SettingsView.tsx:658-680`: `SUBSCRIBED` (`trialing`/`active`/`past_due`) see "Manage subscription" → `/api/billing-portal` and "Cancel or update your card in the billing portal." Founders get the separate "Free access · via code" card (`:649`); free/canceled get the Checkout CTA. Routing is `settings/[section]/page.tsx`, so `/settings/plan/cancel` needs its own static route folder.
+2. **Webhook — confirmed.** `applySubscription` (`src/app/api/webhooks/stripe/route.ts:39-62`) writes `stripe_customer_id`, `subscription_status`, `current_period_end`, `trial_ends_at` only. No `cancel_at_period_end`, no `pause_collection`. `tierFromStatus` maps `paused` → `canceled`, but `pause_collection` keeps status `active`, so a paused sub keeps full access today.
+3. **Redeem — confirmed.** `src/app/api/redeem/route.ts` `stopBilling()` sets `cancel_at_period_end: true` on live subs. Once the webhook records that column, a founder profile will have `cancel_at_period_end = true`; the Plan screen must check `tier === 'founder'` first (it already renders the founder card before the subscription block).
+4. **Stats sources — differs from spec:**
+   - `invoices.sent_at` is "last shared" (bumped on every resend, `20260918000006_invoice_first_sent_at.sql`). The stable date is `first_sent_at`. Invoices table also holds quotes (`kind`). Proposed: count `kind='invoice'`, `first_sent_at` not null, `deleted_at` null; days-to-paid = `paid_at - first_sent_at` over `status='paid'`.
+   - Collected: Books uses `invoice_payments` joined `invoices!inner(kind, deleted_at)`, `kind='invoice'`, `deleted_at` null (`dashboard/page.tsx:129`). Use the same query so test 8 matches Books.
+   - Clients: `saved_at` not null and `deleted_at` null (same as Settings count, `SettingsView.tsx:109`).
+5. **Stripe — answer.** SDK `stripe@22.3.1`, pinned `2026-06-24.dahlia` (`src/lib/stripe/server.ts:10`). Top-level `coupon` no longer exists on `SubscriptionUpdateParams`; use `discounts: [{ coupon }]`. `pause_collection: { behavior, resumes_at }` exists; `pause_collection: ''` clears it.
+
+**Other disagreements found:**
+- Free-tier copy "3 invoices and 5 expenses a month": the caps are not monthly. They count from a fixed `paywall_reset_at()` (`20261001000001`), not a monthly window. Proposed copy: "after that you're on the free plan (3 invoices and 5 expenses)", numbers from `/api/access` limits.
+- Stats footer "Recaps, reports and unlimited invoices end with your plan": paywall also gates unlimited expenses; recaps only when `RECAPS_LIVE`. Proposed: "Your history stays. Unlimited invoices and expenses, and PDF reports, end with your plan." (+ "recaps" when live).
+- 50% of $9.99 = 499.5 cents; Stripe may round the charge to $5.00, not $4.99. Verify on the test upcoming invoice; if it's $5.00, copy says "$5.00" or the coupon becomes `amount_off: 500`.
+- Stripe access in this session: test mode only (`acct_1TR131R0bVSrpkbB`, livemode false). The live coupon can't be created from here.
+
+| Item | Status | Evidence |
+|---|---|---|
+| 1. Migration `20261016200000_cancel_flow.sql` (+ `platform`) | **Applied to production 2026-10-16** (founder yes) | `d37b48e`, `44650ee` (platform). Verification A/B/C PASS. Privcheck rows `fe9a1ab` (3 profiles columns privileged; Z1-Z4 cancel_events): 132 PASS / 0 FAIL. |
+| Stripe retention coupons + env | **Done** | Test `FXark2Ik` (created here) → Vercel Preview. Live `RETENTION50X2` (founder, dashboard; not verifiable from this session, test-mode access only) → Vercel Production. |
+| 2. Webhook records cancel + pause | **Built on branch** | `3fb81e2`: mapping in `lib/subscription/state.ts` + `sync.ts`; paused → `canceled` tier via `setTierUnlessFounder`. |
+| 3. Cancel / resume routes | **Built on branch** | `bce7466`: `/api/subscription/cancel`, `/resume`; `lib/subscription-actions.ts` is the only UI entry point. |
+| 4. Retention offer route | **Built on branch** | `a2ea1b1`: `/api/subscription/offer`; eligibility re-checked server-side, window claimed atomically. |
+| 5. Cancel summary endpoint | **Built on branch** | `cefb0ca`: `/api/subscription/cancel-summary`; tile rules `lib/subscription/stats.ts`. |
+| 6. Plan states (Cancel / Resume / Paused) | **Built on branch** | `490611d`: `SettingsView.tsx` Plan block; copy in `lib/subscription/copy.ts`. |
+| 7. Cancel screen | **Built on branch** | `39a0cdf`: `settings/plan/cancel/CancelScreen.tsx`; `/settings/plan` got its own route. |
+| 8. Cancellation email | **Built on branch** | `9962cc1`: `lib/email/cancellation.ts`, sent from the cancel route. |
+| 9. Tests | **Done** | `4450a9a`: 22 new, 272/272 pass. |
+| Preview | **Passed (founder, 2026-10-16): tests 1-10** (test 5 on +cancel2 after its trial was ended in test mode; test 7 on +cancel1 made past_due with tok_chargeCustomerFail + trial_end now) | first build `on-qyfoeyps8` aliased to onit-dynastyweb-preview.vercel.app (Ready). Spec §6 tests 1-10 pending. Test 11 (portal cancel off) after merge. |
+| Pause starts at period end (founder review) | **Built on branch** | `c1048a0`: anchor in subscription metadata `onit_pause_from`; `43fc0bc`: period start as a floor for now (test clocks). |
+| Discount copy | **Built on branch** | `c1048a0`: "Half price for your next 2 months" (no hard-coded price). Stripe test clocks: 50% of $9.99 = 500 off, charged $4.99. |
+| 2- vs 3-month coupon | **Built on branch** | `52a98cb`: `pickRetentionCoupon`. Env `STRIPE_RETENTION_COUPON_X3_ID` = `RETENTION50X3` (Preview + Production; test coupon verified). |
+| Test clock results 2026-10-16 | **Verified** | A (X2 applied at the exact period start Oct 17): Nov 17 $4.99, Dec 17 $9.99, so the invoice at the discount's exact end is NOT discounted (1 invoice; the picker would choose X3). B (X2 at Nov 1, picker said X2): Nov 17 $4.99, Dec 17 $4.99, Jan 17 $9.99. C (pause from Nov 17 to Jan 17): Nov 17 void; `customer.subscription.updated` fired at that renewal (`evt_1URENCR0bVSrpkbBws0esscY`). C at Jan 18: Dec 17 void, Jan 17 $9.99 paid (`in_1UREXzR0bVSrpkbBiLsUp7He`), pause cleared (`evt_1UREY1R0bVSrpkbBmcuViXPg`). Tier not observable (test customer has no profile); logic gives active. |
+| Webhook: out-of-order events | **Built on branch, not deployed (batched with phone-test fixes)** | Jan 17 sent renewal (pause set) then pause-cleared 1s apart; the webhook trusts each payload, so reversed delivery would leave a paying user on free. Fix: re-read the subscription from Stripe before applySubscription. Batch with phone-test fixes. |
+
+## Settings Plan row shift / Plan screen blank — logged 2026-10-16 (`feat/cancel-flow`, founder-reported)
+| Item | Status | Evidence |
+|---|---|---|
+| Audit | **Done** | Plan row (`SettingsView.tsx`, was `:540`) and Plan screen gated on `access`; `/api/access` started only after getSession → getUser → profile → `/api/zelle`. hasAccess: profile → reset rpc → counts → limits (4 sequential DB rounds after getUser + rate limit). Only ONE `/api/access` fetch on load (the others are Resume and code redeem), so nothing to de-duplicate. |
+| 1. Plan row with the page | **Built on branch** | `c0024ce`: visibility + value from the profile (`planTier`). |
+| 2. Plan screen from the profile | **Built on branch** | `af94d22`: everything but the usage counts from the profile; limits in parallel with the profile; usage row fixed-height placeholder. |
+| 3. Faster `/api/access` | **Built on branch** | `49a82f0`: 2 parallel DB rounds; client fetch starts after the session check. Preview-only `access-timing` log for measurement. |
+| Measurement | **Done (preview, 2026-10-16)** | `/api/access` total: cold 847 / 757 ms, warm 697 / 839 ms. Old sequential path from the same step times: ~1.09-1.26 s (35-40% faster). Each DB round 100-340 ms; the 4s was mostly the client chain (fixed by 1-3). Founder check passed: Plan row from first frame, no shift, Plan content immediate. |

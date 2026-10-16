@@ -11,7 +11,9 @@ import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailabi
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
-import { trialDates } from '@/lib/trial';
+import { trialDates, trialEligible } from '@/lib/trial';
+import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actions';
+import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine, type FreeLimits } from '@/lib/subscription/copy';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
@@ -24,6 +26,8 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
 // whole section (grants bypass billing entirely).
 const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
+// Stored access_tier values hasAccess() reports as themselves; anything else is 'free'.
+const PLAN_TIERS = new Set(['founder', 'trialing', 'active', 'past_due', 'canceled']);
 
 // Renewal / first-charge date. Returns null when the field is absent so the
 // caller can drop the date clause entirely (null-guard).
@@ -85,6 +89,12 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   } | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingNotice, setBillingNotice] = useState('');
+  // Cancel flow (CANCEL-FLOW-SPEC.md §1): server state for the Plan screen
+  // (free limits for the "ends" line) and the notice an offer returns with.
+  const [planSummary, setPlanSummary] = useState<CancelSummary | null>(null);
+  const [planNotice, setPlanNotice] = useState<'discount' | 'paused' | null>(null);
+  const [resumeBusy, setResumeBusy] = useState(false);
+  const [planLimits, setPlanLimits] = useState<FreeLimits | null>(null);
   // Stripe Connect: busy covers both the onboarding redirect and a status
   // refresh; notice carries the 503/failure message inline (billing pattern).
   const [connectBusy, setConnectBusy] = useState(false);
@@ -153,6 +163,15 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         if (!active) return;
         if (!session) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
+        // The one /api/access read, started now — in parallel with getUser,
+        // the profile and /api/zelle instead of after all of them. The route
+        // authenticates the cookie itself; only the free-plan usage counts
+        // wait on it, so it applies whenever it lands.
+        void fetch('/api/access')
+          .then((a) => (a.ok ? a.json() : null))
+          .then((a) => { if (active && a) setAccess(a); })
+          .catch(() => { /* leave null → the usage row keeps its placeholder */ });
+
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
         // must land on login, never sit on "Loading…". getUser() can reject on
         // a token-refresh/network failure, so the whole check is guarded — any
@@ -168,10 +187,24 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         const zelleReq = section === 'main' || section === 'payouts'
           ? fetch('/api/zelle').then((r) => (r.ok ? r.json() : null)).catch(() => null)
           : null;
+        // Plan screen: the free limits (constant SQL functions, the same ones
+        // the paywall reads) load in parallel with the profile, so the
+        // canceling line renders complete on first paint instead of growing
+        // a "(3 invoices and 5 expenses)" clause later.
+        const limitsReq = section === 'plan'
+          ? Promise.all([supabase.rpc('free_invoice_limit'), supabase.rpc('free_expense_limit')]).catch(() => null)
+          : null;
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (!active) return;
         // Signed in but no profile yet → finish onboarding (matches chat's pattern).
         if (!data) { settle(); setRedirecting(true); router.replace('/onboarding'); return; }
+        if (limitsReq) {
+          const l = await limitsReq;
+          if (!active) return;
+          // A limit worth showing; anything this large is "uncapped" (lib/access displayLimit).
+          const shown = (n: unknown) => (typeof n === 'number' && n < 1000 ? n : null);
+          if (l) setPlanLimits({ invoices: shown(l[0].data), expenses: shown(l[1].data) });
+        }
         settle();
         setAuthStuck(false); // late resolve after a timeout: recover and render
         setP(data);
@@ -204,10 +237,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
           if (active && z) setZelleMasked(z.set ? z.masked : null);
         }
-        try {
-          const a = await fetch('/api/access');
-          if (active && a.ok) setAccess(await a.json());
-        } catch { /* leave null → the section simply doesn't render */ }
         if (active) setPushAvail(pushAvailability());
         try {
           const t = await fetch('/api/push/test');
@@ -322,6 +351,65 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       setPushTestMsg('Failed to reach the server.');
     }
   }
+
+  // Plan screen: read the subscription summary, and pick up the notice the
+  // cancel screen hands back after an offer (/settings/plan?done=discount|paused),
+  // then drop the param so a refresh doesn't repeat it.
+  useEffect(() => {
+    if (section !== 'plan') return;
+    const done = new URLSearchParams(window.location.search).get('done');
+    if (done === 'discount' || done === 'paused') {
+      setPlanNotice(done);
+      router.replace('/settings/plan');
+    }
+    let active = true;
+    void getSummary().then((s) => { if (active) setPlanSummary(s); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  // Resume a canceling or paused subscription, then re-read the profile,
+  // access and summary so the Plan screen shows the server's state.
+  async function resumePlan() {
+    if (resumeBusy) return;
+    setResumeBusy(true);
+    setBillingNotice('');
+    setPlanNotice(null);
+    const r = await resume();
+    if (!r.ok) {
+      setBillingNotice(r.message);
+    } else {
+      const [{ data: { user } }, a, s] = await Promise.all([
+        supabase.auth.getUser(),
+        fetch('/api/access').then((x) => (x.ok ? x.json() : null)).catch(() => null),
+        getSummary(),
+      ]);
+      if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if (data) setP(data);
+      }
+      if (a) setAccess(a);
+      setPlanSummary(s);
+    }
+    setResumeBusy(false);
+  }
+
+  // Plan states (spec §1), from the profile the webhook and routes keep in
+  // sync. A paused subscription is still live in billing (status 'active')
+  // but its tier is the free one, so it's detected from paused_until. A
+  // founder whose old subscription is winding down (redeem sets
+  // cancel_at_period_end) never gets here: the founder card renders instead.
+  //
+  // Everything here reads the profile (loaded before first render), never
+  // /api/access, so the Plan row and screen render at once instead of
+  // popping in seconds later. planTier mirrors hasAccess()'s mapping of the
+  // stored access_tier (lib/access.ts): anything unknown is 'free'.
+  const planTier: string = PLAN_TIERS.has(p?.access_tier ?? '') ? p.access_tier : 'free';
+  const planBillable = SUBSCRIBED.has(p?.subscription_status ?? '') && planTier !== 'founder';
+  const planPaused = planBillable && Boolean(p?.paused_until);
+  const planCanceling = planBillable && Boolean(p?.cancel_at_period_end);
+  const planLive = SUBSCRIBED.has(planTier) || planPaused;
+  const planEnds: string | null = (p?.subscription_status === 'trialing' ? p?.trial_ends_at : p?.current_period_end) ?? null;
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
   // Free/canceled users → Checkout ($9.99/mo; a 14-day free trial for
@@ -476,13 +564,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </SettingsGroup>
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a
-              real subscription, or the paywall on) — the same rule as before. */}
-          {access && (access.tier === 'founder' || PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+              real subscription, or the paywall on) — the same rule as before.
+              Decided from the profile, so the row is there on first render and
+              nothing below it shifts. */}
+          {(planTier === 'founder' || PAYWALL_ENABLED || planLive) && (
             <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
-              value={access.tier === 'founder' ? 'Founder'
-                : access.tier === 'trialing' ? 'Free trial'
-                : access.tier === 'past_due' ? 'Payment due'
-                : access.tier === 'active' ? 'Subscribed' : 'Free'} />
+              value={planTier === 'founder' ? 'Founder'
+                : planPaused ? 'Paused'
+                : planCanceling ? 'Ending'
+                : planTier === 'trialing' ? 'Free trial'
+                : planTier === 'past_due' ? 'Payment due'
+                : planTier === 'active' ? 'Subscribed' : 'Free'} />
           )}
           <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
@@ -646,7 +738,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
-      {is('plan') && access?.tier === 'founder' && (
+      {is('plan') && planTier === 'founder' && (
         // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
         <section className="card space-y-1">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
@@ -655,15 +747,49 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </section>
       )}
 
-      {is('plan') && access && access.tier !== 'founder' && (PAYWALL_ENABLED || SUBSCRIBED.has(access.tier)) && (
+      {is('plan') && planTier !== 'founder' && (PAYWALL_ENABLED || planLive) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
-          {SUBSCRIBED.has(access.tier) ? (
+          {planNotice && (
+            <p className="flex items-center gap-2 text-sm font-semibold text-on-surface" role="status">
+              <Icon name="check_circle" size={18} className="text-primary" />
+              {offerNotice(planNotice)}
+            </p>
+          )}
+          {planPaused ? (
+            <>
+              {/* Paused (offer). The pause starts when the paid period ends:
+                  until then the tier is still paid and current_period_end is
+                  the start date; once it has started the tier is free. */}
+              <p className="text-sm text-on-surface-variant">
+                {pausedLine(p.current_period_end, p.paused_until, !SUBSCRIBED.has(planTier))}
+              </p>
+              <button className="btn-primary w-full" disabled={resumeBusy} onClick={() => void resumePlan()}>
+                {resumeBusy ? 'Resuming…' : 'Resume now'}
+              </button>
+            </>
+          ) : planCanceling ? (
             <>
               <p className="text-sm text-on-surface-variant">
-                {access.tier === 'past_due'
+                {fmtPlanDate(planEnds)
+                  ? `Your plan ends ${fmtPlanDate(planEnds)}. You keep everything; ${freePlanAfterLine(planLimits ?? planSummary?.freeLimits)}`
+                  : `Your plan is set to end. You keep everything; ${freePlanAfterLine(planLimits ?? planSummary?.freeLimits)}`}
+              </p>
+              <button className="btn-primary w-full" disabled={resumeBusy} onClick={() => void resumePlan()}>
+                {resumeBusy ? 'Resuming…' : 'Resume subscription'}
+              </button>
+              <button className="btn-outline w-full" disabled={billingBusy}
+                onClick={() => billingAction('/api/billing-portal')}>
+                <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
+              </button>
+              <p className="text-sm text-on-surface-variant">Update your card in the billing portal.</p>
+            </>
+          ) : SUBSCRIBED.has(planTier) ? (
+            <>
+              <p className="text-sm text-on-surface-variant">
+                {planTier === 'past_due'
                   ? 'Your last payment didn’t go through. Update your card to keep going.'
-                  : access.tier === 'trialing'
+                  : planTier === 'trialing'
                     // No trial length here: trials started before the 30 → 14
                     // day change are still running. The end date is right for both
                     // (and the same wording as the paywall disclosure).
@@ -676,16 +802,26 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
                 onClick={() => billingAction('/api/billing-portal')}>
                 <Icon name="settings" size={18} /> {billingBusy ? 'Opening…' : 'Manage subscription'}
               </button>
-              <p className="text-sm text-on-surface-variant">Cancel or update your card in the billing portal.</p>
+              <p className="text-sm text-on-surface-variant">Update your card in the billing portal.</p>
+              {/* Cancel is two taps from Plan (spec rule 3): this, then the
+                  cancel screen's own button. A real button, never a link. */}
+              <button className="btn-outline w-full" onClick={() => router.push('/settings/plan/cancel')}>
+                Cancel subscription
+              </button>
             </>
           ) : (
             <>
               {/* Free plan usage (free / canceled, paywall on): both counts.
                   freePlanSummary is null when the limits aren't known. */}
-              {freePlanSummary(access) && (
-                <div className="flex items-baseline justify-between gap-3">
+              {/* The only part that waits for /api/access (the counts): a
+                  fixed-height row with a placeholder, so nothing moves when
+                  it lands. */}
+              {(!access || freePlanSummary(access)) && (
+                <div className="flex min-h-5 items-baseline justify-between gap-3">
                   <p className="text-sm font-semibold text-on-surface">Free plan</p>
-                  <p className="text-right text-sm text-on-surface-variant">{freePlanSummary(access)}</p>
+                  {access
+                    ? <p className="text-right text-sm text-on-surface-variant">{freePlanSummary(access)}</p>
+                    : <span aria-hidden className="h-4 w-40 animate-pulse self-center rounded bg-surface-container" />}
                 </div>
               )}
               <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, expenses and reminders.</p>
@@ -694,13 +830,13 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
                   first-time customers only (lib/trial.ts), otherwise billed today. */}
               <p className="text-sm text-on-surface-variant">
                 {/* The paywall's disclosure, with "in Settings" → "below". */}
-                {access.trialEligible
+                {trialEligible(p)
                   ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
                   : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
               </p>
               <button className="btn-primary w-full" disabled={billingBusy}
                 onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : access.trialEligible ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
+                {billingBusy ? 'Opening…' : trialEligible(p) ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
               </button>
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>
@@ -712,9 +848,14 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           {billingNotice && <p className="text-sm text-on-surface-variant">{billingNotice}</p>}
           <div className="space-y-2 border-t border-outline-variant/30 pt-3">
             <p className="text-sm font-semibold text-on-surface">Have a code?</p>
-            {/* Redeemed → re-read access so this section turns into the founder Plan row. */}
+            {/* Redeemed → re-read the profile (the Plan screen reads its tier)
+                and access, so this section turns into the founder Plan row. */}
             <CodeEntry onRedeemed={() => {
               setTimeout(() => {
+                if (p?.id) {
+                  void supabase.from('profiles').select('*').eq('id', p.id).maybeSingle()
+                    .then(({ data }) => { if (data) setP(data); }, () => undefined);
+                }
                 void fetch('/api/access').then((r) => (r.ok ? r.json() : null)).then((a) => { if (a) setAccess(a); }).catch(() => {});
               }, 1200);
             }} />

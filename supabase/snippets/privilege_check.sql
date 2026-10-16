@@ -33,7 +33,10 @@ privileged(col) as (values
   ('stripe_payouts_enabled'), ('created_at'),
   -- Bank transfer (20261015200000): written only via /api/bank service-role RPCs.
   ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
-  ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')
+  ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled'),
+  -- Cancel flow (20261016200000): written only by the Stripe webhook and
+  -- /api/subscription/* on the service role.
+  ('cancel_at_period_end'), ('paused_until'), ('retention_offer_used_at')
 ),
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
@@ -982,6 +985,59 @@ results(id, ok, expected, actual) as (
             case when p.prosrc not ilike '%coalesce(i.amount_paid, 0) < i.total%' then 'no-unpaid' end,
             case when p.prosrc not ilike '%p.bank_transfer_enabled is true%' then 'no-enabled' end)
         from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), 'missing') end
+
+  -- Z. Cancel flow (20261016200000). SKIP until pushed. cancel_events is
+  --    written only by the service role (/api/subscription/*); clients read
+  --    their own rows. The new profiles columns are on the privileged list (B).
+  union all
+  select 'Z1 cancel_events RLS',
+    case when not exists (select 1 from applied where version = '20261016200000') then null
+      else coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.cancel_events')), false) end,
+    'row level security on',
+    case when not exists (select 1 from applied where version = '20261016200000') then 'not applied yet'
+      else coalesce((select relrowsecurity::text from pg_class where oid = to_regclass('public.cancel_events')), 'missing') end
+  union all
+  select 'Z2 cancel_events ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261016200000') then null
+      else to_regclass('public.cancel_events') is not null
+        and has_table_privilege(ro.r, 'public.cancel_events', 'SELECT') = (ro.r = 'authenticated')
+        and not has_table_privilege(ro.r, 'public.cancel_events', 'INSERT')
+        and not has_table_privilege(ro.r, 'public.cancel_events', 'UPDATE')
+        and not has_table_privilege(ro.r, 'public.cancel_events', 'DELETE')
+        and not has_table_privilege(ro.r, 'public.cancel_events', 'TRUNCATE')
+        and not exists (select 1 from information_schema.column_privileges
+          where table_schema = 'public' and table_name = 'cancel_events'
+            and grantee = ro.r and privilege_type in ('INSERT', 'UPDATE')) end,
+    case when ro.r = 'authenticated' then 'SELECT only' else 'nothing' end,
+    case when not exists (select 1 from applied where version = '20261016200000') then 'not applied yet'
+      when to_regclass('public.cancel_events') is null then 'missing'
+      else concat_ws(' ',
+        case when has_table_privilege(ro.r, 'public.cancel_events', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(ro.r, 'public.cancel_events', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(ro.r, 'public.cancel_events', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(ro.r, 'public.cancel_events', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(ro.r, 'public.cancel_events', 'TRUNCATE') then 'TRUNCATE' end) end
+  from (values ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'Z3 cancel_events policies',
+    case when not exists (select 1 from applied where version = '20261016200000') then null
+      else count(*) = 1 and bool_and(pol.cmd = 'SELECT' and pol.qual ilike '%auth.uid() = user_id%') end,
+    'one policy: SELECT own rows',
+    case when not exists (select 1 from applied where version = '20261016200000') then 'not applied yet'
+      else coalesce(string_agg(pol.policyname || ':' || pol.cmd, ', '), 'none') end
+  from pg_policies pol
+  where pol.schemaname = 'public' and pol.tablename = 'cancel_events'
+  union all
+  select 'Z4 cancel_events checks',
+    case when not exists (select 1 from applied where version = '20261016200000') then null
+      else count(*) = 5 end,
+    'kind, reason, detail length, months, platform checks',
+    case when not exists (select 1 from applied where version = '20261016200000') then 'not applied yet'
+      else coalesce(string_agg(conname, ', '), 'none') end
+  from pg_constraint
+  where conrelid = coalesce(to_regclass('public.cancel_events'), 0::oid) and contype = 'c'
+    and conname in ('cancel_events_kind_chk', 'cancel_events_reason_chk', 'cancel_events_detail_len',
+                    'cancel_events_months_chk', 'cancel_events_platform_chk')
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
