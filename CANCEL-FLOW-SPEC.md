@@ -162,10 +162,11 @@ Migration (founder approval before applying, as usual):
 - `profiles.retention_offer_used_at timestamptz`
 - New table `cancel_events` (`id`, `user_id`, `kind` in
   `('cancel','resume','offer_discount','offer_pause')`, `reason`, `detail`,
-  `months`, `created_at`). RLS on; clients may SELECT their own rows only;
+  `months`, `platform`, `created_at`). RLS on; clients may SELECT their own rows only;
   all writes go through the service role in the routes (no client insert). The new `profiles` columns are locked
   automatically: since `20260925000001` authenticated has no table-level
   write on profiles, only per-column grants, and these get none.
+- `cancel_events.platform text not null default 'web'`, check in `('web','ios','android')` (founder, 2026-10-16): Apple/Google billing reuse the same screen, stats and reasons later; only `'web'` is written now.
 - Privcheck: add rows for the new columns + table.
 
 Webhook (`applySubscription`): also write `cancel_at_period_end` and

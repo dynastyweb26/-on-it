@@ -13,6 +13,10 @@
 -- Supabase grants ALL on new public tables to anon/authenticated by default,
 -- so revoke at table level and grant SELECT back to authenticated only.
 --
+-- cancel_events.platform: which store billed the subscription. Only 'web'
+-- (Stripe) is written today; 'ios' / 'android' are reserved for the native
+-- billing versions of the same flow.
+--
 -- Additive only. Idempotent.
 -- ═══════════════════════════════════════════════════════════════
 
@@ -28,6 +32,7 @@ create table if not exists public.cancel_events (
   reason text,
   detail text,
   months smallint,
+  platform text not null default 'web',
   created_at timestamptz not null default now(),
   constraint cancel_events_kind_chk
     check (kind in ('cancel', 'resume', 'offer_discount', 'offer_pause')),
@@ -36,7 +41,9 @@ create table if not exists public.cancel_events (
   constraint cancel_events_detail_len
     check (detail is null or char_length(detail) <= 500),
   constraint cancel_events_months_chk
-    check (months is null or months between 1 and 3)
+    check (months is null or months between 1 and 3),
+  constraint cancel_events_platform_chk
+    check (platform in ('web', 'ios', 'android'))
 );
 
 create index if not exists cancel_events_user_created_idx
