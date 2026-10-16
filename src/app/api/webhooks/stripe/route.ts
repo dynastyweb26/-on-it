@@ -68,7 +68,15 @@ export async function POST(req: NextRequest) {
       }
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        await applySubscription(event.data.object as Stripe.Subscription);
+        // Re-read the subscription instead of trusting the payload: Stripe
+        // doesn't guarantee delivery order, and some changes arrive as
+        // back-to-back events (test clock C, Jan 17: the renewal with the
+        // pause still set, then the pause clearing, 1s apart). Applied in
+        // reverse, a stale payload would leave a paying user on the free
+        // tier. The live object is always the latest state.
+        const payload = event.data.object as Stripe.Subscription;
+        const sub = await stripe.subscriptions.retrieve(payload.id);
+        await applySubscription(sub);
         break;
       }
       case 'customer.subscription.deleted': {
