@@ -93,9 +93,12 @@ export default function CoachMarkOverlay({
   const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
   const vpH = typeof window !== 'undefined' ? window.innerHeight : 844;
   const tooltipBelow = spot.top - scrollY < vpH * 0.55;
-  const tooltipTop = tooltipBelow
+  const rawTooltipTop = tooltipBelow
     ? spotBottom + 18
     : spot.top - 18 - 180; // 180 ≈ max tooltip height
+  // Clamp so the card never runs off the bottom (240 ≈ card height + margin)
+  // or off the top of the viewport.
+  const tooltipTop = Math.max(16, Math.min(rawTooltipTop, vpH - 240));
 
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === totalSteps - 1;
