@@ -6,6 +6,7 @@
 // right-aligned helper line under it ("Codes are case-sensitive.").
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import { startUnlockPolling } from '@/lib/upgrade-return';
 
 export default function CodeEntry({ onRedeemed, autoFocus = false, onEscape }: {
   onRedeemed: () => void;
@@ -33,6 +34,7 @@ export default function CodeEntry({ onRedeemed, autoFocus = false, onEscape }: {
       const data = await res.json().catch(() => ({}));
       if (data?.ok) {
         setMessage({ ok: true, text: data.message ?? "You're set. Free access is on." });
+        void startUnlockPolling(); // every screen picks the new tier up when it reads paid
         onRedeemed();
       } else {
         setMessage({ ok: false, text: data?.message ?? "That code didn't work. Codes are case-sensitive." });

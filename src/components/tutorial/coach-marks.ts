@@ -22,6 +22,11 @@ export interface CoachStep {
   whenEmpty?: Partial<Pick<CoachStep, 'selector' | 'pad' | 'r' | 'title' | 'body'>>;
   /** Drop this step when the list is empty (its target isn't rendered). */
   skipWhenEmpty?: boolean;
+  /** Only run this step while an element matching the selector is on the
+   *  page (see CoachTour.settle). */
+  onlyWhen?: string;
+  /** Drop this step while an element matching the selector is on the page. */
+  skipWhen?: string;
 }
 
 export interface CoachTour {
@@ -32,15 +37,30 @@ export interface CoachTour {
    *  list is empty, `ready` only when it has rows. CoachMarks waits for one
    *  of them (data loads after the tab mounts) before picking the steps. */
   empty?: { when: string; ready: string };
+  /** Selector of an element that appears once the data the steps' onlyWhen /
+   *  skipWhen conditions read has loaded. CoachMarks waits for it (up to 4s)
+   *  before picking the steps. */
+  settle?: string;
 }
 
 /** The steps to run, given whether the tab's list is empty. */
-export function stepsFor(tour: CoachTour, isEmpty: boolean): CoachStep[] {
-  if (!isEmpty) return tour.steps;
-  return tour.steps
+export function stepsFor(
+  tour: CoachTour,
+  isEmpty: boolean,
+  /** Is there an element on the page matching this selector? */
+  matches: (selector: string) => boolean = () => false,
+): CoachStep[] {
+  const steps = tour.steps.filter((s) =>
+    (!s.onlyWhen || matches(s.onlyWhen)) && !(s.skipWhen && matches(s.skipWhen)));
+  if (!isEmpty) return steps;
+  return steps
     .filter((s) => !s.skipWhenEmpty)
     .map((s) => (s.whenEmpty ? { ...s, ...s.whenEmpty } : s));
 }
+
+/** The Settings Payouts row carries data-payouts-set="no" when no payout
+ *  method is configured (set once the row's data has loaded, "yes" otherwise). */
+export const PAYOUTS_UNSET = '[data-payouts-set="no"]';
 
 export const TOURS: Record<string, CoachTour> = {
   '/clients': {
@@ -141,6 +161,7 @@ export const TOURS: Record<string, CoachTour> = {
   },
   '/settings': {
     name: 'Settings',
+    settle: '[data-payouts-set]',
     steps: [
       {
         selector: '[data-coach="settings-profile"]',
@@ -149,8 +170,18 @@ export const TOURS: Record<string, CoachTour> = {
         body: 'Add your logo, business details and payment info. They show up on every invoice you send.',
       },
       {
+        // New users: no payout method yet. Points at Settings → Payouts.
+        // Skipped (and the general step below runs instead) once one is set.
         selector: '[data-coach="settings-payouts"]',
         pad: 5, r: 22,
+        title: 'Set up how you get paid',
+        body: 'No payout method yet. Open Payouts and add Zelle, Cash App, PayPal, Venmo, a bank account or card payments, so your clients can pay you.',
+        onlyWhen: PAYOUTS_UNSET,
+      },
+      {
+        selector: '[data-coach="settings-payouts"]',
+        pad: 5, r: 22,
+        skipWhen: PAYOUTS_UNSET,
         title: 'Money, handled',
         body: 'Connect payouts to get paid by card, and set recurring expenses so Books tracks them for you.',
       },

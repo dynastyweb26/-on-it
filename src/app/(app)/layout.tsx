@@ -12,6 +12,7 @@ import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
+import { noteUpgradeReturn } from '@/lib/upgrade-return';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -154,6 +155,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // are ignored meanwhile so one gesture can never chain into two tabs.
   const navigating = useRef<number | null>(null); // start time, or null
   useEffect(() => { navigating.current = null; }, [path]);
+
+  // Back from Stripe Checkout (?upgraded=1) on ANY tab, e.g. /invoices: record
+  // it and start the unlock poll. A no-op when a page already handled it.
+  useEffect(() => { noteUpgradeReturn(); }, []);
   // The coach-marks tour that is running (a TOURS key), or null. Tours are
   // on-demand only — nothing here starts one by itself.
   const [coachTab, setCoachTab] = useState<string | null>(null);
