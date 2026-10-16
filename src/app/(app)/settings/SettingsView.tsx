@@ -13,6 +13,7 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
+import BankTransferCard from './BankTransferCard';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 
@@ -774,6 +775,12 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
         </div>
         <p className="font-body text-xs text-on-surface-variant/80">Use the phone number or email enrolled with your bank’s Zelle — it must match, or payments won’t reach you. Stored encrypted; leave empty and tap Remove to clear.</p>
       </section>
+
+      <BankTransferCard initial={p} onSaved={(b) => {
+        setP((cur: any) => ({ ...cur, ...b }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      }} />
 
       </>)}
 

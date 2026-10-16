@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
 import { cashAppUrl, payPalUrl, venmoUrl } from '@/lib/url';
+// Bank details: only when the RPC returned them and publicBank let them through.
+import type { PayBank } from '@/lib/pay-bank';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public pay page view. Receives a fully-shaped, already-whitelisted model
@@ -36,6 +38,7 @@ export interface PayHandles {
   zelle: string | null;
 }
 
+
 export interface PayLineItem {
   description: string;
   qty: number;
@@ -63,8 +66,10 @@ export interface PayModel {
   showTotalSubline: boolean; // true when primaryAmount differs from total
   amountPaid: number;
   fullyPaid: boolean;
+  voided: boolean; // status void: no payment methods, nothing payable
   hasHandles: boolean;
   handles: PayHandles;
+  bank: PayBank | null;
   cardAvailable: boolean; // display-only; the checkout route re-checks everything
   token: string;
   paidReturn: boolean; // arrived back from Stripe Checkout (?paid=1)
@@ -115,12 +120,18 @@ function PayRow({
   onActivate,
   busy = false,
   ring = false,
+  expanded,
+  below,
   children,
 }: {
   label: string;
   onActivate: () => void;
   busy?: boolean;
   ring?: boolean;
+  // Expandable rows (Bank transfer): `below` renders full-width under the
+  // row's content line; taps inside it don't toggle the row.
+  expanded?: boolean;
+  below?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -128,6 +139,7 @@ function PayRow({
       role="button"
       tabIndex={0}
       aria-label={label}
+      aria-expanded={expanded}
       aria-disabled={busy || undefined}
       onClick={() => { if (!busy) onActivate(); }}
       onKeyDown={(e) => {
@@ -136,23 +148,74 @@ function PayRow({
           if (!busy) onActivate();
         }
       }}
-      className={`flex min-h-touch cursor-pointer select-none items-center gap-3 rounded-card bg-surface-container-lowest p-3 shadow-card transition-transform active:scale-[0.99] active:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+      className={`flex min-h-touch cursor-pointer select-none items-center gap-3 ${below ? 'flex-wrap' : ''} rounded-card bg-surface-container-lowest p-3 shadow-card transition-transform active:scale-[0.99] active:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         ring ? 'border-2 border-primary-container' : ''
       } ${busy ? 'opacity-60' : ''}`}
     >
       {children}
+      {below}
     </li>
   );
 }
 
 // The right-side action label inside a row. Visual only — the row handles the
 // tap — in text-safe gold (#735c00) with a Material Symbol, like before.
-function RowAction({ icon, text }: { icon: 'arrow_forward' | 'open_in_new' | 'content_copy' | 'check'; text: string }) {
+function RowAction({ icon, text, flip = false }: { icon: 'arrow_forward' | 'open_in_new' | 'content_copy' | 'check' | 'expand_more'; text: string; flip?: boolean }) {
   return (
     <span aria-hidden className="flex h-touch min-w-[56px] shrink-0 items-center justify-center gap-1 px-3 text-label-lg text-primary">
-      <Icon name={icon} size={20} />
+      <Icon name={icon} size={20} className={flip ? 'rotate-180' : ''} />
       {text}
     </span>
+  );
+}
+
+// Expanded Bank transfer details: one field per line, each with Copy. The
+// account number is masked until tapped (display only — it's in the page data
+// because the payer has to copy it). Taps here never collapse the row.
+function BankDetails({ bank, docNumber, onCopied }: { bank: PayBank; docNumber: string; onCopied: (label: string) => void }) {
+  const [shown, setShown] = useState(false);
+  // Text wraps on words only (the memo once split "mem / o"). Digit-only
+  // values (routing, account) have no words, so they may break anywhere.
+  const line = (label: string, value: React.ReactNode, copy: string | null, digits = false) => (
+    <div className="flex min-h-touch items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-on-surface-variant">{label}</p>
+        <div className={`${digits ? 'break-all' : ''} text-body-md text-on-background`}>{value}</div>
+      </div>
+      {copy ? <CopyButton value={copy} label={label} onCopied={() => onCopied(label)} /> : null}
+    </div>
+  );
+  return (
+    <div
+      className="w-full basis-full cursor-auto select-text border-t border-outline-variant pt-2"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {line('Account holder', bank.holderName, bank.holderName)}
+      {line('Bank', bank.bankName, bank.bankName)}
+      {line('Routing number', bank.routing, bank.routing, true)}
+      {shown
+        ? line('Account number', bank.account, bank.account, true)
+        : line(
+            'Account number',
+            <button
+              type="button"
+              onClick={() => setShown(true)}
+              aria-label="Show account number"
+              className="flex items-center gap-1 text-body-md text-on-background"
+            >
+              {`••••${bank.account.slice(-4)}`}
+              <span className="flex items-center gap-1 text-label-lg text-primary">
+                <Icon name="visibility" size={18} />
+                Tap to show
+              </span>
+            </button>,
+            null,
+          )}
+      {line('Account type', bank.accountType === 'savings' ? 'Savings' : 'Checking', null)}
+      {line('Memo', <>Include <span className="font-semibold">{docNumber}</span> in the memo</>, docNumber)}
+      <p className="pb-1 pt-1 text-xs text-on-surface-variant">Bank transfers usually take 1–3 business days.</p>
+    </div>
   );
 }
 
@@ -169,6 +232,7 @@ export default function PayView({ model }: { model: PayModel }) {
   const [cardError, setCardError] = useState('');
   // Bottom toast for copies ("Zelle copied"). One at a time; auto-hides.
   const [toast, setToast] = useState('');
+  const [bankOpen, setBankOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function showToast(message: string) {
     setToast(message);
@@ -394,8 +458,16 @@ export default function PayView({ model }: { model: PayModel }) {
 
       {/* Payment methods — how to pay. Placed ABOVE the (uncapped) line items so
           the client sees how to pay without scrolling past a long itemisation.
-          Hidden once fully paid. Card first when the seller takes cards. */}
-      {!model.fullyPaid ? (
+          Hidden once fully paid or voided. Card first when the seller takes cards. */}
+      {model.voided ? (
+        <section className="mt-6 rounded-card bg-surface-container-lowest p-6 text-center shadow-card">
+          <Icon name="block" size={32} className="text-on-surface-variant" />
+          <p className="mt-2 text-body-md text-on-background">This invoice was cancelled. Nothing is due.</p>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            Questions? Contact {model.businessName} directly.
+          </p>
+        </section>
+      ) : !model.fullyPaid ? (
         <section className="mt-6">
           <h2 className="mb-3 text-label-lg uppercase tracking-wide text-on-surface-variant">How to pay</h2>
 
@@ -422,6 +494,25 @@ export default function PayView({ model }: { model: PayModel }) {
                     </p>
                   </div>
                   <RowAction icon="arrow_forward" text={cardBusy ? 'Opening…' : 'Pay'} />
+                </PayRow>
+              ) : null}
+              {/* Bank transfer — directly under the card row, above the handles.
+                  Same row format; the row toggles the details open (Show / Hide). */}
+              {model.bank ? (
+                <PayRow
+                  label={bankOpen ? 'Hide bank transfer details' : 'Show bank transfer details'}
+                  onActivate={() => setBankOpen((o) => !o)}
+                  expanded={bankOpen}
+                  below={bankOpen ? (
+                    <BankDetails bank={model.bank} docNumber={model.docNumber} onCopied={(l) => showToast(`${l} copied`)} />
+                  ) : null}
+                >
+                  <Icon name="account_balance" size={20} className="shrink-0 text-on-surface-variant" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-label-lg text-on-background">Bank transfer</p>
+                    <p className="truncate text-body-md text-on-surface-variant">Direct deposit / ACH</p>
+                  </div>
+                  <RowAction icon="expand_more" text={bankOpen ? 'Hide' : 'Show'} flip={bankOpen} />
                 </PayRow>
               ) : null}
               {methods.map((m) => {

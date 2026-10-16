@@ -2,7 +2,8 @@
 // TypeScript type stripping (Node ≥ 22.18). No test framework dependency.
 // This hook only teaches Node the two things the app's bundler does for it:
 // the `@/` alias (tsconfig paths → src/) and extensionless relative imports.
-// Tests can therefore import only pure modules (no `server-only`, no React).
+// Tests import pure modules (no `server-only`); .tsx is transpiled by the
+// loader so a test can render a component with react-dom/server.
 import { register } from 'node:module';
 
 register(new URL('./test-loader.mjs', import.meta.url));

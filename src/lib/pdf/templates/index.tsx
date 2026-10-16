@@ -64,6 +64,12 @@ export interface InvoiceRenderData {
   // "Card or Cash App Pay — pay online" line to the How to pay block, shown
   // only alongside payUrl (the block's link is how the client gets there).
   cardAvailable?: boolean;
+  // The pro has bank transfer switched on (profiles.bank_transfer_enabled).
+  // A flag only: NO bank name, routing or account number ever reaches the PDF
+  // (BANK-TRANSFER-SPEC.md decision 2). Adds a "Bank transfer / Direct
+  // deposit — pay online" line, styled like the card line, shown only
+  // alongside payUrl: the details themselves live on the pay page.
+  bankTransferAvailable?: boolean;
 }
 
 // The pay link, invoices only. A quote is never payable, so it never carries a
@@ -73,6 +79,9 @@ const payLink = (d: InvoiceRenderData): string | undefined =>
 
 // Whether the PDF should show the card line: the capability AND a pay link.
 const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && payLink(d));
+// Same rule for the bank transfer line.
+const showBankLine = (d: InvoiceRenderData) => Boolean(d.bankTransferAvailable && payLink(d));
+const BANK_LINE = 'Bank transfer / Direct deposit';
 
 // Shown under "How to pay" on every quote, in place of any pay link.
 const QUOTE_PAY_NOTE = 'Payment options become active once this quote is converted to an invoice.';
@@ -150,6 +159,7 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   const card = showCardLine(d);
+  const bank = showBankLine(d);
   const isQuote = d.kind === 'quote';
   if (!rows.length && !card && !isQuote && !payLink(d)) return null;
 
@@ -177,6 +187,14 @@ function PaymentBlock({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {card && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
           <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
+          <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
+        </div>
+      )}
+      {/* Bank transfer line — directly under the card line (the pay page's
+          order), the card line's exact format. Pay-page link only; no numbers. */}
+      {bank && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, border, borderRadius: 12, padding: '8px 14px', marginBottom: 8 }}>
+          <div style={{ flex: '0 0 auto', fontWeight: 800, fontSize: 15, color: t.text }}>{BANK_LINE}</div>
           <div style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', color: t.muted }}>— pay online</div>
         </div>
       )}
@@ -496,6 +514,7 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
   if (d.zelle)
     rows.push({ kind: 'zelle', method: 'Zelle', detail: d.zelle });
   const card = showCardLine(d);
+  const bank = showBankLine(d);
   if (!rows.length && !card && !payLink(d)) return null;
 
   // Whole rail silently links to the pay page (same rule as PaymentBlock) — no
@@ -511,6 +530,13 @@ function LedgerPaymentRail({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       {card && (
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>Card, Apple Pay, Google Pay or Cash App Pay</div>
+          <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
+        </div>
+      )}
+      {/* Bank transfer line — directly under the card line, the rail's format. */}
+      {bank && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: t.text }}>{BANK_LINE}</div>
           <div style={{ fontSize: 13, color: t.text, marginTop: 2, fontFamily: MONO }}>— pay online</div>
         </div>
       )}

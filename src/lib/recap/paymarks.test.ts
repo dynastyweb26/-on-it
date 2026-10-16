@@ -32,3 +32,9 @@ test('fixtures: each scenario stores its own payment-method split', () => {
   assert.deepEqual(fixturePayload('investmentWeek').paymentMethods.map((m) => m.method), ['card', 'zelle']);
   assert.equal(scenarioPayload(stressWeek).paymentMethods.length, 6);
 });
+
+test('bank transfer gets a neutral account_balance mark', () => {
+  const m = payMark('bank');
+  assert.equal(m.kind, 'neutral');
+  if (m.kind === 'neutral') assert.equal(m.icon, 'account_balance');
+});

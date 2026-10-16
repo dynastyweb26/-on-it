@@ -30,7 +30,10 @@ privileged(col) as (values
   ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('role'),
   ('granted_via'), ('referred_by'), ('referral_code'), ('next_invoice_number'), ('next_quote_number'),
   ('stripe_account_id'), ('stripe_charges_enabled'), ('stripe_details_submitted'),
-  ('stripe_payouts_enabled'), ('created_at')
+  ('stripe_payouts_enabled'), ('created_at'),
+  -- Bank transfer (20261015200000): written only via /api/bank service-role RPCs.
+  ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
+  ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')
 ),
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
@@ -859,6 +862,126 @@ results(id, ok, expected, actual) as (
   from pg_proc p
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
+
+  -- X. Bank transfer (20261015200000). SKIP until pushed. X4: no client role
+  --    can UPDATE or INSERT any bank column (also in B). The bank columns
+  --    are on the privileged list (B): written only by /api/bank through
+  --    these service-role functions. X3: the encrypted account number never
+  --    reaches audit_log detail.
+  union all
+  select 'X1 ' || fn.f || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else to_regprocedure(fn.f) is not null
+        and not has_function_privilege(ro.r, to_regprocedure(fn.f), 'execute') end,
+    'not executable',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when to_regprocedure(fn.f) is null then 'missing'
+      when has_function_privilege(ro.r, to_regprocedure(fn.f), 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_bank_transfer(uuid, text, text, text, text, text, boolean, text)'),
+               ('public.set_bank_transfer_enabled(uuid, boolean)'),
+               ('public.clear_bank_transfer(uuid)')) fn(f)
+  cross join (values ('public'), ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'X2 ' || fn.f || ' service_role',
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else to_regprocedure(fn.f) is not null
+        and has_function_privilege('service_role', to_regprocedure(fn.f), 'execute') end,
+    'executable by service_role',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when to_regprocedure(fn.f) is null then 'missing'
+      when has_function_privilege('service_role', to_regprocedure(fn.f), 'execute') then 'EXECUTE' else '' end
+  from (values ('public.set_bank_transfer(uuid, text, text, text, text, text, boolean, text)'),
+               ('public.set_bank_transfer_enabled(uuid, boolean)'),
+               ('public.clear_bank_transfer(uuid)')) fn(f)
+  union all
+  select 'X3 log_audit drops bank_account_enc',
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else coalesce((select p.prosrc ilike '%- ''bank_account_enc''%' and p.prosrc ilike '%- ''zelle_info_enc''%'
+        from pg_proc p where p.oid = to_regprocedure('public.log_audit()')), false) end,
+    'audit detail excludes zelle_info_enc and bank_account_enc',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when (select p.prosrc ilike '%- ''bank_account_enc''%' from pg_proc p where p.oid = to_regprocedure('public.log_audit()'))
+        then '' else 'bank_account_enc not excluded' end
+  union all
+  select 'X4 profiles.' || c.col || ' ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261015200000') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles' and column_name = c.col)
+        and not has_column_privilege(ro.r, 'public.profiles', c.col, 'UPDATE')
+        and not has_column_privilege(ro.r, 'public.profiles', c.col, 'INSERT') end,
+    'no client UPDATE / INSERT (written only via /api/bank)',
+    case when not exists (select 1 from applied where version = '20261015200000') then 'not applied yet'
+      when not exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles' and column_name = c.col) then 'missing'
+      else concat_ws(' ',
+        case when has_column_privilege(ro.r, 'public.profiles', c.col, 'UPDATE') then 'UPDATE' end,
+        case when has_column_privilege(ro.r, 'public.profiles', c.col, 'INSERT') then 'INSERT' end) end
+  from (values ('bank_holder_name'), ('bank_name'), ('bank_routing'), ('bank_account_enc'),
+               ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled')) c(col)
+  cross join (values ('anon'), ('authenticated')) ro(r)
+
+  -- Y. Pay page bank RPC (20261016000000). SKIP until pushed. Service-role
+  --    only, definer with search_path '', and the bank columns reach the
+  --    public pay page through this gated function alone (Y4).
+  union all
+  select 'Y1 get_public_invoice_bank ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else to_regprocedure('public.get_public_invoice_bank(text, text)') is not null
+        and not has_function_privilege(ro.r, to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') end,
+    'not executable',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_bank(text, text)') is null then 'missing'
+      when has_function_privilege(ro.r, to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') then 'EXECUTE' else '' end
+  from (values ('public'), ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'Y2 get_public_invoice_bank service_role',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce(has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute'), false) end,
+    'executable by service_role',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_bank(text, text)') is null then 'missing'
+      when has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_bank(text, text)'), 'execute') then 'EXECUTE' else '' end
+  union all
+  select 'Y3 get_public_invoice_bank definer + search_path',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce((select p.prosecdef and p.proconfig = array['search_path=""']
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), false) end,
+    'prosecdef true, search_path ""',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(array_to_string(p.proconfig, ','), 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), 'missing') end
+  union all
+  select 'Y4 other public RPCs never read bank_*',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else count(*) filter (where p.prosrc ilike '%bank_%') = 0 end,
+    'get_public_invoice / get_public_invoice_checkout do not mention bank_',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce(string_agg(case when p.prosrc ilike '%bank_%' then p.proname end, ', '), '') end
+  from pg_proc p
+  where p.pronamespace = 'public'::regnamespace
+    and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
+  union all
+  -- Y5: the gate itself. A later CREATE OR REPLACE that drops any of these
+  --     predicates would expose bank details on paid / void / draft / quote
+  --     invoices or for a pro who turned bank transfer off.
+  select 'Y5 get_public_invoice_bank gate predicates',
+    case when not exists (select 1 from applied where version = '20261016000000') then null
+      else coalesce((select
+            p.prosrc ilike '%i.kind = ''invoice''%'
+        and p.prosrc ilike '%i.status in (''sent'', ''overdue'')%'
+        and p.prosrc ilike '%i.deleted_at is null%'
+        and p.prosrc ilike '%coalesce(i.amount_paid, 0) < i.total%'
+        and p.prosrc ilike '%p.bank_transfer_enabled is true%'
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), false) end,
+    'invoice only, sent/overdue, not deleted, unpaid, enabled',
+    case when not exists (select 1 from applied where version = '20261016000000') then 'not applied yet'
+      else coalesce((select concat_ws(' ',
+            case when p.prosrc not ilike '%i.kind = ''invoice''%' then 'no-kind' end,
+            case when p.prosrc not ilike '%i.status in (''sent'', ''overdue'')%' then 'no-status' end,
+            case when p.prosrc not ilike '%i.deleted_at is null%' then 'no-deleted' end,
+            case when p.prosrc not ilike '%coalesce(i.amount_paid, 0) < i.total%' then 'no-unpaid' end,
+            case when p.prosrc not ilike '%p.bank_transfer_enabled is true%' then 'no-enabled' end)
+        from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_bank(text, text)')), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
