@@ -69,13 +69,13 @@ export default function CoachMarks({ currentPath, onDone }: Props) {
     if (!tab || !tour) return;
     const next = stepIndex + 1;
     if (next >= tour.steps.length) {
-      // End of this tab's tour.
-      setStepMap((m) => ({ ...m, [tab]: -1 }));
-      // Check if this was the last tour tab (Settings).
-      const allFinished = TOUR_TABS.every((k) =>
-        k === tab ? true : m[k] < 0,
-      );
-      if (allFinished) onDone();
+      // End of this tab's tour — mark it done then check if all tabs finished.
+      setStepMap((m) => {
+        const updated = { ...m, [tab]: -1 };
+        const allFinished = TOUR_TABS.every((k) => updated[k] < 0);
+        if (allFinished) setTimeout(onDone, 0);
+        return updated;
+      });
     } else {
       setStepMap((m) => ({ ...m, [tab]: next }));
     }
