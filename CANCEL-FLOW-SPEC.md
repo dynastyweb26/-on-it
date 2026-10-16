@@ -162,10 +162,10 @@ Migration (founder approval before applying, as usual):
 - `profiles.retention_offer_used_at timestamptz`
 - New table `cancel_events` (`id`, `user_id`, `kind` in
   `('cancel','resume','offer_discount','offer_pause')`, `reason`, `detail`,
-  `months`, `created_at`). RLS: owner insert/select only; service role for
-  writes from the routes is fine too. Add the new privileged `profiles` columns
-  to the same lock as `access_tier` / `current_period_end` (see
-  `20260925000001_profiles_lock_privileges.sql`) so a client can't set them.
+  `months`, `created_at`). RLS on; clients may SELECT their own rows only;
+  all writes go through the service role in the routes (no client insert). The new `profiles` columns are locked
+  automatically: since `20260925000001` authenticated has no table-level
+  write on profiles, only per-column grants, and these get none.
 - Privcheck: add rows for the new columns + table.
 
 Webhook (`applySubscription`): also write `cancel_at_period_end` and
