@@ -7,6 +7,7 @@
 // Every function resolves (never throws) to { ok: true, ... } or
 // { ok: false, message } with a message fit to show inline.
 import type { CancelReason } from './subscription/reasons';
+import type { OfferKind, PauseMonths } from './subscription/offers';
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; message: string; error?: string };
 
@@ -38,4 +39,10 @@ export function cancel(input: { reason?: CancelReason | null; detail?: string | 
 /** Undo a pending cancel, or end a pause now. */
 export function resume() {
   return post<{ changed: boolean }>('/api/subscription/resume');
+}
+
+/** Take the retention offer: 'discount' (50% off the next 2 months) or
+ *  'pause' for 1-3 months. The server re-checks eligibility. */
+export function applyOffer(kind: OfferKind, months?: PauseMonths) {
+  return post<{ kind: OfferKind; pausedUntil: string | null }>('/api/subscription/offer', { kind, months });
 }
