@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
 import { TOURS } from '@/components/tutorial/coach-marks';
 import TourPicker from '@/components/tutorial/TourPicker';
-import { stopThrob, throbRemaining } from '@/components/tutorial/throb';
+import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -171,14 +171,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
   const [throb, setThrob] = useState(false);
-  useEffect(() => {
+  const throbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startThrob = useCallback(() => {
     const ms = throbRemaining();
     if (ms <= 0) return;
     setThrob(true);
-    const t = setTimeout(() => { setThrob(false); stopThrob(); }, ms);
-    return () => clearTimeout(t);
+    if (throbTimer.current) clearTimeout(throbTimer.current);
+    throbTimer.current = setTimeout(() => { setThrob(false); stopThrob(); }, ms);
   }, []);
-  const endThrob = useCallback(() => { setThrob(false); stopThrob(); }, []);
+  const endThrob = useCallback(() => {
+    if (throbTimer.current) clearTimeout(throbTimer.current);
+    setThrob(false);
+    stopThrob();
+  }, []);
+  useEffect(() => {
+    consumeSignInCookie(); // signed in via the email-confirmation link
+    startThrob();
+    // A client-side sign-in while the app is open. auth-js also re-emits
+    // SIGNED_IN for an EXISTING session (tab refocus, cross-tab sync), so only
+    // a change of user after INITIAL_SESSION counts as a new sign-in.
+    const supabase = createClient();
+    let known: string | null | undefined; // undefined until INITIAL_SESSION
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user.id ?? null;
+      if (event === 'INITIAL_SESSION') { known = uid; return; }
+      if (event === 'SIGNED_OUT') { known = null; return; }
+      if (event === 'SIGNED_IN' && known !== undefined && uid && uid !== known) {
+        markSignInThrob();
+        startThrob();
+      }
+      if (uid) known = uid;
+    });
+    return () => {
+      subscription.unsubscribe();
+      if (throbTimer.current) clearTimeout(throbTimer.current);
+    };
+  }, [startThrob]);
   const throbClass = throb ? ' onit-help-throb' : '';
 
   // Tab picker → go to that tab, wait for its first target, run its tour.
