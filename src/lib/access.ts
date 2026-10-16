@@ -6,7 +6,7 @@
 // - 'trialing' / 'active' → unlimited (a live subscription).
 // - 'past_due' → unlimited (Stripe dunning grace: payment is retrying. The
 //   webhook collapses the tier to 'canceled' once retries are exhausted, which
-//   ends the grace — see tierFromStatus in the stripe webhook).
+//   ends the grace — see tierFromStatus in lib/subscription/state.ts).
 // - 'canceled' → exactly like 'free' below (reported as 'canceled').
 // - 'free' (and any legacy value like the old 'standard') → free_invoice_limit()
 //   real invoices and free_expense_limit() expenses created since
@@ -45,7 +45,7 @@ export interface AccessResult {
 }
 
 // A free limit worth showing the user; anything this large is "uncapped".
-const displayLimit = (n: unknown): number | null =>
+export const displayLimit = (n: unknown): number | null =>
   typeof n === 'number' && n < 1000 ? n : null;
 
 export async function hasAccess(userId: string): Promise<AccessResult> {

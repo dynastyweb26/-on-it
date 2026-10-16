@@ -8,6 +8,7 @@
 // { ok: false, message } with a message fit to show inline.
 import type { CancelReason } from './subscription/reasons';
 import type { OfferKind, PauseMonths } from './subscription/offers';
+import type { StatTile } from './subscription/stats';
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; message: string; error?: string };
 
@@ -25,6 +26,29 @@ async function post<T>(path: string, body?: unknown): Promise<ActionResult<T>> {
     return { ok: false, message: data?.message ?? UNAVAILABLE, error: data?.error };
   } catch {
     return { ok: false, message: UNAVAILABLE };
+  }
+}
+
+/** What the Plan and cancel screens render (GET /api/subscription/cancel-summary). */
+export type CancelSummary = {
+  tier: string;
+  status: string | null;
+  subscribed: boolean;
+  cancelAtPeriodEnd: boolean;
+  pausedUntil: string | null;
+  endsAt: string | null;
+  offerEligible?: boolean;
+  tiles?: StatTile[];
+  freeLimits?: { invoices: number | null; expenses: number | null };
+};
+
+/** Server state for the subscription screens, or null when unavailable. */
+export async function getSummary(): Promise<CancelSummary | null> {
+  try {
+    const res = await fetch('/api/subscription/cancel-summary', { cache: 'no-store' });
+    return res.ok ? ((await res.json()) as CancelSummary) : null;
+  } catch {
+    return null;
   }
 }
 
