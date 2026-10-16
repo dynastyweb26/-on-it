@@ -19,6 +19,7 @@ import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
+import { getSharedUser } from '@/lib/auth-client';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -178,7 +179,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         // throw routes to /login. A getUser() that never settles (the observed
         // Brave/Shields stall, cause unidentified) is caught by stuckTimer
         // above, not by this try/catch.
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const { data: { user }, error } = await getSharedUser();
         if (!active) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
@@ -380,7 +381,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       setBillingNotice(r.message);
     } else {
       const [{ data: { user } }, a, s] = await Promise.all([
-        supabase.auth.getUser(),
+        getSharedUser(),
         fetch('/api/access').then((x) => (x.ok ? x.json() : null)).catch(() => null),
         getSummary(),
       ]);

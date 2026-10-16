@@ -15,6 +15,7 @@ import { localDay } from '@/lib/tax-summary';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
+import { getSharedUser } from '@/lib/auth-client';
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
@@ -61,7 +62,7 @@ export default function Invoices() {
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')

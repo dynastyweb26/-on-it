@@ -23,6 +23,7 @@ import {
 import { shareInvoice } from '@/lib/pdf/generate';
 import { DISCLAIMER } from '@/lib/pdf/summary-template';
 import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
+import { getSharedUser } from '@/lib/auth-client';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
 // place (no nested scroll area).
@@ -93,7 +94,7 @@ export default function TaxSummary() {
       // (09dcc22). This page is worse off without it: there's no stall timeout.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('profiles')

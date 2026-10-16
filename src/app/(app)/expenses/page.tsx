@@ -19,6 +19,7 @@ import { groupByPeriod } from '@/lib/date-groups';
 import { EXPENSES_SORT_KEY, readExpenseGrouping, readListSort, sortWithinGroups, writeExpenseGrouping, writeListSort, type ExpenseGrouping, type ListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
+import { getSharedUser } from '@/lib/auth-client';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -122,7 +123,7 @@ export default function Books() {
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       void load();
     })();

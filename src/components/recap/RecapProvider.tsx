@@ -34,6 +34,7 @@ import {
   RECAP_FULL_COLS, announces, hasUnwatched, normalizeRow, playable, promptPick, readyTitle, rowLabel, sortRows,
   type RecapRow,
 } from '@/lib/recap/rows';
+import { getSharedUser } from '@/lib/auth-client';
 
 // The story's code and CSS load only when a recap opens.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
@@ -88,7 +89,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     const supabase = createClient();
     let live = true;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { if (live) setAccess('off'); return; }
       if (PAYWALL_ENABLED) {
         const { data: prof } = await supabase.from('profiles').select('access_tier').eq('id', user.id).maybeSingle();

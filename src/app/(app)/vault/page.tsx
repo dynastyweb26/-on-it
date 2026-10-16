@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
+import { getSharedUser } from '@/lib/auth-client';
 
 export default function Vault() {
   const supabase = createClient();
@@ -19,7 +20,7 @@ export default function Vault() {
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       // Embed the parent invoice's deleted_at so a soft-deleted invoice's
       // archived PDF drops out of the Vault. vault_documents has no deleted_at

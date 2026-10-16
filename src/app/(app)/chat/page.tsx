@@ -50,6 +50,7 @@ import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financial
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
+import { getSharedUser } from '@/lib/auth-client';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -780,7 +781,7 @@ export default function Chat() {
       // Auth/profile gating is a separate concern from restore and uses
       // getUser() (server-validated). A slow or failed call here no longer
       // costs the conversation, which is already back on screen.
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (cancelled) return;
       if (!user) {
         setProfileLoaded(true); // resolved: genuine guest

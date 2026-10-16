@@ -20,6 +20,7 @@ import { bucketFor } from '@/lib/tax-summary';
 import { shareInvoice } from '@/lib/pdf/generate';
 import { buildSummaryPdf, type SummaryPdfDetail, type SummaryPdfKind } from '@/lib/pdf/build-summary';
 import { RECAP_HISTORY_COLS, announces, normalizeRow, rowLabel, sortRows, type RecapRow } from '@/lib/recap/rows';
+import { getSharedUser } from '@/lib/auth-client';
 
 const MAX_ROWS = 200;   // ~4 years of weeks + months
 
@@ -39,7 +40,7 @@ export default function RecapsPage() {
     const supabase = createClient();
     let live = true;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       const [{ data }, { data: prof }] = await Promise.all([
         supabase.from('recaps').select(RECAP_HISTORY_COLS).order('period_end', { ascending: false }).limit(MAX_ROWS),
         user ? supabase.from('profiles').select('business_name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
