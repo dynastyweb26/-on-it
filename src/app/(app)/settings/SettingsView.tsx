@@ -13,6 +13,7 @@ import { PAYWALL_ENABLED } from '@/lib/paywall';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates } from '@/lib/trial';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
+import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
@@ -1058,7 +1059,8 @@ export default function SettingsView({ connectEnabled, section = 'main' }: { con
       {is('help') && (
         <SettingsGroup title="Help">
           <SettingsRow icon="help" title="How On It works" onClick={() => window.dispatchEvent(new Event('onit-open-reference'))} />
-          <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event('onit-replay-walkthrough'))} />
+          {/* Opens the same tab picker as the header "How On It works" pill. */}
+          <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_PICKER))} />
           {/* §L Q9 */}
           <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
           <SettingsRow icon="description" title="Terms" href="/terms" />
