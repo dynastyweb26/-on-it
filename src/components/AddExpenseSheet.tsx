@@ -10,6 +10,7 @@ import PaywallModal from '@/components/PaywallModal';
 import { recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
+import { getSharedUser } from '@/lib/auth-client';
 
 /** A prefilled sheet (the Books paused-recurring banner's "Add it"). Everything stays editable. */
 export type ExpensePrefill = {
@@ -82,7 +83,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { setAmountError('Sign in to log expenses.'); return; }
       const insert = () => supabase.from('expenses').insert({
         user_id: user.id,

@@ -23,6 +23,7 @@ import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
+import { getSharedUser } from '@/lib/auth-client';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -153,7 +154,7 @@ export default function InvoiceDetail() {
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       const { data: i } = await supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
       setInv(i);
@@ -332,7 +333,7 @@ export default function InvoiceDetail() {
   async function recordPayment(amount: number) {
     if (!(amount > 0)) return;
     const dueBefore = totals.dueNow;
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await getSharedUser();
     if (!user) return;
     const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
     const { error } = await supabase.from('invoice_payments').insert({

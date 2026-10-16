@@ -13,6 +13,7 @@ import InstallBanner from '@/components/InstallBanner';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
+import { getSharedUser } from '@/lib/auth-client';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -166,7 +167,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) return;
       void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
     })();

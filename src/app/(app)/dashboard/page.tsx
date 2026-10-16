@@ -17,6 +17,7 @@ import { skipKey, type Recurring } from '@/lib/recurring';
 import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
+import { getSharedUser } from '@/lib/auth-client';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -155,7 +156,7 @@ export default function Dashboard() {
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace('/login'); return; }
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSharedUser();
       if (!user) { router.replace('/login'); return; }
       try {
         await Promise.race([
