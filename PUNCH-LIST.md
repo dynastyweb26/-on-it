@@ -572,6 +572,8 @@ PDF paginator is slated for replacement by @react-pdf/renderer (Batch 6, plan in
 
 ## Scaling plan, before launch — logged 2026-10-09
 
+_Unattended run 2026-10-16, decisions: one index only (invoice list, the one query with a per-user sort over all rows); `paid_at` for recaps and the free-tier count are left alone with reasons in the migration header. EXPLAIN was not run (no DB access from this run), so the header gives the exact statement and the expected before/after plans instead of numbers._
+
 _From the scaling plan on the Notion decisions page ("Scaling plan — 500+
 concurrent users", §10). Only the "before public launch" items are listed;
 code and live DB checked 2026-10-09._
@@ -579,7 +581,7 @@ code and live DB checked 2026-10-09._
 | Item | Status | Evidence |
 |---|---|---|
 | Connection pooler on all server code | **Not needed today** | No Postgres driver in `package.json`; every query goes through supabase-js (PostgREST over HTTP), which Supabase pools. Revisit if a direct `pg` connection is ever added. |
-| Indexes + EXPLAIN on the top queries | **Open** | Live `pg_indexes` (read-only, 2026-10-09): `user_id` composites already exist on expenses (`user_id, spent_on desc`), notification_log, recaps, vault_documents, clients, products. Gap: `invoices` has only `(user_id)` and `(user_id, status)`, no `(user_id, <date>)`. Run EXPLAIN on the invoice list, Books dashboard and recap queries before adding any index. |
+| Indexes + EXPLAIN on the top queries | **Migration written, NOT applied** (`chore/invoices-index`: `20261016300000_invoices_user_created_idx.sql`, additive partial index `(user_id, created_at desc) where deleted_at is null`; EXPLAIN notes and the queries to run are in its header; needs the founder's yes before `db push`). Original finding: | Live `pg_indexes` (read-only, 2026-10-09): `user_id` composites already exist on expenses (`user_id, spent_on desc`), notification_log, recaps, vault_documents, clients, products. Gap: `invoices` has only `(user_id)` and `(user_id, status)`, no `(user_id, <date>)`. Run EXPLAIN on the invoice list, Books dashboard and recap queries before adding any index. |
 | Client-side receipt compression | **Done** | `src/lib/receipt.ts`: longest edge 1600px, JPEG quality steps 0.82 → 0.5 until ≤ 900KB (`TARGET_BYTES`), HEIC converted. The Notion plan's ~300KB is a tighter target, so treat it as optional. |
 | Private buckets + signed URLs | **Partial** | `receipts` and `vault` are private and read through signed URLs (`expenses/page.tsx:108`, `vault/page.tsx:46`). `logos` is public (`getPublicUrl`, `SettingsView.tsx:330`, `onboarding/page.tsx:90`), already tracked on Notion as "pay page: logo URL leaks owner UUID". |
 | Staging DB | **See existing** | "Separate preview database" (Pre-launch) and "Separate Supabase project for previews" (UI redesign). |

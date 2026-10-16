@@ -1,0 +1,65 @@
+-- ═══════════════════════════════════════════════════════════════
+-- invoices: (user_id, created_at desc) for the invoice list.
+-- Scaling plan, "Indexes + EXPLAIN on the top queries" (PUNCH-LIST).
+-- NOT APPLIED. Additive only (one new partial index, no column, constraint,
+-- policy or grant touched), so by the CLAUDE.md rules it may go from a feature
+-- branch. Apply only after the founder's explicit yes for that push:
+--   dry run -> this full SQL shown -> yes -> db push -> npm run db:privcheck.
+--
+-- The gap: invoices has only (user_id), (user_id, status), the partial
+-- (user_id) where deleted_at is null, the unsent-drafts and client-key
+-- partials, and the finalize key. Nothing orders by a date per user.
+--
+-- Queries this serves (RLS adds `user_id = auth.uid()` to every client query,
+-- so each is "one user's rows" and the planner can use a user_id prefix):
+--
+--   1. Invoice list, src/app/(app)/invoices/page.tsx:
+--        select id, kind, invoice_number, client_name, total, status,
+--               created_at, due_date, converted_from, amount_paid, viewed_at
+--        from invoices
+--        where user_id = $1 and deleted_at is null
+--        order by created_at desc limit 200;
+--      Now: scan this user's rows via invoices_user_active_idx (or
+--      invoices_user_idx), then a Sort node on created_at over ALL of the
+--      user's live rows before LIMIT 200 (top-N heapsort; cost grows with the
+--      user's invoice count). With the new index: Index Scan on
+--      invoices_user_created_idx, no Sort, stops after 200 rows.
+--
+--   2. Free-tier count, src/lib/access.ts (/api/access, polled by the unlock
+--      flow): count(*) where user_id = $1 and kind = 'invoice' and
+--      created_at >= reset. It counts soft-deleted rows on purpose, and this
+--      index excludes them, so it does NOT serve this query. Unchanged:
+--      invoices_user_idx range-filters it, and free users hold at most a few
+--      rows. Listed so nobody expects it to help.
+--
+--   Not helped, on purpose: Books "still owed" and the recap queries filter by
+--   status (invoices_user_status_idx already narrows them) and recap "paid in
+--   period" filters paid_at, which would need its own index; the recap job is
+--   service-role, weekly/monthly, and reads one user at a time, so it is left
+--   alone until a measurement says otherwise.
+--
+-- EXPLAIN notes. Not run: nothing here has a database to run against. Before
+-- applying, on a user with many invoices (read-only, `supabase db query
+-- --linked`), and again after:
+--   explain (analyze, buffers)
+--   select id, kind, invoice_number, client_name, total, status, created_at,
+--          due_date, converted_from, amount_paid, viewed_at
+--   from public.invoices
+--   where user_id = '<uuid>' and deleted_at is null
+--   order by created_at desc limit 200;
+-- Expect: before = Sort (top-N heapsort) over an Index/Bitmap scan; after =
+-- Limit -> Index Scan using invoices_user_created_idx, no Sort node, Buffers
+-- roughly constant as the user's invoice count grows. On a small table the
+-- planner may still pick a seq scan: that is correct there, not a failure.
+--
+-- Cost: one more index on a write-hot table (every insert/update of
+-- created_at/deleted_at/user_id maintains it). created_at is never updated
+-- after insert, so in practice only inserts and soft-deletes pay.
+-- Plain CREATE INDEX (a migration runs in a transaction, so not CONCURRENTLY):
+-- it holds a write lock on invoices for its duration, which is short at the
+-- current row count.
+-- ═══════════════════════════════════════════════════════════════
+
+create index if not exists invoices_user_created_idx
+  on public.invoices (user_id, created_at desc)
+  where deleted_at is null;
