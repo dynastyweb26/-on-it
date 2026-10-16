@@ -491,7 +491,9 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <Notes notes={d.notes} t={t} align="right" />
         </div>
       )}
-      <div style={{ position: 'absolute', bottom: 40, left: 56, right: 56, textAlign: 'center', fontSize: 12, color: t.muted }}>
+      {/* Pinned closing line: a data-pdf-block, so a multi-page document
+          prints it on the final page (like the summaries' footer), not page 1. */}
+      <div data-pdf-block="closing" style={{ position: 'absolute', bottom: 40, left: 56, right: 56, textAlign: 'center', fontSize: 12, color: t.muted }}>
         Thank you for your business.
       </div>
       <Branding t={t} />
@@ -837,7 +839,10 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         {d.notes && <Notes notes={d.notes} t={t} />}
         <Totals d={d} t={t} />
       </div>
-      <div style={{ textAlign: 'center', marginTop: 36, color: t.accent, fontWeight: 700, fontSize: 13 }}>
+      {/* The closing line ends the document: a last-page block that travels
+          with the block before it (notes, or How to pay when there are none),
+          so a multi-page document never clips it under page 1's rows. */}
+      <div data-pdf-block="closing" data-pdf-keep-with-prev="true" style={{ textAlign: 'center', marginTop: 36, color: t.accent, fontWeight: 700, fontSize: 13 }}>
         Thank you for your business.
       </div>
       <Branding t={t} />

@@ -159,8 +159,8 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
   // stays on page 1 only. A block that is itself absolutely positioned (the
   // summaries' footer) is page furniture: it goes on the final page, whatever
   // that turns out to be. The rest flow, placed in units: totals first, then
-  // document order; a block marked data-pdf-keep-with-prev (Ledger's closing
-  // line) always travels with the unit before it.
+  // document order; a block marked data-pdf-keep-with-prev (the Ledger and Friendly closing
+  // lines) always travels with the unit before it.
   const allBlocks = Array.from(el.querySelectorAll<HTMLElement>('[data-pdf-block]'));
   const kindOf = (i: number) => allBlocks[i].getAttribute('data-pdf-block');
   const isAbs = (i: number) => ['absolute', 'fixed'].includes(getComputedStyle(allBlocks[i]).position);
