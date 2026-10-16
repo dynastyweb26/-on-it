@@ -1,12 +1,11 @@
 'use client';
-// ── Block 4 — Bank transfer (US ACH / direct deposit), its own card ───────
-// Same card / header / "Configured" pill as the Zelle block above it. Every
+// Bank transfer (US ACH / direct deposit) form for /settings/payouts/bank;
+// the detail layout supplies the header and "Configured" badge. Every
 // write goes through /api/bank (server-side validation + encryption); the
 // account number is never read back, only its last four (••••4417).
 // Changing the account number means typing it twice; leaving both boxes
 // blank keeps the stored one.
 import { useState } from 'react';
-import Icon from '@/components/Icon';
 import { BankDetailsSchema, firstBankError, maskAccount } from '@/lib/bank';
 
 export interface BankState {
@@ -22,7 +21,11 @@ export interface BankState {
 // (same reasoning as the PayPal / Venmo inputs).
 const NO_PM = { autoComplete: 'off', 'data-1p-ignore': true, 'data-lpignore': 'true' } as const;
 
-export default function BankTransferCard({ initial, onSaved }: { initial: BankState; onSaved: (s: BankState) => void }) {
+export default function BankTransferCard({ initial, onSaved, onDone }: {
+  initial: BankState; onSaved: (s: BankState) => void;
+  /** After a successful Save or Remove (not the pay-page switch). */
+  onDone?: () => void;
+}) {
   const [bank, setBank] = useState<BankState>(initial);
   const configured = Boolean(bank.bank_account_last4);
   const [editing, setEditing] = useState(!configured);
@@ -74,6 +77,7 @@ export default function BankTransferCard({ initial, onSaved }: { initial: BankSt
       setAccount('');
       setAccountConfirm('');
       setEditing(false);
+      onDone?.();
     }
   }
 
@@ -82,6 +86,7 @@ export default function BankTransferCard({ initial, onSaved }: { initial: BankSt
       setHolderName(''); setBankName(''); setRouting(''); setAccount(''); setAccountConfirm('');
       setAccountType('checking');
       setEditing(true);
+      onDone?.();
     }
   }
 
@@ -89,21 +94,6 @@ export default function BankTransferCard({ initial, onSaved }: { initial: BankSt
 
   return (
     <section className="card space-y-3">
-      <div className="flex items-center gap-3">
-        <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center" style={{ color: '#735c00' }}>
-          <Icon name="account_balance" size={36} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-display text-xl font-bold text-on-background">Bank transfer</h3>
-            <span className={`shrink-0 rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${configured ? 'bg-paid-container text-paid' : 'bg-surface-container text-on-surface-variant'}`}>
-              {configured ? 'Configured' : 'Not set'}
-            </span>
-          </div>
-          <p className="font-body text-sm font-semibold" style={{ color: '#735c00' }}>Direct deposit / ACH</p>
-        </div>
-      </div>
-
       {configured && (
         <div className="flex items-center justify-between gap-3">
           <p className="font-body text-sm text-on-surface-variant">Show these details on your pay page.</p>

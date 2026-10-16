@@ -15,8 +15,17 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
   );
 }
 
-export function SettingsRow({ icon, title, value, href, onClick, tint = 'muted', 'data-coach': dataCoach }: {
-  icon: IconName; title: string; value?: string | null;
+// Right-side value colour: 'muted' (default) for counts and "Not set",
+// 'default' for a real configured value, 'error' for something that needs action.
+const VALUE_TONE = { muted: 'text-on-surface-variant', default: 'text-on-background', error: 'text-error' } as const;
+export type SettingsValueTone = keyof typeof VALUE_TONE;
+
+export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, tint = 'muted', 'data-coach': dataCoach }: {
+  icon?: IconName;
+  /** Custom tile content (e.g. a brand mark) in place of the Material icon; same tile. */
+  tile?: React.ReactNode;
+  title: string; value?: string | null;
+  valueTone?: SettingsValueTone;
   href?: string; onClick?: () => void;
   /** 'gold' = the soft-gold tile the frames give saved lists; 'muted' otherwise. */
   tint?: 'gold' | 'muted';
@@ -25,10 +34,10 @@ export function SettingsRow({ icon, title, value, href, onClick, tint = 'muted',
   const body = (
     <>
       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[9px] ${tint === 'gold' ? 'bg-primary-soft' : 'bg-surface-container-high'}`}>
-        <Icon name={icon} size={19} />
+        {tile ?? (icon && <Icon name={icon} size={19} />)}
       </span>
       <span className="shrink-0 text-base font-medium text-on-background">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-right text-[15px] text-on-surface-variant">{value}</span>
+      <span className={`min-w-0 flex-1 truncate text-right text-[15px] ${VALUE_TONE[valueTone]}`}>{value}</span>
       <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
     </>
   );
