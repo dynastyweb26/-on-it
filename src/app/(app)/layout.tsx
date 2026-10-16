@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { markTutorialSeen, shouldAutoShowTutorial } from '@/components/tutorial/persistence';
+import { TOURS } from '@/components/tutorial/coach-marks';
+import TourPicker from '@/components/tutorial/TourPicker';
+import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
@@ -152,51 +154,92 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // are ignored meanwhile so one gesture can never chain into two tabs.
   const navigating = useRef<number | null>(null); // start time, or null
   useEffect(() => { navigating.current = null; }, [path]);
-  // showCoachMarks: true while the per-tab coach marks tour is active.
-  // Gated: auto-shows once for onboarded users behind TUTORIAL_VERSION,
-  // and re-opens on every "How On It works" tap (dispatches
-  // onit-replay-walkthrough). The showReference path for the old slide
-  // reference doc is removed — coach marks replace both surfaces.
-  const [showCoachMarks, setShowCoachMarks] = useState(false);
-  // The signed-in user, so the seen-version is stored per-user.
-  const [userId, setUserId] = useState<string | null>(null);
+  // The coach-marks tour that is running (a TOURS key), or null. Tours are
+  // on-demand only — nothing here starts one by itself.
+  const [coachTab, setCoachTab] = useState<string | null>(null);
 
-  // Auto-show once when an ONBOARDED user is behind the current tutorial
-  // version. Same two-gate logic as the old first-run carousel.
   useEffect(() => {
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setUserId(user.id);
       void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
-      if (!shouldAutoShowTutorial(user.id)) return; // already seen this version
-      const { data: profile } = await supabase
-        .from('profiles').select('id').eq('id', user.id).maybeSingle();
-      if (profile) setShowCoachMarks(true); // onboarded + behind → show tour
     })();
   }, []);
 
-  // "How On It works" re-opens coach marks and dispatches the replay event
-  // so CoachMarks resets step state from the current tab.
-  function openCoachMarks() {
-    setShowCoachMarks(true);
-    window.dispatchEvent(new Event('onit-replay-walkthrough'));
-  }
+  const closeCoachMarks = useCallback(() => setCoachTab(null), []);
 
-  // Called when CoachMarks finishes or is fully skipped.
-  function closeCoachMarks() {
-    if (userId) markTutorialSeen(userId);
-    setShowCoachMarks(false);
-  }
-
-  // Settings › Help & feedback still dispatches onit-replay-walkthrough.
-  useEffect(() => {
-    const onReplay = () => openCoachMarks();
-    window.addEventListener('onit-replay-walkthrough', onReplay);
-    return () => window.removeEventListener('onit-replay-walkthrough', onReplay);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
+  const [throb, setThrob] = useState(false);
+  const throbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startThrob = useCallback(() => {
+    const ms = throbRemaining();
+    if (ms <= 0) return;
+    setThrob(true);
+    if (throbTimer.current) clearTimeout(throbTimer.current);
+    throbTimer.current = setTimeout(() => { setThrob(false); stopThrob(); }, ms);
   }, []);
+  const endThrob = useCallback(() => {
+    if (throbTimer.current) clearTimeout(throbTimer.current);
+    setThrob(false);
+    stopThrob();
+  }, []);
+  useEffect(() => {
+    consumeSignInCookie(); // signed in via the email-confirmation link
+    startThrob();
+    // A client-side sign-in while the app is open. auth-js also re-emits
+    // SIGNED_IN for an EXISTING session (tab refocus, cross-tab sync), so only
+    // a change of user after INITIAL_SESSION counts as a new sign-in.
+    const supabase = createClient();
+    let known: string | null | undefined; // undefined until INITIAL_SESSION
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user.id ?? null;
+      if (event === 'INITIAL_SESSION') { known = uid; return; }
+      if (event === 'SIGNED_OUT') { known = null; return; }
+      if (event === 'SIGNED_IN' && known !== undefined && uid && uid !== known) {
+        markSignInThrob();
+        startThrob();
+      }
+      if (uid) known = uid;
+    });
+    return () => {
+      subscription.unsubscribe();
+      if (throbTimer.current) clearTimeout(throbTimer.current);
+    };
+  }, [startThrob]);
+  const throbClass = throb ? ' onit-help-throb' : '';
+
+  // Tab picker → go to that tab, wait for its first target, run its tour.
+  // pendingTour holds the pick across the navigation; a newer pick or any
+  // other navigation simply replaces / abandons it.
+  const pendingTour = useRef<string | null>(null);
+  const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runWhenMounted = useCallback((tab: string) => {
+    if (waitTimer.current) clearTimeout(waitTimer.current);
+    const selector = TOURS[tab].steps[0].selector;
+    const started = Date.now();
+    const tick = () => {
+      if (window.location.pathname !== tab) return; // navigated elsewhere — drop it
+      const ready = Array.from(document.querySelectorAll(selector))
+        .some((el) => el.getClientRects().length > 0);
+      // Start anyway after 4s: the overlay keeps looking for the target.
+      if (ready || Date.now() - started > 4000) setCoachTab(tab);
+      else waitTimer.current = setTimeout(tick, 80);
+    };
+    tick();
+  }, []);
+  function startTour(tab: string) {
+    setCoachTab(null);
+    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); return; }
+    pendingTour.current = tab;
+    router.push(tab);
+  }
+  useEffect(() => {
+    const tab = pendingTour.current;
+    if (!tab) return;
+    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); }
+  }, [path, runWhenMounted]);
+  useEffect(() => () => { if (waitTimer.current) clearTimeout(waitTimer.current); }, []);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -249,7 +292,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={showCoachMarks}>
+      <RecapProvider suppressed={coachTab !== null}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -257,16 +300,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
-          <button
-            aria-label="How On It works"
-            className="inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95"
-            onClick={openCoachMarks}
+          <TourPicker
+            align="left"
+            onPick={startTour}
+            onButtonPress={endThrob}
+            buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
           >
             How it works
-          </button>
+          </TourPicker>
         </div>
 
-        <nav className="flex flex-col gap-2.5">
+        <nav data-coach="side-nav" className="flex flex-col gap-2.5">
           {TABS.map(({ href, label, icon }) => {
             const active = path.startsWith(href);
             return (
@@ -328,13 +372,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </button>
                 </>
               )}
-              <button
-                aria-label="How On It works"
-                className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95 md:hidden"
-                onClick={openCoachMarks}
-              >
-                How On It works
-              </button>
+              <div className="md:hidden">
+                <TourPicker
+                  onPick={startTour}
+                  onButtonPress={endThrob}
+                  buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
+                >
+                  How On It works
+                </TourPicker>
+              </div>
             </div>
           </header>
         ) : (
@@ -344,17 +390,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 On It<span className="text-primary">.</span>
               </span>
             </div>
-            <button
-              aria-label="How On It works"
-              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
-              onClick={openCoachMarks}
+            <TourPicker
+              onPick={startTour}
+              onButtonPress={endThrob}
+              buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
             >
               How On It works
-            </button>
+            </TourPicker>
           </header>
         )}
 
-        {showCoachMarks && <CoachMarks currentPath={path} onDone={closeCoachMarks} />}
+        {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
 
         <main
           className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}

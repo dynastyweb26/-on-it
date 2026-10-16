@@ -509,6 +509,16 @@ html[data-splash=""] .onit-splash {
   100% { opacity: 0; transform: translateY(-16px); }
 }
 .onit-plus-one { animation: onit-plus-one 900ms var(--ease-standard) both; }
+/* Sign-in throb on the "How On It works" pill (components/tutorial/throb.ts):
+   a gold glow for 10s after sign-in. Reduced motion: a static glow instead. */
+.onit-help-throb { animation: onit-help-throb 1.4s ease-in-out infinite; }
+@keyframes onit-help-throb {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,162,39,.6), 0 0 0 0 rgba(201,162,39,0); }
+  50%      { box-shadow: 0 0 0 4px #c9a227, 0 0 22px 6px rgba(201,162,39,.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onit-help-throb { animation: none !important; box-shadow: 0 0 0 3px #c9a227, 0 0 16px 3px rgba(201,162,39,.5); }
+}
 /* Coach marks overlay animations */
 @keyframes coach-pulse {
   0%   { box-shadow: 0 0 0 3px #c9a227, 0 0 0 6px rgba(201,162,39,.35); }

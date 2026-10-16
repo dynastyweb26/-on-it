@@ -15,6 +15,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { type EmailOtpType } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
+import { SIGNED_IN_COOKIE } from '@/components/tutorial/throb';
 
 // next must be a relative path on our own origin — no open redirect. Rejects
 // protocol-relative ('//host'), schemes, and backslashes; new URL(next, origin)
@@ -100,5 +101,12 @@ export async function GET(request: NextRequest) {
       .from('profiles').select('id').eq('id', userId).maybeSingle();
     hasProfile = Boolean(profile);
   }
-  return redirectTo(hasProfile ? '/chat' : '/onboarding', true);
+  const res = redirectTo(hasProfile ? '/chat' : '/onboarding', true);
+  // Signed in from the email link: tell the app to pulse the "How On It
+  // works" pill once (components/tutorial/throb.ts). UI-only marker, readable
+  // by the page on purpose; it carries nothing but "1" and expires in 2 min.
+  res.cookies.set(SIGNED_IN_COOKIE, '1', {
+    path: '/', maxAge: 120, sameSite: 'lax', httpOnly: false, secure: origin.startsWith('https:'),
+  });
+  return res;
 }

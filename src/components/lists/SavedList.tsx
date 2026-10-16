@@ -185,8 +185,10 @@ export function RowMenu({ rect, lifted, label, items, onClose }: {
 }
 
 /** The saved lists' empty state (frames 3d / 3g). */
-export function SavedEmpty({ icon, title, body, action, onAction, round = true }: {
+export function SavedEmpty({ icon, title, body, action, onAction, round = true, coach }: {
   icon: IconName; title: string; body: string; action: string; onAction: () => void; round?: boolean;
+  /** data-coach id for the action button (coach-mark tour target). */
+  coach?: string;
 }) {
   return (
     <div className="onit-rise mt-20 px-4 text-center">
@@ -195,7 +197,7 @@ export function SavedEmpty({ icon, title, body, action, onAction, round = true }
       </span>
       <h1 className="mt-5 font-display text-xl font-bold text-on-background">{title}</h1>
       <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">{body}</p>
-      <button type="button" className="btn-primary mx-auto mt-6 px-7" onClick={onAction}>
+      <button type="button" data-coach={coach} className="btn-primary mx-auto mt-6 px-7" onClick={onAction}>
         <Icon name="add" size={22} /> {action}
       </button>
     </div>

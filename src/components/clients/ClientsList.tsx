@@ -83,7 +83,7 @@ export default function ClientsList() {
     return (
       <SavedEmpty icon="group" title="No clients yet"
         body="Save a client once and you can pick them in a tap. On It will also offer to save anyone you bill twice."
-        action="Add client" onAction={() => router.push('/clients/new')} />
+        action="Add client" onAction={() => router.push('/clients/new')} coach="clients-empty-add" />
     );
   }
 

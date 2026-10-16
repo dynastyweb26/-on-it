@@ -12,34 +12,63 @@ export interface CoachStep {
   pad?: number;
   /** Border-radius of the spotlight cutout (px or 9999 for a pill/circle). */
   r?: number;
+  /** Max spotlight height (px). Caps tall targets like scroll containers;
+   *  the cutout stays anchored to the target's top edge. */
+  maxH?: number;
   title: string;
   body: string;
+  /** Replacement target + copy when the tab's list is empty (see
+   *  CoachTour.empty). Unset fields keep the step's own values. */
+  whenEmpty?: Partial<Pick<CoachStep, 'selector' | 'pad' | 'r' | 'title' | 'body'>>;
+  /** Drop this step when the list is empty (its target isn't rendered). */
+  skipWhenEmpty?: boolean;
 }
 
 export interface CoachTour {
   /** Human-readable name shown in "Tab · Step N of M" label. */
   name: string;
   steps: CoachStep[];
+  /** For tabs whose steps depend on a list: `when` is visible only when the
+   *  list is empty, `ready` only when it has rows. CoachMarks waits for one
+   *  of them (data loads after the tab mounts) before picking the steps. */
+  empty?: { when: string; ready: string };
+}
+
+/** The steps to run, given whether the tab's list is empty. */
+export function stepsFor(tour: CoachTour, isEmpty: boolean): CoachStep[] {
+  if (!isEmpty) return tour.steps;
+  return tour.steps
+    .filter((s) => !s.skipWhenEmpty)
+    .map((s) => (s.whenEmpty ? { ...s, ...s.whenEmpty } : s));
 }
 
 export const TOURS: Record<string, CoachTour> = {
   '/clients': {
     name: 'Clients',
+    empty: { when: '[data-coach="clients-empty-add"]', ready: '[data-coach="clients-add"]' },
     steps: [
       {
         selector: '[data-coach="clients-list"]',
         pad: 4, r: 16,
         title: 'Your client list',
         body: 'Every customer lives here. Tap a row to see their open invoices and what they owe you.',
+        whenEmpty: {
+          selector: '[data-coach="clients-empty-add"]',
+          pad: 6, r: 999,
+          title: 'Add your first client',
+          body: 'No clients yet. Tap Add client to save a name, phone and address. You\'ll pick them when you send an invoice.',
+        },
       },
       {
         selector: '[data-coach="clients-add"]',
         pad: 6, r: 999,
         title: 'Add a client in seconds',
         body: 'Tap + to save a name, phone and address. You\'ll pick them when you send an invoice.',
+        skipWhenEmpty: true, // the + only shows once there are clients; step 1 covers it
       },
       {
-        selector: '[data-coach="tab-bar"]',
+        // Bottom tab bar on phones; the sidebar nav from md (768px) up.
+        selector: '[data-coach="tab-bar"], [data-coach="side-nav"]',
         pad: 2, r: 18,
         title: 'Get around fast',
         body: 'Five tabs, one thumb. Invoices, Chat, Books and Settings are always a tap away.',
@@ -48,6 +77,7 @@ export const TOURS: Record<string, CoachTour> = {
   },
   '/invoices': {
     name: 'Invoices',
+    empty: { when: '[data-coach="invoices-empty"]', ready: '[data-coach="invoices-list"] a[href^="/invoices/"]' },
     steps: [
       {
         selector: '[data-coach="invoices-filter"]',
@@ -60,6 +90,12 @@ export const TOURS: Record<string, CoachTour> = {
         pad: 4, r: 22,
         title: 'Drafts wait for you',
         body: 'Anything marked DRAFT hasn\'t been sent yet. Open it, finish it, get it out the door.',
+        whenEmpty: {
+          selector: '[data-coach="invoices-empty"]',
+          pad: 10, r: 16,
+          title: 'Your invoices land here',
+          body: 'Nothing here yet. Tell Chat about a job and its invoice shows up here as a DRAFT, ready to finish and send.',
+        },
       },
     ],
   },
@@ -68,7 +104,7 @@ export const TOURS: Record<string, CoachTour> = {
     steps: [
       {
         selector: '[data-coach="chat-messages"]',
-        pad: 6, r: 20,
+        pad: 6, r: 20, maxH: 260,
         title: 'Meet your assistant',
         body: 'Tell On It what you did in plain words. It writes the invoice for you.',
       },
