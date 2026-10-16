@@ -46,7 +46,7 @@ export default function CoachMarkOverlay({
   onNext, onBack, onSkip, isFinalStep = false,
 }: Props) {
   const [spot, setSpot] = useState<Rect>(OFFSCREEN);
-  const frameRef = useRef<number>(0);
+  const frameRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Measure the target element each time the step changes.
   useLayoutEffect(() => {
@@ -56,7 +56,7 @@ export default function CoachMarkOverlay({
       const el = document.querySelector(step.selector);
       if (!el) {
         // Try again shortly — the route might still be mounting.
-        if (!cancelled) frameRef.current = window.setTimeout(measure, 80);
+        if (!cancelled) frameRef.current = setTimeout(measure, 80);
         return;
       }
       const r = el.getBoundingClientRect();
@@ -72,15 +72,15 @@ export default function CoachMarkOverlay({
 
     // First measure immediately, then re-measure after layout settles.
     measure();
-    const t1 = window.setTimeout(measure, 150);
-    const t2 = window.setTimeout(measure, 600);
+    const t1 = setTimeout(measure, 150);
+    const t2 = setTimeout(measure, 600);
 
     const onResize = () => measure();
     window.addEventListener('resize', onResize);
 
     return () => {
       cancelled = true;
-      clearTimeout(frameRef.current);
+      if (frameRef.current !== null) clearTimeout(frameRef.current);
       clearTimeout(t1);
       clearTimeout(t2);
       window.removeEventListener('resize', onResize);
@@ -103,7 +103,7 @@ export default function CoachMarkOverlay({
   return (
     <div
       className="pointer-events-none fixed inset-0 z-[9999]"
-      aria-modal
+      aria-modal={true}
       role="dialog"
       aria-label={`${tourName} — Step ${stepIndex + 1} of ${totalSteps}`}
     >
