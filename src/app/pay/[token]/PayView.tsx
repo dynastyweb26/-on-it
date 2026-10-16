@@ -63,6 +63,7 @@ export interface PayModel {
   showTotalSubline: boolean; // true when primaryAmount differs from total
   amountPaid: number;
   fullyPaid: boolean;
+  voided: boolean; // status void: no payment methods, nothing payable
   hasHandles: boolean;
   handles: PayHandles;
   cardAvailable: boolean; // display-only; the checkout route re-checks everything
@@ -394,8 +395,16 @@ export default function PayView({ model }: { model: PayModel }) {
 
       {/* Payment methods — how to pay. Placed ABOVE the (uncapped) line items so
           the client sees how to pay without scrolling past a long itemisation.
-          Hidden once fully paid. Card first when the seller takes cards. */}
-      {!model.fullyPaid ? (
+          Hidden once fully paid or voided. Card first when the seller takes cards. */}
+      {model.voided ? (
+        <section className="mt-6 rounded-card bg-surface-container-lowest p-6 text-center shadow-card">
+          <Icon name="block" size={32} className="text-on-surface-variant" />
+          <p className="mt-2 text-body-md text-on-background">This invoice was cancelled. Nothing is due.</p>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            Questions? Contact {model.businessName} directly.
+          </p>
+        </section>
+      ) : !model.fullyPaid ? (
         <section className="mt-6">
           <h2 className="mb-3 text-label-lg uppercase tracking-wide text-on-surface-variant">How to pay</h2>
 

@@ -137,7 +137,11 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
 
   let primaryLabel: string;
   let primaryAmount: number;
-  if (fullyPaid) {
+  const voided = row.status === 'void';
+  if (voided) {
+    primaryLabel = 'Cancelled';
+    primaryAmount = total;
+  } else if (fullyPaid) {
     primaryLabel = 'Paid in full';
     primaryAmount = total;
   } else if (depositAmount > 0 && paid < depositAmount) {
@@ -164,10 +168,10 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
     };
   });
 
-  // A fully-paid invoice exposes NO payment methods — strip the handles from the
-  // model entirely (not just hide them in the view), so a paid invoice's page
-  // payload carries no Zelle/PayPal/Cash App/Venmo at all.
-  const handles = fullyPaid
+  // A fully-paid or voided invoice exposes NO payment methods — strip the
+  // handles from the model entirely (not just hide them in the view), so its
+  // page payload carries no Zelle/PayPal/Cash App/Venmo at all.
+  const handles = fullyPaid || voided
     ? { paypalMe: null, cashappTag: null, venmoUsername: null, zelle: null }
     : {
         paypalMe: clean(row.paypal_me),
@@ -195,6 +199,7 @@ function buildModel(row: PublicInvoiceRow, token: string, paidReturn: boolean): 
     showTotalSubline: roundCurrency(primaryAmount) !== roundCurrency(total),
     amountPaid: paid,
     fullyPaid,
+    voided,
     hasHandles: Object.values(handles).some(Boolean),
     handles,
     // "Pay with card" is offered only when Connect is on in this deployment,
