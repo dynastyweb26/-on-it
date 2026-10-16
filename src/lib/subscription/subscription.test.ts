@@ -50,6 +50,16 @@ test('pause: from the period end → free tier, even after the renewal moved the
   assert.equal(tierForSubscription(rolled, new Date('2027-01-10T00:00:00Z')), 'canceled');
 });
 
+test('pause: test clock — renewal event in real time still flips the tier (clock C)', () => {
+  // Clock C's Nov 17 renewal event, processed on Oct 16 real time: the new
+  // period started Nov 17 (clock time), which is the pause anchor.
+  const renewed = { ...PAUSED, items: { data: [{ current_period_start: T('2026-11-16T12:00:00Z'), current_period_end: T('2026-12-16T12:00:00Z') }] } };
+  assert.equal(tierForSubscription(renewed, NOW), 'canceled');
+  // Before the renewal (period still Oct 16 → Nov 16) it stays paid.
+  const before = { ...PAUSED, items: { data: [{ current_period_start: T('2026-10-16T12:00:00Z'), current_period_end: T('2026-11-16T12:00:00Z') }] } };
+  assert.equal(tierForSubscription(before, NOW), 'active');
+});
+
 test('pause: cleared → full access again; bad anchor → treated as no anchor', () => {
   assert.equal(tierForSubscription({ ...PAUSED, pause_collection: null }, new Date('2026-12-01T00:00:00Z')), 'active');
   assert.equal(pauseStartsAt({ status: 'active', metadata: { [PAUSE_FROM_KEY]: '' } }), null);

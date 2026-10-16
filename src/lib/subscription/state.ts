@@ -14,7 +14,7 @@ export type SubscriptionLike = {
   pause_collection?: { resumes_at?: number | null } | null;
   trial_end?: number | null;
   current_period_end?: number | null;
-  items?: { data?: Array<{ current_period_end?: number | null }> } | null;
+  items?: { data?: Array<{ current_period_end?: number | null; current_period_start?: number | null }> } | null;
   metadata?: Record<string, string> | null;
 };
 
@@ -54,7 +54,13 @@ export function tierFromStatus(status: string): SubscriptionTier {
 export function tierForSubscription(sub: SubscriptionLike, now: Date = new Date()): SubscriptionTier {
   if (sub.pause_collection) {
     const from = pauseStartsAt(sub);
-    if (from !== null && now.getTime() < from * 1000) return tierFromStatus(sub.status);
+    // "Now" is never earlier than the current period's start. In production
+    // the period start is always in the past, so this is just `now`; under a
+    // Stripe test clock the subscription lives in the clock's time and the
+    // renewal event arrives in real time, so the period start is the clock.
+    const start = sub.items?.data?.[0]?.current_period_start;
+    const t = Math.max(now.getTime(), start ? start * 1000 : 0);
+    if (from !== null && t < from * 1000) return tierFromStatus(sub.status);
     return 'canceled';
   }
   return tierFromStatus(sub.status);
