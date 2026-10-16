@@ -27,6 +27,7 @@ import RecapMark from '@/components/recap/RecapMark';
 import type { RecapAction } from '@/components/recap/clock';
 import { createClient } from '@/lib/supabase/client';
 import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
+import { subscribeAccess } from '@/lib/upgrade-return';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 import { primeRecapAudio } from '@/lib/recap/audio';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
@@ -83,11 +84,13 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const prompted = useRef(false);   // one sheet decision per app open
 
   // ── Load ──
+  // Runs on mount, and again when the unlock poll sees the tier turn paid
+  // (lib/upgrade-return.ts), so a just-paid user leaves 'locked' with no refresh.
   useEffect(() => {
     if (!RECAPS_LIVE) return;
     const supabase = createClient();
     let live = true;
-    (async () => {
+    const load = () => (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { if (live) setAccess('off'); return; }
       if (PAYWALL_ENABLED) {
@@ -100,7 +103,9 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
       setRows(sortRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRow)));
       setAccess('open');
     })().catch(() => { if (live) setAccess('off'); });   // best-effort: no recaps this time
-    return () => { live = false; };
+    void load();
+    const off = subscribeAccess(() => { void load(); });
+    return () => { live = false; off(); };
   }, []);
 
   // ── (a) The Watch / Later sheet: once per app open, never over the walkthrough ──

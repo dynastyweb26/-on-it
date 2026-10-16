@@ -8,6 +8,8 @@
 // again. For a few minutes after an upgrade return, a gate that says "no"
 // re-checks /api/access for a short while before giving that answer.
 
+import { pollUntilPaid, type AccessRead } from '@/lib/access-poll';
+
 const KEY = 'onit_upgraded_at';
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -20,6 +22,48 @@ export function noteUpgradeReturn(): void {
   try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* storage blocked */ }
   url.searchParams.delete('upgraded');
   window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  startUnlockPolling();
+}
+
+// ── Unlock polling ──────────────────────────────────────────────────────────
+// One poll for the whole app, started by an upgrade return (above) or a code
+// redeem (CodeEntry). It re-reads /api/access on a short backoff until the tier
+// is paid (lib/access-poll.ts), then publishes the result: every screen that
+// holds access in state subscribes, so nothing needs a manual refresh.
+
+const EVENT = 'onit:access';
+let polling: Promise<void> | null = null;
+
+/** Tell every subscriber the access just changed. */
+export function publishAccess(access: AccessRead): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<AccessRead>(EVENT, { detail: access }));
+}
+
+/** Run `fn` whenever the unlock poll sees the tier turn paid. Returns the unsubscribe. */
+export function subscribeAccess(fn: (access: AccessRead) => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  const h = (e: Event) => fn((e as CustomEvent<AccessRead>).detail);
+  window.addEventListener(EVENT, h);
+  return () => window.removeEventListener(EVENT, h);
+}
+
+/** Poll /api/access until paid (about 20 s at most), then publish. Safe to call
+ *  twice: a poll already running is reused, not doubled. */
+export function startUnlockPolling(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (polling) return polling;
+  polling = pollUntilPaid(
+    async () => {
+      const r = await fetch('/api/access', { cache: 'no-store' });
+      return r.ok ? ((await r.json()) as AccessRead) : null;
+    },
+    (ms) => new Promise((res) => setTimeout(res, ms)),
+  )
+    .then((r) => { if (r.status === 'paid') publishAccess(r.access); })
+    .catch(() => undefined)
+    .finally(() => { polling = null; });
+  return polling;
 }
 
 export function recentlyUpgraded(): boolean {

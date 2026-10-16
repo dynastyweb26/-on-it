@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
+import { subscribeAccess } from '@/lib/upgrade-return';
 import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
 import type { SlideId } from '@/components/paywall/PaywallSlides';
 import { trialDates } from '@/lib/trial';
@@ -110,6 +111,10 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
       .catch(() => { if (active) setTrialEligible(false); });
     return () => { active = false; };
   }, []);
+
+  // The tier turned paid while the wall is up (a redeemed code, a checkout
+  // that finished in another tab): the wall has nothing left to say.
+  useEffect(() => subscribeAccess(() => onClose()), [onClose]);
 
   // Trial dates in the viewer's timezone: today + TRIAL_DAYS, and the reminder
   // on the day the trial-reminder cron's window opens (end − 3 days).

@@ -19,6 +19,7 @@ import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
+import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -143,6 +144,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
     // Plan sub-screen (it re-reads access on load).
     if (section === 'main' && !connectParam && new URLSearchParams(window.location.search).get('upgraded') === '1') {
       settled = true; clearTimeout(stuckTimer);
+      noteUpgradeReturn(); // starts the unlock poll; it outlives this redirect
       router.replace('/settings/plan');
       return () => { active = false; };
     }
@@ -393,6 +395,20 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
     }
     setResumeBusy(false);
   }
+
+  // The unlock poll (checkout return or a redeemed code) saw the tier turn
+  // paid: take the new access and re-read the profile (the Plan row and screen
+  // read the tier from it), so Settings flips with no manual refresh.
+  const profileId: string | undefined = p?.id;
+  useEffect(() => {
+    return subscribeAccess((a) => {
+      setAccess((prev) => ({ ...(prev ?? { invoiceCount: 0 }), ...a }) as NonNullable<typeof access>);
+      if (!profileId) return;
+      void supabase.from('profiles').select('*').eq('id', profileId).maybeSingle()
+        .then(({ data }) => { if (data) setP(data); }, () => undefined);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId]);
 
   // Plan states (spec §1), from the profile the webhook and routes keep in
   // sync. A paused subscription is still live in billing (status 'active')

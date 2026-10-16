@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PdfChoiceSheet from '@/components/PdfChoiceSheet';
 import PaywallModal from '@/components/PaywallModal';
-import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
@@ -77,7 +77,13 @@ export default function TaxSummary() {
         if (active && a && typeof a.canExport === 'boolean') setCanExport(a.canExport);
       } catch { /* unknown → fail open */ }
     })();
-    return () => { active = false; };
+    // The unlock poll saw the tier turn paid (checkout or a redeemed code):
+    // open the exports and drop the reports wall without a reload.
+    const off = subscribeAccess((a) => {
+      if (typeof a.canExport === 'boolean') setCanExport(a.canExport);
+      if (a.canExport === true) setReportsWall(false);
+    });
+    return () => { active = false; off(); };
   }, []);
   /** An export tap: the Totals / Itemized sheet, or the reports wall. */
   function openExport(kind: SummaryPdfKind) {
