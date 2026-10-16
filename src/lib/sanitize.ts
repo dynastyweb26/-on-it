@@ -30,5 +30,9 @@ export function sanitizeForAI(raw: string): string {
 
 export function sanitizeField(raw: unknown, maxLen = 300): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[<>]/g, '').slice(0, maxLen).trim();
+  return raw
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, ' ')
+    .replace(/[<>]/g, '')
+    .slice(0, maxLen)
+    .trim();
 }
