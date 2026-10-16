@@ -26,6 +26,8 @@ const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
 // whole section (grants bypass billing entirely).
 const SUBSCRIBED = new Set(['trialing', 'active', 'past_due']);
+// Stored access_tier values hasAccess() reports as themselves; anything else is 'free'.
+const PLAN_TIERS = new Set(['founder', 'trialing', 'active', 'past_due', 'canceled']);
 
 // Renewal / first-charge date. Returns null when the field is absent so the
 // caller can drop the date clause entirely (null-guard).
@@ -377,10 +379,16 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   // but its tier is the free one, so it's detected from paused_until. A
   // founder whose old subscription is winding down (redeem sets
   // cancel_at_period_end) never gets here: the founder card renders instead.
-  const planBillable = SUBSCRIBED.has(p?.subscription_status ?? '') && access?.tier !== 'founder';
+  //
+  // Everything here reads the profile (loaded before first render), never
+  // /api/access, so the Plan row and screen render at once instead of
+  // popping in seconds later. planTier mirrors hasAccess()'s mapping of the
+  // stored access_tier (lib/access.ts): anything unknown is 'free'.
+  const planTier: string = PLAN_TIERS.has(p?.access_tier ?? '') ? p.access_tier : 'free';
+  const planBillable = SUBSCRIBED.has(p?.subscription_status ?? '') && planTier !== 'founder';
   const planPaused = planBillable && Boolean(p?.paused_until);
   const planCanceling = planBillable && Boolean(p?.cancel_at_period_end);
-  const planLive = Boolean(access && (SUBSCRIBED.has(access.tier) || planPaused));
+  const planLive = SUBSCRIBED.has(planTier) || planPaused;
   const planEnds: string | null = (p?.subscription_status === 'trialing' ? p?.trial_ends_at : p?.current_period_end) ?? null;
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
@@ -536,15 +544,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </SettingsGroup>
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a
-              real subscription, or the paywall on) — the same rule as before. */}
-          {access && (access.tier === 'founder' || PAYWALL_ENABLED || planLive) && (
+              real subscription, or the paywall on) — the same rule as before.
+              Decided from the profile, so the row is there on first render and
+              nothing below it shifts. */}
+          {(planTier === 'founder' || PAYWALL_ENABLED || planLive) && (
             <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
-              value={access.tier === 'founder' ? 'Founder'
+              value={planTier === 'founder' ? 'Founder'
                 : planPaused ? 'Paused'
                 : planCanceling ? 'Ending'
-                : access.tier === 'trialing' ? 'Free trial'
-                : access.tier === 'past_due' ? 'Payment due'
-                : access.tier === 'active' ? 'Subscribed' : 'Free'} />
+                : planTier === 'trialing' ? 'Free trial'
+                : planTier === 'past_due' ? 'Payment due'
+                : planTier === 'active' ? 'Subscribed' : 'Free'} />
           )}
           <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
