@@ -19,6 +19,7 @@ import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
 import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
+import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
@@ -60,6 +61,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
+  feedbackLink?: true;
+  /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
+  skipHistory?: true;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
   // and never sent to /api/parse as conversation history.
   quiet?: boolean;
@@ -1013,15 +1018,23 @@ export default function Chat() {
     // transcript) and we build the parse history WITHOUT the failed bubble; the
     // bubble stays put until the outcome replaces it (success) or leaves it
     // (failure). A normal send echoes the user message and clears the input.
+    // Feedback talk ("I have a suggestion") gets a button to the feedback page and
+    // never reaches the AI (lib/feedback-intent.ts); it stays out of job history.
+    const feedbackAsk = !retryId && isFeedbackIntent(trimmed);
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, uMsg(trimmed, source)];
+      : [...messages, feedbackAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
       nearBottomRef.current = true;
       setMessages(next);
       setInput('');
+    }
+
+    if (feedbackAsk) {
+      setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
     }
 
     // Locked conversation (Commit B/C, live flow): the linked invoice has left
@@ -1058,7 +1071,7 @@ export default function Chat() {
         headers: { 'content-type': 'application/json' },
         // Role + text only: a receipt bubble's photo stays on the device;
         // quiet usage lines are never sent as history.
-        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet).map(({ role, content }) => ({ role, content })), draft }),
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet && !m.skipHistory).map(({ role, content }) => ({ role, content })), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -3028,7 +3041,7 @@ export default function Chat() {
     // failed bubbles (their retry button), old "start new chat" buttons, and
     // quiet usage lines. Copies only — the original's History entry is keyed
     // by the old convoId and is never rewritten.
-    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet);
+    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet && !m.skipHistory);
     setMessages([...(carried.length ? carried : [greeting()]), startMsg]);
     setDraft(seed);
     setReady(true);
@@ -3345,6 +3358,22 @@ export default function Chat() {
                 >
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
                   Retry
+                </button>
+              </div>
+            </div>
+          ) : m.feedbackLink ? (
+            // Feedback answer: the bubble plus a real button to the feedback page
+            // (same landing as the Chat prompt card).
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <button
+                  className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 py-2 text-label-lg font-semibold text-primary transition active:scale-95"
+                  onClick={() => router.push('/settings/help/feedback?src=chat_prompt&from=/chat')}
+                >
+                  <Icon name="chat_bubble" size={18} /> Tell us about On It
                 </button>
               </div>
             </div>
