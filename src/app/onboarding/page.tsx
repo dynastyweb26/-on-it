@@ -11,7 +11,21 @@ import { createClient } from '@/lib/supabase/client';
 import { PALETTE, buildTheme, isDark, onColor } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 
-const TRADES = ['Handyman', 'Trucking', 'Landscaping', 'Electrical', 'Plumbing', 'Painting', 'HVAC', 'Cleaning', 'Roofing', 'Other'];
+// Broad industries, not individual trades: freelancers and mixed-service shops
+// should see themselves here. Stored as the label in profiles.trade_type (free
+// text, <= 60 chars); nothing else reads it, and existing values stay valid.
+const TRADES = [
+  'Home services',
+  'Construction & remodeling',
+  'Trucking & hauling',
+  'Landscaping & outdoor',
+  'Cleaning',
+  'Auto & mechanical',
+  'Creative & design',
+  'Freelance & consulting',
+  'Events & media',
+  'Other',
+];
 const TEMPLATE_META: { key: TemplateKey; name: string; blurb: string }[] = [
   { key: 'classic', name: 'Classic', blurb: 'Clean and professional. The safe pick.' },
   { key: 'sidebar', name: 'Ledger', blurb: 'Old-school invoice book. Ruled lines, stamped, built on trust.' },
