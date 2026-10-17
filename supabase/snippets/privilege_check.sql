@@ -1038,6 +1038,57 @@ results(id, ok, expected, actual) as (
   where conrelid = coalesce(to_regclass('public.cancel_events'), 0::oid) and contype = 'c'
     and conname in ('cancel_events_kind_chk', 'cancel_events_reason_chk', 'cancel_events_detail_len',
                     'cancel_events_months_chk', 'cancel_events_platform_chk')
+  union all
+  -- AA. Feedback (20261017000000). SKIP until pushed. feedback is written only by the
+  --     service role (/api/feedback); clients read their own rows.
+  select 'AA1 feedback RLS',
+    case when not exists (select 1 from applied where version = '20261017000000') then null
+      else coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.feedback')), false) end,
+    'row level security on',
+    case when not exists (select 1 from applied where version = '20261017000000') then 'not applied yet'
+      else coalesce((select relrowsecurity::text from pg_class where oid = to_regclass('public.feedback')), 'missing') end
+  union all
+  select 'AA2 feedback ' || ro.r,
+    case when not exists (select 1 from applied where version = '20261017000000') then null
+      else to_regclass('public.feedback') is not null
+        and has_table_privilege(ro.r, 'public.feedback', 'SELECT') = (ro.r = 'authenticated')
+        and not has_table_privilege(ro.r, 'public.feedback', 'INSERT')
+        and not has_table_privilege(ro.r, 'public.feedback', 'UPDATE')
+        and not has_table_privilege(ro.r, 'public.feedback', 'DELETE')
+        and not has_table_privilege(ro.r, 'public.feedback', 'TRUNCATE')
+        and not exists (select 1 from information_schema.column_privileges
+          where table_schema = 'public' and table_name = 'feedback'
+            and grantee = ro.r and privilege_type in ('INSERT', 'UPDATE')) end,
+    case when ro.r = 'authenticated' then 'SELECT only' else 'nothing' end,
+    case when not exists (select 1 from applied where version = '20261017000000') then 'not applied yet'
+      when to_regclass('public.feedback') is null then 'missing'
+      else concat_ws(' ',
+        case when has_table_privilege(ro.r, 'public.feedback', 'SELECT') then 'SELECT' end,
+        case when has_table_privilege(ro.r, 'public.feedback', 'INSERT') then 'INSERT' end,
+        case when has_table_privilege(ro.r, 'public.feedback', 'UPDATE') then 'UPDATE' end,
+        case when has_table_privilege(ro.r, 'public.feedback', 'DELETE') then 'DELETE' end,
+        case when has_table_privilege(ro.r, 'public.feedback', 'TRUNCATE') then 'TRUNCATE' end) end
+  from (values ('anon'), ('authenticated')) ro(r)
+  union all
+  select 'AA3 feedback policies',
+    case when not exists (select 1 from applied where version = '20261017000000') then null
+      else count(*) = 1 and bool_and(pol.cmd = 'SELECT' and pol.qual ilike '%auth.uid() = user_id%') end,
+    'one policy: SELECT own rows',
+    case when not exists (select 1 from applied where version = '20261017000000') then 'not applied yet'
+      else coalesce(string_agg(pol.policyname || ':' || pol.cmd, ', '), 'none') end
+  from pg_policies pol
+  where pol.schemaname = 'public' and pol.tablename = 'feedback'
+  union all
+  select 'AA4 feedback checks',
+    case when not exists (select 1 from applied where version = '20261017000000') then null
+      else count(*) = 7 end,
+    'tag, message length, rating, source, screen, version, status checks',
+    case when not exists (select 1 from applied where version = '20261017000000') then 'not applied yet'
+      else coalesce(string_agg(conname, ', '), 'none') end
+  from pg_constraint
+  where conrelid = coalesce(to_regclass('public.feedback'), 0::oid) and contype = 'c'
+    and conname in ('feedback_tag_chk', 'feedback_message_len', 'feedback_rating_chk', 'feedback_source_chk',
+                    'feedback_screen_len', 'feedback_version_len', 'feedback_status_chk')
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
