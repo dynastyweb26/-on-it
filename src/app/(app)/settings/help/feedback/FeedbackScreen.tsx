@@ -90,7 +90,7 @@ export default function FeedbackScreen() {
           <span className="block text-[13px] text-on-surface-variant">Tell us</span>
           <textarea value={message} onChange={(e) => setMessage(e.target.value.slice(0, FEEDBACK_MAX))}
             rows={6} maxLength={FEEDBACK_MAX} aria-label="Your feedback"
-            className="mt-1 w-full resize-none bg-transparent text-[15px] text-on-background outline-none" />
+            className="mt-1 w-full resize-none bg-transparent text-body-md text-on-background outline-none" />
         </label>
         <p className="px-1 text-right text-[13px] text-on-surface-variant">{message.length}/{FEEDBACK_MAX}</p>
       </section>
