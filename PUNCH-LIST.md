@@ -742,3 +742,12 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | Apple compliance (PWA today) | **No change needed** | Safari PWAs are not App Review. Prompts are in context, user-initiated, with a decline path, and no feature is gated on a grant. |
 | Apple compliance (native, before App Store) | **Open — native launch** | Needs purpose strings: `NSMicrophoneUsageDescription` (voice invoices), `NSCameraUsageDescription` (receipt capture), `NSPhotoLibraryUsageDescription` (receipt from gallery); APNs prompt kept in context after first send; privacy nutrition labels must match `privacy-policy.md` (no tracking, so no ATT prompt); account deletion already exists (5.1.1(v)). Include in the attorney / App Store review pass. |
 
+## Feedback — "Tell us about On It" — logged 2026-10-17 (`feat/feedback`, spec `FEEDBACK-SPEC.md`)
+| Item | Status | Evidence |
+|---|---|---|
+| Migration `20261017000000_feedback.sql` + privilege-check AA1-AA4 | **Written — NOT applied** | Additive. Needs dry run, full SQL shown, the founder's explicit yes, `db push`, `npm run db:privcheck`. Until then `/api/feedback` errors on insert. |
+| `POST /api/feedback` + `lib/feedback.ts` | **Built — needs the table to test** | Session user, service-role insert, 5/hour/user, owner email with Reply-To = user. 14 tests (322 total pass). |
+| Settings screen + Help row | **Built — awaiting preview** | `/settings/help/feedback` (`FeedbackScreen.tsx`), row at the top of Help, `/settings/help` is now its own route (like plan / payouts), Back goes to Help. Chat prompt landing: `?src=chat_prompt&from=/chat`. |
+| Chat prompt card | **Open (commit 4)** | Rules in `lib/feedback.ts`; "already submitted" read from the table. |
+| Privacy Policy paragraph | **Open (commit 5)** | Feedback stored with the account, read and emailed to the founder, deleted with the account. |
+
