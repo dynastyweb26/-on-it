@@ -59,6 +59,7 @@ export function useEmailAuth(options: { initialMode?: AuthMode } = {}) {
   const [busy, setBusy] = useState(false);
   const [showResend, setShowResend] = useState(false); // email unconfirmed → offer resend
   const [cooldown, setCooldown] = useState(0);         // resend button cooldown (s)
+  const [arrivedFromLink, setArrivedFromLink] = useState(false); // /auth/confirm sent them back with an outcome
   const passwordRef = useRef<HTMLInputElement>(null);  // focused when we flip to sign-in
 
   // Resend cooldown countdown.
@@ -79,6 +80,7 @@ export function useEmailAuth(options: { initialMode?: AuthMode } = {}) {
     // password focused, NEVER a blank create-account form.
     if (params.get('confirmed') === '1') {
       const em = params.get('email') ?? '';
+      setArrivedFromLink(true);
       setMode('signin');
       if (em) setEmail(em);
       setShowResend(false); // nothing to resend — already confirmed
@@ -90,6 +92,7 @@ export function useEmailAuth(options: { initialMode?: AuthMode } = {}) {
 
     const reason = params.get('authError');
     if (!reason) return;
+    setArrivedFromLink(true);
     setMode('signin');
     setError(
       reason === 'expired' ? 'That link has expired. Request a new one below.'
@@ -209,7 +212,7 @@ export function useEmailAuth(options: { initialMode?: AuthMode } = {}) {
 
   return {
     mode, email, setEmail, password, setPassword, error, notice, busy,
-    showResend, cooldown, passwordRef,
+    showResend, cooldown, passwordRef, arrivedFromLink,
     switchMode, submit, sendReset, resendConfirmation,
   };
 }
