@@ -2454,7 +2454,10 @@ export default function Chat() {
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      setMessages((m) => [...m, aMsg(micBlockedMessage(err))]);
+      // A second denied tap right after the first would stack an identical
+      // bubble; only add it if the last message isn't already this one.
+      const blocked = micBlockedMessage(err);
+      setMessages((m) => (m[m.length - 1]?.content === blocked ? m : [...m, aMsg(blocked)]));
     }
   }
 
