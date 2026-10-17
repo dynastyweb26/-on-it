@@ -745,9 +745,9 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 ## Feedback — "Tell us about On It" — logged 2026-10-17 (`feat/feedback`, spec `FEEDBACK-SPEC.md`)
 | Item | Status | Evidence |
 |---|---|---|
-| Migration `20261017000000_feedback.sql` + privilege-check AA1-AA4 | **Written — NOT applied** | Additive. Needs dry run, full SQL shown, the founder's explicit yes, `db push`, `npm run db:privcheck`. Until then `/api/feedback` errors on insert. |
+| Migration `20261017000000_feedback.sql` + privilege-check AA1-AA4 | **Applied 2026-10-17 (founder ran the flow)** | Dry run listed exactly this one file; `db push` ok; `npm run db:privcheck` 137 PASS, 0 FAIL incl. AA1-AA4. Preview and production share the DB, so the table exists for both. |
 | `POST /api/feedback` + `lib/feedback.ts` | **Built — needs the table to test** | Session user, service-role insert, 5/hour/user, owner email with Reply-To = user. 14 tests (322 total pass). |
 | Settings screen + Help row | **Built — awaiting preview** | `/settings/help/feedback` (`FeedbackScreen.tsx`), row at the top of Help, `/settings/help` is now its own route (like plan / payouts), Back goes to Help. Chat prompt landing: `?src=chat_prompt&from=/chat`. |
-| Chat prompt card | **Open (commit 4)** | Rules in `lib/feedback.ts`; "already submitted" read from the table. |
-| Privacy Policy paragraph | **Open (commit 5)** | Feedback stored with the account, read and emailed to the founder, deleted with the account. |
+| Chat prompt card | **Built — awaiting preview** | `maybeOfferFeedback` in chat: after a sent quote or invoice; 3+ docs sent, never again once a `feedback` row exists (read from the table), 21-day snooze, 60 days after two dismissals; payment-alerts card wins the moment; skipped in voice / template / paywall. Tour check not wired (tour is on-demand, sample data). To re-test: clear `onit_feedback_prompt` in storage. |
+| Privacy Policy paragraph | **Built — awaiting preview** | New "Feedback you send us" section, Resend row, deletion list; last-updated date Oct 17 2026. Ships on merge (static page). |
 
