@@ -27,7 +27,7 @@ with
 -- Profiles columns that users must never write (B).
 privileged(col) as (values
   ('access_tier'), ('subscription_status'), ('stripe_customer_id'),
-  ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('role'),
+  ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('renewal_reminder_sent_at'), ('role'),
   ('granted_via'), ('referred_by'), ('referral_code'), ('next_invoice_number'), ('next_quote_number'),
   ('stripe_account_id'), ('stripe_charges_enabled'), ('stripe_details_submitted'),
   ('stripe_payouts_enabled'), ('created_at'),

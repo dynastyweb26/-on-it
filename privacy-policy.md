@@ -79,7 +79,7 @@ If you paste job notes or a work order into the chat, that text is processed to 
 
 ### Your subscription
 
-If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store a Stripe customer identifier, your subscription status, your trial and renewal dates, and whether we have sent your trial reminder.
+If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store a Stripe customer identifier, your subscription status, your trial and renewal dates, and whether we have sent your trial reminder and your yearly renewal reminder.
 
 ### Codes and referrals
 
@@ -208,7 +208,7 @@ We use your information to:
 - Record payments, including payments Stripe reports to us
 - Calculate your income and expense summaries and recaps
 - Send you notifications you have allowed, such as a payment received, an invoice your customer opened, an unpaid invoice, an unsent draft, a recurring expense, or a weekly or monthly recap
-- Process your subscription and send account emails, such as sign-up confirmation, password resets, and a reminder before your free trial ends
+- Process your subscription and send account emails, such as sign-up confirmation, password resets, and a reminder before your free trial ends, and a yearly reminder that your subscription renews
 - Prevent abuse, protect accounts, and enforce our Terms
 - Diagnose problems and improve how the app works
 - Contact you about your account or important changes to the service
@@ -229,7 +229,7 @@ We share information only with service providers that help us run On It, and onl
 | Anthropic | AI reading of chat messages, pasted notes, and receipts (Claude) | Message text, conversation context, draft details, receipt images |
 | AssemblyAI | Speech-to-text | Microphone audio |
 | Stripe | Your On It subscription, and card and Cash App Pay payments if you connect a Stripe account | Your email and subscription details; your connected account's details; your customers' payment details (collected by Stripe directly, never passed to us) |
-| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial reminders; and the feedback notifications we send to ourselves, which include what you wrote and your account email |
+| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial and yearly renewal reminders; and the feedback notifications we send to ourselves, which include what you wrote and your account email |
 | Upstash | Rate limiting | Account identifiers or IP addresses, briefly |
 | Your device's push service (for example Apple, Google, or Mozilla) | Delivers notifications you have allowed | Encrypted notification content, which the push service cannot read |
 
