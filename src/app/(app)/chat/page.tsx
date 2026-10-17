@@ -234,6 +234,20 @@ const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
 const NEAR_BOTTOM_PX = 120;
 // localStorage flag: the payment-alerts offer was answered (Yes or Not now).
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
+
+/** What to tell the user when the mic could not be opened. A denied permission
+ *  (NotAllowedError) gets a way back in, because the browser will not ask
+ *  again; any other failure (no mic, busy) keeps the plain fallback. */
+function micBlockedMessage(err: unknown): string {
+  const name = (err as { name?: string } | null)?.name;
+  if (name !== 'NotAllowedError' && name !== 'SecurityError') {
+    return "Couldn't use the mic. You can type instead.";
+  }
+  const ios = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return ios
+    ? 'Mic access is off. To use voice, turn on Microphone for On It in your iPhone Settings, or type instead.'
+    : 'Mic access is off. To use voice, allow the microphone for this site in your browser settings, or type instead.';
+}
 // localStorage flag: the payouts nudge was dismissed — never show again.
 const PAYOUTS_NUDGE_DISMISSED_KEY = 'onit_payouts_nudge_dismissed';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
@@ -2435,12 +2449,12 @@ export default function Chat() {
       rec.start();
       recorderRef.current = rec;
       setRecording(true);
-    } catch {
+    } catch (err) {
       // mic blocked/denied → end the session and fall back to typing (no hang)
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      setMessages((m) => [...m, aMsg('Mic access is blocked. You can type instead.')]);
+      setMessages((m) => [...m, aMsg(micBlockedMessage(err))]);
     }
   }
 
