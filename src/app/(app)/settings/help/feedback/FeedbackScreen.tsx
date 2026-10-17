@@ -135,13 +135,7 @@ export default function FeedbackScreen() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-4xl space-y-4 overflow-x-hidden px-4 py-4 md:px-6">
-      <div className="flex items-center gap-1">
-        <Link href="/settings/help" aria-label="Back to Help & feedback"
-          className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-background active:bg-surface-container">
-          <Icon name="arrow_back" size={24} />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate font-display text-[26px] font-extrabold leading-tight text-on-background">Tell us about On It</h1>
-      </div>
+      <h1 className="min-w-0 truncate font-display text-[26px] font-extrabold leading-tight text-on-background">Tell us about On It</h1>
       {children}
     </div>
   );
