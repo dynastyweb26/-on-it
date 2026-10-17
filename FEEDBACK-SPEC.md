@@ -71,10 +71,15 @@ Buttons: "Tell us" (opens the screen) · "Not now".
 Proposed rules (adjust at sign-off):
 - Eligible only after a meaningful moment: a quote or invoice sent or finalized,
   and the user has sent at least 3 documents in total.
-- At most once every 21 days. "Not now" snoozes 21 days; dismissed twice in a row
-  stops it for 60 days. A submitted feedback resets to 30 days.
+- Once the user has submitted feedback (any row in `feedback` for them), Chat never
+  asks again, on any device. Checked with a read-own SELECT (RLS already allows it),
+  so clearing storage or switching phones can't bring the prompt back. The Settings
+  row stays available forever.
+- Otherwise at most once every 21 days. "Not now" snoozes 21 days; dismissed twice
+  in a row stops it for 60 days.
 - Never during a voice session, an open template, the paywall, or the tour.
-- State in localStorage (`onit_feedback_prompt`: last shown, dismiss count); no DB.
+- Snooze state (last shown, dismiss count) in localStorage (`onit_feedback_prompt`); the
+  "already submitted" check is the only DB read.
 
 ## 5. Privacy and Apple
 
@@ -93,9 +98,10 @@ Proposed rules (adjust at sign-off):
 5. Privacy Policy paragraph + PUNCH-LIST entry
 
 Tests: validation (tag/length/rating bounds, control chars), prompt-eligibility
-(thresholds, snooze, double-dismiss, resets). Preview test: send one of each tag,
+(thresholds, snooze, double-dismiss, never-again after a submission). Preview test: send one of each tag,
 confirm the row and the email arrive, hit the rate limit, check the prompt appears
-once and then snoozes.
+once and then snoozes, and that after submitting it never returns (also after a
+hard refresh with storage cleared).
 
 ## 7. Not doing (deliberately)
 
