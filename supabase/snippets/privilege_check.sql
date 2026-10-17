@@ -27,7 +27,7 @@ with
 -- Profiles columns that users must never write (B).
 privileged(col) as (values
   ('access_tier'), ('subscription_status'), ('stripe_customer_id'),
-  ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('renewal_reminder_sent_at'), ('role'),
+  ('current_period_end'), ('trial_ends_at'), ('trial_reminder_sent_at'), ('renewal_reminder_sent_at'), ('zelle_last4'), ('role'),
   ('granted_via'), ('referred_by'), ('referral_code'), ('next_invoice_number'), ('next_quote_number'),
   ('stripe_account_id'), ('stripe_charges_enabled'), ('stripe_details_submitted'),
   ('stripe_payouts_enabled'), ('created_at'),
@@ -824,6 +824,22 @@ results(id, ok, expected, actual) as (
     case when has_function_privilege('service_role', fn.f, 'execute') then 'EXECUTE' else '' end
   from (values ('public.set_zelle(uuid, text, text)'),
                ('public.get_zelle(uuid, text)')) fn(f)
+
+  -- U3. zelle_last4 (20261017110000): set_zelle stamps the mask and keeps its
+  --     service_role-only grants. The column's no-client-write rule is the
+  --     privileged-list check (B); the length check is the backstop.
+  union all
+  select 'U3 set_zelle writes zelle_last4',
+    case when not exists (select 1 from applied where version = '20261017110000') then null
+      else coalesce((select p.prosrc ilike '%zelle_last4%'
+        from pg_proc p where p.oid = to_regprocedure('public.set_zelle(uuid, text, text)')), false)
+        and exists (select 1 from pg_constraint
+          where conname = 'profiles_zelle_last4_len' and conrelid = 'public.profiles'::regclass) end,
+    'set_zelle stamps zelle_last4; length check present',
+    case when not exists (select 1 from applied where version = '20261017110000') then 'not applied yet'
+      when not coalesce((select p.prosrc ilike '%zelle_last4%'
+        from pg_proc p where p.oid = to_regprocedure('public.set_zelle(uuid, text, text)')), false) then 'set_zelle does not write it'
+      else '' end
 
   -- V. referred_by FK on delete set null (20261015000002): confdeltype = 'n'. (M3 security fix.)
   union all

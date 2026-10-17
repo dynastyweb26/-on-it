@@ -9,10 +9,9 @@ import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { sanitizeField } from '@/lib/sanitize';
+import { zelleLast4, zelleMask } from '@/lib/zelle-mask';
 
 const ZelleBody = z.object({ value: z.string().max(200).optional() });
-
-const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.slice(-4)}`);
 
 async function requireUser() {
   const supabase = await createClient();
@@ -33,13 +32,19 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: 'lookup failed' }, { status: 500 });
   if (!data) return NextResponse.json({ set: false });
 
+  // Backfill for a Zelle saved before profiles.zelle_last4 existed: stamp the
+  // mask once (only where it's still NULL) so Settings renders from the
+  // profile next time. Best-effort; the response doesn't depend on it.
+  await adminClient().from('profiles').update({ zelle_last4: zelleLast4(data) })
+    .eq('id', user.id).is('zelle_last4', null);
+
   // full=1 → the owner's own value, for rendering it on their invoices
   const full = req.nextUrl.searchParams.get('full') === '1';
-  return NextResponse.json({ set: true, masked: mask(data), ...(full ? { value: data } : {}) });
+  return NextResponse.json({ set: true, masked: zelleMask(data), ...(full ? { value: data } : {}) });
 }
 
 export async function POST(req: NextRequest) {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (!(await rateLimit('zelle_write', rateIdentifier(req, user.id)))) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
@@ -54,12 +59,12 @@ export async function POST(req: NextRequest) {
   const value = sanitizeField(parsed.data.value, 120);
 
   if (!value) {
-    // Empty value clears the stored handle. Plain column write → session
-    // client, so RLS ("own profile") enforces ownership. Admin is reserved
-    // for the set/get RPCs below, which are revoked from authenticated roles.
-    const { error } = await supabase
+    // Empty value clears the stored handle and its mask together. zelle_last4
+    // is not client-writable, so this is a service-role write, scoped to the
+    // id of the verified session user (never a request value).
+    const { error } = await adminClient()
       .from('profiles')
-      .update({ zelle_info_enc: null })
+      .update({ zelle_info_enc: null, zelle_last4: null })
       .eq('id', user.id);
     if (error) return NextResponse.json({ error: 'save failed' }, { status: 500 });
     return NextResponse.json({ set: false });
@@ -67,5 +72,5 @@ export async function POST(req: NextRequest) {
 
   const { error } = await adminClient().rpc('set_zelle', { p_user: user.id, p_value: value, p_key: key });
   if (error) return NextResponse.json({ error: 'save failed' }, { status: 500 });
-  return NextResponse.json({ set: true, masked: mask(value) });
+  return NextResponse.json({ set: true, masked: zelleMask(value) });
 }

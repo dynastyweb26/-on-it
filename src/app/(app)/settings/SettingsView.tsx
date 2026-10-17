@@ -21,6 +21,7 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import { zelleMaskFromProfile } from '@/lib/zelle-mask';
 
 const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
@@ -185,11 +186,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         if (!active) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
-        // Zelle's mask comes from its own route; start it alongside the profile
-        // read so the payouts statuses land together. Only the screens that show it.
-        const zelleReq = section === 'main' || section === 'payouts'
-          ? fetch('/api/zelle').then((r) => (r.ok ? r.json() : null)).catch(() => null)
-          : null;
         // Plan screen: the free limits (constant SQL functions, the same ones
         // the paywall reads) load in parallel with the profile, so the
         // canceling line renders complete on first paint instead of growing
@@ -235,10 +231,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           }
         }
 
-        if (zelleReq) {
-          const z = await zelleReq;
-          // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
-          if (active && z) setZelleMasked(z.set ? z.masked : null);
+        if (section === 'main' || section === 'payouts') {
+          // The mask is on the profile (zelle_last4): no fetch. Only a Zelle
+          // saved before that column existed asks /api/zelle, which backfills it.
+          const m = zelleMaskFromProfile(data);
+          if (m !== undefined) {
+            setZelleMasked(m);
+          } else {
+            const z = await fetch('/api/zelle').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+            // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
+            if (active && z) setZelleMasked(z.set ? z.masked : null);
+          }
         }
         if (active) setPushAvail(pushAvailability());
         try {
