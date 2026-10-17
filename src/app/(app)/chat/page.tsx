@@ -18,6 +18,8 @@ import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
+import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
+import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
@@ -59,6 +61,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+  /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
+  feedbackLink?: true;
+  /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
+  skipHistory?: true;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
   // and never sent to /api/parse as conversation history.
   quiet?: boolean;
@@ -234,6 +240,7 @@ const emitResult = (list: Msg[], msg: Msg, retryId?: string): Msg[] =>
 const NEAR_BOTTOM_PX = 120;
 // localStorage flag: the payment-alerts offer was answered (Yes or Not now).
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
+const FEEDBACK_PROMPT_KEY = 'onit_feedback_prompt';
 
 /** What to tell the user when the mic could not be opened. A denied permission
  *  (NotAllowedError) gets a way back in, because the browser will not ask
@@ -589,6 +596,8 @@ export default function Chat() {
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
   // or 'install' (iPhone Safari tab: Home Screen hint). See maybeOfferReminders.
   const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
+  // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see maybeOfferFeedback.
+  const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -975,7 +984,7 @@ export default function Chat() {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, reminderPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, reminderPrompt, feedbackPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -1009,15 +1018,23 @@ export default function Chat() {
     // transcript) and we build the parse history WITHOUT the failed bubble; the
     // bubble stays put until the outcome replaces it (success) or leaves it
     // (failure). A normal send echoes the user message and clears the input.
+    // Feedback talk ("I have a suggestion") gets a button to the feedback page and
+    // never reaches the AI (lib/feedback-intent.ts); it stays out of job history.
+    const feedbackAsk = !retryId && isFeedbackIntent(trimmed);
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, uMsg(trimmed, source)];
+      : [...messages, feedbackAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
       nearBottomRef.current = true;
       setMessages(next);
       setInput('');
+    }
+
+    if (feedbackAsk) {
+      setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
     }
 
     // Locked conversation (Commit B/C, live flow): the linked invoice has left
@@ -1054,7 +1071,7 @@ export default function Chat() {
         headers: { 'content-type': 'application/json' },
         // Role + text only: a receipt bubble's photo stays on the device;
         // quiet usage lines are never sent as history.
-        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet).map(({ role, content }) => ({ role, content })), draft }),
+        body: JSON.stringify({ history: next.slice(1).filter((m) => !m.quiet && !m.skipHistory).map(({ role, content }) => ({ role, content })), draft }),
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
@@ -2046,7 +2063,10 @@ export default function Chat() {
       : `Sent! I'll nudge you if ${who} hasn't paid in 2 days.`), retryId);
     // The right moment to ask about payment alerts: right after an invoice
     // actually goes out. One-time; skipped if already subscribed.
-    if (docKind(draft) === 'invoice') void maybeOfferReminders(who);
+    // One ask per moment: the payment-alerts card wins; otherwise this is also
+    // the moment to (rarely) ask for feedback on invoices AND quotes.
+    const askedAlerts = docKind(draft) === 'invoice' ? await maybeOfferReminders(who) : false;
+    if (!askedAlerts) void maybeOfferFeedback();
   }
 
   // Re-run the operation behind a failed message, in place. The message's id is
@@ -2072,15 +2092,57 @@ export default function Chat() {
   // asked once about payment alerts. On an iPhone in a Safari tab (no web push
   // there) it becomes a Home Screen hint instead; blocked or unsupported
   // browsers get nothing.
-  async function maybeOfferReminders(clientName: string) {
+  async function maybeOfferReminders(clientName: string): Promise<boolean> {
+    if (!profile) return false;
+    try {
+      if (localStorage.getItem(ALERTS_PROMPTED_KEY)) return false;
+      const avail = pushAvailability();
+      if (avail === 'unsupported' || avail === 'denied') return false;
+      if (avail === 'ready' && (await getPushSubscription())) return false; // already on
+      setReminderPrompt({ kind: avail === 'needs-install' ? 'install' : 'ask', client: clientName });
+      return true;
+    } catch { return false; /* never block the send flow */ }
+  }
+
+  // The "Got a minute?" card, right after a quote or invoice goes out.
+  // Rules live in lib/feedback.ts (shouldAskForFeedback): 3+ documents sent,
+  // never again once the user has submitted feedback (read from the table, so
+  // it holds across devices), 21-day snooze, 60 days after two dismissals.
+  // Skipped during a voice session, an open template or the paywall. The
+  // walkthrough is on-demand and runs on sample data, so it can't overlap a
+  // real send. Best-effort: any failure means no card.
+  async function maybeOfferFeedback() {
     if (!profile) return;
     try {
-      if (localStorage.getItem(ALERTS_PROMPTED_KEY)) return;
-      const avail = pushAvailability();
-      if (avail === 'unsupported' || avail === 'denied') return;
-      if (avail === 'ready' && (await getPushSubscription())) return; // already on
-      setReminderPrompt({ kind: avail === 'needs-install' ? 'install' : 'ask', client: clientName });
+      if (sessionRef.current || template !== null || paywallFor !== null) return;
+      const state = parsePromptState(localStorage.getItem(FEEDBACK_PROMPT_KEY));
+      const now = Date.now();
+      // Cheap local gate first so most sends never touch the database.
+      if (!shouldAskForFeedback({ now, docsSent: PROMPT_MIN_DOCS, moment: true, hasSubmitted: false, blocked: false, state })) return;
+      const [{ count: submitted }, { count: sent }] = await Promise.all([
+        supabase.from('feedback').select('id', { count: 'exact', head: true }),
+        supabase.from('invoices').select('id', { count: 'exact', head: true })
+          .is('deleted_at', null).neq('status', 'draft'),
+      ]);
+      if (!shouldAskForFeedback({
+        now, docsSent: sent ?? 0, moment: true, hasSubmitted: (submitted ?? 0) > 0, blocked: false, state,
+      })) return;
+      localStorage.setItem(FEEDBACK_PROMPT_KEY, JSON.stringify(afterShown(state, now)));
+      setFeedbackPrompt(true);
     } catch { /* never block the send flow */ }
+  }
+
+  function openFeedback() {
+    setFeedbackPrompt(false);
+    router.push('/settings/help/feedback?src=chat_prompt&from=/chat');
+  }
+
+  function dismissFeedback() {
+    setFeedbackPrompt(false);
+    try {
+      const state = parsePromptState(localStorage.getItem(FEEDBACK_PROMPT_KEY));
+      localStorage.setItem(FEEDBACK_PROMPT_KEY, JSON.stringify(afterDismiss(state, Date.now())));
+    } catch { /* ignore */ }
   }
 
   // Straight from the Yes tap: subscribeToPush() asks permission before
@@ -2979,7 +3041,7 @@ export default function Chat() {
     // failed bubbles (their retry button), old "start new chat" buttons, and
     // quiet usage lines. Copies only — the original's History entry is keyed
     // by the old convoId and is never rewritten.
-    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet);
+    const carried = messages.filter((m) => !m.failed && m.action !== 'new-chat' && !m.quiet && !m.skipHistory);
     setMessages([...(carried.length ? carried : [greeting()]), startMsg]);
     setDraft(seed);
     setReady(true);
@@ -3299,6 +3361,22 @@ export default function Chat() {
                 </button>
               </div>
             </div>
+          ) : m.feedbackLink ? (
+            // Feedback answer: the bubble plus a real button to the feedback page
+            // (same landing as the Chat prompt card).
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <button
+                  className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 py-2 text-label-lg font-semibold text-primary transition active:scale-95"
+                  onClick={() => router.push('/settings/help/feedback?src=chat_prompt&from=/chat')}
+                >
+                  <Icon name="chat_bubble" size={18} /> Tell us about On It
+                </button>
+              </div>
+            </div>
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"
             // control that fires the same reset as the header compose icon
@@ -3464,6 +3542,16 @@ export default function Chat() {
               Show me how
             </button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
+              Not now
+            </button>
+          </div>
+        )}
+
+        {feedbackPrompt && (
+          <div className="card border-primary-container/50">
+            <p className="text-body-md">Got a minute? Tell us what's working or what isn't.</p>
+            <button className="btn-primary mt-3 w-full" onClick={openFeedback}>Tell us</button>
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissFeedback}>
               Not now
             </button>
           </div>

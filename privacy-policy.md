@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 15, 2026**
+**Last updated: October 17, 2026**
 
 On It is an invoicing and bookkeeping app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"). This policy explains what information we collect, why we collect it, who we share it with, how long we keep it, and the choices you have.
 
@@ -84,6 +84,10 @@ If you subscribe, your card details are collected and stored by Stripe, our paym
 ### Codes and referrals
 
 If you redeem an invite, referral, or founder code, we record which code you used and when. Each account has its own referral code. If you joined through someone's referral, we record who referred you.
+
+### Feedback you send us
+
+If you use **Tell us about On It**, we save what you write, the kind you picked (idea, problem, or love it), your star rating if you gave one, which screen you were on, and the app version, together with your account. Only we can read it, and other users never see it. We also email it to ourselves, with your account email as the reply address, so we can write back. Replies are ordinary email in our business mailbox. Feedback is deleted with your account; email us if you also want our email replies deleted.
 
 ---
 
@@ -225,7 +229,7 @@ We share information only with service providers that help us run On It, and onl
 | Anthropic | AI reading of chat messages, pasted notes, and receipts (Claude) | Message text, conversation context, draft details, receipt images |
 | AssemblyAI | Speech-to-text | Microphone audio |
 | Stripe | Your On It subscription, and card and Cash App Pay payments if you connect a Stripe account | Your email and subscription details; your connected account's details; your customers' payment details (collected by Stripe directly, never passed to us) |
-| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial reminders |
+| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial reminders; and the feedback notifications we send to ourselves, which include what you wrote and your account email |
 | Upstash | Rate limiting | Account identifiers or IP addresses, briefly |
 | Your device's push service (for example Apple, Google, or Mozilla) | Delivers notifications you have allowed | Encrypted notification content, which the push service cannot read |
 
@@ -243,7 +247,7 @@ We keep your account and records for as long as your account is open.
 
 **Deleting your account.** You can delete your account yourself: **Settings, then Delete account.** It takes effect immediately and cancels any active subscription. If you cannot get into the app, email brandon@dynastyweb.co and we will do it for you within 30 days.
 
-When your account is deleted, we remove your profile, customers, invoices, quotes, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, uploaded files and receipts, logo, and stored payment details including your Zelle handle and bank details.
+When your account is deleted, we remove your profile, customers, invoices, quotes, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files and receipts, logo, and stored payment details including your Zelle handle and bank details.
 
 Some information is kept after deletion:
 

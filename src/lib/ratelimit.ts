@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -68,6 +68,9 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // types a code once, maybe retypes it after a typo; 5 an hour makes
   // guessing a code hopeless.
   redeem:          { tokens: 5,  window: '3600 s' },
+  // "Tell us about On It" (POST /api/feedback) — keyed by user. Each send writes a
+  // row and emails the founder; a real person sends one or two a sitting.
+  feedback:        { tokens: 5,  window: '3600 s' },
 };
 
 let redis: Redis | null = null;
