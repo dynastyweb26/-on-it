@@ -26,6 +26,14 @@ const TRADES = [
   'Events & media',
   'Other',
 ];
+// Stored as the key in profiles.team_size (CHECK in 20261017100000); the label
+// is display-only. Optional: it is not needed for the first invoice.
+const TEAM_SIZES: { key: string; label: string }[] = [
+  { key: 'solo', label: 'Just me' },
+  { key: '2-5', label: '2 to 5' },
+  { key: '6-15', label: '6 to 15' },
+  { key: '16+', label: '16 or more' },
+];
 const TEMPLATE_META: { key: TemplateKey; name: string; blurb: string }[] = [
   { key: 'classic', name: 'Classic', blurb: 'Clean and professional. The safe pick.' },
   { key: 'sidebar', name: 'Ledger', blurb: 'Old-school invoice book. Ruled lines, stamped, built on trust.' },
@@ -58,6 +66,7 @@ export default function Onboarding() {
 
   const [business, setBusiness] = useState('');
   const [trade, setTrade] = useState('');
+  const [teamSize, setTeamSize] = useState('');
   const [website, setWebsite] = useState('');
   const [slogan, setSlogan] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -109,6 +118,7 @@ export default function Onboarding() {
       id: user.id,
       business_name: business.trim(),
       trade_type: trade || null,
+      team_size: teamSize || null,
       website_url: website.trim() || null,
       slogan: slogan.trim() || null,
       logo_url: logoUrl,
@@ -155,6 +165,13 @@ export default function Onboarding() {
             {TRADES.map((t) => (
               <button key={t} className={`chip ${trade === t ? 'chip-selected' : ''}`}
                 onClick={() => setTrade(t)}>{t}</button>
+            ))}
+          </div>
+          <p className="-mb-2 text-sm font-medium">How many people work in your business?</p>
+          <div className="flex flex-wrap gap-2">
+            {TEAM_SIZES.map((t) => (
+              <button key={t.key} className={`chip ${teamSize === t.key ? 'chip-selected' : ''}`}
+                onClick={() => setTeamSize(t.key)}>{t.label}</button>
             ))}
           </div>
           <input className="input" placeholder="Website (optional)" value={website}
