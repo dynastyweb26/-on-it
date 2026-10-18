@@ -64,6 +64,49 @@ const SAMPLE = (business: string, slogan: string, website: string): InvoiceRende
 const SLOT_HINTS = ['1st color', '2nd color', '3rd · optional'];
 const nameOfColor = (hex: string) => PALETTE.find((p) => p.hex === hex)?.name ?? hex;
 
+// Neutral stand-in theme for the preview before a background is picked.
+const PLACEHOLDER_THEME = buildTheme(['#9a9a9a', '#c4c4c4'], '#FFFFFF');
+
+// The real invoice template at its A4 size (794 x 1123), scaled to the card
+// width so the whole page always shows with no clipped edge and no empty strip.
+// scale = (card - 2) / 794; height = (card - 2) * 1123 / 794 + 2.
+function InvoicePreview({ template, data, theme, placeholder = false }: {
+  template: TemplateKey;
+  data: InvoiceRenderData;
+  theme: ReturnType<typeof buildTheme>;
+  placeholder?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(342);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setW(el.offsetWidth);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, []);
+  const inner = Math.max(w - 2, 1);
+  return (
+    <div ref={ref}
+      className="relative overflow-hidden rounded-2xl border border-outline-variant bg-white shadow-[0_4px_24px_rgba(115,92,0,0.08)]"
+      style={{ height: (inner * 1123) / 794 + 2 }}>
+      <div aria-hidden={placeholder}
+        style={{ width: 794, transform: `scale(${inner / 794})`, transformOrigin: 'top left', pointerEvents: 'none', opacity: placeholder ? 0.35 : 1, transition: 'opacity 200ms' }}>
+        <InvoiceTemplate template={template} data={data} theme={theme} />
+      </div>
+      {placeholder && (
+        <div className="absolute inset-0 flex items-center justify-center p-6">
+          <div className="rounded-full border border-outline-variant bg-background px-[18px] py-3 text-[15px] font-semibold leading-5 shadow-[0_4px_24px_rgba(115,92,0,0.10)]">
+            Pick a background to preview
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OptionalTag() {
   return <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-xs font-semibold leading-4 text-on-surface-variant">Optional</span>;
 }
@@ -371,29 +414,34 @@ export default function Onboarding() {
       )}
 
       {step === 4 && (
-        <section className="flex flex-col gap-4">
-          <h1 className="font-display text-2xl font-extrabold">Which color is your background?</h1>
-          <p className="text-sm text-on-surface-variant">
+        <section className="flex flex-col">
+          <h1 className="text-balance font-display text-[28px] font-extrabold leading-[34px] tracking-tight">Which color is your background?</h1>
+          <p className="mt-2 text-pretty text-[15px] leading-[22px] text-on-surface-variant">
             Dark background gets white text. Light background gets black text. The rest become your accents.
           </p>
-          <div className="flex gap-4">
-            {colors.map((hex) => (
-              <button key={hex}
-                className={`h-24 flex-1 rounded-card border-2 transition active:scale-95
-                  ${background === hex ? 'border-primary-container ring-gold-selected font-bold' : 'border-outline-variant font-medium'}`}
-                style={{ background: hex, color: onColor(hex) }}
-                onClick={() => setBackground(hex)}>
-                {PALETTE.find((p) => p.hex === hex)?.name ?? hex}
-              </button>
-            ))}
+          <div role="radiogroup" aria-label="Background color" className="mt-5 grid gap-2.5"
+            style={{ gridTemplateColumns: `repeat(${Math.max(colors.length, 2)}, minmax(0, 1fr))` }}>
+            {colors.map((hex) => {
+              const sel = background === hex;
+              return (
+                <button key={hex} role="radio" aria-checked={sel}
+                  className={`relative h-24 min-w-0 text-balance rounded-[20px] border-2 px-3 text-[15px] font-semibold leading-5 transition active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-on-background
+                    ${sel ? 'border-primary-container ring-gold-selected' : hex === '#FFFFFF' ? 'border-outline-variant' : 'border-[rgba(31,27,19,0.12)]'}`}
+                  style={{ background: hex, color: onColor(hex) }}
+                  onClick={() => setBackground(hex)}>
+                  {nameOfColor(hex)}
+                  {sel && (
+                    <span aria-hidden className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full border-2 border-background bg-on-background text-background">
+                      <Icon name="check" size={16} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-          {theme && (
-            <div className="overflow-hidden rounded-card border border-outline-variant" style={{ height: 300 }}>
-              <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
-                <InvoiceTemplate template={template} data={sample} theme={theme} />
-              </div>
-            </div>
-          )}
+          <div className="mt-5">
+            <InvoicePreview template={template} data={sample} theme={theme ?? PLACEHOLDER_THEME} placeholder={!background} />
+          </div>
         </section>
       )}
 
