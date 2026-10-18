@@ -18,6 +18,12 @@ const VIA: Record<PaymentMethod, string> = {
   other: 'online',
 };
 
+/** "Oct 12" from a yyyy-mm-dd that is already in the reader's local calendar. */
+function shortDay(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
 export function renderWebPush(event: NotifyEvent): WebPushMessage {
   switch (event.type) {
     case 'payment_received': {
@@ -29,6 +35,17 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
           : `${no} — ${money(event.balanceRemaining)} still due.`,
         url: `/invoices/${event.invoiceId}`,
         tag: `payment-${event.invoiceId}`,
+      };
+    }
+    case 'payment_disputed': {
+      const no = formatDocNumber('invoice', event.invoiceNumber);
+      return {
+        title: `${event.clientName} disputed ${money(event.amount)}`,
+        body: event.respondBy
+          ? `${no} — respond in Stripe by ${shortDay(event.respondBy)}.`
+          : `${no} — respond in Stripe.`,
+        url: `/invoices/${event.invoiceId}`,
+        tag: `dispute-${event.invoiceId}`,
       };
     }
     case 'connect_problem': {

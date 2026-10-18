@@ -23,6 +23,15 @@ export type NotifyEvent =
       paidInFull: boolean;
     }
   | {
+      type: 'payment_disputed';   // charge.dispute.created on an On It payment
+      disputeId: string;          // Stripe du_ id — the dedupe identity
+      invoiceId: string;
+      invoiceNumber: number;
+      clientName: string;
+      amount: number;             // disputed amount, dollars
+      respondBy: string | null;   // yyyy-mm-dd in the owner's timezone (Stripe's evidence due date)
+    }
+  | {
       type: 'connect_problem';
       problem: ConnectProblem;
       sourceEventId: string;      // Stripe event / notification id (audit)

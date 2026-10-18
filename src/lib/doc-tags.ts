@@ -3,8 +3,10 @@
 // "Invoices & quotes" list. A sent invoice with a due date reads
 // "DUE OCT 16"; a viewed one swaps its icon to the eye.
 import type { IconName } from '@/components/icon-names';
+import { invoiceStatusLabel } from '@/lib/payment-methods';
 
-export type TagDoc = { kind: string; status: string; due_date: string | null; viewed_at?: string | null };
+export type TagDoc = { kind: string; status: string; due_date: string | null; viewed_at?: string | null;
+  refunded_amount?: number | null; amount_paid?: number | null };
 
 const TAG: Record<string, { cls: string; icon: IconName }> = {
   paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
@@ -25,5 +27,7 @@ export function tagFor(r: TagDoc, converted: boolean): { key: string; text: stri
     return { key: `due-${r.viewed_at ? 'v' : 's'}`, text: `DUE ${shortDate(r.due_date)}`, ...base, icon: r.viewed_at ? 'visibility' : base.icon };
   }
   if (r.status === 'sent' && r.viewed_at) return { key: 'viewed', text: 'VIEWED', ...base, icon: 'visibility' };
-  return { key: r.status, text: r.status.toUpperCase(), ...base };
+  // A paid invoice with refunds reads REFUNDED / REFUNDED $X (it stays paid).
+  const text = invoiceStatusLabel(r.status, r.refunded_amount, r.amount_paid).toUpperCase();
+  return { key: text === r.status.toUpperCase() ? r.status : text, text, ...base };
 }
