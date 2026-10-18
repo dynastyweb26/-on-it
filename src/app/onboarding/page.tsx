@@ -98,7 +98,8 @@ function InvoicePreview({ template, data, theme, placeholder = false }: {
       </div>
       {placeholder && (
         <div className="absolute inset-0 flex items-center justify-center p-6">
-          <div className="rounded-full border border-outline-variant bg-background px-[18px] py-3 text-[15px] font-semibold leading-5 shadow-[0_4px_24px_rgba(115,92,0,0.10)]">
+          <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-background px-[18px] py-3 text-[15px] font-semibold leading-5 shadow-[0_4px_24px_rgba(115,92,0,0.10)]">
+            <Icon name="touch_app" size={20} className="text-primary" />
             Pick a background to preview
           </div>
         </div>
@@ -404,7 +405,8 @@ export default function Onboarding() {
           </div>
 
           {allDarkOrAllLight && (
-            <div role="note" className="mt-6 rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3.5">
+            <div role="note" className="mt-6 flex items-start gap-3 rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3.5">
+              <Icon name="contrast" size={22} className="shrink-0 text-primary" />
               <p className="text-pretty text-sm leading-5">
                 These might be hard to read together. Want to swap one for more contrast? Your call, it&apos;ll still work.
               </p>
@@ -474,7 +476,10 @@ export default function Onboarding() {
       <div data-kb-lift="" className={`fixed inset-x-0 bottom-0 z-10 border-t bg-background px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 transition-colors ${more ? 'border-surface-container-highest' : 'border-transparent'}`}>
         <div className="mx-auto flex max-w-md flex-col gap-2.5">
           {footerHint && (
-            <p aria-live="polite" className="text-center text-[13px] leading-[18px] text-on-surface-variant">{footerHint}</p>
+            <p aria-live="polite" className="flex items-center justify-center gap-1.5 text-center text-[13px] leading-[18px] text-on-surface-variant">
+              <Icon name="info" size={16} />
+              <span>{footerHint}</span>
+            </p>
           )}
           {showSaveError && (
             <div role="alert" className="flex items-center gap-2 rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container">
