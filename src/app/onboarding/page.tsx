@@ -446,25 +446,31 @@ export default function Onboarding() {
       )}
 
       {step === 5 && theme && (
-        <section className="flex flex-col gap-4">
-          <h1 className="font-display text-2xl font-extrabold">Pick your invoice style</h1>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {TEMPLATE_META.map((t) => (
-              <button key={t.key}
-                className={`chip shrink-0 ${template === t.key ? 'chip-selected' : ''}`}
-                onClick={() => setTemplate(t.key)}>
-                {t.name}
-              </button>
-            ))}
+        <section className="flex flex-col">
+          <h1 className="text-balance font-display text-[28px] font-extrabold leading-[34px] tracking-tight">Pick your invoice style</h1>
+          {/* Names only: no thumbnail or icon beside them. */}
+          <div role="radiogroup" aria-label="Invoice style" className="mt-5 grid grid-cols-2 gap-2.5">
+            {TEMPLATE_META.map((t) => {
+              const sel = template === t.key;
+              return (
+                <button key={t.key} role="radio" aria-checked={sel}
+                  className={`chip !min-h-[60px] min-w-0 !justify-between !rounded-xl !px-3 !text-[15px] !font-semibold !normal-case !tracking-normal !text-on-background ${sel ? 'chip-selected' : ''}`}
+                  onClick={() => { setTemplate(t.key); setError(''); }}>
+                  <span className="min-w-0 flex-1 whitespace-nowrap text-left">{t.name}</span>
+                  {sel && <Icon name="check" size={20} />}
+                </button>
+              );
+            })}
           </div>
-          <p className="text-sm text-on-surface-variant">{TEMPLATE_META.find((t) => t.key === template)?.blurb}</p>
-          <div className="overflow-hidden rounded-card border border-outline-variant" style={{ height: 420 }}>
-            <div style={{ transform: 'scale(0.42)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
-              <InvoiceTemplate template={template} data={sample} theme={theme} />
-            </div>
+          <p aria-live="polite" className="mt-3.5 text-pretty text-[15px] leading-[22px] text-on-surface-variant">
+            {TEMPLATE_META.find((t) => t.key === template)?.blurb}
+          </p>
+          <div className="mt-4">
+            <InvoicePreview template={template} data={sample} theme={theme} />
           </div>
         </section>
       )}
+
       <div data-kb-lift="" className={`fixed inset-x-0 bottom-0 z-10 border-t bg-background px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 transition-colors ${more ? 'border-surface-container-highest' : 'border-transparent'}`}>
         <div className="mx-auto flex max-w-md flex-col gap-2.5">
           {footerHint && (
