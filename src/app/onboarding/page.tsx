@@ -5,7 +5,7 @@
           → 5 pick 1 of 4 templates (live preview) → done.
    Locked logic: dark background = white text, light = black text.
    Live mini invoice preview updates on every tap.                  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
@@ -60,6 +60,10 @@ const SAMPLE = (business: string, slogan: string, website: string): InvoiceRende
   zelle: '555-0100', cashappTag: '$yourbiz', venmoUsername: 'yourbiz',
 });
 
+// Tray placeholders for the three brand-color slots (the third is optional).
+const SLOT_HINTS = ['1st color', '2nd color', '3rd · optional'];
+const nameOfColor = (hex: string) => PALETTE.find((p) => p.hex === hex)?.name ?? hex;
+
 function OptionalTag() {
   return <span className="rounded-md bg-surface-container-high px-2 py-0.5 text-xs font-semibold leading-4 text-on-surface-variant">Optional</span>;
 }
@@ -91,16 +95,48 @@ export default function Onboarding() {
     return logoPreview ? { ...s, logoUrl: logoPreview } : s;
   }, [business, slogan, website, logoPreview]);
 
+  // A 4th tap is ignored and explained in the footer for ~3s; any change to the
+  // picks clears the background (it must be one of the picks).
+  const [extraHint, setExtraHint] = useState(false);
+  const extraTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(extraTimer.current), []);
+
   function toggleColor(hex: string) {
+    if (colors.includes(hex)) {
+      setColors(colors.filter((c) => c !== hex));
+      setBackground(null);
+      setExtraHint(false);
+      return;
+    }
+    if (colors.length >= 3) {
+      setExtraHint(true);
+      clearTimeout(extraTimer.current);
+      extraTimer.current = setTimeout(() => setExtraHint(false), 3200);
+      return;
+    }
+    setColors([...colors, hex]);
     setBackground(null);
-    setColors((prev) =>
-      prev.includes(hex)
-        ? prev.filter((c) => c !== hex)
-        : prev.length >= 3
-          ? prev // max 3 enforced silently
-          : [...prev, hex]
-    );
+    setExtraHint(false);
   }
+
+  // Each step opens at the top; the footer gets a hairline only while there is
+  // more content below it.
+  const [more, setMore] = useState(false);
+  useEffect(() => { window.scrollTo(0, 0); }, [step]);
+  useEffect(() => {
+    const check = () =>
+      setMore(document.documentElement.scrollHeight - window.scrollY - window.innerHeight > 1);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    ro?.observe(document.body);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+      ro?.disconnect();
+    };
+  }, [step]);
 
   const allDarkOrAllLight =
     colors.length >= 2 &&
@@ -155,8 +191,23 @@ export default function Onboarding() {
     router.push('/chat');
   }
 
+  // One pinned footer for all five steps: optional hint or error strip, then
+  // Back (steps 2+) and the primary button.
+  const ctaDisabled =
+    step === 1 ? !business.trim() : step === 3 ? colors.length < 2 : step === 4 ? !background : false;
+  const footerHint =
+    step === 3
+      ? extraHint ? "That's 3. Tap one to remove it first." : colors.length < 2 ? 'Pick at least 2' : ''
+      : step === 4 && !background ? 'Pick a background to continue' : '';
+  const showSaveError = step === 5 && Boolean(error) && !busy;
+  const ctaLabel = step < 5 ? 'Continue' : busy ? 'Setting up…' : 'Confirm and continue';
+  function onContinue() {
+    if (step === 5) { if (!busy) finish(); return; }
+    setStep(step + 1);
+  }
+
   return (
-    <main className="mx-auto max-w-md px-6 pb-32 pt-8">
+    <main className="mx-auto max-w-md px-6 pb-40 pt-8">
       <div className="mb-6 flex items-center gap-2">
         {[1, 2, 3, 4, 5].map((s) => (
           <div key={s} className={`h-1.5 flex-1 rounded-full ${s <= step ? 'bg-primary-container' : 'bg-outline-variant'}`} />
@@ -256,40 +307,66 @@ export default function Onboarding() {
       )}
 
       {step === 3 && (
-        <section className="flex flex-col gap-4">
-          <h1 className="font-display text-2xl font-extrabold">Pick your brand colors</h1>
-          <p className="text-sm text-on-surface-variant">Tap 2 or 3. These become your invoice colors.</p>
-          <div className="grid grid-cols-5 gap-3">
+        <section className="flex flex-col">
+          <h1 className="text-balance font-display text-[28px] font-extrabold leading-[34px] tracking-tight">Pick your brand colors</h1>
+          <p className="mt-2 text-[15px] leading-[22px] text-on-surface-variant">Tap 2 or 3. These become your invoice colors.</p>
+
+          <div aria-live="polite" className="mt-5">
+            {colors.length === 0 ? (
+              <div className="flex h-14 items-center justify-center rounded-xl border-[1.5px] border-dashed border-outline-variant text-[15px] font-semibold leading-5 text-on-surface-variant">
+                Pick 2 or 3
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {[0, 1, 2].map((i) => {
+                  const hex = colors[i];
+                  return hex ? (
+                    <div key={i} className="flex h-14 min-w-0 items-center gap-2 rounded-xl border border-outline-variant bg-white px-2.5">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-on-background text-[11px] font-bold leading-5 text-background">{i + 1}</span>
+                      <span className="h-5 w-5 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgba(31,27,19,0.18)]" style={{ background: hex }} />
+                      <span className="line-clamp-2 min-w-0 text-[13px] font-semibold leading-4">{nameOfColor(hex)}</span>
+                    </div>
+                  ) : (
+                    <div key={i} className="flex h-14 min-w-0 items-center justify-center rounded-xl border-[1.5px] border-dashed border-outline-variant px-1 text-center text-[13px] leading-4 text-on-surface-variant">
+                      {SLOT_HINTS[i]}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div role="group" aria-label="Brand colors" className="mt-5 grid gap-y-4"
+            style={{ gridTemplateColumns: 'repeat(5, 58px)', justifyContent: 'space-between' }}>
             {PALETTE.map(({ name, hex }) => {
-              const sel = colors.includes(hex);
+              const idx = colors.indexOf(hex);
+              const sel = idx >= 0;
               return (
-                <button key={hex} aria-label={name} title={name}
-                  className={`relative aspect-square rounded-full border-2 transition active:scale-90
-                    ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
+                <button key={hex} aria-pressed={sel} title={name}
+                  aria-label={name + (sel ? `, selected, number ${idx + 1}` : '')}
+                  className={`relative flex h-[58px] w-[58px] items-center justify-center rounded-full border-2 p-0 transition active:scale-[0.92] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-on-background
+                    ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}
+                    ${!sel && colors.length >= 3 ? 'opacity-45' : ''}`}
                   style={{ background: hex }}
                   onClick={() => toggleColor(hex)}>
                   {sel && (
-                    <span className="absolute inset-0 grid place-items-center"
-                      style={{ color: onColor(hex) }}><Icon name="check" size={22} /></span>
+                    <>
+                      <span style={{ color: onColor(hex) }}><Icon name="check" size={26} /></span>
+                      <span aria-hidden className="absolute -right-[7px] -top-[7px] grid h-[22px] w-[22px] place-items-center rounded-full border-2 border-background bg-on-background text-[11px] font-bold leading-none text-background">{idx + 1}</span>
+                    </>
                   )}
                 </button>
               );
             })}
           </div>
+
           {allDarkOrAllLight && (
-            <p className="rounded-xl bg-primary-container/10 p-3 text-sm">
-              These colors might be hard to read together. Want to swap one for more contrast? Your call — it&apos;ll still work.
-            </p>
+            <div role="note" className="mt-6 rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-3.5">
+              <p className="text-pretty text-sm leading-5">
+                These might be hard to read together. Want to swap one for more contrast? Your call, it&apos;ll still work.
+              </p>
+            </div>
           )}
-          <div className="flex gap-3">
-            <button className="btn-outline" onClick={() => setStep(2)}>
-              <Icon name="arrow_back" size={20} />
-              Back
-            </button>
-            <button className="btn-primary flex-1" disabled={colors.length < 2} onClick={() => setStep(4)}>
-              Next — pick your background
-            </button>
-          </div>
         </section>
       )}
 
@@ -317,15 +394,6 @@ export default function Onboarding() {
               </div>
             </div>
           )}
-          <div className="flex gap-3">
-            <button className="btn-outline" onClick={() => setStep(3)}>
-              <Icon name="arrow_back" size={20} />
-              Back
-            </button>
-            <button className="btn-primary flex-1" disabled={!background} onClick={() => setStep(5)}>
-              Looks good — pick a style
-            </button>
-          </div>
         </section>
       )}
 
@@ -347,35 +415,42 @@ export default function Onboarding() {
               <InvoiceTemplate template={template} data={sample} theme={theme} />
             </div>
           </div>
-          {error && <p className="text-sm text-error">{error}</p>}
-          <div className="flex gap-3">
-            <button className="btn-outline" disabled={busy} onClick={() => setStep(4)}>
-              <Icon name="arrow_back" size={20} />
-              Back
-            </button>
-            <button className="btn-primary flex-1" disabled={busy} onClick={finish}>
-              {busy ? 'Setting up…' : 'Confirm and continue'}
-            </button>
-          </div>
         </section>
       )}
-      {step <= 2 && (
-        <div data-kb-lift="" className="fixed inset-x-0 bottom-0 z-10 bg-background px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-          <div className="mx-auto flex max-w-md gap-3">
-            {step === 2 && (
-              <button aria-label="Back" className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container"
-                onClick={() => setStep(1)}>
+      <div data-kb-lift="" className={`fixed inset-x-0 bottom-0 z-10 border-t bg-background px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 transition-colors ${more ? 'border-surface-container-highest' : 'border-transparent'}`}>
+        <div className="mx-auto flex max-w-md flex-col gap-2.5">
+          {footerHint && (
+            <p aria-live="polite" className="text-center text-[13px] leading-[18px] text-on-surface-variant">{footerHint}</p>
+          )}
+          {showSaveError && (
+            <div role="alert" className="flex items-center gap-2 rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container">
+              <Icon name="error" size={20} />
+              Couldn&apos;t save. Try again.
+            </div>
+          )}
+          <div className="flex gap-3">
+            {step > 1 && (
+              <button aria-label="Back" disabled={busy}
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-outline-variant bg-surface-container transition active:scale-[0.94] disabled:opacity-40"
+                onClick={() => setStep(step - 1)}>
                 <Icon name="arrow_back" size={22} />
               </button>
             )}
-            <button className="btn-primary !min-h-14 flex-1 !rounded-full !text-[17px]"
-              disabled={step === 1 && !business.trim()}
-              onClick={() => setStep(step === 1 ? 2 : 3)}>
-              Continue
+            <button className="btn-primary !min-h-14 flex-1 whitespace-nowrap !rounded-full !text-[17px]"
+              disabled={ctaDisabled} aria-busy={busy} onClick={onContinue}>
+              {busy && (
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="#1f1b13" strokeOpacity="0.25" strokeWidth="3" />
+                  <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="#1f1b13" strokeWidth="3" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+                  </path>
+                </svg>
+              )}
+              {ctaLabel}
             </button>
           </div>
         </div>
-      )}
+      </div>
     </main>
   );
 }
