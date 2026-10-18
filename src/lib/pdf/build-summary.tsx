@@ -191,6 +191,7 @@ export async function buildSummaryPdf(
       client_name: inv?.client_name ?? 'Client',
       method: (r.method as string | null) ?? null,
       via_stripe: Boolean(r.stripe_checkout_session_id),
+      entry_type: (r.entry_type as string | null) ?? null,
       invoice_number: inv?.invoice_number ?? null,
     };
   });
@@ -278,7 +279,7 @@ export function supabaseSource(): SummaryPdfSource {
       const invoiceCols = 'client_name, invoice_number, kind, deleted_at';
       return fetchAll((from, to) => supabase
         .from('invoice_payments')
-        .select(`id, invoice_id, amount, paid_at, method, stripe_checkout_session_id, invoices!inner(${invoiceCols})`)
+        .select(`id, invoice_id, amount, paid_at, method, entry_type, stripe_checkout_session_id, invoices!inner(${invoiceCols})`)
         .eq('invoices.kind', 'invoice')
         .is('invoices.deleted_at', null)
         .gte('paid_at', localMidnight(range.start))

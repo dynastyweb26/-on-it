@@ -20,7 +20,7 @@ import { getSharedUser } from '@/lib/auth-client';
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
-  converted_from: string | null; amount_paid: number | null; viewed_at?: string | null;
+  converted_from: string | null; amount_paid: number | null; refunded_amount: number | null; viewed_at?: string | null;
 }
 type Filter = 'all' | 'unpaid' | 'paid' | 'quote';
 const FILTERS: readonly Filter[] = ['all', 'unpaid', 'paid', 'quote'];
@@ -66,7 +66,7 @@ export default function Invoices() {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
-        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, viewed_at')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, refunded_amount, viewed_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);

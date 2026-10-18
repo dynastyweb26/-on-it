@@ -1091,6 +1091,48 @@ results(id, ok, expected, actual) as (
   where conrelid = coalesce(to_regclass('public.feedback'), 0::oid) and contype = 'c'
     and conname in ('feedback_tag_chk', 'feedback_message_len', 'feedback_rating_chk', 'feedback_source_chk',
                     'feedback_screen_len', 'feedback_version_len', 'feedback_status_chk')
+
+  -- AB. Payment reversals (20261018000000): users can't write reversal rows;
+  --     one sign rule; (entry_type, stripe_object_id) UNIQUE; refunded_amount
+  --     pinned; reversal rows owned by the invoice's owner and pointing at a
+  --     payment on the same invoice; the type list kept every live value.
+  union all
+  select 'AB payment reversals',
+    case when not exists (select 1 from applied where version = '20261018000000') then null
+      else
+        exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'invoice_payments'
+          and policyname = 'own invoice payments insert'
+          and with_check ilike '%entry_type = ''payment''%' and with_check ilike '%stripe_object_id IS NULL%')
+        and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'invoice_payments'
+          and policyname = 'own invoice payments update'
+          and qual ilike '%entry_type = ''payment''%' and qual ilike '%stripe_object_id IS NULL%')
+        and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'invoice_payments'
+          and policyname = 'own invoice payments delete'
+          and qual ilike '%entry_type = ''payment''%' and qual ilike '%stripe_object_id IS NULL%')
+        and exists (select 1 from pg_constraint where conrelid = 'public.invoice_payments'::regclass
+          and conname = 'invoice_payments_amount_sign_chk')
+        and exists (select 1 from pg_constraint where conrelid = 'public.invoice_payments'::regclass
+          and conname = 'invoice_payments_stripe_object_key' and contype = 'u')
+        and exists (select 1 from pg_trigger where tgrelid = 'public.invoices'::regclass
+          and tgname = 'pin_invoice_refunded_amount' and not tgisinternal)
+        and exists (select 1 from pg_constraint where conrelid = 'public.notification_log'::regclass
+          and conname = 'notification_log_type_chk'
+          and pg_get_constraintdef(oid) ilike '%payment_disputed%'
+          and pg_get_constraintdef(oid) ilike '%recurring_skipped%'
+          and pg_get_constraintdef(oid) ilike '%recap%')
+        -- Run-time query: the new columns don't exist before the migration, and
+        -- a direct reference would break this whole file at parse time.
+        and (xpath('/row/c/text()', query_to_xml(
+          'select count(*) as c from public.invoice_payments r '
+          'join public.invoice_payments pp on pp.id = r.reverses_payment_id '
+          'join public.invoices i on i.id = r.invoice_id '
+          'where r.user_id <> i.user_id or pp.invoice_id <> r.invoice_id', false, true, '')))[1]::text = '0'
+      end,
+    'write policies refuse reversals; sign check; unique key; refunded_amount pinned; type list keeps recap + recurring_skipped; 0 mismatched reversals',
+    case when not exists (select 1 from applied where version = '20261018000000') then 'not applied yet'
+      else (xpath('/row/c/text()', query_to_xml(
+        'select count(*) as c from public.invoice_payments where entry_type <> ''payment''', false, true, '')))[1]::text
+        || ' reversal rows' end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
