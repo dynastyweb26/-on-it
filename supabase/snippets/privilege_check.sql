@@ -41,7 +41,9 @@ privileged(col) as (values
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
   ('id'), ('business_name'), ('trade_type'), ('website_url'), ('slogan'),
-  ('logo_url'), ('brand_colors'), ('background_color'), ('invoice_template')
+  ('logo_url'), ('brand_colors'), ('background_color'), ('invoice_template'),
+  -- Team size (20261017100000): answered in onboarding, client-writable.
+  ('team_size')
 ),
 profile_cols as (
   select c.column_name as col,
