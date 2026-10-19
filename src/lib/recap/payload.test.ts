@@ -191,7 +191,27 @@ test('names are trimmed and capped; blanks fall back', () => {
   }));
   assert.equal(p.topClient?.name.length, 120);
   assert.equal(p.owed.invoices[0].client, 'Client');
-  assert.deepEqual(p.paymentMethods, [{ method: 'other', amount: 10 }]); // unknown method → other
+  assert.deepEqual(p.paymentMethods, [{ method: 'venmo', amount: 10 }]);
+});
+
+test('unknown payment methods still fold into other', () => {
+  const p = buildRecapPayload(base({
+    payments: [{ amount: 10, paid_at: '2026-09-22T15:00:00Z', method: 'crypto', client_name: 'A' }],
+  }));
+  assert.deepEqual(p.paymentMethods, [{ method: 'other', amount: 10 }]);
+});
+
+test('paypal and venmo keep their own method buckets', () => {
+  const p = buildRecapPayload(base({
+    payments: [
+      { amount: 10, paid_at: '2026-09-22T15:00:00Z', method: 'paypal', client_name: 'A' },
+      { amount: 5, paid_at: '2026-09-22T16:00:00Z', method: 'venmo', client_name: 'B' },
+    ],
+  }));
+  assert.deepEqual(p.paymentMethods, [
+    { method: 'paypal', amount: 10 },
+    { method: 'venmo', amount: 5 },
+  ]);
 });
 
 test('change chip: only against a positive previous net', () => {

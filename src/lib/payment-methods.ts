@@ -4,7 +4,7 @@ import { money } from '@/lib/financials';
 
 export const METHOD_LABELS: Record<string, string> = {
   zelle: 'Zelle', cash: 'Cash', check: 'Check', card: 'Card', cashapp: 'Cash App',
-  bank: 'Bank transfer', other: 'Other',
+  bank: 'Bank transfer', paypal: 'PayPal', venmo: 'Venmo', other: 'Other',
 };
 
 /** "Cash App", or "Cash App (via Stripe)" for a payment made on the pay page. */

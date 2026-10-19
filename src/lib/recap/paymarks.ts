@@ -1,17 +1,19 @@
 // Payment-method marks for the Money In slide (RECAP-SPEC §0, §5 moneyIn).
-// Zelle, Cash App and card (Stripe, which processes card payments on the pay
-// page) are their simple-icons marks in each brand's own hex (never
-// recoloured; same approach as the paywall's PaymentLogos). Methods without a
-// brand mark (bank, cash, check, other) show a Material Symbol in a neutral chip, with a data
+// Zelle, Cash App, card (Stripe) and the PayPal/Venmo apps are their
+// simple-icons marks in each brand's own hex (never recoloured; same approach
+// as the paywall's PaymentLogos). Methods without a brand mark (bank, cash,
+// check, other) show a Material Symbol in a neutral chip, with a data
 // colour so their bar segment stays distinct.
-import { siCashapp, siStripe, siZelle, type SimpleIcon } from 'simple-icons';
+import { siCashapp, siPaypal, siStripe, siVenmo, siZelle, type SimpleIcon } from 'simple-icons';
 import type { IconName } from '@/components/icon-names';
 
 export type PayMark =
   | { kind: 'brand'; icon: SimpleIcon; color: string }
   | { kind: 'neutral'; icon: IconName; color: string };
 
-const BRANDS: Record<string, SimpleIcon> = { zelle: siZelle, cashapp: siCashapp, card: siStripe };
+const BRANDS: Record<string, SimpleIcon> = {
+  zelle: siZelle, cashapp: siCashapp, card: siStripe, paypal: siPaypal, venmo: siVenmo,
+};
 const NEUTRAL: Record<string, { icon: IconName; color: string }> = {
   bank: { icon: 'account_balance', color: '#5b77a8' }, // --onit-data-4
   cash: { icon: 'payments', color: '#2f8a83' },      // --onit-data-2
