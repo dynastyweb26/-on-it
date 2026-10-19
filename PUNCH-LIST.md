@@ -766,3 +766,8 @@ Chromium at 390×844 with the receipt read and save faked; the flash change
 | Onboarding steps 3-5 (brand colors tray + swatches, background tiles, invoice style) + one pinned footer for all 5 steps | **Merged to `main`** (`feat/onboarding-colors-style`, merge `9da93df`, 2026-10-18); **not yet checked on a device** | Style tiles are name-only (no mini-invoice thumbnails). Preview is the real template scaled to card width. Palette renamed to the board's names, hex unchanged (`0944322`). `tsc` and `next build` passed before merge. |
 | Footer hint / warning card use text only (board shows `info` / `contrast` icons) | **Open (polish)** | Those two glyphs are not in the icon font subset (`icon-names.ts`). Adding them needs `npm run icons:build` (reaches Google Fonts) and committing the regenerated woff2. |
 | Onboarding save failure now shows "Couldn't save. Try again." | **Done (behavior change)** | Previously showed the raw DB message (`setError(dbErr.message)` is still stored in state, not displayed). |
+
+## Invoice detail redesign — logged 2026-10-19 (`feat/invoice-detail-redesign`, PR #64)
+| Item | Status | Evidence |
+|---|---|---|
+| Overpayment guard in the record-payment sheet | **Open — deliberately not built** | The redesign's "Amount too high" state was out of scope so the save path stayed identical. The sheet still shows a "More than the $X balance" hint but does not block saving; `lib/record-payment.ts` intentionally mirrors the old `Number(payAmount)` behavior (including amounts over the balance). Proposed: decide credit vs. reject, then block/clamp before `recordPayment`. Not part of PR #64. |
