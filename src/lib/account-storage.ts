@@ -19,6 +19,10 @@ export interface StorageLike {
   };
 }
 
+/** Every bucket holding user files under `${userId}/`; none cascade from an
+ *  auth-user delete. Add a new user-file bucket here or its files are orphaned. */
+export const ACCOUNT_BUCKETS = ['vault', 'logos', 'receipts', 'invoice-attachments'] as const;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGE = 100;
 const MAX_DEPTH = 6;

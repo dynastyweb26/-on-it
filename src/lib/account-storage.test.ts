@@ -2,7 +2,8 @@
 // mimics Storage's one-level listing (folders come back with id === null).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clearBucketFolder, type StorageLike } from './account-storage';
+import { ACCOUNT_BUCKETS, clearBucketFolder, type StorageLike } from './account-storage';
+import { ATTACHMENT_BUCKET } from './attachments-client';
 
 const U = '1f58b401-e1b1-41e9-b11f-df5530872007';
 const OTHER = '2a58b401-e1b1-41e9-b11f-df5530872008';
@@ -100,4 +101,9 @@ test('list and remove errors propagate', async () => {
 test('throws if objects remain after the clear (nothing ignored silently)', async () => {
   const f = fake({ vault: [`${U}/a.pdf`] }, { keepOnRemove: true });
   await assert.rejects(() => clearBucketFolder(f.storage, 'vault', U), /remain/);
+});
+
+test('account deletion covers every user-file bucket, including invoice-attachments', () => {
+  assert.deepEqual([...ACCOUNT_BUCKETS].sort(), ['invoice-attachments', 'logos', 'receipts', 'vault']);
+  assert.ok(ACCOUNT_BUCKETS.includes(ATTACHMENT_BUCKET));
 });

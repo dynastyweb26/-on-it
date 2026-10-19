@@ -28,7 +28,7 @@ import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
-import { clearBucketFolder, type StorageLike } from '@/lib/account-storage';
+import { ACCOUNT_BUCKETS, clearBucketFolder, type StorageLike } from '@/lib/account-storage';
 
 export const runtime = 'nodejs';
 
@@ -40,7 +40,6 @@ const Body = z.object({ confirm: z.literal('DELETE') });
 // of these private/public buckets (owner-scoped by foldername[1] = auth.uid in
 // RLS). None of them cascade from an auth-user deletion, so each must be
 // cleared explicitly (recursively, with a re-list check: lib/account-storage.ts).
-const BUCKETS = ['vault', 'logos', 'receipts'] as const;
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -85,7 +84,7 @@ export async function POST(req: NextRequest) {
   // ── 2. Storage: clear the non-cascading buckets. Done before the auth delete
   //    so a failure here leaves the account intact and the operation retriable.
   try {
-    for (const bucket of BUCKETS) await clearBucketFolder(admin.storage as unknown as StorageLike, bucket, user.id);
+    for (const bucket of ACCOUNT_BUCKETS) await clearBucketFolder(admin.storage as unknown as StorageLike, bucket, user.id);
   } catch (e) {
     console.error('delete-account: storage clear failed', e);
     return NextResponse.json(
