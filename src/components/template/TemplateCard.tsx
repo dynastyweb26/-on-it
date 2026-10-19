@@ -39,6 +39,7 @@
 // Merge 2 · 2·10 (part 1) + 2·11 (part 2) + 2·12a/b.
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import { ClientSheet, ItemSheet } from '@/components/template/TemplateSheets';
 import KeypadSheet from '@/components/template/KeypadSheet';
 import OnItSpinner from '@/components/OnItSpinner';
@@ -62,7 +63,7 @@ type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypa
 
 export type SendState = 'disabled' | 'preparing' | 'ready' | 'busy';
 
-export default function TemplateCard({ kind, onKindChange, onClose, uid, restored, onDraft, sendState, onSend, duplicateNote }: {
+export default function TemplateCard({ kind, onKindChange, onClose, uid, restored, onDraft, sendState, onSend, duplicateNote, attachments, onAttachments, onRemoveAttachment }: {
   kind: TemplateKind;
   onKindChange: (k: TemplateKind) => void;
   onClose: () => void;
@@ -77,6 +78,12 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   onSend: () => void;
   /** "You already made an invoice for … at this amount" (L17), shown above Send. */
   duplicateNote?: string | null;
+  /** The chat's attachment list — the template edits the same state (gold
+   *  "+ Add attachment" under "+ Add item"), so the images print on the PDF. */
+  attachments: EditorAttachment[];
+  onAttachments: (items: EditorAttachment[]) => void;
+  /** Fired for a SAVED attachment so the chat can delete its row + object. */
+  onRemoveAttachment?: (item: EditorAttachment) => void;
 }) {
   const [extra, setExtra] = useState(() => restored?.extra ?? '');
   const [client, setClient] = useState<TemplateClient | null>(() => restored?.client ?? null);
@@ -301,6 +308,9 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
         className="mt-1.5 flex min-h-[40px] items-center gap-1.5 px-1 text-[15px] font-bold text-primary active:opacity-60">
         <Icon name="add" size={20} /> Add item
       </button>
+
+      {/* Attachments: the same gold control as the card, under "+ Add item". */}
+      <AttachmentsEditor items={attachments} editable onChange={onAttachments} onRemove={onRemoveAttachment} />
 
       {/* Extra info slot */}
       <button type="button" onClick={() => setSheet({ type: 'extra' })}

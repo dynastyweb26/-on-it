@@ -32,6 +32,10 @@ export interface PreparedReceipt {
   thumbUrl: string | null;
   originalBytes: number;
   bytes: number;
+  /** Output pixel size after downscale — the attachment PDF lays images out
+   *  from these, so they ride along instead of being re-measured. */
+  width: number;
+  height: number;
 }
 
 export class ReceiptError extends Error {}
@@ -186,6 +190,8 @@ export async function prepareImage(file: File, opts: PrepareImageOptions): Promi
     thumbUrl,
     originalBytes: file.size,
     bytes: blob.size,
+    width: canvas.width,
+    height: canvas.height,
   };
 }
 

@@ -17,6 +17,9 @@ export interface PreparedAttachment {
   blob: Blob;
   /** Full-size object URL for the editor thumbnail (caller revokes it). */
   previewUrl: string;
+  /** Output pixel size — the PDF fits each image from these. */
+  width: number;
+  height: number;
   bytes: number;
 }
 
@@ -29,7 +32,7 @@ export async function prepareAttachment(file: File): Promise<PreparedAttachment>
     hash: false,
     oversizeMessage: 'That image is over 25 MB. Try a smaller one.',
   });
-  return { blob: p.blob, previewUrl: p.previewUrl, bytes: p.bytes };
+  return { blob: p.blob, previewUrl: p.previewUrl, width: p.width, height: p.height, bytes: p.bytes };
 }
 
 /** The survivors of removing `removeId`, renumbered 0..n-1 in order.

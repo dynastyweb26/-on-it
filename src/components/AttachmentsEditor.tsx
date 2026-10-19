@@ -22,6 +22,12 @@ export interface EditorAttachment {
   blob?: Blob;
   /** Set once saved: its storage object path. */
   storagePath?: string;
+  /** Set once saved: its invoice_attachments row id. */
+  rowId?: string;
+  /** Natural (downscaled) size, for the PDF layout. Known for picked images;
+   *  measured from storage for ones loaded back from a saved invoice. */
+  width?: number;
+  height?: number;
 }
 
 export default function AttachmentsEditor({
@@ -53,7 +59,10 @@ export default function AttachmentsEditor({
     for (const f of chosen) {
       try {
         const p = await prepareAttachment(f);
-        added.push({ id: crypto.randomUUID(), previewUrl: p.previewUrl, blob: p.blob });
+        added.push({
+          id: crypto.randomUUID(), previewUrl: p.previewUrl, blob: p.blob,
+          width: p.width, height: p.height,
+        });
       } catch (e) {
         failed = e instanceof Error ? e.message : "Couldn't add that image.";
         break;
