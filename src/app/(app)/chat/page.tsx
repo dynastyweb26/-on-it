@@ -1230,12 +1230,12 @@ export default function Chat() {
           }
           return mergedDraft;
         });
-        // The card moves under this reply when the reply changed the draft (or
-        // the card is appearing now). A no-op parse ("what's the total?") leaves
-        // it where it is. Over the cap it always moves: asking again after the
-        // wall (often the same job) must put the unsent card right under the
+        // Anchor the card once, when it first appears. A later reply that edits
+        // the draft must NOT move it: the founder wants every new message below
+        // the card, not above it. Over the cap it still moves: asking again after
+        // the wall (often the same job) must put the unsent card right under the
         // reply, where the next Send tap reopens the wall.
-        if (overCap || !draft || !ready || draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
+        if (overCap || (isReady && !(ready && draft))) {
           setCardAfterId(replyMsg.id);
         }
         // NOTE: pendingInvoiceRef is deliberately NOT cleared here anymore. One
