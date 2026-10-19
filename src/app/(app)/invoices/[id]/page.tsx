@@ -34,6 +34,15 @@ import AttachmentsEditor, { type EditorAttachment } from '@/components/Attachmen
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
+// Payment-row icon. Reversal rows (refunds/disputes) read as an undo; manual
+// rows use the method's closest Material Symbols glyph (no new font glyphs).
+const PAYMENT_ICONS: Record<string, IconName> = {
+  zelle: 'send', cash: 'payments', check: 'checkbook', card: 'credit_card',
+  cashapp: 'payments', bank: 'account_balance', other: 'more_horiz',
+};
+const paymentIcon = (method: string, entryType?: string | null): IconName =>
+  entryType && entryType !== 'payment' ? 'undo' : (PAYMENT_ICONS[method] ?? 'payments');
+
 // A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. Format
 // today for the picker, and convert a picked value to a timestamp from its parts
 // as a LOCAL date (not UTC) — so a payment entered on the 14th is stored and
@@ -1025,44 +1034,62 @@ export default function InvoiceDetail() {
       {payments.length > 0 && (
         <div className="card mb-4">
           <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-            Payment history
+            Payments
           </div>
           <div className="space-y-2">
-            {payments.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 text-xs last:border-0 last:pb-0"
-              >
-                <div>
-                  <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
-                  <span className="ml-2 font-medium text-on-surface-variant">{ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}</span>
-                  <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
-                </div>
-                {/* Stripe-sourced rows (paid on the pay page) are locked by RLS —
-                    a delete would silently match 0 rows — so they get no delete
-                    control. Refunds are handled in the seller's Stripe Dashboard. */}
-                {p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment') ? null : deletingPaymentId === p.id ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-error">Delete?</span>
-                    <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
-                      Yes
-                    </button>
-                    <button className="chip px-2 py-0.5 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
-                      No
-                    </button>
+            {payments.map((p) => {
+              // Stripe-sourced rows (paid on the pay page) are locked by RLS — a
+              // delete would silently match 0 rows — so they get no delete
+              // control. Refunds are handled in the seller's Stripe Dashboard.
+              const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
+              const confirming = deletingPaymentId === p.id;
+              return (
+                <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
+                  <div className="flex min-h-touch items-center gap-3 px-3 py-2">
+                    <span aria-hidden className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-surface-container text-primary">
+                      <Icon name={paymentIcon(p.method, p.entry_type)} size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold text-on-surface">
+                        {ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}
+                      </span>
+                      <span className="block text-[13px] text-on-surface-variant">{new Date(p.paid_at).toLocaleDateString()}</span>
+                    </span>
+                    <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
+                      {money(Number(p.amount))}
+                    </span>
+                    {!locked && !confirming && (
+                      <button
+                        type="button"
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-error opacity-80 transition active:scale-95"
+                        title="Delete payment"
+                        aria-label="Delete payment"
+                        onClick={() => setDeletingPaymentId(p.id)}
+                      >
+                        <Icon name="delete" size={16} />
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <button
-                    className="p-1 text-error opacity-70 hover:opacity-100"
-                    title="Delete payment"
-                    aria-label="Delete payment"
-                    onClick={() => setDeletingPaymentId(p.id)}
-                  >
-                    <Icon name="delete" size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
+                  {!locked && confirming && (
+                    <div className="flex items-center justify-end gap-2 px-3 pb-2">
+                      <span className="text-xs font-semibold text-error">Delete?</span>
+                      <button className="chip border-error px-3 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
+                        Yes
+                      </button>
+                      <button className="chip px-3 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
+                        No
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between px-1 pb-0.5 pt-3 text-sm text-on-surface-variant">
+            <span>{fullyPaid ? 'Balance' : 'Still owed'}</span>
+            <span className={`font-display font-bold tabular-nums ${fullyPaid ? 'text-paid' : 'text-on-surface'}`}>
+              {money(totals.balanceRemaining)}
+            </span>
           </div>
         </div>
       )}
@@ -1073,6 +1100,10 @@ export default function InvoiceDetail() {
             {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a value to edit</span>}
           </div>
           <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
+          <div className="mt-3 flex items-center justify-between border-t border-outline-variant/30 pt-3">
+            <span className="text-sm font-semibold text-on-surface-variant">Total</span>
+            <span className="font-display text-lg font-bold tabular-nums text-on-surface">{money(totals.total)}</span>
+          </div>
           {isDraft && (
             <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
