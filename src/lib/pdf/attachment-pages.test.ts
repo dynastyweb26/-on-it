@@ -55,17 +55,22 @@ function pngDataUrl(w: number, h: number): string {
 
 const img = (w: number, h: number): PdfAttachment => ({ dataUrl: pngDataUrl(w, h), width: w, height: h });
 
-/** Records addPage / addImage calls so the layout order can be asserted. */
+/** Records addPage / addImage / text calls so the layout and footers can be
+ *  asserted. */
 function recorder() {
   const pages: [number, number][] = [];
   const images: string[] = [];
+  const labels: string[] = [];
   const calls: string[] = [];
-  const rec: PdfPageTarget & { pages: typeof pages; images: typeof images; calls: typeof calls } = {
+  const rec: PdfPageTarget & { pages: typeof pages; images: typeof images; labels: typeof labels; calls: typeof calls } = {
     addPage: (f) => { pages.push(f); calls.push('page'); },
     setFillColor: () => {},
     rect: () => {},
     addImage: (dataUrl) => { images.push(dataUrl); calls.push('image'); },
-    pages, images, calls,
+    setFontSize: () => {},
+    setTextColor: () => {},
+    text: (t) => { labels.push(t); calls.push('text'); },
+    pages, images, labels, calls,
   };
   return rec;
 }
@@ -106,6 +111,23 @@ test('appendAttachmentPages: nothing to add → no pages', () => {
   assert.equal(appendAttachmentPages(rec, [], '#ffffff'), 0);
   assert.equal(rec.pages.length, 0);
   assert.equal(rec.images.length, 0);
+});
+
+test('appendAttachmentPages: footer continues the invoice page numbering', () => {
+  const rec = recorder();
+  const items = Array.from({ length: 6 }, () => img(8, 8));
+  appendAttachmentPages(rec, items, '#ffffff', { from: 2, total: 4, color: [0, 0, 0] });
+  assert.deepEqual(rec.labels, ['Page 2 of 4', 'Page 3 of 4', 'Page 4 of 4']);
+});
+
+test('appendAttachmentPages: no footer when absent or when total is one', () => {
+  const bare = recorder();
+  appendAttachmentPages(bare, [img(8, 8)], '#ffffff');
+  assert.equal(bare.labels.length, 0);
+
+  const single = recorder();
+  appendAttachmentPages(single, [img(8, 8)], '#ffffff', { from: 1, total: 1, color: [0, 0, 0] });
+  assert.equal(single.labels.length, 0);
 });
 
 test('attachmentCell: fits, centres, and never upscales', () => {

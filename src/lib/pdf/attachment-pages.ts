@@ -33,6 +33,21 @@ export interface PdfPageTarget {
   setFillColor(r: number, g: number, b: number): unknown;
   rect(x: number, y: number, w: number, h: number, style: string): unknown;
   addImage(dataUrl: string, format: string, x: number, y: number, w: number, h: number): unknown;
+  setFontSize(size: number): unknown;
+  setTextColor(r: number, g: number, b: number): unknown;
+  text(text: string, x: number, y: number, options?: { align?: string }): unknown;
+}
+
+/** Page-number footer for the attachment pages, continuing the invoice's own
+ *  "Page X of N". Attachment page k (0-based) prints `Page (from + k) of total`;
+ *  generate.ts passes the running page number so the whole document numbers as
+ *  one sequence. */
+export interface AttachmentFooter {
+  from: number;
+  total: number;
+  /** Blended label colour (the invoice footer is the template text at 0.7
+   *  opacity, so the jsPDF-drawn pages match it). */
+  color: [number, number, number];
 }
 
 /** Extra pages `n` attachments need: 2 per page, capped at ATTACHMENT_MAX. */
@@ -76,10 +91,11 @@ export function appendAttachmentPages(
   pdf: PdfPageTarget,
   attachments: readonly PdfAttachment[],
   background: string,
+  footer?: AttachmentFooter,
 ): number {
   const list = attachments.slice(0, ATTACHMENT_MAX);
   const [r, g, b] = hexToRgb(background);
-  for (let i = 0; i < list.length; i += 2) {
+  for (let i = 0, page = 0; i < list.length; i += 2, page++) {
     pdf.addPage([PAGE_W, PAGE_H]);
     pdf.setFillColor(r, g, b);
     pdf.rect(0, 0, PAGE_W, PAGE_H, 'F');
@@ -87,6 +103,13 @@ export function appendAttachmentPages(
       const c = attachmentCell(a, j as 0 | 1);
       pdf.addImage(a.dataUrl, formatOf(a.dataUrl), c.x, c.y, c.w, c.h);
     });
+    // Number in the same sequence as the invoice pages (matches the DOM
+    // footer: right 56px, ~14px off the bottom, 11px).
+    if (footer && footer.total > 1) {
+      pdf.setFontSize(11);
+      pdf.setTextColor(footer.color[0], footer.color[1], footer.color[2]);
+      pdf.text(`Page ${footer.from + page} of ${footer.total}`, PAGE_W - 56, PAGE_H - 18, { align: 'right' });
+    }
   }
   return attachmentPageCount(list.length);
 }
