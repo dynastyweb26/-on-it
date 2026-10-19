@@ -180,6 +180,39 @@ export async function materializeAttachments(
   return { items: items.map((a) => done.get(a.id) ?? a), saved };
 }
 
+/** Remove every attachment row + object of ONE invoice. Used to roll back a
+ *  failed copy — the caller only ever passes the invoice it just created, so the
+ *  source is never in scope. */
+export async function deleteInvoiceAttachments(supabase: Db, invoiceId: string): Promise<void> {
+  const rows = await listAttachmentRows(supabase, invoiceId);
+  if (!rows.length) return;
+  await supabase.storage.from(ATTACHMENT_BUCKET).remove(rows.map((r) => r.storage_path));
+  await supabase.from('invoice_attachments').delete().eq('invoice_id', invoiceId);
+}
+
+export interface CopyResult {
+  ok: boolean;
+  copied: number;
+}
+
+/** Copy a document's attachments onto ANOTHER, already-created document (D4:
+ *  quote→invoice). Reads the source (list + download) and writes only under
+ *  `toInvoiceId`. If any file fails, the copies already made on the target are
+ *  removed, so the target is left exactly as it was — the source is never
+ *  touched. The caller reports `ok:false` and undoes its own new row. */
+export async function copyAttachments(
+  supabase: Db, userId: string, fromInvoiceId: string, toInvoiceId: string,
+): Promise<CopyResult> {
+  const copies = await loadAttachmentCopies(supabase, fromInvoiceId);
+  if (!copies.length) return { ok: true, copied: 0 };
+  const res = await materializeAttachments(supabase, userId, toInvoiceId, copies);
+  if (res.failedId) {
+    try { await deleteInvoiceAttachments(supabase, toInvoiceId); } catch { /* best effort */ }
+    return { ok: false, copied: 0 };
+  }
+  return { ok: true, copied: res.saved.size };
+}
+
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nextAttachmentPosition, attachmentObjectPath, loadAttachmentCopies, materializeAttachments,
-  type AttachmentRow,
+  copyAttachments, type AttachmentRow,
 } from './attachments-client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
 
@@ -29,11 +29,12 @@ test('attachmentObjectPath: two calls never collide', () => {
 // ── Fake client: enough of the Supabase surface for the copy path. Records
 //    every storage call and every row write so a test can prove the SOURCE is
 //    never written to.
-function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean } = {}) {
+function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean; failUploadAfter?: number } = {}) {
   const store = new Map<string, AttachmentRow[]>([[sourceInvoiceId, sourceRows.map((r) => ({ ...r }))]]);
   const storage: string[] = [];
   const inserts: { invoice_id: string; storage_path: string; position: number }[] = [];
   let seq = 0;
+  let uploads = 0;
 
   function query(table: string) {
     const filters: Record<string, unknown> = {};
@@ -68,7 +69,12 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
   const db: any = {
     from: (t: string) => query(t),
     storage: { from: () => ({
-      upload: async (path: string) => { storage.push(`upload:${path}`); return opts.failUpload ? { error: { message: 'nope' } } : { error: null }; },
+      upload: async (path: string) => {
+        storage.push(`upload:${path}`);
+        const fail = opts.failUpload || (opts.failUploadAfter != null && uploads >= opts.failUploadAfter);
+        if (!fail) uploads++;
+        return fail ? { error: { message: 'nope' } } : { error: null };
+      },
       download: async (path: string) => { storage.push(`download:${path}`); return { data: new Blob(['img']) }; },
       createSignedUrl: async (path: string) => { storage.push(`sign:${path}`); return { data: { signedUrl: `signed:${path}` } }; },
       remove: async (paths: string[]) => { storage.push(`remove:${paths.join(',')}`); return { error: null }; },
@@ -138,4 +144,37 @@ test('materializeAttachments: already-saved items are left alone (no re-upload)'
   const res = await materializeAttachments(db, 'u', 'new-invoice', [item]);
   assert.equal(res.saved.size, 0);
   assert.equal(storage.length, 0, 'no storage traffic for an already-saved item');
+});
+
+// ── quote→invoice copy (D4) ───────────────────────────────────────────────
+test('copyAttachments: duplicates onto the target, 0..n-1, source untouched', async () => {
+  const { db, store, inserts } = fakeClient(SRC, [
+    { id: 'r1', storage_path: 'u/src/1.jpg', position: 0 },
+    { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
+  ]);
+  const res = await copyAttachments(db, 'u', SRC, 'inv-2');
+  assert.deepEqual(res, { ok: true, copied: 2 });
+  assert.deepEqual(inserts.map((i) => i.position), [0, 1]);
+  assert.ok(inserts.every((i) => i.invoice_id === 'inv-2'));
+  assert.deepEqual(store.get(SRC)!.map((r) => r.id), ['r1', 'r2'], 'source rows untouched');
+});
+
+test('copyAttachments: a mid-way failure rolls back the TARGET only', async () => {
+  const { db, store, storage } = fakeClient(SRC, [
+    { id: 'r1', storage_path: 'u/src/1.jpg', position: 0 },
+    { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
+  ], { failUploadAfter: 1 }); // first copy lands, second fails
+  const res = await copyAttachments(db, 'u', SRC, 'inv-2');
+  assert.equal(res.ok, false);
+  assert.deepEqual(store.get('inv-2') ?? [], [], 'target rows cleaned up');
+  assert.ok(storage.some((s) => s.startsWith('remove:') && s.includes('/inv-2/')), 'target file removed');
+  assert.deepEqual(store.get(SRC)!.map((r) => r.id), ['r1', 'r2'], 'source rows untouched');
+  assert.ok(!storage.some((s) => s.startsWith('remove:') && s.includes('/src/')), 'source file never removed');
+});
+
+test('copyAttachments: a source with no attachments is a no-op success', async () => {
+  const { db, storage } = fakeClient(SRC, []);
+  const res = await copyAttachments(db, 'u', SRC, 'inv-2');
+  assert.deepEqual(res, { ok: true, copied: 0 });
+  assert.equal(storage.length, 0);
 });

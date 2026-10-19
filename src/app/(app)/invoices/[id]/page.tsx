@@ -24,6 +24,7 @@ import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
+import { copyAttachments } from '@/lib/attachments-client';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -489,6 +490,7 @@ export default function InvoiceDetail() {
     // so a free user at the limit is stopped here too, with the paywall modal.
     if (converting || convertedTo) return;
     setConverting(true);
+    setPdfError(null);
     try {
       const { data: created, error } = await supabase.from('invoices').insert({
         user_id: inv.user_id, client_id: inv.client_id, kind: 'invoice',
@@ -506,7 +508,19 @@ export default function InvoiceDetail() {
         console.error('convert to invoice failed', error);
         return;
       }
-      if (created) router.push(`/invoices/${created.id}`);
+      if (created) {
+        // D4: the new invoice carries the quote's pictures (files duplicated into
+        // the invoice's own folder + fresh rows). If a copy fails, undo the
+        // conversion — nothing half-made lingers and a retry starts clean. The
+        // quote's own rows and files are only read, never written.
+        const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
+        if (!copy.ok) {
+          await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
+          setPdfError("Couldn't copy this quote's pictures, so nothing was converted. Please try again.");
+          return;
+        }
+        router.push(`/invoices/${created.id}`);
+      }
     } finally {
       setConverting(false);
     }
