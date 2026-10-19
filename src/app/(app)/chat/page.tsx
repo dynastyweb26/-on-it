@@ -2663,9 +2663,24 @@ export default function Chat() {
   // pre-build writes the row and the PDF); incomplete → not ready.
   useEffect(() => {
     if (!template) return;
-    if (templateDraft) { setDraft(templateDraft); setReady(true); }
-    else setReady(false);
-  }, [template, templateDraft]);
+    if (templateDraft) {
+      setDraft(templateDraft);
+      setReady(true);
+      // The card is hidden while the template is open, but it still needs a
+      // stable anchor for the moment the template closes. Anchor it once under
+      // the transcript's last message, so the send's summary and confirmation
+      // land below the card (reversing 2·12b's summary-above-card). Keep an
+      // anchor that is still in the list; a replaced template resets it via
+      // new-chat.
+      setCardAfterId((prev) => (
+        prev && messages.some((m) => m.id === prev)
+          ? prev
+          : messages[messages.length - 1]?.id ?? null
+      ));
+    } else {
+      setReady(false);
+    }
+  }, [template, templateDraft, messages]);
   // L17 at Send, shared rule with the parse route: same client + same total in
   // the last 48 h. Checked before the tap (no await may sit between the tap and
   // the iOS share), shown as a note; Send still works.
