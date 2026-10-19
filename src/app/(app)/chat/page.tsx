@@ -2731,9 +2731,21 @@ export default function Chat() {
   // "Make it a quote / an invoice": a row's kind is pinned once inserted
   // (lock_document_identity), so a pre-built row of the old kind is
   // discarded and the next pre-build / Send inserts one of the new kind.
+  // D4: attachments follow the line items across the toggle. Whatever the card
+  // shows is re-seeded as COPIES, because its bytes and rows belong to the row
+  // being discarded — the new kind's build materializes them fresh under the
+  // new invoice (the discarded row's own files are never touched). A pending
+  // pick keeps its blob and just gets uploaded to the new invoice as usual.
   function switchTemplateKind(k: TemplateKind) {
     if (k === template) return;
+    const carried = attachmentsRef.current.map((a) => ({
+      ...a,
+      storagePath: undefined,
+      rowId: undefined,
+      copyFromPath: a.storagePath ?? a.copyFromPath,
+    }));
     if (pendingInvoiceRef.current) discardTemplateRow();
+    if (carried.length) setAttachments(carried);
     setTemplate(k);
   }
   // The template feeds the chat's draft: complete → draft + ready (the
