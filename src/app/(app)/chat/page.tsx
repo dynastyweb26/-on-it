@@ -1951,23 +1951,24 @@ export default function Chat() {
       //    their saved rows, so a later save never re-uploads them. This runs in
       //    prepare mode too — the pre-build already writes the draft row, and the
       //    send tap's fast path shares that pre-built file with NO awaits, so the
-      //    images must already be stored by then.
+      //    images must already be stored by then. A failure ABORTS the turn (the
+      //    retry bubble) rather than sending without a picture the card showed.
       const pendingAttachments = attachmentsRef.current.filter((a) => a.blob && !a.storagePath);
       if (pendingAttachments.length) {
         const existingRows = await listAttachmentRows(supabase, invoiceId);
         let position = nextAttachmentPosition(existingRows);
         const saved = new Map<string, { storagePath: string; rowId: string }>();
         for (const a of pendingAttachments) {
-          if (position >= ATTACHMENT_MAX) break;
+          if (position >= ATTACHMENT_MAX) throw new Error('attachment cap exceeded');
           const row = await uploadAttachment(supabase, profile.id, invoiceId, position, a.blob!);
-          if (row) { saved.set(a.id, { storagePath: row.storage_path, rowId: row.id }); position++; }
+          if (!row) throw new Error('attachment upload failed');
+          saved.set(a.id, { storagePath: row.storage_path, rowId: row.id });
+          position++;
         }
-        if (saved.size) {
-          setAttachments((cur) => cur.map((a) => {
-            const s = saved.get(a.id);
-            return s ? { ...a, blob: undefined, storagePath: s.storagePath, rowId: s.rowId } : a;
-          }));
-        }
+        setAttachments((cur) => cur.map((a) => {
+          const s = saved.get(a.id);
+          return s ? { ...a, blob: undefined, storagePath: s.storagePath, rowId: s.rowId } : a;
+        }));
       }
 
       // ── 2. Build render data (reuse the stashed number on a retry).
