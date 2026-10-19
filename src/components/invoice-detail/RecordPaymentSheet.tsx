@@ -7,6 +7,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
+import BrandMark from '@/components/BrandMark';
 import type { IconName } from '@/components/icon-names';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 import { KEYS, pressKey, type Key } from '@/lib/keypad';
@@ -16,11 +17,23 @@ import {
   yesterdayString, type PayDateMode, type PayMode, type PaymentMethod, type RecordPaymentInput,
 } from '@/lib/record-payment';
 
-const METHOD_ICONS: Record<PaymentMethod, IconName> = {
-  card: 'credit_card', bank: 'account_balance', zelle: 'send',
-  cashapp: 'payments', paypal: 'account_balance_wallet', venmo: 'send',
-  other: 'more_horiz',
+const METHOD_ICONS: Partial<Record<PaymentMethod, IconName>> = {
+  card: 'credit_card', bank: 'account_balance', other: 'more_horiz',
 };
+
+// Same marks and brand colours as the Payouts screen.
+const METHOD_MARKS: Partial<Record<PaymentMethod, { src: string; color: string }>> = {
+  zelle: { src: '/brands/zelle.svg', color: '#6D1ED4' },
+  cashapp: { src: '/brands/cashapp.svg', color: '#00D632' },
+  paypal: { src: '/brands/paypal.svg', color: '#003087' },
+  venmo: { src: '/brands/venmo.svg', color: '#008CFF' },
+};
+
+function MethodMark({ method }: { method: PaymentMethod }) {
+  const mark = METHOD_MARKS[method];
+  if (mark) return <BrandMark src={mark.src} color={mark.color} className="h-[18px] w-[18px]" />;
+  return <Icon name={METHOD_ICONS[method] ?? 'payments'} size={18} />;
+}
 
 const shortDay = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -180,7 +193,7 @@ export default function RecordPaymentSheet({
 
         <div className="mx-1 mb-2 mt-4 text-[12px] font-bold uppercase tracking-[.08em] text-on-surface-variant">Paid with</div>
         <div className="grid grid-cols-3 gap-2">
-          {PAYMENT_METHODS.map((m) => {
+          {PAYMENT_METHODS.filter((m) => m.value !== 'other').map((m) => {
             const on = method === m.value;
             return (
               <button
@@ -190,12 +203,29 @@ export default function RecordPaymentSheet({
                 aria-pressed={on}
                 className={`${tileBase} ${on ? selected : unselected}`}
               >
-                <Icon name={METHOD_ICONS[m.value]} size={18} />
+                <MethodMark method={m.value} />
                 <span className="whitespace-nowrap">{m.label}</span>
               </button>
             );
           })}
         </div>
+        {PAYMENT_METHODS.filter((m) => m.value === 'other').map((m) => {
+          const on = method === m.value;
+          return (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMethod(m.value)}
+              aria-pressed={on}
+              className={`mt-2 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[14px] border text-[13px] font-semibold transition ${
+                on ? selected : unselected
+              }`}
+            >
+              <MethodMark method={m.value} />
+              <span>{m.label}</span>
+            </button>
+          );
+        })}
 
         <div className="mx-1 mb-2 mt-4 text-[12px] font-bold uppercase tracking-[.08em] text-on-surface-variant">Date received</div>
         <div className="grid grid-cols-3 gap-2">
