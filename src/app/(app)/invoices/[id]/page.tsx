@@ -942,10 +942,6 @@ export default function InvoiceDetail() {
               <Icon name="request_quote" size={18} /> From {formatDocNumber('quote', convertedFrom.invoice_number)}
             </button>
           )}
-          <button className="chip flex items-center gap-1.5 border-error text-error"
-            onClick={() => setShowDeleteModal(true)}>
-            <Icon name="delete" size={18} /> Delete
-          </button>
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
@@ -1114,6 +1110,15 @@ export default function InvoiceDetail() {
           {attachmentsError && <div className="mt-2 text-xs font-semibold text-error">{attachmentsError}</div>}
         </div>
       )}
+      {/* Delete sits last, past the PDF, away from the everyday actions. */}
+      <button
+        type="button"
+        onClick={() => setShowDeleteModal(true)}
+        className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] border border-error/40 bg-transparent text-[15px] font-semibold text-error transition active:scale-[0.985]"
+      >
+        <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'quote' : 'invoice'}
+      </button>
+
       {/* Offscreen capture source — natural scale, no transform. Mirrors the chat
           finalize path so both produce identical clean PDFs. */}
       <div style={{ position: 'fixed', left: -9999, top: 0 }}>
