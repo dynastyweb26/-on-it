@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { docPrefix } from '@/lib/documents';
 import { appendAttachmentPages, attachmentPageCount, hexToRgb, type PdfAttachment } from '@/lib/pdf/attachment-pages';
+import { contentInset, continuationStyle } from '@/lib/pdf/continuation';
 
 const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '').slice(0, 24) || 'Client';
 
@@ -178,6 +179,22 @@ export async function elementToPdf(
 
   // Page geometry, measured on the template itself (see measurePage).
   const root = (el.firstElementChild as HTMLElement | null) ?? el;
+  // Continuation pages reproduce page 1's text column: the padding and border
+  // of every ancestor between the table and the page root, summed (see
+  // continuation.ts). Using this instead of a constant keeps page 2+'s table
+  // exactly as wide as page 1's.
+  const contStyle = continuationStyle({
+    background: computedBg,
+    inset: contentInset(table, root, (node) => {
+      const cs = getComputedStyle(node as unknown as Element);
+      return {
+        top: px(cs.paddingTop) + px(cs.borderTopWidth),
+        right: px(cs.paddingRight) + px(cs.borderRightWidth),
+        bottom: px(cs.paddingBottom) + px(cs.borderBottomWidth),
+        left: px(cs.paddingLeft) + px(cs.borderLeftWidth),
+      };
+    }),
+  });
   // page1: the whole document on one page, every pinned footer counted.
   const page1 = measurePage(root);
   const rootTop = root.getBoundingClientRect().top;
@@ -343,10 +360,12 @@ export async function elementToPdf(
     pageNode.style.boxSizing = 'border-box';
     pageNode.style.position = 'relative';
     pageNode.style.overflow = 'hidden';
-    pageNode.style.backgroundColor = computedBg;
+    pageNode.style.backgroundColor = contStyle.background;
     pageNode.style.color = computedColor;
     pageNode.style.fontFamily = computedFont;
-    pageNode.style.padding = '48px 56px';
+    // Page 1's real content inset, not a constant: keeps page 2+'s table the
+    // same width and its text in the same column as page 1.
+    pageNode.style.padding = contStyle.padding;
 
     // 1. Continuation Header (Business name + document number only, ~50% masthead height)
     const contHeader = document.createElement('div');
@@ -383,7 +402,9 @@ export async function elementToPdf(
     const hasRows = table && page.end > page.start;
     if (hasRows) {
       const pageTable = document.createElement('table');
-      pageTable.style.width = '100%';
+      // Explicit px, not 100%: the continuation page is padded by page 1's
+      // inset, so the table is exactly as wide as page 1's.
+      pageTable.style.width = `${contStyle.tableWidth}px`;
       pageTable.style.borderCollapse = 'collapse';
       pageTable.style.fontSize = '15px';
       // Carry the template's explicit line-height (summary documents set one)
