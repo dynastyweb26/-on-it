@@ -7,6 +7,7 @@
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { docPrefix } from '@/lib/documents';
+import { appendAttachmentPages, type PdfAttachment } from '@/lib/pdf/attachment-pages';
 
 const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, '').slice(0, 24) || 'Client';
 
@@ -126,7 +127,11 @@ function measurePage(root: HTMLElement, { skipAbsBlocks = false } = {}): { limit
  *  then follow the last rows one at a time, totals first, as many as fit;
  *  the rest start a page of their own with no table on it. Each placement is
  *  checked by laying the real page out offscreen and measuring it. */
-export async function elementToPdf(el: HTMLElement, filename: string, { scale = 3 }: { scale?: number } = {}): Promise<File> {
+export async function elementToPdf(
+  el: HTMLElement,
+  filename: string,
+  { scale = 3, attachments = [] }: { scale?: number; attachments?: readonly PdfAttachment[] } = {},
+): Promise<File> {
   // Wait for web fonts before capture: html2canvas snapshots synchronously and
   // uses fallback-font metrics if the display font isn't ready yet, which
   // collapses letter spacing. Guarded — document.fonts is absent in older envs.
@@ -134,6 +139,10 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
     await document.fonts.ready;
   }
   await awaitImages(el);
+
+  // The document's canvas colour/font, read once up front: the attachment pages
+  // (and every continuation page) paint with this same background.
+  const { bg: computedBg, color: computedColor, fontFamily: computedFont } = getEffectiveBgAndColor(el);
 
   const fullHeight = el.scrollHeight || el.offsetHeight;
   const table = el.querySelector('table');
@@ -187,6 +196,8 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
     const pdf = new jsPDF({ unit: 'px', format: [794, 1123], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
     addPageLinks(pdf, el);
+    // Attachments always print last: appended after the single page above.
+    appendAttachmentPages(pdf, attachments, computedBg);
     const blob = pdf.output('blob');
     return new File([blob], filename, { type: 'application/pdf' });
   }
@@ -225,8 +236,6 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
     return groupHeaderIdx.get(g) ?? -1;
   };
   const tableHeader = table?.querySelector('thead') as HTMLElement | null;
-
-  const { bg: computedBg, color: computedColor, fontFamily: computedFont } = getEffectiveBgAndColor(el);
 
   const businessName = el.querySelector('[data-pdf-business-name]')?.textContent?.trim() || '';
   const docNounStr = el.querySelector('[data-pdf-doc-noun]')?.textContent?.trim() || '';
@@ -563,6 +572,10 @@ export async function elementToPdf(el: HTMLElement, filename: string, { scale = 
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 794, 1123);
       addPageLinks(pdf, pageNode);
     }
+
+    // Attachments always print last: appended after every invoice page, so they
+    // land after the body and the payment-processors ("How to pay") block.
+    appendAttachmentPages(pdf, attachments, computedBg);
 
     const blob = pdf.output('blob');
     return new File([blob], filename, { type: 'application/pdf' });
