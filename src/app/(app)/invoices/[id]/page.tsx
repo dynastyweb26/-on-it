@@ -30,6 +30,9 @@ import {
   loadAttachmentItems, materializeAttachments, renumberAttachments, toPdfAttachments,
 } from '@/lib/attachments-client';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
+import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
+import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
+import type { RecordPaymentInput } from '@/lib/record-payment';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -43,19 +46,9 @@ const PAYMENT_ICONS: Record<string, IconName> = {
 const paymentIcon = (method: string, entryType?: string | null): IconName =>
   entryType && entryType !== 'payment' ? 'undo' : (PAYMENT_ICONS[method] ?? 'payments');
 
-// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. Format
-// today for the picker, and convert a picked value to a timestamp from its parts
-// as a LOCAL date (not UTC) — so a payment entered on the 14th is stored and
-// shown as the 14th instead of slipping to the 13th when local midnight crosses
-// the UTC offset.
-const localDateString = (d: Date): string => {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-const localDateToIso = (ymd: string): string => {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).toISOString();
-};
+// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. The
+// record-payment sheet's date→paid_at conversion now lives (and is tested) in
+// lib/record-payment, shared with the sheet.
 
 // Background builder for the SHARED PDF — the detail-page twin of the chat's
 // pre-build. Renders the share copy offscreen (natural scale, no transform, so
@@ -126,11 +119,9 @@ export default function InvoiceDetail() {
   // we can link back to it.
   const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
-  // Record-payment entry (a ledger insert, never a direct amount_paid write).
-  const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
-  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'bank' | 'other'>('zelle');
-  const [payDate, setPayDate] = useState(() => localDateString(new Date()));
-  const [payAmount, setPayAmount] = useState('');
+  // Record-payment sheet (a ledger insert via recordPayment, never a direct
+  // amount_paid write). The sheet owns its method / date / amount selections.
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   // One-shot "paid" moment (M4, replaces MOTION-SPEC §6's gold sweep): only
@@ -423,22 +414,21 @@ export default function InvoiceDetail() {
   // Record a payment as a row in the invoice_payments ledger. The DB trigger
   // recomputes invoices.amount_paid from the ledger — we never write amount_paid
   // directly — so we refetch the invoice afterward to pick up the new total.
-  async function recordPayment(amount: number) {
-    if (!(amount > 0)) return;
+  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput): Promise<boolean> {
+    if (!(amount > 0)) return false;
     const dueBefore = totals.dueNow;
     const { data: { user } } = await getSharedUser();
-    if (!user) return;
-    const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
+    if (!user) return false;
     const { error } = await supabase.from('invoice_payments').insert({
       invoice_id: id,
       user_id: user.id,
       amount,
-      method: payMethod,
-      paid_at: paidAtIso,
+      method,
+      paid_at: paidAt,
     });
     if (error) {
       console.error('record payment failed', error);
-      return;
+      return false;
     }
     // Celebrate when the balance hits zero, not on status: the ledger trigger
     // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
@@ -450,9 +440,9 @@ export default function InvoiceDetail() {
       setInv(updated);
       if (!wasFullyPaid && fullyPaid(updated)) celebratePaid(dueBefore);
     }
-    setPayMode('none');
-    setPayAmount('');
+    setPaySheetOpen(false);
     void fetchPayments();
+    return true;
   }
 
   async function fetchPayments() {
@@ -784,6 +774,9 @@ export default function InvoiceDetail() {
     { key: 'view', label: 'View PDF', icon: 'preview', onClick: viewPdf },
   ];
 
+  // The sticky bar exists only while an invoice still has a balance to collect.
+  const showPayBar = inv.kind === 'invoice' && totals.balanceRemaining > 0;
+
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
     setDeleting(true);
@@ -805,7 +798,7 @@ export default function InvoiceDetail() {
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className={`px-4 py-4${showPayBar ? ' pb-28' : ''}`}>
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 
@@ -901,29 +894,6 @@ export default function InvoiceDetail() {
             )}
           </div>
         )}
-        {/* Temporary inline record-payment trigger — replaced by the sticky bar
-            + bottom sheet in the record-payment commit. */}
-        {inv.kind === 'invoice' && totals.dueNow > 0 && (
-          <select
-            className="chip mt-3 w-full border-paid bg-surface-container-lowest font-semibold text-paid outline-none"
-            value=""
-            onChange={(e) => {
-              const mode = e.target.value as 'deposit' | 'full' | 'other';
-              setPayMode(mode);
-              if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
-              else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
-              else setPayAmount('');
-            }}
-          >
-            <option value="" disabled>Record payment</option>
-            {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
-              <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
-            )}
-            <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
-            <option value="other">Other amount…</option>
-          </select>
-        )}
-
         {/* Four equal quick-action tiles. */}
         <div
           className="mt-3 grid gap-2"
@@ -979,57 +949,6 @@ export default function InvoiceDetail() {
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
-        {inv.kind === 'invoice' && payMode !== 'none' && (
-          <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-on-surface-variant">Method</span>
-              <select
-                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 font-semibold text-on-surface outline-none"
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-              >
-                <option value="zelle">Zelle</option>
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="card">Card</option>
-                <option value="bank">Bank transfer</option>
-                <option value="other">Other</option>
-              </select>
-              <span className="ml-2 font-semibold text-on-surface-variant">Date</span>
-              <input
-                type="date"
-                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 outline-none"
-                value={payDate}
-                onChange={(e) => setPayDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-on-surface-variant">Amount</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
-                placeholder="0.00"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-              />
-              <button
-                className="chip border-primary text-primary text-xs"
-                disabled={!(Number(payAmount) > 0)}
-                onClick={() => void recordPayment(Number(payAmount))}
-              >
-                Save payment
-              </button>
-              <button
-                className="chip text-xs text-on-surface-variant"
-                onClick={() => { setPayMode('none'); setPayAmount(''); }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
       {payments.length > 0 && (
         <div className="card mb-4">
@@ -1214,6 +1133,21 @@ export default function InvoiceDetail() {
           if (!file) setShareError("Couldn't prepare the PDF. Tap Share PDF to try again.");
         }}
       />
+      {/* Record payment — the sticky bar sits above the real tab bar while a
+          balance remains; the sheet owns the selection and calls recordPayment. */}
+      {showPayBar && (
+        <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
+      )}
+      {paySheetOpen && (
+        <RecordPaymentSheet
+          clientName={inv.client_name}
+          balance={totals.balanceRemaining}
+          depositRemaining={Math.max(0, totals.depositAmount - amountPaid)}
+          onClose={() => setPaySheetOpen(false)}
+          onSave={recordPayment}
+        />
+      )}
+
       {showPaywall && <PaywallModal returnTo="invoices" onClose={() => setShowPaywall(false)} />}
 
       <DeleteConfirmModal
