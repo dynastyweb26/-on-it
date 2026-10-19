@@ -307,7 +307,7 @@ export default function InvoiceDetail() {
   const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce, attachSig });
   const shareReady = prebuilt?.sig === shareSig;
   const shareFile = shareReady ? prebuilt!.file : null;
-  const shareLabel = (idle: string) => (busy ? 'Sending…' : !shareReady ? 'Preparing…' : idle);
+  const shareLabel = (idle: string) => (busy ? 'Sending' : !shareReady ? 'Preparing' : idle);
 
   // Build the PDF for the CURRENT invoice with its attachments appended. STRICT
   // on purpose: an image that can't be read throws, so a PDF is never produced
@@ -772,7 +772,7 @@ export default function InvoiceDetail() {
         }]
       : []),
     {
-      key: 'download', label: downloading ? 'Preparing…' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download',
+      key: 'download', label: downloading ? 'Preparing' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download',
       icon: 'download', disabled: downloading, onClick: downloadInvoice,
     },
     { key: 'view', label: 'View PDF', icon: 'preview', onClick: viewPdf },
@@ -909,14 +909,14 @@ export default function InvoiceDetail() {
               type="button"
               disabled={a.disabled}
               onClick={a.onClick}
-              className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-1 py-2 text-[12px] font-semibold transition active:scale-[0.96] disabled:opacity-40 ${
+              className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-1 py-2 text-center text-[11px] font-semibold leading-tight transition active:scale-[0.96] disabled:opacity-40 sm:text-[12px] ${
                 a.tone === 'good'
                   ? 'border-paid/40 bg-paid-container text-paid'
                   : 'border-outline-variant/40 bg-surface-container-lowest text-on-surface-variant'
               }`}
             >
               <Icon name={a.icon} size={20} />
-              <span className="whitespace-nowrap">{a.label}</span>
+              <span>{a.label}</span>
             </button>
           ))}
         </div>

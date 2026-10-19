@@ -46,10 +46,10 @@ export default function RecordPaymentBar({ amount, onOpen }: { amount: string; o
           onClick={onOpen}
           className="flex min-h-touch w-full items-center justify-between gap-2 rounded-[16px] bg-primary-container px-4 py-2 text-left text-on-background shadow-[0_8px_18px_-10px_rgba(140,100,0,.7)] transition active:scale-[0.985]"
         >
-          <span className="flex items-center gap-2.5 text-[17px] font-bold">
+          <span className="flex items-center gap-2.5 text-[16px] font-bold">
             <Icon name="add" size={20} /> Record payment
           </span>
-          <span className="shrink-0 rounded-xl bg-on-background/10 px-3 py-2 font-display text-[15px] font-bold tabular-nums">
+          <span className="shrink-0 rounded-xl bg-on-background/10 px-3 py-2 font-display text-[14px] font-bold tabular-nums">
             {amount} due
           </span>
         </button>
