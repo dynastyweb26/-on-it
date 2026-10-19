@@ -695,7 +695,9 @@ export default function InvoiceDetail() {
   // stays in lib/financials. "Paid" is the balance reaching zero — the same
   // meaning the ledger trigger and the public pay page use.
   const fullyPaid = totals.total > 0 && totals.balanceRemaining <= 0;
-  const partiallyPaid = amountPaid > 0 && !fullyPaid && totals.total > 0;
+  // Payments belong to invoices only; a quote's amount_paid is always 0, but
+  // keep the flag scoped so a quote can never read "partially paid".
+  const partiallyPaid = inv.kind === 'invoice' && amountPaid > 0 && !fullyPaid && totals.total > 0;
   const paidPct = totals.total > 0 ? Math.min(100, Math.max(0, Math.round((amountPaid / totals.total) * 100))) : 0;
   const statusLabel = invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid);
   const chipLabel = fullyPaid
@@ -704,11 +706,13 @@ export default function InvoiceDetail() {
       ? 'Overdue'
       : inv.status === 'draft'
         ? 'Draft'
-        : partiallyPaid
-          ? 'Partially paid'
-          : statusLabel === 'sent'
-            ? 'Sent · Unpaid'
-            : statusLabel;
+        : inv.kind === 'quote'
+          ? 'Sent'
+          : partiallyPaid
+            ? 'Partially paid'
+            : statusLabel === 'sent'
+              ? 'Sent · Unpaid'
+              : statusLabel;
   const chipClass = fullyPaid
     ? 'bg-paid-container text-paid'
     : inv.status === 'overdue'
