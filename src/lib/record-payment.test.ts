@@ -19,8 +19,15 @@ import {
 // imports, which build no Dates) is enough to make the tests timezone-stable.
 process.env.TZ = 'America/Chicago';
 
-test('the six payment methods match the existing union and labels', () => {
-  assert.deepEqual(PAYMENT_METHODS.map((m) => m.value), ['zelle', 'cash', 'check', 'card', 'bank', 'other']);
+test('the seven selectable payment methods match the Payouts order and labels', () => {
+  assert.deepEqual(
+    PAYMENT_METHODS.map((m) => m.value),
+    ['card', 'bank', 'zelle', 'cashapp', 'paypal', 'venmo', 'other'],
+  );
+  assert.deepEqual(
+    PAYMENT_METHODS.map((m) => m.label),
+    ['Card', 'Bank transfer', 'Zelle', 'Cash App', 'PayPal', 'Venmo', 'Other'],
+  );
   assert.equal(methodLabel('bank'), 'Bank transfer');
   assert.equal(methodLabel('other'), 'Other');
 });
@@ -61,13 +68,13 @@ test('a picked "Other day" wins over the now-based modes', () => {
 
 test('buildRecordPayment passes amount, method and paid_at to recordPayment', () => {
   const now = new Date('2026-10-20T04:30:00.000Z'); // Oct 19, 23:30 Chicago
-  // Paid in full, cash, today — the sheet's default 2-tap path.
+  // Paid in full, Cash App, today — the sheet's default 2-tap path.
   assert.deepEqual(
     buildRecordPayment({
       mode: 'full', amountText: '', balance: 80, depositRemaining: 20,
-      method: 'cash', dateMode: 'today', pickedDate: '', now,
+      method: 'cashapp', dateMode: 'today', pickedDate: '', now,
     }),
-    { amount: 80, method: 'cash', paidAt: '2026-10-19T05:00:00.000Z' },
+    { amount: 80, method: 'cashapp', paidAt: '2026-10-19T05:00:00.000Z' },
   );
   // Deposit still due, Zelle, yesterday.
   assert.deepEqual(

@@ -17,8 +17,9 @@ import {
 } from '@/lib/record-payment';
 
 const METHOD_ICONS: Record<PaymentMethod, IconName> = {
-  zelle: 'send', cash: 'payments', check: 'checkbook',
-  card: 'credit_card', bank: 'account_balance', other: 'more_horiz',
+  card: 'credit_card', bank: 'account_balance', zelle: 'send',
+  cashapp: 'payments', paypal: 'account_balance_wallet', venmo: 'send',
+  other: 'more_horiz',
 };
 
 const shortDay = (ymd: string) => {
