@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import RollMoney from '@/components/RollMoney';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
@@ -29,23 +30,25 @@ import {
   loadAttachmentItems, materializeAttachments, renumberAttachments, toPdfAttachments,
 } from '@/lib/attachments-client';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
+import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
+import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
+import type { RecordPaymentInput } from '@/lib/record-payment';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
-// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. Format
-// today for the picker, and convert a picked value to a timestamp from its parts
-// as a LOCAL date (not UTC) — so a payment entered on the 14th is stored and
-// shown as the 14th instead of slipping to the 13th when local midnight crosses
-// the UTC offset.
-const localDateString = (d: Date): string => {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+// Payment-row icon. Reversal rows (refunds/disputes) read as an undo; manual
+// rows use the method's closest Material Symbols glyph (no new font glyphs).
+const PAYMENT_ICONS: Record<string, IconName> = {
+  zelle: 'send', cash: 'payments', check: 'checkbook', card: 'credit_card',
+  cashapp: 'payments', bank: 'account_balance', other: 'more_horiz',
 };
-const localDateToIso = (ymd: string): string => {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).toISOString();
-};
+const paymentIcon = (method: string, entryType?: string | null): IconName =>
+  entryType && entryType !== 'payment' ? 'undo' : (PAYMENT_ICONS[method] ?? 'payments');
+
+// A <input type="date"> value ("YYYY-MM-DD") is a local calendar date. The
+// record-payment sheet's date→paid_at conversion now lives (and is tested) in
+// lib/record-payment, shared with the sheet.
 
 // Background builder for the SHARED PDF — the detail-page twin of the chat's
 // pre-build. Renders the share copy offscreen (natural scale, no transform, so
@@ -116,11 +119,9 @@ export default function InvoiceDetail() {
   // we can link back to it.
   const [convertedFrom, setConvertedFrom] = useState<{ id: string; invoice_number: number } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
-  // Record-payment entry (a ledger insert, never a direct amount_paid write).
-  const [payMode, setPayMode] = useState<'none' | 'deposit' | 'full' | 'other'>('none');
-  const [payMethod, setPayMethod] = useState<'zelle' | 'cash' | 'check' | 'card' | 'bank' | 'other'>('zelle');
-  const [payDate, setPayDate] = useState(() => localDateString(new Date()));
-  const [payAmount, setPayAmount] = useState('');
+  // Record-payment sheet (a ledger insert via recordPayment, never a direct
+  // amount_paid write). The sheet owns its method / date / amount selections.
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   // One-shot "paid" moment (M4, replaces MOTION-SPEC §6's gold sweep): only
@@ -306,7 +307,7 @@ export default function InvoiceDetail() {
   const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce, attachSig });
   const shareReady = prebuilt?.sig === shareSig;
   const shareFile = shareReady ? prebuilt!.file : null;
-  const shareLabel = (idle: string) => (busy ? 'Sending…' : !shareReady ? 'Preparing…' : idle);
+  const shareLabel = (idle: string) => (busy ? 'Sending' : !shareReady ? 'Preparing' : idle);
 
   // Build the PDF for the CURRENT invoice with its attachments appended. STRICT
   // on purpose: an image that can't be read throws, so a PDF is never produced
@@ -413,22 +414,21 @@ export default function InvoiceDetail() {
   // Record a payment as a row in the invoice_payments ledger. The DB trigger
   // recomputes invoices.amount_paid from the ledger — we never write amount_paid
   // directly — so we refetch the invoice afterward to pick up the new total.
-  async function recordPayment(amount: number) {
-    if (!(amount > 0)) return;
+  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput): Promise<boolean> {
+    if (!(amount > 0)) return false;
     const dueBefore = totals.dueNow;
     const { data: { user } } = await getSharedUser();
-    if (!user) return;
-    const paidAtIso = payDate ? localDateToIso(payDate) : new Date().toISOString();
+    if (!user) return false;
     const { error } = await supabase.from('invoice_payments').insert({
       invoice_id: id,
       user_id: user.id,
       amount,
-      method: payMethod,
-      paid_at: paidAtIso,
+      method,
+      paid_at: paidAt,
     });
     if (error) {
       console.error('record payment failed', error);
-      return;
+      return false;
     }
     // Celebrate when the balance hits zero, not on status: the ledger trigger
     // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
@@ -440,9 +440,9 @@ export default function InvoiceDetail() {
       setInv(updated);
       if (!wasFullyPaid && fullyPaid(updated)) celebratePaid(dueBefore);
     }
-    setPayMode('none');
-    setPayAmount('');
+    setPaySheetOpen(false);
     void fetchPayments();
+    return true;
   }
 
   async function fetchPayments() {
@@ -690,6 +690,97 @@ export default function InvoiceDetail() {
 
   const isDraft = inv.status === 'draft';
 
+  // ── Receipt header (invoice detail redesign) ──
+  // Display-only reads of the financial engine's output; the money math itself
+  // stays in lib/financials. "Paid" is the balance reaching zero — the same
+  // meaning the ledger trigger and the public pay page use.
+  const fullyPaid = totals.total > 0 && totals.balanceRemaining <= 0;
+  // Payments belong to invoices only; a quote's amount_paid is always 0, but
+  // keep the flag scoped so a quote can never read "partially paid".
+  const partiallyPaid = inv.kind === 'invoice' && amountPaid > 0 && !fullyPaid && totals.total > 0;
+  const paidPct = totals.total > 0 ? Math.min(100, Math.max(0, Math.round((amountPaid / totals.total) * 100))) : 0;
+  const statusLabel = invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid);
+  const chipLabel = fullyPaid
+    ? 'Paid'
+    : inv.status === 'overdue'
+      ? 'Overdue'
+      : inv.status === 'draft'
+        ? 'Draft'
+        : inv.kind === 'quote'
+          ? 'Sent'
+          : partiallyPaid
+            ? 'Partially paid'
+            : statusLabel === 'sent'
+              ? 'Sent · Unpaid'
+              : statusLabel;
+  const chipClass = fullyPaid
+    ? 'bg-paid-container text-paid'
+    : inv.status === 'overdue'
+      ? 'bg-error-container text-error'
+      : inv.status === 'draft'
+        ? 'bg-draft-container text-draft'
+        : 'bg-sent-container text-sent';
+  const heroLabel = fullyPaid
+    ? 'Paid in full'
+    : inv.kind === 'quote'
+      ? 'Quote total'
+      : totals.depositAmount > 0 && amountPaid < totals.depositAmount
+        ? 'Deposit due'
+        : partiallyPaid
+          ? 'Balance due'
+          : 'Amount due';
+  // "in N days" / "N days overdue" for the due-date row. A bare YYYY-MM-DD is a
+  // LOCAL calendar date (same rule as formatDate) so the count never slips a
+  // day across the UTC offset.
+  const dueDays = (() => {
+    const raw = inv.due_date as string | null | undefined;
+    if (inv.kind !== 'invoice' || !raw) return null;
+    let y: number, m: number, d: number;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      [y, m, d] = raw.split('-').map(Number);
+    } else {
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) return null;
+      y = dt.getFullYear(); m = dt.getMonth() + 1; d = dt.getDate();
+    }
+    const now = new Date();
+    const due = new Date(y, m - 1, d);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+    if (inv.status === 'paid') return { days, text: 'paid' };
+    if (days === 0) return { days, text: 'due today' };
+    if (days > 0) return { days, text: `in ${days} day${days === 1 ? '' : 's'}` };
+    return { days, text: `${-days} day${days === -1 ? '' : 's'} overdue` };
+  })();
+
+  // The four primary actions render as equal tiles; everything else (request
+  // balance, convert, links, delete) stays a chip so the layout can wrap.
+  type QuickAction = {
+    key: string; label: string; icon: IconName;
+    disabled?: boolean; tone?: 'good'; onClick: () => void;
+  };
+  const quickActions: QuickAction[] = [
+    {
+      key: 'share', label: shareLabel('Share PDF'), icon: 'attach_file',
+      disabled: busy || !shareReady, onClick: () => resend(),
+    },
+    ...(inv.kind === 'invoice' && !isDraft && inv.public_token
+      ? [{
+          key: 'link', label: linkCopied ? 'Copied' : 'Pay link',
+          icon: (linkCopied ? 'check' : 'link') as IconName,
+          tone: linkCopied ? ('good' as const) : undefined, onClick: copyPayLink,
+        }]
+      : []),
+    {
+      key: 'download', label: downloading ? 'Preparing' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download',
+      icon: 'download', disabled: downloading, onClick: downloadInvoice,
+    },
+    { key: 'view', label: 'View PDF', icon: 'preview', onClick: viewPdf },
+  ];
+
+  // The sticky bar exists only while an invoice still has a balance to collect.
+  const showPayBar = inv.kind === 'invoice' && totals.balanceRemaining > 0;
+
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
     setDeleting(true);
@@ -711,76 +802,132 @@ export default function InvoiceDetail() {
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className={`px-4 py-4${showPayBar ? ' pb-28' : ''}`}>
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-display text-lg font-bold">{inv.client_name}</div>
-            <div className="text-xs text-on-surface-variant">
-              {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} ·{' '}
-              <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-paid-word' : ''}`}>
-                {invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid)}
-              </span>
-            </div>
-            {/* First qualifying client view (mark_invoice_viewed), in local time. */}
-            {inv.viewed_at && (
-              <div className="text-xs text-on-surface-variant">Viewed {formatDate(inv.viewed_at)}</div>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="font-display text-xl font-bold text-primary tabular-nums">
-              <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
-            </div>
-            {/* The headline is what's due right now (a deposit, or the balance
-                after payments). Show the full project total beneath it so it's
-                never hidden — but only when it differs, so a plain unpaid
-                invoice (dueNow === total) doesn't read the same figure twice. */}
-            {totals.total !== totals.dueNow && (
-              <div className="text-xs text-on-surface-variant">Total {money(totals.total)}</div>
-            )}
-          </div>
+
+        {/* Receipt top: status chip + doc number, then who and what. */}
+        <div className="flex items-center justify-between gap-2">
+          <span className={`status-chip ${chipClass}`}>
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+            {chipLabel}
+          </span>
+          <span className="font-mono text-xs font-semibold tracking-wide text-on-surface-variant">
+            {formatDocNumber(inv.kind, inv.invoice_number)}
+          </span>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {inv.kind === 'invoice' && totals.dueNow > 0 && (
-            <select
-              className="chip border-paid text-paid bg-surface-container-lowest font-semibold outline-none cursor-pointer"
-              value=""
-              onChange={(e) => {
-                const mode = e.target.value as 'deposit' | 'full' | 'other';
-                setPayMode(mode);
-                if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
-                else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
-                else setPayAmount('');
-              }}
+        <div className="mt-3 font-display text-2xl font-bold leading-tight text-on-background">
+          {inv.client_name}
+        </div>
+        <div className="mt-0.5 text-sm text-on-surface-variant">
+          {docNoun(inv.kind)} ·{' '}
+          <span className={`inline-block${paidAnim ? ' onit-paid-word' : ''}${fullyPaid ? ' font-semibold text-paid' : ''}`}>
+            {statusLabel}
+          </span>
+        </div>
+        {/* First qualifying client view (mark_invoice_viewed), in local time. */}
+        {inv.viewed_at && (
+          <div className="mt-0.5 text-xs text-on-surface-variant">Viewed {formatDate(inv.viewed_at)}</div>
+        )}
+
+        {/* Ticket perforation: two half-cut notches and a dashed seam. The card
+            clips its overflow, so each notch shows as the inner half circle. */}
+        <div aria-hidden className="relative my-3.5 h-4">
+          <span className="absolute left-0 top-0 h-4 w-4 -translate-x-1/2 rounded-full border border-outline-variant/30 bg-background" />
+          <span className="absolute right-0 top-0 h-4 w-4 translate-x-1/2 rounded-full border border-outline-variant/30 bg-background" />
+          <span className="absolute left-3 right-3 top-2 border-t border-dashed border-outline-variant" />
+        </div>
+
+        {/* Hero: what's due right now (deposit-aware), rolling to 0 on the paid
+            moment (MOTION-SPEC §6). The full total sits beneath when it differs. */}
+        <div className="text-xs font-semibold text-on-surface-variant">{heroLabel}</div>
+        <div className="mt-0.5 flex items-center gap-2">
+          <div className="font-display text-4xl font-bold leading-none tracking-tight text-primary tabular-nums">
+            <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
+          </div>
+          {fullyPaid && (
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-paid text-white">
+              <Icon name="check" size={18} />
+            </span>
+          )}
+        </div>
+        {partiallyPaid && (
+          <>
+            <div className="mt-1 text-sm text-on-surface-variant">
+              of {money(totals.total)} · {money(amountPaid)} paid
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-container">
+              <div
+                className="h-full rounded-full bg-primary-container transition-[width] duration-500"
+                style={{ width: `${paidPct}%` }}
+              />
+            </div>
+          </>
+        )}
+        {!partiallyPaid && totals.total !== totals.dueNow && (
+          <div className="mt-1 text-xs text-on-surface-variant">Total {money(totals.total)}</div>
+        )}
+
+        {/* Due date — editable on a draft, pinned once sent
+            (lock_sent_invoice_fields), so the input can never no-op. */}
+        {inv.kind === 'invoice' && (
+          <div className="mt-4 flex min-h-touch items-center gap-2.5 rounded-input border border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2">
+            <Icon name="schedule" size={18} className="shrink-0 text-on-surface-variant" />
+            {isDraft ? (
+              <>
+                <label htmlFor="due-date" className="shrink-0 text-sm font-semibold text-on-surface-variant">Due</label>
+                <input
+                  id="due-date"
+                  type="date"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-on-surface outline-none"
+                  value={inv.due_date ?? ''}
+                  onChange={(e) => void setDueDate(e.target.value)}
+                />
+              </>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">
+                Due {inv.due_date ? formatDate(inv.due_date) : '—'}
+              </span>
+            )}
+            {dueDays && !isDraft && (
+              <span className={`shrink-0 text-xs ${
+                dueDays.days < 0 && inv.status !== 'paid' ? 'font-semibold text-error' : 'text-on-surface-variant'
+              }`}>
+                {dueDays.text}
+              </span>
+            )}
+          </div>
+        )}
+        {/* Four equal quick-action tiles. */}
+        <div
+          className="mt-3 grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${quickActions.length}, minmax(0, 1fr))` }}
+        >
+          {quickActions.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              disabled={a.disabled}
+              onClick={a.onClick}
+              className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-1 py-2 text-center text-[11px] font-semibold leading-tight transition active:scale-[0.96] disabled:opacity-40 sm:text-[12px] ${
+                a.tone === 'good'
+                  ? 'border-paid/40 bg-paid-container text-paid'
+                  : 'border-outline-variant/40 bg-surface-container-lowest text-on-surface-variant'
+              }`}
             >
-              <option value="" disabled>Record payment</option>
-              {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
-                <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
-              )}
-              <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
-              <option value="other">Other amount…</option>
-            </select>
-          )}
-          <button className="chip flex items-center gap-1.5" disabled={busy || !shareReady} onClick={() => resend()}>
-            <Icon name="attach_file" size={18} /> {shareLabel('Share PDF')}
-          </button>
-          {inv.kind === 'invoice' && !isDraft && inv.public_token && (
-            <button className="chip flex items-center gap-1.5" onClick={copyPayLink}>
-              <Icon name={linkCopied ? 'check' : 'link'} size={18} /> {linkCopied ? 'Copied' : 'Copy pay link'}
+              <Icon name={a.icon} size={20} />
+              <span>{a.label}</span>
             </button>
-          )}
+          ))}
+        </div>
+
+        {/* Secondary actions. */}
+        <div className="mt-2 flex flex-wrap gap-2">
           {amountPaid > 0 && totals.balanceRemaining > 0 && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy || !shareReady} onClick={() => resend(true)}>
               <Icon name="send" size={18} /> {shareLabel('Request balance')}
             </button>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
-            <Icon name="download" size={18} /> {downloading ? 'Preparing…' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download'}
-          </button>
-          <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
-            <Icon name="preview" size={18} /> View PDF
-          </button>
           {inv.kind === 'quote' && !convertedTo && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary"
               disabled={converting} onClick={convertToInvoice}>
@@ -799,127 +946,69 @@ export default function InvoiceDetail() {
               <Icon name="request_quote" size={18} /> From {formatDocNumber('quote', convertedFrom.invoice_number)}
             </button>
           )}
-          <button className="chip flex items-center gap-1.5 border-error text-error"
-            onClick={() => setShowDeleteModal(true)}>
-            <Icon name="delete" size={18} /> Delete
-          </button>
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
-        {inv.kind === 'invoice' && payMode !== 'none' && (
-          <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-on-surface-variant">Method</span>
-              <select
-                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 font-semibold text-on-surface outline-none"
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-              >
-                <option value="zelle">Zelle</option>
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="card">Card</option>
-                <option value="bank">Bank transfer</option>
-                <option value="other">Other</option>
-              </select>
-              <span className="ml-2 font-semibold text-on-surface-variant">Date</span>
-              <input
-                type="date"
-                className="rounded border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 outline-none"
-                value={payDate}
-                onChange={(e) => setPayDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-on-surface-variant">Amount</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                className="w-28 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-xs font-semibold outline-none"
-                placeholder="0.00"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-              />
-              <button
-                className="chip border-primary text-primary text-xs"
-                disabled={!(Number(payAmount) > 0)}
-                onClick={() => void recordPayment(Number(payAmount))}
-              >
-                Save payment
-              </button>
-              <button
-                className="chip text-xs text-on-surface-variant"
-                onClick={() => { setPayMode('none'); setPayAmount(''); }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-        {inv.kind === 'invoice' && (
-          <div className="mt-3 flex items-center gap-2">
-            <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>
-            {/* Editable only while a draft — the due date is pinned once the
-                invoice is sent (lock_sent_invoice_fields), and letting the input
-                accept a change it can't persist would silently no-op. */}
-            {isDraft ? (
-              <input
-                id="due-date"
-                type="date"
-                className="input h-auto flex-1 py-2 text-sm"
-                value={inv.due_date ?? ''}
-                onChange={(e) => void setDueDate(e.target.value)}
-              />
-            ) : (
-              <span className="flex-1 py-2 text-sm text-on-surface">
-                {inv.due_date ? formatDate(inv.due_date) : '—'}
-              </span>
-            )}
-          </div>
-        )}
       </div>
       {payments.length > 0 && (
         <div className="card mb-4">
           <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-            Payment history
+            Payments
           </div>
           <div className="space-y-2">
-            {payments.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between border-b border-outline-variant/30 pb-2 text-xs last:border-0 last:pb-0"
-              >
-                <div>
-                  <span className="font-bold text-on-surface">{money(Number(p.amount))}</span>
-                  <span className="ml-2 font-medium text-on-surface-variant">{ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}</span>
-                  <span className="ml-2 text-on-surface-variant/70">{new Date(p.paid_at).toLocaleDateString()}</span>
-                </div>
-                {/* Stripe-sourced rows (paid on the pay page) are locked by RLS —
-                    a delete would silently match 0 rows — so they get no delete
-                    control. Refunds are handled in the seller's Stripe Dashboard. */}
-                {p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment') ? null : deletingPaymentId === p.id ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-error">Delete?</span>
-                    <button className="chip border-error px-2 py-0.5 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
-                      Yes
-                    </button>
-                    <button className="chip px-2 py-0.5 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
-                      No
-                    </button>
+            {payments.map((p) => {
+              // Stripe-sourced rows (paid on the pay page) are locked by RLS — a
+              // delete would silently match 0 rows — so they get no delete
+              // control. Refunds are handled in the seller's Stripe Dashboard.
+              const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
+              const confirming = deletingPaymentId === p.id;
+              return (
+                <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
+                  <div className="flex min-h-touch items-center gap-3 px-3 py-2">
+                    <span aria-hidden className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-surface-container text-primary">
+                      <Icon name={paymentIcon(p.method, p.entry_type)} size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold text-on-surface">
+                        {ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}
+                      </span>
+                      <span className="block text-[13px] text-on-surface-variant">{new Date(p.paid_at).toLocaleDateString()}</span>
+                    </span>
+                    <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
+                      {money(Number(p.amount))}
+                    </span>
+                    {!locked && !confirming && (
+                      <button
+                        type="button"
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-error opacity-80 transition active:scale-95"
+                        title="Delete payment"
+                        aria-label="Delete payment"
+                        onClick={() => setDeletingPaymentId(p.id)}
+                      >
+                        <Icon name="delete" size={16} />
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <button
-                    className="p-1 text-error opacity-70 hover:opacity-100"
-                    title="Delete payment"
-                    aria-label="Delete payment"
-                    onClick={() => setDeletingPaymentId(p.id)}
-                  >
-                    <Icon name="delete" size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
+                  {!locked && confirming && (
+                    <div className="flex items-center justify-end gap-2 px-3 pb-2">
+                      <span className="text-xs font-semibold text-error">Delete?</span>
+                      <button className="chip border-error px-3 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
+                        Yes
+                      </button>
+                      <button className="chip px-3 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
+                        No
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between px-1 pb-0.5 pt-3 text-sm text-on-surface-variant">
+            <span>{fullyPaid ? 'Balance' : 'Still owed'}</span>
+            <span className={`font-display font-bold tabular-nums ${fullyPaid ? 'text-paid' : 'text-on-surface'}`}>
+              {money(totals.balanceRemaining)}
+            </span>
           </div>
         </div>
       )}
@@ -930,6 +1019,10 @@ export default function InvoiceDetail() {
             {isDraft && <span className="text-xs text-on-surface-variant/70">Tap a value to edit</span>}
           </div>
           <LineItemsEditor items={inv.line_items as LineItemRow[]} editable={isDraft} onChange={applyLineItems} />
+          <div className="mt-3 flex items-center justify-between border-t border-outline-variant/30 pt-3">
+            <span className="text-sm font-semibold text-on-surface-variant">Total</span>
+            <span className="font-display text-lg font-bold tabular-nums text-on-surface">{money(totals.total)}</span>
+          </div>
           {isDraft && (
             <div className="mt-3 border-t border-outline-variant/30 pt-3 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -1021,6 +1114,15 @@ export default function InvoiceDetail() {
           {attachmentsError && <div className="mt-2 text-xs font-semibold text-error">{attachmentsError}</div>}
         </div>
       )}
+      {/* Delete sits last, past the PDF, away from the everyday actions. */}
+      <button
+        type="button"
+        onClick={() => setShowDeleteModal(true)}
+        className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] border border-error/40 bg-transparent text-[15px] font-semibold text-error transition active:scale-[0.985]"
+      >
+        <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'quote' : 'invoice'}
+      </button>
+
       {/* Offscreen capture source — natural scale, no transform. Mirrors the chat
           finalize path so both produce identical clean PDFs. */}
       <div style={{ position: 'fixed', left: -9999, top: 0 }}>
@@ -1040,6 +1142,21 @@ export default function InvoiceDetail() {
           if (!file) setShareError("Couldn't prepare the PDF. Tap Share PDF to try again.");
         }}
       />
+      {/* Record payment — the sticky bar sits above the real tab bar while a
+          balance remains; the sheet owns the selection and calls recordPayment. */}
+      {showPayBar && (
+        <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
+      )}
+      {paySheetOpen && (
+        <RecordPaymentSheet
+          clientName={inv.client_name}
+          balance={totals.balanceRemaining}
+          depositRemaining={Math.max(0, totals.depositAmount - amountPaid)}
+          onClose={() => setPaySheetOpen(false)}
+          onSave={recordPayment}
+        />
+      )}
+
       {showPaywall && <PaywallModal returnTo="invoices" onClose={() => setShowPaywall(false)} />}
 
       <DeleteConfirmModal
