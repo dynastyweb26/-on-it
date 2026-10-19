@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
 import RollMoney from '@/components/RollMoney';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
@@ -749,6 +750,31 @@ export default function InvoiceDetail() {
     return { days, text: `${-days} day${days === -1 ? '' : 's'} overdue` };
   })();
 
+  // The four primary actions render as equal tiles; everything else (request
+  // balance, convert, links, delete) stays a chip so the layout can wrap.
+  type QuickAction = {
+    key: string; label: string; icon: IconName;
+    disabled?: boolean; tone?: 'good'; onClick: () => void;
+  };
+  const quickActions: QuickAction[] = [
+    {
+      key: 'share', label: shareLabel('Share PDF'), icon: 'attach_file',
+      disabled: busy || !shareReady, onClick: () => resend(),
+    },
+    ...(inv.kind === 'invoice' && !isDraft && inv.public_token
+      ? [{
+          key: 'link', label: linkCopied ? 'Copied' : 'Pay link',
+          icon: (linkCopied ? 'check' : 'link') as IconName,
+          tone: linkCopied ? ('good' as const) : undefined, onClick: copyPayLink,
+        }]
+      : []),
+    {
+      key: 'download', label: downloading ? 'Preparing…' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download',
+      icon: 'download', disabled: downloading, onClick: downloadInvoice,
+    },
+    { key: 'view', label: 'View PDF', icon: 'preview', onClick: viewPdf },
+  ];
+
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
     setDeleting(true);
@@ -866,46 +892,59 @@ export default function InvoiceDetail() {
             )}
           </div>
         )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {inv.kind === 'invoice' && totals.dueNow > 0 && (
-            <select
-              className="chip border-paid text-paid bg-surface-container-lowest font-semibold outline-none cursor-pointer"
-              value=""
-              onChange={(e) => {
-                const mode = e.target.value as 'deposit' | 'full' | 'other';
-                setPayMode(mode);
-                if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
-                else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
-                else setPayAmount('');
-              }}
+        {/* Temporary inline record-payment trigger — replaced by the sticky bar
+            + bottom sheet in the record-payment commit. */}
+        {inv.kind === 'invoice' && totals.dueNow > 0 && (
+          <select
+            className="chip mt-3 w-full border-paid bg-surface-container-lowest font-semibold text-paid outline-none"
+            value=""
+            onChange={(e) => {
+              const mode = e.target.value as 'deposit' | 'full' | 'other';
+              setPayMode(mode);
+              if (mode === 'deposit') setPayAmount(String(Math.max(0, totals.depositAmount - amountPaid)));
+              else if (mode === 'full') setPayAmount(String(totals.balanceRemaining));
+              else setPayAmount('');
+            }}
+          >
+            <option value="" disabled>Record payment</option>
+            {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
+              <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
+            )}
+            <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
+            <option value="other">Other amount…</option>
+          </select>
+        )}
+
+        {/* Four equal quick-action tiles. */}
+        <div
+          className="mt-3 grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${quickActions.length}, minmax(0, 1fr))` }}
+        >
+          {quickActions.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              disabled={a.disabled}
+              onClick={a.onClick}
+              className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-1 py-2 text-[12px] font-semibold transition active:scale-[0.96] disabled:opacity-40 ${
+                a.tone === 'good'
+                  ? 'border-paid/40 bg-paid-container text-paid'
+                  : 'border-outline-variant/40 bg-surface-container-lowest text-on-surface-variant'
+              }`}
             >
-              <option value="" disabled>Record payment</option>
-              {totals.depositAmount > 0 && amountPaid < totals.depositAmount && (
-                <option value="deposit">Deposit paid ({money(Math.max(0, totals.depositAmount - amountPaid))})</option>
-              )}
-              <option value="full">Paid in full ({money(totals.balanceRemaining)})</option>
-              <option value="other">Other amount…</option>
-            </select>
-          )}
-          <button className="chip flex items-center gap-1.5" disabled={busy || !shareReady} onClick={() => resend()}>
-            <Icon name="attach_file" size={18} /> {shareLabel('Share PDF')}
-          </button>
-          {inv.kind === 'invoice' && !isDraft && inv.public_token && (
-            <button className="chip flex items-center gap-1.5" onClick={copyPayLink}>
-              <Icon name={linkCopied ? 'check' : 'link'} size={18} /> {linkCopied ? 'Copied' : 'Copy pay link'}
+              <Icon name={a.icon} size={20} />
+              <span className="whitespace-nowrap">{a.label}</span>
             </button>
-          )}
+          ))}
+        </div>
+
+        {/* Secondary actions. */}
+        <div className="mt-2 flex flex-wrap gap-2">
           {amountPaid > 0 && totals.balanceRemaining > 0 && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary" disabled={busy || !shareReady} onClick={() => resend(true)}>
               <Icon name="send" size={18} /> {shareLabel('Request balance')}
             </button>
           )}
-          <button className="chip flex items-center gap-1.5" disabled={downloading} onClick={downloadInvoice}>
-            <Icon name="download" size={18} /> {downloading ? 'Preparing…' : isDraft && inv.kind === 'invoice' ? 'Download draft' : 'Download'}
-          </button>
-          <button className="chip flex items-center gap-1.5" onClick={viewPdf}>
-            <Icon name="preview" size={18} /> View PDF
-          </button>
           {inv.kind === 'quote' && !convertedTo && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary"
               disabled={converting} onClick={convertToInvoice}>
