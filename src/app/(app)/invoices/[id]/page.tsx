@@ -24,6 +24,11 @@ import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
+import {
+  ATTACHMENT_LOAD_ERROR, copyAttachments, deleteAttachment, listAttachmentRows,
+  loadAttachmentItems, materializeAttachments, renumberAttachments, toPdfAttachments,
+} from '@/lib/attachments-client';
+import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -47,23 +52,29 @@ const localDateToIso = (ymd: string): string => {
 // html2canvas captures cleanly) and builds the File once the render has been
 // stable for 400ms; a newer `sig` cancels the older build's result. The send
 // tap then shares the finished file synchronously. No DB writes here.
-function PrebuiltPdf({ sig, template, data, theme, filename, onBuilt }: {
+function PrebuiltPdf({ sig, template, data, theme, filename, attachments, onBuilt }: {
   sig: string;
   template: TemplateKey;
   data: InvoiceRenderData;
   theme: BrandTheme;
   filename: string;
+  attachments: EditorAttachment[];
   onBuilt: (sig: string, file: File | null) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const onBuiltRef = useRef(onBuilt);
   onBuiltRef.current = onBuilt;
+  // Read through a ref: the effect re-runs only on `sig`, which already encodes
+  // the attachment list, so an unrelated render never rebuilds the PDF.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
       if (!ref.current) return;
       try {
-        const file = await elementToPdf(ref.current, filename);
+        const atts = await toPdfAttachments(createClient(), attachmentsRef.current);
+        const file = await elementToPdf(ref.current, filename, { attachments: atts });
         if (!cancelled) onBuiltRef.current(sig, file);
       } catch (e) {
         console.error('share PDF pre-build failed', e);
@@ -71,7 +82,8 @@ function PrebuiltPdf({ sig, template, data, theme, filename, onBuilt }: {
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-    // sig covers every input (data, template, theme, filename, retry nonce).
+    // sig covers every input (data, template, theme, filename, attachments,
+    // retry nonce).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
   return (
@@ -145,6 +157,15 @@ export default function InvoiceDetail() {
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
   const [undoDelete, setUndoDelete] = useState(false);
+  // Attachments for THIS invoice — thumbnails in the strip under the preview,
+  // and the images the PDFs print 2-per-page after the body. Loaded from
+  // invoice_attachments; edited here only while the document is a draft.
+  const [attachments, setAttachments] = useState<EditorAttachment[]>([]);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+  // The PDF builders read the list through a ref so a stale closure can never
+  // print an older set of images than what's on screen.
+  const attachmentsRef = useRef<EditorAttachment[]>([]);
+  useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
 
   useEffect(() => {
     (async () => {
@@ -183,6 +204,9 @@ export default function InvoiceDetail() {
           setConvertedFrom(src ?? null);
         }
         void fetchPayments();
+        // The invoice's attached images (RLS-scoped to the owner). A read can't
+        // block the page: on failure the strip simply starts empty.
+        void loadAttachmentItems(supabase, i.id).then(setAttachments, () => undefined);
         try {
           const z = await (await fetch('/api/zelle?full=1')).json();
           if (z?.value) setZelle(z.value);
@@ -277,11 +301,64 @@ export default function InvoiceDetail() {
   const shareRd: InvoiceRenderData = { ...rd, payUrl: shareUrl };
   const shareFilename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
   // Everything the shared PDF renders from; a change (Zelle arriving, a payment,
-  // an edit) moves it and PrebuiltPdf rebuilds.
-  const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce });
+  // an edit, or the attachment list) moves it and PrebuiltPdf rebuilds.
+  const attachSig = attachments.map((a) => `${a.id}:${a.storagePath ?? a.copyFromPath ?? 'blob'}`).join('|');
+  const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce, attachSig });
   const shareReady = prebuilt?.sig === shareSig;
   const shareFile = shareReady ? prebuilt!.file : null;
   const shareLabel = (idle: string) => (busy ? 'Sending…' : !shareReady ? 'Preparing…' : idle);
+
+  // Build the PDF for the CURRENT invoice with its attachments appended. STRICT
+  // on purpose: an image that can't be read throws, so a PDF is never produced
+  // silently missing a picture — the caller shows the error and the user retries.
+  async function buildPdf(el: HTMLElement, filename: string): Promise<File> {
+    const atts = await toPdfAttachments(supabase, attachmentsRef.current);
+    return elementToPdf(el, filename, { attachments: atts });
+  }
+  const attachmentFailure = (e: unknown) =>
+    e instanceof Error && e.message === ATTACHMENT_LOAD_ERROR
+      ? "A picture couldn't be loaded, so the PDF wasn't made. Check your connection and try again."
+      : null;
+
+  // Save a freshly-picked image right away: unlike the chat (which defers to the
+  // build), the detail page edits an invoice that already exists. The optimistic
+  // list shows the thumbnail at once; a failed upload keeps the successes and
+  // asks the user to add the failed one again.
+  async function saveAttachments(next: EditorAttachment[]) {
+    if (!inv) return;
+    setAttachmentsError(null);
+    setAttachments(next);
+    if (!next.some((a) => !a.storagePath && a.blob)) return;
+    try {
+      const res = await materializeAttachments(supabase, inv.user_id, id, next);
+      if (res.failedId) {
+        setAttachments(res.items.filter((a) => a.storagePath));
+        setAttachmentsError("Couldn't save that image. Please add it again.");
+        return;
+      }
+      setAttachments(res.items);
+    } catch {
+      setAttachments(next.filter((a) => a.storagePath));
+      setAttachmentsError("Couldn't save that image. Please add it again.");
+    }
+  }
+
+  // Delete the row + object, then rewrite the survivors to 0..n-1 with the
+  // delete + re-insert strategy — never sequential position UPDATEs, which would
+  // collide transiently on unique(invoice_id, position).
+  async function removeAttachment(item: EditorAttachment) {
+    if (!inv || !item.rowId || !item.storagePath) return;
+    setAttachmentsError(null);
+    try {
+      await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
+      const rows = await listAttachmentRows(supabase, id);
+      await renumberAttachments(supabase, inv.user_id, id, rows);
+      setAttachments(await loadAttachmentItems(supabase, id));
+    } catch {
+      setAttachmentsError("Couldn't remove that image. Please try again.");
+      setAttachments(await loadAttachmentItems(supabase, id));
+    }
+  }
 
   // Open the PDF in a new tab, rendered fresh from the current render data. Mobile
   // popup blockers only allow window.open synchronously inside the click gesture,
@@ -292,7 +369,7 @@ export default function InvoiceDetail() {
     const w = window.open('', '_blank');
     try {
       const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
-      const file = await elementToPdf(printRef.current, filename);
+      const file = await buildPdf(printRef.current, filename);
       const url = URL.createObjectURL(file);
       if (w) w.location.href = url;
       else window.open(url, '_blank'); // the synchronous open was blocked; try once more
@@ -302,7 +379,7 @@ export default function InvoiceDetail() {
       // Render failed — don't strand the blank tab we opened, and tell the user.
       console.error('view pdf failed', e);
       w?.close();
-      setPdfError("Couldn't open the PDF. Please try again.");
+      setPdfError(attachmentFailure(e) ?? "Couldn't open the PDF. Please try again.");
     }
   }
 
@@ -313,10 +390,14 @@ export default function InvoiceDetail() {
   async function downloadInvoice() {
     if (downloading || !printRef.current) return;
     setDownloading(true);
+    setPdfError(null);
     try {
       const filename = invoiceFilename(inv.kind, inv.invoice_number, inv.client_name, rd.businessName);
-      const file = await elementToPdf(printRef.current, filename);
+      const file = await buildPdf(printRef.current, filename);
       downloadFile(file);
+    } catch (e) {
+      console.error('download pdf failed', e);
+      setPdfError(attachmentFailure(e) ?? "Couldn't make the PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
@@ -489,6 +570,7 @@ export default function InvoiceDetail() {
     // so a free user at the limit is stopped here too, with the paywall modal.
     if (converting || convertedTo) return;
     setConverting(true);
+    setPdfError(null);
     try {
       const { data: created, error } = await supabase.from('invoices').insert({
         user_id: inv.user_id, client_id: inv.client_id, kind: 'invoice',
@@ -506,7 +588,19 @@ export default function InvoiceDetail() {
         console.error('convert to invoice failed', error);
         return;
       }
-      if (created) router.push(`/invoices/${created.id}`);
+      if (created) {
+        // D4: the new invoice carries the quote's pictures (files duplicated into
+        // the invoice's own folder + fresh rows). If a copy fails, undo the
+        // conversion — nothing half-made lingers and a retry starts clean. The
+        // quote's own rows and files are only read, never written.
+        const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
+        if (!copy.ok) {
+          await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
+          setPdfError("Couldn't copy this quote's pictures, so nothing was converted. Please try again.");
+          return;
+        }
+        router.push(`/invoices/${created.id}`);
+      }
     } finally {
       setConverting(false);
     }
@@ -905,6 +999,28 @@ export default function InvoiceDetail() {
           <InvoiceTemplate template={template} data={rd} theme={theme} />
         </div>
       </div>
+      {/* Attachments strip — deliberately OUTSIDE the invoice body, which stays
+          image-free: attached pictures print on their own pages in the PDF, not
+          in the document. Editable on a draft only; a sent/paid document shows
+          the thumbnails read-only (no add/remove). Hidden when read-only and
+          empty so a document with none looks exactly as it did before. */}
+      {(isDraft || attachments.length > 0) && (
+        <div className="card mt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Attachments</span>
+            {isDraft && attachments.length > 0 && (
+              <span className="text-xs text-on-surface-variant/70">Prints after the invoice</span>
+            )}
+          </div>
+          <AttachmentsEditor
+            items={attachments}
+            editable={isDraft}
+            onChange={(next) => void saveAttachments(next)}
+            onRemove={(a) => { void removeAttachment(a); }}
+          />
+          {attachmentsError && <div className="mt-2 text-xs font-semibold text-error">{attachmentsError}</div>}
+        </div>
+      )}
       {/* Offscreen capture source — natural scale, no transform. Mirrors the chat
           finalize path so both produce identical clean PDFs. */}
       <div style={{ position: 'fixed', left: -9999, top: 0 }}>
@@ -918,6 +1034,7 @@ export default function InvoiceDetail() {
         data={shareRd}
         theme={theme}
         filename={shareFilename}
+        attachments={attachments}
         onBuilt={(sig, file) => {
           setPrebuilt({ sig, file });
           if (!file) setShareError("Couldn't prepare the PDF. Tap Share PDF to try again.");

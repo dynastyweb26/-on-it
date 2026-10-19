@@ -32,6 +32,10 @@ export interface PreparedReceipt {
   thumbUrl: string | null;
   originalBytes: number;
   bytes: number;
+  /** Output pixel size after downscale — the attachment PDF lays images out
+   *  from these, so they ride along instead of being re-measured. */
+  width: number;
+  height: number;
 }
 
 export class ReceiptError extends Error {}
@@ -128,19 +132,28 @@ function makeThumb(src: HTMLCanvasElement): string | null {
   }
 }
 
+export interface PrepareImageOptions {
+  /** Longest edge after downscale. */
+  maxEdge: number;
+  /** Target compressed size; quality drops until the output fits. */
+  targetBytes: number;
+  /** Shown verbatim when the input exceeds MAX_INPUT_BYTES. */
+  oversizeMessage: string;
+  /** SHA-256 of the ORIGINAL bytes (receipt dedup). Skipped when false. */
+  hash?: boolean;
+}
+
 /**
- * Pick → hash → decode (HEIC-aware) → downscale → JPEG.
+ * Decode (HEIC-aware) → downscale → JPEG, parameterised so other image flows
+ * (invoice attachments: 2000px / ≤1.2 MB) reuse the exact same pipeline.
  * Throws ReceiptError with a message that is safe to show the user verbatim.
  */
-export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
+export async function prepareImage(file: File, opts: PrepareImageOptions): Promise<PreparedReceipt> {
   if (!file.size) throw new ReceiptError("That file came through empty — try again.");
-  if (file.size > MAX_INPUT_BYTES) {
-    throw new ReceiptError("That image is too big. Take a photo of the receipt instead of sending a file.");
-  }
+  if (file.size > MAX_INPUT_BYTES) throw new ReceiptError(opts.oversizeMessage);
 
   // Hash the ORIGINAL bytes — stable across devices, unlike a re-encode.
-  const original = await file.arrayBuffer();
-  const hash = await sha256Hex(original);
+  const hash = opts.hash === false ? '' : await sha256Hex(await file.arrayBuffer());
 
   const decodable = await toDecodableBlob(file);
   const source = await decode(decodable);
@@ -149,7 +162,7 @@ export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
   const height = 'naturalHeight' in source ? source.naturalHeight : source.height;
   if (!width || !height) throw new ReceiptError("Couldn't read that image — try another photo.");
 
-  const scale = Math.min(1, MAX_EDGE / Math.max(width, height));
+  const scale = Math.min(1, opts.maxEdge / Math.max(width, height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
@@ -166,7 +179,7 @@ export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
   let blob: Blob | null = null;
   for (const q of QUALITY_STEPS) {
     blob = await canvasToBlob(canvas, q);
-    if (blob && blob.size <= TARGET_BYTES) break;
+    if (blob && blob.size <= opts.targetBytes) break;
   }
   if (!blob) throw new ReceiptError("Couldn't process that image — try another photo.");
 
@@ -177,5 +190,18 @@ export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
     thumbUrl,
     originalBytes: file.size,
     bytes: blob.size,
+    width: canvas.width,
+    height: canvas.height,
   };
+}
+
+/** Pick → hash → decode (HEIC-aware) → downscale → JPEG. Unchanged receipt
+ *  profile (1600px / ≤900 KB); now a thin wrapper over prepareImage. */
+export async function prepareReceipt(file: File): Promise<PreparedReceipt> {
+  return prepareImage(file, {
+    maxEdge: MAX_EDGE,
+    targetBytes: TARGET_BYTES,
+    hash: true,
+    oversizeMessage: "That image is too big. Take a photo of the receipt instead of sending a file.",
+  });
 }

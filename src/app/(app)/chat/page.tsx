@@ -34,6 +34,11 @@ import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
+import {
+  ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
+  materializeAttachments, renumberAttachments, signedAttachmentUrl, toPdfAttachments,
+} from '@/lib/attachments-client';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
@@ -564,6 +569,12 @@ export default function Chat() {
   // non-draft, non-null status locks the card read-only; amount_paid decides the
   // paid/partly-paid copy (and, in Commit C, whether Revise is offered).
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
+  // The document's images (gold "+ Add attachment"): freshly-picked ones carry a
+  // blob until the send uploads them, then the row id + storage path; ones loaded
+  // from a saved invoice carry only the signed URL. Print order = list order.
+  const [attachments, setAttachments] = useState<EditorAttachment[]>([]);
+  const attachmentsRef = useRef<EditorAttachment[]>([]);
+  useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
   const [linkedAmountPaid, setLinkedAmountPaid] = useState<number>(0);
   const [profile, setProfile] = useState<Profile | null>(null);
   // Capped tiers (free, canceled, anything not unlimited) get no background
@@ -734,7 +745,7 @@ export default function Chat() {
   // Scoped by RLS to the caller's own rows; a soft-deleted row is treated as no
   // link. Failures leave the lock state unchanged rather than falsely unlocking.
   async function loadLinkedStatus(id: string | null | undefined) {
-    if (!id) { setLinkedStatus(null); setLinkedAmountPaid(0); return; }
+    if (!id) { setLinkedStatus(null); setLinkedAmountPaid(0); setAttachments([]); return; }
     try {
       const { data } = await supabase
         .from('invoices')
@@ -745,6 +756,52 @@ export default function Chat() {
       setLinkedStatus((data?.status as string) ?? null);
       setLinkedAmountPaid(Number(data?.amount_paid ?? 0));
     } catch { /* keep prior lock state on a transient failure */ }
+    void loadLinkedAttachments(id);
+  }
+
+  /** Saved rows → editor items (short-lived signed URLs). The stored order is
+   *  the print order; `pending` items (still to upload) are appended after. */
+  async function syncAttachments(invoiceId: string, pending: EditorAttachment[]) {
+    const rows = await listAttachmentRows(supabase, invoiceId);
+    const saved = await Promise.all(rows.map(async (r) => {
+      const url = await signedAttachmentUrl(supabase, r.storage_path);
+      return url ? ({ id: r.id, previewUrl: url, storagePath: r.storage_path, rowId: r.id } as EditorAttachment) : null;
+    }));
+    setAttachments([...(saved.filter(Boolean) as EditorAttachment[]), ...pending]);
+  }
+
+  /** Load a linked invoice's attachments into the editor (empty for none). */
+  async function loadLinkedAttachments(id: string | null | undefined) {
+    if (!id) { setAttachments([]); return; }
+    try { await syncAttachments(id, []); } catch { /* keep what's on screen */ }
+  }
+
+  /** Seed a revision card with COPIES of the original's images: thumbnails from
+   *  signed URLs now, bytes duplicated into the new invoice at the first build
+   *  (materializeAttachments). Reads only on the original. */
+  async function seedRevisionAttachments(sourceInvoiceId: string) {
+    try {
+      const copies = await loadAttachmentCopies(supabase, sourceInvoiceId);
+      // Only fill an empty list — never clobber an image the user already picked.
+      setAttachments((cur) => (cur.length ? cur : copies));
+    } catch {
+      setMessages((m) => [...m, aMsg("Couldn't load the original's pictures. Add them again, or go back and tap Revise once more.")]);
+    }
+  }
+
+  /** Remove a SAVED attachment: drop its row + object, then renumber the rest so
+   *  positions stay 0..n-1 (delete + re-insert, never sequential updates). Only
+   *  reachable from an editable (draft) card — a locked one renders no remove. */
+  async function removeSavedAttachment(item: EditorAttachment) {
+    const inv = pendingInvoiceRef.current;
+    if (!inv || !item.storagePath || !profile) return;
+    try {
+      if (item.rowId) await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
+      else await supabase.storage.from(ATTACHMENT_BUCKET).remove([item.storagePath]);
+      const rows = await listAttachmentRows(supabase, inv.id);
+      await renumberAttachments(supabase, profile.id, inv.id, rows);
+      await syncAttachments(inv.id, attachmentsRef.current.filter((a) => !a.storagePath));
+    } catch { /* the optimistic removal already took it off screen */ }
   }
 
   // Shared restore: re-read the namespaced store and apply it when it's newer
@@ -940,6 +997,7 @@ export default function Chat() {
       setPendingChange(null);
       setLinkedStatus(null);
       setLinkedAmountPaid(0);
+      setAttachments([]);
       pendingInvoiceRef.current = null;
       finalizeSentRef.current = false;
       discardExpense();
@@ -1536,6 +1594,9 @@ export default function Chat() {
       depVal: r.deposit_value ?? null,
       notes: r.notes ?? null,
       due: r.due_date ?? null,
+      // Attachments change the PDF (extra pages), so they belong in the
+      // signature: adding/removing one invalidates a pre-built file.
+      att: attachmentsRef.current.map((a) => a.id).join(','),
     });
   };
 
@@ -1553,7 +1614,7 @@ export default function Chat() {
     preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild]);
+  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild, attachments]);
 
   // mode 'prepare': the background pre-build above — it runs the SAME persist +
   // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
@@ -1899,6 +1960,17 @@ export default function Chat() {
         return;
       }
 
+      // ── 1b. Attachments: duplicate every pending entry (a picked blob, or a
+      //    seed-time copy of an original's image) into THIS invoice's folder and
+      //    record its row, so a later save never re-uploads. Runs in prepare mode
+      //    too — the pre-build already writes the draft row, and the send tap's
+      //    fast path shares that pre-built file with NO awaits, so the images
+      //    must be stored by then. A failure ABORTS the turn (retry bubble)
+      //    rather than sending without a picture the card showed.
+      const materialized = await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
+      if (materialized.failedId) throw new Error('attachment materialization failed');
+      if (materialized.saved.size) setAttachments(materialized.items);
+
       // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
       if (!rd) throw new Error('incomplete');
@@ -1934,7 +2006,9 @@ export default function Chat() {
         if (!printRef.current) throw new Error('render failed');
         file = await elementToPdf(
           printRef.current,
-          invoiceFilename(rd.kind, no, rd.clientName, profile.business_name)
+          invoiceFilename(rd.kind, no, rd.clientName, profile.business_name),
+          // Attachments print after every invoice page (payment block included).
+          { attachments: await toPdfAttachments(supabase, attachmentsRef.current) },
         );
       } catch (pdfErr) {
         if (mode !== 'prepare') throw pdfErr;
@@ -2588,6 +2662,7 @@ export default function Chat() {
     }
     if (saved) { setTemplateRestored(saved); setTemplateNonce((n) => n + 1); setTemplate(saved.kind); }
     else clearTemplate();
+    setAttachments([]); // template attachments aren't persisted with it
   }
   // 2·13a: a fresh template asks first when it would replace a saved one with
   // a client or a named item (Keep editing / Start new).
@@ -2619,6 +2694,7 @@ export default function Chat() {
     clearTemplate();
     window.dispatchEvent(new Event('onit-new-chat'));
     setTemplateDraft(null);
+    setAttachments([]);
     setTemplateDup(null);
     setTemplateRestored(client ? { v: 1, uid: templateUidRef.current, savedAt: Date.now(), kind: k, client, items: [], extra: '' } : null);
     setTemplateNonce((n) => n + 1);
@@ -2644,6 +2720,7 @@ export default function Chat() {
     preBuildIdRef.current++;
     setPrepState(null);
     setConvoId(genId());
+    setAttachments([]);
   }
   function closeTemplate() {
     discardTemplateRow();
@@ -2654,9 +2731,21 @@ export default function Chat() {
   // "Make it a quote / an invoice": a row's kind is pinned once inserted
   // (lock_document_identity), so a pre-built row of the old kind is
   // discarded and the next pre-build / Send inserts one of the new kind.
+  // D4: attachments follow the line items across the toggle. Whatever the card
+  // shows is re-seeded as COPIES, because its bytes and rows belong to the row
+  // being discarded — the new kind's build materializes them fresh under the
+  // new invoice (the discarded row's own files are never touched). A pending
+  // pick keeps its blob and just gets uploaded to the new invoice as usual.
   function switchTemplateKind(k: TemplateKind) {
     if (k === template) return;
+    const carried = attachmentsRef.current.map((a) => ({
+      ...a,
+      storagePath: undefined,
+      rowId: undefined,
+      copyFromPath: a.storagePath ?? a.copyFromPath,
+    }));
     if (pendingInvoiceRef.current) discardTemplateRow();
+    if (carried.length) setAttachments(carried);
     setTemplate(k);
   }
   // The template feeds the chat's draft: complete → draft + ready (the
@@ -2856,6 +2945,7 @@ export default function Chat() {
         pendingInvoiceRef.current = { id: row.id as string, no: row.invoice_number as number };
         setLinkedStatus((row.status as string) ?? null);
         setLinkedAmountPaid(Number(row.amount_paid ?? 0));
+        void loadLinkedAttachments(row.id as string);
         if (isLockedStatus((row.status as string) ?? null)) {
           setDraft(draftFromRow(row));
           setDraftHistory([]);
@@ -2962,6 +3052,7 @@ export default function Chat() {
     setLinkedStatus(null);
     setLinkedAmountPaid(0);
     setInvoiceUsage(null);
+    setAttachments([]);
     const hello = greeting();
     setMessages([hello]);
     setDraft(seed);
@@ -3002,6 +3093,7 @@ export default function Chat() {
   function startRevision() {
     if (!draft) return;
     const kind = docKind(draft);
+    const sourceInvoiceId = pendingInvoiceRef.current?.id ?? null;
     const originalNo = pendingInvoiceRef.current?.no ?? null;
     const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
     // One line naming the invoice this one replaces. Revising a revision drops
@@ -3034,6 +3126,7 @@ export default function Chat() {
     setLinkedAmountPaid(0);
     setFinished(false);
     setInvoiceUsage(null);
+    setAttachments([]);
     const startMsg = aMsg(`Starting a revision of ${label}. Change anything, then send — this is a new ${kind} and the original stays as it was.`);
     // The revision opens on the original conversation (so you, and the AI on
     // the next change, still see the job as first described), then the start
@@ -3047,6 +3140,9 @@ export default function Chat() {
     setReady(true);
     setCardAfterId(startMsg.id);
     setDuplicateHint(false);
+    // D4: attachments follow the line items. Seed copies of the original's
+    // images; they materialize into the new invoice at the first build.
+    if (sourceInvoiceId) void seedRevisionAttachments(sourceInvoiceId);
   }
 
   // The invoice/quote card renders INSIDE the transcript, right after its
@@ -3077,6 +3173,13 @@ export default function Chat() {
         </div>
       )}
       <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
+
+      <AttachmentsEditor
+        items={attachments}
+        editable={!locked}
+        onChange={setAttachments}
+        onRemove={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
+      />
 
       <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -3582,6 +3685,8 @@ export default function Chat() {
           <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
+            attachments={attachments} onAttachments={setAttachments}
+            onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
             onSend={() => { void finalize(); }} />
         </div>
