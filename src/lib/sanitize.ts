@@ -30,5 +30,11 @@ export function sanitizeForAI(raw: string): string {
 
 export function sanitizeField(raw: unknown, maxLen = 300): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[<>]/g, '').slice(0, maxLen).trim();
+  return raw
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[<>]/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .trim()
+    .slice(0, maxLen);
 }
