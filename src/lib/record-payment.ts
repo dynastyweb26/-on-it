@@ -7,7 +7,10 @@
 // a LOCAL calendar date, converted from its parts (never UTC) so a payment
 // entered in the evening is stored and shown on the local day.
 
-export type PaymentMethod = 'zelle' | 'cash' | 'check' | 'card' | 'bank' | 'other';
+// Selectable methods only. Legacy `cash` and `check` rows remain valid in the
+// ledger and display via lib/payment-methods, but are no longer offered here:
+// a manual cash/check payment is recorded as `other`.
+export type PaymentMethod = 'card' | 'bank' | 'zelle' | 'cashapp' | 'paypal' | 'venmo' | 'other';
 export type PayMode = 'full' | 'deposit' | 'other';
 export type PayDateMode = 'today' | 'yesterday' | 'other';
 
@@ -19,11 +22,12 @@ export interface RecordPaymentInput {
 }
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'zelle', label: 'Zelle' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'check', label: 'Check' },
   { value: 'card', label: 'Card' },
   { value: 'bank', label: 'Bank transfer' },
+  { value: 'zelle', label: 'Zelle' },
+  { value: 'cashapp', label: 'Cash App' },
+  { value: 'paypal', label: 'PayPal' },
+  { value: 'venmo', label: 'Venmo' },
   { value: 'other', label: 'Other' },
 ];
 
