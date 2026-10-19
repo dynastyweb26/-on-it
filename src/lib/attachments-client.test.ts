@@ -3,8 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nextAttachmentPosition, attachmentObjectPath, loadAttachmentCopies, materializeAttachments,
-  copyAttachments, type AttachmentRow,
+  nextAttachmentPosition, attachmentObjectPath, loadAttachmentCopies, loadAttachmentItems,
+  materializeAttachments, toPdfAttachments, copyAttachments, ATTACHMENT_LOAD_ERROR,
+  type AttachmentRow,
 } from './attachments-client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
 
@@ -29,7 +30,7 @@ test('attachmentObjectPath: two calls never collide', () => {
 // ── Fake client: enough of the Supabase surface for the copy path. Records
 //    every storage call and every row write so a test can prove the SOURCE is
 //    never written to.
-function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean; failUploadAfter?: number } = {}) {
+function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean; failUploadAfter?: number; downloadMissing?: boolean } = {}) {
   const store = new Map<string, AttachmentRow[]>([[sourceInvoiceId, sourceRows.map((r) => ({ ...r }))]]);
   const storage: string[] = [];
   const inserts: { invoice_id: string; storage_path: string; position: number }[] = [];
@@ -75,7 +76,7 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
         if (!fail) uploads++;
         return fail ? { error: { message: 'nope' } } : { error: null };
       },
-      download: async (path: string) => { storage.push(`download:${path}`); return { data: new Blob(['img']) }; },
+      download: async (path: string) => { storage.push(`download:${path}`); return { data: opts.downloadMissing ? null : new Blob(['img']) }; },
       createSignedUrl: async (path: string) => { storage.push(`sign:${path}`); return { data: { signedUrl: `signed:${path}` } }; },
       remove: async (paths: string[]) => { storage.push(`remove:${paths.join(',')}`); return { error: null }; },
     }) },
@@ -177,4 +178,38 @@ test('copyAttachments: a source with no attachments is a no-op success', async (
   const res = await copyAttachments(db, 'u', SRC, 'inv-2');
   assert.deepEqual(res, { ok: true, copied: 0 });
   assert.equal(storage.length, 0);
+});
+
+// ── Detail page: own attachments + the strict PDF build ───────────────────
+test('loadAttachmentItems: own rows become SAVED items (path + rowId, not copies)', async () => {
+  const { db } = fakeClient(SRC, [
+    { id: 'r1', storage_path: 'u/src/1.jpg', position: 0 },
+    { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
+  ]);
+  const items = await loadAttachmentItems(db, SRC);
+  assert.deepEqual(items.map((i) => i.rowId), ['r1', 'r2']);
+  assert.deepEqual(items.map((i) => i.storagePath), ['u/src/1.jpg', 'u/src/2.jpg']);
+  assert.deepEqual(items.map((i) => i.copyFromPath), [undefined, undefined]);
+});
+
+test('toPdfAttachments: no attachments does no work and returns [] (PDF unchanged)', async () => {
+  const { db, storage } = fakeClient(SRC, []);
+  assert.deepEqual(await toPdfAttachments(db, []), []);
+  assert.equal(storage.length, 0);
+});
+
+test('toPdfAttachments: an unreadable image THROWS (never a silent partial PDF)', async () => {
+  const { db } = fakeClient(SRC, [{ id: 'r1', storage_path: 'u/src/1.jpg', position: 0 }], { downloadMissing: true });
+  await assert.rejects(
+    () => toPdfAttachments(db, [{ id: 'r1', previewUrl: 'signed:x', storagePath: 'u/src/1.jpg', rowId: 'r1' }]),
+    (e: Error) => e.message === ATTACHMENT_LOAD_ERROR,
+  );
+});
+
+test('toPdfAttachments: more than the cap throws instead of printing a partial set', async () => {
+  const { db } = fakeClient(SRC, []);
+  const seven = Array.from({ length: 7 }, (_, i) => ({
+    id: `x${i}`, previewUrl: 'signed:x', storagePath: `u/s/${i}.jpg`, rowId: `r${i}`,
+  }));
+  await assert.rejects(() => toPdfAttachments(db, seven), (e: Error) => e.message === ATTACHMENT_LOAD_ERROR);
 });

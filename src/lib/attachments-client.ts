@@ -99,22 +99,34 @@ export async function renumberAttachments(
   return ((data ?? []) as AttachmentRow[]).sort((a, b) => a.position - b.position);
 }
 
+/** Thrown when an attachment's bytes can't be read while a PDF is being built.
+ *  Callers surface it as an error with a retry — a document must never print
+ *  missing a picture the user attached. */
+export const ATTACHMENT_LOAD_ERROR = 'attachment-load-failed';
+
 /** The editor's list → the PDF's image list. Bytes come from the pending blob
- *  when present (never a re-download just to print), else from the newly
- *  materialized object, else from a seed-time copy's SOURCE object (read-only).
- *  The order is the list order, so position and PDF order can't drift. */
+ *  when present (never a re-download just to print), else from the saved
+ *  object, else from a seed-time copy's SOURCE object (read-only). The order is
+ *  the list order, so position and PDF order can't drift. STRICT: an unreadable
+ *  image throws ATTACHMENT_LOAD_ERROR rather than being silently dropped — and
+ *  so does a list longer than the cap, which would otherwise print a partial
+ *  set. */
 export async function toPdfAttachments(
   supabase: Db, items: readonly EditorAttachment[],
 ): Promise<PdfAttachment[]> {
+  if (items.length > ATTACHMENT_MAX) throw new Error(ATTACHMENT_LOAD_ERROR);
   const out: PdfAttachment[] = [];
-  for (const it of items.slice(0, ATTACHMENT_MAX)) {
+  for (const it of items) {
+    let blob: Blob | null = null;
     try {
-      const blob = it.blob ?? await downloadAttachmentBlob(supabase, it.storagePath ?? it.copyFromPath);
-      if (!blob) continue;
+      blob = it.blob ?? await downloadAttachmentBlob(supabase, it.storagePath ?? it.copyFromPath);
+    } catch { blob = null; }
+    if (!blob) throw new Error(ATTACHMENT_LOAD_ERROR);
+    try {
       const dataUrl = await blobToDataUrl(blob);
       const size = it.width && it.height ? { width: it.width, height: it.height } : await measureBlob(blob);
       out.push({ dataUrl, width: size.width, height: size.height });
-    } catch { /* skip an image that can't be read; the rest still print */ }
+    } catch { throw new Error(ATTACHMENT_LOAD_ERROR); }
   }
   return out;
 }
@@ -133,6 +145,17 @@ export async function loadAttachmentCopies(supabase: Db, sourceInvoiceId: string
   const items = await Promise.all(rows.map(async (r) => {
     const url = await signedAttachmentUrl(supabase, r.storage_path);
     return url ? ({ id: r.id, previewUrl: url, copyFromPath: r.storage_path } as EditorAttachment) : null;
+  }));
+  return items.filter(Boolean) as EditorAttachment[];
+}
+
+/** Load an invoice's OWN attachments for editing: signed thumbnail + its stored
+ *  path and row id (already saved on THIS invoice, so not a copy). */
+export async function loadAttachmentItems(supabase: Db, invoiceId: string): Promise<EditorAttachment[]> {
+  const rows = await listAttachmentRows(supabase, invoiceId);
+  const items = await Promise.all(rows.map(async (r) => {
+    const url = await signedAttachmentUrl(supabase, r.storage_path);
+    return url ? ({ id: r.id, previewUrl: url, storagePath: r.storage_path, rowId: r.id } as EditorAttachment) : null;
   }));
   return items.filter(Boolean) as EditorAttachment[];
 }
@@ -160,13 +183,16 @@ export async function materializeAttachments(
   const existing = await listAttachmentRows(supabase, invoiceId);
   let position = nextAttachmentPosition(existing);
   const done = new Map<string, EditorAttachment>();
+  // Even on a failure, report what DID save (the caller may keep the successes);
+  // the failed entry and everything after it stay pending.
+  const partial = () => items.map((a) => done.get(a.id) ?? a);
 
   for (const a of pending) {
-    if (position >= ATTACHMENT_MAX) return { items: [...items], saved, failedId: a.id };
+    if (position >= ATTACHMENT_MAX) return { items: partial(), saved, failedId: a.id };
     const blob = a.blob ?? await downloadAttachmentBlob(supabase, a.copyFromPath);
-    if (!blob) return { items: [...items], saved, failedId: a.id };
+    if (!blob) return { items: partial(), saved, failedId: a.id };
     const row = await uploadAttachment(supabase, userId, invoiceId, position, blob);
-    if (!row) return { items: [...items], saved, failedId: a.id };
+    if (!row) return { items: partial(), saved, failedId: a.id };
     saved.set(a.id, { storagePath: row.storage_path, rowId: row.id });
     // Repoint the thumbnail at the NEW object (the source URL is short-lived).
     const url = await signedAttachmentUrl(supabase, row.storage_path);
@@ -177,7 +203,7 @@ export async function materializeAttachments(
     position++;
   }
 
-  return { items: items.map((a) => done.get(a.id) ?? a), saved };
+  return { items: partial(), saved };
 }
 
 /** Remove every attachment row + object of ONE invoice. Used to roll back a
