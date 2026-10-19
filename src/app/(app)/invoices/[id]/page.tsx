@@ -690,6 +690,65 @@ export default function InvoiceDetail() {
 
   const isDraft = inv.status === 'draft';
 
+  // ── Receipt header (invoice detail redesign) ──
+  // Display-only reads of the financial engine's output; the money math itself
+  // stays in lib/financials. "Paid" is the balance reaching zero — the same
+  // meaning the ledger trigger and the public pay page use.
+  const fullyPaid = totals.total > 0 && totals.balanceRemaining <= 0;
+  const partiallyPaid = amountPaid > 0 && !fullyPaid && totals.total > 0;
+  const paidPct = totals.total > 0 ? Math.min(100, Math.max(0, Math.round((amountPaid / totals.total) * 100))) : 0;
+  const statusLabel = invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid);
+  const chipLabel = fullyPaid
+    ? 'Paid'
+    : inv.status === 'overdue'
+      ? 'Overdue'
+      : inv.status === 'draft'
+        ? 'Draft'
+        : partiallyPaid
+          ? 'Partially paid'
+          : statusLabel === 'sent'
+            ? 'Sent · Unpaid'
+            : statusLabel;
+  const chipClass = fullyPaid
+    ? 'bg-paid-container text-paid'
+    : inv.status === 'overdue'
+      ? 'bg-error-container text-error'
+      : inv.status === 'draft'
+        ? 'bg-draft-container text-draft'
+        : 'bg-sent-container text-sent';
+  const heroLabel = fullyPaid
+    ? 'Paid in full'
+    : inv.kind === 'quote'
+      ? 'Quote total'
+      : totals.depositAmount > 0 && amountPaid < totals.depositAmount
+        ? 'Deposit due'
+        : partiallyPaid
+          ? 'Balance due'
+          : 'Amount due';
+  // "in N days" / "N days overdue" for the due-date row. A bare YYYY-MM-DD is a
+  // LOCAL calendar date (same rule as formatDate) so the count never slips a
+  // day across the UTC offset.
+  const dueDays = (() => {
+    const raw = inv.due_date as string | null | undefined;
+    if (inv.kind !== 'invoice' || !raw) return null;
+    let y: number, m: number, d: number;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      [y, m, d] = raw.split('-').map(Number);
+    } else {
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) return null;
+      y = dt.getFullYear(); m = dt.getMonth() + 1; d = dt.getDate();
+    }
+    const now = new Date();
+    const due = new Date(y, m - 1, d);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+    if (inv.status === 'paid') return { days, text: 'paid' };
+    if (days === 0) return { days, text: 'due today' };
+    if (days > 0) return { days, text: `in ${days} day${days === 1 ? '' : 's'}` };
+    return { days, text: `${-days} day${days === -1 ? '' : 's'} overdue` };
+  })();
+
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
     setDeleting(true);
@@ -714,33 +773,99 @@ export default function InvoiceDetail() {
     <div className="px-4 py-4">
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-display text-lg font-bold">{inv.client_name}</div>
-            <div className="text-xs text-on-surface-variant">
-              {docNoun(inv.kind)} {formatDocNumber(inv.kind, inv.invoice_number)} ·{' '}
-              <span className={`inline-block${inv.status === 'paid' ? ' font-semibold text-paid' : ''}${paidAnim ? ' onit-paid-word' : ''}`}>
-                {invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid)}
-              </span>
-            </div>
-            {/* First qualifying client view (mark_invoice_viewed), in local time. */}
-            {inv.viewed_at && (
-              <div className="text-xs text-on-surface-variant">Viewed {formatDate(inv.viewed_at)}</div>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="font-display text-xl font-bold text-primary tabular-nums">
-              <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
-            </div>
-            {/* The headline is what's due right now (a deposit, or the balance
-                after payments). Show the full project total beneath it so it's
-                never hidden — but only when it differs, so a plain unpaid
-                invoice (dueNow === total) doesn't read the same figure twice. */}
-            {totals.total !== totals.dueNow && (
-              <div className="text-xs text-on-surface-variant">Total {money(totals.total)}</div>
-            )}
-          </div>
+
+        {/* Receipt top: status chip + doc number, then who and what. */}
+        <div className="flex items-center justify-between gap-2">
+          <span className={`status-chip ${chipClass}`}>
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+            {chipLabel}
+          </span>
+          <span className="font-mono text-xs font-semibold tracking-wide text-on-surface-variant">
+            {formatDocNumber(inv.kind, inv.invoice_number)}
+          </span>
         </div>
+        <div className="mt-3 font-display text-2xl font-bold leading-tight text-on-background">
+          {inv.client_name}
+        </div>
+        <div className="mt-0.5 text-sm text-on-surface-variant">
+          {docNoun(inv.kind)} ·{' '}
+          <span className={`inline-block${paidAnim ? ' onit-paid-word' : ''}${fullyPaid ? ' font-semibold text-paid' : ''}`}>
+            {statusLabel}
+          </span>
+        </div>
+        {/* First qualifying client view (mark_invoice_viewed), in local time. */}
+        {inv.viewed_at && (
+          <div className="mt-0.5 text-xs text-on-surface-variant">Viewed {formatDate(inv.viewed_at)}</div>
+        )}
+
+        {/* Ticket perforation: two half-cut notches and a dashed seam. The card
+            clips its overflow, so each notch shows as the inner half circle. */}
+        <div aria-hidden className="relative my-3.5 h-4">
+          <span className="absolute left-0 top-0 h-4 w-4 -translate-x-1/2 rounded-full border border-outline-variant/30 bg-background" />
+          <span className="absolute right-0 top-0 h-4 w-4 translate-x-1/2 rounded-full border border-outline-variant/30 bg-background" />
+          <span className="absolute left-3 right-3 top-2 border-t border-dashed border-outline-variant" />
+        </div>
+
+        {/* Hero: what's due right now (deposit-aware), rolling to 0 on the paid
+            moment (MOTION-SPEC §6). The full total sits beneath when it differs. */}
+        <div className="text-xs font-semibold text-on-surface-variant">{heroLabel}</div>
+        <div className="mt-0.5 flex items-center gap-2">
+          <div className="font-display text-4xl font-bold leading-none tracking-tight text-primary tabular-nums">
+            <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
+          </div>
+          {fullyPaid && (
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-paid text-white">
+              <Icon name="check" size={18} />
+            </span>
+          )}
+        </div>
+        {partiallyPaid && (
+          <>
+            <div className="mt-1 text-sm text-on-surface-variant">
+              of {money(totals.total)} · {money(amountPaid)} paid
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-container">
+              <div
+                className="h-full rounded-full bg-primary-container transition-[width] duration-500"
+                style={{ width: `${paidPct}%` }}
+              />
+            </div>
+          </>
+        )}
+        {!partiallyPaid && totals.total !== totals.dueNow && (
+          <div className="mt-1 text-xs text-on-surface-variant">Total {money(totals.total)}</div>
+        )}
+
+        {/* Due date — editable on a draft, pinned once sent
+            (lock_sent_invoice_fields), so the input can never no-op. */}
+        {inv.kind === 'invoice' && (
+          <div className="mt-4 flex min-h-touch items-center gap-2.5 rounded-input border border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2">
+            <Icon name="schedule" size={18} className="shrink-0 text-on-surface-variant" />
+            {isDraft ? (
+              <>
+                <label htmlFor="due-date" className="shrink-0 text-sm font-semibold text-on-surface-variant">Due</label>
+                <input
+                  id="due-date"
+                  type="date"
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-on-surface outline-none"
+                  value={inv.due_date ?? ''}
+                  onChange={(e) => void setDueDate(e.target.value)}
+                />
+              </>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">
+                Due {inv.due_date ? formatDate(inv.due_date) : '—'}
+              </span>
+            )}
+            {dueDays && !isDraft && (
+              <span className={`shrink-0 text-xs ${
+                dueDays.days < 0 && inv.status !== 'paid' ? 'font-semibold text-error' : 'text-on-surface-variant'
+              }`}>
+                {dueDays.text}
+              </span>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           {inv.kind === 'invoice' && totals.dueNow > 0 && (
             <select
@@ -855,27 +980,6 @@ export default function InvoiceDetail() {
                 Cancel
               </button>
             </div>
-          </div>
-        )}
-        {inv.kind === 'invoice' && (
-          <div className="mt-3 flex items-center gap-2">
-            <label htmlFor="due-date" className="text-sm font-semibold text-on-surface-variant">Due</label>
-            {/* Editable only while a draft — the due date is pinned once the
-                invoice is sent (lock_sent_invoice_fields), and letting the input
-                accept a change it can't persist would silently no-op. */}
-            {isDraft ? (
-              <input
-                id="due-date"
-                type="date"
-                className="input h-auto flex-1 py-2 text-sm"
-                value={inv.due_date ?? ''}
-                onChange={(e) => void setDueDate(e.target.value)}
-              />
-            ) : (
-              <span className="flex-1 py-2 text-sm text-on-surface">
-                {inv.due_date ? formatDate(inv.due_date) : '—'}
-              </span>
-            )}
           </div>
         )}
       </div>
