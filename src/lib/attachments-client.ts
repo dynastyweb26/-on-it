@@ -100,19 +100,16 @@ export async function renumberAttachments(
 }
 
 /** The editor's list → the PDF's image list. Bytes come from the pending blob
- *  when present (never a re-download just to print), else from storage. The
- *  order is the list order, so position and PDF order can't drift. */
+ *  when present (never a re-download just to print), else from the newly
+ *  materialized object, else from a seed-time copy's SOURCE object (read-only).
+ *  The order is the list order, so position and PDF order can't drift. */
 export async function toPdfAttachments(
   supabase: Db, items: readonly EditorAttachment[],
 ): Promise<PdfAttachment[]> {
   const out: PdfAttachment[] = [];
   for (const it of items.slice(0, ATTACHMENT_MAX)) {
     try {
-      let blob = it.blob ?? null;
-      if (!blob && it.storagePath) {
-        const { data } = await supabase.storage.from(ATTACHMENT_BUCKET).download(it.storagePath);
-        blob = data ?? null;
-      }
+      const blob = it.blob ?? await downloadAttachmentBlob(supabase, it.storagePath ?? it.copyFromPath);
       if (!blob) continue;
       const dataUrl = await blobToDataUrl(blob);
       const size = it.width && it.height ? { width: it.width, height: it.height } : await measureBlob(blob);
@@ -120,6 +117,67 @@ export async function toPdfAttachments(
     } catch { /* skip an image that can't be read; the rest still print */ }
   }
   return out;
+}
+
+async function downloadAttachmentBlob(supabase: Db, path: string | undefined | null): Promise<Blob | null> {
+  if (!path) return null;
+  const { data } = await supabase.storage.from(ATTACHMENT_BUCKET).download(path);
+  return data ?? null;
+}
+
+/** Load another document's attachments as seed-time copies: signed-URL
+ *  thumbnails (so a revision card shows them and the 6 cap counts) plus the
+ *  source path to duplicate later. Reads only — never touches the source. */
+export async function loadAttachmentCopies(supabase: Db, sourceInvoiceId: string): Promise<EditorAttachment[]> {
+  const rows = await listAttachmentRows(supabase, sourceInvoiceId);
+  const items = await Promise.all(rows.map(async (r) => {
+    const url = await signedAttachmentUrl(supabase, r.storage_path);
+    return url ? ({ id: r.id, previewUrl: url, copyFromPath: r.storage_path } as EditorAttachment) : null;
+  }));
+  return items.filter(Boolean) as EditorAttachment[];
+}
+
+export interface MaterializeResult {
+  /** `items` with every successfully-duplicated pending entry now saved. */
+  items: EditorAttachment[];
+  saved: Map<string, { storagePath: string; rowId: string }>;
+  /** The id of the first entry that could NOT be materialized (send aborts). */
+  failedId?: string;
+}
+
+/** Duplicate every pending entry — a freshly-picked blob or a seed-time copy —
+ *  into a NEW object under `invoiceId`'s folder and insert its row at the next
+ *  free position (0..n-1). The copy's SOURCE object/row is never written to.
+ *  Stops at the first failure and reports it, so the caller can abort the send
+ *  rather than ship a document missing a picture the card showed. */
+export async function materializeAttachments(
+  supabase: Db, userId: string, invoiceId: string, items: readonly EditorAttachment[],
+): Promise<MaterializeResult> {
+  const saved = new Map<string, { storagePath: string; rowId: string }>();
+  const pending = items.filter((a) => !a.storagePath && (a.blob || a.copyFromPath));
+  if (!pending.length) return { items: [...items], saved };
+
+  const existing = await listAttachmentRows(supabase, invoiceId);
+  let position = nextAttachmentPosition(existing);
+  const done = new Map<string, EditorAttachment>();
+
+  for (const a of pending) {
+    if (position >= ATTACHMENT_MAX) return { items: [...items], saved, failedId: a.id };
+    const blob = a.blob ?? await downloadAttachmentBlob(supabase, a.copyFromPath);
+    if (!blob) return { items: [...items], saved, failedId: a.id };
+    const row = await uploadAttachment(supabase, userId, invoiceId, position, blob);
+    if (!row) return { items: [...items], saved, failedId: a.id };
+    saved.set(a.id, { storagePath: row.storage_path, rowId: row.id });
+    // Repoint the thumbnail at the NEW object (the source URL is short-lived).
+    const url = await signedAttachmentUrl(supabase, row.storage_path);
+    done.set(a.id, {
+      ...a, blob: undefined, copyFromPath: undefined,
+      storagePath: row.storage_path, rowId: row.id, previewUrl: url ?? a.previewUrl,
+    });
+    position++;
+  }
+
+  return { items: items.map((a) => done.get(a.id) ?? a), saved };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

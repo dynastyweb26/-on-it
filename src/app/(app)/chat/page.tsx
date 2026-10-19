@@ -36,8 +36,8 @@ import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpens
 import LineItemsEditor from '@/components/LineItemsEditor';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
-  ATTACHMENT_BUCKET, ATTACHMENT_MAX, deleteAttachment, listAttachmentRows, nextAttachmentPosition,
-  renumberAttachments, signedAttachmentUrl, toPdfAttachments, uploadAttachment,
+  ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
+  materializeAttachments, renumberAttachments, signedAttachmentUrl, toPdfAttachments,
 } from '@/lib/attachments-client';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
@@ -774,6 +774,19 @@ export default function Chat() {
   async function loadLinkedAttachments(id: string | null | undefined) {
     if (!id) { setAttachments([]); return; }
     try { await syncAttachments(id, []); } catch { /* keep what's on screen */ }
+  }
+
+  /** Seed a revision card with COPIES of the original's images: thumbnails from
+   *  signed URLs now, bytes duplicated into the new invoice at the first build
+   *  (materializeAttachments). Reads only on the original. */
+  async function seedRevisionAttachments(sourceInvoiceId: string) {
+    try {
+      const copies = await loadAttachmentCopies(supabase, sourceInvoiceId);
+      // Only fill an empty list — never clobber an image the user already picked.
+      setAttachments((cur) => (cur.length ? cur : copies));
+    } catch {
+      setMessages((m) => [...m, aMsg("Couldn't load the original's pictures. Add them again, or go back and tap Revise once more.")]);
+    }
   }
 
   /** Remove a SAVED attachment: drop its row + object, then renumber the rest so
@@ -1947,29 +1960,16 @@ export default function Chat() {
         return;
       }
 
-      // ── 1b. Attachments: upload any freshly-picked images and swap them for
-      //    their saved rows, so a later save never re-uploads them. This runs in
-      //    prepare mode too — the pre-build already writes the draft row, and the
-      //    send tap's fast path shares that pre-built file with NO awaits, so the
-      //    images must already be stored by then. A failure ABORTS the turn (the
-      //    retry bubble) rather than sending without a picture the card showed.
-      const pendingAttachments = attachmentsRef.current.filter((a) => a.blob && !a.storagePath);
-      if (pendingAttachments.length) {
-        const existingRows = await listAttachmentRows(supabase, invoiceId);
-        let position = nextAttachmentPosition(existingRows);
-        const saved = new Map<string, { storagePath: string; rowId: string }>();
-        for (const a of pendingAttachments) {
-          if (position >= ATTACHMENT_MAX) throw new Error('attachment cap exceeded');
-          const row = await uploadAttachment(supabase, profile.id, invoiceId, position, a.blob!);
-          if (!row) throw new Error('attachment upload failed');
-          saved.set(a.id, { storagePath: row.storage_path, rowId: row.id });
-          position++;
-        }
-        setAttachments((cur) => cur.map((a) => {
-          const s = saved.get(a.id);
-          return s ? { ...a, blob: undefined, storagePath: s.storagePath, rowId: s.rowId } : a;
-        }));
-      }
+      // ── 1b. Attachments: duplicate every pending entry (a picked blob, or a
+      //    seed-time copy of an original's image) into THIS invoice's folder and
+      //    record its row, so a later save never re-uploads. Runs in prepare mode
+      //    too — the pre-build already writes the draft row, and the send tap's
+      //    fast path shares that pre-built file with NO awaits, so the images
+      //    must be stored by then. A failure ABORTS the turn (retry bubble)
+      //    rather than sending without a picture the card showed.
+      const materialized = await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
+      if (materialized.failedId) throw new Error('attachment materialization failed');
+      if (materialized.saved.size) setAttachments(materialized.items);
 
       // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
@@ -3081,6 +3081,7 @@ export default function Chat() {
   function startRevision() {
     if (!draft) return;
     const kind = docKind(draft);
+    const sourceInvoiceId = pendingInvoiceRef.current?.id ?? null;
     const originalNo = pendingInvoiceRef.current?.no ?? null;
     const label = originalNo != null ? formatDocNumber(kind, originalNo) : 'the original';
     // One line naming the invoice this one replaces. Revising a revision drops
@@ -3127,6 +3128,9 @@ export default function Chat() {
     setReady(true);
     setCardAfterId(startMsg.id);
     setDuplicateHint(false);
+    // D4: attachments follow the line items. Seed copies of the original's
+    // images; they materialize into the new invoice at the first build.
+    if (sourceInvoiceId) void seedRevisionAttachments(sourceInvoiceId);
   }
 
   // The invoice/quote card renders INSIDE the transcript, right after its

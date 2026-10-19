@@ -22,6 +22,10 @@ export interface EditorAttachment {
   blob?: Blob;
   /** Set once saved: its storage object path. */
   storagePath?: string;
+  /** Set for a seed-time COPY that still has to be duplicated: the SOURCE
+   *  invoice's object path (read-only). Materialized at the first build into a
+   *  fresh object under this invoice's folder, then replaced by `storagePath`. */
+  copyFromPath?: string;
   /** Set once saved: its invoice_attachments row id. */
   rowId?: string;
   /** Natural (downscaled) size, for the PDF layout. Known for picked images;
