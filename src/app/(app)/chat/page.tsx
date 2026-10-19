@@ -1431,6 +1431,12 @@ export default function Chat() {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
+    // The card stays where it is; the summary, confirmation, sent chip and
+    // nudge all land below it. Capture the anchor before the summary is added,
+    // and use the same value for the live state and the archived entry.
+    const anchorBeforeSend = cardAfterId && messages.some((m) => m.id === cardAfterId)
+      ? cardAfterId
+      : messages[messages.length - 1]?.id ?? null;
     // A template send (2·12b) adds the user-turn summary bubble first, as a real
     // message, so history and recaps read the same as a chat-made document.
     const summary = template && draft && !retryId ? uMsg(templateSummary(draft), 'typed') : null;
@@ -1478,7 +1484,7 @@ export default function Chat() {
       messages: archived,
       draft: null,
       ready: false,
-      cardAfterId,
+      cardAfterId: anchorBeforeSend,
     });
     // KEEP the link and the draft: pendingInvoiceRef, convoId, and draft stay so
     // the conversation shows the sent invoice as a locked, read-only card with
@@ -1494,7 +1500,7 @@ export default function Chat() {
     setLinkedAmountPaid(0);
     setRenderData(null);
     playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
-    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
+    setCardAfterId(anchorBeforeSend); // the new messages sit under the card
     if (template) dropTemplate();   // sent: the template's job is done
     // Count each line's item for saved products (fire-and-forget; never blocks
     // or changes the send); it returns the save-prompt candidates (2·13).
