@@ -406,6 +406,16 @@ function withMessageIds(messages: Msg[]): Msg[] {
   return messages.map((m) => (m.id ? m : { ...m, id: genMsgId() }));
 }
 
+// The card's anchor when reading older data: keep a recorded anchor that is
+// still in the transcript, otherwise freeze the current last message. Freezing
+// (rather than resolving to "last" on every render) keeps later messages below
+// the card instead of pushing it down.
+function cardAnchorIn(messages: Msg[], anchor?: string | null): string | null {
+  return anchor && messages.some((m) => m.id === anchor)
+    ? anchor
+    : messages[messages.length - 1]?.id ?? null;
+}
+
 // Receipt thumbnails are ~40–50K characters each as data URLs, and
 // localStorage holds ~5MB per origin (less in practice on iOS Safari). Only
 // the newest few are written; older bubbles restore as a placeholder. Archived
@@ -708,7 +718,7 @@ export default function Chat() {
     setDraft(stored.draft);
     setDraftHistory([]);
     setReady(Boolean(stored.ready));
-    setCardAfterId(stored.cardAfterId ?? null);
+    setCardAfterId(cardAnchorIn(stored.messages, stored.cardAfterId));
     // Reuse an invoice row inserted before the suspend instead of starting a
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
@@ -2848,7 +2858,7 @@ export default function Chat() {
     }
     entry.messages.forEach((m) => restoredMsgIdsRef.current.add(m.id));
     setMessages(entry.messages);
-    setCardAfterId(entry.cardAfterId ?? null);
+    setCardAfterId(cardAnchorIn(entry.messages, entry.cardAfterId));
     setPendingChange(null);
     setConvoId(entry.id);
     setShowHistory(false);
@@ -3072,10 +3082,10 @@ export default function Chat() {
 
   // The invoice/quote card renders INSIDE the transcript, right after its
   // anchor message (cardAfterId), so later messages land below it. A missing
-  // or stale anchor (older saved chats) falls back to the last message.
-  const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
-    ? cardAfterId
-    : messages[messages.length - 1]?.id ?? null;
+  // or stale anchor (older saved chats) falls back to the last message; restore
+  // and history-open freeze that fallback into state so it can't follow later
+  // messages down.
+  const cardAnchorId = cardAnchorIn(messages, cardAfterId);
   const invoiceCard = ready && draft && !template ? (
     // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
     <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
