@@ -3,7 +3,7 @@
 Voice-powered invoicing PWA for blue collar professionals. Speak the job, get a branded PDF, share it, get paid. A Dynasty Web product. `$9/month` · `onit.dynastyweb.co`
 
 ## Stack
-Next.js 14 App Router · Supabase (auth, Postgres, storage) · Claude Haiku 4.5 (field extraction) · AssemblyAI (voice) · EmailJS · jsPDF + html2canvas · Web Push · Vercel
+Next.js 14 App Router · Supabase (auth, Postgres, storage) · Claude Haiku 4.5 (field extraction) · AssemblyAI (voice) · jsPDF + html2canvas · Web Push · Vercel
 
 ## Setup (do these in order)
 
