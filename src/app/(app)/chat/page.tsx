@@ -2131,10 +2131,16 @@ export default function Chat() {
     } catch (archiveErr) { console.error('vault archive failed', archiveErr); }
     preBuiltRef.current = null;
     const who = draft.client_name ?? 'your client';
+    // Only promise a payment notification when this send has both a live pay
+    // link and an online card path. Quotes and offline-only invoices omit it;
+    // manual/offline payments never push.
+    const paidOnline = docKind(draft) === 'invoice' && pb.token && cardAvailableFor(profile, connectOn)
+      ? ` You'll also get a notification when ${who} pays online.`
+      : '';
     // On a retry the done message replaces the failed bubble instead of appending.
     finishFinalize(aMsg(downloaded
       ? `Downloaded! Send it to ${who} however you like. I'll keep an eye on it.`
-      : `Sent! I'll nudge you if ${who} hasn't paid in 2 days.`), retryId);
+      : `Sent! I'll notify you if ${who} hasn't paid in 2 days.${paidOnline}`), retryId);
     // The right moment to ask about payment alerts: right after an invoice
     // actually goes out. One-time; skipped if already subscribed.
     // One ask per moment: the payment-alerts card wins; otherwise this is also
@@ -2228,7 +2234,7 @@ export default function Chat() {
     try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
     const ok = await subscribeToPush();
     setMessages((m) => [...m, aMsg(ok
-      ? `You're set. I'll ping you when ${who} pays, and nudge you if an invoice sits unpaid for 2 days.`
+      ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
       : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
   }
 
@@ -3629,7 +3635,7 @@ export default function Chat() {
 
         {reminderPrompt?.kind === 'ask' && (
           <div className="card border-primary-container/50">
-            <p className="text-body-md">Want a ping when {reminderPrompt.client} pays?</p>
+            <p className="text-body-md">Want a notification when {reminderPrompt.client} pays online?</p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now

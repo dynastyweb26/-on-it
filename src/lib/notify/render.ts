@@ -61,7 +61,7 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
       const no = formatDocNumber('invoice', event.invoiceNumber);
       return {
         title: `${event.clientName} opened ${no}`,
-        body: "They've seen it. You'll get a ping when they pay.",
+        body: "They've seen it.",
         url: `/invoices/${event.invoiceId}`,
         tag: `viewed-${event.invoiceId}`,
       };
