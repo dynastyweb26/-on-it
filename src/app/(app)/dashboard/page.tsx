@@ -300,7 +300,7 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] ${owed ? 'border-primary-container/40 bg-primary-fixed/40 active:bg-primary-fixed/60' : 'border-outline-variant/60 bg-surface-container-lowest active:bg-surface-container'}${intro ? ' onit-rise' : ''}`}
+      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] ${owed ? 'border-primary-container/40' : 'border-outline-variant/60'} bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
       <div className="flex min-w-0 items-center gap-1.5">
