@@ -22,21 +22,26 @@ import { getSharedUser } from '@/lib/auth-client';
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
 
-// Tiles are a glance: whole dollars, compact above $100k ("$124k", "$1.2M").
-// The screen each tile opens shows the exact figure with cents.
-function tileMoney(n: number): string {
-  if (!Number.isFinite(n)) return '$—';
-  const abs = Math.abs(n);
-  const sign = n < 0 ? '−' : '';
-  // Thresholds on the ROUNDED value, so $999,600 reads "$1M", never "$1,000k".
-  if (Math.round(abs / 1000) >= 1000) return `${sign}$${(abs / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (abs >= 100_000) return `${sign}$${Math.round(abs / 1000).toLocaleString('en-US')}k`;
-  return `${sign}$${Math.round(abs).toLocaleString('en-US')}`;
-}
-
 // Signed exact money for the hero: a negative net reads "−$120.00" (sign, not
 // red — no colored numbers on this screen).
 const signedMoney = (n: number) => (n < 0 ? `−${money(-n)}` : money(n));
+
+// Design 1b: exact cents render smaller than the dollars. This keeps a
+// six-figure amount inside a half-width tile at 360px. Display only — the
+// value is still the string from money(); no calculation changes.
+function MoneyText({ text, centsClassName = 'text-[0.52em] tracking-[-0.01em] opacity-70' }: {
+  text: string;
+  centsClassName?: string;
+}) {
+  const dot = text.lastIndexOf('.');
+  if (dot < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, dot)}
+      <span className={centsClassName}>{text.slice(dot)}</span>
+    </>
+  );
+}
 // The Books count-up plays on the first visit of the day (motion inventory
 // "Books › First visit of the day"); later visits that day are static. The
 // stored value is the local date it last played (MOTION-SPEC §9 mechanics).
@@ -174,50 +179,59 @@ export default function Dashboard() {
 
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;
+  // Design 1b zero state: the true all-zero account, not just an empty invoice
+  // list (expenses alone should still render at full strength).
+  const isZero = stats.collected === 0 && stats.outstanding === 0 && stats.spent === 0;
+  const invoiceLabel = stats.count === 0
+    ? 'No invoices yet'
+    : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8 pt-6 md:px-8 md:space-y-8">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-6 md:px-8">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
-          dot), then Net, the three tiles, Add expense, the list card and
-          Income & Expenses (§L Q4 keeps today's label). */}
+          dot), then Net, the two metric tiles + Spent row, Add expense, the
+          list card and Income & Expenses (§L Q4 keeps today's label). */}
       <RecapsCard />
       {/* A recurring charge On It couldn't log (3·6, L3). */}
       <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {/* Net hero — the ONE deliberately dark element on this screen (§8).
-              Number first (cream, never colored; a negative reads "−$…"), label
-              under it. Opens the Books summary at All time, whose "Kept" is the
+        <div className="grid grid-cols-1 gap-3 lg:gap-5 lg:grid-cols-3">
+          {/* Net hero — design 1b: number first, then "Net · all time · N
+              invoices" on one line. Cream, never colored (a negative reads
+              "−$…"); opens the Books summary at All time, whose "Kept" is the
               same figure. */}
           <Link
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
             data-coach="books-net"
-            className={`lg:col-span-1 flex flex-col justify-between rounded-[22px] bg-inverse-surface p-6 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
+            className={`lg:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
-            <div className="flex items-center justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="font-display text-numeric-xl md:text-[38px] tracking-tight text-inverse-on-surface tabular-nums">{signedMoney(net)}</div>
-                <div className="mt-1.5 text-label-lg font-semibold text-inverse-on-surface/70">Net · all time</div>
-                <div className="mt-0.5 text-xs text-inverse-on-surface/50">{stats.count} {stats.count === 1 ? 'invoice' : 'invoices'}</div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className={`whitespace-nowrap font-display text-[clamp(30px,13cqi,40px)] font-extrabold leading-[1.05] tracking-[-0.03em] tabular-nums ${isZero ? 'text-inverse-on-surface/50' : 'text-inverse-on-surface'}`}>
+                <MoneyText text={signedMoney(net)} />
               </div>
-              <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
+              <div className="text-label-lg font-semibold text-inverse-on-surface/70">
+                Net · all time <span className="font-normal text-inverse-on-surface/50">· {invoiceLabel}</span>
+              </div>
             </div>
+            <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
           </Link>
-          {/* Three equal tiles, one row: whole-dollar headline, muted label with a
-              small dot (meaning without colored numbers; gold only as a fill).
-              Each is a button to the list whose total equals its number. */}
-          <div data-coach="books-stats" className="lg:col-span-2 grid grid-cols-3 gap-3 md:gap-5">
-            <Tile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={0} />
-            <Tile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" intro={intro} order={1} />
-            <Tile key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} />
+          {/* Design 1b: Owed and Collected are half-width tiles, Spent is a
+              full-width row. Amounts keep their cents (the accessible label
+              carries the same full figure); nothing is truncated. */}
+          <div data-coach="books-stats" className="lg:col-span-2 flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2.5 md:gap-4">
+              <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
+              <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
+            </div>
+            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} />
           </div>
         </div>
       )}
 
       {/* The rest rises last on the first visit of the day (MOTION-SPEC §9:
-          300 / 350 / 400ms). Mounted with the totals, like the tiles, so the
+          300 / 350 / 400ms). Mounted with the totals, like the metrics, so the
           entrance never starts on buttons already on screen. */}
       {!loading && (
         <div className="space-y-6">
@@ -274,29 +288,57 @@ export default function Dashboard() {
   );
 }
 
-function Tile({ href, value, label, dot, hint, intro = false, order = 0, flash = false }: {
+function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = false, order = 0, dim = false }: {
   href: string; value: number; label: string; dot: string; hint: string;
-  intro?: boolean; order?: number; flash?: boolean;
+  tone?: 'plain' | 'owed'; intro?: boolean; order?: number; dim?: boolean;
 }) {
-  // Entrance (first open per session): tiles rise 70ms apart; each dot pops as
-  // its number lands. `flash` bumps the number once (a new expense); no colour,
-  // per this screen's no-coloured-numbers rule.
+  // Design 1b half tile. The amount is the exact money() string, split so the
+  // cents can shrink; `container-type` lets 15cqi scale it to the tile while
+  // the clamp floor/ceiling keeps six figures inside 360px. Never truncated.
+  const owed = tone === 'owed';
   return (
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`relative flex min-h-touch flex-col justify-center gap-2.5 rounded-[22px] border border-outline-variant/60 bg-surface-container-low p-5 shadow-[0_1px_2px_rgba(34,30,24,.06)] transition-transform duration-[120ms] active:scale-[0.97] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] ${owed ? 'border-primary-container/40' : 'border-outline-variant/60'} bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <Icon name="chevron_right" size={16} className="absolute right-3 top-3 text-outline" />
-      <div className={`truncate font-display text-[22px] md:text-[28px] font-extrabold leading-none tracking-tight text-on-background tabular-nums${flash ? ' onit-bump' : ''}`}>
-        {tileMoney(value)}
-      </div>
-      <div className="flex min-w-0 items-center gap-2 text-xs md:text-sm font-semibold text-on-surface-variant">
-        <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
           style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
-        <span className="truncate">{label}</span>
+        <span className={`whitespace-nowrap text-[13px] md:text-[13.5px] font-semibold ${owed ? 'text-primary' : 'text-on-surface-variant'}`}>{label}</span>
+        <span className="flex-1" />
+        <Icon name="chevron_right" size={18} className={`shrink-0 ${owed ? 'text-primary/50' : 'text-outline'}`} />
       </div>
+      <div className={`whitespace-nowrap font-display text-[clamp(17px,15cqi,26px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-on-background tabular-nums${dim ? ' opacity-40' : ''}`}>
+        <MoneyText text={money(value)} centsClassName="text-[0.62em] text-on-surface-variant/70" />
+      </div>
+    </Link>
+  );
+}
+
+function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false }: {
+  href: string; value: number; label: string; dot: string; hint: string;
+  intro?: boolean; order?: number; flash?: boolean; dim?: boolean;
+}) {
+  // Design 1b: Spent is demoted to one full-width row, so even a six-figure
+  // amount with cents has the whole row's width. `flash` still bumps the value
+  // once after a new expense; no colour, per the no-coloured-numbers rule.
+  return (
+    <Link
+      href={href}
+      aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
+      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
+    >
+      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
+        style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
+      <span className="whitespace-nowrap text-[14.5px] font-semibold text-on-surface-variant">{label}</span>
+      <span className="flex-1" />
+      <span className={`whitespace-nowrap font-display text-[16px] md:text-[18px] font-bold leading-none tracking-[-0.02em] text-on-surface-variant tabular-nums${dim ? ' opacity-40' : ''}${flash ? ' onit-bump' : ''}`}>
+        <MoneyText text={money(value)} centsClassName="text-[0.72em] text-on-surface-variant/70" />
+      </span>
+      <Icon name="chevron_right" size={18} className="shrink-0 text-outline" />
     </Link>
   );
 }
