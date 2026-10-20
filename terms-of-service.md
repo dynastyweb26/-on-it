@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: October 15, 2026**
+**Last updated: October 19, 2026**
 
 These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"), for your use of On It, including the app at onit.dynastyweb.co and any version of On It you install on your phone or computer. By creating an account or using On It, you agree to these terms and to our Privacy Policy (https://onit.dynastyweb.co/privacy). If you do not agree, do not use On It.
 
@@ -48,6 +48,8 @@ Here is exactly how billing works:
 
 Cancelling stops future charges. Your access continues until the end of the period you have already paid for. We do not give partial refunds for unused time.
 
+Before you cancel, we may offer you an optional discount or a pause. We limit these offers to one per account in a rolling 12-month period. A pause starts when the period you have already paid for ends: you keep full access until then, your plan uses the free tier while the pause is active, and you are not charged during it. Accepting either offer is your choice and does not change your right to cancel.
+
 **Refunds.** If you were charged in error, email brandon@dynastyweb.co and we will make it right. Otherwise, fees already paid are non-refundable, except where the law requires a refund.
 
 **Price changes.** If we change the price, we will email you 7 to 30 days before the new price takes effect, with instructions for cancelling. If you do not want to pay the new price, cancel before it takes effect.
@@ -71,7 +73,7 @@ You can connect your own Stripe account so customers can pay your invoices by ca
 - **Stripe processes these payments, not us.** When you connect, you open or link an account directly with Stripe and agree to Stripe's own terms, including the Stripe Services Agreement (https://stripe.com/legal/ssa). Payments go directly into your Stripe account.
 - Stripe charges its own processing fees to your Stripe account. Your On It subscription is separate.
 - **Refunds, disputes, and chargebacks are between you, your customer, and Stripe.** You handle them in your Stripe account. We cannot issue refunds, reverse payments, or resolve disputes.
-- When Stripe tells us a payment succeeded, we record it on the invoice. Refunds and disputes are not reflected in On It automatically. Check your Stripe account for the full picture.
+- When Stripe tells us a payment succeeded, we record it on the invoice. When Stripe reports a refund, dispute withdrawal, or dispute reinstatement, we add it to your ledger automatically. A refund lowers your recorded income but leaves the invoice paid; a dispute withdrawal lowers what counts as paid and can reopen the invoice. Check your Stripe account for the full picture.
 - You can disconnect On It from your Stripe account through Stripe. Payments already recorded stay in your records.
 
 ### Payment handles (Zelle, Venmo, PayPal, Cash App)
@@ -91,7 +93,7 @@ You can add your bank details so customers can send you a bank transfer. By addi
 
 ### Payments you record
 
-When you mark an invoice paid or partly paid, On It records what you tell it. We do not verify payments you record manually.
+When you mark an invoice paid or partly paid, On It records what you tell it. We do not verify payments you record manually, and On It will not record a manual payment larger than the unpaid balance.
 
 ### Our role
 
@@ -101,9 +103,9 @@ Because we never handle the money, **we are not responsible for** payments that 
 
 ## 5. Your content, and your customers' information
 
-Everything you put into On It, including your business details, logo, invoices, expense records, saved items, and the information you enter about your customers, remains yours. We do not claim ownership of it.
+Everything you put into On It, including your business details, logo, invoices, expense records, saved items, photos you upload (including receipts and invoice attachments), and the information you enter about your customers, remains yours. We do not claim ownership of it.
 
-You give us permission to store, process, display, and transmit your content as needed to run On It: to build your invoices, show your payment pages, send it to our service providers (including AI providers) for processing, and produce your summaries. This permission ends when your content is deleted from our systems, as described in our Privacy Policy.
+You give us permission to store, process, display, and transmit your content as needed to run On It: to build your invoices, show your payment pages, print the images you attach on your PDFs, send it to our service providers (including AI providers) for processing, and produce your summaries. This permission ends when your content is deleted from our systems, as described in our Privacy Policy.
 
 **Your logo.** You confirm you have the right to use the logo and any other images you upload, and you permit us to display them on your invoices and payment pages.
 
@@ -120,7 +122,7 @@ You decide what goes into On It and what gets sent. We process your customers' i
 
 ## 6. AI features
 
-On It uses artificial intelligence to turn what you type, say, paste, or photograph into invoices, quotes, and expense records, and to write the replies you see in the chat. Speech is transcribed by AssemblyAI. Messages, pasted notes, and receipt photos are interpreted by Anthropic's Claude models. **The replies in the chat come from AI, not a person.**
+On It uses artificial intelligence to turn what you type, say, paste, or photograph into invoices, quotes, and expense records, and to write the replies you see in the chat. Speech is transcribed by AssemblyAI. Messages, pasted notes, and receipt photos are interpreted by Anthropic's Claude models. Invoice and quote attachments are not sent to AI; they are only printed on your PDF. **The replies in the chat come from AI, not a person.**
 
 **AI makes mistakes.** It can mishear an amount, misread a receipt, copy a line wrong, put a description next to the wrong price, get a name wrong, or misunderstand what you meant.
 
@@ -134,7 +136,7 @@ Do not use the AI features to create anything illegal, deceptive, or harmful, or
 
 **Recurring expenses.** If you turn on automatic logging for a recurring expense, On It adds that expense to your books on its schedule until you turn it off or delete it. Review your books to make sure they match what you actually paid.
 
-**Notifications.** If you allow them, On It may send notifications about payments, invoices your customers opened, unpaid invoices, unsent drafts, recurring expenses, and recaps. You can turn them off in Settings or in your device settings. Notifications can be delayed or fail to arrive, so do not rely on them alone.
+**Notifications.** If you allow them, On It may send notifications about payments, disputes, invoices your customers opened, unpaid invoices, unsent drafts, recurring expenses, and recaps. You can turn them off in Settings or in your device settings. Notifications can be delayed or fail to arrive, so do not rely on them alone.
 
 **Electronic communications.** You agree that we can send you notices, receipts, and other communications electronically, by email or in the app, and that these satisfy any legal requirement that they be in writing.
 
@@ -178,7 +180,7 @@ On It, including its software, design, name, logos, and content we create, belon
 
 ## 11. Third-party services
 
-On It relies on services run by others, such as Stripe, Supabase, Vercel, Anthropic, AssemblyAI, payment apps, and app stores. Your use of a third-party service, such as Stripe or a payment app, is governed by that service's own terms. We are not responsible for third-party services, their availability, or what they do.
+On It relies on services run by others, such as Stripe, Supabase, Vercel, Anthropic, AssemblyAI, Resend (email delivery), Upstash (rate limiting), push notification services, payment apps, and app stores. Your use of a third-party service, such as Stripe or a payment app, is governed by that service's own terms. We are not responsible for third-party services, their availability, or what they do.
 
 ---
 
