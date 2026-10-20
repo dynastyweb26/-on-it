@@ -23,39 +23,17 @@
 //     so billing/tax records survive, matching the privacy policy.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { clearAccountStorage } from '@/lib/delete-account-storage';
 
 export const runtime = 'nodejs';
 
 // Server-side confirmation gate — a second lock behind the typed-"DELETE" UI, so
 // nothing but an explicit, intentional request can ever fire this.
 const Body = z.object({ confirm: z.literal('DELETE') });
-
-// Every user file lives flat under `${userId}/` in one of these private/public
-// buckets (owner-scoped by foldername[1] = auth.uid in RLS). None of them
-// cascade from an auth-user deletion, so each must be cleared explicitly.
-const BUCKETS = ['vault', 'logos', 'receipts'] as const;
-
-/** Remove every object under `${userId}/` in one bucket. Throws on any error so
- *  the caller can abort before the irreversible auth-user delete. */
-async function clearBucketFolder(admin: SupabaseClient, bucket: string, userId: string) {
-  const paths: string[] = [];
-  for (let offset = 0; ; offset += 100) {
-    const { data, error } = await admin.storage.from(bucket).list(userId, { limit: 100, offset });
-    if (error) throw error;
-    if (!data?.length) break;
-    for (const f of data) paths.push(`${userId}/${f.name}`);
-    if (data.length < 100) break;
-  }
-  if (paths.length) {
-    const { error } = await admin.storage.from(bucket).remove(paths);
-    if (error) throw error;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -99,8 +77,10 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Storage: clear the non-cascading buckets. Done before the auth delete
   //    so a failure here leaves the account intact and the operation retriable.
+  //    This includes nested invoice-attachment objects under
+  //    `${userId}/${invoiceId}/`; see lib/delete-account-storage.
   try {
-    for (const bucket of BUCKETS) await clearBucketFolder(admin, bucket, user.id);
+    await clearAccountStorage(admin, user.id);
   } catch (e) {
     console.error('delete-account: storage clear failed', e);
     return NextResponse.json(
