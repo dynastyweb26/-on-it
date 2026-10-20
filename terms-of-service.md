@@ -180,7 +180,7 @@ On It, including its software, design, name, logos, and content we create, belon
 
 ## 11. Third-party services
 
-On It relies on services run by others, such as Stripe, Supabase, Vercel, Anthropic, AssemblyAI, Resend (email delivery), Upstash (rate limiting), push notification services, payment apps, and app stores. Your use of a third-party service, such as Stripe or a payment app, is governed by that service's own terms. We are not responsible for third-party services, their availability, or what they do.
+On It relies on services run by others, such as Stripe, Supabase, Vercel, Anthropic, AssemblyAI, Resend (email delivery), Upstash (rate limiting), push notification services, and payment apps. Your use of a third-party service, such as Stripe or a payment app, is governed by that service's own terms. We are not responsible for third-party services, their availability, or what they do.
 
 ---
 

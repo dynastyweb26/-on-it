@@ -257,8 +257,8 @@ When your account is deleted, we remove your profile, customers, invoices, quote
 
 Some information is kept after deletion:
 
-- **Activity records.** We keep a record that changes happened, for security and fraud investigation, but we erase their contents. No customer names, amounts, or business details remain in them.
-- **Billing records.** Stripe keeps its own transaction records and customer record, and we keep the billing history we need for tax and accounting obligations.
+- **Activity records.** We keep a record that changes happened, for security and fraud investigation, but we erase their contents. Only the user id, table name, event type, timestamp, and row id remain. No customer names, amounts, or business details remain in them.
+- **Billing records.** Stripe keeps its own transaction and customer records under its own policies. When you delete your account, we delete your invoices and payment records from our systems.
 - **Your Stripe account.** If you connected one, it belongs to you and stays with Stripe. Deleting your On It account removes our record of it but does not close it.
 - **AI and transcription providers.** Content already sent to Anthropic or AssemblyAI is deleted on their schedules described in Section 4.
 - **Backups.** Deleted data may remain in our providers' encrypted backups for a limited time until those backups expire.
