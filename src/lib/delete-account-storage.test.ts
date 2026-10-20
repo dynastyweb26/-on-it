@@ -22,6 +22,7 @@ type FakeEntry = {
 function fakeAdmin(
   initial: Record<string, string[]>,
   failRemove?: (bucket: string, paths: string[]) => boolean,
+  silentRemove?: (bucket: string, paths: string[]) => boolean,
 ) {
   const objects = new Map<string, Set<string>>();
   for (const [bucket, paths] of Object.entries(initial)) {
@@ -72,6 +73,7 @@ function fakeAdmin(
           async remove(paths: string[]) {
             calls.push(`remove:${bucket}:${paths.length}`);
             if (failRemove?.(bucket, paths)) return { error: { message: 'nope' } };
+            if (silentRemove?.(bucket, paths)) return { error: null };
             for (const path of paths) store.delete(path);
             return { error: null };
           },
@@ -157,6 +159,26 @@ test('a Storage remove failure is thrown, so the route can abort', async () => {
       assert.deepEqual(error, { message: 'nope' });
       return true;
     },
+  );
+
+  assert.deepEqual([...(objects.get('invoice-attachments') ?? [])], ['u/inv-1/a.jpg']);
+});
+
+test('a silent remove that leaves a nested file is detected', async () => {
+  const { admin, objects } = fakeAdmin(
+    {
+      vault: [],
+      logos: [],
+      receipts: [],
+      'invoice-attachments': ['u/inv-1/a.jpg'],
+    },
+    undefined,
+    (bucket) => bucket === 'invoice-attachments',
+  );
+
+  await assert.rejects(
+    () => clearAccountStorage(admin, 'u'),
+    /Storage cleanup left objects in invoice-attachments\/u\/inv-1\/a\.jpg/,
   );
 
   assert.deepEqual([...(objects.get('invoice-attachments') ?? [])], ['u/inv-1/a.jpg']);

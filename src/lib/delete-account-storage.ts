@@ -90,6 +90,23 @@ async function clearPrefix(
   for (const folder of folders) await clearPrefix(admin, bucket, folder);
 }
 
+/** Return the first object still under `prefix`, or null when it is empty. */
+async function findRemainingPath(
+  admin: AccountStorageAdmin,
+  bucket: string,
+  prefix: string,
+): Promise<string | null> {
+  const { files, folders } = await listLevel(admin, bucket, prefix);
+  const firstFile = files[0];
+  if (firstFile) return firstFile;
+
+  for (const folder of folders) {
+    const remaining = await findRemainingPath(admin, bucket, folder);
+    if (remaining) return remaining;
+  }
+  return null;
+}
+
 /** Empty every per-user object in every bucket. Throws on the first failure. */
 export async function clearAccountStorage(
   admin: AccountStorageAdmin,
@@ -97,5 +114,13 @@ export async function clearAccountStorage(
 ): Promise<void> {
   for (const bucket of ACCOUNT_STORAGE_BUCKETS) {
     await clearPrefix(admin, bucket, userId);
+
+    // A remove() can resolve without deleting anything (silent no-op). Verify
+    // the prefix is actually empty before moving on, so the route aborts before
+    // the audit scrub and the irreversible auth delete.
+    const remaining = await findRemainingPath(admin, bucket, userId);
+    if (remaining) {
+      throw new Error(`Storage cleanup left objects in ${bucket}/${remaining}`);
+    }
   }
 }
