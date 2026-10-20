@@ -32,7 +32,7 @@ export type CreateArgs = {
 };
 
 export default function PickerSheet<T extends PickRow>({
-  title, searchNoun, idPrefix, saved, history, loading, renderRow, onPick, onUseName, newLabel, onClose, renderCreate,
+  title, searchNoun, idPrefix, saved, history, hiddenHistory = [], loading, renderRow, onPick, onUseName, newLabel, onClose, renderCreate,
 }: {
   title: string;
   /** "clients" / "items" — for "Search 18 clients". */
@@ -40,6 +40,8 @@ export default function PickerSheet<T extends PickRow>({
   idPrefix: string;
   saved: T[];
   history: T[];
+  /** Older unsaved rows: only shown while searching. */
+  hiddenHistory?: T[];
   loading: boolean;
   renderRow: (row: T, kind: 'saved' | 'history') => ReactNode;
   onPick: (row: T) => void;
@@ -87,10 +89,15 @@ export default function PickerSheet<T extends PickRow>({
 
   const query = q.trim();
   const savedShown = useMemo(() => saved.filter((r) => matchesQuery(r.name, q)), [saved, q]);
-  const historyShown = useMemo(() => history.filter((r) => matchesQuery(r.name, q)), [history, q]);
+  const historyShown = useMemo(() => {
+    const shown = history.filter((r) => matchesQuery(r.name, q));
+    // Older unsaved clients stay searchable, but not in the default list.
+    return query ? [...shown, ...hiddenHistory.filter((r) => matchesQuery(r.name, q))] : shown;
+  }, [history, hiddenHistory, q, query]);
   const groups = useMemo(() => groupByLetter(savedShown, (r) => r.name), [savedShown]);
+  // Keep the placeholder count aligned with the rows listed before searching.
   const total = saved.length + history.length;
-  const exact = hasExactName([...saved, ...history].map((r) => r.name), query);
+  const exact = hasExactName([...saved, ...history, ...hiddenHistory].map((r) => r.name), query);
 
   const rowButton = (r: T, kind: 'saved' | 'history') => (
     <button key={r.id} type="button" onClick={() => onPick(r)}

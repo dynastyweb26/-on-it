@@ -40,6 +40,35 @@ export function usedBeforeLine(count: number, lastIso: string | null): string {
   return lastIso ? `${n} · ${shortDay(lastIso)}` : n;
 }
 
+/** Unsaved client history stays in the picker for this many days. */
+export const UNSAVED_CLIENT_HISTORY_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A history row is visible through day 7; it hides once it is over 7 days old. */
+export function clientHistoryVisible(
+  lastUsedAt: string | null,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!lastUsedAt) return true;
+  const usedMs = Date.parse(lastUsedAt);
+  // A malformed date should never hide a row by accident.
+  if (!Number.isFinite(usedMs)) return true;
+  return nowMs - usedMs <= UNSAVED_CLIENT_HISTORY_DAYS * DAY_MS;
+}
+
+/** Split unsaved history into the default list and the search-only rows. */
+export function splitClientHistory<T extends { last_used_at: string | null }>(
+  rows: T[],
+  nowMs: number = Date.now(),
+): { visible: T[]; hidden: T[] } {
+  const visible: T[] = [];
+  const hidden: T[] = [];
+  for (const row of rows) {
+    (clientHistoryVisible(row.last_used_at, nowMs) ? visible : hidden).push(row);
+  }
+  return { visible, hidden };
+}
+
 /** A saved client's line in the Client sheet: "4 invoices", "2 invoices · 1 quote". */
 export function clientDocsLine(c: Pick<ClientSummary, 'invoice_count' | 'quote_count'>): string {
   const parts = [

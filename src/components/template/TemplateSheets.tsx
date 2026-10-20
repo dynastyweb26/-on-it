@@ -15,7 +15,7 @@ import ProductForm from '@/components/clients/ProductForm';
 import { createClient } from '@/lib/supabase/client';
 import { initials, normalizeSummary, type ClientSummary } from '@/lib/clients';
 import { PRODUCT_COLS, normalizeProduct, priceText, productSubtitle, type Product } from '@/lib/products';
-import { clientDocsLine, usedBeforeLine, type TemplateClient } from '@/lib/template';
+import { clientDocsLine, splitClientHistory, usedBeforeLine, type TemplateClient } from '@/lib/template';
 
 const byRecent = (a: string | null, b: string | null) => (b ?? '').localeCompare(a ?? '');
 
@@ -47,9 +47,10 @@ export function ClientSheet({ onPick, onClose }: { onPick: (c: TemplateClient) =
 
   const saved = (rows ?? []).filter((c) => c.saved);
   const history = (rows ?? []).filter((c) => !c.saved && c.doc_count > 0).sort((a, b) => byRecent(a.last_used_at, b.last_used_at));
+  const { visible: visibleHistory, hidden: hiddenHistory } = splitClientHistory(history);
   return (
     <PickerSheet title="Client" searchNoun={['client', 'clients']} idPrefix="tpl-client" newLabel="New client"
-      saved={saved} history={history} loading={rows === null} onClose={onClose}
+      saved={saved} history={visibleHistory} hiddenHistory={hiddenHistory} loading={rows === null} onClose={onClose}
       onPick={pick}
       onUseName={(name) => onPick({ name, id: null, address: null, phone: null })}
       renderCreate={signedIn ? ({ name, barProps, onCancel }) => (
