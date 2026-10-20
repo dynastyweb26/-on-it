@@ -15,7 +15,6 @@ import type { BrandTheme } from '@/lib/colors';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
-import { renderSnapshot } from '@/lib/invoice-snapshot';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
 import { invoiceStatusLabel, ledgerEntryLabel } from '@/lib/payment-methods';
@@ -506,17 +505,20 @@ export default function InvoiceDetail() {
         return;
       }
       if (r.status === 'unsupported') downloadFile(file);
-      // Always bump sent_at. Only a genuine first send (draft → sent) flips the
-      // status and captures the render snapshot from the current profile. A resend
-      // of an already-sent OR paid invoice must NOT touch status — forcing 'sent'
-      // would regress a 'paid' invoice (the ledger trigger only reconciles on a
-      // payments-row change, so it would stay 'sent') — and must NOT re-snapshot,
-      // which would overwrite the historical record with the current profile.
-      const firstSend = inv.status === 'draft';
-      const patch: Record<string, unknown> = { sent_at: new Date().toISOString() };
-      if (firstSend) Object.assign(patch, { status: 'sent' }, renderSnapshot(profile));
-      await supabase.from('invoices').update(patch).eq('id', id);
-      setInv({ ...inv, ...patch });
+      // The server owns the status transition and snapshot. A draft becomes
+      // sent; a resend only bumps sent_at, so a paid/overdue invoice can never
+      // regress; deleted and void rows are refused.
+      const sendRes = await fetch(`/api/invoices/${id}/send`, { method: 'POST' }).catch(() => null);
+      const body = await sendRes?.json().catch(() => null) as
+        { invoice?: Record<string, unknown>; firstSend?: boolean } | null;
+      if (!sendRes?.ok) {
+        setShareError(sendRes?.status === 409
+          ? 'This invoice is void and cannot be sent.'
+          : `Your file was shared, but I couldn't update the invoice. Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        return;
+      }
+      if (body?.invoice) setInv(body.invoice);
+      const firstSend = body?.firstSend === true;
 
       // Archive to the Vault, the same way a chat send does (best-effort — a
       // storage hiccup must not undo the share the user just confirmed):

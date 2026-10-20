@@ -22,7 +22,6 @@ import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/pu
 import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
 import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
-import { renderSnapshot } from '@/lib/invoice-snapshot';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
@@ -2114,11 +2113,20 @@ export default function Chat() {
     const downloaded = r.status === 'unsupported';
     if (downloaded) downloadFile(pb.file);
     // The row was persisted from this exact draft before the file was built (the
-    // signature matches), so only the status moves. renderSnapshot pins identity
-    // as-sent; Zelle is not snapshotted (see renderSnapshot).
-    await supabase.from('invoices')
-      .update({ status: 'sent', sent_at: new Date().toISOString(), ...renderSnapshot(profile) })
-      .eq('id', pb.id);
+    // signature matches). The server owns the status transition and snapshot:
+    // a draft becomes sent; a resend only bumps sent_at, so paid/overdue can
+    // never regress; deleted and void rows are refused.
+    const sendRes = await fetch(`/api/invoices/${pb.id}/send`, { method: 'POST' }).catch(() => null);
+    if (!sendRes?.ok) {
+      if (sendRes) {
+        console.error('invoice send failed', sendRes.status, await sendRes.text().catch(() => ''));
+      }
+      if (!retryId) setMessages((m) => [...m, aMsg(
+        "Your file was shared, but I couldn't mark it as sent. Tap send to try again.",
+        { failed: { op: 'finalize' } },
+      )]);
+      return;
+    }
     finalizeSentRef.current = true;
     persistProgress();
     // Archive in the Vault — best-effort; a storage hiccup must not undo the send.
