@@ -345,7 +345,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       const j = await res.json().catch(() => ({}));
       if (!res.ok) setPushTestMsg(j.error ?? `Failed (${res.status})`);
       else if (typeof j.candidates === 'number' && !(j.delivered > 0)) setPushTestMsg(j.candidates === 0
-        ? 'No eligible draft: needs an invoice draft last edited 1–14 days ago, outside quiet hours, not already nudged, and no draft nudge in the last 20h.'
+        ? 'No eligible draft: needs an invoice draft last edited 1–14 days ago, outside quiet hours, not already notified, and no draft notification in the last 20h.'
         : 'An eligible draft was found but nothing was delivered. Check this device is subscribed.');
       else setPushTestMsg(j.delivered > 0
         ? `Sent to ${j.delivered} device${j.delivered === 1 ? '' : 's'}.`
@@ -900,7 +900,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           <div>
             <p className="text-sm font-semibold text-on-surface">Payment alerts &amp; reminders</p>
             <p className="text-sm text-on-surface-variant">
-              A ping when a client pays or Stripe needs something, and a nudge when an invoice sits unpaid for 2 days.
+              A notification when a client pays online or Stripe needs something, and another when an invoice sits unpaid for 2 days.
             </p>
           </div>
           <button
@@ -927,7 +927,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
             <div>
               <p className="text-sm font-semibold text-on-surface">Remind me about unsent drafts</p>
               <p className="text-sm text-on-surface-variant">
-                A nudge the day after an invoice is drafted but not sent.
+                A notification the day after an invoice is drafted but not sent.
               </p>
             </div>
             <button
@@ -976,7 +976,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
                 ['Invoice opened', { type: 'viewed' }],
                 ['Draft reminder', { type: 'draft' }],
                 // The real run, own drafts only; claims the draft for good.
-                ['Run draft nudge (real rules)', { type: 'draft_run' }],
+                ['Run draft notification (real rules)', { type: 'draft_run' }],
               ] as const).map(([label, body]) => (
                 <button key={label} className="chip" onClick={() => void sendTestPush(body)}>{label}</button>
               ))}
