@@ -10,6 +10,7 @@ import {
   localDateToIso,
   methodLabel,
   payAmountValue,
+  paymentExceedsBalance,
   payDateYmd,
   yesterdayString,
   type PaymentMethod,
@@ -43,6 +44,29 @@ test('payAmountValue matches the old inline form for every mode', () => {
   assert.equal(payAmountValue('other', '', 80, 20), 0);
   assert.equal(payAmountValue('other', '0', 80, 20), 0);
   assert.equal(payAmountValue('other', 'abc', 80, 20), 0);
+});
+
+test('paymentExceedsBalance blocks overpayments, including a zero balance', () => {
+  // At or under the balance is allowed; one cent over is not.
+  assert.equal(paymentExceedsBalance(80, 80), false);
+  assert.equal(paymentExceedsBalance(79.99, 80), false);
+  assert.equal(paymentExceedsBalance(80.01, 80), true);
+  // An already-overpaid invoice has a $0 balance: any positive amount is over.
+  assert.equal(paymentExceedsBalance(0, 0), false);
+  assert.equal(paymentExceedsBalance(0.01, 0), true);
+  assert.equal(paymentExceedsBalance(20, 0), true);
+  // A negative balance (defensive) is treated as zero, never as headroom.
+  assert.equal(paymentExceedsBalance(1, -5), true);
+});
+
+test('buildRecordPayment never clamps an overpayment', () => {
+  const now = new Date('2026-10-20T04:30:00.000Z');
+  const input = buildRecordPayment({
+    mode: 'other', amountText: '300', balance: 20, depositRemaining: 0,
+    method: 'zelle', dateMode: 'today', pickedDate: '', now,
+  });
+  // The sheet blocks Save; the mapper still preserves the typed amount exactly.
+  assert.equal(input.amount, 300);
 });
 
 test('Today/Yesterday are LOCAL calendar days when UTC is already tomorrow', () => {

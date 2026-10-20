@@ -1133,6 +1133,42 @@ results(id, ok, expected, actual) as (
       else (xpath('/row/c/text()', query_to_xml(
         'select count(*) as c from public.invoice_payments where entry_type <> ''payment''', false, true, '')))[1]::text
         || ' reversal rows' end
+  union all
+  -- AC. Overpayment guard (20261019000001): a manual payment may not push the
+  --     non-refund ledger sum above the invoice total. Stripe and reversal rows
+  --     must stay insertable; the row's own id is excluded on UPDATE; the
+  --     trigger function is SECURITY DEFINER, has no search path, and is not
+  --     executable by clients. SKIP until pushed.
+  select 'AC overpayment guard',
+    case when not exists (select 1 from applied where version = '20261019000001') then null
+      else exists (
+        select 1
+        from pg_trigger t
+        join pg_proc p on p.oid = t.tgfoid
+        where t.tgrelid = 'public.invoice_payments'::regclass
+          and t.tgname = 'guard_invoice_payment_overpay'
+          and not t.tgisinternal
+          and t.tgtype = 23
+          and pg_get_triggerdef(t.oid) ilike '%BEFORE INSERT OR UPDATE OF amount, invoice_id ON public.invoice_payments%'
+          and p.prosecdef
+          and 'search_path=""' = any(p.proconfig)
+          and p.prosrc ilike '%entry_type <> ''payment''%'
+          and p.prosrc ilike '%stripe_checkout_session_id is not null%'
+          and p.prosrc ilike '%reverses_payment_id is not null%'
+          and p.prosrc ilike '%p.id <> new.id%'
+          and p.prosrc ilike '%for update%'
+          and not has_function_privilege(
+            'authenticated', 'public.guard_invoice_payment_overpay()', 'EXECUTE')
+      ) end,
+    'manual payments: BEFORE INSERT OR UPDATE OF amount, invoice_id; non-refund ledger sum <= total; Stripe/reversals skipped; UPDATE excludes own row; locked invoice; no client EXECUTE',
+    case when not exists (select 1 from applied where version = '20261019000001') then 'not applied yet'
+      else coalesce((
+        select t.tgname || ': ' || pg_get_triggerdef(t.oid)
+        from pg_trigger t
+        where t.tgrelid = 'public.invoice_payments'::regclass
+          and t.tgname = 'guard_invoice_payment_overpay'
+          and not t.tgisinternal
+      ), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

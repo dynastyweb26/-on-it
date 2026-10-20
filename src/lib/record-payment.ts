@@ -72,6 +72,16 @@ export function payAmountValue(mode: PayMode, amountText: string, balance: numbe
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/**
+ * True when a manual amount is more than the invoice still owes. The sheet uses
+ * this to block Save without clamping the typed amount; a zero balance blocks
+ * any positive amount, including an invoice that is already overpaid.
+ */
+export function paymentExceedsBalance(amount: number, balance: number): boolean {
+  const remaining = Number.isFinite(balance) ? Math.max(0, balance) : 0;
+  return amount > remaining + 1e-9;
+}
+
 /** One tap on Save → the exact input `recordPayment` inserts. */
 export function buildRecordPayment(opts: {
   mode: PayMode;
