@@ -175,7 +175,7 @@ export const TOURS: Record<string, CoachTour> = {
         selector: '[data-coach="settings-payouts"]',
         pad: 5, r: 22,
         title: 'Set up how you get paid',
-        body: 'No payout method yet. Open Payouts and add Zelle, Cash App, PayPal, Venmo, a bank account or card payments, so your clients can pay you.',
+        body: 'No payment method yet. Add Zelle, Cash App, PayPal, Venmo, a bank account or card payments in Settings, so your clients can pay you.',
         onlyWhen: PAYOUTS_UNSET,
       },
       {
@@ -183,7 +183,7 @@ export const TOURS: Record<string, CoachTour> = {
         pad: 5, r: 22,
         skipWhen: PAYOUTS_UNSET,
         title: 'Money, handled',
-        body: 'Connect payouts to get paid by card, and set recurring expenses so Books tracks them for you.',
+        body: 'Connect a payment processor to get paid by card, and set recurring expenses so Books tracks them for you.',
       },
       {
         selector: '[data-coach="settings-replay"]',

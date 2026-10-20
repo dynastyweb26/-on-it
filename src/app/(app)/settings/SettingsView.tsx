@@ -565,7 +565,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
-      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
+      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payment processors' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -581,7 +581,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         </SettingsGroup>
         <SettingsGroup title="Money">
           <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
-          <SettingsRow icon="account_balance" title="Payouts" href="/settings/payouts"
+          <SettingsRow icon="account_balance" title="Payment options" href="/settings/payouts"
             data-coach="settings-payouts"
             data-payouts-set={payoutsSet}
             value={payoutsValue} />
@@ -971,7 +971,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
                 ['Partial payment', { type: 'payment', variant: 'partial' }],
                 ['Card payments paused', { type: 'connect_problem', problem: 'charges_paused' }],
                 ['Needs a detail', { type: 'connect_problem', problem: 'details_needed' }],
-                ['Payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
+                ['Stripe payouts paused', { type: 'connect_problem', problem: 'payouts_paused' }],
                 ['Disconnected', { type: 'connect_problem', problem: 'disconnected' }],
                 ['Invoice opened', { type: 'viewed' }],
                 ['Draft reminder', { type: 'draft' }],

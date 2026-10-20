@@ -105,7 +105,7 @@ function DetailLayout({ method, badge, children }: {
   return (
     <>
       <div className="flex items-center gap-1">
-        <Link href={PAYOUTS_INDEX} aria-label="Back to Payouts"
+        <Link href={PAYOUTS_INDEX} aria-label="Back to payment processors"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-background active:bg-surface-container">
           <Icon name="arrow_back" size={24} />
         </Link>
@@ -213,7 +213,7 @@ function StripeDetail({ p, connectOn, save, connect }: PayoutDetailProps) {
                 </div>
                 {!p.stripe_payouts_enabled && (
                   <p className="font-body text-sm text-on-surface-variant">
-                    Payouts are paused until Stripe has everything it needs. Check your Stripe dashboard.
+                    Stripe payouts are paused until Stripe has everything it needs. Check your Stripe dashboard.
                   </p>
                 )}
               </>
