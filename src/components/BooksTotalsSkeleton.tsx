@@ -23,7 +23,7 @@ export default function BooksTotalsSkeleton() {
           </div>
           <Skeleton className="h-6 w-6 shrink-0 opacity-20" />
         </div>
-        <div className="lg:col-span-2 flex flex-col gap-2.5 md:gap-5">
+        <div className="lg:col-span-2 flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2.5 md:gap-4">
             {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="flex min-h-touch flex-col gap-2 rounded-[18px] border border-outline-variant/60 bg-surface-container-lowest p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)]">

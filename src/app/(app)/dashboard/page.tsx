@@ -220,7 +220,7 @@ export default function Dashboard() {
           {/* Design 1b: Owed and Collected are half-width tiles, Spent is a
               full-width row. Amounts keep their cents (the accessible label
               carries the same full figure); nothing is truncated. */}
-          <div data-coach="books-stats" className="lg:col-span-2 flex flex-col gap-2.5 md:gap-5">
+          <div data-coach="books-stats" className="lg:col-span-2 flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2.5 md:gap-4">
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
               <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
