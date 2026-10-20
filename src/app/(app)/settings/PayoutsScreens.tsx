@@ -105,7 +105,7 @@ function DetailLayout({ method, badge, children }: {
   return (
     <>
       <div className="flex items-center gap-1">
-        <Link href={PAYOUTS_INDEX} aria-label="Back to payment processors"
+        <Link href={PAYOUTS_INDEX} aria-label="Back to payment options"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-background active:bg-surface-container">
           <Icon name="arrow_back" size={24} />
         </Link>
