@@ -186,7 +186,7 @@ export default function Dashboard() {
     ? 'No invoices yet'
     : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8 pt-6 md:px-8 md:space-y-8">
+    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-6 md:px-8">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the two metric tiles + Spent row, Add expense, the
           list card and Income & Expenses (§L Q4 keeps today's label). */}
