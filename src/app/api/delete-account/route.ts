@@ -12,13 +12,16 @@
 //   2. Clear Storage buckets          (abort if it fails → account still intact, retriable)
 //   3. Redact this user's audit_log payloads (keep the who/what/when trail)
 //   4. Delete the auth user           (cascades every owning table from profiles)
+//   5. Redact again                    (catches a row a service-role writer landed in the gap)
 //
 // What is RETAINED, by design:
 //   - audit_log rows (no FK on user_id) — kept for security/fraud investigation,
-//     but with personal-data payloads redacted: step 3 scrubs the account's
-//     INSERT/UPDATE history, and the DELETE-path trigger (migration
-//     20260731000000) drops the payload on the cascade below. Only user_id,
-//     event type, timestamp, and row_id remain.
+//     but with personal-data payloads redacted: the pre-delete pass scrubs the
+//     account's INSERT/UPDATE history, the post-delete pass catches late writes,
+//     and the DELETE-path trigger (migration 20260731000000) drops the payload
+//     on the cascade below. Only user_id, event type, timestamp, and row_id
+//     remain. Rows are attributed to their owner by log_audit()
+//     (migration 20261019000002), so the passes can find service-role writes.
 //   - The Stripe *customer* object (subscriptions are canceled, not the customer)
 //     so billing/tax records survive, matching the privacy policy.
 import { NextRequest, NextResponse } from 'next/server';
@@ -28,6 +31,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { clearAccountStorage } from '@/lib/delete-account-storage';
+import { redactAuditAndDelete } from '@/lib/delete-account-audit';
 
 export const runtime = 'nodejs';
 
@@ -89,34 +93,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── 3. Redact this user's personal data from the retained audit_log. The
-  //    DELETE-path trigger (migration 20260731000000) drops the payload on the
-  //    cascade DELETEs in step 4, but those cascade rows are written under the
-  //    service role (auth.uid() is null) so they can't be found by user_id
-  //    afterward — the trigger is what handles them. This scrub handles the
-  //    OTHER source: the account's lifetime of INSERT/UPDATE audit rows, which
-  //    carry client names, line items, and business details and are attributed
-  //    to this user_id. Keep the who/what/when trail, drop the payload. Done
-  //    before the irreversible delete so a failure here is retriable.
-  const { error: auditErr } = await admin
-    .from('audit_log')
-    .update({ detail: { redacted: true } })
-    .eq('user_id', user.id);
-  if (auditErr) {
-    console.error('delete-account: audit redaction failed', auditErr);
+  // ── 3 + 4. Audit scrub, then the irreversible auth delete, then a second
+  //    scrub. The pre-delete pass clears this account's lifetime of
+  //    INSERT/UPDATE rows (client names, line items, business details) while
+  //    keeping the who/what/when trail, and a failure aborts before anything
+  //    irreversible. The auth delete is not instantaneous, so a service-role
+  //    writer (Stripe webhook, cron) can still land a row attributed to this
+  //    user between the passes; audit_log has no FK on user_id, so those rows
+  //    survive the cascade. The post-delete pass catches them. It is
+  //    best-effort: the account is already gone, so it cannot be rolled back.
+  //    See lib/delete-account-audit.
+  let delResult: { error: unknown };
+  try {
+    delResult = await redactAuditAndDelete(admin, user.id, async () => {
+      const { error } = await admin.auth.admin.deleteUser(user.id);
+      return { error };
+    });
+  } catch (e) {
+    console.error('delete-account: audit redaction failed', e);
     return NextResponse.json(
       { error: 'audit_redaction_failed', message: 'Something went wrong finishing your deletion. Please try again.' },
       { status: 500 }
     );
   }
 
-  // ── 4. The irreversible step. Deleting the auth user cascades profiles →
-  //    clients, invoices, expenses, vault_documents, push_subscriptions (all
-  //    ON DELETE CASCADE from profiles). audit_log has no FK and is retained
-  //    (payloads already redacted in step 3 + by the DELETE-path trigger).
-  const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
-  if (delErr) {
-    console.error('delete-account: auth user delete failed', delErr);
+  if (delResult.error) {
+    console.error('delete-account: auth user delete failed', delResult.error);
     return NextResponse.json(
       { error: 'delete_failed', message: 'We couldn’t finish deleting your account. Please try again.' },
       { status: 500 }
