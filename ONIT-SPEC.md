@@ -11,4 +11,4 @@ _Source of truth for Cursor iteration. Do not drift from these decisions without
 - **Payments shown on invoice**: Zelle (encrypted at rest), Cash App tag, PayPal.me. Manual "Mark as Paid" always available. Stripe Connect = v2.
 - **Also in v1**: expense logging via chat with tax-deductible flag, quote mode with one-tap convert to invoice, The Vault (auto-archive of every PDF, searchable), Net Spend dashboard, client history, duplicate detection (same client + amount within 48h), deferred auth (5 free guest parses).
 - **v1.1**: WhatsApp/SMS send, industry template packs, teams, Plaid. **Deferred from v1**: offline mode, home-screen widget, mileage auto-log, receipt photo AI-read.
-- **Infra**: Supabase `bitfmmffnigxjjyxoxfr` · GitHub `dynastyweb26/-on-it` · EmailJS `service_mov6wn1` / `template_ukaqa74` · Model `claude-haiku-4-5-20251001`.
+- **Infra**: Supabase `bitfmmffnigxjjyxoxfr` · GitHub `dynastyweb26/-on-it` · Model `claude-haiku-4-5-20251001`.
