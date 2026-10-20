@@ -112,3 +112,34 @@ test('a delete failure is returned and the post-delete pass does not run', async
   assert.equal(calls.length, 1, 'only the pre-delete pass ran');
   assert.deepEqual(rows[0].detail, AUDIT_REDACTED_DETAIL);
 });
+
+// Acceptance test from the audit plan: a service-role write (attributed to the
+// owner by migration 20261019000002) followed by account deletion leaves every
+// audit row for that user redacted, while another user's rows and the
+// already-redacted marker rows are untouched.
+test('service-role update then account deletion redacts every audit row for that user', async () => {
+  const { admin, rows } = fakeAudit([
+    // What a service-role invoice update leaves behind now that log_audit()
+    // attributes the row owner instead of the (null) auth.uid().
+    { id: 1, user_id: 'user-1', table_name: 'invoices', action: 'UPDATE', detail: { client_name: 'Acme', total: '250.00' } },
+    { id: 2, user_id: 'user-1', table_name: 'invoices', action: 'INSERT', detail: { client_name: 'Acme', total: '250.00' } },
+    { id: 3, user_id: 'user-1', table_name: 'profiles', action: 'UPDATE', detail: { business_name: 'Acme LLC' } },
+    // A cascade DELETE marker from the trigger, already redacted and attributed.
+    { id: 4, user_id: 'user-1', table_name: 'invoices', action: 'DELETE', detail: { redacted: true } },
+    // Another account must not be touched.
+    { id: 5, user_id: 'user-2', table_name: 'invoices', action: 'UPDATE', detail: { client_name: 'Other Co' } },
+    // Pre-migration marker rows have no owner; the route leaves them alone.
+    { id: 6, user_id: null, table_name: 'invoices', action: 'DELETE', detail: { redacted: true } },
+  ]);
+
+  await redactAuditAndDelete(admin, 'user-1', async () => ({ error: null }));
+
+  const mine = rows.filter((r) => r.user_id === 'user-1');
+  assert.equal(mine.length, 4);
+  for (const row of mine) {
+    assert.deepEqual(row.detail, AUDIT_REDACTED_DETAIL, `row ${row.id} still has its payload`);
+  }
+
+  assert.deepEqual(rows.find((r) => r.id === 5)?.detail, { client_name: 'Other Co' });
+  assert.deepEqual(rows.find((r) => r.id === 6)?.detail, { redacted: true });
+});
