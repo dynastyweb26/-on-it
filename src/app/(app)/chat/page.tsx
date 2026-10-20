@@ -3426,7 +3426,7 @@ export default function Chat() {
             body="Clients can pay online the moment they get an invoice — no cash, no chasing. Takes 30 seconds to set up."
             actions={[
               {
-                label: 'Set up Payouts',
+                label: 'Set up payments',
                 variant: 'primary',
                 onClick: () => router.push('/settings/payouts'),
               },
@@ -3537,7 +3537,7 @@ export default function Chat() {
                 body={`${draft?.client_name ? `${draft.client_name} can` : 'Clients can'} pay online the moment they get this — no cash, no chasing. Takes 30 seconds to set up.`}
                 actions={[
                   {
-                    label: 'Set up Payouts',
+                    label: 'Set up payments',
                     variant: 'primary',
                     onClick: () => router.push('/settings/payouts'),
                   },
