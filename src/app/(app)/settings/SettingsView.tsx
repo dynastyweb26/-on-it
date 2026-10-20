@@ -60,6 +60,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
+  // Signed-in account email, read from the same getSharedUser() call this page
+  // already makes. Display only — never written to the profiles row.
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   // save() applies optimistically; on a failed write it reverts and raises this,
   // mirroring the Saved banner so a swallowed error can no longer look like success.
@@ -184,6 +187,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         const { data: { user }, error } = await getSharedUser();
         if (!active) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
+        setAccountEmail(user.email ?? null);
 
         // Zelle's mask comes from its own route; start it alongside the profile
         // read so the payouts statuses land together. Only the screens that show it.
@@ -606,7 +610,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           <SettingsRow icon="help" title="Help & feedback" href="/settings/help" data-coach="settings-replay" />
           {/* Sign out + Delete account live on their own screen so they're
               never one stray tap away on the main Settings list. */}
-          <SettingsRow icon="person" title="Manage login" href="/settings/login" />
+          <SettingsRow icon="person" title="Manage login" href="/settings/login"
+            value={accountEmail} />
         </SettingsGroup>
       </>)}
 
