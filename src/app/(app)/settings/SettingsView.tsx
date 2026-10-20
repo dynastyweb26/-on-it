@@ -1039,6 +1039,12 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           </button>
         ) : (
           <>
+            {accountEmail && (
+              <p className="text-sm text-on-surface-variant">
+                You are deleting the account for{' '}
+                <span className="font-semibold text-on-background">{accountEmail}</span>.
+              </p>
+            )}
             <label htmlFor="delete-confirm" className="text-sm text-on-surface-variant">
               Type <span className="font-semibold text-on-background">DELETE</span> to confirm.
             </label>
