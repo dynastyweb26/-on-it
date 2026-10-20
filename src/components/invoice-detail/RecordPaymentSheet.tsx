@@ -14,7 +14,8 @@ import { KEYS, pressKey, type Key } from '@/lib/keypad';
 import { money } from '@/lib/financials';
 import {
   PAYMENT_METHODS, buildRecordPayment, localDateString, methodLabel, payAmountValue,
-  yesterdayString, type PayDateMode, type PayMode, type PaymentMethod, type RecordPaymentInput,
+  paymentExceedsBalance, yesterdayString,
+  type PayDateMode, type PayMode, type PaymentMethod, type RecordPaymentInput,
 } from '@/lib/record-payment';
 
 const METHOD_ICONS: Partial<Record<PaymentMethod, IconName>> = {
@@ -69,7 +70,8 @@ export default function RecordPaymentSheet({
   const press = (k: Key) => setAmountText((t) => pressKey(t, k, 'price'));
 
   const amount = payAmountValue(mode, amountText, balance, depositRemaining);
-  const valid = amount > 0;
+  const over = paymentExceedsBalance(amount, balance);
+  const valid = amount > 0 && !over;
   const hasDeposit = depositRemaining > 0;
 
   const modes: { key: PayMode; top: string; main: string }[] = [
@@ -81,16 +83,18 @@ export default function RecordPaymentSheet({
   let leavesText = 'Type the amount received';
   let leavesTone = 'text-on-surface-variant';
   if (mode === 'other') {
-    if (balance > 0 && amount > balance + 1e-9) { leavesText = `More than the ${money(balance)} balance`; leavesTone = 'text-error'; }
+    if (over) { leavesText = 'Amount too high'; leavesTone = 'text-error'; }
     else if (valid && Math.abs(amount - balance) < 1e-9) { leavesText = 'Pays it off in full'; leavesTone = 'text-paid'; }
     else if (valid) { leavesText = `Leaves ${money(Math.max(0, balance - amount))} due`; }
   }
 
-  const saveLabel = mode === 'full'
-    ? `Mark paid · ${money(balance)} ${methodLabel(method)}`
-    : mode === 'deposit'
-      ? `Record deposit · ${money(depositRemaining)} ${methodLabel(method)}`
-      : valid ? `Save ${money(amount)}` : 'Enter an amount';
+  const saveLabel = over
+    ? 'Amount too high'
+    : mode === 'full'
+      ? `Mark paid · ${money(balance)} ${methodLabel(method)}`
+      : mode === 'deposit'
+        ? `Record deposit · ${money(depositRemaining)} ${methodLabel(method)}`
+        : valid ? `Save ${money(amount)}` : 'Enter an amount';
 
   async function save() {
     if (!valid || saving) return;
