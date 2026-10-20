@@ -36,8 +36,23 @@ export type AccountStorageAdmin = {
   };
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGE = 100;
 const REMOVE_BATCH = 100;
+const MAX_DEPTH = 6;
+
+export function assertUserId(userId: unknown): asserts userId is string {
+  if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
+    throw new Error('account-storage: userId must be a valid UUID');
+  }
+}
+
+/** Never let a remove() call escape the user's root folder. */
+function assertInsideRoot(path: string, root: string): void {
+  if (!path.startsWith(`${root}/`) || path.split('/').includes('..')) {
+    throw new Error(`account-storage: refusing out-of-prefix path in ${path}`);
+  }
+}
 
 async function listLevel(
   admin: AccountStorageAdmin,
@@ -71,11 +86,12 @@ async function removeFiles(
   admin: AccountStorageAdmin,
   bucket: string,
   paths: string[],
+  root: string,
 ): Promise<void> {
   for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
-    const { error } = await admin.storage
-      .from(bucket)
-      .remove(paths.slice(i, i + REMOVE_BATCH));
+    const chunk = paths.slice(i, i + REMOVE_BATCH);
+    for (const path of chunk) assertInsideRoot(path, root);
+    const { error } = await admin.storage.from(bucket).remove(chunk);
     if (error) throw error;
   }
 }
@@ -84,10 +100,21 @@ async function clearPrefix(
   admin: AccountStorageAdmin,
   bucket: string,
   prefix: string,
+  root = prefix,
+  depth = 0,
 ): Promise<void> {
+  if (depth > MAX_DEPTH) {
+    throw new Error(
+      `account-storage: ${bucket}/${prefix} nests deeper than ${MAX_DEPTH}`,
+    );
+  }
+
   const { files, folders } = await listLevel(admin, bucket, prefix);
-  await removeFiles(admin, bucket, files);
-  for (const folder of folders) await clearPrefix(admin, bucket, folder);
+  await removeFiles(admin, bucket, files, root);
+  for (const folder of folders) {
+    assertInsideRoot(folder, root);
+    await clearPrefix(admin, bucket, folder, root, depth + 1);
+  }
 }
 
 /** Return the first object still under `prefix`, or null when it is empty. */
@@ -95,13 +122,20 @@ async function findRemainingPath(
   admin: AccountStorageAdmin,
   bucket: string,
   prefix: string,
+  depth = 0,
 ): Promise<string | null> {
+  if (depth > MAX_DEPTH) {
+    throw new Error(
+      `account-storage: ${bucket}/${prefix} nests deeper than ${MAX_DEPTH}`,
+    );
+  }
+
   const { files, folders } = await listLevel(admin, bucket, prefix);
   const firstFile = files[0];
   if (firstFile) return firstFile;
 
   for (const folder of folders) {
-    const remaining = await findRemainingPath(admin, bucket, folder);
+    const remaining = await findRemainingPath(admin, bucket, folder, depth + 1);
     if (remaining) return remaining;
   }
   return null;
@@ -112,6 +146,8 @@ export async function clearAccountStorage(
   admin: AccountStorageAdmin,
   userId: string,
 ): Promise<void> {
+  assertUserId(userId);
+
   for (const bucket of ACCOUNT_STORAGE_BUCKETS) {
     await clearPrefix(admin, bucket, userId);
 
