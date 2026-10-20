@@ -10,6 +10,15 @@ import {
   type AccountStorageAdmin,
 } from './delete-account-storage';
 
+type FakeEntry = {
+  id: string | null;
+  name: string;
+  metadata: { size: number } | null;
+  updated_at: string | null;
+  created_at: string | null;
+  last_accessed_at: string | null;
+};
+
 function fakeAdmin(
   initial: Record<string, string[]>,
   failRemove?: (bucket: string, paths: string[]) => boolean,
@@ -33,8 +42,10 @@ function fakeAdmin(
             const offset = options.offset ?? 0;
 
             // One level only, exactly like Supabase: immediate files plus
-            // folders (id: null), never grandchildren.
-            const entries = new Map<string, { id: string | null; name: string }>();
+            // folders (id: null), never grandchildren. The null metadata and
+            // timestamp fields match the real list() shape observed from the
+            // service-role client.
+            const entries = new Map<string, FakeEntry>();
             for (const path of store) {
               if (!path.startsWith(`${prefix}/`)) continue;
               const rest = path.slice(prefix.length + 1);
@@ -42,7 +53,15 @@ function fakeAdmin(
               const name = slash === -1 ? rest : rest.slice(0, slash);
               const key = `${slash === -1 ? 'file' : 'folder'}:${name}`;
               if (!entries.has(key)) {
-                entries.set(key, { id: slash === -1 ? `id:${path}` : null, name });
+                const isFolder = slash !== -1;
+                entries.set(key, {
+                  id: isFolder ? null : `id:${path}`,
+                  name,
+                  metadata: isFolder ? null : { size: 1 },
+                  updated_at: isFolder ? null : '2026-10-20T00:00:00.000Z',
+                  created_at: isFolder ? null : '2026-10-20T00:00:00.000Z',
+                  last_accessed_at: isFolder ? null : '2026-10-20T00:00:00.000Z',
+                });
               }
             }
 
@@ -91,6 +110,22 @@ test('account deletion empties flat and nested user folders, leaving other users
     [...(objects.get('invoice-attachments') ?? [])],
     ['other-user/inv-9/keep.jpg'],
   );
+});
+
+test('walks a folder listed alongside a file at the same level', async () => {
+  const { admin, objects, calls } = fakeAdmin({
+    vault: [],
+    logos: [],
+    receipts: [],
+    'invoice-attachments': ['u/top.txt', 'u/inv-1/nested.txt'],
+  });
+
+  await clearAccountStorage(admin, 'u');
+
+  assert.deepEqual([...(objects.get('invoice-attachments') ?? [])], []);
+  assert.ok(calls.includes('list:invoice-attachments:u'));
+  assert.ok(calls.includes('list:invoice-attachments:u/inv-1'));
+  assert.ok(calls.includes('remove:invoice-attachments:1'));
 });
 
 test('account deletion is idempotent when the user has no objects', async () => {
