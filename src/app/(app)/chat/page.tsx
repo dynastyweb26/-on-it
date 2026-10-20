@@ -8,6 +8,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import ChatNudgeCard from '@/components/ChatNudgeCard';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
@@ -3410,35 +3411,27 @@ export default function Chat() {
             dismissal flag as the post-send nudge so one "Not now" silences both. */}
         {hydrated && messages.length === 0 && !payoutsNudgeDismissed && profile && connectOn &&
           !cardAvailableFor(profile, connectOn) && (
-          <div className="rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <Icon name="payments" size={15} className="text-primary" />
-              <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
-            </div>
-            <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
-              Connect a payment processor to your invoices
-            </p>
-            <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">
-              Clients can pay online the moment they get an invoice — no cash, no chasing. Takes 30 seconds to set up.
-            </p>
-            <div className="flex gap-2">
-              <button
-                className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95"
-                onClick={() => router.push('/settings/payouts')}
-              >
-                Set up Payouts
-              </button>
-              <button
-                className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
-                onClick={() => {
+          <ChatNudgeCard
+            icon="payments"
+            eyebrow="Tip"
+            title="Connect a payment processor to your invoices"
+            body="Clients can pay online the moment they get an invoice — no cash, no chasing. Takes 30 seconds to set up."
+            actions={[
+              {
+                label: 'Set up Payouts',
+                variant: 'primary',
+                onClick: () => router.push('/settings/payouts'),
+              },
+              {
+                label: 'Not now',
+                variant: 'secondary',
+                onClick: () => {
                   try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
                   setPayoutsNudgeDismissed(true);
-                }}
-              >
-                Not now
-              </button>
-            </div>
-          </div>
+                },
+              },
+            ]}
+          />
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
         <Fragment key={m.id}>{
@@ -3528,36 +3521,29 @@ export default function Chat() {
             // payment processor connected. "Set up Payouts" routes to the connect
             // screen; "Not now" dismisses by replacing this message with nothing.
             <div key={m.id} className="flex justify-start">
-              <div className="w-full max-w-[82%] rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5">
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <Icon name="payments" size={15} className="text-primary" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Tip</span>
-                </div>
-                <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">
-                  Connect a payment processor to your invoices?
-                </p>
-                <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">
-                  {draft?.client_name ? `${draft.client_name} can` : 'Clients can'} pay online the moment they get this — no cash, no chasing. Takes 30 seconds to set up.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    className="rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95"
-                    onClick={() => router.push('/settings/payouts')}
-                  >
-                    Set up Payouts
-                  </button>
-                  <button
-                    className="rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95"
-                    onClick={() => {
+              <ChatNudgeCard
+                className="w-full max-w-[82%]"
+                icon="payments"
+                eyebrow="Tip"
+                title="Connect a payment processor to your invoices?"
+                body={`${draft?.client_name ? `${draft.client_name} can` : 'Clients can'} pay online the moment they get this — no cash, no chasing. Takes 30 seconds to set up.`}
+                actions={[
+                  {
+                    label: 'Set up Payouts',
+                    variant: 'primary',
+                    onClick: () => router.push('/settings/payouts'),
+                  },
+                  {
+                    label: 'Not now',
+                    variant: 'secondary',
+                    onClick: () => {
                       try { localStorage.setItem(PAYOUTS_NUDGE_DISMISSED_KEY, '1'); } catch { /* ignore */ }
                       setPayoutsNudgeDismissed(true);
                       setMessages((msgs) => msgs.filter((x) => x.id !== m.id));
-                    }}
-                  >
-                    Not now
-                  </button>
-                </div>
-              </div>
+                    },
+                  },
+                ]}
+              />
             </div>
           ) : m.logged ? (
             <LoggedExpenseCard
@@ -3657,12 +3643,18 @@ export default function Chat() {
         )}
 
         {feedbackPrompt && (
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">Got a minute? Tell us what's working or what isn't.</p>
-            <button className="btn-primary mt-3 w-full" onClick={openFeedback}>Tell us</button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissFeedback}>
-              Not now
-            </button>
+          <div className="flex justify-start">
+            <ChatNudgeCard
+              className="w-full max-w-[82%]"
+              icon="chat_bubble"
+              eyebrow="Feedback"
+              title="Got a minute?"
+              body="Tell us what's working or what isn't."
+              actions={[
+                { label: 'Tell us', variant: 'primary', onClick: openFeedback },
+                { label: 'Not now', variant: 'secondary', onClick: dismissFeedback },
+              ]}
+            />
           </div>
         )}
 
