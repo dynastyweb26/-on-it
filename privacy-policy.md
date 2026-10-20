@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 17, 2026**
+**Last updated: October 19, 2026**
 
 On It is an invoicing and bookkeeping app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"). This policy explains what information we collect, why we collect it, who we share it with, how long we keep it, and the choices you have.
 
@@ -59,7 +59,7 @@ Your saved clients, your saved products and services (name, unit, price, and des
 
 ### Payments you record
 
-When you mark an invoice paid or partly paid, we store the amount, the date, and the method you chose (for example, cash, check, Zelle, or bank transfer). On It does not verify these payments. They are your records.
+When you mark an invoice paid or partly paid, we store the amount, the date, the method you chose (for example, cash, check, Zelle, or bank transfer), and any note you add. On It does not verify these payments, and it will not record more than the unpaid balance. They are your records.
 
 ### Voice
 
@@ -71,7 +71,9 @@ When On It reads a reply out loud, it uses the text-to-speech voices built into 
 
 ### Photos and files
 
-Receipt photos are sent for AI reading (see Section 4) and then saved in our file storage so you can see them with the expense. Documents and photos you add to your records (the Vault) are saved in our file storage. HEIC photos from iPhones are converted to standard images on your device before upload.
+Receipt photos are sent for AI reading (see Section 4) and then saved in our file storage so you can see them with the expense. Receipt photos and Vault files are private to your account. Documents and photos you add to your records (the Vault) are saved in our file storage. HEIC photos from iPhones are converted to standard images on your device before upload.
+
+You can add up to six images to an invoice or quote. They are stored in private file storage, shown in the app, and printed on the PDF you generate. They are not sent to AI and are not shown on the payment page. If you share the PDF, whoever receives it can see those images.
 
 ### Notes you paste
 
@@ -79,15 +81,15 @@ If you paste job notes or a work order into the chat, that text is processed to 
 
 ### Your subscription
 
-If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store a Stripe customer identifier, your subscription status, your trial and renewal dates, and whether we have sent your trial reminder.
+If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store a Stripe customer identifier, your subscription status, your trial and renewal dates, and whether we have sent your trial reminder. If you cancel, we also store the reason you pick, any detail you add, whether you accepted a discount or pause offer, and the dates involved. We send Stripe a general cancellation reason category as part of the cancellation.
 
 ### Codes and referrals
 
-If you redeem an invite, referral, or founder code, we record which code you used and when. Each account has its own referral code. If you joined through someone's referral, we record who referred you.
+If you redeem an invite, referral, or founder code, we record which code you used on your profile. Each account has its own referral code. If you joined through someone's referral, we record who referred you.
 
 ### Feedback you send us
 
-If you use **Tell us about On It**, we save what you write, the kind you picked (idea, problem, or love it), your star rating if you gave one, which screen you were on, and the app version, together with your account. Only we can read it, and other users never see it. We also email it to ourselves, with your account email as the reply address, so we can write back. Replies are ordinary email in our business mailbox. Feedback is deleted with your account; email us if you also want our email replies deleted.
+If you use **Tell us about On It**, we save what you write, the kind you picked (idea, problem, or love it), whether you sent it from Settings or a chat prompt, your star rating if you gave one, which screen you were on, the app version, and our own status label for it, together with your account. Only you and we can read it, and other users never see it. We also email it to ourselves, with your business name and account email, and set your email as the reply address, so we can write back. Replies are ordinary email in our Zoho business mailbox. Feedback is deleted with your account; email us if you also want our email replies deleted.
 
 ---
 
@@ -97,12 +99,13 @@ On It lets you show your customers how to pay you. **On It never holds, receives
 
 ### Card and Cash App Pay through Stripe (optional)
 
-If you connect your own Stripe account, Stripe collects your business and identity details directly during setup, and your customers enter their payment details directly on Stripe's checkout page. **We never see or store card numbers, bank account details, or Cash App credentials, yours or your customers'.**
+If you connect your own Stripe account, we send Stripe your business name and account email to create the account, and Stripe collects your identity details directly during setup. Your customers enter their payment details directly on Stripe's checkout page. **We never see or store card numbers, Cash App credentials, or any bank details entered on Stripe's checkout page, yours or your customers'.**
 
 What we store:
 
 - Your Stripe account identifier and the status flags Stripe reports about it (for example, whether it can accept card payments and receive payouts), plus your own on/off setting for card payments
-- For each payment a customer makes through Stripe: the amount, the method (card or Cash App Pay), the date, and Stripe's checkout session identifier, so the payment shows up on your invoice
+- For each payment a customer makes through Stripe: the amount, the method (card or Cash App Pay), the date, Stripe's checkout session identifier, and Stripe's payment identifier, so the payment shows up on your invoice
+- If Stripe reports a refund or a dispute, a reversal entry with its amount, date, and Stripe's refund or dispute identifier, so your income and the invoice's paid balance stay right
 
 We do not store your customers' names, email addresses, or billing details from Stripe. Information Stripe collects is governed by Stripe's privacy policy: https://stripe.com/privacy
 
@@ -150,6 +153,7 @@ On It uses artificial intelligence to understand what you type, say, paste, or p
 - **We do not use your data, or your customers' data, to train AI models.**
 - AI does not make decisions about you that have legal or similarly significant effects. It drafts records. You decide what is saved and what is sent.
 - AI does not decide whether an expense is tax deductible.
+- AI does not read the images you attach to an invoice or quote. They are only printed on your PDF.
 
 ### AI makes mistakes
 
@@ -204,10 +208,11 @@ On It asks for permission before using your **microphone** (for voice input) or 
 We use your information to:
 
 - Build, format, and store your invoices, quotes, expenses, and records
+- Print the images you attach to an invoice or quote on the PDF you generate
 - Show your payment page and the payment methods you have turned on
-- Record payments, including payments Stripe reports to us
+- Record payments, refunds, and disputes, including those Stripe reports to us
 - Calculate your income and expense summaries and recaps
-- Send you notifications you have allowed, such as a payment received, an invoice your customer opened, an unpaid invoice, an unsent draft, a recurring expense, or a weekly or monthly recap
+- Send you notifications you have allowed, such as a payment received, a payment disputed, an invoice your customer opened, an unpaid invoice, an unsent draft, a recurring expense, or a weekly or monthly recap
 - Process your subscription and send account emails, such as sign-up confirmation, password resets, and a reminder before your free trial ends
 - Prevent abuse, protect accounts, and enforce our Terms
 - Diagnose problems and improve how the app works
@@ -224,12 +229,13 @@ We share information only with service providers that help us run On It, and onl
 
 | Provider | What it does | What it handles |
 |---|---|---|
-| Supabase | Database, sign-in, file storage, account emails | Your account, profile, customer details, invoices, expenses, saved items, uploaded images and documents, encrypted payment details |
+| Supabase | Database, sign-in, file storage, account emails | Your account, profile, customer details, invoices, expenses, saved items, uploaded images and documents (including invoice attachments), encrypted payment details |
 | Vercel | Hosts the app | Requests to the app and standard server logs |
 | Anthropic | AI reading of chat messages, pasted notes, and receipts (Claude) | Message text, conversation context, draft details, receipt images |
 | AssemblyAI | Speech-to-text | Microphone audio |
-| Stripe | Your On It subscription, and card and Cash App Pay payments if you connect a Stripe account | Your email and subscription details; your connected account's details; your customers' payment details (collected by Stripe directly, never passed to us) |
-| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial reminders; and the feedback notifications we send to ourselves, which include what you wrote and your account email |
+| Stripe | Your On It subscription, and card and Cash App Pay payments if you connect a Stripe account | Your email and subscription details; the business name and email we send to create your connected account; your connected account's details; cancellation reason categories; your customers' payment, refund, and dispute events (card details are collected by Stripe directly and never passed to us) |
+| Resend | Email delivery | Your email address and the content of account emails we send you, such as trial reminders and cancellation confirmations; and the feedback notifications we send to ourselves, which include what you wrote, your business name, and your account email |
+| Zoho (our business mailbox) | Receives feedback emails and replies | What you wrote, your business name, your account email, and anything you put in a reply |
 | Upstash | Rate limiting | Account identifiers or IP addresses, briefly |
 | Your device's push service (for example Apple, Google, or Mozilla) | Delivers notifications you have allowed | Encrypted notification content, which the push service cannot read |
 
@@ -243,16 +249,16 @@ If On It or Dynasty Web is sold, merged, or transferred, your information may tr
 
 We keep your account and records for as long as your account is open.
 
-**Deleting an item in the app.** When you delete an invoice, quote, or expense, it disappears from your app right away, but it is kept in our database until you delete your account, so your invoice numbering and payment history stay consistent. Saved clients, products, and recurring expenses you delete work the same way, and receipt photos and files stay in storage too. If you want any of these removed from our systems before you delete your account, email us and we will remove them.
+**Deleting an item in the app.** When you delete an invoice, quote, or expense, it disappears from your app right away, but it is kept in our database until you delete your account, so your invoice numbering and payment history stay consistent. Saved clients, products, and recurring expenses you delete work the same way, and receipt photos, invoice attachment images, and other files stay in storage too. If you want any of these removed from our systems before you delete your account, email us and we will remove them.
 
 **Deleting your account.** You can delete your account yourself: **Settings, then Delete account.** It takes effect immediately and cancels any active subscription. If you cannot get into the app, email brandon@dynastyweb.co and we will do it for you within 30 days.
 
-When your account is deleted, we remove your profile, customers, invoices, quotes, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files and receipts, logo, and stored payment details including your Zelle handle and bank details.
+When your account is deleted, we remove your profile, customers, invoices, quotes, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files, receipts, invoice attachment images, logo, and stored payment details including your Zelle handle and bank details.
 
 Some information is kept after deletion:
 
 - **Activity records.** We keep a record that changes happened, for security and fraud investigation, but we erase their contents. No customer names, amounts, or business details remain in them.
-- **Billing records.** Stripe keeps its own transaction records, and we keep the billing history we need for tax and accounting obligations.
+- **Billing records.** Stripe keeps its own transaction records and customer record, and we keep the billing history we need for tax and accounting obligations.
 - **Your Stripe account.** If you connected one, it belongs to you and stays with Stripe. Deleting your On It account removes our record of it but does not close it.
 - **AI and transcription providers.** Content already sent to Anthropic or AssemblyAI is deleted on their schedules described in Section 4.
 - **Backups.** Deleted data may remain in our providers' encrypted backups for a limited time until those backups expire.
@@ -326,7 +332,7 @@ On It is a business tool for adults. It is not intended for anyone under 18, and
 
 ## 14. Where information is processed
 
-On It is operated from Texas, United States, and our service providers process information in the United States. If you use On It from outside the United States, your information will be transferred to and processed in the United States.
+On It is operated from Texas, United States. Our database and file storage are hosted by Supabase in the United States (us-west-2). If you use On It from outside the United States, the information stored in those services will be transferred to and processed in the United States.
 
 ---
 
