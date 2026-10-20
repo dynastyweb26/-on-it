@@ -37,6 +37,23 @@ function tileMoney(n: number): string {
 // Signed exact money for the hero: a negative net reads "−$120.00" (sign, not
 // red — no colored numbers on this screen).
 const signedMoney = (n: number) => (n < 0 ? `−${money(-n)}` : money(n));
+
+// Design 1b: exact cents render smaller than the dollars. This keeps a
+// six-figure amount inside a half-width tile at 360px. Display only — the
+// value is still the string from money(); no calculation changes.
+function MoneyText({ text, centsClassName = 'text-[0.52em] tracking-[-0.01em] opacity-70' }: {
+  text: string;
+  centsClassName?: string;
+}) {
+  const dot = text.lastIndexOf('.');
+  if (dot < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, dot)}
+      <span className={centsClassName}>{text.slice(dot)}</span>
+    </>
+  );
+}
 // The Books count-up plays on the first visit of the day (motion inventory
 // "Books › First visit of the day"); later visits that day are static. The
 // stored value is the local date it last played (MOTION-SPEC §9 mechanics).
@@ -174,6 +191,12 @@ export default function Dashboard() {
 
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;
+  // Design 1b zero state: the true all-zero account, not just an empty invoice
+  // list (expenses alone should still render at full strength).
+  const isZero = stats.collected === 0 && stats.outstanding === 0 && stats.spent === 0;
+  const invoiceLabel = stats.count === 0
+    ? 'No invoices yet'
+    : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8 pt-6 md:px-8 md:space-y-8">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
@@ -186,24 +209,25 @@ export default function Dashboard() {
         <BooksTotalsSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {/* Net hero — the ONE deliberately dark element on this screen (§8).
-              Number first (cream, never colored; a negative reads "−$…"), label
-              under it. Opens the Books summary at All time, whose "Kept" is the
+          {/* Net hero — design 1b: number first, then "Net · all time · N
+              invoices" on one line. Cream, never colored (a negative reads
+              "−$…"); opens the Books summary at All time, whose "Kept" is the
               same figure. */}
           <Link
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
             data-coach="books-net"
-            className={`lg:col-span-1 flex flex-col justify-between rounded-[22px] bg-inverse-surface p-6 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
+            className={`lg:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
-            <div className="flex items-center justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="font-display text-numeric-xl md:text-[38px] tracking-tight text-inverse-on-surface tabular-nums">{signedMoney(net)}</div>
-                <div className="mt-1.5 text-label-lg font-semibold text-inverse-on-surface/70">Net · all time</div>
-                <div className="mt-0.5 text-xs text-inverse-on-surface/50">{stats.count} {stats.count === 1 ? 'invoice' : 'invoices'}</div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className={`whitespace-nowrap font-display text-[clamp(30px,12.5cqi,40px)] font-extrabold leading-[1.05] tracking-[-0.03em] tabular-nums ${isZero ? 'text-inverse-on-surface/50' : 'text-inverse-on-surface'}`}>
+                <MoneyText text={signedMoney(net)} />
               </div>
-              <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
+              <div className="text-label-lg font-semibold text-inverse-on-surface/70">
+                Net · all time <span className="font-normal text-inverse-on-surface/50">· {invoiceLabel}</span>
+              </div>
             </div>
+            <Icon name="chevron_right" size={24} className={`shrink-0 text-inverse-on-surface/60${intro ? ' onit-nudge' : ''}`} />
           </Link>
           {/* Three equal tiles, one row: whole-dollar headline, muted label with a
               small dot (meaning without colored numbers; gold only as a fill).
