@@ -12,7 +12,7 @@ import ChatNudgeCard from '@/components/ChatNudgeCard';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
-import { buildTheme, BrandTheme } from '@/lib/colors';
+import { buildTheme, explicitColorRoles, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
@@ -89,6 +89,7 @@ interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
   slogan: string | null; brand_colors: string[]; background_color: string | null;
+  color_roles_explicit?: boolean | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
   access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
@@ -1359,7 +1360,13 @@ export default function Chat() {
   // ── Finalize: save → render → PDF → share sheet ─────────────
   const theme: BrandTheme | null =
     profile?.background_color && profile.brand_colors.length >= 2
-      ? buildTheme(profile.brand_colors, profile.background_color)
+      ? buildTheme(
+        profile.brand_colors,
+        profile.background_color,
+        profile.color_roles_explicit
+          ? explicitColorRoles(profile.brand_colors, profile.background_color)
+          : undefined,
+      )
       : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
 
     function buildRenderData(invoiceNumber: number): InvoiceRenderData | null {

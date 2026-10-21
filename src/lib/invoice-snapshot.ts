@@ -18,6 +18,7 @@ export interface RenderSnapshotSource {
   invoice_template?: string | null;
   brand_colors?: string[] | null;
   background_color?: string | null;
+  color_roles_explicit?: boolean | null;
   business_name?: string | null;
   logo_url?: string | null;
   website_url?: string | null;
@@ -33,6 +34,7 @@ export function renderSnapshot(p: RenderSnapshotSource) {
     template: p.invoice_template ?? null,
     brand_colors: p.brand_colors ?? null,
     background_color: p.background_color ?? null,
+    color_roles_explicit: p.color_roles_explicit ?? false,
     business_name: p.business_name ?? null,
     logo_url: p.logo_url ?? null,
     website_url: p.website_url ?? null,

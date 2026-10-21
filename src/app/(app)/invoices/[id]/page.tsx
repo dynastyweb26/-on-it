@@ -7,7 +7,7 @@ import RollMoney from '@/components/RollMoney';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
 import { createClient } from '@/lib/supabase/client';
-import { buildTheme } from '@/lib/colors';
+import { buildTheme, explicitColorRoles } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
@@ -230,8 +230,13 @@ export default function InvoiceDetail() {
 
   const brandColors = snapped ? inv.brand_colors : profile.brand_colors;
   const backgroundColor = snapped ? inv.background_color : profile.background_color;
+  const colorRolesExplicit = snapped ? inv.color_roles_explicit : profile.color_roles_explicit;
   const theme = backgroundColor && brandColors?.length >= 2
-    ? buildTheme(brandColors, backgroundColor)
+    ? buildTheme(
+      brandColors,
+      backgroundColor,
+      colorRolesExplicit ? explicitColorRoles(brandColors, backgroundColor) : undefined,
+    )
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
