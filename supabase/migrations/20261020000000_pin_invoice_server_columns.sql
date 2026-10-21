@@ -27,6 +27,12 @@
 --   created_at       - pin_created_at (20261001000001)
 --   content / render snapshot - lock_sent_invoice_fields (20260918000007)
 --
+-- first_sent_at on a sent row is the one SQLSTATE exception. Trigger names
+-- fire alphabetically, so lock_sent_invoice_fields runs before this trigger
+-- and silently pins first_sent_at; the UPDATE succeeds as a no-op instead of
+-- raising 42501. On a draft that lock trigger does not fire, so the client
+-- write raises 42501 here. Either way the stored value cannot move.
+--
 -- The trigger checks current_user, matching pin_invoice_refunded_amount. The
 -- service role, postgres and the SECURITY DEFINER reconcile/send functions are
 -- all allowed to move these columns; only anon/authenticated are blocked.
