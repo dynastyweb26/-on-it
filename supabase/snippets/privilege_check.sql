@@ -1169,6 +1169,179 @@ results(id, ok, expected, actual) as (
           and t.tgname = 'guard_invoice_payment_overpay'
           and not t.tgisinternal
       ), 'missing') end
+
+  -- AD. Invoice server-owned columns (20261020000000). The trigger rejects
+  --     anon/authenticated changes to amount_paid/status/paid_at and the other
+  --     server timestamps; service_role and the SECURITY DEFINER ledger
+  --     reconcile are unaffected. SKIP until pushed.
+  union all
+  select 'AD pin_invoice_server_columns trigger',
+    case when not exists (select 1 from applied where version = '20261020000000') then null
+      else exists (
+        select 1
+        from pg_trigger t
+        join pg_proc p on p.oid = t.tgfoid
+        where t.tgrelid = 'public.invoices'::regclass
+          and t.tgname = 'pin_invoice_server_columns'
+          and not t.tgisinternal
+          and t.tgtype = 23
+          and pg_get_triggerdef(t.oid) ilike '%BEFORE INSERT OR UPDATE OF amount_paid, status, paid_at, sent_at, first_sent_at, viewed_at, last_nudge_at ON public.invoices%'
+          and not p.prosecdef
+          and 'search_path=""' = any(p.proconfig)
+          and p.prosrc ilike '%current_user not in (''anon'', ''authenticated'')%'
+          and p.prosrc ilike '%return new%'
+          and (select bool_and(
+                (p.prosrc ilike ('%new.' || c.col || '%'))
+                and (p.prosrc ilike ('%old.' || c.col || '%')))
+              from (values ('amount_paid'), ('status'), ('paid_at'), ('sent_at'),
+                           ('first_sent_at'), ('viewed_at'), ('last_nudge_at')) c(col))
+      ) end,
+    'BEFORE INSERT OR UPDATE OF the 7 server columns; invoker; search_path=""; client-only guard; NEW+OLD per column',
+    case when not exists (select 1 from applied where version = '20261020000000') then 'not applied yet'
+      else coalesce((
+        select t.tgname || ': ' || pg_get_triggerdef(t.oid)
+        from pg_trigger t
+        where t.tgrelid = 'public.invoices'::regclass
+          and t.tgname = 'pin_invoice_server_columns'
+          and not t.tgisinternal
+      ), 'missing') end
+
+  -- AE. The lock function is invoker-only and cannot be called directly by
+  --     clients; the ledger reconcile remains a SECURITY DEFINER helper.
+  union all
+  select 'AE pin trigger function privileges',
+    case when not exists (select 1 from applied where version = '20261020000000') then null
+      else coalesce((
+        select not has_function_privilege('anon', p.oid, 'execute')
+          and not has_function_privilege('authenticated', p.oid, 'execute')
+          and not has_function_privilege('public', p.oid, 'execute')
+        from pg_proc p
+        where p.oid = to_regprocedure('public.pin_invoice_server_columns()')
+      ), false)
+      and coalesce((
+        select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p
+        where p.oid = to_regprocedure('public.reconcile_invoice_from_ledger(uuid)')
+      ), false)
+    end,
+    'no anon/authenticated/PUBLIC EXECUTE; ledger reconcile still SECURITY DEFINER, search_path=""',
+    case when not exists (select 1 from applied where version = '20261020000000') then 'not applied yet'
+      else coalesce((
+        select 'definer=' || p.prosecdef
+          || ' config=' || coalesce(array_to_string(p.proconfig, ','), 'none')
+          || ' anon=' || has_function_privilege('anon', p.oid, 'execute')::text
+          || ' authenticated=' || has_function_privilege('authenticated', p.oid, 'execute')::text
+        from pg_proc p
+        where p.oid = to_regprocedure('public.pin_invoice_server_columns()')
+      ), 'missing') end
+
+  -- AF. invoice_attachments client ACL (20261020000001): anon has nothing;
+  --     authenticated has SELECT/INSERT/DELETE and no UPDATE/TRUNCATE.
+  --     SKIP until pushed.
+  union all
+  select 'AF invoice_attachments client ACL',
+    case when not exists (select 1 from applied where version = '20261020000001') then null
+      else to_regclass('public.invoice_attachments') is not null
+        and (select bool_and(
+              has_table_privilege(r.role, 'public.invoice_attachments', 'SELECT') = r.sel
+              and has_table_privilege(r.role, 'public.invoice_attachments', 'INSERT') = r.ins
+              and not has_table_privilege(r.role, 'public.invoice_attachments', 'UPDATE')
+              and has_table_privilege(r.role, 'public.invoice_attachments', 'DELETE') = r.del
+              and not has_table_privilege(r.role, 'public.invoice_attachments', 'TRUNCATE'))
+            from (values ('anon', false, false, false),
+                         ('authenticated', true, true, true)) r(role, sel, ins, del))
+        and not exists (
+          select 1 from information_schema.column_privileges cp
+          where cp.table_schema = 'public'
+            and cp.table_name = 'invoice_attachments'
+            and cp.grantee in ('anon', 'authenticated')
+            and cp.privilege_type = 'UPDATE')
+    end,
+    'anon none; authenticated SELECT/INSERT/DELETE; no UPDATE/TRUNCATE',
+    case when not exists (select 1 from applied where version = '20261020000001') then 'not applied yet'
+      when to_regclass('public.invoice_attachments') is null then 'missing'
+      else coalesce((
+        select string_agg(r.role || ': ' || concat_ws('/',
+          case when has_table_privilege(r.role, 'public.invoice_attachments', 'SELECT') then 'SELECT' end,
+          case when has_table_privilege(r.role, 'public.invoice_attachments', 'INSERT') then 'INSERT' end,
+          case when has_table_privilege(r.role, 'public.invoice_attachments', 'UPDATE') then 'UPDATE' end,
+          case when has_table_privilege(r.role, 'public.invoice_attachments', 'DELETE') then 'DELETE' end,
+          case when has_table_privilege(r.role, 'public.invoice_attachments', 'TRUNCATE') then 'TRUNCATE' end),
+          ', ' order by r.role)
+        from (values ('anon'), ('authenticated')) r(role)
+      ), 'none') end
+
+  -- AG. The old FOR ALL policy is replaced by three owner-only policies, so
+  --     even a future UPDATE grant cannot enable in-place row edits.
+  union all
+  select 'AG invoice_attachments policies',
+    case when not exists (select 1 from applied where version = '20261020000001') then null
+      else coalesce((select relrowsecurity from pg_class
+        where oid = to_regclass('public.invoice_attachments')), false)
+        and (select count(*) from pg_policies
+          where schemaname = 'public' and tablename = 'invoice_attachments') = 3
+        and exists (select 1 from pg_policies
+          where schemaname = 'public' and tablename = 'invoice_attachments'
+            and policyname = 'own invoice attachments select' and cmd = 'SELECT'
+            and qual ilike '%auth.uid() = user_id%')
+        and exists (select 1 from pg_policies
+          where schemaname = 'public' and tablename = 'invoice_attachments'
+            and policyname = 'own invoice attachments insert' and cmd = 'INSERT'
+            and with_check ilike '%auth.uid() = user_id%')
+        and exists (select 1 from pg_policies
+          where schemaname = 'public' and tablename = 'invoice_attachments'
+            and policyname = 'own invoice attachments delete' and cmd = 'DELETE'
+            and qual ilike '%auth.uid() = user_id%')
+        and not exists (select 1 from pg_policies
+          where schemaname = 'public' and tablename = 'invoice_attachments'
+            and cmd in ('UPDATE', 'ALL'))
+    end,
+    'RLS on; 3 owner-only policies SELECT/INSERT/DELETE; no UPDATE/FOR ALL',
+    case when not exists (select 1 from applied where version = '20261020000001') then 'not applied yet'
+      else coalesce((
+        select string_agg(policyname || ':' || cmd, ', ' order by policyname)
+        from pg_policies
+        where schemaname = 'public' and tablename = 'invoice_attachments'
+      ), 'missing') end
+
+  -- AH. service_role keeps row management, the bucket stays private, and the
+  --     three owner-scoped storage policies still have no UPDATE/ALL.
+  union all
+  select 'AH attachment service_role + storage',
+    case when not exists (select 1 from applied where version = '20261020000001') then null
+      else to_regclass('public.invoice_attachments') is not null
+        and has_table_privilege('service_role', 'public.invoice_attachments', 'SELECT')
+        and has_table_privilege('service_role', 'public.invoice_attachments', 'INSERT')
+        and has_table_privilege('service_role', 'public.invoice_attachments', 'UPDATE')
+        and has_table_privilege('service_role', 'public.invoice_attachments', 'DELETE')
+        and exists (select 1 from storage.buckets b
+          where b.id = 'invoice-attachments' and not b.public)
+        and (select count(*) from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%') = 3
+        and exists (select 1 from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%' and cmd = 'SELECT')
+        and exists (select 1 from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%' and cmd = 'INSERT')
+        and exists (select 1 from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%' and cmd = 'DELETE')
+        and not exists (select 1 from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%' and cmd in ('UPDATE', 'ALL'))
+    end,
+    'service_role SELECT/INSERT/UPDATE/DELETE; private bucket; 3 owner storage policies, no UPDATE/ALL',
+    case when not exists (select 1 from applied where version = '20261020000001') then 'not applied yet'
+      else concat_ws('; ',
+        'bucket=' || coalesce((select case when b.public then 'public' else 'private' end
+          from storage.buckets b where b.id = 'invoice-attachments'), 'missing'),
+        'storage_policies=' || coalesce((select string_agg(policyname || ':' || cmd, ', ' order by policyname)
+          from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'
+            and policyname like 'invoice attachments%'), 'none'))
+      end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
