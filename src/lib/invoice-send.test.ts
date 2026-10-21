@@ -40,6 +40,7 @@ test('draft becomes sent and captures the render snapshot', () => {
     template: 'classic',
     brand_colors: ['#111111'],
     background_color: '#ffffff',
+    color_roles_explicit: false,
     business_name: 'Acme',
     logo_url: 'https://example.com/logo.png',
     website_url: 'https://example.com',
