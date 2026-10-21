@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
 import RollMoney from '@/components/RollMoney';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import InvoiceDetailSkeleton from '@/components/InvoiceDetailSkeleton';
 import { createClient } from '@/lib/supabase/client';
-import { buildTheme } from '@/lib/colors';
+import { buildTheme, explicitColorRoles } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
@@ -229,8 +230,13 @@ export default function InvoiceDetail() {
 
   const brandColors = snapped ? inv.brand_colors : profile.brand_colors;
   const backgroundColor = snapped ? inv.background_color : profile.background_color;
+  const colorRolesExplicit = snapped ? inv.color_roles_explicit : profile.color_roles_explicit;
   const theme = backgroundColor && brandColors?.length >= 2
-    ? buildTheme(brandColors, backgroundColor)
+    ? buildTheme(
+      brandColors,
+      backgroundColor,
+      colorRolesExplicit ? explicitColorRoles(brandColors, backgroundColor) : undefined,
+    )
     : { background: '#FFFFFF', text: '#000000', primary: '#1A1A1A', accent: '#D4A017', heading: '#000000', surface: '#E6E6E6', muted: '#666666', rule: '#CCCCCC', accentInk: '#735c00' };
   const template = (snapped ? inv.template : (profile.invoice_template ?? 'classic')) as TemplateKey;
 
@@ -1088,12 +1094,17 @@ export default function InvoiceDetail() {
       )}
       {/* Visible preview — presentational only. html2canvas mis-renders (overlapping
           glyphs, collapsed spacing) when the captured node sits under a CSS
-          transform, so this scaled node must NOT carry the capture ref. */}
-      <div className="overflow-hidden rounded-card border border-outline-variant">
-        <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', width: 794, height: 1123 * 0.55 }}>
-          <InvoiceTemplate template={template} data={rd} theme={theme} />
-        </div>
-      </div>
+          transform, so this scaled node must NOT carry the capture ref. The
+          shared frame fits the phone width and caps desktop at the old 0.55
+          preview size, so nothing is clipped on the right. */}
+      <InvoicePreviewFrame
+        template={template}
+        data={rd}
+        theme={theme}
+        fit="width"
+        maxScale={0.55}
+        frameClassName="rounded-card"
+      />
       {/* Attachments strip — deliberately OUTSIDE the invoice body, which stays
           image-free: attached pictures print on their own pages in the PDF, not
           in the document. Editable on a draft only; a sent/paid document shows
