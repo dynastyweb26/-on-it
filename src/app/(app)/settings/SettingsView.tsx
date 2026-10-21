@@ -1,11 +1,11 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
-import { PALETTE, buildTheme, onColor } from '@/lib/colors';
-import { InvoiceTemplate, TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
+import { TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
+import InvoiceStyleScreen from './InvoiceStyleScreen';
 import { freePlanSummary } from '@/lib/usage';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
@@ -21,8 +21,6 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
-
-const TEMPLATES: TemplateKey[] = ['classic', 'sidebar', 'industrial', 'friendly'];
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -60,6 +58,10 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
+  // Business profile → Invoice style is a full-screen overlay. It owns its
+  // own header/save bar so the app shell's header and tab bar stay untouched.
+  const [invoiceStyleOpen, setInvoiceStyleOpen] = useState(false);
+  const closeInvoiceStyle = useCallback(() => setInvoiceStyleOpen(false), []);
   const [saved, setSaved] = useState(false);
   // save() applies optimistically; on a failed write it reverts and raises this,
   // mirroring the Saved banner so a swallowed error can no longer look like success.
@@ -258,8 +260,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resolves false when the write failed (and was reverted).
-  async function save(patch: Record<string, unknown>): Promise<boolean> {
+  // Resolves false when the write failed (and was reverted). `silent` skips the
+  // page-level Saved/error banners; the Invoice style overlay shows its own.
+  async function save(patch: Record<string, unknown>, opts?: { silent?: boolean }): Promise<boolean> {
     const prev = p;                         // snapshot for rollback on failure
     setP({ ...p, ...patch });               // optimistic
     const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
@@ -270,12 +273,16 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         columns: Object.keys(patch), code: error.code, message: error.message, details: error.details, hint: error.hint,
       }));
       setP(prev);                           // revert — the write did not land
-      setSaveFailed(true);
-      setTimeout(() => setSaveFailed(false), 2500);
+      if (!opts?.silent) {
+        setSaveFailed(true);
+        setTimeout(() => setSaveFailed(false), 2500);
+      }
       return false;
     }
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    if (!opts?.silent) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }
     return true;
   }
 
@@ -560,9 +567,13 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
     </div>
   );
   if (!p) return <SettingsSkeleton />;
-  const theme = p.background_color ? buildTheme(p.brand_colors, p.background_color) : null;
 
   const is = (s: SettingsSection) => section === s;
+  const styleTemplate = TEMPLATE_LABELS[(p.invoice_template ?? 'sidebar') as TemplateKey] ?? 'Ledger';
+  const styleSwatches = Array.from(new Set(
+    [p.background_color, ...(Array.isArray(p.brand_colors) ? p.brand_colors : [])]
+      .filter((c): c is string => typeof c === 'string' && c.length > 0),
+  )).slice(0, 3);
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
       {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
@@ -663,55 +674,40 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       {is('business') && (
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
-        <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1">
-          {TEMPLATES.map((t) => (
-            <button key={t} className={`chip shrink-0 ${p.invoice_template === t ? 'chip-selected' : ''}`}
-              onClick={() => save({ invoice_template: t })}>{TEMPLATE_LABELS[t]}</button>
-          ))}
-        </div>
-        <div className="grid grid-cols-5 justify-items-start gap-2">
-          {PALETTE.map(({ hex, name }) => {
-            const sel = p.brand_colors?.includes(hex);
-            return (
-              <button key={hex} title={name}
-                className={`h-8 w-8 rounded-full border ${sel ? 'border-primary-container ring-gold-selected' : 'border-outline-variant'}`}
-                style={{ background: hex }}
-                onClick={() => {
-                  const cur: string[] = p.brand_colors ?? [];
-                  const next = sel ? cur.filter((c) => c !== hex) : cur.length >= 3 ? cur : [...cur, hex];
-                  save({ brand_colors: next, background_color: next.includes(p.background_color) ? p.background_color : null });
-                }} />
-            );
-          })}
-        </div>
-        {(p.brand_colors?.length ?? 0) >= 2 && (
-          <div className="flex gap-2">
-            {p.brand_colors.map((hex: string) => (
-              <button key={hex}
-                className={`flex-1 rounded-xl border py-2 text-sm ${p.background_color === hex ? 'border-primary-container ring-gold-selected font-bold' : 'border-outline-variant font-medium'}`}
-                style={{ background: hex, color: onColor(hex) }}
-                onClick={() => save({ background_color: hex })}>
-                {p.background_color === hex ? 'Background — selected' : 'Set background'}
-              </button>
+        <button type="button" onClick={() => setInvoiceStyleOpen(true)} aria-haspopup="dialog"
+          className="flex min-h-touch w-full items-center gap-3 rounded-input border border-outline-variant bg-surface-container-lowest p-3 text-left transition-colors active:bg-surface-container">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft">
+            <Icon name="description" size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-semibold text-on-background">{styleTemplate}</span>
+            <span className="block truncate text-sm text-on-surface-variant">
+              {styleSwatches.length ? `${styleSwatches.length} ${styleSwatches.length === 1 ? 'color' : 'colors'}` : 'Default colors'}
+            </span>
+          </span>
+          <span className="flex shrink-0 -space-x-1" aria-hidden>
+            {styleSwatches.map((hex) => (
+              <span
+                key={hex}
+                className="h-5 w-5 rounded-full border border-white"
+                style={{
+                  background: hex,
+                  boxShadow: hex.toUpperCase() === '#FFFFFF' ? 'inset 0 0 0 1px #D9CFBF' : undefined,
+                }}
+              />
             ))}
-          </div>
-        )}
-        {theme && (
-          <div className="overflow-hidden rounded-input border border-outline-variant" style={{ height: 1123 * 0.36 }}>
-            <div style={{ transform: 'scale(0.36)', transformOrigin: 'top left', width: 794, pointerEvents: 'none' }}>
-              <InvoiceTemplate template={p.invoice_template} theme={theme} data={{
-                kind: 'invoice', invoiceNumber: 1, businessName: p.business_name,
-                logoUrl: p.logo_url, websiteUrl: p.website_url, slogan: p.slogan,
-                clientName: 'Sample Client',
-                lineItems: [{ description: 'Service call + labor', qty: 1, unit_price: 250 }],
-                subtotal: 250, taxRate: 0, taxAmount: 0, total: 250,
-                issuedDate: new Date().toLocaleDateString(),
-                cashappTag: p.cashapp_tag, paypalMe: p.paypal_me, venmoUsername: p.venmo_username,
-              }} />
-            </div>
-          </div>
-        )}
+          </span>
+          <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
+        </button>
       </section>
+      )}
+
+      {invoiceStyleOpen && (
+        <InvoiceStyleScreen
+          profile={p}
+          onClose={closeInvoiceStyle}
+          onSave={(patch) => save(patch, { silent: true })}
+        />
       )}
 
       {is('main') && (<>
