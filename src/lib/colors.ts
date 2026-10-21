@@ -43,6 +43,22 @@ export interface BrandTheme {
   accentInk: string; // accent made safe AS TEXT on `background`
 }
 
+/** Explicit roles from Settings' Background / Accent / Secondary slots.
+ *  Secondary maps to the existing `primary` theme slot (headers, business
+ *  name); without one, primary follows accent. */
+export interface ColorRoles {
+  accent: string;
+  secondary?: string | null;
+}
+
+/** Read explicit roles from role-ordered brand_colors [bg, accent, secondary?].
+ *  Returns null when there is no accent, so callers keep legacy scoring. */
+export function explicitColorRoles(selected: string[], background: string): ColorRoles | null {
+  const rest = selected.filter((c) => c.toLowerCase() !== background.toLowerCase());
+  if (!rest.length) return null;
+  return { accent: rest[0], secondary: rest[1] ?? null };
+}
+
 /** Relative luminance 0 (black) → 1 (white) */
 export function luminance(hex: string): number {
   const c = hex.replace('#', '');
@@ -108,14 +124,23 @@ function saturation(hex: string): number {
   return max === 0 ? 0 : (max - min) / max;
 }
 
-export function buildTheme(selected: string[], background: string): BrandTheme {
+export function buildTheme(
+  selected: string[],
+  background: string,
+  roles?: ColorRoles | null,
+): BrandTheme {
   const text = onColor(background);
   const rest = selected.filter((c) => c.toLowerCase() !== background.toLowerCase());
 
   let primary: string;
   let accent: string;
 
-  if (rest.length === 0) {
+  if (roles?.accent) {
+    // Explicit Background / Accent / Secondary roles. Old profiles and
+    // snapshots never pass this, so their legacy scoring below is unchanged.
+    accent = roles.accent;
+    primary = roles.secondary || roles.accent;
+  } else if (rest.length === 0) {
     primary = text;
     accent = '#D4A017';
   } else if (rest.length === 1) {

@@ -1,11 +1,10 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
-import { TemplateKey, TEMPLATE_LABELS } from '@/lib/pdf/templates';
-import InvoiceStyleScreen from './InvoiceStyleScreen';
+import InvoiceStyleCard from './InvoiceStyleCard';
 import { freePlanSummary } from '@/lib/usage';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
@@ -58,10 +57,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const supabase = createClient();
   const router = useRouter();
   const [p, setP] = useState<any>(null);
-  // Business profile → Invoice style is a full-screen overlay. It owns its
-  // own header/save bar so the app shell's header and tab bar stay untouched.
-  const [invoiceStyleOpen, setInvoiceStyleOpen] = useState(false);
-  const closeInvoiceStyle = useCallback(() => setInvoiceStyleOpen(false), []);
   const [saved, setSaved] = useState(false);
   // save() applies optimistically; on a failed write it reverts and raises this,
   // mirroring the Saved banner so a swallowed error can no longer look like success.
@@ -261,7 +256,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   }, []);
 
   // Resolves false when the write failed (and was reverted). `silent` skips the
-  // page-level Saved/error banners; the Invoice style overlay shows its own.
+  // page-level Saved/error banners; the Invoice style card shows its own.
   async function save(patch: Record<string, unknown>, opts?: { silent?: boolean }): Promise<boolean> {
     const prev = p;                         // snapshot for rollback on failure
     setP({ ...p, ...patch });               // optimistic
@@ -569,11 +564,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   if (!p) return <SettingsSkeleton />;
 
   const is = (s: SettingsSection) => section === s;
-  const styleTemplate = TEMPLATE_LABELS[(p.invoice_template ?? 'sidebar') as TemplateKey] ?? 'Ledger';
-  const styleSwatches = Array.from(new Set(
-    [p.background_color, ...(Array.isArray(p.brand_colors) ? p.brand_colors : [])]
-      .filter((c): c is string => typeof c === 'string' && c.length > 0),
-  )).slice(0, 3);
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
       {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payouts' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
@@ -672,40 +662,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         : <PayoutsIndex p={p} zelleMasked={zelleMasked} connectOn={connectOn} />)}
 
       {is('business') && (
-      <section className="card space-y-3">
-        <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Invoice style</h2>
-        <button type="button" onClick={() => setInvoiceStyleOpen(true)} aria-haspopup="dialog"
-          className="flex min-h-touch w-full items-center gap-3 rounded-input border border-outline-variant bg-surface-container-lowest p-3 text-left transition-colors active:bg-surface-container">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft">
-            <Icon name="description" size={20} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-semibold text-on-background">{styleTemplate}</span>
-            <span className="block truncate text-sm text-on-surface-variant">
-              {styleSwatches.length ? `${styleSwatches.length} ${styleSwatches.length === 1 ? 'color' : 'colors'}` : 'Default colors'}
-            </span>
-          </span>
-          <span className="flex shrink-0 -space-x-1" aria-hidden>
-            {styleSwatches.map((hex) => (
-              <span
-                key={hex}
-                className="h-5 w-5 rounded-full border border-white"
-                style={{
-                  background: hex,
-                  boxShadow: hex.toUpperCase() === '#FFFFFF' ? 'inset 0 0 0 1px #D9CFBF' : undefined,
-                }}
-              />
-            ))}
-          </span>
-          <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
-        </button>
-      </section>
-      )}
-
-      {invoiceStyleOpen && (
-        <InvoiceStyleScreen
+        <InvoiceStyleCard
           profile={p}
-          onClose={closeInvoiceStyle}
           onSave={(patch) => save(patch, { silent: true })}
         />
       )}
