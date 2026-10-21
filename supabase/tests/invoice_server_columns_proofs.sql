@@ -3,14 +3,19 @@
 --
 -- WHAT IT VERIFIES:
 --   1. authenticated cannot UPDATE amount_paid, status, paid_at, sent_at,
---      first_sent_at, viewed_at or last_nudge_at (SQLSTATE 42501).
---   2. authenticated cannot INSERT a born-sent row, a nonzero amount_paid,
+--      first_sent_at, viewed_at or last_nudge_at on a draft (SQLSTATE 42501).
+--   2. On a sent row the same timestamps are rejected too, except
+--      first_sent_at: the older lock_sent_invoice_fields trigger runs first
+--      and silently pins it, so no 42501 is raised but the value cannot move.
+--   3. authenticated cannot INSERT a born-sent row, a nonzero amount_paid,
 --      or a paid_at (SQLSTATE 42501).
---   3. authenticated can still UPDATE safe content and INSERT a draft.
---   4. service_role can move the server-owned columns (the send route's role).
---   5. a client payment insert still flips the invoice to paid through the
+--   4. authenticated can still UPDATE safe content and INSERT a draft. Draft
+--      content persists; sent content is accepted but pinned by the existing
+--      lock triggers; deleted_at moves on both.
+--   5. service_role can move the server-owned columns (the send route's role).
+--   6. a client payment insert still flips the invoice to paid through the
 --      SECURITY DEFINER ledger reconcile.
---   6. the overpayment guard still rejects a manual row above the balance.
+--   7. the overpayment guard still rejects a manual row above the balance.
 --
 -- LOCAL ONLY. It seeds auth.users / profiles / invoices and rolls everything
 -- back at the end. Never point it at production.
@@ -85,11 +90,14 @@ values
 returning id as draft_inv \gset
 select set_config('proof.draft_inv', :'draft_inv', true);
 
--- A sent invoice for the ledger + overpayment checks.
+-- A sent invoice for the sent-row lock checks plus the ledger + overpayment
+-- checks. Its content is the known "before" state for the pinned-write probe.
 insert into public.invoices
-  (user_id, kind, client_name, line_items, total, status)
+  (user_id, kind, client_name, line_items, total, status, notes, due_date)
 values
-  (:'uid', 'invoice', 'Proof Sent', '[]'::jsonb, 100, 'sent')
+  (:'uid', 'invoice', 'Proof Sent',
+   '[{"description":"sent-before"}]'::jsonb, 100, 'sent',
+   'sent-before', current_date + 30)
 returning id as sent_inv \gset
 select set_config('proof.sent_inv', :'sent_inv', true);
 
@@ -131,6 +139,41 @@ select public.proof_expect_sqlstate(
   format('update public.invoices set last_nudge_at = now() where id = %L', :'draft_inv'),
   '42501', 'UPDATE last_nudge_at');
 
+-- The same timestamps on a sent row. first_sent_at is the exception:
+-- lock_sent_invoice_fields fires before pin_invoice_server_columns (trigger
+-- names are alphabetical) and silently pins it, so the statement succeeds
+-- without changing the stored value. It still cannot be overwritten.
+select public.proof_expect_sqlstate(
+  format('update public.invoices set sent_at = now() + interval ''1 hour'' where id = %L', :'sent_inv'),
+  '42501', 'sent UPDATE sent_at');
+
+select public.proof_expect_sqlstate(
+  format('update public.invoices set viewed_at = now() + interval ''1 hour'' where id = %L', :'sent_inv'),
+  '42501', 'sent UPDATE viewed_at');
+
+select public.proof_expect_sqlstate(
+  format('update public.invoices set last_nudge_at = now() + interval ''1 hour'' where id = %L', :'sent_inv'),
+  '42501', 'sent UPDATE last_nudge_at');
+
+do $$
+declare
+  v_id     uuid := current_setting('proof.sent_inv')::uuid;
+  v_before timestamptz;
+  v_after  timestamptz;
+begin
+  select first_sent_at into v_before from public.invoices where id = v_id;
+  update public.invoices
+     set first_sent_at = now() + interval '1 hour'
+   where id = v_id;
+  select first_sent_at into v_after from public.invoices where id = v_id;
+
+  if v_after is distinct from v_before then
+    raise exception 'FAIL: sent first_sent_at changed';
+  end if;
+
+  raise notice 'PASS sent first_sent_at remains pinned by lock_sent_invoice_fields (no 42501)';
+end $$;
+
 -- 2. Server-owned INSERTs are rejected.
 select public.proof_expect_sqlstate(
   format(
@@ -169,12 +212,48 @@ values
 returning id as safe_inv \gset
 select set_config('proof.safe_inv', :'safe_inv', true);
 
+-- A draft may edit content and soft-delete itself.
+update public.invoices
+   set notes = 'draft-after',
+       line_items = '[{"description":"draft-after"}]'::jsonb,
+       due_date = current_date + 10
+ where id = :'safe_inv';
+
+update public.invoices set deleted_at = now() where id = :'safe_inv';
+
+-- A sent invoice accepts the same statement, but lock_line_items and
+-- lock_sent_invoice_fields pin the content. deleted_at is not pinned, so it
+-- must move. Restore it afterward so the ledger checks below see the row.
+update public.invoices
+   set notes = 'sent-after',
+       line_items = '[{"description":"sent-after"}]'::jsonb,
+       due_date = current_date + 10
+ where id = :'sent_inv';
+
+update public.invoices set deleted_at = now() where id = :'sent_inv';
+
+do $$
+begin
+  if not exists (
+    select 1 from public.invoices
+    where id = current_setting('proof.sent_inv')::uuid
+      and deleted_at is not null
+  ) then
+    raise exception 'FAIL: sent deleted_at update did not persist';
+  end if;
+
+  raise notice 'PASS sent deleted_at update persists';
+end $$;
+
+update public.invoices set deleted_at = null where id = :'sent_inv';
+
 reset role;
 
 do $$
 declare
   v_draft uuid := current_setting('proof.draft_inv')::uuid;
   v_safe  uuid := current_setting('proof.safe_inv')::uuid;
+  v_sent  uuid := current_setting('proof.sent_inv')::uuid;
 begin
   if not exists (
     select 1 from public.invoices
@@ -185,12 +264,30 @@ begin
 
   if not exists (
     select 1 from public.invoices
-    where id = v_safe and status = 'draft' and amount_paid = 0
+    where id = v_safe
+      and status = 'draft'
+      and amount_paid = 0
+      and notes = 'draft-after'
+      and line_items->0->>'description' = 'draft-after'
+      and due_date = current_date + 10
+      and deleted_at is not null
   ) then
-    raise exception 'FAIL: safe draft insert did not persist as a zero-paid draft';
+    raise exception 'FAIL: safe draft content/deleted_at did not persist';
+  end if;
+
+  if not exists (
+    select 1 from public.invoices
+    where id = v_sent
+      and notes = 'sent-before'
+      and line_items->0->>'description' = 'sent-before'
+      and due_date = current_date + 30
+      and deleted_at is null
+  ) then
+    raise exception 'FAIL: sent content was not pinned or deleted_at was not restored';
   end if;
 
   raise notice 'PASS safe client update and draft insert still work';
+  raise notice 'PASS sent content is accepted but pinned; deleted_at moves on both';
 end $$;
 
 -- 4. service_role (the send route's client) can move server-owned columns.
