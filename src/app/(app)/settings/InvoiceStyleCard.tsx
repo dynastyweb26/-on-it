@@ -11,6 +11,7 @@
 // until the first explicit save. Old snapshots stay on legacy scoring.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import { buildTheme } from '@/lib/colors';
@@ -39,6 +40,127 @@ const DEFAULT_ACCENT = '#D4A017';
 const PREVIEW_H = 340;
 
 type StyleColor = { hex: string; name: string };
+type StyleSnapshot = { template: TemplateKey; colors: (string | null)[] };
+type StickyBox = { left: number; right: number; bottom: number };
+
+// The footer sits above the whole bottom chrome, not just the tab bar: main's
+// bottom edge is above the tab bar and the optional install banner, and the
+// tab bar's own padding carries the safe-area inset. Measuring main avoids a
+// hardcoded nav height (and accidentally covering the install banner).
+function useMainBottomBox(enabled: boolean) {
+  const [box, setBox] = useState<StickyBox | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setBox(null);
+      return;
+    }
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    const measure = () => {
+      const m = main.getBoundingClientRect();
+      setBox({
+        left: m.left,
+        right: Math.max(0, window.innerWidth - m.right),
+        bottom: Math.max(0, window.innerHeight - m.bottom),
+      });
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(main);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      ro?.disconnect();
+    };
+  }, [enabled]);
+
+  return box;
+}
+
+// The fixed footer covers the bottom of main. Pad main by exactly the footer's
+// height while it is stuck, so the last page content (not just this card) can
+// still scroll clear of it. Restore any prior inline value on hide/unmount.
+function useMainBottomPadding(enabled: boolean, height: number) {
+  useEffect(() => {
+    if (!enabled || height <= 0) return;
+    const main = document.querySelector('main');
+    if (!main) return;
+    const previous = main.style.paddingBottom;
+    main.style.paddingBottom = `${height}px`;
+    return () => {
+      main.style.paddingBottom = previous;
+    };
+  }, [enabled, height]);
+}
+
+function StickySaveBar({
+  box,
+  label,
+  muted,
+  busy,
+  error,
+  onSave,
+  onHeight,
+}: {
+  box: StickyBox;
+  label: string;
+  muted: boolean;
+  busy: boolean;
+  error: string;
+  onSave: () => void;
+  onHeight: (height: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => onHeight(el.offsetHeight);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [onHeight]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      data-kb-hide
+      className="fixed z-[70] md:hidden"
+      style={{ left: box.left, right: box.right, bottom: box.bottom }}
+    >
+      <div className="border-t border-outline-variant/40 bg-background/95 px-4 pb-2.5 pt-2.5 backdrop-blur">
+        {error && (
+          <div
+            role="alert"
+            className="mb-2 rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container"
+          >
+            {error}
+          </div>
+        )}
+        <button
+          type="button"
+          disabled={muted || busy}
+          aria-busy={busy}
+          onClick={onSave}
+          className="h-[52px] w-full rounded-full text-base font-bold transition-colors disabled:cursor-not-allowed"
+          style={{
+            background: muted ? '#E8DFD0' : GOLD,
+            color: muted ? '#8F8474' : INK,
+          }}
+        >
+          {label}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 // The design's exact 20-swatch order. Screen-local on purpose: the onboarding
 // palette has different names and a few different hexes, and is out of scope.
@@ -234,10 +356,15 @@ export default function InvoiceStyleCard({
   const [initial] = useState(() => hydrate(profile));
   const [template, setTemplate] = useState<TemplateKey>(initial.template);
   const [colors, setColors] = useState<(string | null)[]>(initial.colors);
+  const [lastSaved, setLastSaved] = useState<StyleSnapshot>(() => ({
+    template: initial.template,
+    colors: [...initial.colors],
+  }));
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [note, setNote] = useState(false);
+  const [stickyHeight, setStickyHeight] = useState(0);
 
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -247,6 +374,12 @@ export default function InvoiceStyleCard({
     if (noteTimer.current) clearTimeout(noteTimer.current);
     if (savedTimer.current) clearTimeout(savedTimer.current);
   }, []);
+
+  const dirty = template !== lastSaved.template
+    || colors.some((c, i) => c !== lastSaved.colors[i]);
+  const showSticky = dirty || saved;
+  const stickyBox = useMainBottomBox(showSticky);
+  useMainBottomPadding(showSticky, stickyHeight);
 
   const picked = colors.filter((c): c is string => Boolean(c));
   const count = picked.length;
@@ -332,6 +465,8 @@ export default function InvoiceStyleCard({
     setSaving(true);
     setSaveError('');
     const revisionAtSave = revision.current;
+    const templateAtSave = template;
+    const colorsAtSave = [...colors];
 
     const brand_colors = [colors[0], colors[1], colors[2]]
       .filter((c): c is string => Boolean(c));
@@ -352,6 +487,10 @@ export default function InvoiceStyleCard({
       setSaveError("Couldn't save. Check your connection and try again.");
       return;
     }
+    // The server now holds this exact state, even if the user kept editing
+    // while the request was in flight. The snapshot must follow the write so a
+    // later revert to it is correctly clean.
+    setLastSaved({ template: templateAtSave, colors: colorsAtSave });
     // The write landed, but the user changed something while it was in flight:
     // don't show "Saved" for a state that is no longer on screen.
     if (revision.current !== revisionAtSave) return;
@@ -545,24 +684,43 @@ export default function InvoiceStyleCard({
       </div>
 
       {saveError && (
-        <div role="alert" className="rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container">
+        <div
+          role="alert"
+          className={`rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container${showSticky ? ' hidden md:block' : ''}`}
+        >
           {saveError}
         </div>
       )}
 
-      <button
-        type="button"
-        disabled={!ok || saving}
-        aria-busy={saving}
-        onClick={handleSave}
-        className="h-[52px] w-full rounded-full text-base font-bold transition-colors disabled:cursor-not-allowed"
-        style={{
-          background: buttonMuted ? '#E8DFD0' : GOLD,
-          color: buttonMuted ? '#8F8474' : INK,
-        }}
-      >
-        {saving ? 'Saving…' : saveLabel}
-      </button>
+      {showSticky && <div aria-hidden className="h-[52px] md:hidden" />}
+
+      <div className={showSticky ? 'hidden md:block' : ''}>
+        <button
+          type="button"
+          disabled={!ok || saving}
+          aria-busy={saving}
+          onClick={handleSave}
+          className="h-[52px] w-full rounded-full text-base font-bold transition-colors disabled:cursor-not-allowed"
+          style={{
+            background: buttonMuted ? '#E8DFD0' : GOLD,
+            color: buttonMuted ? '#8F8474' : INK,
+          }}
+        >
+          {saving ? 'Saving…' : saveLabel}
+        </button>
+      </div>
+
+      {showSticky && stickyBox && (
+        <StickySaveBar
+          box={stickyBox}
+          label={saving ? 'Saving…' : saveLabel}
+          muted={buttonMuted}
+          busy={saving}
+          error={saveError}
+          onSave={handleSave}
+          onHeight={setStickyHeight}
+        />
+      )}
     </section>
   );
 }
