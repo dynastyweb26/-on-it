@@ -15,6 +15,7 @@ import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import { createClient } from '@/lib/supabase/client';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import { classifyAxis, isFlick, type GestureAxis } from '@/lib/swipe';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -43,10 +44,16 @@ const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-// A tab swipe needs this much horizontal travel AND must be clearly
-// horizontal (|dx| > 1.5 × |dy|); anything else is left to scrolling.
-const SWIPE_MIN_DX = 70;
-const SWIPE_RATIO = 1.5;
+// A tab swipe needs this much horizontal travel, or a deliberate flick:
+// at least 90px with a recent speed of 1.1 px/ms. The axis is locked once,
+// after 12px of travel, and must be clearly horizontal (|dx| >= 2.5 × |dy|);
+// anything else is left to scrolling. A vertical lock is permanent for the
+// gesture, so scrolling can never turn into a swipe mid-drag.
+const SWIPE_MIN_DX = 120;
+const SWIPE_RATIO = 2.5;
+const FLICK_MIN_DX = 90;
+const FLICK_MIN_PX_PER_MS = 1.1;
+const FLICK_SAMPLE_MS = 100;
 // A navigation that never lands (no pathname change) stops blocking swipes
 // after this long, checked at the next touchstart — no timers.
 const NAV_GUARD_MS = 3000;
@@ -150,10 +157,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, [tabIdx]);
   // Instagram-style horizontal swipe between tabs. Touch only, one finger,
-  // decided once on touchend; vertical scrolling always wins once the gesture
-  // turns more vertical than horizontal. `from` is the tab the gesture STARTED
-  // on, read from the live URL at touchstart (never a render-time closure).
-  const gesture = useRef<{ id: number; x: number; y: number; from: number; vertical: boolean } | null>(null);
+  // decided once on touchend. The axis is locked after 12px (a vertical drag
+  // never becomes a swipe); then a long drag or a deliberate flick navigates.
+  // `from` is the tab the gesture STARTED on, read from the live URL at
+  // touchstart (never a render-time closure). `samples` keeps the last ~100ms
+  // of positions for the flick speed.
+  const gesture = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    from: number;
+    axis: GestureAxis;
+    samples: { x: number; t: number }[];
+  } | null>(null);
   // A swipe's navigation is in flight until the pathname changes; new swipes
   // are ignored meanwhile so one gesture can never chain into two tabs.
   const navigating = useRef<number | null>(null); // start time, or null
@@ -257,28 +273,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const from = tabIndexOf(window.location.pathname);
     if (from === -1 || swipeBlockedAt(e.target)) return;
     const t = e.touches[0];
-    gesture.current = { id: t.identifier, x: t.clientX, y: t.clientY, from, vertical: false };
+    gesture.current = {
+      id: t.identifier, x: t.clientX, y: t.clientY, from,
+      axis: 'pending',
+      samples: [{ x: t.clientX, t: performance.now() }],
+    };
   }
   function onTouchMove(e: React.TouchEvent) {
     const g = gesture.current;
-    if (!g || g.vertical) return;
+    if (!g) return;
     if (e.touches.length !== 1) { gesture.current = null; return; }
     const t = Array.from(e.touches).find((p) => p.identifier === g.id);
     if (!t) return;
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) g.vertical = true; // scroll — never hijack it
+    // Decide once, after 12px of travel: horizontal stays horizontal, and a
+    // vertical gesture stays vertical for the rest of the drag.
+    if (g.axis === 'pending') g.axis = classifyAxis(dx, dy, { ratio: SWIPE_RATIO });
+    if (g.axis !== 'horizontal') return;
+    g.samples.push({ x: t.clientX, t: performance.now() });
+    if (g.samples.length > 12) g.samples.shift();
   }
   // The ONLY place a swipe navigates: once, at the end of the gesture.
   function onTouchEnd(e: React.TouchEvent) {
     const g = gesture.current;
     gesture.current = null;
-    if (!g || g.vertical || navigating.current !== null) return;
+    if (!g || g.axis !== 'horizontal' || navigating.current !== null) return;
     const t = Array.from(e.changedTouches).find((p) => p.identifier === g.id);
     if (!t) return;
     const dx = t.clientX - g.x;
-    const dy = t.clientY - g.y;
-    if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) <= SWIPE_RATIO * Math.abs(dy)) return;
+    const now = performance.now();
+    // Speed over the last ~100ms, so a finger that rests before lifting is
+    // not a flick however far it travelled.
+    const from = g.samples.find((p) => now - p.t <= FLICK_SAMPLE_MS) ?? g.samples[g.samples.length - 1];
+    const dt = from ? Math.max(1, now - from.t) : 1;
+    const recentDx = from ? t.clientX - from.x : 0;
+    const flick = isFlick(recentDx, dt, {
+      minDistance: FLICK_MIN_DX,
+      minVelocity: FLICK_MIN_PX_PER_MS,
+      distance: Math.abs(dx),
+    });
+    if (Math.abs(dx) < SWIPE_MIN_DX && !flick) return;
     const next = g.from + (dx < 0 ? 1 : -1);
     if (next < 0 || next >= TABS.length) return; // no wrap-around past Clients or Settings
     // The tab under the gesture must still be current (nothing navigated mid-gesture).
