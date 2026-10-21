@@ -22,6 +22,13 @@ test('websiteHref rejects dangerous pseudo-protocols', () => {
   assert.equal(websiteHref('file:///etc/passwd'), null);
   assert.equal(websiteHref('blob:https://example.com/uuid'), null);
   assert.equal(websiteHref('   javascript:void(0)   '), null);
+
+  // Unicode NFKC and control character evasion attempts
+  assert.equal(websiteHref('ｊａｖａｓｃｒｉｐｔ:alert(1)'), null);
+  assert.equal(websiteHref('\u200Bjavascript:alert(1)'), null);
+  assert.equal(websiteHref('java\u200Bscript:alert(1)'), null);
+  assert.equal(websiteHref('\x01javascript:alert(1)'), null);
+  assert.equal(websiteHref('java\x00script:alert(1)'), null);
 });
 
 test('payment URL helpers sanitize handles and build valid deep links', () => {
