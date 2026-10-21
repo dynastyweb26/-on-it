@@ -12,9 +12,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import { buildTheme } from '@/lib/colors';
 import {
-  InvoiceTemplate,
   TEMPLATE_LABELS,
   type InvoiceRenderData,
   type TemplateKey,
@@ -34,8 +34,8 @@ const DEFAULT_BG = '#1A1A1A';
 const DEFAULT_ACCENT = '#D4A017';
 
 // A real A4 page is 794 × 1123 at 96dpi. The card caps the preview at this
-// height and scales the page down to fit, so the colors and Save button stay
-// reachable without a long scroll. The page is centered, never cropped.
+// height; the shared frame derives its width from A4 and centers it, so the
+// invoice fills the frame edge-to-edge with no letterboxing.
 const PREVIEW_H = 340;
 
 type StyleColor = { hex: string; name: string };
@@ -172,7 +172,11 @@ const SAMPLE: InvoiceRenderData = {
 
 const PLACEHOLDER_THEME = buildTheme(['#9a9a9a', '#c4c4c4'], '#FFFFFF');
 
-/** The real template at A4 size, scaled to fit the card's fixed-height frame. */
+/**
+ * The real template at A4 size, scaled to the card's fixed height. The frame is
+ * derived from A4 and centered, so the invoice fills it edge-to-edge instead of
+ * being letterboxed inside a full-width frame.
+ */
 function StylePreview({
   template,
   colors,
@@ -180,19 +184,6 @@ function StylePreview({
   template: TemplateKey;
   colors: (string | null)[];
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [w, setW] = useState(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setW(el.offsetWidth);
-    measure();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    return () => ro?.disconnect();
-  }, []);
-
   const bg = colors[0];
   const accent = colors[1];
   const secondary = colors[2];
@@ -207,43 +198,24 @@ function StylePreview({
     );
   }, [bg, accent, secondary]);
 
-  const inner = Math.max(w - 2, 1);
-  const scale = w > 0 ? Math.min(inner / 794, PREVIEW_H / 1123) : 0;
-  const left = w > 0 ? (inner - 794 * scale) / 2 : 0;
-
   return (
-    <div
-      ref={ref}
-      className="relative overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest"
-      style={{ height: PREVIEW_H }}
-    >
-      {w > 0 && (
-        <div
-          aria-hidden={!complete}
-          style={{
-            position: 'absolute',
-            left,
-            top: 0,
-            width: 794,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            pointerEvents: 'none',
-            opacity: complete ? 1 : 0.35,
-            transition: 'opacity 200ms',
-          }}
-        >
-          <InvoiceTemplate template={template} data={SAMPLE} theme={theme} />
-        </div>
-      )}
-      {!complete && (
-        <div className="absolute inset-0 flex items-center justify-center p-6">
-          <div className="flex items-center gap-2 rounded-full border border-outline-variant bg-background px-[18px] py-3 text-[15px] font-semibold leading-5 shadow-[0_4px_24px_rgba(115,92,0,0.10)]">
-            <Icon name="touch_app" size={20} className="text-primary" />
-            Pick a background and accent to preview
+    <InvoicePreviewFrame
+      template={template}
+      data={SAMPLE}
+      theme={theme}
+      fit="height"
+      maxHeight={PREVIEW_H}
+      dimmed={!complete}
+      ariaHidden={!complete}
+      overlay={!complete ? (
+        <div className="absolute inset-0 flex items-center justify-center p-3">
+          <div className="flex max-w-full items-center gap-2 rounded-full border border-outline-variant bg-background px-3 py-2.5 text-center text-[13px] font-semibold leading-[1.3] shadow-[0_4px_24px_rgba(115,92,0,0.10)]">
+            <Icon name="touch_app" size={18} className="shrink-0 text-primary" />
+            <span>Pick a background and accent to preview</span>
           </div>
         </div>
-      )}
-    </div>
+      ) : undefined}
+    />
   );
 }
 
