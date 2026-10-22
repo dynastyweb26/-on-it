@@ -76,6 +76,57 @@ export interface PayModel {
   paidReturn: boolean; // arrived back from Stripe Checkout (?paid=1)
 }
 
+// Business logo in a 96px tile: white surface, 12px padding, 26px radius and
+// a soft shadow so a transparent or odd-shaped logo still reads as deliberate.
+// Wide logos get a wider tile (up to 200px) so they stay legible instead of
+// shrinking to a sliver. No logo (or a broken one) falls back to gold initials.
+function PayLogo({ url, businessName }: { url: string | null; businessName: string }) {
+  const [tileWidth, setTileWidth] = useState(96);
+  const [failed, setFailed] = useState(false);
+  const initials =
+    businessName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase() || '?';
+
+  if (!url || failed) {
+    return (
+      <div
+        aria-hidden
+        className="mb-4 flex h-24 w-24 shrink-0 items-center justify-center rounded-[26px] bg-primary-container font-display text-[34px] font-bold tracking-[0.02em] text-primary-on-container"
+      >
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-4 box-border flex h-24 shrink-0 items-center justify-center rounded-[26px] bg-white p-3 shadow-[0_1px_2px_rgba(30,26,21,0.05),0_8px_22px_-10px_rgba(30,26,21,0.18)]"
+      style={{ width: tileWidth }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={`${businessName} logo`}
+        className="block h-full w-full object-contain"
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          const ratio = img.naturalWidth / img.naturalHeight;
+          if (!Number.isFinite(ratio) || ratio <= 2) return;
+          // Padding is 12px each side, so the inner box is tileWidth − 24.
+          setTileWidth(Math.min(200, Math.max(96, Math.round(24 + ratio * 72))));
+        }}
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 async function copyText(value: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(value);
@@ -391,14 +442,7 @@ export default function PayView({ model }: { model: PayModel }) {
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-container py-10">
       {/* Business identity */}
       <header className="flex flex-col items-center text-center">
-        {model.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={model.logoUrl}
-            alt={model.businessName}
-            className="mb-4 h-16 w-16 rounded-card object-contain"
-          />
-        ) : null}
+        <PayLogo url={model.logoUrl} businessName={model.businessName} />
         <h1 className="font-display text-headline-lg text-on-background">{model.businessName}</h1>
         <p className="mt-1 text-body-md text-on-surface-variant">
           {model.noun} {model.docNumber}
