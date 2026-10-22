@@ -6,19 +6,19 @@
 // the thresholds are unit-tested rather than checked on a device.
 
 /** Total travel (px) before an axis is decided. */
-export const AXIS_SLOP_PX = 12;
+export const AXIS_SLOP_PX = 10;
 
 /** |dx| must be at least this many times |dy| to count as horizontal. */
-export const HORIZONTAL_RATIO = 2.5;
+export const HORIZONTAL_RATIO = 2.0;
 
 /** A tab navigation that never lands stops blocking new swipes after this. */
 export const NAV_GUARD_MS = 3000;
 
 /** Fraction of the viewport a tab drag must cross before it commits. */
-export const TAB_COMMIT_FRACTION = 0.3;
+export const TAB_COMMIT_FRACTION = 0.2;
 
 /** A tab flick needs this much total travel and recent speed. */
-export const TAB_FLICK = { minDistance: 90, minVelocity: 1.1 } as const;
+export const TAB_FLICK = { minDistance: 60, minVelocity: 1.0 } as const;
 
 /** How far the page can rubber-band past the first/last tab. */
 export const EDGE_BAND_FACTOR = 0.22;
@@ -129,7 +129,7 @@ export function settleDuration(distancePx: number, width: number, velocity: numb
 
 /**
  * Finger travel since the horizontal lock. Using the lock point as the origin
- * (rather than always subtracting the 12px slop) means a fast first touchmove
+ * (rather than always subtracting a fixed slop) means a fast first touchmove
  * cannot snap the track by `dx - slop`; the page starts moving from where the
  * axis was decided.
  */

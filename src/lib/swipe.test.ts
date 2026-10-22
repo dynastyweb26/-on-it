@@ -22,22 +22,22 @@ import {
   tabProgress,
 } from './swipe';
 
-test('classifyAxis: waits for the 12px slop', () => {
+test('classifyAxis: waits for the 10px slop', () => {
   assert.equal(classifyAxis(0, 0), 'pending');
-  assert.equal(classifyAxis(11, 0), 'pending');
-  assert.equal(classifyAxis(-11, 0), 'pending');
-  assert.equal(classifyAxis(8, 8), 'pending'); // 11.3px total
-  assert.equal(classifyAxis(12, 0), 'horizontal'); // exactly the slop
-  assert.equal(classifyAxis(0, 12), 'vertical');
+  assert.equal(classifyAxis(9, 0), 'pending');
+  assert.equal(classifyAxis(-9, 0), 'pending');
+  assert.equal(classifyAxis(7, 7), 'pending'); // 9.9px total
+  assert.equal(classifyAxis(10, 0), 'horizontal'); // exactly the slop
+  assert.equal(classifyAxis(0, 10), 'vertical');
 });
 
-test('classifyAxis: horizontal only inside the 2.5 ratio cone', () => {
-  assert.equal(classifyAxis(25, 10), 'horizontal'); // exactly 2.5
-  assert.equal(classifyAxis(-25, 10), 'horizontal');
-  assert.equal(classifyAxis(-25, -10), 'horizontal');
-  assert.equal(classifyAxis(24.9, 10), 'vertical');
-  assert.equal(classifyAxis(120, 48), 'horizontal'); // 120 / 48 = 2.5
-  assert.equal(classifyAxis(120, 48.1), 'vertical');
+test('classifyAxis: horizontal only inside the 2.0 ratio cone', () => {
+  assert.equal(classifyAxis(20, 10), 'horizontal'); // exactly 2.0
+  assert.equal(classifyAxis(-20, 10), 'horizontal');
+  assert.equal(classifyAxis(-20, -10), 'horizontal');
+  assert.equal(classifyAxis(19.9, 10), 'vertical');
+  assert.equal(classifyAxis(100, 50), 'horizontal'); // 100 / 50 = 2.0
+  assert.equal(classifyAxis(100, 50.1), 'vertical');
 });
 
 test('classifyAxis: custom slop and ratio', () => {
@@ -48,31 +48,44 @@ test('classifyAxis: custom slop and ratio', () => {
 });
 
 test('classifyAxis: exported defaults match the audited thresholds', () => {
-  assert.equal(AXIS_SLOP_PX, 12);
-  assert.equal(HORIZONTAL_RATIO, 2.5);
+  assert.equal(AXIS_SLOP_PX, 10);
+  assert.equal(HORIZONTAL_RATIO, 2.0);
 });
 
-test('isFlick: 90px at 1.1 px/ms for tab navigation', () => {
-  const tab = { minDistance: 90, minVelocity: 1.1 };
-  assert.ok(isFlick(-90, 81, tab)); // 1.111 px/ms
-  assert.ok(!isFlick(90, 82, tab)); // 1.0975 px/ms
-  assert.ok(isFlick(-90, 81.8181818, tab)); // ~1.1 px/ms
-  assert.ok(isFlick(110, 100, tab)); // exactly 1.1 px/ms
-  assert.ok(!isFlick(89, 1, tab)); // fast but below 90px
-  assert.ok(!isFlick(90, 1000, tab)); // far enough, far too slow
-  assert.ok(!isFlick(90, 0, tab));
-  assert.ok(!isFlick(90, -1, tab));
+test('tab gesture boundaries: 10px lock, 2.0 cone, 20% drag, 60px/1.0 flick', () => {
+  assert.equal(classifyAxis(10, 0), 'horizontal');
+  assert.equal(classifyAxis(9.999, 0), 'pending');
+  assert.equal(classifyAxis(20, 10), 'horizontal');
+  assert.equal(classifyAxis(19.999, 10), 'vertical');
+
+  const width = 390; // 20% = 78px
+  assert.equal(tabCommitDirection(-78, width, 0, 0), 0);
+  assert.equal(tabCommitDirection(-79, width, 0, 0), 1);
+  assert.equal(tabCommitDirection(-60, width, -60, 60), 1);
+  assert.equal(tabCommitDirection(-60, width, -60, 61), 0);
+});
+
+test('isFlick: 60px at 1.0 px/ms for tab navigation', () => {
+  const tab = { minDistance: 60, minVelocity: 1.0 };
+  assert.ok(isFlick(-60, 60, tab)); // exactly 1.0 px/ms
+  assert.ok(!isFlick(60, 61, tab)); // 0.984 px/ms
+  assert.ok(isFlick(-60, 59.999, tab)); // just over 1.0 px/ms
+  assert.ok(isFlick(120, 120, tab)); // exactly 1.0 px/ms
+  assert.ok(!isFlick(59, 1, tab)); // fast but below 60px
+  assert.ok(!isFlick(60, 1000, tab)); // far enough, far too slow
+  assert.ok(!isFlick(60, 0, tab));
+  assert.ok(!isFlick(60, -1, tab));
   assert.ok(!isFlick(Number.NaN, 10, tab));
 });
 
 test('isFlick: total distance is separate from the recent speed window', () => {
-  const tab = { minDistance: 90, minVelocity: 1.1, distance: 120 };
+  const tab = { minDistance: 60, minVelocity: 1.0, distance: 120 };
   // A long slow drag: 120px total, but only 8px in the last 90ms.
   assert.ok(!isFlick(8, 90, tab));
-  // A deliberate flick at the end of the same drag: 60px in the last 50ms.
-  assert.ok(isFlick(60, 50, tab));
+  // A deliberate flick at the end of the same drag: 40px in the last 40ms.
+  assert.ok(isFlick(40, 40, tab));
   // The distance gate still uses the whole gesture, not the recent slice.
-  assert.ok(!isFlick(60, 50, { ...tab, distance: 89 }));
+  assert.ok(!isFlick(40, 40, { ...tab, distance: 59 }));
 });
 
 test('rubberBand: 1:1 near zero, asymptote at 22% of width', () => {
@@ -114,15 +127,15 @@ test('pageDim: 0 at the active page, 12% one page away', () => {
   assert.equal(pageDim(0, 4), PAGE_DIM);
 });
 
-test('dragFromLock: the lock point is the origin, not a fixed 12px', () => {
-  // A fast first touchmove at 40px locks there: the track must not jump 28px.
+test('dragFromLock: the lock point is the origin, not a fixed slop', () => {
+  // A fast first touchmove at 40px locks there: the track must not jump 30px.
   assert.equal(dragFromLock(40, 40), 0);
   assert.equal(dragFromLock(50, 40), 10);
   assert.equal(dragFromLock(30, 40), -10);
   // A slow lock at the slop behaves the same way.
-  assert.equal(dragFromLock(12, 12), 0);
-  assert.equal(dragFromLock(20, 12), 8);
-  assert.equal(dragFromLock(Number.NaN, 12), -12);
+  assert.equal(dragFromLock(10, 10), 0);
+  assert.equal(dragFromLock(20, 10), 10);
+  assert.equal(dragFromLock(Number.NaN, 10), -10);
 });
 
 test('settleDuration: 220–340ms from remaining distance and release speed', () => {
@@ -149,24 +162,24 @@ test('pillStretch: 1 at a tab centre, 1.32 halfway between', () => {
 
 test('tabCommitDirection: distance wins, then a matching flick', () => {
   assert.equal(tabCommitDirection(0, 400, 0, 0), 0);
-  assert.equal(tabCommitDirection(-121, 400, 0, 0), 1); // > 30% of 400
-  assert.equal(tabCommitDirection(121, 400, 0, 0), -1);
-  assert.equal(tabCommitDirection(-120, 400, 0, 0), 0); // exactly 30% does not
-  // A fast 90px flick commits even below the distance gate.
-  assert.equal(tabCommitDirection(-95, 500, -90, 80), 1);
+  assert.equal(tabCommitDirection(-81, 400, 0, 0), 1); // > 20% of 400
+  assert.equal(tabCommitDirection(81, 400, 0, 0), -1);
+  assert.equal(tabCommitDirection(-80, 400, 0, 0), 0); // exactly 20% does not
+  // A fast 60px flick commits even below the distance gate.
+  assert.equal(tabCommitDirection(-65, 500, -60, 60), 1);
   // Direction must match the drag.
-  assert.equal(tabCommitDirection(-95, 500, 90, 80), 0);
-  // Too slow (and under 30%).
-  assert.equal(tabCommitDirection(-95, 500, -20, 90), 0);
-  // A short final flick can use the whole gesture's distance for the 90px gate
+  assert.equal(tabCommitDirection(-65, 500, 60, 60), 0);
+  // Too slow (and under 20%).
+  assert.equal(tabCommitDirection(-65, 500, -20, 90), 0);
+  // A short final flick can use the whole gesture's distance for the 60px gate
   // while still measuring speed from the recent 100ms window.
-  assert.equal(tabCommitDirection(-95, 500, -20, 10, 100), 1);
-  assert.equal(tabCommitDirection(-95, 500, -20, 10, 89), 0);
+  assert.equal(tabCommitDirection(-65, 500, -20, 20, 60), 1);
+  assert.equal(tabCommitDirection(-65, 500, -20, 20, 59), 0);
   // Negative/zero widths and a zero release offset never navigate.
   assert.equal(tabCommitDirection(-200, 0, -200, 10, 200), 0);
   assert.equal(tabCommitDirection(0, 400, -200, 10, 200), 0);
-  assert.equal(TAB_FLICK.minDistance, 90);
-  assert.equal(TAB_FLICK.minVelocity, 1.1);
+  assert.equal(TAB_FLICK.minDistance, 60);
+  assert.equal(TAB_FLICK.minVelocity, 1.0);
 });
 
 test('pillCentreAt: interpolates measured centres and clamps', () => {

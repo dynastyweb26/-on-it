@@ -100,7 +100,7 @@ Layout as shipped: dark Net card with chevron, 3 tiles (Collected / Still owed /
 - Bottom nav: the gold pill slides to the new tab (translateX, 300ms emphasized) instead of jumping.
 - Content enters 28px from the side you're heading, 280ms standard; the old screen just leaves.
 - Swipe navigation: built as the persistent tab deck in §17 (content and pill
-  follow the finger, snap past 30% width).
+  follow the finger, snap past 20% width).
 - Selected ring, app-wide: box-shadow from `0 0 0 6px rgba(212,175,55,0)` to `0 0 0 2px #d4af37`, 240ms. Applies to Invoices filters and every other selectable.
 
 ## 11. Mic listening (build last)
@@ -292,22 +292,22 @@ Nav layout, dimensions, icons, labels, colours, tab order, the raised Chat tab
 and the pill's resting geometry are unchanged.
 
 **Gesture (`src/components/tabs/TabDeck.tsx`, `src/lib/swipe.ts`)**
-- Axis decided once after 12px (`AXIS_SLOP_PX`), horizontal when
-  `|dx| >= 2.5 * |dy|`, then sticky for the gesture. Vertical wins scrolling.
+- Axis decided once after 10px (`AXIS_SLOP_PX`), horizontal when
+  `|dx| >= 2.0 * |dy|`, then sticky for the gesture. Vertical wins scrolling.
 - The lock calls non-passive `preventDefault` on `touchmove`; surfaces keep
   `touch-action: auto` (never `pan-y`). `swipeBlockedAt` stops at text inputs,
   `data-no-tab-swipe`, horizontal scrollers, fixed sheets, and the page's own
   `data-tab-scroll-owner` wrapper.
-- The 12px dead zone is subtracted once, in the lock direction
-  (`dx - lockSign * 12`), so reversing across the origin cannot pop.
+- The lock point is the drag origin (`dragFromLock`), so a fast first move
+  cannot pop the track and reversing across the origin cannot jump.
 - Active panel plus the drag-direction neighbour mount on lock; mounted panels
   stay cached for the session. Every route-coupled effect in a panel is gated
   by its `active` prop, and cancellation guards stop a hidden panel redirecting
   or rewriting the URL.
 
 **Commit and settle**
-- Commit when `|offset| > 0.30 * W`, or a flick: net travel >= 90px, recent
-  speed >= 1.1 px/ms over the last ~100ms, direction matching the drag. `W` is
+- Commit when `|offset| > 0.20 * W`, or a flick: net travel >= 60px, recent
+  speed >= 1.0 px/ms over the last ~100ms, direction matching the drag. `W` is
   the deck width.
 - Committed settle: **340ms `cubic-bezier(0.22,1,0.36,1)`**. Flick: **260ms**.
   Spring back: **280ms `cubic-bezier(0.25,1,0.5,1)`**. Tab taps use the same
