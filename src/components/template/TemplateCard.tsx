@@ -238,7 +238,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
 
       {/* Items: a capped, scrolling list (about two rows; less on short screens). */}
       <div ref={listRef} onScroll={measureEdges} data-template-items=""
-        className="mt-2.5 max-h-[min(236px,34dvh)] space-y-2 overflow-y-auto overscroll-contain"
+        className="mt-2.5 max-h-[min(236px,34dvh)] space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain"
         style={{ WebkitMaskImage: mask, maskImage: mask }}>
         {items.map((it, i) => {
           const named = !!it.name.trim();

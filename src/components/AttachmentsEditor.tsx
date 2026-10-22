@@ -86,7 +86,10 @@ export default function AttachmentsEditor({
   }
 
   return (
-    <div data-no-tab-swipe="true" className="mt-1.5">
+    // No data-no-tab-swipe here: this block is only buttons + a hidden file
+    // input. A horizontal drag belongs to the tab deck; a tap still opens the
+    // picker. Only real text entry (and open sheets) opts out.
+    <div className="mt-1.5">
       {items.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-2">
           {items.map((a) => (

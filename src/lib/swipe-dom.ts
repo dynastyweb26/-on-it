@@ -1,6 +1,17 @@
 // DOM checks shared by the tab deck and the old nested-route swipe handler.
 // Kept out of the pure swipe math so the thresholds stay unit-testable.
 
+// A vertical scroller reports overflow-x: auto in some browsers. Only treat
+// it as a horizontal scroller when the author left overflow-x scrollable and
+// the content genuinely overflows. overflow-x: hidden/clip never blocks.
+export function blocksTabSwipeFromOverflow(
+  overflowX: string,
+  scrollWidth: number,
+  clientWidth: number,
+): boolean {
+  return (overflowX === 'auto' || overflowX === 'scroll') && scrollWidth > clientWidth;
+}
+
 /**
  * Where a gesture must NOT switch tabs: text entry, anything opting out via
  * data-no-tab-swipe="true" (a SwipeableRow's swipe-to-delete, the chat invoice
@@ -18,7 +29,7 @@ export function swipeBlockedAt(target: EventTarget | null): boolean {
     if (el.hasAttribute('data-tab-scroll-owner')) return false;
     const style = window.getComputedStyle(el);
     if (style.position === 'fixed') return true;
-    if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true;
+    if (blocksTabSwipeFromOverflow(style.overflowX, el.scrollWidth, el.clientWidth)) return true;
     el = el.parentElement;
   }
   return false;

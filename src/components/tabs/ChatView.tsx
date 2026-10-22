@@ -3196,8 +3196,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
   const invoiceCard = ready && draft && !template ? (
-    // data-no-tab-swipe: drags on the card (line items, fields) never switch tabs.
-    <div data-no-tab-swipe="true" className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
+    // Only real text entry / selects opt out (swipeBlockedAt). The card's
+    // padding, labels and buttons hand a horizontal drag to the tab deck.
+    <div className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
         <Icon name="description" size={18} />
         {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
@@ -3438,7 +3439,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         ref={listRef}
         onScroll={onListScroll}
         data-coach="chat-messages"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-4 py-4 md:px-6"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
           <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
@@ -3716,7 +3717,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       {template ? (
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
-        <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+        <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
           <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
