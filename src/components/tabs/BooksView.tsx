@@ -52,7 +52,7 @@ const localToday = () => new Date().toLocaleDateString('en-CA');
 // category CHECK and would now be rejected on save. Same eight values as the
 // chat card, so a quick-add and a receipt file identically.
 
-export default function Dashboard() {
+export default function Dashboard({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0, expenseCount: 0 });
@@ -125,7 +125,10 @@ export default function Dashboard() {
   const [hiddenSkips, setHiddenSkips] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => { setHiddenSkips(readHiddenSkips()); }, []);
   // Back from Stripe Checkout (returnTo 'books' → /dashboard?upgraded=1).
-  useEffect(() => { noteUpgradeReturn(); }, []);
+  useEffect(() => {
+    if (!active) return;
+    noteUpgradeReturn();
+  }, [active]);
 
   async function loadStats() {
     const [{ data: invs }, { data: pays }, { data: exps }] = await Promise.all([
@@ -154,14 +157,18 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
       // pattern as summary/settings: getSession() is a no-network local read so
       // the decision can't hang on a stalled getUser(). Middleware only refreshes
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (!session) { router.replace('/login'); return; }
       const { data: { user } } = await getSharedUser();
+      if (cancelled) return;
       if (!user) { router.replace('/login'); return; }
       try {
         await Promise.race([
@@ -171,11 +178,12 @@ export default function Dashboard() {
       } catch (e) {
         console.error(e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   const net = shown?.net ?? stats.collected - stats.spent;
   const tile = shown ?? stats;

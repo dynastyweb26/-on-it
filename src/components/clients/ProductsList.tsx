@@ -16,7 +16,7 @@ import { PRODUCT_COLS, copyName, normalizeProduct, priceText, productSubtitle, t
 import { clientNameKey } from '@/lib/client-name';
 import { takeNewEntry } from '@/lib/list-motion';
 
-export default function ProductsList() {
+export default function ProductsList({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Product[] | null>(null);
@@ -34,19 +34,26 @@ export default function ProductsList() {
   }, [fresh]);
 
   useEffect(() => {
+    // A cached deck panel stays mounted while another tab is on screen. Its
+    // auth guard must not redirect /login from behind the visible tab.
+    if (!active) return;
+    let cancelled = false;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (!session) { router.replace('/login'); return; }
       const { data } = await supabase.from('products').select(PRODUCT_COLS)
         .not('saved_at', 'is', null).is('deleted_at', null).limit(500);
+      if (cancelled) return;
       const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeProduct);
       setRows(list);
       const key = takeNewEntry('products');
       const hit = key ? list.find((p) => clientNameKey(p.name) === key) : undefined;
       if (hit) setFresh({ id: hit.id, motion: 'new' });
-    })().catch(() => setRows([]));
+    })().catch(() => { if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   const shown = useMemo(() => (rows ?? []).filter((p) => matchesQuery(p.name, query)), [rows, query]);
   const groups = useMemo(() => groupByLetter(shown, (p) => p.name), [shown]);

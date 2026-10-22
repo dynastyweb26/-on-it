@@ -5,6 +5,6 @@
 // direct /settings load cannot drift.
 import SettingsView from '@/app/(app)/settings/SettingsView';
 
-export default function SettingsTab({ connectEnabled }: { connectEnabled: boolean }) {
-  return <SettingsView connectEnabled={connectEnabled} section="main" />;
+export default function SettingsTab({ connectEnabled, active = true }: { connectEnabled: boolean; active?: boolean }) {
+  return <SettingsView connectEnabled={connectEnabled} section="main" active={active} />;
 }

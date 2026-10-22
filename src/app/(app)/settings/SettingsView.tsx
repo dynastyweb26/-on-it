@@ -51,8 +51,8 @@ const AUTH_TIMEOUT_MS = 8000;
 // grouped rows, /settings/<section> one sub-screen. Every screen loads the same
 // profile and keeps the same save paths; only what renders differs.
 // method: on /settings/payouts/<method>, which payout method's detail view.
-export default function SettingsView({ connectEnabled, section = 'main', method }: {
-  connectEnabled: boolean; section?: SettingsSection; method?: PayoutMethod;
+export default function SettingsView({ connectEnabled, section = 'main', method, active = true }: {
+  connectEnabled: boolean; section?: SettingsSection; method?: PayoutMethod; active?: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -117,7 +117,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   const [clientCount, setClientCount] = useState<number | null>(null);
   const [productCount, setProductCount] = useState<number | null>(null);
   useEffect(() => {
-    if (section !== 'main') return;
+    if (!active || section !== 'main') return;
     supabase.from('clients').select('id', { count: 'exact', head: true })
       .not('saved_at', 'is', null).is('deleted_at', null)
       .then(({ count }) => setClientCount(count ?? null), () => undefined);
@@ -126,16 +126,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       .not('saved_at', 'is', null).is('deleted_at', null)
       .then(({ count }) => setProductCount(count ?? null), () => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  }, [section, active]);
 
   useEffect(() => {
-    let active = true;
+    if (!active) return; // hidden deck panels never redirect or fetch auth
+    let alive = true;
     // settled + timer follow the reset-password convention: if the auth
     // resolution below hasn't reached a terminal decision (render p, or redirect)
     // within AUTH_TIMEOUT_MS, treat it as unresolved and show the actionable
     // state. Cleared the moment it settles, and on unmount.
     let settled = false;
-    const stuckTimer = setTimeout(() => { if (active && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
+    const stuckTimer = setTimeout(() => { if (alive && !settled) setAuthStuck(true); }, AUTH_TIMEOUT_MS);
     const settle = () => { settled = true; clearTimeout(stuckTimer); };
     // Stripe's Account Link return/refresh URLs land on /settings?connect=…
     // (server-built, unchanged): hand them to the Stripe payout view, which
@@ -147,12 +148,12 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
       settled = true; clearTimeout(stuckTimer);
       noteUpgradeReturn(); // starts the unlock poll; it outlives this redirect
       router.replace('/settings/plan');
-      return () => { active = false; };
+      return () => { alive = false; };
     }
     if (section === 'main' && connectParam) {
       settled = true; clearTimeout(stuckTimer);
       router.replace(`${PAYOUTS_INDEX}/stripe?connect=${encodeURIComponent(connectParam)}`);
-      return () => { active = false; };
+      return () => { alive = false; };
     }
     (async () => {
       try {
@@ -163,7 +164,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         // documented getUser() hang no longer leaves a signed-out user sitting
         // on "Loading…". Mirrors chat's getSession-before-getUser convention.
         const { data: { session } } = await supabase.auth.getSession();
-        if (!active) return;
+        if (!alive) return;
         if (!session) { settle(); setRedirecting(true); router.replace('/login'); return; }
 
         // The one /api/access read, started now — in parallel with getUser,
@@ -172,7 +173,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         // wait on it, so it applies whenever it lands.
         void fetch('/api/access')
           .then((a) => (a.ok ? a.json() : null))
-          .then((a) => { if (active && a) setAccess(a); })
+          .then((a) => { if (alive && a) setAccess(a); })
           .catch(() => { /* leave null → the usage row keeps its placeholder */ });
 
         // Auth-gated page: a signed-out user (or a failed/expired auth check)
@@ -182,7 +183,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         // Brave/Shields stall, cause unidentified) is caught by stuckTimer
         // above, not by this try/catch.
         const { data: { user }, error } = await getSharedUser();
-        if (!active) return;
+        if (!alive) return;
         if (error || !user) { settle(); setRedirecting(true); router.replace('/login'); return; }
         setAccountEmail(user.email ?? null);
 
@@ -199,12 +200,12 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
           ? Promise.all([supabase.rpc('free_invoice_limit'), supabase.rpc('free_expense_limit')]).catch(() => null)
           : null;
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-        if (!active) return;
+        if (!alive) return;
         // Signed in but no profile yet → finish onboarding (matches chat's pattern).
         if (!data) { settle(); setRedirecting(true); router.replace('/onboarding'); return; }
         if (limitsReq) {
           const l = await limitsReq;
-          if (!active) return;
+          if (!alive) return;
           // A limit worth showing; anything this large is "uncapped" (lib/access displayLimit).
           const shown = (n: unknown) => (typeof n === 'number' && n < 1000 ? n : null);
           if (l) setPlanLimits({ invoices: shown(l[0].data), expenses: shown(l[1].data) });
@@ -239,25 +240,25 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
         if (zelleReq) {
           const z = await zelleReq;
           // A failed lookup (e.g. 429) stays undefined: blank, not "Not set".
-          if (active && z) setZelleMasked(z.set ? z.masked : null);
+          if (alive && z) setZelleMasked(z.set ? z.masked : null);
         }
-        if (active) setPushAvail(pushAvailability());
+        if (alive) setPushAvail(pushAvailability());
         try {
           const t = await fetch('/api/push/test');
-          if (active) setPushTestOn(t.ok);
+          if (alive) setPushTestOn(t.ok);
         } catch { /* not available — the test row stays hidden */ }
-        if (active) setPushOn(Boolean(await getPushSubscription()));
+        if (alive) setPushOn(Boolean(await getPushSubscription()));
       } catch {
         // Auth/network failed (rejected) — don't hang; send to login.
-        if (!active) return;
+        if (!alive) return;
         settle();
         setRedirecting(true);
         router.replace('/login');
       }
     })();
-    return () => { active = false; clearTimeout(stuckTimer); };
+    return () => { alive = false; clearTimeout(stuckTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   // Resolves false when the write failed (and was reverted). `silent` skips the
   // page-level Saved/error banners; the Invoice style card shows its own.
@@ -365,17 +366,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method 
   // cancel screen hands back after an offer (/settings/plan?done=discount|paused),
   // then drop the param so a refresh doesn't repeat it.
   useEffect(() => {
-    if (section !== 'plan') return;
+    if (!active || section !== 'plan') return;
     const done = new URLSearchParams(window.location.search).get('done');
     if (done === 'discount' || done === 'paused') {
       setPlanNotice(done);
       router.replace('/settings/plan');
     }
-    let active = true;
-    void getSummary().then((s) => { if (active) setPlanSummary(s); });
-    return () => { active = false; };
+    let alive = true;
+    void getSummary().then((s) => { if (alive) setPlanSummary(s); });
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  }, [section, active]);
 
   // Resume a canceling or paused subscription, then re-read the profile,
   // access and summary so the Plan screen shows the server's state.

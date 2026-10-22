@@ -499,7 +499,7 @@ function convoTitle(messages: Msg[], draft: Partial<ExtractResult> | null): stri
 // guard refs. `recording` (mic open, awaiting speech) is separate and stays.
 type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving' | 'redirecting';
 
-export default function Chat() {
+export default function Chat({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>(() => [greeting()]);
@@ -859,32 +859,48 @@ export default function Chat() {
         if (!cancelled) setHydrated(true);
       }
 
-      // Auth/profile gating is a separate concern from restore and uses
-      // getUser() (server-validated). A slow or failed call here no longer
-      // costs the conversation, which is already back on screen.
+    })();
+    // header history icon lives in the shared layout — it signals us here
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auth/profile gating is route-coupled (it can redirect to /onboarding), so
+  // it only runs while Chat is the active tab. The local restore above stays
+  // active-independent: a hidden Chat must restore its draft, but must never
+  // redirect the user away from the tab they are actually on.
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    (async () => {
       const { data: { user } } = await getSharedUser();
       if (cancelled) return;
       if (!user) {
         setProfileLoaded(true); // resolved: genuine guest
-      } else {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-        if (cancelled) return;
-        if (!data) { router.push('/onboarding'); return; }
-        setProfile(data as Profile);
-        setProfileLoaded(true);
+        return;
       }
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (cancelled) return;
+      if (!data) { router.push('/onboarding'); return; }
+      setProfile(data as Profile);
+      setProfileLoaded(true);
     })();
-    // register service worker for the 2-day follow-up notifications
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  // Chat-owned global affordances: the follow-up service worker and the header
+  // history icon (which only exists while Chat is on screen).
+  useEffect(() => {
+    if (!active) return;
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-    // header history icon lives in the shared layout — it signals us here
     const openHistory = () => {
       setHistory(loadHistory(storageNsRef.current ?? 'guest'));
       setShowHistory(true);
     };
     window.addEventListener('onit-history', openHistory);
-    return () => { cancelled = true; window.removeEventListener('onit-history', openHistory); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => window.removeEventListener('onit-history', openHistory);
+  }, [active]);
 
   // Splash gate (lib/splash-gate): on a cold start the splash stays up until
   // this screen has its critical data — the conversation restored AND auth/
@@ -893,13 +909,15 @@ export default function Chat() {
   // redirect) releases it.
   const releaseSplashRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+    if (!active) return;
     const release = holdSplash();
     releaseSplashRef.current = release;
     return release;
-  }, []);
+  }, [active]);
   useEffect(() => {
+    if (!active) return;
     if (hydrated && profileLoaded) releaseSplashRef.current?.();
-  }, [hydrated, profileLoaded]);
+  }, [active, hydrated, profileLoaded]);
 
   // Render-only skeleton timeout (see skeletonTimedOut). Independent of the
   // restore effect so a hung getSession() can't take the timer down with it.
@@ -973,6 +991,7 @@ export default function Chat() {
   // confirmation: history makes it recoverable. Re-bound as the conversation
   // changes so the closure always archives the current state, never a stale one.
   useEffect(() => {
+    if (!active) return;
     function onNewChat() {
       // Empty conversation (just the greeting) — nothing to archive or reset.
       if (messages.length < 2) return;
@@ -1008,7 +1027,7 @@ export default function Chat() {
     window.addEventListener('onit-new-chat', onNewChat);
     return () => window.removeEventListener('onit-new-chat', onNewChat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, draft, ready, finished, convoId, cardAfterId]);
+  }, [active, messages, draft, ready, finished, convoId, cardAfterId]);
 
   // /chat?new=1 — the recap's "Make an invoice": start a fresh conversation
   // (the live one is archived to history, as with the header's New chat).
@@ -1016,7 +1035,7 @@ export default function Chat() {
   // event fires a tick later, once the listener above holds that state.
   const newFromParam = useRef(false);
   useEffect(() => {
-    if (!hydrated || newFromParam.current) return;
+    if (!active || !hydrated || newFromParam.current) return;
     const url = new URL(window.location.href);
     if (url.searchParams.get('new') !== '1') return;
     const t = setTimeout(() => {
@@ -1026,7 +1045,7 @@ export default function Chat() {
       window.dispatchEvent(new Event('onit-new-chat'));
     }, 0);
     return () => clearTimeout(t);
-  }, [hydrated]);
+  }, [active, hydrated]);
 
   // Auto-scroll: follow new content only if the reader is already at the
   // bottom. It sets the list's own scrollTop, never scrollIntoView (which also
@@ -1430,7 +1449,10 @@ export default function Chat() {
   const [invoiceUsage, setInvoiceUsage] = useState<{ id: string; text: string } | null>(null);
   // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
   // wait out the webhook instead of re-showing the wall.
-  useEffect(() => { noteUpgradeReturn(); }, []);
+  useEffect(() => {
+    if (!active) return;
+    noteUpgradeReturn();
+  }, [active]);
 
   /** The card summary, posted once when the card first appears: what we have,
    *  any contact pulled from the saved client record (so a stale one can be
@@ -1612,7 +1634,7 @@ export default function Chat() {
   // serialized (`preparing`) and wait while a turn holds `phase` — a later change
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
-    if (!ready || !draft || !profile) return;
+    if (!active || !ready || !draft || !profile) return;
     if (skipPreBuild) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
     if (phase !== null || preparing) return;
@@ -1621,7 +1643,7 @@ export default function Chat() {
     preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild, attachments]);
+  }, [active, draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild, attachments]);
 
   // mode 'prepare': the background pre-build above — it runs the SAME persist +
   // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
@@ -2640,7 +2662,7 @@ export default function Chat() {
   useEffect(() => {
     // After hydration: a fresh template archives the live conversation first
     // (one conversation = one invoice row, keyed by convoId).
-    if (!hydrated || templateInit.current) return;
+    if (!active || !hydrated || templateInit.current) return;
     templateInit.current = true;
     let live = true;
     createClient().auth.getSession().then(({ data }) => {
@@ -2669,7 +2691,7 @@ export default function Chat() {
       resumeSavedTemplate();
     }, () => undefined);
     return () => { live = false; };
-  }, [hydrated]);
+  }, [active, hydrated]);
   // A saved template comes back with its pre-built row, under the same
   // conversation id (= finalize_key), so Send updates that row instead of
   // inserting a second one. An expired template's draft row is dropped.

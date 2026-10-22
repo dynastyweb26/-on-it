@@ -32,7 +32,7 @@ const money = (n: number) =>
 
 const FILTER_LABEL: Record<Filter, string> = { all: 'All', unpaid: 'Unpaid', paid: 'Paid', quote: 'Quotes' };
 
-export default function Invoices() {
+export default function Invoices({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
@@ -51,18 +51,24 @@ export default function Invoices() {
   }
 
   useEffect(() => {
+    // Hidden deck panels must not read the route, redirect, or fetch. The
+    // effect re-runs when this tab becomes active.
+    if (!active) return;
     // ?filter=unpaid|paid|quote (e.g. from the Books "Still owed" tile). Read
     // before the data arrives, while the skeleton shows, so no chip flicker.
     const q = new URLSearchParams(window.location.search).get('filter');
     if (isFilter(q)) setFilter(q);
+    let cancelled = false;
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
       // pattern as summary/settings: getSession() is a no-network local read so
       // the decision can't hang on a stalled getUser(). Middleware only refreshes
       // the cookie; it never redirects.
       const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (!session) { router.replace('/login'); return; }
       const { data: { user } } = await getSharedUser();
+      if (cancelled) return;
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
@@ -70,11 +76,13 @@ export default function Invoices() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
+      if (cancelled) return;
       setRows((data as Row[]) ?? []);
       setLoading(false);
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   // A quote that has already become an invoice: some invoice row points back to
   // it via converted_from. Derived from the fetched rows, so no extra query.

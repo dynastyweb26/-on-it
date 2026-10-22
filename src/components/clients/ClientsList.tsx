@@ -20,7 +20,7 @@ type Removed = {
   prev: { saved_at: string | null; phone: string | null; email: string | null; address: string | null; notes: string | null };
 };
 
-export default function ClientsList() {
+export default function ClientsList({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<ClientSummary[] | null>(null);
@@ -37,17 +37,24 @@ export default function ClientsList() {
   }, [fresh]);
 
   useEffect(() => {
+    // A cached deck panel stays mounted while another tab is on screen. Its
+    // auth guard must not redirect /login from behind the visible tab.
+    if (!active) return;
+    let cancelled = false;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (!session) { router.replace('/login'); return; }
       const { data } = await supabase.rpc('client_summaries');
+      if (cancelled) return;
       const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeSummary).filter((c) => c.saved);
       setRows(list);
       const id = takeNewEntry('clients');
       if (id && list.some((c) => c.id === id)) setFresh({ id, motion: 'new' });
-    })().catch(() => setRows([]));
+    })().catch(() => { if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   const shown = useMemo(() => (rows ?? []).filter((c) => matchesQuery(c.name, query)), [rows, query]);
   const groups = useMemo(() => groupByLetter(shown, (c) => c.name), [shown]);

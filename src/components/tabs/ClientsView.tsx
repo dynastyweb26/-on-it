@@ -14,13 +14,14 @@ const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'products', label: 'Products & Services' },
 ];
 
-export default function Clients() {
+export default function Clients({ active = true }: { active?: boolean }) {
   const [segment, setSegment] = useState<Segment>('clients');
   // /clients?segment=products opens the Products & Services segment
   // (Settings › Products & Services).
   useEffect(() => {
+    if (!active) return;
     if (new URLSearchParams(window.location.search).get('segment') === 'products') setSegment('products');
-  }, []);
+  }, [active]);
   const i = SEGMENTS.findIndex((s) => s.key === segment);
   return (
     <div className="mx-auto max-w-5xl px-4 py-4 md:px-6">
@@ -41,7 +42,7 @@ export default function Clients() {
       </div>
 
       <div key={segment} role="tabpanel" data-coach={segment === 'clients' ? 'clients-list' : undefined}>
-        {segment === 'clients' ? <ClientsList /> : <ProductsList />}
+        {segment === 'clients' ? <ClientsList active={active} /> : <ProductsList active={active} />}
       </div>
     </div>
   );
