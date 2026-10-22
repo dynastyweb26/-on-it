@@ -488,9 +488,11 @@ html[data-splash=""] .onit-splash {
 /* Tab switch (M5): the screen crossfades in; the new tab's icon bounces 4px;
    Chat presses deeper than the others (.9 scale, 1px down). */
 .onit-tab-enter { animation: onit-fade var(--motion-fast) var(--ease-standard) both; }
-/* Tab deck: the pre-hydration origin (a percentage of the 500%-wide track).
-   Once mounted, the deck writes translate3d(px) inline, which wins. */
-.onit-tab-track { transform: translateX(var(--tab-x, 0%)); }
+/* Tab deck: at rest the active panel is positioned with a margin, never a
+   transform. A transformed ancestor becomes the containing block for fixed
+   descendants and starts a stacking context, which would trap the composer
+   menu, sheets and keypads under the portaled scrim. While dragging or
+   settling the deck writes translate3d/will-change inline, then removes both. */
 @keyframes onit-tab-bounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
 .onit-tab-bounce { animation: onit-tab-bounce var(--motion-slow) var(--ease-spring) both; }
 .onit-tab { transition: transform 100ms var(--ease-emphasized); }

@@ -5,7 +5,7 @@
 // while the finger is down.
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import { TABS } from '@/lib/tabs';
 import {
@@ -81,6 +81,9 @@ export default function TabDeck({
 
   const [currentIndex, setCurrentIndex] = useState(activeIndex);
   const [mounted, setMounted] = useState<Set<number>>(() => new Set([activeIndex]));
+  // SSR/pre-hydration origin. This intentionally never changes: React must not
+  // overwrite the resting margin while a settle is animating the track.
+  const [initialMargin] = useState(() => `${-activeIndex * 100}%`);
 
   // If the deck unmounts mid-gesture (a nested route wins), release the pill's
   // drag flag so the next tab navigation can still measure and place it.
@@ -114,6 +117,34 @@ export default function TabDeck({
     const track = trackRef.current;
     if (track) track.style.transform = `translate3d(${x}px, 0, 0)`;
   }, []);
+
+  // At rest the track is offset with a layout margin, never a transform:
+  // a transformed ancestor becomes the containing block for fixed descendants
+  // (and starts a stacking context), which would trap the composer menu, sheets
+  // and keypads below the portaled scrim. Motion properties exist only while a
+  // finger is down or the committed settle is running.
+  const setRestOffset = useCallback((index: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const w = widthRef.current;
+    track.style.transition = 'none';
+    track.style.removeProperty('transform');
+    track.style.removeProperty('will-change');
+    track.style.marginLeft = w > 0 ? `${-index * w}px` : `${-index * 100}%`;
+  }, []);
+
+  // Swap the resting margin for an equivalent transform before the first
+  // painted drag/settle frame. Both writes are synchronous, so the track does
+  // not move; later per-move writes only touch transform.
+  const beginTrackMotion = useCallback(() => {
+    const track = trackRef.current;
+    if (!track || !widthRef.current) return;
+    const x = trackX();
+    track.style.transition = 'none';
+    track.style.marginLeft = '0px';
+    track.style.willChange = 'transform';
+    track.style.transform = `translate3d(${x}px, 0, 0)`;
+  }, [trackX]);
 
   const clearDims = useCallback((durationMs = 0) => {
     const token = ++dimTokenRef.current;
@@ -156,10 +187,10 @@ export default function TabDeck({
     currentIndexRef.current = target;
     setCurrentIndex(target);
     ensureMounted(target);
-    paintTrack(-target * widthRef.current);
+    setRestOffset(target);
     clearDims();
     settlingRef.current = null;
-  }, [clearDims, ensureMounted, paintTrack]);
+  }, [clearDims, ensureMounted, setRestOffset]);
 
   const animateTrack = useCallback((toX: number, durationMs: number, easing: string, done: () => void) => {
     const track = trackRef.current;
@@ -187,6 +218,7 @@ export default function TabDeck({
   const startSettle = useCallback((target: number, durationMs: number, push: boolean) => {
     if (target < 0 || target >= TABS.length) return;
     cancelTrackAnim();
+    beginTrackMotion();
     settlingRef.current = { target };
     currentIndexRef.current = target;
     setCurrentIndex(target);
@@ -199,7 +231,7 @@ export default function TabDeck({
       navigatingRef.current = Date.now();
       router.push(TABS[target].href);
     }
-  }, [animateTrack, cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, router]);
+  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, router]);
 
   const reducedSwap = useCallback((target: number, push: boolean) => {
     if (target < 0 || target >= TABS.length) return;
@@ -226,7 +258,7 @@ export default function TabDeck({
       setCurrentIndex(target);
       ensureMounted(target);
       offsetRef.current = 0;
-      paintTrack(-target * widthRef.current);
+      setRestOffset(target);
       clearDims();
       onPillEnd(target, 0);
       if (push) {
@@ -243,7 +275,7 @@ export default function TabDeck({
         settlingRef.current = null;
       };
     };
-  }, [cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, paintTrack, router]);
+  }, [cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, router, setRestOffset]);
 
   // Track origin: the route's tab on mount, then the deck's settled target.
   useIsoLayoutEffect(() => {
@@ -254,14 +286,14 @@ export default function TabDeck({
       if (!w) return;
       widthRef.current = w;
       if (!gestureRef.current && !settlingRef.current) {
-        paintTrack(-baseIndexRef.current * w);
+        setRestOffset(baseIndexRef.current);
       }
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(deck);
     return () => ro.disconnect();
-  }, [paintTrack]);
+  }, [setRestOffset]);
 
   // A tab tap or browser history change: the path moved without a drag. Run
   // before paint so the track and the pill (also a layout effect) start on the
@@ -334,6 +366,7 @@ export default function TabDeck({
       const w = widthRef.current;
       if (w > 0) {
         cancelTrackAnim();
+        beginTrackMotion();
         if (trackRef.current) trackRef.current.style.transition = 'none';
         dimTokenRef.current++;
         for (const el of dimRefs.current) if (el) el.style.transition = 'none';
@@ -412,7 +445,7 @@ export default function TabDeck({
       if (reducedRef.current) {
         onPillEnd(null, 0);
         offsetRef.current = 0;
-        if (w) paintTrack(-baseIndexRef.current * w);
+        if (w) setRestOffset(baseIndexRef.current);
         clearDims();
         return;
       }
@@ -420,6 +453,7 @@ export default function TabDeck({
       onPillEnd(null, SPRING_MS);
       animateTrack(-baseIndexRef.current * widthRef.current, SPRING_MS, SPRING_EASE, () => {
         offsetRef.current = 0;
+        setRestOffset(baseIndexRef.current);
         clearDims();
       });
     }
@@ -469,19 +503,19 @@ export default function TabDeck({
       deck.removeEventListener('touchend', onEnd);
       deck.removeEventListener('touchcancel', onCancel);
     };
-  }, [animateTrack, cancelTrackAnim, clearDims, ensureMounted, onPillEnd, onPillMove, onPillStart, paintTrack, reducedSwap, startSettle]);
+  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDims, ensureMounted, onPillEnd, onPillMove, onPillStart, paintTrack, reducedSwap, setRestOffset, startSettle]);
 
   return (
     <div ref={deckRef} className="relative h-full w-full overflow-hidden" data-tab-deck="">
       <div
         ref={trackRef}
-        className="onit-tab-track flex h-full will-change-transform"
+        className="onit-tab-track flex h-full"
         style={{
           width: `${TABS.length * 100}%`,
           // Correct before hydration and before the first layout effect; once
-          // mounted, drag/settle writes the pixel transform imperatively.
-          '--tab-x': `${-activeIndex * (100 / TABS.length)}%`,
-        } as CSSProperties}
+          // mounted, the resting offset is an imperative pixel margin.
+          marginLeft: initialMargin,
+        }}
       >
         {TABS.map((tab, i) => (
           <section
