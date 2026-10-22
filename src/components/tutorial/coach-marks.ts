@@ -64,6 +64,16 @@ export function stepsFor(
  *  method is configured (set once the row's data has loaded, "yes" otherwise). */
 export const PAYOUTS_UNSET = '[data-payouts-set="no"]';
 
+/** The camera step: the single definition behind both the Chat tour and the
+ *  first-sign-in CAMERA_TIP, so its target and copy can never drift apart. */
+export const CAMERA_STEP: CoachStep = {
+  selector: CAMERA_TUTORIAL_TARGET,
+  pad: 8,
+  r: 999,
+  title: 'Snap a receipt',
+  body: 'Tap the camera to capture a receipt. On It reads the vendor, date and total, then you confirm before it saves.',
+};
+
 export const TOURS: Record<string, CoachTour> = {
   '/clients': {
     name: 'Clients',
@@ -133,9 +143,10 @@ export const TOURS: Record<string, CoachTour> = {
       {
         selector: '[data-coach="chat-composer"]',
         pad: 4, r: 999,
-        title: 'Snap a receipt or say what you spent',
-        body: 'Use the camera to log an expense on the spot, or type a job and hit send.',
+        title: 'Say what you did or spent',
+        body: 'Type a job or an expense in plain words and hit send.',
       },
+      CAMERA_STEP,
     ],
   },
   '/dashboard': {
@@ -199,18 +210,10 @@ export const TOURS: Record<string, CoachTour> = {
 
 /** The one-off first-sign-in tip. AppShell runs this through the same
  *  CoachMarks runner after the user lands on Chat; it is not in TOURS, so the
- *  tab picker never lists it and the full Chat tour keeps its two steps. */
+ *  tab picker never lists it. Its only step is the Chat tour's CAMERA_STEP. */
 export const CAMERA_TIP: CoachTour = {
   name: 'Camera',
-  steps: [
-    {
-      selector: CAMERA_TUTORIAL_TARGET,
-      pad: 8,
-      r: 999,
-      title: 'Snap a receipt',
-      body: 'Tap the camera to capture a receipt. On It reads the vendor, date and total, then you confirm before it saves.',
-    },
-  ],
+  steps: [CAMERA_STEP],
 };
 
 /** Tabs that have a tour, in the order they appear in the bottom nav. */
