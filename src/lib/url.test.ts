@@ -22,15 +22,23 @@ test('websiteHref rejects dangerous pseudo-protocols', () => {
   assert.equal(websiteHref('file:///etc/passwd'), null);
   assert.equal(websiteHref('blob:https://example.com/uuid'), null);
   assert.equal(websiteHref('   javascript:void(0)   '), null);
+
+  // Evasion attempts: fullwidth, format control characters, and control characters
+  assert.equal(websiteHref('javaｓcript:alert(1)'), null);
+  assert.equal(websiteHref('java\u00ADscript:alert(1)'), null);
+  assert.equal(websiteHref('java\0script:alert(1)'), null);
+  assert.equal(websiteHref('java\r\nscript:alert(1)'), null);
 });
 
 test('payment URL helpers sanitize handles and build valid deep links', () => {
   assert.equal(cashAppUrl('$myhandle'), 'https://cash.app/$myhandle');
   assert.equal(cashAppUrl('cash.app/$myhandle'), 'https://cash.app/$myhandle');
   assert.equal(cashAppUrl('https://cash.app/$myhandle'), 'https://cash.app/$myhandle');
+  assert.equal(cashAppUrl('$my\u00ADhandle'), 'https://cash.app/$myhandle');
 
   assert.equal(payPalUrl('@myhandle'), 'https://paypal.me/myhandle');
   assert.equal(payPalUrl('paypal.me/myhandle'), 'https://paypal.me/myhandle');
+  assert.equal(payPalUrl('@my\0handle'), 'https://paypal.me/myhandle');
 
   assert.equal(venmoUrl('@myhandle'), 'https://venmo.com/u/myhandle');
   assert.equal(venmoUrl('venmo.com/u/myhandle'), 'https://venmo.com/u/myhandle');
