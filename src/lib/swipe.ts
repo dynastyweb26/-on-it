@@ -125,12 +125,13 @@ export function tabCommitDirection(
   width: number,
   recentDx: number,
   dtMs: number,
+  distance = Math.abs(offset),
 ): -1 | 0 | 1 {
   if (!Number.isFinite(offset) || offset === 0 || !Number.isFinite(width) || width <= 0) return 0;
   const dir: -1 | 1 = offset < 0 ? 1 : -1;
   if (Math.abs(offset) > TAB_COMMIT_FRACTION * width) return dir;
   if (Math.sign(recentDx) !== Math.sign(offset)) return 0;
-  return isFlick(recentDx, dtMs, { ...TAB_FLICK, distance: Math.abs(offset) }) ? dir : 0;
+  return isFlick(recentDx, dtMs, { ...TAB_FLICK, distance }) ? dir : 0;
 }
 
 /** Linear interpolation between measured tab centres. */

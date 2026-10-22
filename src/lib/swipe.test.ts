@@ -130,6 +130,13 @@ test('tabCommitDirection: distance wins, then a matching flick', () => {
   assert.equal(tabCommitDirection(-95, 500, 90, 80), 0);
   // Too slow (and under 30%).
   assert.equal(tabCommitDirection(-95, 500, -20, 90), 0);
+  // A short final flick can use the whole gesture's distance for the 90px gate
+  // while still measuring speed from the recent 100ms window.
+  assert.equal(tabCommitDirection(-95, 500, -20, 10, 100), 1);
+  assert.equal(tabCommitDirection(-95, 500, -20, 10, 89), 0);
+  // Negative/zero widths and a zero release offset never navigate.
+  assert.equal(tabCommitDirection(-200, 0, -200, 10, 200), 0);
+  assert.equal(tabCommitDirection(0, 400, -200, 10, 200), 0);
   assert.equal(TAB_FLICK.minDistance, 90);
   assert.equal(TAB_FLICK.minVelocity, 1.1);
 });
