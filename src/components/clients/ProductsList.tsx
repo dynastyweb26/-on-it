@@ -3,9 +3,9 @@
 // Saved items only (saved_at set, not deleted), A–Z with letter headers and
 // a scrub rail, live search, a gold + (new item). Row: name, "description ·
 // per unit", price ("$450.00", "$65.00/hr", "No price" muted). Tap → Edit.
-// Swipe left → Edit / Delete; long-press → Edit · Duplicate · Delete.
-// Duplicate saves "{name} (copy)". Delete is soft (deleted_at) with Undo; a
-// later use on an invoice brings the item back as unsaved history.
+// Long-press → Edit · Duplicate · Delete; horizontal drags hand off to the
+// tab deck. Duplicate saves "{name} (copy)". Delete is soft (deleted_at)
+// with Undo; a later use on an invoice brings the item back as unsaved history.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import UndoToast from '@/components/UndoToast';
@@ -134,7 +134,7 @@ export default function ProductsList({ active = true }: { active?: boolean }) {
       ) : (
         <AlphaSections groups={groups} idPrefix="products" showRail={!query.trim()} query={query}
           renderRow={(p) => (
-            <ListRow key={p.id} id={`product-row-${p.id}`} motion={fresh?.id === p.id ? fresh.motion : null} onOpen={() => edit(p)} onEdit={() => edit(p)} onDelete={() => remove(p)}
+            <ListRow key={p.id} id={`product-row-${p.id}`} motion={fresh?.id === p.id ? fresh.motion : null} onOpen={() => edit(p)}
               onLongPress={(rect) => setMenu({ row: p, rect })}>
               {body(p)}
             </ListRow>

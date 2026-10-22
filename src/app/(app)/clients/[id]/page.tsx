@@ -7,13 +7,16 @@
 // first, each opening its detail page.
 //
 // Invoice: opens the guided invoice template with this client picked (2·12c).
+// Delete client: soft un-save behind a confirm; the row and its documents stay.
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import CountUpMoney from '@/components/CountUpMoney';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import { createClient } from '@/lib/supabase/client';
+import { unsaveClient } from '@/lib/client-delete';
 import { money } from '@/lib/financials';
 import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
@@ -39,6 +42,9 @@ export default function ClientDetail() {
   const [client, setClient] = useState<Client | null | undefined>(undefined);
   const [sum, setSum] = useState<ClientSummary | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -82,6 +88,20 @@ export default function ClientDetail() {
   // Dial / text with digits only ("(555) 014-2290" → "5550142290"); + kept.
   const dial = (client.phone ?? '').replace(/[^\d+]/g, '');
   const invoiceHref = `/chat?template=invoice&client=${client.id}`;
+
+  async function deleteClient() {
+    if (!client) return;
+    setDeleting(true);
+    setDeleteError('');
+    const { error } = await unsaveClient(supabase, client.id);
+    setDeleting(false);
+    if (error) {
+      setDeleteError('Couldn’t delete — check your connection and try again.');
+      return;
+    }
+    setConfirmDelete(false);
+    router.replace('/clients');
+  }
 
   return (
     <div className="relative px-4 pb-6 pt-4">
@@ -155,6 +175,23 @@ export default function ClientDetail() {
           })}
         </div>
       )}
+
+      <div className="mt-8">
+        {deleteError && <p role="alert" className="mb-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{deleteError}</p>}
+        <button type="button" onClick={() => setConfirmDelete(true)} disabled={deleting}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-full border border-error/30 text-[17px] font-bold text-error transition active:scale-[0.98] disabled:opacity-40">
+          <Icon name="delete" size={20} /> Delete client
+        </button>
+      </div>
+
+      <DeleteConfirmModal
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={deleteClient}
+        title={client.name}
+        recordType="client"
+        busy={deleting}
+      />
     </div>
   );
 }

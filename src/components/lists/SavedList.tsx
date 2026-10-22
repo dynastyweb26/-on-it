@@ -1,8 +1,9 @@
 'use client';
 // Building blocks shared by the saved lists on the Clients tab (release
 // frames 3a / 3e): the search bar with its gold +, A–Z sections with a scrub
-// rail, a row that swipes left to Edit / Delete and long-presses to a menu,
-// and that menu (the row lifts over a dimmed list, actions below it).
+// rail, a row that long-presses to a menu, and that menu (the row lifts over
+// a dimmed list, actions below it). Tab-root rows never swipe: a horizontal
+// drag belongs to the tab deck. Nested routes (e.g. recurring) opt in.
 // List motion (2·14): search reflow, letter-jump header pulse, new-entry glow,
 // undo re-expand, long-press lift; JS-driven motion skips under Reduce Motion.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -103,9 +104,12 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
   );
 }
 
-/** A list row: tap opens, swipe left shows Edit / Delete, long-press opens the menu. */
+/** A list row: tap opens, long-press opens the menu. Nested routes opt into swipe. */
 export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, children }: {
-  onOpen: () => void; onEdit: () => void; onDelete: () => void;
+  onOpen: () => void;
+  /** Both are required to opt into SwipeableRow; tab-root rows omit them. */
+  onEdit?: () => void;
+  onDelete?: () => void;
   onLongPress: (rect: DOMRect) => void;
   /** 'new': slides into its slot and glows; 'expand': re-opens after Undo. */
   motion?: 'new' | 'expand' | null;
@@ -118,31 +122,34 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, chi
   const ref = useRef<HTMLButtonElement>(null);
   const cancel = () => { clearTimeout(timer.current); start.current = null; };
   useEffect(() => () => clearTimeout(timer.current), []);
+  const row = (
+    <button ref={ref} type="button"
+      className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
+      onPointerDown={(e) => {
+        fired.current = false;
+        start.current = { x: e.clientX, y: e.clientY };
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+          fired.current = true;
+          try { navigator.vibrate?.(10); } catch { /* unsupported */ }
+          if (ref.current) onLongPress(ref.current.getBoundingClientRect());
+        }, LONG_PRESS_MS);
+      }}
+      onPointerMove={(e) => {
+        if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) cancel();
+      }}
+      onPointerUp={cancel}
+      onPointerCancel={cancel}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={() => { if (fired.current) { fired.current = false; return; } onOpen(); }}>
+      {children}
+    </button>
+  );
   return (
     <div id={id} className={motion === 'expand' ? 'onit-row-expand' : undefined}>
-    <SwipeableRow flat onEdit={onEdit} onDelete={onDelete}>
-      <button ref={ref} type="button"
-        className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
-        onPointerDown={(e) => {
-          fired.current = false;
-          start.current = { x: e.clientX, y: e.clientY };
-          clearTimeout(timer.current);
-          timer.current = setTimeout(() => {
-            fired.current = true;
-            try { navigator.vibrate?.(10); } catch { /* unsupported */ }
-            if (ref.current) onLongPress(ref.current.getBoundingClientRect());
-          }, LONG_PRESS_MS);
-        }}
-        onPointerMove={(e) => {
-          if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) cancel();
-        }}
-        onPointerUp={cancel}
-        onPointerCancel={cancel}
-        onContextMenu={(e) => e.preventDefault()}
-        onClick={() => { if (fired.current) { fired.current = false; return; } onOpen(); }}>
-        {children}
-      </button>
-    </SwipeableRow>
+      {onEdit && onDelete
+        ? <SwipeableRow flat onEdit={onEdit} onDelete={onDelete}>{row}</SwipeableRow>
+        : row}
     </div>
   );
 }

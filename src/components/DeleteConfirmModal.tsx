@@ -8,7 +8,7 @@ interface DeleteConfirmModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  recordType: 'invoice' | 'quote' | 'expense';
+  recordType: 'invoice' | 'quote' | 'expense' | 'client';
   status?: string;
   busy?: boolean;
 }
@@ -30,6 +30,10 @@ export default function DeleteConfirmModal({
   const requiresTypedConfirm = (recordType === 'invoice' || recordType === 'quote') && isSentOrPaid;
 
   const canConfirm = !requiresTypedConfirm || typedConfirm.trim().toUpperCase() === 'DELETE';
+  const label = recordType === 'quote' ? 'Quote'
+    : recordType === 'invoice' ? 'Invoice'
+    : recordType === 'client' ? 'Client'
+    : 'Expense';
 
   function handleConfirm() {
     if (!canConfirm || busy) return;
@@ -66,14 +70,18 @@ export default function DeleteConfirmModal({
           </span>
           <div>
             <h2 className="font-display text-lg font-extrabold text-on-background">
-              Delete {recordType === 'quote' ? 'Quote' : recordType === 'invoice' ? 'Invoice' : 'Expense'}?
+              Delete {label}?
             </h2>
             <p className="truncate text-xs text-on-surface-variant/80">{title}</p>
           </div>
         </div>
 
         <p className="text-body-md text-on-background">
-          {requiresTypedConfirm ? (
+          {recordType === 'client' ? (
+            <>
+              Are you sure you want to remove this client from your list? Their invoices and quotes stay in your history.
+            </>
+          ) : requiresTypedConfirm ? (
             <>
               This record has been <span className="font-semibold">{status}</span>. Deleting it will remove its total from your Books income totals.
             </>

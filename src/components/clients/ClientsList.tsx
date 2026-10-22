@@ -3,9 +3,10 @@
 // Saved clients only (client_summaries() where saved), A–Z with letter
 // headers and a scrub rail, live search, a gold + (New client). Each row:
 // initials, name, status line ("Paid up" / "1 open · $310.00" / overdue in
-// red / "1 quote out"). Swipe left or long-press → Edit / Delete. Delete =
-// un-save and clear phone / email / address / notes (Q6) with Undo; the
-// client row itself and every invoice stay, so it lives on as history.
+// red / "1 quote out"). Long-press → Edit / Delete; horizontal drags hand
+// off to the tab deck. Delete = un-save and clear phone / email / address /
+// notes (Q6) with Undo; the client row itself and every invoice stay, so it
+// lives on as history.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -13,11 +14,12 @@ import UndoToast from '@/components/UndoToast';
 import { AlphaSections, ListRow, ListSkeleton, RowMenu, SavedEmpty, SearchBar } from '@/components/lists/SavedList';
 import { createClient } from '@/lib/supabase/client';
 import { clientStatus, groupByLetter, initials, matchesQuery, normalizeSummary, type ClientSummary } from '@/lib/clients';
+import { unsaveClient, type ClientContactFields } from '@/lib/client-delete';
 import { takeNewEntry } from '@/lib/list-motion';
 
 type Removed = {
   row: ClientSummary;
-  prev: { saved_at: string | null; phone: string | null; email: string | null; address: string | null; notes: string | null };
+  prev: ClientContactFields;
 };
 
 export default function ClientsList({ active = true }: { active?: boolean }) {
@@ -64,14 +66,11 @@ export default function ClientsList({ active = true }: { active?: boolean }) {
 
   async function remove(c: ClientSummary) {
     setMenu(null);
-    const { data: prev, error: readErr } = await supabase.from('clients')
-      .select('saved_at, phone, email, address, notes').eq('id', c.id).maybeSingle();
-    if (readErr || !prev) return;
+    const { prev, error } = await unsaveClient(supabase, c.id);
+    if (!prev) return;
     setRows((rs) => (rs ?? []).filter((r) => r.id !== c.id));
-    const { error } = await supabase.from('clients')
-      .update({ saved_at: null, phone: null, email: null, address: null, notes: null }).eq('id', c.id);
     if (error) { setRows((rs) => [...(rs ?? []), c]); return; }
-    setRemoved({ row: c, prev: prev as Removed['prev'] });
+    setRemoved({ row: c, prev });
   }
 
   async function undo() {
@@ -115,7 +114,7 @@ export default function ClientsList({ active = true }: { active?: boolean }) {
       ) : (
         <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()} query={query}
           renderRow={(c) => (
-            <ListRow key={c.id} id={`client-row-${c.id}`} motion={fresh?.id === c.id ? fresh.motion : null} onOpen={() => open(c)} onEdit={() => edit(c)} onDelete={() => remove(c)}
+            <ListRow key={c.id} id={`client-row-${c.id}`} motion={fresh?.id === c.id ? fresh.motion : null} onOpen={() => open(c)}
               onLongPress={(rect) => setMenu({ row: c, rect })}>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft text-[15px] font-bold text-primary-on-container">
                 {initials(c.name)}

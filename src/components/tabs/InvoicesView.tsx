@@ -4,9 +4,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
-import SwipeableRow from '@/components/SwipeableRow';
-import DeleteConfirmModal from '@/components/DeleteConfirmModal';
-import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
 import { SortCaption } from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
@@ -38,9 +35,6 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
-  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [undoTarget, setUndoTarget] = useState<Row | null>(null);
   const [travel, setTravel] = useState<'left' | 'right' | null>(null);
   // Newest (default) / A–Z by client within each month, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
@@ -139,43 +133,6 @@ export default function Invoices({ active = true }: { active?: boolean }) {
     router.replace(f === 'all' ? '/invoices' : `/invoices?filter=${f}`, { scroll: false });
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const target = deleteTarget;
-    const now = new Date().toISOString();
-    setRows((r) => r.filter((row) => row.id !== target.id));
-    setDeleteTarget(null);
-
-    const { error } = await supabase
-      .from('invoices')
-      .update({ deleted_at: now })
-      .eq('id', target.id);
-
-    setDeleting(false);
-    if (error) {
-      setRows((r) => [...r, target]);
-    } else {
-      setUndoTarget(target);
-    }
-  }
-
-  async function handleUndo() {
-    if (!undoTarget) return;
-    const target = undoTarget;
-    setUndoTarget(null);
-    setRows((r) => [...r, target]);
-
-    const { error } = await supabase
-      .from('invoices')
-      .update({ deleted_at: null })
-      .eq('id', target.id);
-
-    if (error) {
-      setRows((r) => r.filter((row) => row.id !== target.id));
-    }
-  }
-
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-4 md:px-8">
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
@@ -211,54 +168,34 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                   // (adds up to the summary), with the full total under it.
                   const partPaid = filter === 'unpaid' && Number(r.amount_paid ?? 0) > 0;
                   return (
-                    <SwipeableRow key={r.id} onDelete={() => setDeleteTarget(r)}>
-                      <Link href={`/invoices/${r.id}`}
-                        className="flex h-full items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
-                          <span className="text-[13.5px] text-on-surface-variant">
-                            {formatDocNumber(r.kind, r.invoice_number)} • {new Date(r.created_at).toLocaleDateString()}
-                          </span>
-                          <span className="mt-1 font-display text-[26px] font-extrabold leading-tight tracking-tight text-on-background tabular-nums">
-                            {money(partPaid ? balanceDue(r) : Number(r.total))}
-                          </span>
-                          {partPaid && <span className="text-[13px] text-on-surface-variant">due of {money(r.total)}</span>}
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-3.5">
-                          {/* Keyed by state, so a sent → viewed change crossfades. */}
-                          <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
-                            <Icon name={tag.icon} size={14} />{tag.text}
-                          </span>
-                          <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
-                            <Icon name="chevron_right" size={22} />
-                          </span>
-                        </div>
-                      </Link>
-                    </SwipeableRow>
+                    <Link key={r.id} href={`/invoices/${r.id}`}
+                      className="flex h-full items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
+                        <span className="text-[13.5px] text-on-surface-variant">
+                          {formatDocNumber(r.kind, r.invoice_number)} • {new Date(r.created_at).toLocaleDateString()}
+                        </span>
+                        <span className="mt-1 font-display text-[26px] font-extrabold leading-tight tracking-tight text-on-background tabular-nums">
+                          {money(partPaid ? balanceDue(r) : Number(r.total))}
+                        </span>
+                        {partPaid && <span className="text-[13px] text-on-surface-variant">due of {money(r.total)}</span>}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-3.5">
+                        {/* Keyed by state, so a sent → viewed change crossfades. */}
+                        <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
+                          <Icon name={tag.icon} size={14} />{tag.text}
+                        </span>
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
+                          <Icon name="chevron_right" size={22} />
+                        </span>
+                      </div>
+                    </Link>
                   );
                 })}
               </div>
             </div>
           ))}
         </div>
-      )}
-
-      <DeleteConfirmModal
-        isOpen={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title={deleteTarget ? `${deleteTarget.client_name} (${formatDocNumber(deleteTarget.kind, deleteTarget.invoice_number)})` : ''}
-        recordType={(deleteTarget?.kind as 'invoice' | 'quote') ?? 'invoice'}
-        status={deleteTarget?.status}
-        busy={deleting}
-      />
-
-      {undoTarget && (
-        <UndoToast
-          message={`${undoTarget.kind === 'quote' ? 'Quote' : 'Invoice'} deleted.`}
-          onUndo={handleUndo}
-          onDismiss={() => setUndoTarget(null)}
-        />
       )}
     </div>
   );
