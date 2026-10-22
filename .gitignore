@@ -9,3 +9,4 @@ next-env.d.ts
 .claude/launch.json
 __pycache__/
 .mcp.json
+shots/
