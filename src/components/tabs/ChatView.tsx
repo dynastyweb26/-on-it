@@ -3836,6 +3836,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   </button>
                   <button
                     aria-label="Take a receipt photo"
+                    data-coach="chat-camera"
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
                     disabled={phase !== null}
                     onClick={() => cameraRef.current?.click()}
@@ -3862,6 +3863,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Recent conversations"
             className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}
           >

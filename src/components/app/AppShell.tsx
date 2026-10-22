@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { TOURS } from '@/components/tutorial/coach-marks';
+import { CAMERA_TIP, TOURS } from '@/components/tutorial/coach-marks';
 import TourPicker from '@/components/tutorial/TourPicker';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
@@ -14,6 +14,7 @@ import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
+import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import { reducedMotion } from '@/lib/list-motion';
@@ -67,6 +68,15 @@ function pillTransition(durationMs: number, easing: string): string {
 // would reject is never sent. timezone is a safe column (column-level UPDATE,
 // 20260930000004). Best-effort: a failure changes nothing.
 const TZ_RE = /^[A-Za-z0-9_+/-]{1,64}$/;
+
+// Anything that owns the screen while it is open. The first-sign-in camera tip
+// waits for these to close instead of starting underneath them. Menus count:
+// a modal spotlight over an open "+" menu or row menu is still a hijack.
+const OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [aria-modal="true"]';
+function isVisible(selector: string): boolean {
+  return Array.from(document.querySelectorAll(selector)).some((el) => el.getClientRects().length > 0);
+}
+
 async function syncTimezone(supabase: ReturnType<typeof createClient>, userId: string) {
   let tz: string | undefined;
   try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return; }
@@ -253,9 +263,42 @@ export default function AppShell({
   // Back from Stripe Checkout (?upgraded=1) on ANY tab, e.g. /invoices: record
   // it and start the unlock poll. A no-op when a page already handled it.
   useEffect(() => { noteUpgradeReturn(); }, []);
-  // The coach-marks tour that is running (a TOURS key), or null. Tours are
-  // on-demand only — nothing here starts one by itself.
+  // The full coach-marks tour that is running (a TOURS key), or null. Full
+  // tours are on-demand only; the one-step camera tip is separate below.
   const [coachTab, setCoachTab] = useState<string | null>(null);
+  // First-sign-in camera tip: signed-in only, offered exactly once. `seenAt`
+  // stays undefined until the profile answers (or when the DB column is not
+  // applied yet), so an unknown account never auto-starts anything.
+  const [signedIn, setSignedIn] = useState(false);
+  const [cameraSeenAt, setCameraSeenAt] = useState<string | null | undefined>(undefined);
+  const [cameraTip, setCameraTip] = useState(false);
+  const cameraUserId = useRef<string | null>(null);
+  const cameraCheckSeq = useRef(0);
+  const checkCameraTutorial = useCallback(async (userId: string | null) => {
+    const seq = ++cameraCheckSeq.current;
+    cameraUserId.current = userId;
+    if (!userId) {
+      setSignedIn(false);
+      setCameraSeenAt(undefined);
+      setCameraTip(false);
+      return;
+    }
+    setSignedIn(true);
+    setCameraSeenAt(undefined); // unknown until this user's profile answers
+    setCameraTip(false);
+    try {
+      const { data, error } = await createClient()
+        .from('profiles')
+        .select('camera_tutorial_seen_at')
+        .eq('id', userId)
+        .maybeSingle();
+      if (seq !== cameraCheckSeq.current) return;
+      // Missing profile or missing column (migration not applied) = no offer.
+      setCameraSeenAt(error || !data ? undefined : data.camera_tutorial_seen_at ?? null);
+    } catch {
+      if (seq === cameraCheckSeq.current) setCameraSeenAt(undefined);
+    }
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -263,10 +306,61 @@ export default function AppShell({
       const { data: { user } } = await getSharedUser();
       if (!user) return;
       void syncTimezone(supabase, user.id).catch(() => { /* best-effort */ });
+      void checkCameraTutorial(user.id);
     })();
-  }, []);
+  }, [checkCameraTutorial]);
 
   const closeCoachMarks = useCallback(() => setCoachTab(null), []);
+  const closeCameraTip = useCallback(() => setCameraTip(false), []);
+
+  // Offer the one-time camera tip only when Chat is actually ready: signed in,
+  // never seen, exact /chat, no other coach tour, no dialog/menu, camera button
+  // visible. While an overlay or the target resolves, re-check rather than
+  // starting underneath it.
+  useEffect(() => {
+    if (cameraTip) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = () => {
+      if (cancelled) return;
+      const canStart = canAutoStartCameraTutorial({
+        signedIn,
+        seenAt: cameraSeenAt,
+        path,
+        coachOpen: coachTab !== null,
+        overlayOpen: isVisible(OVERLAY_SELECTOR),
+        targetVisible: isVisible(CAMERA_TUTORIAL_TARGET),
+      });
+      if (canStart) {
+        const stamp = new Date().toISOString();
+        setCameraSeenAt(stamp);
+        setCameraTip(true);
+        const uid = cameraUserId.current;
+        if (uid) {
+          // Mark it when shown, not when finished: an interrupted tip must not
+          // come back on the next visit. Column-level UPDATE only.
+          void (async () => {
+            try {
+              await createClient()
+                .from('profiles')
+                .update({ camera_tutorial_seen_at: stamp })
+                .eq('id', uid)
+                .is('camera_tutorial_seen_at', null);
+            } catch { /* best-effort; this session still won't repeat it */ }
+          })();
+        }
+        return;
+      }
+      if (signedIn && cameraSeenAt === null && path === '/chat' && coachTab === null) {
+        timer = setTimeout(tick, 300);
+      }
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [cameraSeenAt, cameraTip, coachTab, path, signedIn]);
 
   // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
   const [throb, setThrob] = useState(false);
@@ -294,10 +388,15 @@ export default function AppShell({
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const uid = session?.user.id ?? null;
       if (event === 'INITIAL_SESSION') { known = uid; return; }
-      if (event === 'SIGNED_OUT') { known = null; return; }
+      if (event === 'SIGNED_OUT') {
+        known = null;
+        void checkCameraTutorial(null);
+        return;
+      }
       if (event === 'SIGNED_IN' && known !== undefined && uid && uid !== known) {
         markSignInThrob();
         startThrob();
+        void checkCameraTutorial(uid);
       }
       if (uid) known = uid;
     });
@@ -305,7 +404,7 @@ export default function AppShell({
       subscription.unsubscribe();
       if (throbTimer.current) clearTimeout(throbTimer.current);
     };
-  }, [startThrob]);
+  }, [startThrob, checkCameraTutorial]);
   const throbClass = throb ? ' onit-help-throb' : '';
 
   // Tab picker → go to that tab, wait for its first target, run its tour.
@@ -329,6 +428,7 @@ export default function AppShell({
   }, []);
   function startTour(tab: string) {
     setCoachTab(null);
+    setCameraTip(false); // a deliberate tour replaces the first-sign-in tip
     if (path === tab) { pendingTour.current = null; runWhenMounted(tab); return; }
     pendingTour.current = tab;
     router.push(tab);
@@ -391,7 +491,7 @@ export default function AppShell({
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={coachTab !== null}>
+      <RecapProvider suppressed={coachTab !== null || cameraTip}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -500,6 +600,15 @@ export default function AppShell({
         )}
 
         {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
+        {cameraTip && (
+          <CoachMarks
+            key="camera-tip"
+            tab="/chat"
+            tourOverride={CAMERA_TIP}
+            currentPath={path}
+            onDone={closeCameraTip}
+          />
+        )}
 
         {exactTab >= 0 ? (
           <main className="min-h-0 flex-1 overflow-hidden">

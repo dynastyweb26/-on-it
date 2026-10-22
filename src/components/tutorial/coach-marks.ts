@@ -4,6 +4,8 @@
    spotlight ring at that position.  Selectors are intentionally simple
    (data-coach attributes, aria-labels) so they survive DOM refactors. */
 
+import { CAMERA_TUTORIAL_TARGET } from '@/lib/camera-tutorial';
+
 export interface CoachStep {
   /** CSS selector for the element to spotlight.  Must exist while the step
    *  is shown (the overlay skips measurement when the element is absent). */
@@ -193,6 +195,22 @@ export const TOURS: Record<string, CoachTour> = {
       },
     ],
   },
+};
+
+/** The one-off first-sign-in tip. AppShell runs this through the same
+ *  CoachMarks runner after the user lands on Chat; it is not in TOURS, so the
+ *  tab picker never lists it and the full Chat tour keeps its two steps. */
+export const CAMERA_TIP: CoachTour = {
+  name: 'Camera',
+  steps: [
+    {
+      selector: CAMERA_TUTORIAL_TARGET,
+      pad: 8,
+      r: 999,
+      title: 'Snap a receipt',
+      body: 'Tap the camera to capture a receipt. On It reads the vendor, date and total, then you confirm before it saves.',
+    },
+  ],
 };
 
 /** Tabs that have a tour, in the order they appear in the bottom nav. */
