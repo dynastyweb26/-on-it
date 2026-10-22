@@ -29,6 +29,10 @@ export const PILL_STRETCH = 0.32;
 /** How dark a page becomes at a full tab of distance from the finger. */
 export const PAGE_DIM = 0.12;
 
+/** Bounds for a drag's track settle, derived from distance and release speed. */
+export const SETTLE_MIN_MS = 220;
+export const SETTLE_MAX_MS = 340;
+
 export type GestureAxis = 'pending' | 'horizontal' | 'vertical';
 
 /**
@@ -106,6 +110,33 @@ export function tabProgress(index: number, offset: number, width: number, count 
 /** The page dim overlay at a continuous progress. */
 export function pageDim(progress: number, pageIndex: number): number {
   return Math.min(1, Math.abs(progress - pageIndex)) * PAGE_DIM;
+}
+
+/**
+ * Track settle time for a release. Remaining travel sets the base (a nearly
+ * finished drag is quick; a full-page commit is slower); release speed trims
+ * up to 90 ms. Clamped to 220–340 ms so the deck always feels responsive.
+ */
+export function settleDuration(distancePx: number, width: number, velocity: number): number {
+  const validWidth = Number.isFinite(width) && width > 0;
+  const travelled = Number.isFinite(distancePx) ? Math.abs(distancePx) : 0;
+  const ratio = validWidth ? Math.min(1, travelled / width) : 0;
+  const speed = Math.min(1, Math.max(0, (Number.isFinite(velocity) ? Math.abs(velocity) : 0) / 1.5));
+  return Math.round(
+    Math.min(SETTLE_MAX_MS, Math.max(SETTLE_MIN_MS, SETTLE_MIN_MS + (SETTLE_MAX_MS - SETTLE_MIN_MS) * ratio - 90 * speed)),
+  );
+}
+
+/**
+ * Finger travel since the horizontal lock. Using the lock point as the origin
+ * (rather than always subtracting the 12px slop) means a fast first touchmove
+ * cannot snap the track by `dx - slop`; the page starts moving from where the
+ * axis was decided.
+ */
+export function dragFromLock(dx: number, lockDx: number): number {
+  const current = Number.isFinite(dx) ? dx : 0;
+  const lock = Number.isFinite(lockDx) ? lockDx : 0;
+  return current - lock;
 }
 
 /** The pill's scaleX while the finger is down; 1 at a tab centre. */

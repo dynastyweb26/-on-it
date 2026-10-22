@@ -588,7 +588,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
     && docKind(draft) === 'invoice';
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
-  useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
+  useEffect(() => {
+    // Prewarmed (inactive) Chat should not call the deployment endpoint; it
+    // fetches when the tab becomes active.
+    if (!active) return;
+    let cancelled = false;
+    void fetchConnectEnabled().then((on) => { if (!cancelled) setConnectOn(on); });
+    return () => { cancelled = true; };
+  }, [active]);
   // Distinguishes "profile fetch still in flight" from "genuinely no profile
   // (a guest)". finalize() must not bounce an authed user to login just because
   // the fetch hasn't resolved yet (audit B2); only a true guest sees the

@@ -9,17 +9,17 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import { TABS } from '@/lib/tabs';
 import {
-  AXIS_SLOP_PX,
   NAV_GUARD_MS,
-  TAB_COMMIT_FRACTION,
   applyEdgeResistance,
   classifyAxis,
+  dragFromLock,
   pageDim,
+  settleDuration,
   tabCommitDirection,
   tabProgress,
 } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
-import { COMMIT_EASE, COMMIT_MS, FLICK_MS, SPRING_EASE, SPRING_MS, markTabGestureNavigation } from './tab-motion';
+import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, markTabGestureNavigation } from './tab-motion';
 
 const ClientsView = dynamic(() => import('./ClientsView'), { loading: () => null });
 const InvoicesView = dynamic(() => import('./InvoicesView'), { loading: () => null });
@@ -37,8 +37,10 @@ type Gesture = {
   startY: number;
   axis: 'pending' | 'horizontal' | 'vertical';
   locked: boolean;
-  /** Direction the 12px dead zone was consumed in; fixed for the gesture. */
-  lockSign: -1 | 1;
+  /** dx at the horizontal lock; drag offsets are measured from here. */
+  lockDx: number;
+  /** The latest raw finger dx, for the flick distance gate. */
+  fingerDx: number;
   offset: number;
   samples: Sample[];
 };
@@ -67,7 +69,8 @@ export default function TabDeck({
 
   const deckRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const dimRefs = useRef<(HTMLDivElement | null)[]>([]);
+  /** One scrim for the whole deck; its opacity is the only dim write per move. */
+  const dimRef = useRef<HTMLDivElement>(null);
   const dimTokenRef = useRef(0);
   const widthRef = useRef(0);
   const baseIndexRef = useRef(activeIndex);
@@ -81,6 +84,8 @@ export default function TabDeck({
 
   const [currentIndex, setCurrentIndex] = useState(activeIndex);
   const [mounted, setMounted] = useState<Set<number>>(() => new Set([activeIndex]));
+  const mountedRef = useRef(mounted);
+  mountedRef.current = mounted;
   // SSR/pre-hydration origin. This intentionally never changes: React must not
   // overwrite the resting margin while a settle is animating the track.
   const [initialMargin] = useState(() => `${-activeIndex * 100}%`);
@@ -98,6 +103,77 @@ export default function TabDeck({
       return next;
     });
   }, []);
+
+  // Prewarmed pages stay mounted but are not painted: `visibility` takes them
+  // out of the compositor without losing their layout or React tree. The deck
+  // reveals one neighbour at lock, and the other only if the finger reverses.
+  // This keeps the 500%-wide track's paint cost close to a single page.
+  const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+  const showSection = useCallback((i: number) => {
+    const el = sectionRefs.current[i];
+    if (el && el.style.visibility !== 'visible') el.style.visibility = 'visible';
+  }, []);
+  const syncVisible = useCallback((active: number) => {
+    for (let i = 0; i < TABS.length; i++) {
+      const el = sectionRefs.current[i];
+      if (el) el.style.visibility = i === active ? 'visible' : 'hidden';
+    }
+  }, []);
+  const showNeighbour = useCallback((dir: -1 | 1) => {
+    const i = baseIndexRef.current + dir;
+    if (i >= 0 && i < TABS.length) showSection(i);
+  }, [showSection]);
+
+  // A prewarmed page becomes visible only when it is the settled tab or a
+  // gesture target. Keep it hidden while idle so it costs no compositor work.
+  useIsoLayoutEffect(() => {
+    if (!gestureRef.current && !settlingRef.current) syncVisible(baseIndexRef.current);
+  }, [mounted, syncVisible]);
+
+  // Mount the two neighbouring tabs while the browser is idle, one at a time.
+  // The first horizontal move used to mount a neighbour synchronously, which
+  // put its JS chunk, React render and (for Books) its first query inside the
+  // gesture. Two staggered idle callbacks keep that work off the first paint
+  // and off the drag; a cold swipe still falls back to a mount at touchstart.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const neighbours = [activeIndex - 1, activeIndex + 1]
+      .filter((i) => i >= 0 && i < TABS.length && !mountedRef.current.has(i));
+    if (neighbours.length === 0) return;
+    let cancelled = false;
+    let idleId: number | null = null;
+    let next = 0;
+    const timers: number[] = [];
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const scheduleIdle = (cb: () => void) => {
+      if (idleWindow.requestIdleCallback) return idleWindow.requestIdleCallback(() => cb(), { timeout: 900 });
+      return window.setTimeout(cb, 180);
+    };
+    const cancelIdle = (id: number) => {
+      if (idleWindow.cancelIdleCallback) idleWindow.cancelIdleCallback(id);
+      else window.clearTimeout(id);
+    };
+    const run = () => {
+      if (cancelled || next >= neighbours.length) return;
+      const target = neighbours[next++];
+      idleId = scheduleIdle(() => {
+        idleId = null;
+        if (cancelled) return;
+        ensureMounted(target);
+        timers.push(window.setTimeout(run, 180));
+      });
+    };
+    // Let the active tab's own first paint and data effect get a head start.
+    timers.push(window.setTimeout(run, 420));
+    return () => {
+      cancelled = true;
+      if (idleId !== null) cancelIdle(idleId);
+      for (const timer of timers) window.clearTimeout(timer);
+    };
+  }, [activeIndex, ensureMounted]);
 
   const trackX = useCallback(() => {
     const track = trackRef.current;
@@ -135,33 +211,36 @@ export default function TabDeck({
 
   // Swap the resting margin for an equivalent transform before the first
   // painted drag/settle frame. Both writes are synchronous, so the track does
-  // not move; later per-move writes only touch transform.
-  const beginTrackMotion = useCallback(() => {
+  // not move; later per-move writes only touch transform. The drag passes a
+  // computed origin so lock() does not read layout inside touchmove.
+  const beginTrackMotion = useCallback((origin?: number) => {
     const track = trackRef.current;
-    if (!track || !widthRef.current) return;
-    const x = trackX();
+    const w = widthRef.current;
+    if (!track || !w) return;
+    const x = origin ?? -baseIndexRef.current * w + offsetRef.current;
     track.style.transition = 'none';
     track.style.marginLeft = '0px';
     track.style.willChange = 'transform';
     track.style.transform = `translate3d(${x}px, 0, 0)`;
-  }, [trackX]);
+  }, []);
 
-  const clearDims = useCallback((durationMs = 0) => {
+  const clearDim = useCallback((durationMs = 0) => {
     const token = ++dimTokenRef.current;
-    for (const el of dimRefs.current) {
-      if (!el) continue;
-      if (durationMs > 0) {
-        el.style.transition = `opacity ${durationMs}ms ease`;
-        el.style.opacity = '0';
-        window.setTimeout(() => {
-          if (dimTokenRef.current !== token) return;
-          el.style.transition = 'none';
-          el.style.opacity = '0';
-        }, durationMs + 40);
-      } else {
+    const el = dimRef.current;
+    if (!el) return;
+    if (durationMs > 0) {
+      el.style.transition = `opacity ${durationMs}ms ease`;
+      el.style.opacity = '0';
+      window.setTimeout(() => {
+        if (dimTokenRef.current !== token) return;
         el.style.transition = 'none';
         el.style.opacity = '0';
-      }
+        el.style.removeProperty('will-change');
+      }, durationMs + 40);
+    } else {
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      el.style.removeProperty('will-change');
     }
   }, []);
 
@@ -188,9 +267,10 @@ export default function TabDeck({
     setCurrentIndex(target);
     ensureMounted(target);
     setRestOffset(target);
-    clearDims();
+    syncVisible(target);
+    clearDim();
     settlingRef.current = null;
-  }, [clearDims, ensureMounted, setRestOffset]);
+  }, [clearDim, ensureMounted, setRestOffset, syncVisible]);
 
   const animateTrack = useCallback((toX: number, durationMs: number, easing: string, done: () => void) => {
     const track = trackRef.current;
@@ -217,13 +297,18 @@ export default function TabDeck({
 
   const startSettle = useCallback((target: number, durationMs: number, push: boolean) => {
     if (target < 0 || target >= TABS.length) return;
+    // Both pages must paint during the slide; the old one disappears only
+    // once the track has landed.
+    showSection(baseIndexRef.current);
+    showSection(target);
+    const from = trackX();
     cancelTrackAnim();
-    beginTrackMotion();
+    beginTrackMotion(from);
     settlingRef.current = { target };
     currentIndexRef.current = target;
     setCurrentIndex(target);
     ensureMounted(target);
-    clearDims(durationMs);
+    clearDim(durationMs);
     onPillEnd(target, durationMs);
     animateTrack(-target * widthRef.current, durationMs, COMMIT_EASE, () => finishSettle(target));
     if (push) {
@@ -231,10 +316,11 @@ export default function TabDeck({
       navigatingRef.current = Date.now();
       router.push(TABS[target].href);
     }
-  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, router]);
+  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDim, ensureMounted, finishSettle, onPillEnd, router, showSection, trackX]);
 
   const reducedSwap = useCallback((target: number, push: boolean) => {
     if (target < 0 || target >= TABS.length) return;
+    showSection(target);
     cancelTrackAnim();
     settlingRef.current = { target };
     const deck = deckRef.current;
@@ -259,7 +345,8 @@ export default function TabDeck({
       ensureMounted(target);
       offsetRef.current = 0;
       setRestOffset(target);
-      clearDims();
+      syncVisible(target);
+      clearDim();
       onPillEnd(target, 0);
       if (push) {
         markTabGestureNavigation();
@@ -275,7 +362,7 @@ export default function TabDeck({
         settlingRef.current = null;
       };
     };
-  }, [cancelTrackAnim, clearDims, ensureMounted, finishSettle, onPillEnd, router, setRestOffset]);
+  }, [cancelTrackAnim, clearDim, ensureMounted, finishSettle, onPillEnd, router, setRestOffset, showSection, syncVisible, trackX]);
 
   // Track origin: the route's tab on mount, then the deck's settled target.
   useIsoLayoutEffect(() => {
@@ -333,7 +420,8 @@ export default function TabDeck({
         // stranded mid-drag.
         const g = gestureRef.current;
         gestureRef.current = null;
-        if (g?.axis === 'horizontal') springBack();
+        if (g?.axis === 'horizontal') springBack(velocityOf(g));
+        else if (g) onPillEnd(null, 0);
         return;
       }
       gestureRef.current = null;
@@ -346,13 +434,22 @@ export default function TabDeck({
       }
       if (swipeBlockedAt(e.target)) return;
       const t = e.touches[0];
+      // Two cold neighbours would otherwise mount on the lock, inside
+      // touchmove. Prewarm handles the normal case; this is the fallback.
+      for (const i of [baseIndexRef.current - 1, baseIndexRef.current + 1]) {
+        if (i >= 0 && i < TABS.length && !mountedRef.current.has(i)) ensureMounted(i);
+      }
+      // Measure the pill before any movement. Lock and touchmove then only
+      // write transforms; no React state and no layout reads in the hot path.
+      onPillStart(baseIndexRef.current);
       gestureRef.current = {
         id: t.identifier,
         startX: t.clientX,
         startY: t.clientY,
         axis: 'pending',
         locked: false,
-        lockSign: 1,
+        lockDx: 0,
+        fingerDx: 0,
         offset: 0,
         samples: [{ x: t.clientX, t: e.timeStamp }],
       };
@@ -361,18 +458,21 @@ export default function TabDeck({
     function lock(g: Gesture, dx: number, dy: number, ev: TouchEvent) {
       g.axis = 'horizontal';
       g.locked = true;
-      g.lockSign = dx < 0 ? -1 : 1;
+      g.lockDx = dx;
       if (ev.cancelable) ev.preventDefault();
+      if (!reducedRef.current) showNeighbour(dx < 0 ? 1 : -1);
       const w = widthRef.current;
       if (w > 0) {
         cancelTrackAnim();
+        // Computed origin, not a getComputedStyle read: lock is still inside
+        // touchmove and must stay free of layout reads.
         beginTrackMotion();
-        if (trackRef.current) trackRef.current.style.transition = 'none';
-        dimTokenRef.current++;
-        for (const el of dimRefs.current) if (el) el.style.transition = 'none';
-        onPillStart(baseIndexRef.current);
-        const dir = dx < 0 ? 1 : -1;
-        ensureMounted(baseIndexRef.current + dir);
+        const dim = dimRef.current;
+        if (dim) {
+          dimTokenRef.current++;
+          dim.style.transition = 'none';
+          dim.style.willChange = 'opacity';
+        }
       }
       // dy is part of the shared axis contract, even when only dx drives the
       // preview; keep it in the signature so the lock is auditable.
@@ -384,11 +484,12 @@ export default function TabDeck({
       if (!g) return;
       if (e.touches.length !== 1) {
         gestureRef.current = null;
-        if (g.axis === 'horizontal') springBack();
+        if (g.axis === 'horizontal') springBack(velocityOf(g));
+        else onPillEnd(null, 0);
         return;
       }
-      const t = Array.from(e.touches).find((p) => p.identifier === g.id);
-      if (!t) return;
+      const t = e.touches[0];
+      if (!t || t.identifier !== g.id) return;
       const dx = t.clientX - g.startX;
       const dy = t.clientY - g.startY;
       if (g.axis === 'pending') {
@@ -402,23 +503,20 @@ export default function TabDeck({
 
       const w = widthRef.current;
       if (!w) return;
-      // Subtract the dead zone once, in the direction it was consumed. Using
-      // sign(dx) here would pop 2 * slop as the finger crosses its origin.
-      const raw = dx - g.lockSign * AXIS_SLOP_PX;
+      g.fingerDx = dx;
+      const raw = dragFromLock(dx, g.lockDx);
       const offset = applyEdgeResistance(raw, baseIndexRef.current, TABS.length, w);
       g.offset = offset;
       offsetRef.current = offset;
       const progress = tabProgress(baseIndexRef.current, offset, w, TABS.length);
       if (!reducedRef.current) {
+        if (offset < 0) showNeighbour(1);
+        else if (offset > 0) showNeighbour(-1);
         paintTrack(-baseIndexRef.current * w + offset);
-        for (let i = 0; i < TABS.length; i++) {
-          const el = dimRefs.current[i];
-          if (el) el.style.opacity = String(pageDim(progress, i));
-        }
+        const dim = dimRef.current;
+        if (dim) dim.style.opacity = String(pageDim(progress, baseIndexRef.current));
         onPillMove(progress);
       }
-      // If the finger reverses, the other neighbour may not be mounted yet.
-      ensureMounted(baseIndexRef.current + (offset < 0 ? 1 : -1));
 
       g.samples.push({ x: t.clientX, t: e.timeStamp });
       const cutoff = e.timeStamp - 100;
@@ -440,28 +538,41 @@ export default function TabDeck({
       window.setTimeout(cleanup, 400);
     }
 
-    function springBack() {
+    function velocityOf(g: Gesture): number {
+      const last = g.samples[g.samples.length - 1];
+      const first = g.samples[0];
+      if (!last || !first || last.t <= first.t) return 0;
+      return Math.abs(last.x - first.x) / (last.t - first.t);
+    }
+
+    function springBack(velocity = 0) {
       const w = widthRef.current;
       if (reducedRef.current) {
         onPillEnd(null, 0);
         offsetRef.current = 0;
         if (w) setRestOffset(baseIndexRef.current);
-        clearDims();
+        syncVisible(baseIndexRef.current);
+        clearDim();
         return;
       }
-      clearDims(SPRING_MS);
-      onPillEnd(null, SPRING_MS);
-      animateTrack(-baseIndexRef.current * widthRef.current, SPRING_MS, SPRING_EASE, () => {
+      const duration = settleDuration(Math.abs(offsetRef.current), w, velocity);
+      clearDim(duration);
+      onPillEnd(null, duration);
+      animateTrack(-baseIndexRef.current * w, duration, SPRING_EASE, () => {
         offsetRef.current = 0;
         setRestOffset(baseIndexRef.current);
-        clearDims();
+        syncVisible(baseIndexRef.current);
+        clearDim();
       });
     }
 
     function onEnd(e: TouchEvent) {
       const g = gestureRef.current;
       gestureRef.current = null;
-      if (!g || g.axis !== 'horizontal') return;
+      if (!g || g.axis !== 'horizontal') {
+        onPillEnd(null, 0);
+        return;
+      }
       suppressNextClick();
       const w = widthRef.current;
       if (!w) { springBack(); return; }
@@ -472,25 +583,27 @@ export default function TabDeck({
       let dtMs = last && first ? last.t - first.t : 0;
       const endAt = e.timeStamp;
       if (!last || !first || endAt - last.t > 80) { recentDx = 0; dtMs = 0; }
-      // The net finger travel from the touch origin (offset had the dead zone
-      // removed). Used for the flick's 90px distance gate.
-      const fingerDx = g.offset + g.lockSign * AXIS_SLOP_PX;
-      const dir = tabCommitDirection(g.offset, w, recentDx, dtMs, Math.abs(fingerDx));
+      const velocity = dtMs > 0 ? Math.abs(recentDx) / dtMs : 0;
+      const dir = tabCommitDirection(g.offset, w, recentDx, dtMs, Math.abs(g.fingerDx));
       const target = baseIndexRef.current + dir;
       if (dir !== 0 && target >= 0 && target < TABS.length) {
-        const duration = Math.abs(g.offset) > TAB_COMMIT_FRACTION * w ? COMMIT_MS : FLICK_MS;
+        const remaining = Math.abs(-dir * w - g.offset);
+        const duration = settleDuration(remaining, w, velocity);
         if (reducedRef.current) reducedSwap(target, true);
         else startSettle(target, duration, true);
       } else {
-        springBack();
+        springBack(velocity);
       }
     }
 
     function onCancel() {
       const g = gestureRef.current;
       gestureRef.current = null;
-      if (!g || g.axis !== 'horizontal') return;
-      springBack();
+      if (!g || g.axis !== 'horizontal') {
+        onPillEnd(null, 0);
+        return;
+      }
+      springBack(velocityOf(g));
     }
 
     deck.addEventListener('touchstart', onStart, { passive: true });
@@ -503,7 +616,7 @@ export default function TabDeck({
       deck.removeEventListener('touchend', onEnd);
       deck.removeEventListener('touchcancel', onCancel);
     };
-  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDims, ensureMounted, onPillEnd, onPillMove, onPillStart, paintTrack, reducedSwap, setRestOffset, startSettle]);
+  }, [animateTrack, beginTrackMotion, cancelTrackAnim, clearDim, ensureMounted, onPillEnd, onPillMove, onPillStart, paintTrack, reducedSwap, setRestOffset, showNeighbour, startSettle, syncVisible]);
 
   return (
     <div ref={deckRef} className="relative h-full w-full overflow-hidden" data-tab-deck="">
@@ -520,7 +633,15 @@ export default function TabDeck({
         {TABS.map((tab, i) => (
           <section
             key={tab.href}
-            ref={(el) => { if (el) el.inert = i !== currentIndex; }}
+            ref={(el) => {
+              if (!el) { sectionRefs.current[i] = null; return; }
+              const prev = sectionRefs.current[i];
+              sectionRefs.current[i] = el;
+              el.inert = i !== currentIndex;
+              if (prev !== el && i !== currentIndexRef.current && !gestureRef.current && !settlingRef.current) {
+                el.style.visibility = 'hidden';
+              }
+            }}
             aria-hidden={i !== currentIndex}
             className="relative h-full shrink-0 overflow-hidden"
             style={{
@@ -542,14 +663,17 @@ export default function TabDeck({
             ) : (
               <div className="h-full w-full bg-background" />
             )}
-            <div
-              ref={(el) => { dimRefs.current[i] = el; }}
-              aria-hidden
-              className="pointer-events-none absolute inset-0 z-20 bg-black opacity-0"
-            />
           </section>
         ))}
       </div>
+      {/* One compositor-friendly scrim for the whole deck. Per-page overlays
+          meant five opacity writes on every touchmove. */}
+      <div
+        ref={dimRef}
+        data-deck-dim=""
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-20 bg-black opacity-0"
+      />
     </div>
   );
 }

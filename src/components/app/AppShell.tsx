@@ -12,7 +12,7 @@ import InstallBanner from '@/components/InstallBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
-import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, SPRING_MS, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
+import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
@@ -236,7 +236,7 @@ export default function AppShell({
     placePill(
       target === null ? geom.active : geom.rects[target],
       target === null
-        ? pillTransition(SPRING_MS, SPRING_EASE)
+        ? pillTransition(durationMs, SPRING_EASE)
         : pillTransition(durationMs, COMMIT_EASE),
     );
   }, [placePill]);

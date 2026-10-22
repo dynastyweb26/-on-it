@@ -4,8 +4,6 @@
 
 export const COMMIT_MS = 340;
 export const COMMIT_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-export const FLICK_MS = 260;
-export const SPRING_MS = 280;
 export const SPRING_EASE = 'cubic-bezier(0.25, 1, 0.5, 1)';
 
 let gestureNavAt = 0;

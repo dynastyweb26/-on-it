@@ -6,14 +6,18 @@ import {
   HORIZONTAL_RATIO,
   PAGE_DIM,
   PILL_STRETCH,
+  SETTLE_MAX_MS,
+  SETTLE_MIN_MS,
   TAB_FLICK,
   applyEdgeResistance,
   classifyAxis,
+  dragFromLock,
   isFlick,
   pageDim,
   pillCentreAt,
   pillStretch,
   rubberBand,
+  settleDuration,
   tabCommitDirection,
   tabProgress,
 } from './swipe';
@@ -108,6 +112,30 @@ test('pageDim: 0 at the active page, 12% one page away', () => {
   assert.equal(pageDim(2.5, 3), 0.06);
   assert.equal(pageDim(1, 3), PAGE_DIM);
   assert.equal(pageDim(0, 4), PAGE_DIM);
+});
+
+test('dragFromLock: the lock point is the origin, not a fixed 12px', () => {
+  // A fast first touchmove at 40px locks there: the track must not jump 28px.
+  assert.equal(dragFromLock(40, 40), 0);
+  assert.equal(dragFromLock(50, 40), 10);
+  assert.equal(dragFromLock(30, 40), -10);
+  // A slow lock at the slop behaves the same way.
+  assert.equal(dragFromLock(12, 12), 0);
+  assert.equal(dragFromLock(20, 12), 8);
+  assert.equal(dragFromLock(Number.NaN, 12), -12);
+});
+
+test('settleDuration: 220–340ms from remaining distance and release speed', () => {
+  assert.equal(SETTLE_MIN_MS, 220);
+  assert.equal(SETTLE_MAX_MS, 340);
+  assert.equal(settleDuration(0, 390, 0), SETTLE_MIN_MS);
+  assert.equal(settleDuration(390, 390, 0), SETTLE_MAX_MS);
+  assert.equal(settleDuration(10_000, 390, 0), SETTLE_MAX_MS);
+  assert.equal(settleDuration(390, 390, 1.5), 250); // full travel, fast flick
+  assert.ok(settleDuration(300, 390, 1.1) < settleDuration(300, 390, 0));
+  assert.equal(settleDuration(100, 0, 0), 220); // bad/zero width falls back to minimum
+  assert.ok(settleDuration(Number.NaN, 390, Number.NaN) >= SETTLE_MIN_MS);
+  assert.ok(settleDuration(390, 390, 1.5) >= SETTLE_MIN_MS);
 });
 
 test('pillStretch: 1 at a tab centre, 1.32 halfway between', () => {

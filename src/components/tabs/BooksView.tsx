@@ -65,7 +65,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   // so adding an expense doesn't re-flash the skeleton.
   const [loading, setLoading] = useState(true);
   // Recurring items for the list-card row and the skip banner (merge 3).
-  const recurring = useRecurringItems();
+  const recurring = useRecurringItems(active);
   // Books motion (MOTION-SPEC §9). `shown` is what the hero and tiles display;
   // it tweens toward `stats`. The first open per session counts up from 0 with
   // the entrance (intro); later refreshes (after adding an expense) roll the
