@@ -99,7 +99,8 @@ Layout as shipped: dark Net card with chevron, 3 tiles (Collected / Still owed /
 
 - Bottom nav: the gold pill slides to the new tab (translateX, 300ms emphasized) instead of jumping.
 - Content enters 28px from the side you're heading, 280ms standard; the old screen just leaves.
-- Swipe navigation (later): same axis; content and pill follow the finger, snap past 30% width.
+- Swipe navigation: built as the persistent tab deck in §17 (content and pill
+  follow the finger, snap past 30% width).
 - Selected ring, app-wide: box-shadow from `0 0 0 6px rgba(212,175,55,0)` to `0 0 0 2px #d4af37`, 240ms. Applies to Invoices filters and every other selectable.
 
 ## 11. Mic listening (build last)
@@ -282,6 +283,62 @@ sheet saves (that sheet has no vendor field; PUNCH-LIST, parked).
 Reduce Motion: the M3 ring / spin / shimmer and the auto-log shimmer land
 on their end state via the global kill switch; the banner and card still
 appear, without the rise.
+
+## 17. Tab deck + drag-follow as built (`feat/tab-deck`, 2026-10-22)
+
+Instagram-style horizontal drag between the five primary tabs. The route stays
+the source of truth for the committed tab; the deck only previews and settles.
+Nav layout, dimensions, icons, labels, colours, tab order, the raised Chat tab
+and the pill's resting geometry are unchanged.
+
+**Gesture (`src/components/tabs/TabDeck.tsx`, `src/lib/swipe.ts`)**
+- Axis decided once after 12px (`AXIS_SLOP_PX`), horizontal when
+  `|dx| >= 2.5 * |dy|`, then sticky for the gesture. Vertical wins scrolling.
+- The lock calls non-passive `preventDefault` on `touchmove`; surfaces keep
+  `touch-action: auto` (never `pan-y`). `swipeBlockedAt` stops at text inputs,
+  `data-no-tab-swipe`, horizontal scrollers, fixed sheets, and the page's own
+  `data-tab-scroll-owner` wrapper.
+- The 12px dead zone is subtracted once, in the lock direction
+  (`dx - lockSign * 12`), so reversing across the origin cannot pop.
+- Active panel plus the drag-direction neighbour mount on lock; mounted panels
+  stay cached for the session. Every route-coupled effect in a panel is gated
+  by its `active` prop, and cancellation guards stop a hidden panel redirecting
+  or rewriting the URL.
+
+**Commit and settle**
+- Commit when `|offset| > 0.30 * W`, or a flick: net travel >= 90px, recent
+  speed >= 1.1 px/ms over the last ~100ms, direction matching the drag. `W` is
+  the deck width.
+- Committed settle: **340ms `cubic-bezier(0.22,1,0.36,1)`**. Flick: **260ms**.
+  Spring back: **280ms `cubic-bezier(0.25,1,0.5,1)`**. Tab taps use the same
+  340ms committed settle. One navigation per gesture; `NAV_GUARD_MS` (3000ms)
+  still covers a navigation that never lands.
+- Edge rubber band, pulling past Clients/Settings:
+  `max = 0.22 * W`;
+  `band(o) = sign(o) * max * (1 - 1 / ((|o|/max) * 0.55 + 1))`.
+  It always springs back.
+
+**Pill and pages**
+- `progress = clamp(index - offset / W, 0, 4)`. The pill interpolates measured
+  tab-icon centres and stretches `scaleX = 1 + 0.32 * sin(PI * frac)` only while
+  the finger is down. Width/height stay at the origin tab until release, then
+  animate once to the target.
+- Each page gets a `pointer-events-none` overlay at
+  `min(1, |progress - pageIndex|) * 0.12`; it fades out with the settle.
+- Drag writes transforms and opacities through refs; React state changes only
+  when the settled index changes. Track/pill settle uses WAAPI or imperative
+  styles. The pre-hydration track origin is a CSS percentage
+  (`.onit-tab-track`), so a direct load never flashes another panel.
+- After a horizontal drag, a capture-phase `click` listener suppresses the one
+  synthetic click that follows the release.
+
+**Reduced motion**
+- No drag-follow, no pill stretch, no page dim. On commit/tap the deck
+  crossfades out **120ms**, swaps the track, then fades in **180ms**. Edge
+  spring-back snaps immediately. The pill moves instantly.
+
+**Untouched:** `use-sheet-drag.ts`, long-press menus, recaps, paywall, and
+`SwipeableRow` behaviour. Nested detail routes keep the old pre-deck swipe path.
 
 ## Build order (one commit each)
 
