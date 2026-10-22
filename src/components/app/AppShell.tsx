@@ -7,14 +7,19 @@ import { TOURS } from '@/components/tutorial/coach-marks';
 import TourPicker from '@/components/tutorial/TourPicker';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
-import type { IconName } from '@/components/icon-names';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
+import TabDeck from '@/components/tabs/TabDeck';
+import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, SPRING_MS, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import { reducedMotion } from '@/lib/list-motion';
+import { NAV_GUARD_MS, pillCentreAt, pillStretch } from '@/lib/swipe';
+import { swipeBlockedAt } from '@/lib/swipe-dom';
+import { TABS, exactTabIndex, tabIndexOf } from '@/lib/tabs';
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -35,45 +40,25 @@ function getParentRoute(path: string): string | null {
 // Books · Settings. Chat stays the default landing. The Vault page still
 // exists at /vault (archived PDFs surface on each invoice's detail page) but
 // is not in primary navigation. Icons: Design Standard §4 (+ group, chat_bubble).
-const TABS: { href: string; label: string; icon: IconName }[] = [
-  { href: '/clients', label: 'Clients', icon: 'group' },
-  { href: '/invoices', label: 'Invoices', icon: 'description' },
-  { href: '/chat', label: 'Chat', icon: 'chat_bubble' },
-  { href: '/dashboard', label: 'Books', icon: 'payments' },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
-];
 
 // A tab swipe needs this much horizontal travel AND must be clearly
 // horizontal (|dx| > 1.5 × |dy|); anything else is left to scrolling.
+// A nested-route swipe keeps the old (pre-deck) threshold: this path is only
+// used off the exact tab roots, where the deck does not own the gesture.
 const SWIPE_MIN_DX = 70;
 const SWIPE_RATIO = 1.5;
 // A navigation that never lands (no pathname change) stops blocking swipes
 // after this long, checked at the next touchstart — no timers.
-const NAV_GUARD_MS = 3000;
-
-function tabIndexOf(pathname: string): number {
-  return TABS.findIndex(({ href }) => pathname.startsWith(href));
-}
-
-// Where a gesture must NOT switch tabs: text entry, anything opting out via
-// data-no-tab-swipe="true" (a SwipeableRow's swipe-to-delete, the chat
-// invoice card), horizontal scrollers, and sheets/modals (fixed layers).
-function swipeBlockedAt(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return true;
-  if (target.closest('input, textarea, select, [contenteditable="true"], [data-no-tab-swipe="true"]')) return true;
-  let el: Element | null = target;
-  while (el && el !== document.body) {
-    const style = window.getComputedStyle(el);
-    if (style.position === 'fixed') return true;
-    if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth) return true;
-    el = el.parentElement;
-  }
-  return false;
-}
 
 // Layout effect in the browser (before paint, so tab motion never flashes the
 // resting frame); plain effect during SSR, where React 18 warns on it.
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+type PillRect = { x: number; y: number; w: number; h: number };
+
+function pillTransition(durationMs: number, easing: string): string {
+  return `transform ${durationMs}ms ${easing}, width ${durationMs}ms ${easing}, height ${durationMs}ms ${easing}`;
+}
 
 // Save this device's IANA timezone (e.g. America/Chicago) on the profile, so
 // server jobs can reason in the owner's local time: draft-nudge quiet hours and
@@ -100,14 +85,14 @@ export default function AppShell({
 }) {
   // The deck will pass this to the Settings tab; the split exists so the value
   // is known on the server's first paint instead of flashing "Coming soon".
-  void connectEnabled;
   const path = usePathname();
   const router = useRouter();
+  const exactTab = exactTabIndex(path);
   // Tab motion (MOTION-SPEC §10). Moving between two tabs slides the new screen
   // in from the side you're heading (class cleared after it plays), and the gold
   // pill glides to the new tab instead of jumping. Secondary routes (index -1)
   // get neither. Reduced motion: the global rule stops both.
-  const tabIdx = tabIndexOf(path);
+  const tabIdx = exactTab >= 0 ? exactTab : tabIndexOf(path);
   const prevTabRef = useRef(tabIdx);
   // M5 (release frames / motion file): the new screen crossfades in 160ms,
   // and the newly active tab's icon does a 4px bounce.
@@ -131,6 +116,9 @@ export default function AppShell({
     const prev = prevTabRef.current;
     prevTabRef.current = tabIdx;
     if (prev === -1 || tabIdx === -1 || prev === tabIdx) return;
+    // A drag commit already carries its own motion; the old bounce would fight
+    // it. Tab taps (Link) still get the icon bounce.
+    if (takeTabGestureNavigation()) return;
     setEnterDir('onit-tab-enter');
     setBounceIdx(tabIdx);
     const t = setTimeout(() => { setEnterDir(null); setBounceIdx(-1); }, 420);
@@ -139,25 +127,119 @@ export default function AppShell({
   const navRef = useRef<HTMLElement>(null);
   // The disc sits behind each tab's icon pill (not the whole tab).
   const tabLinkRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const [pill, setPill] = useState<{ x: number; y: number; w: number; h: number; animate: boolean } | null>(null);
-  useIsoLayoutEffect(() => {
-    function measure(animate: boolean) {
-      const nav = navRef.current;
-      const el = tabIdx >= 0 ? tabLinkRefs.current[tabIdx] : null;
-      if (!nav || !el) { setPill(null); return; }
-      const n = nav.getBoundingClientRect();
-      // Hidden while the keyboard is open (data-kb-hide): keep the last spot.
-      if (!n.width) return;
-      const r = el.getBoundingClientRect();
-      setPill((p) => ({ x: r.left - n.left, y: r.top - n.top, w: r.width, h: r.height, animate: animate && p !== null }));
+  // The pill is placed imperatively: during a drag it must move every frame
+  // without React state, and its geometry must stay byte-identical at rest.
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const [pillReady, setPillReady] = useState(false);
+  const pillReadyRef = useRef(false);
+  const pillGeomRef = useRef<{
+    rects: PillRect[];
+    centres: { x: number; y: number }[];
+    active: PillRect;
+  } | null>(null);
+  // A drag already placed the pill at its target with the gesture's own
+  // duration; don't let the path effect restart that transition at 340ms.
+  const pillCommitRef = useRef<{ target: number; until: number } | null>(null);
+  // Font/resize re-measures must never yank the pill out of a live drag.
+  const pillDraggingRef = useRef(false);
+  const placePill = useCallback((rect: PillRect, transition: string) => {
+    const el = pillRef.current;
+    if (!el) return;
+    el.style.transition = transition;
+    el.style.width = `${rect.w}px`;
+    el.style.height = `${rect.h}px`;
+    el.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0) scaleX(1)`;
+    el.style.opacity = '1';
+    if (!pillReadyRef.current) {
+      pillReadyRef.current = true;
+      setPillReady(true);
     }
-    measure(true);
-    const onResize = () => measure(false);
+  }, []);
+  const measurePill = useCallback((activeIdx: number, mode: 'settle' | 'none') => {
+    if (pillDraggingRef.current) return;
+    const nav = navRef.current;
+    const el = activeIdx >= 0 ? tabLinkRefs.current[activeIdx] : null;
+    if (!nav || !el) {
+      if (pillRef.current) pillRef.current.style.opacity = '0';
+      return;
+    }
+    const pending = pillCommitRef.current;
+    if (pending) {
+      const fresh = Date.now() < pending.until;
+      pillCommitRef.current = null;
+      if (pending.target === activeIdx && fresh) {
+        // The gesture already placed the pill here with its own duration.
+        if (pillRef.current) pillRef.current.style.opacity = '1';
+        return;
+      }
+    }
+    const n = nav.getBoundingClientRect();
+    // Hidden while the keyboard is open (data-kb-hide): keep the last spot.
+    if (!n.width) return;
+    const r = el.getBoundingClientRect();
+    const transition = mode === 'settle' && pillReadyRef.current && !reducedMotion()
+      ? pillTransition(COMMIT_MS, COMMIT_EASE)
+      : 'none';
+    placePill({ x: r.left - n.left, y: r.top - n.top, w: r.width, h: r.height }, transition);
+  }, [placePill]);
+  useIsoLayoutEffect(() => {
+    measurePill(tabIdx, 'settle');
+    const onResize = () => measurePill(tabIdx, 'none');
     window.addEventListener('resize', onResize);
-    // Tab widths follow the label font; re-place once it has loaded.
-    void document.fonts?.ready.then(() => measure(false));
+    // Tab widths follow the label font; re-place once it has loaded. Keep the
+    // commit easing so an already-running tab-tap glide is not cut short.
+    void document.fonts?.ready.then(() => measurePill(tabIdx, 'settle'));
     return () => window.removeEventListener('resize', onResize);
-  }, [tabIdx]);
+  }, [tabIdx, measurePill]);
+  // Drag start measures every target once; move writes only the transform.
+  const beginPill = useCallback((activeIdx: number) => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const n = nav.getBoundingClientRect();
+    if (!n.width) return;
+    const rects: PillRect[] = [];
+    for (const el of tabLinkRefs.current) {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      rects.push({ x: r.left - n.left, y: r.top - n.top, w: r.width, h: r.height });
+    }
+    const active = rects[activeIdx];
+    if (!active) return;
+    pillDraggingRef.current = true;
+    pillGeomRef.current = {
+      rects,
+      centres: rects.map((r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 })),
+      active,
+    };
+    placePill(active, 'none');
+  }, [placePill]);
+  const movePill = useCallback((progress: number) => {
+    const geom = pillGeomRef.current;
+    const el = pillRef.current;
+    if (!geom || !el) return;
+    const centre = pillCentreAt(progress, geom.centres);
+    const x = centre.x - geom.active.w / 2;
+    const y = centre.y - geom.active.h / 2;
+    el.style.transform = `translate3d(${x}px, ${y}px, 0) scaleX(${pillStretch(progress)})`;
+  }, []);
+  const endPill = useCallback((target: number | null, durationMs: number) => {
+    pillDraggingRef.current = false;
+    const geom = pillGeomRef.current;
+    if (!geom) return;
+    pillGeomRef.current = null;
+    if (target === null) pillCommitRef.current = null;
+    else pillCommitRef.current = { target, until: Date.now() + durationMs + 80 };
+    if (reducedMotion() || durationMs <= 0) {
+      placePill(target === null ? geom.active : geom.rects[target], 'none');
+      return;
+    }
+    placePill(
+      target === null ? geom.active : geom.rects[target],
+      target === null
+        ? pillTransition(SPRING_MS, SPRING_EASE)
+        : pillTransition(durationMs, COMMIT_EASE),
+    );
+  }, [placePill]);
   // Instagram-style horizontal swipe between tabs. Touch only, one finger,
   // decided once on touchend; vertical scrolling always wins once the gesture
   // turns more vertical than horizontal. `from` is the tab the gesture STARTED
@@ -419,15 +501,28 @@ export default function AppShell({
 
         {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
 
-        <main
-          className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          onTouchCancel={onTouchCancel}
-        >
-          {children}
-        </main>
+        {exactTab >= 0 ? (
+          <main className="min-h-0 flex-1 overflow-hidden">
+            <TabDeck
+              activeIndex={exactTab}
+              connectEnabled={connectEnabled}
+              onPillStart={beginPill}
+              onPillMove={movePill}
+              onPillEnd={endPill}
+            />
+          </main>
+        ) : (
+          <main
+            data-tab-scroll-owner=""
+            className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchCancel}
+          >
+            {children}
+          </main>
+        )}
 
         <div className="md:hidden">
           <InstallBanner />
@@ -435,18 +530,12 @@ export default function AppShell({
 
         {/* Bottom tab bar for Mobile viewports */}
         <nav ref={navRef} data-kb-hide="" data-coach="tab-bar" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
-          {pill && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute left-0 top-0 rounded-[18px] bg-primary-container"
-              style={{
-                width: pill.w,
-                height: pill.h,
-                transform: `translate(${pill.x}px, ${pill.y}px)`,
-                transition: pill.animate ? 'transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring), height var(--motion-slow) var(--ease-spring)' : 'none',
-              }}
-            />
-          )}
+          <span
+            ref={pillRef}
+            aria-hidden
+            className="pointer-events-none absolute left-0 top-0 rounded-[18px] bg-primary-container"
+            style={{ opacity: 0, width: 0, height: 0 }}
+          />
           {TABS.map(({ href, label, icon }, i) => {
             const active = path.startsWith(href);
             const centre = href === '/chat';
@@ -458,7 +547,7 @@ export default function AppShell({
                 <span ref={(el) => { tabLinkRefs.current[i] = el; }} data-tab-target={href}
                   className={`relative grid place-items-center rounded-[18px]
                     ${centre ? '-mt-1 h-9 w-16' : 'h-8 w-[58px]'}
-                    ${active ? (pill ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
+                    ${active ? (pillReady ? '' : 'bg-primary-container') : centre ? 'bg-primary-soft' : ''}`}>
                   <span key={bump?.href === href ? `bump-${bump.n}` : 'icon'}
                     className={`relative grid place-items-center${bounceIdx === i ? ' onit-tab-bounce' : ''}${bump?.href === href ? ' onit-tab-bump' : ''}`}>
                     <Icon name={icon} size={centre ? 27 : 24} filled={active} />
