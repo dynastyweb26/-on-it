@@ -136,6 +136,15 @@ async function copyText(value: string): Promise<boolean> {
   }
 }
 
+// One outlined cream control for every Copy / Open affordance. Neutral
+// border, dark text, icon, 44px minimum height — the single button style on
+// this page (the Card row keeps its gold ring and gold "Pay" label).
+const PILL_BASE =
+  'flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-input border px-3 text-label-lg';
+const PILL_NEUTRAL = `${PILL_BASE} border-outline-variant bg-surface-container-low text-on-background active:bg-surface-container-high`;
+const PILL_COPIED = `${PILL_BASE} border-paid/40 bg-paid-container text-paid`;
+const PILL_STATIC = `${PILL_BASE} border-outline-variant bg-surface-container-low text-on-background`;
+
 // Secondary Copy inside a tappable row (rows that also have Open). Its own
 // real <button>; stopPropagation so copying never triggers the row's Open.
 function CopyButton({ value, label, onCopied }: { value: string; label: string; onCopied: () => void }) {
@@ -154,9 +163,10 @@ function CopyButton({ value, label, onCopied }: { value: string; label: string; 
       onClick={copy}
       onKeyDown={(e) => e.stopPropagation()} // Enter/Space on Copy stays on Copy
       aria-label={copied ? `${label} copied` : `Copy ${label}`}
-      className="flex h-touch min-w-[56px] shrink-0 items-center justify-center gap-1 rounded-button px-3 text-label-lg text-primary active:bg-surface-container"
+      aria-live="polite"
+      className={`min-w-[88px] ${copied ? PILL_COPIED : PILL_NEUTRAL}`}
     >
-      <Icon name={copied ? 'check' : 'content_copy'} size={20} />
+      <Icon name={copied ? 'check' : 'content_copy'} size={16} />
       {copied ? 'Copied' : 'Copy'}
     </button>
   );
@@ -211,8 +221,27 @@ function PayRow({
 }
 
 // The right-side action label inside a row. Visual only — the row handles the
-// tap — in text-safe gold (#735c00) with a Material Symbol, like before.
-function RowAction({ icon, text, flip = false }: { icon: 'arrow_forward' | 'open_in_new' | 'content_copy' | 'check' | 'expand_more'; text: string; flip?: boolean }) {
+// tap. Copy and Open use the shared outlined control; Pay and Show stay in
+// text-safe gold (#735c00) with a Material Symbol.
+function RowAction({
+  icon,
+  text,
+  flip = false,
+  pill = false,
+}: {
+  icon: 'arrow_forward' | 'open_in_new' | 'content_copy' | 'check' | 'expand_more';
+  text: string;
+  flip?: boolean;
+  pill?: boolean;
+}) {
+  if (pill) {
+    return (
+      <span aria-hidden className={`min-w-[88px] ${PILL_STATIC}`}>
+        <Icon name={icon} size={16} className={flip ? 'rotate-180' : ''} />
+        {text}
+      </span>
+    );
+  }
   return (
     <span aria-hidden className="flex h-touch min-w-[56px] shrink-0 items-center justify-center gap-1 px-3 text-label-lg text-primary">
       <Icon name={icon} size={20} className={flip ? 'rotate-180' : ''} />
@@ -604,7 +633,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   >
                     {dot}
                     {text}
-                    <RowAction icon="open_in_new" text="Open" />
+                    <RowAction icon="open_in_new" text="Open" pill />
                     <CopyButton value={m.value} label={m.name} onCopied={() => showToast(`${m.name} copied`)} />
                   </PayRow>
                 ) : (
@@ -618,7 +647,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   >
                     {dot}
                     {text}
-                    <RowAction icon="content_copy" text="Copy" />
+                    <RowAction icon="content_copy" text="Copy" pill />
                   </PayRow>
                 );
               })}
