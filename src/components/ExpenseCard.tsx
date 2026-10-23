@@ -8,6 +8,10 @@
 // Every one of the four fields is editable in place. No confidence badges,
 // no "we're 82% sure" — the user reads the receipt faster than any score, and
 // a badge only teaches them to distrust the fields that don't have one.
+//
+// Layout follows the Expense Card design: amount is the hero, the vendor reads
+// as a sentence, category is one swipeable row, and "what" stays a single
+// optional line. Tokens only — the mockup's hexes map to the app palette.
 import Icon from '@/components/Icon';
 import {
   EXPENSE_CATEGORIES,
@@ -44,31 +48,36 @@ export default function ExpenseCard({
 
   return (
     <div className="card border-primary-container/50 ring-1 ring-primary-container/30">
-      <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
-        <Icon name="receipt_long" size={18} />
-        Expense
-      </div>
-
-      {previewUrl && (
-        <div className="mb-3 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+      <div className="flex items-center gap-2.5">
+        {previewUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={previewUrl}
             alt="The receipt you photographed"
-            className="h-16 w-16 shrink-0 rounded-input border border-outline-variant/40 object-cover"
+            className="h-12 w-10 shrink-0 rounded-[7px] border border-outline-variant/60 object-cover"
           />
-          <p className="text-sm text-on-surface-variant">
-            Here&apos;s what I read. Fix anything that&apos;s off.
-          </p>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-label-lg font-bold uppercase tracking-[0.12em] text-primary">
+            Expense
+          </span>
+          <span className="truncate text-xs text-on-surface-variant">
+            {previewUrl ? 'Scanned from receipt' : 'From your message'}
+          </span>
         </div>
-      )}
+        <input
+          type="date"
+          className="h-11 min-w-0 shrink-0 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-sm font-semibold text-on-background outline-none focus:ring-2 focus:ring-primary-container"
+          aria-label="Date"
+          value={draft.occurred_on ?? ''}
+          onChange={(e) => set('occurred_on', e.target.value || null)}
+        />
+      </div>
 
       {/* Numbers are the hero (§1) — the amount is the largest thing here. */}
-      <label className="block">
-        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-          Amount
-        </span>
-        <div className="mt-1 flex items-center gap-1 rounded-input border border-primary-container/20 bg-surface-container px-4 focus-within:ring-2 focus-within:ring-primary-container">
+      <label className="mt-3 block">
+        <span className="sr-only">Amount</span>
+        <div className="flex min-h-touch items-baseline gap-1 rounded-input border border-transparent px-1 focus-within:border-primary-container/40 focus-within:bg-surface-container">
           <span className="font-display text-numeric-xl font-bold tracking-tight text-on-background">$</span>
           <input
             className="min-h-touch w-full bg-transparent font-display text-numeric-xl font-bold tracking-tight text-on-background outline-none placeholder:text-on-surface-variant/40"
@@ -84,31 +93,11 @@ export default function ExpenseCard({
         </div>
       </label>
 
-      <div className="mt-3">
-        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-          Category
-        </span>
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          {EXPENSE_CATEGORIES.map((c: ExpenseCategory) => (
-            <button
-              key={c}
-              className={`chip ${draft.category === c ? 'chip-selected' : ''}`}
-              aria-pressed={draft.category === c}
-              onClick={() => set('category', c)}
-            >
-              {CATEGORY_LABEL[c]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <label className="mt-3 block">
-        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-          Where
-        </span>
+      <label className="flex min-h-touch items-center gap-1.5 px-1">
+        <span className="text-body-lg font-medium text-on-surface-variant">at</span>
         <input
-          className="input mt-1"
-          placeholder="Who you paid"
+          className="min-h-touch min-w-0 flex-1 border-b border-dashed border-primary/40 bg-transparent text-body-lg font-semibold text-on-background outline-none placeholder:font-medium placeholder:text-on-surface-variant/60"
+          placeholder="Vendor"
           maxLength={120}
           aria-label="Vendor"
           value={draft.vendor ?? ''}
@@ -116,30 +105,30 @@ export default function ExpenseCard({
         />
       </label>
 
-      <label className="mt-3 block">
-        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-          What
-        </span>
+      <div role="group" aria-label="Category" data-no-tab-swipe="true"
+        className="mt-2 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {EXPENSE_CATEGORIES.map((c: ExpenseCategory) => (
+          <button
+            key={c}
+            type="button"
+            className={`chip shrink-0 ${draft.category === c ? 'chip-selected' : ''}`}
+            aria-pressed={draft.category === c}
+            onClick={() => set('category', c)}
+          >
+            {CATEGORY_LABEL[c]}
+          </button>
+        ))}
+      </div>
+
+      <label className="mt-2 flex min-h-touch items-center gap-2 rounded-input border border-outline-variant/60 bg-surface-container px-3">
+        <Icon name="edit" size={16} className="shrink-0 text-on-surface-variant/70" />
         <input
-          className="input mt-1"
-          placeholder="What you bought"
+          className="min-h-touch min-w-0 flex-1 bg-transparent text-body-md text-on-background outline-none placeholder:text-on-surface-variant/60"
+          placeholder="Add what you bought (optional)"
           maxLength={120}
           aria-label="What you bought"
           value={draft.description ?? ''}
           onChange={(e) => set('description', e.target.value || null)}
-        />
-      </label>
-
-      <label className="mt-3 block">
-        <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
-          When
-        </span>
-        <input
-          type="date"
-          className="input mt-1"
-          aria-label="Date"
-          value={draft.occurred_on ?? ''}
-          onChange={(e) => set('occurred_on', e.target.value || null)}
         />
       </label>
 
