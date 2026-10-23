@@ -152,14 +152,35 @@ const PILL_STATIC = `${PILL_BASE} border-outline-variant bg-surface-container-lo
 
 // Secondary Copy inside a tappable row (rows that also have Open). Its own
 // real <button>; stopPropagation so copying never triggers the row's Open.
-function CopyButton({ value, label, onCopied }: { value: string; label: string; onCopied: () => void }) {
+function CopyButton({
+  value,
+  label,
+  onCopied,
+  resolveValue,
+}: {
+  value?: string;
+  label: string;
+  onCopied: () => void;
+  // For values the page does not hold yet (the full bank account number):
+  // fetch on demand, then copy. A failed fetch shows no false "Copied".
+  resolveValue?: () => Promise<string | null>;
+}) {
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
   async function copy(e: React.MouseEvent) {
     e.stopPropagation();
-    if (await copyText(value)) {
-      setCopied(true);
-      onCopied();
-      setTimeout(() => setCopied(false), 1600);
+    if (busy) return;
+    setBusy(true);
+    try {
+      const text = resolveValue ? await resolveValue() : value;
+      if (!text) return;
+      if (await copyText(text)) {
+        setCopied(true);
+        onCopied();
+        setTimeout(() => setCopied(false), 1600);
+      }
+    } finally {
+      setBusy(false);
     }
   }
   return (
@@ -256,30 +277,45 @@ function RowAction({
 }
 
 // Expanded Bank transfer details: one field per line, each with Copy. The
-// page data carries the account number masked to its last 4; "Show account
+// page data carries the account number masked to its last 4. "Show account
 // number" fetches the full one from POST /api/pay/[token]/bank (rate limited,
-// same gates as the page), and Copy then copies it. Taps here never collapse
-// the row.
+// same gates as the page); Copy fetches the same value without revealing it,
+// so the full number can be copied while the display stays masked. Taps here
+// never collapse the row.
 function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; token: string; docNumber: string; onCopied: (label: string) => void }) {
   const [account, setAccount] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState('');
-  async function reveal() {
-    if (revealing) return;
-    setRevealing(true);
+  // Cached full number. Copy uses it without changing the display, so the
+  // account can stay masked while it is copied; Show reveals the same value.
+  const accountRef = useRef<string | null>(null);
+
+  async function loadAccount(): Promise<string | null> {
+    if (accountRef.current) return accountRef.current;
     setRevealError('');
     try {
       const res = await fetch(`/api/pay/${encodeURIComponent(token)}/bank`, { method: 'POST', cache: 'no-store' });
       const body = (await res.json().catch(() => null)) as { account?: unknown } | null;
-      if (res.ok && typeof body?.account === 'string') setAccount(body.account);
-      else if (res.status === 429) setRevealError('Too many tries. Please wait a while and try again.');
+      if (res.ok && typeof body?.account === 'string') {
+        accountRef.current = body.account;
+        return body.account;
+      }
+      if (res.status === 429) setRevealError('Too many tries. Please wait a while and try again.');
       else if (res.status === 404) setRevealError('Bank details are no longer available for this invoice.');
       else setRevealError('Couldn’t load the account number. Please try again.');
+      return null;
     } catch {
       setRevealError('Couldn’t load the account number. Please try again.');
-    } finally {
-      setRevealing(false);
+      return null;
     }
+  }
+
+  async function reveal() {
+    if (revealing) return;
+    setRevealing(true);
+    const value = await loadAccount();
+    if (value) setAccount(value);
+    setRevealing(false);
   }
   // Text wraps on words only (the memo once split "mem / o"). Digit-only
   // values (routing, account) have no words, so they may break anywhere.
@@ -301,28 +337,47 @@ function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; toke
       {line('Account holder', bank.holderName, bank.holderName)}
       {line('Bank', bank.bankName, bank.bankName)}
       {line('Routing number', bank.routing, bank.routing, true)}
-      {account
-        ? line('Account number', account, account, true)
-        : line(
-            'Account number',
+      <div className="flex min-h-touch items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-on-surface-variant">Account number</p>
+          {account ? (
+            <div className="flex flex-wrap items-center gap-x-2">
+              <span className="break-all text-body-md text-on-background">{account}</span>
+              <button
+                type="button"
+                onClick={() => setAccount(null)}
+                aria-label="Hide account number"
+                className="flex min-h-[44px] items-center gap-1 text-label-lg text-primary"
+              >
+                <Icon name="visibility_off" size={18} />
+                Hide account number
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
               onClick={reveal}
               disabled={revealing}
               aria-label="Show account number"
-              className="flex items-center gap-1 text-body-md text-on-background"
+              className="flex min-h-[44px] items-center gap-1 text-body-md text-on-background"
             >
               {`••••${bank.accountLast4}`}
               <span className="flex items-center gap-1 text-label-lg text-primary">
                 <Icon name="visibility" size={18} />
                 {revealing ? 'Showing…' : 'Show account number'}
               </span>
-            </button>,
-            null,
+            </button>
           )}
+        </div>
+        <CopyButton
+          label="Account number"
+          onCopied={() => onCopied('Account number')}
+          resolveValue={loadAccount}
+        />
+      </div>
       {revealError ? <p role="alert" className="pb-1 text-xs text-error">{revealError}</p> : null}
       {line('Account type', bank.accountType === 'savings' ? 'Savings' : 'Checking', null)}
-      {line('Memo', <>Include <span className="font-semibold">{docNumber}</span> in the memo</>, docNumber)}
+      {line('Memo', docNumber, docNumber)}
       <p className="pb-1 pt-1 text-xs text-on-surface-variant">Bank transfers usually take 1–3 business days.</p>
     </div>
   );
