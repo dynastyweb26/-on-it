@@ -33,6 +33,7 @@ import {
   estimateNumber,
   extendValidity,
   firstName,
+  mergeLineItemEdits,
   isLinkLive,
   isOwnerEditable,
   ownerEstimateState,
@@ -361,13 +362,7 @@ export default function EstimateDetail({
   // write as the invoice page: line_items + recomputed totals together.
   async function applyLineItems(newItems: LineItemRow[]) {
     const prev = (inv.line_items ?? []) as LineItemRow[];
-    const merged = newItems.map((li, i) => {
-      const before = prev[i];
-      if (before && li.description !== before.description && !before.original_description) {
-        return { ...li, original_description: before.description };
-      }
-      return li;
-    });
+    const merged = mergeLineItemEdits(prev, newItems);
     const nextTotals = calculateInvoiceTotals(merged, taxRate);
     const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
     setInv((prevRow) => ({

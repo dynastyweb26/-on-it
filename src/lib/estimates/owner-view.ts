@@ -149,6 +149,24 @@ export function extendValidity(
   return addDaysToDateString(base, 30);
 }
 
+/**
+ * Line-item edits keep the AI's original wording the first time a line's
+ * description changes — the same training-signal rule as the invoice editor.
+ * Pure so the merge can be tested without a database.
+ */
+export function mergeLineItemEdits<T extends { description: string; original_description?: string | null }>(
+  previous: readonly T[],
+  next: readonly T[],
+): T[] {
+  return next.map((item, i) => {
+    const before = previous[i];
+    if (before && item.description !== before.description && !before.original_description) {
+      return { ...item, original_description: before.description };
+    }
+    return item;
+  });
+}
+
 /** "1 item" / "N items". */
 export function itemCountLabel(n: number): string {
   return `${n} ${n === 1 ? 'item' : 'items'}`;

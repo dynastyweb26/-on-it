@@ -7,6 +7,7 @@ import {
   isOwnerEditable,
   itemCountLabel,
   lineItemMeta,
+  mergeLineItemEdits,
   ownerEstimateState,
   sentOrApprovedDate,
   signedMethodLabel,
@@ -89,6 +90,26 @@ test('extend validity: 30 days from the later of today and the current expiry', 
   assert.equal(extendValidity('2026-11-18', now, CHI), '2026-12-18');
   // Last valid day counts as still valid.
   assert.equal(extendValidity('2026-10-23', now, CHI), '2026-11-22');
+});
+
+type EditRow = { description: string; qty: number; unit_price: number; original_description?: string | null };
+
+test('a first description edit keeps the AI wording once', () => {
+  const prev: EditRow[] = [{ description: 'Replace faucet', qty: 1, unit_price: 100 }];
+  const next: EditRow[] = [{ description: 'Replace kitchen faucet', qty: 1, unit_price: 100 }];
+  const merged = mergeLineItemEdits(prev, next);
+  assert.equal(merged[0].description, 'Replace kitchen faucet');
+  assert.equal(merged[0].original_description, 'Replace faucet');
+
+  // A second edit must not overwrite the captured original.
+  const again = mergeLineItemEdits(merged, [{ ...merged[0], description: 'Swap faucet' }]);
+  assert.equal(again[0].original_description, 'Replace faucet');
+});
+
+test('an unchanged item is returned as-is', () => {
+  const prev: EditRow[] = [{ description: 'Labor', qty: 2, unit_price: 50 }];
+  const merged = mergeLineItemEdits(prev, [{ ...prev[0] }]);
+  assert.equal(merged[0].original_description, undefined);
 });
 
 test('item meta and count copy', () => {
