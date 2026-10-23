@@ -17,6 +17,10 @@ export type EstimatePreviewOutcome =
 
 export type EstimateLinkShare = 'shared' | 'copied' | 'cancelled' | 'failed';
 
+export type EstimateDuplicateOutcome =
+  | { ok: true; id: string }
+  | { ok: false; paywall: boolean; message: string };
+
 export function sendErrorMessage(status: number, code?: string | null): string {
   if (status === 401) return 'Please sign in again.';
   if (status === 404) return "This estimate couldn't be found.";
@@ -61,6 +65,30 @@ export async function requestEstimatePreview(id: string): Promise<EstimatePrevie
     return { ok: true, preview: body as PublicEstimate };
   } catch {
     return { ok: false, message: "The client preview isn't available right now." };
+  }
+}
+
+export async function requestEstimateDuplicate(id: string): Promise<EstimateDuplicateOutcome> {
+  try {
+    const res = await fetch(`/api/estimates/${id}/duplicate`, { method: 'POST' });
+    const body = (await res.json().catch(() => null)) as
+      | { estimate?: { id?: string }; error?: string }
+      | null;
+    if (res.status === 402 || body?.error === 'paywall') {
+      return { ok: false, paywall: true, message: 'You have reached the free invoice limit.' };
+    }
+    if (!res.ok || !body?.estimate?.id) {
+      return {
+        ok: false,
+        paywall: false,
+        message: res.status === 409
+          ? 'Only an approved estimate can be duplicated.'
+          : "Couldn't duplicate this estimate. Please try again.",
+      };
+    }
+    return { ok: true, id: body.estimate.id };
+  } catch {
+    return { ok: false, paywall: false, message: "Couldn't duplicate this estimate. Please try again." };
   }
 }
 

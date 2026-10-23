@@ -21,6 +21,7 @@ import type { PublicEstimate } from '@/lib/estimates/types';
 import {
   estimateLink,
   estimateShareText,
+  requestEstimateDuplicate,
   requestEstimatePreview,
   requestEstimateSend,
   shareEstimateLink,
@@ -291,19 +292,13 @@ export default function EstimateDetail({
     setBusy('duplicate');
     setActionError(null);
     try {
-      const res = await fetch(`/api/estimates/${id}/duplicate`, { method: 'POST' });
-      const body = (await res.json().catch(() => null)) as
-        | { estimate?: { id: string }; error?: string }
-        | null;
-      if (res.status === 402 || body?.error === 'paywall') {
-        setShowPaywall(true);
+      const outcome = await requestEstimateDuplicate(id);
+      if (!outcome.ok) {
+        if (outcome.paywall) setShowPaywall(true);
+        else setActionError(outcome.message);
         return;
       }
-      if (!res.ok || !body?.estimate?.id) {
-        setActionError("Couldn't duplicate this estimate. Please try again.");
-        return;
-      }
-      router.push(`/invoices/${body.estimate.id}`);
+      router.push(`/invoices/${outcome.id}`);
     } finally {
       setBusy(null);
     }
