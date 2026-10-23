@@ -32,6 +32,7 @@ import {
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
+import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
 import ConvertQuoteBar from '@/components/invoice-detail/ConvertQuoteBar';
 import type { RecordPaymentInput } from '@/lib/record-payment';
 
@@ -223,6 +224,18 @@ export default function InvoiceDetail() {
   }, [id]);
 
   if (!inv || !profile) return <InvoiceDetailSkeleton />;
+
+  // Estimates have their own screen (design/estimates/ESTIMATES-DESIGN-SPEC.md
+  // §3). Invoices never enter it.
+  if (inv.kind === 'quote') {
+    return (
+      <EstimateDetail
+        estimate={inv as EstimateDetailRow}
+        profile={profile}
+        convertedToId={convertedTo?.id ?? null}
+      />
+    );
+  }
 
   // Per-ROW snapshot sentinel: a non-null snapshot template means this invoice was
   // finalized WITH the render snapshot, so use the snapshot for ALL ten fields —
