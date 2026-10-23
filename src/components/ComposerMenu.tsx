@@ -21,10 +21,10 @@ export type ComposerPick = 'mic' | 'invoice' | 'quote' | 'expense';
 // Top to bottom; the last one sits nearest the "+".
 const OPTIONS: { key: ComposerPick; label: string; sub: string; icon: IconName; disc: string }[] = [
   { key: 'mic', label: 'Voice', sub: 'Say it, On It writes it', icon: 'mic', disc: 'bg-primary-soft' },
-  // Quote, expense and invoice open a guided template in place (merge 2 · 2·12c).
+  // Invoice, quote and expense open a guided template in place (merge 2 · 2·12c).
+  { key: 'invoice', label: 'New invoice', sub: 'Guided template', icon: 'description', disc: 'bg-primary-container' },
   { key: 'quote', label: 'New quote', sub: 'Guided template', icon: 'request_quote', disc: 'bg-primary-soft' },
   { key: 'expense', label: 'Record expense', sub: 'Guided template', icon: 'receipt_long', disc: 'bg-primary-soft' },
-  { key: 'invoice', label: 'New invoice', sub: 'Guided template', icon: 'description', disc: 'bg-primary-container' },
 ];
 export const MENU_CLOSE_MS = 180;
 
