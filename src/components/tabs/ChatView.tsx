@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
+import PaymentCheckCard from '@/components/payment-check/PaymentCheckCard';
+import PaymentCheckSheet from '@/components/payment-check/PaymentCheckSheet';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
 import { buildTheme, explicitColorRoles, BrandTheme } from '@/lib/colors';
@@ -58,6 +60,8 @@ import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expe
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
+import { usePaymentCheck } from '@/lib/use-payment-check';
+import { enabledPaymentCheckMethods, remainingBalance } from '@/lib/payment-check';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,6 +100,7 @@ interface Profile {
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
   card_payments_enabled?: boolean | null;
   bank_transfer_enabled?: boolean | null; // PDF bank line flag (20261015200000)
+  bank_account_last4?: string | null; // Get Paid: enable the Bank transfer row
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -601,6 +606,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the fetch hasn't resolved yet (audit B2); only a true guest sees the
   // sign-in prompt (audit A3).
   const [profileLoaded, setProfileLoaded] = useState(false);
+  // Chat's persistent payment-check queue and the "How did they pay?" sheet.
+  // The card only exists for a signed-in owner; delegates load their own data.
+  const paymentCheck = usePaymentCheck({ active, userId: profile?.id ?? null });
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  // Zelle's handle is encrypted at rest. GET /api/zelle is the only source for
+  // "is it set"; never read the zelle column through the browser client.
+  const [zelleSet, setZelleSet] = useState<boolean | null>(null);
   const [hydrated, setHydrated] = useState(false);
   // Render-only fail-safe for the restore skeleton. If getSession() hangs (a
   // documented stall — settings/page.tsx carries an 8s timeout for the same
@@ -895,6 +907,21 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
+
+  // The Get Paid sheet needs to know whether Zelle is configured, but the value
+  // is encrypted and is deliberately never selected into the browser. The mask
+  // endpoint returns only { set, masked }; we keep the boolean.
+  useEffect(() => {
+    if (!active || !profile?.id) { setZelleSet(null); return; }
+    let cancelled = false;
+    void fetch('/api/zelle')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((z: { set?: boolean } | null) => {
+        if (!cancelled) setZelleSet(z?.set === true);
+      })
+      .catch(() => { if (!cancelled) setZelleSet(null); });
+    return () => { cancelled = true; };
+  }, [active, profile?.id]);
 
   // Chat-owned global affordances: the follow-up service worker and the header
   // history icon (which only exists while Chat is on screen).
@@ -3712,6 +3739,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
       </div>
 
+      {/* The payment check is pinned between the messages and the composer
+          (design section A). It stays in flow so it never covers the last
+          bubble. A save prompt is transient and floats in the same spot, so it
+          takes precedence while it is up. */}
+      {!template && !promptShown && paymentCheck.current && (
+        <div className="shrink-0 px-3 pb-2">
+          <div className="mx-auto w-full max-w-lg">
+            <PaymentCheckCard
+              invoice={paymentCheck.current}
+              index={paymentCheck.index}
+              total={paymentCheck.total}
+              done={paymentCheck.done}
+              onYes={() => setPaymentSheetOpen(true)}
+              onNo={() => paymentCheck.snooze(paymentCheck.current!)}
+              onSnooze={() => paymentCheck.snooze(paymentCheck.current!)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* The composer (UI redesign, release frames 1a): a small "+" on the
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
@@ -3858,6 +3905,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* The method sheet is rendered from the current queue item. Confirm
+          writes the ledger row; the card behind it becomes the 4s confirmation
+          with Undo. A dismissal only closes the sheet — the invoice is still
+          unpaid and stays in the queue (design 3f). */}
+      {paymentSheetOpen && paymentCheck.current && (
+        <PaymentCheckSheet
+          clientName={paymentCheck.current.client_name}
+          invoiceNumber={paymentCheck.current.invoice_number}
+          balance={remainingBalance(paymentCheck.current)}
+          methods={enabledPaymentCheckMethods(profile, zelleSet)}
+          onClose={() => setPaymentSheetOpen(false)}
+          onConfirm={async (method, paidAt) => {
+            const invoice = paymentCheck.current;
+            if (!invoice) return 'This invoice is no longer open.';
+            const message = await paymentCheck.markPaid(invoice, method, paidAt);
+            if (!message) setPaymentSheetOpen(false);
+            return message;
+          }}
+        />
       )}
 
       {showHistory && (
