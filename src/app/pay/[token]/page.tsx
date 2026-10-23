@@ -5,12 +5,13 @@ import { adminClient } from '@/lib/supabase/admin';
 import { connectEnabled } from '@/lib/stripe/connect';
 import { rateLimit } from '@/lib/ratelimit';
 import { docNoun, formatDocNumber } from '@/lib/documents';
-import { roundCurrency, calculateLineAmount, dueNowFromLedger } from '@/lib/financials';
+import { calculateLineAmount } from '@/lib/financials';
 import { normalizeLineDetail, normalizeLineUnit, unitLabel } from '@/lib/line-units';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
 import { publicBank, pageBank, type PublicBankRow } from '@/lib/pay-bank';
+import { payFigures } from './figures';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public, unauthenticated pay page: /pay/[token].
@@ -133,38 +134,20 @@ function Notice({ icon, title, body }: { icon: IconName; title: string; body: st
 
 function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token: string, paidReturn: boolean): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
-  const subtotal = num(row.subtotal);
-  const taxRate = num(row.tax_rate);
-  const taxAmount = num(row.tax_amount);
-  const total = num(row.total);
-  // due-now / balance are derived from the AUTHORITATIVE row.total (tax already
-  // baked in), never recomputed from line items. Shared with the card checkout
-  // route (dueNowFromLedger) so what's shown is exactly what's charged.
-  const { paid, depositAmount, dueNow, fullyPaid } = dueNowFromLedger(
-    total,
-    num(row.deposit_amount),
-    num(row.amount_paid)
-  );
-
-  let primaryLabel: string;
-  let primaryAmount: number;
-  const voided = row.status === 'void';
-  if (voided) {
-    primaryLabel = 'Cancelled';
-    primaryAmount = total;
-  } else if (fullyPaid) {
-    primaryLabel = 'Paid in full';
-    primaryAmount = total;
-  } else if (depositAmount > 0 && paid < depositAmount) {
-    primaryLabel = 'Deposit due now';
-    primaryAmount = dueNow;
-  } else if (paid > 0) {
-    primaryLabel = 'Balance due';
-    primaryAmount = dueNow;
-  } else {
-    primaryLabel = kind === 'quote' ? 'Quoted total' : 'Total due';
-    primaryAmount = dueNow;
-  }
+  // Every figure and state label comes from one pure function, tested against
+  // calculateInvoiceTotals (figures.test.ts). It derives due-now / balance from
+  // the AUTHORITATIVE row.total (tax already baked in), never from line items.
+  const figures = payFigures({
+    kind,
+    status: row.status,
+    subtotal: num(row.subtotal),
+    taxRate: num(row.tax_rate),
+    taxAmount: num(row.tax_amount),
+    total: num(row.total),
+    depositAmount: num(row.deposit_amount),
+    amountPaid: num(row.amount_paid),
+  });
+  const { paid, depositAmount, dueNow, fullyPaid, voided } = figures;
 
   const lineItems = (row.line_items ?? []).map((li) => {
     const qty = num(li.qty);
@@ -203,20 +186,22 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token:
     docNumber: formatDocNumber(kind, row.invoice_number),
     noun: docNoun(kind),
     lineItems,
-    subtotal,
-    taxRate,
-    taxAmount,
-    // Show the Subtotal/Tax/Total breakdown only when there's tax to reconcile
-    // (also the graceful fallback when 20260918000009 isn't applied yet: the
-    // fields are absent → taxAmount 0 → no breakdown, current behavior).
-    showTaxBreakdown: taxAmount > 0,
-    total,
-    primaryLabel,
-    primaryAmount,
-    showTotalSubline: roundCurrency(primaryAmount) !== roundCurrency(total),
-    amountPaid: paid,
-    fullyPaid,
-    voided,
+    subtotal: figures.subtotal,
+    taxRate: figures.taxRate,
+    taxAmount: figures.taxAmount,
+    showTaxBreakdown: figures.showTaxBreakdown,
+    total: figures.total,
+    primaryLabel: figures.primaryLabel,
+    primaryAmount: figures.primaryAmount,
+    showTotalSubline: figures.showTotalSubline,
+    depositAmount: figures.depositAmount,
+    depositDue: figures.depositDue,
+    depositPaid: figures.depositPaid,
+    balanceAfterDeposit: figures.balanceAfterDeposit,
+    amountDue: figures.dueNow,
+    amountPaid: figures.paid,
+    fullyPaid: figures.fullyPaid,
+    voided: figures.voided,
     hasHandles: Object.values(handles).some(Boolean) || bank !== null,
     bank,
     handles,
