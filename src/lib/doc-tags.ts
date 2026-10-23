@@ -6,7 +6,7 @@ import type { IconName } from '@/components/icon-names';
 import { invoiceStatusLabel } from '@/lib/payment-methods';
 
 export type TagDoc = { kind: string; status: string; due_date: string | null; viewed_at?: string | null;
-  refunded_amount?: number | null; amount_paid?: number | null };
+  approved_at?: string | null; refunded_amount?: number | null; amount_paid?: number | null };
 
 const TAG: Record<string, { cls: string; icon: IconName }> = {
   paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
@@ -15,6 +15,7 @@ const TAG: Record<string, { cls: string; icon: IconName }> = {
   draft: { cls: 'bg-draft-container text-draft', icon: 'history' },
   void: { cls: 'bg-draft-container text-draft line-through', icon: 'block' },
   converted: { cls: 'bg-surface-container-high text-on-surface-variant', icon: 'sync' },
+  signed: { cls: 'bg-paid-container text-paid', icon: 'verified' },
 };
 
 const shortDate = (ymd: string) =>
@@ -22,6 +23,8 @@ const shortDate = (ymd: string) =>
 
 export function tagFor(r: TagDoc, converted: boolean): { key: string; text: string; cls: string; icon: IconName } {
   if (converted) return { key: 'converted', text: 'CONVERTED', ...TAG.converted };
+  // A converted quote keeps the CONVERTED tag even if it was signed first.
+  if (r.kind === 'quote' && r.approved_at) return { key: 'signed', text: 'SIGNED', ...TAG.signed };
   const base = TAG[r.status] ?? TAG.draft;
   if (r.status === 'sent' && r.kind === 'invoice' && r.due_date) {
     return { key: `due-${r.viewed_at ? 'v' : 's'}`, text: `DUE ${shortDate(r.due_date)}`, ...base, icon: r.viewed_at ? 'visibility' : base.icon };

@@ -32,6 +32,7 @@ import {
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
+import ConvertQuoteBar from '@/components/invoice-detail/ConvertQuoteBar';
 import type { RecordPaymentInput } from '@/lib/record-payment';
 
 const money = (n: number) =>
@@ -158,6 +159,10 @@ export default function InvoiceDetail() {
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
   const [undoDelete, setUndoDelete] = useState(false);
+  // Quote signed state (manual Mark as signed, no signature capture).
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
+  const [undoSigned, setUndoSigned] = useState(false);
   // Attachments for THIS invoice — thumbnails in the strip under the preview,
   // and the images the PDFs print 2-per-page after the body. Loaded from
   // invoice_attachments; edited here only while the document is a draft.
@@ -697,6 +702,12 @@ export default function InvoiceDetail() {
   }
 
   const isDraft = inv.status === 'draft';
+  // A quote's signed stamp is manual and nullable; converting an unsigned quote
+  // stays allowed. Sending is what locks the document, not signing.
+  const isQuote = inv.kind === 'quote';
+  const signedAt = isQuote ? (inv.approved_at as string | null) : null;
+  const isSigned = Boolean(signedAt);
+  const canSign = isQuote && inv.status === 'sent' && !signedAt && !convertedTo;
 
   // ── Receipt header (invoice detail redesign) ──
   // Display-only reads of the financial engine's output; the money math itself
@@ -708,7 +719,9 @@ export default function InvoiceDetail() {
   const partiallyPaid = inv.kind === 'invoice' && amountPaid > 0 && !fullyPaid && totals.total > 0;
   const paidPct = totals.total > 0 ? Math.min(100, Math.max(0, Math.round((amountPaid / totals.total) * 100))) : 0;
   const statusLabel = invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid);
-  const chipLabel = fullyPaid
+  const chipLabel = isSigned
+    ? 'Signed'
+    : fullyPaid
     ? 'Paid'
     : inv.status === 'overdue'
       ? 'Overdue'
@@ -721,7 +734,9 @@ export default function InvoiceDetail() {
             : statusLabel === 'sent'
               ? 'Sent · Unpaid'
               : statusLabel;
-  const chipClass = fullyPaid
+  const chipClass = isSigned
+    ? 'bg-paid-container text-paid'
+    : fullyPaid
     ? 'bg-paid-container text-paid'
     : inv.status === 'overdue'
       ? 'bg-error-container text-error'
@@ -788,6 +803,9 @@ export default function InvoiceDetail() {
 
   // The sticky bar exists only while an invoice still has a balance to collect.
   const showPayBar = inv.kind === 'invoice' && totals.balanceRemaining > 0;
+  // A signed quote promotes Convert to a gold floating bar; an unsigned one
+  // keeps the outlined chip in the card. A converted quote shows the link only.
+  const showConvertBar = isQuote && isSigned && !convertedTo;
 
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
@@ -809,15 +827,45 @@ export default function InvoiceDetail() {
     }
   }
 
+  async function markSigned() {
+    if (signing || !canSign) return;
+    setSigning(true);
+    setSignError(null);
+    const approvedAt = new Date().toISOString();
+    const { error } = await supabase.from('invoices').update({ approved_at: approvedAt }).eq('id', id);
+    setSigning(false);
+    if (error) {
+      console.error('mark as signed failed', error);
+      setSignError("Couldn't mark this quote as signed. Please try again.");
+      return;
+    }
+    setInv((p: any) => ({ ...p, approved_at: approvedAt }));
+    setUndoSigned(true);
+  }
+
+  async function undoMarkSigned() {
+    setUndoSigned(false);
+    setSignError(null);
+    const { error } = await supabase.from('invoices').update({ approved_at: null }).eq('id', id);
+    if (error) {
+      console.error('undo mark as signed failed', error);
+      setSignError("Couldn't undo that. Please try again.");
+      return;
+    }
+    setInv((p: any) => ({ ...p, approved_at: null }));
+  }
+
   return (
-    <div className={`px-4 py-4${showPayBar ? ' pb-28' : ''}`}>
+    <div className={`px-4 py-4${showPayBar || showConvertBar ? ' pb-28' : ''}`}>
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 
         {/* Receipt top: status chip + doc number, then who and what. */}
         <div className="flex items-center justify-between gap-2">
           <span className={`status-chip ${chipClass}`}>
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+            {isSigned
+              ? <Icon name="verified" size={14} />
+              : <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
             {chipLabel}
           </span>
           <span className="font-mono text-xs font-semibold tracking-wide text-on-surface-variant">
@@ -830,7 +878,7 @@ export default function InvoiceDetail() {
         <div className="mt-0.5 text-sm text-on-surface-variant">
           {docNoun(inv.kind)} ·{' '}
           <span className={`inline-block${paidAnim ? ' onit-paid-word' : ''}${fullyPaid ? ' font-semibold text-paid' : ''}`}>
-            {statusLabel}
+            {isSigned ? `Signed ${formatDate(signedAt)}` : statusLabel}
           </span>
         </div>
         {/* First qualifying client view (mark_invoice_viewed), in local time. */}
@@ -936,7 +984,13 @@ export default function InvoiceDetail() {
               <Icon name="send" size={18} /> {shareLabel('Request balance')}
             </button>
           )}
-          {inv.kind === 'quote' && !convertedTo && (
+          {canSign && (
+            <button className="chip flex items-center gap-1.5 border-paid text-paid"
+              disabled={signing} onClick={() => void markSigned()}>
+              <Icon name="verified" size={18} /> {signing ? 'Saving…' : 'Mark as signed'}
+            </button>
+          )}
+          {isQuote && !convertedTo && !isSigned && (
             <button className="chip flex items-center gap-1.5 border-primary text-primary"
               disabled={converting} onClick={convertToInvoice}>
               <Icon name="sync" size={18} /> {converting ? 'Converting…' : 'Convert to Invoice'}
@@ -957,6 +1011,7 @@ export default function InvoiceDetail() {
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
+        {signError && <div className="mt-2 text-xs font-semibold text-error">{signError}</div>}
       </div>
       {payments.length > 0 && (
         <div className="card mb-4">
@@ -1160,6 +1215,9 @@ export default function InvoiceDetail() {
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
       )}
+      {showConvertBar && (
+        <ConvertQuoteBar converting={converting} onConvert={() => void convertToInvoice()} />
+      )}
       {paySheetOpen && (
         <RecordPaymentSheet
           clientName={inv.client_name}
@@ -1190,6 +1248,13 @@ export default function InvoiceDetail() {
             setUndoDelete(false);
             router.push('/invoices');
           }}
+        />
+      )}
+      {undoSigned && (
+        <UndoToast
+          message="Quote marked as signed."
+          onUndo={() => void undoMarkSigned()}
+          onDismiss={() => setUndoSigned(false)}
         />
       )}
     </div>
