@@ -137,8 +137,21 @@ async function copyText(value: string): Promise<boolean> {
     await navigator.clipboard.writeText(value);
     return true;
   } catch {
-    return false; // clipboard blocked — the value is on screen to copy manually
+    return false; // clipboard blocked — caller selects the text for manual copy
   }
+}
+
+// Clipboard access can be denied in in-app browsers. Select the visible value
+// instead so the customer can copy it by hand; never claim success.
+function selectText(el: HTMLElement | null): boolean {
+  if (!el || typeof window === 'undefined') return false;
+  const selection = window.getSelection();
+  if (!selection) return false;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
 }
 
 // One outlined cream control for every Copy / Open affordance. Neutral
@@ -156,20 +169,25 @@ function CopyButton({
   value,
   label,
   onCopied,
+  onCopyFailed,
   resolveValue,
 }: {
   value?: string;
   label: string;
   onCopied: () => void;
+  // Clipboard write failed: select the visible value so it can be copied by
+  // hand. Never show "Copied" in that case.
+  onCopyFailed?: () => void;
   // For values the page does not hold yet (the full bank account number):
   // fetch on demand, then copy. A failed fetch shows no false "Copied".
   resolveValue?: () => Promise<string | null>;
 }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
-  async function copy(e: React.MouseEvent) {
+  async function copy(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
     if (busy) return;
+    const button = e.currentTarget; // currentTarget is null after an await
     setBusy(true);
     try {
       const text = resolveValue ? await resolveValue() : value;
@@ -178,6 +196,12 @@ function CopyButton({
         setCopied(true);
         onCopied();
         setTimeout(() => setCopied(false), 1600);
+      } else {
+        // No false confirmation: select the visible value for manual copy.
+        selectText(
+          button.closest('[data-copy-row]')?.querySelector<HTMLElement>('[data-copy-value]') ?? null,
+        );
+        onCopyFailed?.();
       }
     } finally {
       setBusy(false);
@@ -213,7 +237,7 @@ function PayRow({
   children,
 }: {
   label: string;
-  onActivate: () => void;
+  onActivate: (row: HTMLElement) => void;
   busy?: boolean;
   ring?: boolean;
   // Expandable rows (Bank transfer): `below` renders full-width under the
@@ -229,14 +253,15 @@ function PayRow({
       aria-label={label}
       aria-expanded={expanded}
       aria-disabled={busy || undefined}
-      onClick={() => { if (!busy) onActivate(); }}
+      data-copy-row
+      onClick={(e) => { if (!busy) onActivate(e.currentTarget); }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (!busy) onActivate();
+          if (!busy) onActivate(e.currentTarget);
         }
       }}
-      className={`flex min-h-touch cursor-pointer select-none items-center gap-3 ${below ? 'flex-wrap' : ''} rounded-card bg-surface-container-lowest p-3 shadow-card transition-transform active:scale-[0.99] active:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+      className={`flex min-h-touch cursor-pointer items-center gap-3 ${below ? 'flex-wrap' : ''} rounded-card bg-surface-container-lowest p-3 shadow-card transition-transform active:scale-[0.99] active:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         ring ? 'border-2 border-primary-container' : ''
       } ${busy ? 'opacity-60' : ''}`}
     >
@@ -320,10 +345,15 @@ function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; toke
   // Text wraps on words only (the memo once split "mem / o"). Digit-only
   // values (routing, account) have no words, so they may break anywhere.
   const line = (label: string, value: React.ReactNode, copy: string | null, digits = false) => (
-    <div className="flex min-h-touch items-center gap-2">
+    <div data-copy-row className="flex min-h-touch items-center gap-2">
       <div className="min-w-0 flex-1">
         <p className="text-xs text-on-surface-variant">{label}</p>
-        <div className={`${digits ? 'break-all' : ''} text-body-md text-on-background`}>{value}</div>
+        <div
+          data-copy-value
+          className={`${digits ? 'break-all' : ''} break-words text-body-md text-on-background`}
+        >
+          {value}
+        </div>
       </div>
       {copy ? <CopyButton value={copy} label={label} onCopied={() => onCopied(label)} /> : null}
     </div>
@@ -337,12 +367,12 @@ function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; toke
       {line('Account holder', bank.holderName, bank.holderName)}
       {line('Bank', bank.bankName, bank.bankName)}
       {line('Routing number', bank.routing, bank.routing, true)}
-      <div className="flex min-h-touch items-center gap-2">
+      <div data-copy-row className="flex min-h-touch items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs text-on-surface-variant">Account number</p>
           {account ? (
             <div className="flex flex-wrap items-center gap-x-2">
-              <span className="break-all text-body-md text-on-background">{account}</span>
+              <span data-copy-value className="break-all text-body-md text-on-background">{account}</span>
               <button
                 type="button"
                 onClick={() => setAccount(null)}
@@ -373,6 +403,9 @@ function BankDetails({ bank, token, docNumber, onCopied }: { bank: PayBank; toke
           label="Account number"
           onCopied={() => onCopied('Account number')}
           resolveValue={loadAccount}
+          // Clipboard blocked: reveal the number that was just fetched so it
+          // can be selected by hand. No "Copied" state is shown.
+          onCopyFailed={() => setAccount(accountRef.current)}
         />
       </div>
       {revealError ? <p role="alert" className="pb-1 text-xs text-error">{revealError}</p> : null}
@@ -795,7 +828,7 @@ export default function PayView({ model }: { model: PayModel }) {
                 const text = (
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">{m.name}</p>
-                    <p className="break-words text-body-md text-on-surface-variant">{m.value}</p>
+                    <p data-copy-value className="break-words text-body-md text-on-surface-variant">{m.value}</p>
                   </div>
                 );
                 return m.url ? (
@@ -817,8 +850,13 @@ export default function PayView({ model }: { model: PayModel }) {
                   <PayRow
                     key={m.key}
                     label={`Copy ${m.name}`}
-                    onActivate={async () => {
-                      if (await copyText(m.value)) showToast(`${m.name} copied`);
+                    onActivate={async (row) => {
+                      if (await copyText(m.value)) {
+                        showToast(`${m.name} copied`);
+                      } else {
+                        // Clipboard blocked: select the handle, no toast.
+                        selectText(row.querySelector<HTMLElement>('[data-copy-value]'));
+                      }
                     }}
                   >
                     {dot}
