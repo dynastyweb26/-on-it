@@ -1185,7 +1185,12 @@ results(id, ok, expected, actual) as (
           and t.tgname = 'pin_invoice_server_columns'
           and not t.tgisinternal
           and t.tgtype = 23
-          and pg_get_triggerdef(t.oid) ilike '%BEFORE INSERT OR UPDATE OF amount_paid, status, paid_at, sent_at, first_sent_at, viewed_at, last_nudge_at ON public.invoices%'
+          and pg_get_triggerdef(t.oid) ilike case
+                -- M1/M2 (20261023100100) extends the pinned column list.
+                when exists (select 1 from applied where version = '20261023100100')
+                  then '%BEFORE INSERT OR UPDATE OF amount_paid, status, paid_at, sent_at, first_sent_at, viewed_at, last_nudge_at, approved_at, valid_until, revoked_at, public_token ON public.invoices%'
+                else '%BEFORE INSERT OR UPDATE OF amount_paid, status, paid_at, sent_at, first_sent_at, viewed_at, last_nudge_at ON public.invoices%'
+              end
           and not p.prosecdef
           and 'search_path=""' = any(p.proconfig)
           and p.prosrc ilike '%current_user not in (''anon'', ''authenticated'')%'
@@ -1196,7 +1201,7 @@ results(id, ok, expected, actual) as (
               from (values ('amount_paid'), ('status'), ('paid_at'), ('sent_at'),
                            ('first_sent_at'), ('viewed_at'), ('last_nudge_at')) c(col))
       ) end,
-    'BEFORE INSERT OR UPDATE OF the 7 server columns; invoker; search_path=""; client-only guard; NEW+OLD per column',
+    'BEFORE INSERT OR UPDATE OF the server columns (11 once the estimates migration is applied); invoker; search_path=""; client-only guard; NEW+OLD per column',
     case when not exists (select 1 from applied where version = '20261020000000') then 'not applied yet'
       else coalesce((
         select t.tgname || ': ' || pg_get_triggerdef(t.oid)
@@ -1501,8 +1506,9 @@ results(id, ok, expected, actual) as (
   union all
   select 'AQ attachment position 0..9',
     case when not exists (select 1 from applied where version = '20261023100100') then null
-      else coalesce((select pg_get_constraintdef(oid) ilike '%position >= 0%'
-          and pg_get_constraintdef(oid) ilike '%position <= 9%'
+      -- pg_get_constraintdef quotes the column: CHECK ((("position" >= 0) AND ...)).
+      else coalesce((select pg_get_constraintdef(oid) ilike '%>= 0%'
+          and pg_get_constraintdef(oid) ilike '%<= 9%'
         from pg_constraint
         where conrelid = 'public.invoice_attachments'::regclass and conname = 'invoice_attachments_position_check'), false) end,
     'position between 0 and 9',
