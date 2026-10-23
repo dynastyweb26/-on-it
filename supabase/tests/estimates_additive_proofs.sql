@@ -11,6 +11,8 @@
 --      transitions; estimate_tz falls back to America/Chicago.
 --   6. estimate_content_hash ignores a foreign-path row and a null-checksum row,
 --      and changes when a verifiable attachment is added.
+--   7. estimate_content_hash covers client_name and client_address, and restores
+--      when both go back to their original values.
 --
 -- BRANCH/LOCAL ONLY. Everything rolls back; never point it at production.
 --
@@ -225,6 +227,51 @@ begin
     raise exception 'FAIL: removing the attachment did not restore the hash';
   end if;
   raise notice 'PASS hash restores; foreign-path and null-checksum rows are excluded';
+end $$;
+
+-- ── Content hash covers the billed party ─────────────────────
+-- The page shows the client's name and address, so editing either after the
+-- client opened the link must invalidate the hash they would sign.
+update public.invoices set client_name = 'Proof Client Renamed' where id = :'inv';
+
+select public.estimate_content_hash(:'inv') as hash3 \gset
+select set_config('proof.hash3', :'hash3', true);
+
+do $$
+begin
+  if current_setting('proof.hash3') = current_setting('proof.hash0') then
+    raise exception 'FAIL: a client_name edit did not change the hash';
+  end if;
+  raise notice 'PASS client_name changes the hash';
+end $$;
+
+update public.invoices
+   set client_name = 'Proof Client',
+       client_address = '9 Proof Street'
+ where id = :'inv';
+
+select public.estimate_content_hash(:'inv') as hash4 \gset
+select set_config('proof.hash4', :'hash4', true);
+
+do $$
+begin
+  if current_setting('proof.hash4') = current_setting('proof.hash0') then
+    raise exception 'FAIL: a client_address edit did not change the hash';
+  end if;
+  raise notice 'PASS client_address changes the hash';
+end $$;
+
+update public.invoices set client_address = null where id = :'inv';
+
+select public.estimate_content_hash(:'inv') as hash5 \gset
+select set_config('proof.hash5', :'hash5', true);
+
+do $$
+begin
+  if current_setting('proof.hash5') <> current_setting('proof.hash0') then
+    raise exception 'FAIL: restoring the billed party did not restore the hash';
+  end if;
+  raise notice 'PASS hash restores after the billed party is restored';
 end $$;
 
 rollback;

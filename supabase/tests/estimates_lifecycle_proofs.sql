@@ -11,6 +11,11 @@
 --      draft → unavailable; null hash / long typed name → validation; a
 --      non-PNG drawing → invalid_signature; a valid PNG drawing succeeds.
 --   6. add_estimate_attachment commits once and refuses an approved estimate.
+--   7. color_roles_explicit stays pinned on a sent quote, both inside the
+--      editable window and after approval.
+--   8. A client cannot write mime_type/size_bytes/checksum (42501) while a
+--      plain legacy attachment insert still works, and the service-role RPC
+--      keeps the verification columns.
 --
 -- BRANCH/LOCAL ONLY. Everything rolls back; never point it at production.
 --
@@ -84,12 +89,12 @@ values (:'uid', 'Proof Lifecycle Biz', 'America/Chicago');
 -- q4: expired. q5: revoked. q6: draft. q7: attachment quota.
 insert into public.invoices
   (user_id, kind, client_name, line_items, subtotal, tax_rate, tax_amount, total,
-   notes, status, valid_until)
+   notes, status, valid_until, color_roles_explicit)
 values
   (:'uid', 'quote', 'Proof Client',
    '[{"description":"Work","qty":1,"unit_price":100}]'::jsonb,
    100, 0, 0, 100, 'Original notes', 'sent',
-   (now() at time zone 'America/Chicago')::date + 5)
+   (now() at time zone 'America/Chicago')::date + 5, true)
 returning id as q1, public_token as tok1 \gset
 
 insert into public.invoices
@@ -166,7 +171,36 @@ select public.proof_assert(
   (select notes = 'Invoice notes' from public.invoices where id = :'inv1'),
   'sent invoice stays locked');
 
+-- The render snapshot outranks the content window: color roles must not move.
+update public.invoices set color_roles_explicit = false where id = :'q1';
+
+select public.proof_assert(
+  (select color_roles_explicit from public.invoices where id = :'q1') is true,
+  'color_roles_explicit stays pinned inside the editable window');
+
+-- ── 1b. Verification columns are server-owned ──────────────
+select public.proof_expect_sqlstate(
+  format(
+    'insert into public.invoice_attachments (user_id, invoice_id, storage_path, position, mime_type, size_bytes, checksum) values (%L, %L, %L, 0, %L, %L, %L)',
+    :'uid', :'q7', :'uid' || '/' || :'q7' || '/forged.pdf',
+    'application/pdf', 1000, repeat('f', 64)
+  ),
+  '42501', 'client insert with a checksum');
+
+insert into public.invoice_attachments (user_id, invoice_id, storage_path, position)
+values (:'uid', :'q7', :'uid' || '/' || :'q7' || '/plain.jpg', 0);
+
+select public.proof_assert(
+  (select checksum is null and mime_type is null and size_bytes is null
+     from public.invoice_attachments
+    where invoice_id = :'q7'
+      and storage_path = :'uid' || '/' || :'q7' || '/plain.jpg'),
+  'legacy client insert without verification columns still works');
+
 reset role;
+
+delete from public.invoice_attachments
+ where invoice_id = :'q7' and storage_path = :'uid' || '/' || :'q7' || '/plain.jpg';
 
 -- ── 2. Sign q1 (typed) ──────────────────────────────────────
 select public.estimate_content_hash(:'q1') as h1 \gset
@@ -227,6 +261,12 @@ select public.proof_expect_sqlstate(
     :'uid', :'q1', :'uid' || '/' || :'q1' || '/x.jpg'
   ),
   '42501', 'approved attachment insert');
+
+update public.invoices set color_roles_explicit = false where id = :'q1';
+
+select public.proof_assert(
+  (select color_roles_explicit from public.invoices where id = :'q1') is true,
+  'color_roles_explicit stays pinned after approval');
 
 reset role;
 
@@ -357,6 +397,14 @@ select public.proof_assert(
 select public.proof_assert(
   (select count(*) from public.invoice_attachments where invoice_id = :'q7') = 1,
   'attachment row exists');
+select public.proof_assert(
+  (select mime_type = 'application/pdf'
+          and size_bytes = 1000
+          and checksum = repeat('d', 64)
+     from public.invoice_attachments
+    where invoice_id = :'q7'
+      and storage_path = :'uid' || '/' || :'q7' || '/ok.pdf'),
+  'service-role attachment keeps its verification columns');
 
 -- The signature covers the attachment list, so hash AFTER the commit.
 select public.estimate_content_hash(:'q7') as h7 \gset
