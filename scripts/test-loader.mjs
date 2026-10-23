@@ -13,6 +13,8 @@ function withExtension(file) {
 }
 
 export async function resolve(specifier, context, next) {
+  // Next ships no "exports" map, so Node needs the extension on its subpaths.
+  if (specifier === 'next/server') return next('next/server.js', context);
   let file = null;
   if (specifier.startsWith('@/')) file = withExtension(path.join(SRC, specifier.slice(2)));
   else if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {

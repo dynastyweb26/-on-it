@@ -11,7 +11,7 @@
     "launch:build": "node scripts/build-launch-images.mjs",
     "splash:paths": "node scripts/build-splash-paths.mjs",
     "db:privcheck": "node scripts/privilege-check.mjs",
-    "test": "node --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\""
+    "test": "node --experimental-test-module-mocks --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

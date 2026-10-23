@@ -130,3 +130,12 @@ test('count label keeps the original total after an advance', () => {
   assert.equal(paymentCheckCount(1, 3), '2 of 3');
   assert.equal(paymentCheckCount(3, 3), '3 of 3');
 });
+
+test('a still-"sent" invoice whose payments cover the total never reaches the card', () => {
+  const ids = paymentCheckCandidates([
+    inv({ id: 'covered', status: 'sent', amount_paid: 480 }),
+    inv({ id: 'over', status: 'overdue', amount_paid: 500 }),
+    inv({ id: 'owing', status: 'sent', amount_paid: 479.99 }),
+  ], { now, today }).map((i) => i.id);
+  assert.deepEqual(ids, ['owing']);
+});
