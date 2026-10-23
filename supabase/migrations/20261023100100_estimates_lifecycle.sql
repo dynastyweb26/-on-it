@@ -377,7 +377,7 @@ begin
       return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_signature');
     end;
     if pg_catalog.octet_length(v_png) > 204800
-       or pg_catalog.substring(v_png from 1 for 8)
+       or pg_catalog.substr(v_png, 1, 8)
           <> pg_catalog.decode('89504e470d0a1a0a', 'hex')
     then
       return pg_catalog.jsonb_build_object('ok', false, 'code', 'invalid_signature');
