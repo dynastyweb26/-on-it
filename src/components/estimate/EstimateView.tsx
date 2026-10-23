@@ -212,7 +212,11 @@ export default function EstimateView({
         <ItemsCard payload={payload} />
 
         {payload.attachments.length > 0 && (
-          <AttachmentsCard attachments={payload.attachments} onOpenPhoto={(id) => setViewerId(id)} />
+          <AttachmentsCard
+            attachments={payload.attachments}
+            onRefresh={refresh}
+            onOpenPhoto={(id) => setViewerId(id)}
+          />
         )}
 
         {payload.notes && <NotesCard notes={payload.notes} />}
