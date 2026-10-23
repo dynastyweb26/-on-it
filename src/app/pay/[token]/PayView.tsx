@@ -334,6 +334,22 @@ export default function PayView({ model }: { model: PayModel }) {
 
   const [cardBusy, setCardBusy] = useState(false);
   const [cardError, setCardError] = useState('');
+  // Line items: collapsed to three (each description clamped to two lines),
+  // expanded shows the full list and full descriptions.
+  const [itemsOpen, setItemsOpen] = useState(false);
+  const itemsRef = useRef<HTMLElement | null>(null);
+  const itemsCollapsible = model.lineItems.length > 3;
+  const visibleItems = itemsCollapsible && !itemsOpen ? model.lineItems.slice(0, 3) : model.lineItems;
+  function toggleItems() {
+    const wasOpen = itemsOpen;
+    setItemsOpen(!wasOpen);
+    // Collapsing a long list would otherwise leave the page scrolled past it.
+    if (wasOpen) {
+      requestAnimationFrame(() =>
+        itemsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      );
+    }
+  }
   // Bottom toast for copies ("Zelle copied"). One at a time; auto-hides.
   const [toast, setToast] = useState('');
   const [bankOpen, setBankOpen] = useState(false);
@@ -670,14 +686,32 @@ export default function PayView({ model }: { model: PayModel }) {
         </section>
       ) : null}
 
-      {/* Line items — reference itemisation, beneath the amount and how-to-pay. */}
+      {/* Line items — reference itemisation. Collapsed to three rows (each
+          description clamped to two lines); tapping the footer shows all. */}
       {model.lineItems.length > 0 ? (
-        <section className="mt-6 rounded-card bg-surface-container-lowest p-4 shadow-card">
-          <ul className="divide-y divide-outline-variant">
-            {model.lineItems.map((li, i) => (
-              <li key={i} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+        <section
+          ref={itemsRef}
+          className="mt-6 scroll-mt-24 overflow-hidden rounded-card bg-surface-container-lowest shadow-card"
+        >
+          <div className="flex items-baseline justify-between gap-3 px-4 pb-1 pt-4">
+            <h2 className="text-label-lg uppercase tracking-[0.1em] text-on-surface-variant">
+              Line items
+            </h2>
+            <span className="text-sm text-on-surface-variant">
+              {model.lineItems.length} {model.lineItems.length === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+          <ul className="divide-y divide-outline-variant border-t border-outline-variant">
+            {visibleItems.map((li, i) => (
+              <li key={i} className="flex items-start justify-between gap-3 px-4 py-3.5">
                 <div className="min-w-0">
-                  <p className="truncate text-body-md text-on-background">{li.description || 'Item'}</p>
+                  <p
+                    className={`text-body-md text-on-background ${
+                      itemsCollapsible && !itemsOpen ? 'line-clamp-2' : ''
+                    }`}
+                  >
+                    {li.description || 'Item'}
+                  </p>
                   {li.detail ? <p className="text-sm text-on-surface-variant">{li.detail}</p> : null}
                   {li.qty !== 1 || li.unitLabel ? (
                     <p className="text-body-md text-on-surface-variant">
@@ -689,6 +723,21 @@ export default function PayView({ model }: { model: PayModel }) {
               </li>
             ))}
           </ul>
+          {itemsCollapsible ? (
+            <button
+              type="button"
+              onClick={toggleItems}
+              aria-expanded={itemsOpen}
+              className="flex min-h-[54px] w-full items-center justify-center gap-2 border-t border-outline-variant text-body-md font-semibold text-on-background active:bg-surface-container-low"
+            >
+              {itemsOpen ? 'Show fewer' : `View all ${model.lineItems.length} items`}
+              <Icon
+                name="expand_more"
+                size={16}
+                className={itemsOpen ? 'rotate-180' : ''}
+              />
+            </button>
+          ) : null}
         </section>
       ) : null}
 
