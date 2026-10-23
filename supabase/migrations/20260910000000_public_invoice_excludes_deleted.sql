@@ -1,4 +1,4 @@
-﻿-- ═══════════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════════
 -- Exclude soft-deleted invoices from the public share/pay path.
 --
 -- 20260905000000_soft_delete added invoices.deleted_at, but
