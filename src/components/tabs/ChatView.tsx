@@ -79,7 +79,7 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   /** A saved expense, shown as the compact logged card (content keeps the text
    *  confirmation for the model's context). Its thumbnail is the photo
    *  bubble's image, referenced by id — never a second copy. */
-  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null };
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null; viaTemplate?: true };
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
   sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
@@ -666,6 +666,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // slot. It is deliberately outside TemplateKind: an expense must never run
   // openTemplate's archive/clear path, which belongs to invoices and quotes.
   const [expenseTemplate, setExpenseTemplate] = useState(false);
+  const [discardAsk, setDiscardAsk] = useState(false); // confirm-on-discard for the template
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
@@ -2536,6 +2537,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
           category: CATEGORY_LABEL[expenseDraft.category],
           date: expenseDraft.occurred_on ?? today(),
           receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
+          // Saved from the + menu template: its card offers View in Books.
+          ...(expenseTemplate ? { viaTemplate: true as const } : {}),
         },
       });
       // Fold the expense card away first (150ms, onit-card-exit), then the
@@ -2574,6 +2577,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setReceipt(null);
     setExpenseDraft(null);
     setExpenseTemplate(false);
+    setDiscardAsk(false);
     setExpenseError(null);
   }
 
@@ -3617,6 +3621,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               key={m.id}
               e={{ ...m.logged, thumb: m.logged.receiptMsgId ? messages.find((x) => x.id === m.logged?.receiptMsgId)?.receipt || null : null }}
               animate={liveLoggedIdRef.current === m.id}
+              onViewBooks={m.logged.viaTemplate ? () => router.push('/dashboard') : undefined}
             />
           ) : m.receipt !== undefined ? (
             <ReceiptBubble
@@ -3738,6 +3743,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
+      {discardAsk && expenseTemplate && (
+        <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
+          onKeep={() => setDiscardAsk(false)}
+          onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
+      )}
       {replaceAsk && (
         <ReplaceTemplateSheet title={replaceAsk.title}
           onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
@@ -3762,7 +3772,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
             draft={expenseDraft}
             onChange={setExpenseDraft}
             onSave={saveExpense}
-            onCancel={discardExpense}
+            onCancel={() => {
+              // Empty template: instant. Anything entered: ask first.
+              const d = expenseDraft;
+              const entered = d.amount > 0 || !!d.vendor?.trim() || !!d.description?.trim() || d.category !== 'other';
+              if (entered) setDiscardAsk(true); else discardExpense();
+            }}
             saving={phase === 'saving'}
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}
