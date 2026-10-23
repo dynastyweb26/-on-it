@@ -139,7 +139,7 @@ export default function PaymentCheckCard({
         >
           <span className="text-[17px] font-bold leading-none">No</span>
           {/* No client-reminder flow exists yet: v1 snoozes this invoice for a day. */}
-          <span className="text-[12px] font-medium text-[#6B6152]">Snooze for a day</span>
+          <span className="text-[12px] font-medium text-[#6B6152]">Ask me tomorrow</span>
         </button>
       </div>
     </div>
