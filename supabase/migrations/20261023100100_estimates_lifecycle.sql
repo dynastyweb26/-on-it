@@ -253,7 +253,8 @@ create trigger guard_locked_estimate_edits
 
 -- ── 6b. Reject attachment changes after approval/conversion ──
 -- Client roles only, so account deletion (service role) still cascades and the
--- server confirm/delete routes remain in control.
+-- server confirm/delete routes remain in control. The same trigger keeps
+-- mime_type/size_bytes/checksum server-owned on every attachment row.
 create or replace function public.guard_locked_estimate_attachments()
 returns trigger
 language plpgsql
@@ -267,6 +268,18 @@ begin
       return OLD;
     end if;
     return NEW;
+  end if;
+
+  -- The verification columns are written only by the service-role confirm path
+  -- (add_estimate_attachment reads the stored bytes first). A client that sets
+  -- them would publish an object nobody verified; legacy invoice uploads leave
+  -- them NULL and keep working unchanged.
+  if tg_op in ('INSERT', 'UPDATE')
+     and (NEW.mime_type is not null
+          or NEW.size_bytes is not null
+          or NEW.checksum is not null) then
+    raise exception 'Attachment verification fields are server-owned'
+      using errcode = 'insufficient_privilege';
   end if;
 
   v_id := case when tg_op = 'DELETE' then OLD.invoice_id else NEW.invoice_id end;
