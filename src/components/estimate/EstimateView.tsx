@@ -33,11 +33,16 @@ import s from './estimate.module.css';
 export default function EstimateView({
   initial,
   token,
+  preview = false,
+  previewId = null,
 }: {
   initial: PublicEstimateResult;
   token: string;
+  /** Owner preview: banner on, signing off. */
+  preview?: boolean;
+  /** Owner preview: the id the preview API re-reads on a retry. */
+  previewId?: string | null;
 }) {
-  const preview = false;
   const [data, setData] = useState<PublicEstimateResult>(initial);
   const [sheet, setSheet] = useState<'sign' | 'success' | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -53,12 +58,16 @@ export default function EstimateView({
   );
 
   // Re-read the payload. Used when the server says the page is out of date
-  // (content_changed, already approved, expired, revoked).
+  // (content_changed, already approved, expired, revoked) and by attachment
+  // retry, which needs freshly minted signed URLs. In preview the public token
+  // endpoint refuses a draft, so the owner's preview endpoint is re-read.
   const refresh = useCallback(async (): Promise<PublicAttachment[] | null> => {
+    const url =
+      preview && previewId
+        ? `/api/estimates/${encodeURIComponent(previewId)}/preview`
+        : `/api/public/estimates/${encodeURIComponent(token)}`;
     try {
-      const res = await fetch(`/api/public/estimates/${encodeURIComponent(token)}`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) return null;
       const next = (await res.json()) as PublicEstimateResult;
       if (!next || typeof next.state !== 'string') return null;
@@ -67,7 +76,7 @@ export default function EstimateView({
     } catch {
       return null;
     }
-  }, [token]);
+  }, [preview, previewId, token]);
 
   // Sticky bar: appears once the hero card has scrolled off the top.
   useEffect(() => {

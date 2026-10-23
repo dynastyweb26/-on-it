@@ -1,7 +1,11 @@
 import 'server-only';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { loadPublicEstimate } from '@/lib/estimates/public';
+import { createClient } from '@/lib/supabase/server';
+import {
+  loadOwnerEstimatePreviewByToken,
+  loadPublicEstimate,
+} from '@/lib/estimates/public';
 import { rateLimit } from '@/lib/ratelimit';
 import EstimateView from '@/components/estimate/EstimateView';
 import { Notice, UnavailableNotice } from '@/components/estimate/Notice';
@@ -16,6 +20,8 @@ import { estimateFontClassName } from './fonts';
 // data path is the service-role loader (src/lib/estimates/public.ts), which
 // projects the whitelist and mints the short-lived attachment URLs.
 //
+// ?preview=1 is the OWNER's view of the same page: it needs a signed-in session,
+// returns only the caller's own row (a draft included) and turns signing off.
 // ─────────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic'; // per-request: headers, session, live data
@@ -26,7 +32,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function EstimatePage({ params }: { params: { token: string } }) {
+export default async function EstimatePage({
+  params,
+  searchParams,
+}: {
+  params: { token: string };
+  searchParams?: { preview?: string };
+}) {
   // Rate limit by IP, exactly as /pay does (rateIdentifier wants a NextRequest
   // that a server component does not have, so read the forwarded headers).
   const h = await headers();
@@ -44,10 +56,29 @@ export default async function EstimatePage({ params }: { params: { token: string
     );
   }
 
-  let payload: PublicEstimateResult;
+  let payload: PublicEstimateResult | null = null;
+  let preview = false;
+  let previewId: string | null = null;
 
   try {
-    payload = await loadPublicEstimate(params.token);
+    if (searchParams?.preview === '1') {
+      // Owner preview: only when the session owns the row. A signed-out visitor
+      // (or another account) just gets the public page below.
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const owned = await loadOwnerEstimatePreviewByToken(params.token, user.id);
+        if (owned) {
+          payload = owned.result;
+          preview = true;
+          previewId = owned.id;
+        }
+      }
+    }
+
+    if (!payload) payload = await loadPublicEstimate(params.token);
   } catch (e) {
     console.error('public estimate page: load failed', (e as Error)?.message);
     return (
@@ -66,7 +97,12 @@ export default async function EstimatePage({ params }: { params: { token: string
       {payload.state === 'unavailable' ? (
         <UnavailableNotice />
       ) : (
-        <EstimateView initial={payload} token={params.token} />
+        <EstimateView
+          initial={payload}
+          token={params.token}
+          preview={preview}
+          previewId={previewId}
+        />
       )}
     </div>
   );

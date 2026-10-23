@@ -103,6 +103,32 @@ export async function loadOwnerEstimatePreview(
   return shape(admin, invoice, true);
 }
 
+export type OwnerPreview = { id: string; result: PublicEstimateResult };
+
+/** The owner's preview reached through the public link (?preview=1). Shaping is
+ *  the same code path as GET /api/estimates/[id]/preview, so the two cannot
+ *  drift; only the caller's own row is ever returned, and a draft is previewable
+ *  by its owner. */
+export async function loadOwnerEstimatePreviewByToken(
+  token: string,
+  userId: string,
+): Promise<OwnerPreview | null> {
+  if (!isEstimateTokenShape(token)) return null;
+
+  const admin = adminClient();
+  const { data, error } = await admin
+    .from('invoices')
+    .select(INVOICE_COLS)
+    .eq('public_token', token)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  const invoice = data as InvoiceRow | null;
+  if (!invoice || invoice.kind !== 'quote') return null;
+
+  return { id: invoice.id, result: await shape(admin, invoice, true) };
+}
+
 async function shape(
   admin: ReturnType<typeof adminClient>,
   invoice: InvoiceRow,
