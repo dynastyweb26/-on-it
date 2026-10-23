@@ -12,8 +12,7 @@ import type { IconName } from '@/components/icon-names';
 import SwipeableRow from '@/components/SwipeableRow';
 import { RAIL_LETTERS } from '@/lib/clients';
 import { reducedMotion } from '@/lib/list-motion';
-
-const LONG_PRESS_MS = 450;
+import { useLongPress } from '@/lib/use-long-press';
 
 export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel }: {
   value: string; onChange: (v: string) => void; placeholder: string; label: string;
@@ -116,32 +115,13 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, chi
   id?: string;
   children: ReactNode;
 }) {
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-  const start = useRef<{ x: number; y: number } | null>(null);
-  const fired = useRef(false);
   const ref = useRef<HTMLButtonElement>(null);
-  const cancel = () => { clearTimeout(timer.current); start.current = null; };
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const press = useLongPress(() => { if (ref.current) onLongPress(ref.current.getBoundingClientRect()); });
   const row = (
     <button ref={ref} type="button"
       className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
-      onPointerDown={(e) => {
-        fired.current = false;
-        start.current = { x: e.clientX, y: e.clientY };
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          fired.current = true;
-          try { navigator.vibrate?.(10); } catch { /* unsupported */ }
-          if (ref.current) onLongPress(ref.current.getBoundingClientRect());
-        }, LONG_PRESS_MS);
-      }}
-      onPointerMove={(e) => {
-        if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) cancel();
-      }}
-      onPointerUp={cancel}
-      onPointerCancel={cancel}
-      onContextMenu={(e) => e.preventDefault()}
-      onClick={() => { if (fired.current) { fired.current = false; return; } onOpen(); }}>
+      {...press.handlers}
+      onClick={() => { if (press.consumeClick()) return; onOpen(); }}>
       {children}
     </button>
   );

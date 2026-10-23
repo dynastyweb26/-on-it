@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ExpensesSkeleton from '@/components/ExpensesSkeleton';
-import SwipeableRow from '@/components/SwipeableRow';
+import { RowMenu } from '@/components/lists/SavedList';
+import { useLongPress } from '@/lib/use-long-press';
 import { freshAutoLog } from '@/lib/recurring';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
@@ -29,6 +30,19 @@ const money = (n: number) =>
 function localDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+
+/** An expense row: hold anywhere on it (the receipt thumbnail included) for the
+ *  action menu. The release of a hold is swallowed so it never also opens the
+ *  receipt; a plain tap on the thumbnail still does. */
+function HoldRow({ className, onHold, children }: { className: string; onHold: (rect: DOMRect) => void; children: React.ReactNode }) {
+  const press = useLongPress((el) => onHold(el.getBoundingClientRect()));
+  return (
+    <div className={`${className} select-none`} style={{ WebkitTouchCallout: 'none' }} {...press.handlers}
+      onClickCapture={(ev) => { if (press.consumeClick()) { ev.stopPropagation(); ev.preventDefault(); } }}>
+      {children}
+    </div>
+  );
 }
 
 interface ExpenseRow {
@@ -66,6 +80,7 @@ export default function Books() {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ExpenseRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [menu, setMenu] = useState<{ row: ExpenseRow; rect: DOMRect } | null>(null);
   const [undoTarget, setUndoTarget] = useState<ExpenseRow | null>(null);
   // Newest (default) / A–Z inside each week, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
@@ -242,8 +257,8 @@ export default function Books() {
                     const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
                     const name = e.vendor || e.description || 'Expense';
                     return (
-                      <SwipeableRow key={e.id} flat onDelete={() => setDeleteTarget(e)}>
-                        <div className={`relative flex min-h-[58px] items-center gap-3 overflow-hidden border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2${shimmer.has(e.id) ? ' onit-autolog' : ''}`}>
+                      <HoldRow key={e.id} onHold={(rect) => setMenu({ row: e, rect })}
+                        className={`relative flex min-h-[58px] items-center gap-3 overflow-hidden border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2${shimmer.has(e.id) ? ' onit-autolog' : ''}`}>
                           {thumb ? (
                             <button
                               aria-label={`View the receipt from ${name}`}
@@ -268,8 +283,7 @@ export default function Books() {
                             </div>
                           </div>
                           <div className="shrink-0 font-display text-[15px] font-bold tabular-nums">{money(Number(e.amount))}</div>
-                        </div>
-                      </SwipeableRow>
+                      </HoldRow>
                     );
                   })}
                 </div>
@@ -280,6 +294,22 @@ export default function Books() {
       )}
 
       {adding && <AddExpenseSheet onClose={() => setAdding(false)} onSaved={() => { setAdding(false); void load(); }} />}
+
+      {menu && (
+        <RowMenu rect={menu.rect} label={`${menu.row.vendor || menu.row.description || 'Expense'} actions`} onClose={() => setMenu(null)}
+          lifted={(
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[15.5px] font-semibold">{menu.row.vendor || menu.row.description || 'Expense'}</div>
+                <div className="text-[12.5px] text-on-surface-variant">{categoryOf(menu.row)} · {localDate(menu.row.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+              </div>
+              <div className="shrink-0 font-display text-[15px] font-bold tabular-nums">{money(Number(menu.row.amount))}</div>
+            </div>
+          )}
+          items={[
+            { label: 'Delete', icon: 'delete', danger: true, onClick: () => { const r = menu.row; setMenu(null); setDeleteTarget(r); } },
+          ]} />
+      )}
 
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
