@@ -120,6 +120,8 @@ export function toPublicEstimate(input: PublicModelInput): PublicEstimateResult 
       // so a changed number reaches the client.
       phone: text(profile.business_phone),
       email: text(profile.business_email),
+      // The same clock the expiry rule uses, so a signed date prints local.
+      timezone: text(profile.timezone),
     },
     clientName: text(invoice.client_name) ?? '',
     title: text(invoice.title),

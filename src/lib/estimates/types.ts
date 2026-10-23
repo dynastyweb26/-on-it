@@ -53,6 +53,9 @@ export type PublicBusiness = {
   phone: string | null;
   /** Read live from profiles.business_email; null when unset. */
   email: string | null;
+  /** profiles.timezone, so the page can print signed dates in business-local
+   *  time (the same clock the expiry rule uses). Null when unset. */
+  timezone: string | null;
 };
 
 export type PublicEstimate = {
