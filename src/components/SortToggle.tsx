@@ -7,19 +7,25 @@ import Icon from '@/components/Icon';
 
 /** The release frames' compact form (4a): a caption that names the order
  *  ("A–Z by client" / "Newest first") and flips it when tapped. */
-export function SortCaption({ value, onChange, azLabel, label }: {
+export function SortCaption({ value, onChange, azLabel, label, compact = false }: {
   value: ListSort;
   onChange: (v: ListSort) => void;
   /** e.g. "A–Z by client". */
   azLabel: string;
   /** Accessible name, e.g. "Sort invoices". */
   label: string;
+  /** Shrink the visual row to 20px but keep a 56px tap target (Invoices list). */
+  compact?: boolean;
 }) {
   const az = value === 'az';
   return (
     <button type="button" aria-label={`${label}: ${az ? azLabel : 'newest first'}. Tap to switch`}
       onClick={() => onChange(az ? 'newest' : 'az')}
-      className="-mr-2 flex min-h-touch shrink-0 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium text-on-surface-variant active:scale-95">
+      className={`-mr-2 flex shrink-0 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium text-on-surface-variant active:scale-95 ${
+        compact
+          ? "relative h-5 after:absolute after:-inset-y-[18px] after:inset-x-0 after:content-['']"
+          : 'min-h-touch'
+      }`}>
       <span key={value} className="flex items-center gap-1 onit-fade-in">
         <Icon name={az ? 'sort_by_alpha' : 'schedule'} size={16} />
         {az ? azLabel : 'Newest first'}

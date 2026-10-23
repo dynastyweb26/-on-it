@@ -191,12 +191,12 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-4 md:px-8">
+    <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:px-8">
       {/* Top segment: invoices or quotes. The filter value decides it. */}
       <PillTabs label="Invoices or quotes" options={SIDES} value={SIDE_OF[filter]}
         onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} />
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
-      <div role="tablist" aria-label="Filter" data-coach="invoices-filter" className="flex gap-2 overflow-x-auto pb-1">
+      <div role="tablist" aria-label="Filter" data-coach="invoices-filter" className="mt-4 flex gap-2 overflow-x-auto pb-1">
         {FILTERS[SIDE_OF[filter]].map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f}
             className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
@@ -210,20 +210,20 @@ export default function Invoices({ active = true }: { active?: boolean }) {
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-between px-1 pt-1">
+      <div className="flex items-center justify-between px-1">
         <span className="text-[12.5px] font-medium text-on-surface-variant">{loading ? '' : summary}</span>
-        <SortCaption value={sort} onChange={chooseSort} azLabel="A–Z by client" label="Sort invoices" />
+        <SortCaption value={sort} onChange={chooseSort} azLabel="A–Z by client" label="Sort invoices" compact />
       </div>
       {loading ? (
-        <InvoicesSkeleton />
+        <div className="mt-4"><InvoicesSkeleton /></div>
       ) : (
         <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
             <InvoicesEmpty {...emptyCopy} />
           )}
-          {groups.map((g) => (
+          {groups.map((g, gi) => (
             <div key={g.key}>
-              <DateDivider label={g.label} />
+              <DateDivider label={g.label} flush={gi === 0} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {g.items.map((r) => {
                   const tag = tagFor(r, isConvertedQuote(r));
