@@ -206,10 +206,11 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token:
     subtotal,
     taxRate,
     taxAmount,
-    // Show the Subtotal/Tax/Total breakdown only when there's tax to reconcile
-    // (also the graceful fallback when 20260918000009 isn't applied yet: the
-    // fields are absent → taxAmount 0 → no breakdown, current behavior).
-    showTaxBreakdown: taxAmount > 0,
+    // Show the Subtotal/Tax rows only when the invoice itself carries a rate.
+    // A 0 or missing rate means no tax line at all — the summary then shows
+    // only the total. (Also the graceful fallback until 20260918000009 is
+    // applied: the fields are absent → rate 0 → no breakdown.)
+    showTaxBreakdown: taxRate > 0,
     total,
     primaryLabel,
     primaryAmount,

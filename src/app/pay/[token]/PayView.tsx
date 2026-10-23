@@ -60,7 +60,7 @@ export interface PayModel {
   subtotal: number;
   taxRate: number;
   taxAmount: number;
-  showTaxBreakdown: boolean; // true when there's tax to reconcile against the items
+  showTaxBreakdown: boolean; // true when the invoice carries a tax rate
   total: number;
   primaryLabel: string; // "Total due" | "Deposit due now" | "Balance due" | "Paid in full"
   primaryAmount: number;
