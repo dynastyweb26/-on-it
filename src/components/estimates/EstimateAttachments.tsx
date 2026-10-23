@@ -11,7 +11,15 @@ import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
-import { MAX_ATTACHMENTS } from '@/lib/estimates/limits';
+import {
+  attachmentCountLabel,
+  attachmentRoomLabel,
+  attachmentSheetLabel,
+  attachmentSizeLabel,
+  attachmentSlots,
+  clipCaption,
+  uploadProgressLabel,
+} from '@/lib/estimates/attachments-view';
 import {
   deleteEstimateAttachment,
   isImageAttachment,
@@ -40,12 +48,6 @@ type UploadItem = {
 
 const CAPTION_MAX = 60;
 const CAPTION_DEBOUNCE_MS = 700;
-
-function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return '';
-  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function ProgressRing({ pct }: { pct: number }) {
   const r = 15;
@@ -124,9 +126,7 @@ export default function EstimateAttachments({
     return () => { cancelled = true; };
   }, [estimateId, userId]);
 
-  const used = items.length + uploads.length;
-  const atLimit = used >= MAX_ATTACHMENTS;
-  const room = Math.max(0, MAX_ATTACHMENTS - used);
+  const { room, atLimit } = attachmentSlots(items.length, uploads.length);
 
   const patchUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
@@ -185,7 +185,7 @@ export default function EstimateAttachments({
       void runUpload(upload.id, file);
     }
     if (files.length > room) {
-      setError(`Up to ${MAX_ATTACHMENTS} attachments.`);
+      setError('Up to 10 attachments.');
     }
   }
 
@@ -218,7 +218,7 @@ export default function EstimateAttachments({
   }
 
   function changeCaption(item: OwnerAttachment, value: string) {
-    const clipped = value.slice(0, CAPTION_MAX);
+    const clipped = clipCaption(value);
     setCaptionDrafts((drafts) => ({ ...drafts, [item.id]: clipped }));
     setCaptionError(null);
     if (captionTimers.current[item.id]) clearTimeout(captionTimers.current[item.id]);
@@ -249,7 +249,7 @@ export default function EstimateAttachments({
           Attachments
         </span>
         <span className="text-[13px] font-semibold text-on-surface-variant">
-          {items.length} of {MAX_ATTACHMENTS}
+          {attachmentCountLabel(items.length)}
         </span>
       </div>
 
@@ -279,7 +279,7 @@ export default function EstimateAttachments({
                       PDF
                     </span>
                     <span className="max-w-full truncate text-[10px] text-on-surface-variant">
-                      {formatBytes(item.sizeBytes) || 'Document'}
+                      {attachmentSizeLabel(item.sizeBytes) || 'Document'}
                     </span>
                   </div>
                 )}
@@ -341,7 +341,7 @@ export default function EstimateAttachments({
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-background/75">
                     <ProgressRing pct={u.pct} />
                     <span className="text-[11px] font-semibold tabular-nums text-on-surface-variant">
-                      {u.status === 'preparing' ? 'Preparing' : `${u.pct}%`}
+                      {uploadProgressLabel(u.status, u.pct)}
                     </span>
                   </div>
                 )}
@@ -400,7 +400,7 @@ export default function EstimateAttachments({
               <span className="min-w-0">
                 <span className="block text-[14px] font-bold text-primary">Add attachment</span>
                 <span className="block text-[12px] text-on-surface-variant">
-                  Photo or PDF · {room} left
+                  {attachmentRoomLabel(room)}
                 </span>
               </span>
             </button>
@@ -463,7 +463,7 @@ export default function EstimateAttachments({
               <div className="flex items-start gap-3 pb-1 pt-2">
                 <div className="min-w-0 flex-1">
                   <h2 className="font-display text-xl font-bold text-on-background">Add attachment</h2>
-                  <p className="mt-0.5 text-[13px] text-on-surface-variant">{room} of 10 left</p>
+                  <p className="mt-0.5 text-[13px] text-on-surface-variant">{attachmentSheetLabel(room)}</p>
                 </div>
                 <button
                   type="button"
