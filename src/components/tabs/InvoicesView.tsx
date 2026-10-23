@@ -248,7 +248,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                         <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
                           <Icon name={tag.icon} size={14} />{tag.text}
                         </span>
-                        <span className="grid h-10 w-10 place-items-center rounded-full bg-primary-soft text-primary-on-container">
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
                           <Icon name="chevron_right" size={22} />
                         </span>
                       </div>
