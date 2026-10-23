@@ -760,7 +760,7 @@ export default function PayView({ model }: { model: PayModel }) {
                   <Icon name="payments" size={20} className="shrink-0 text-on-surface-variant" />
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">Card</p>
-                    <p className="text-body-md text-on-surface-variant">Card, Apple Pay, Google Pay or Cash App Pay</p>
+                    <p className="text-body-md text-on-surface-variant">Card or wallet</p>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-on-surface-variant">
                       <Icon name="lock" size={14} />
                       Secure checkout by Stripe
@@ -795,7 +795,7 @@ export default function PayView({ model }: { model: PayModel }) {
                 const text = (
                   <div className="min-w-0 flex-1">
                     <p className="text-label-lg text-on-background">{m.name}</p>
-                    <p className="truncate text-body-md text-on-surface-variant">{m.value}</p>
+                    <p className="break-words text-body-md text-on-surface-variant">{m.value}</p>
                   </div>
                 );
                 return m.url ? (
