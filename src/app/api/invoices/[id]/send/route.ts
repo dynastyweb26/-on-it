@@ -6,8 +6,10 @@
 // render snapshot. A resend only bumps sent_at, so a paid or overdue invoice
 // can never regress. Void and deleted rows are refused.
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { planInvoiceSend, type SendableInvoice } from '@/lib/invoice-send';
 
 export const runtime = 'nodejs';
@@ -15,16 +17,29 @@ export const runtime = 'nodejs';
 const SNAPSHOT_COLS =
   'invoice_template, brand_colors, background_color, business_name, logo_url, website_url, slogan, cashapp_tag, paypal_me, venmo_username';
 
+const IdSchema = z.string().uuid();
+
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  // SECURITY: Rate limit invoice sends to prevent DB update spamming.
+  if (!(await rateLimit('invoice_send', rateIdentifier(req, user.id)))) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
+
+  // SECURITY: Validate route parameter format to prevent PostgreSQL 22P02 type errors on malformed input.
+  const parsedId = IdSchema.safeParse(params.id);
+  if (!parsedId.success) {
+    return NextResponse.json({ error: 'invalid invoice id' }, { status: 400 });
+  }
+  const id = parsedId.data;
+
   const admin = adminClient();
-  const id = params.id;
 
   const load = async () => {
     const { data, error } = await admin
