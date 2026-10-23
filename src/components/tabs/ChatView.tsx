@@ -3754,6 +3754,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               onYes={() => setPaymentSheetOpen(true)}
               onNo={() => paymentCheck.snooze(paymentCheck.current!)}
               onSnooze={() => paymentCheck.snooze(paymentCheck.current!)}
+              onUndo={() => { void paymentCheck.undo(); }}
             />
           </div>
         </div>

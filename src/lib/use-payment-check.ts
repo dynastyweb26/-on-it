@@ -5,7 +5,7 @@
 // stays "2 of 3" after a Yes (the paid row stays in the fetched array), which
 // is what the design shows; a snooze also advances the cursor. The ledger is
 // still the source of truth: markPaid inserts one row and the DB trigger moves
-// the invoice to paid. The confirmation holds for four seconds, then advances.
+// the invoice to paid. Undo deletes only that row, guarded by its source.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { localDateString } from '@/lib/record-payment';
@@ -149,8 +149,24 @@ export function usePaymentCheck({ active, userId }: { active: boolean; userId: s
     return null;
   }, [advance, clearHold, supabase, userId]);
 
-  // Delete path lands in the next commit.
-  const undo = useCallback(async (): Promise<boolean> => false, []);
+  // Undo is only offered during the 4s hold, so `index` still points at this
+  // invoice. Delete the exact row we inserted, never a Stripe or older manual
+  // payment; the ledger trigger puts amount_paid/status/paid_at back.
+  const undo = useCallback(async (): Promise<boolean> => {
+    if (!done) return false;
+    clearHold();
+    const { error } = await supabase
+      .from('invoice_payments')
+      .delete()
+      .eq('id', done.ledgerId)
+      .eq('paid_source', 'payment_check_card');
+    if (error) {
+      console.error('payment check undo failed', error);
+      return false;
+    }
+    setDone(null);
+    return true;
+  }, [clearHold, done, supabase]);
 
   return {
     loading,
