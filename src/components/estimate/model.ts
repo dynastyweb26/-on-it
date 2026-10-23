@@ -5,12 +5,7 @@
 // Colors: brand tokens come from src/lib/colors.ts ONLY (contrastRatio /
 // buildTheme / explicitColorRoles). There is no second contrast function here;
 // accentText reuses contrastRatio and applies the design's darkening rule.
-import {
-  adjustAccentForContrast,
-  buildTheme,
-  explicitColorRoles,
-  onColor,
-} from '@/lib/colors';
+import { buildTheme, contrastRatio, explicitColorRoles } from '@/lib/colors';
 import { CONSENT_V1 } from '@/lib/estimates/consent';
 import type {
   EstimateLineItem,
@@ -47,14 +42,25 @@ export function brandAccent(
   return buildTheme(colors, background, explicitColorRoles(colors, background)).accent;
 }
 
-/** accent made readable as text on the page paper. */
+/** Accent made readable as text on the page paper: darkened in x0.9 steps (max
+ *  30) until it clears 4.6:1. contrastRatio is colors.ts's, not a second one. */
 export function accentText(accent: string): string {
-  return adjustAccentForContrast(isHex(accent) ? accent : GOLD, PAGE_BG);
+  let current = isHex(accent) ? accent : GOLD;
+  for (let step = 0; step < 30 && contrastRatio(current, PAGE_BG) < 4.6; step++) {
+    current = scaleRgb(current, 0.9);
+  }
+  return current;
 }
 
-/** Text on top of the accent fill. */
+/** Text on top of the accent fill: white when it clears 4.5:1, else page ink. */
 export function onAccentColor(accent: string): string {
-  return onColor(isHex(accent) ? accent : GOLD);
+  return contrastRatio('#FFFFFF', isHex(accent) ? accent : GOLD) >= 4.5 ? '#FFFFFF' : INK;
+}
+
+function scaleRgb(hex: string, factor: number): string {
+  const c = hex.replace('#', '');
+  const parts = [0, 2, 4].map((i) => Math.round(parseInt(c.slice(i, i + 2), 16) * factor));
+  return '#' + parts.map((v) => Math.min(255, Math.max(0, v)).toString(16).padStart(2, '0')).join('');
 }
 
 export type EstimateTheme = {

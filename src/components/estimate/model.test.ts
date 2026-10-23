@@ -71,10 +71,10 @@ test('the checkbox label + helper is exactly the recorded consent text', () => {
 
 // ── Colors (colors.ts only) ────────────────────────────────────────────────
 
-test('accent text clears AA on the page paper', () => {
+test('accent text clears 4.6:1 on the page paper', () => {
   for (const accent of ['#D3AE37', '#FACC15', '#84CC16', '#C0C0C0', '#1B2A4A']) {
     assert.ok(
-      contrastRatio(accentText(accent), PAGE_BG) >= 4.5,
+      contrastRatio(accentText(accent), PAGE_BG) >= 4.6,
       `${accent} → ${accentText(accent)}`,
     );
   }
@@ -85,9 +85,9 @@ test('a dark accent is left alone, a light one is darkened', () => {
   assert.notEqual(accentText('#FACC15'), '#FACC15');
 });
 
-test('text on an accent fill is chosen for contrast', () => {
+test('text on an accent fill is white only when it clears 4.5:1', () => {
   assert.equal(onAccentColor('#1B2A4A'), '#FFFFFF');
-  assert.equal(onAccentColor('#FACC15'), '#000000');
+  assert.equal(onAccentColor('#FACC15'), '#1E1A15');
 });
 
 test('no brand color falls back to gold, role order picks the accent', () => {
