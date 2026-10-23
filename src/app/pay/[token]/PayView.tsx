@@ -65,6 +65,11 @@ export interface PayModel {
   primaryLabel: string; // "Total due" | "Deposit due now" | "Balance due" | "Paid in full"
   primaryAmount: number;
   showTotalSubline: boolean; // true when primaryAmount differs from total
+  depositAmount: number;
+  depositDue: boolean;
+  depositPaid: boolean;
+  balanceAfterDeposit: number;
+  amountDue: number;
   amountPaid: number;
   fullyPaid: boolean;
   voided: boolean; // status void: no payment methods, nothing payable
@@ -543,7 +548,12 @@ export default function PayView({ model }: { model: PayModel }) {
         {model.showTotalSubline && !model.fullyPaid ? (
           <p className="mt-1 text-body-md text-on-surface-variant">
             Total {money(model.total)}
-            {model.amountPaid > 0 ? ` · Paid ${money(model.amountPaid)}` : ''}
+          </p>
+        ) : null}
+        {model.depositPaid ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-paid-container px-3.5 py-1.5 text-sm font-medium text-paid">
+            <Icon name="check" size={14} />
+            Deposit of {money(model.depositAmount)} received
           </p>
         ) : null}
         {model.fullyPaid ? (
@@ -633,6 +643,34 @@ export default function PayView({ model }: { model: PayModel }) {
               <span>Total</span>
               <span className="font-display">{money(model.total)}</span>
             </div>
+            {model.depositDue ? (
+              <>
+                <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-outline-variant pt-2 text-on-background">
+                  <span className="text-body-md font-bold">Deposit due now</span>
+                  <span className="font-display text-body-lg font-bold">
+                    {money(model.depositAmount)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 text-body-md text-on-surface-variant">
+                  <span>Balance after deposit</span>
+                  <span>{money(model.balanceAfterDeposit)}</span>
+                </div>
+              </>
+            ) : null}
+            {model.depositPaid ? (
+              <>
+                <div className="flex items-baseline justify-between gap-3 text-body-md text-on-surface-variant">
+                  <span>Deposit received</span>
+                  <span>−{money(model.depositAmount)}</span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-outline-variant pt-2 text-on-background">
+                  <span className="text-body-md font-bold">Balance due</span>
+                  <span className="font-display text-body-lg font-bold">
+                    {money(model.amountDue)}
+                  </span>
+                </div>
+              </>
+            ) : null}
           </div>
         </section>
       ) : null}
