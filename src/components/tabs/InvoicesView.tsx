@@ -178,7 +178,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
         {FILTERS[SIDE_OF[filter]].map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f}
             className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
-              ${filter === f ? 'border-2 border-primary-container bg-[#f6ebc6]' : 'border-[1.5px] border-outline bg-surface-container-lowest'}`}
+              ${filter === f ? 'border-2 border-primary-container bg-sent-container' : 'border-[1.5px] border-outline-variant bg-surface-container-lowest'}`}
             onClick={() => chooseFilter(f)}>
             {FILTER_LABEL[f]}
             <span aria-hidden className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums
@@ -231,7 +231,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                         <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
                           <Icon name={tag.icon} size={14} />{tag.text}
                         </span>
-                        <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-primary-soft text-primary-on-container">
                           <Icon name="chevron_right" size={22} />
                         </span>
                       </div>
