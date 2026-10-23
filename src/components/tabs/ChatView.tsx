@@ -2912,6 +2912,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // menu closes and the field becomes the template card in that mode.
     setPlusMenu(null);
     clearTimeout(plusTimer.current);
+    if (k === 'expense') return;
     startNewTemplate(k);
   }
 
