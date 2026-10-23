@@ -115,19 +115,22 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  -- The delivered record stays frozen: the render snapshot and the first-send
-  -- stamp are what the client was shown.
-  NEW.template := OLD.template;
-  NEW.brand_colors := OLD.brand_colors;
-  NEW.background_color := OLD.background_color;
-  NEW.business_name := OLD.business_name;
-  NEW.logo_url := OLD.logo_url;
-  NEW.website_url := OLD.website_url;
-  NEW.slogan := OLD.slogan;
-  NEW.cashapp_tag := OLD.cashapp_tag;
-  NEW.paypal_me := OLD.paypal_me;
-  NEW.venmo_username := OLD.venmo_username;
-  NEW.first_sent_at := OLD.first_sent_at;
+  -- First-sent stamp is immutable once set
+  NEW.first_sent_at        := OLD.first_sent_at;
+  -- Render snapshot — frozen record of what was actually sent. The COLOR-FOR-
+  -- ROLES flag (20261020120000) belongs here: without it a re-render could
+  -- rescore an old invoice's colors.
+  NEW.template             := OLD.template;
+  NEW.brand_colors         := OLD.brand_colors;
+  NEW.background_color     := OLD.background_color;
+  NEW.color_roles_explicit := OLD.color_roles_explicit;
+  NEW.business_name        := OLD.business_name;
+  NEW.logo_url             := OLD.logo_url;
+  NEW.website_url          := OLD.website_url;
+  NEW.slogan               := OLD.slogan;
+  NEW.cashapp_tag          := OLD.cashapp_tag;
+  NEW.paypal_me            := OLD.paypal_me;
+  NEW.venmo_username       := OLD.venmo_username;
 
   -- A sent, unsigned, unconverted quote keeps editable CONTENT. Everything
   -- else — invoices, approved/converted quotes, drafts, paid/overdue/void —
@@ -144,17 +147,20 @@ begin
     return NEW;
   end if;
 
-  NEW.subtotal := OLD.subtotal;
-  NEW.tax_rate := OLD.tax_rate;
-  NEW.tax_amount := OLD.tax_amount;
-  NEW.total := OLD.total;
-  NEW.client_name := OLD.client_name;
+  -- Document money
+  NEW.subtotal       := OLD.subtotal;
+  NEW.tax_rate       := OLD.tax_rate;
+  NEW.tax_amount     := OLD.tax_amount;
+  NEW.total          := OLD.total;
+  -- Billed party (snapshot)
+  NEW.client_name    := OLD.client_name;
   NEW.client_address := OLD.client_address;
-  NEW.client_phone := OLD.client_phone;
-  NEW.notes := OLD.notes;
-  NEW.deposit_type := OLD.deposit_type;
-  NEW.deposit_value := OLD.deposit_value;
-  NEW.due_date := OLD.due_date;
+  NEW.client_phone   := OLD.client_phone;
+  -- Notes + deposit terms + due date
+  NEW.notes          := OLD.notes;
+  NEW.deposit_type   := OLD.deposit_type;
+  NEW.deposit_value  := OLD.deposit_value;
+  NEW.due_date       := OLD.due_date;
   return NEW;
 end $$;
 
