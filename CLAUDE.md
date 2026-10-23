@@ -92,3 +92,9 @@ Deploy workflow:
 - Run the full build once per commit, not after every edit.
 - Pipe long command output through tail/grep; never dump full logs.
 - Stop and ask instead of exploring when the next step is unclear.
+
+## Estimates pass: database override (supersedes the "Preview and production share ONE database" rules for this feature)
+- Estimate work is tested on a Supabase BRANCH database. Preview deploys point at the branch.
+- The linked project ref (bitfmmffnigxjjyxoxfr) is PRODUCTION. For this feature NEVER run `supabase db push` (including `--dry-run` against the linked project), `supabase migration up`, or any migration command against the linked project. Apply migrations to the branch only, using the branch's connection string or `--db-url`, and only after the founder states the branch ref in chat.
+- No migration from this feature reaches production until merged to main, then the normal flow above (dry run, full SQL shown, explicit yes, db push, privilege check).
+- Every new SECURITY DEFINER function / table / policy adds a row to scripts/privilege-check.mjs and supabase/snippets/privilege_check.sql.
