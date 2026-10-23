@@ -267,6 +267,38 @@ export function stillNeededText(draft: SignDraft): string | null {
   return missing.length ? `Still needed: ${missing.join(', ')}` : null;
 }
 
+export type SignErrorKind = 'content_changed' | 'reload' | 'inline';
+
+export type SignErrorCopy = { kind: SignErrorKind; message: string };
+
+/** POST .../sign failures → the copy in spec §2.3. Every code the route can
+ *  emit is covered; an unknown one falls back to the generic line. */
+export function signErrorCopy(status: number, code?: string | null): SignErrorCopy {
+  if (code === 'content_changed') {
+    return {
+      kind: 'content_changed',
+      message: 'This estimate was updated. Please review the changes and sign again.',
+    };
+  }
+  if (
+    code === 'already_approved' ||
+    code === 'expired' ||
+    code === 'unavailable' ||
+    status === 409 ||
+    status === 410
+  ) {
+    // The page state itself changed: reload into it instead of guessing here.
+    return { kind: 'reload', message: '' };
+  }
+  if (code === 'invalid_signature') {
+    return { kind: 'inline', message: "That signature couldn't be read. Clear it and try again." };
+  }
+  if (code === 'rate_limited' || status === 429) {
+    return { kind: 'inline', message: 'Too many attempts. Try again in a minute.' };
+  }
+  return { kind: 'inline', message: "Couldn't approve. Please try again." };
+}
+
 export function typedSignature(signature: SignatureSummary | null): string | null {
   return signature && signature.type === 'type' ? signature.data : null;
 }

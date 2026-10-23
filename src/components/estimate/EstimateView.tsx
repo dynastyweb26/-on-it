@@ -5,8 +5,8 @@
 // items, the photo viewer, the sign/success sheets, attachment retries and the
 // sticky bar. One payload state so a refreshed payload (content_changed, a
 // stale state, an attachment retry) re-renders every card together.
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PublicEstimateResult } from '@/lib/estimates/types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PublicAttachment, PublicEstimateResult } from '@/lib/estimates/types';
 import { money } from '@/lib/financials';
 import AttachmentsCard from './AttachmentsCard';
 import EstIcon from './EstIcon';
@@ -41,6 +41,7 @@ export default function EstimateView({
   const [data, setData] = useState<PublicEstimateResult>(initial);
   const [sheet, setSheet] = useState<'sign' | 'success' | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [sticky, setSticky] = useState(false);
   const heroRef = useRef<HTMLElement | null>(null);
 
@@ -50,6 +51,23 @@ export default function EstimateView({
     () => (payload ? payload.attachments.filter(isPhoto) : []),
     [payload],
   );
+
+  // Re-read the payload. Used when the server says the page is out of date
+  // (content_changed, already approved, expired, revoked).
+  const refresh = useCallback(async (): Promise<PublicAttachment[] | null> => {
+    try {
+      const res = await fetch(`/api/public/estimates/${encodeURIComponent(token)}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const next = (await res.json()) as PublicEstimateResult;
+      if (!next || typeof next.state !== 'string') return null;
+      setData(next);
+      return next.state === 'unavailable' ? null : next.attachments;
+    } catch {
+      return null;
+    }
+  }, [token]);
 
   // Sticky bar: appears once the hero card has scrolled off the top.
   useEffect(() => {
@@ -65,10 +83,30 @@ export default function EstimateView({
     return () => observer.disconnect();
   }, [payload?.invoiceNumber]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   function handleOutcome(outcome: SignOutcome) {
     if (!payload) return;
-    setData({ ...payload, state: 'approved', signature: outcome.signature });
-    setSheet('success');
+    if (outcome.kind === 'approved') {
+      setData({ ...payload, state: 'approved', signature: outcome.signature });
+      setSheet('success');
+      return;
+    }
+    if (outcome.kind === 'content_changed') {
+      // The content hash moved under the signer: re-read what they must review
+      // and reset the sheet (closing it discards the signature and the checkbox).
+      void refresh();
+      setToast('This estimate was updated. Please review the changes and sign again.');
+      setSheet(null);
+      return;
+    }
+    // The page state changed underneath us: reload into whatever it is now.
+    void refresh();
+    setSheet(null);
   }
 
   function closeSuccess() {
@@ -205,6 +243,12 @@ export default function EstimateView({
 
       {sheet === 'success' && (
         <SuccessSheet payload={payload} token={token} onView={closeSuccess} />
+      )}
+
+      {toast && (
+        <div className={s.toast} role="status">
+          {toast}
+        </div>
       )}
 
       {viewerIndex >= 0 && (

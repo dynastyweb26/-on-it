@@ -19,6 +19,7 @@ import {
   longDateTime,
   onAccentColor,
   shortDate,
+  signErrorCopy,
   signedDateText,
   statusChip,
   stillNeeded,
@@ -175,6 +176,21 @@ test('disabled reasons list only what is missing', () => {
   );
   assert.deepEqual(stillNeeded({ hasInk: true, name: 'Jordan', agreed: false }), ['checkbox']);
   assert.equal(stillNeededText({ hasInk: true, name: 'Jordan', agreed: true }), null);
+});
+
+test('every sign error maps to the 2.3 copy', () => {
+  assert.equal(signErrorCopy(409, 'content_changed').kind, 'content_changed');
+  assert.match(signErrorCopy(409, 'content_changed').message, /was updated/);
+  assert.equal(signErrorCopy(409, 'already_approved').kind, 'reload');
+  assert.equal(signErrorCopy(410, 'expired').kind, 'reload');
+  assert.equal(signErrorCopy(410, 'unavailable').kind, 'reload');
+  assert.equal(
+    signErrorCopy(400, 'invalid_signature').message,
+    "That signature couldn't be read. Clear it and try again.",
+  );
+  assert.equal(signErrorCopy(429, 'rate_limited').message, 'Too many attempts. Try again in a minute.');
+  assert.equal(signErrorCopy(500, undefined).message, "Couldn't approve. Please try again.");
+  assert.equal(signErrorCopy(400, 'validation').message, "Couldn't approve. Please try again.");
 });
 
 test('status chips', () => {
