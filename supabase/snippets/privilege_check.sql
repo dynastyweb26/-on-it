@@ -1540,6 +1540,130 @@ results(id, ok, expected, actual) as (
     ('public.sign_estimate(text, text, text, text, text, text, text, text, text)'),
     ('public.add_estimate_attachment(uuid, uuid, text, text, bigint, text)')
   ) f(sig)
+
+  -- AS–AW. Estimates M3 (20261023100200): title, caption, business contact.
+  -- SKIP until pushed.
+  union all
+  select 'AS invoice title',
+    case when not exists (select 1 from applied where version = '20261023100200') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'title' and data_type = 'text' and is_nullable = 'YES')
+        and coalesce((select pg_get_constraintdef(oid) ilike '%120%'
+          from pg_constraint
+          where conrelid = 'public.invoices'::regclass and conname = 'invoices_title_len_chk'), false)
+        and coalesce((select pg_get_functiondef(p.oid) ilike '%new.title%'
+            and pg_get_functiondef(p.oid) ilike '%cannot be changed%'
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_locked_estimate_edits()')), false)
+    end,
+    'invoices.title text null, CHECK <= 120, guard refuses it after approval/conversion',
+    case when not exists (select 1 from applied where version = '20261023100200') then 'not applied yet'
+      else coalesce((select data_type || ' ' || is_nullable
+          from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'title'), 'missing')
+        || ' check=' || coalesce((select conname from pg_constraint
+          where conrelid = 'public.invoices'::regclass and conname = 'invoices_title_len_chk'), 'none')
+        || ' guard_title=' || coalesce((select (pg_get_functiondef(p.oid) ilike '%new.title%')::text
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_locked_estimate_edits()')), 'missing') end
+  union all
+  select 'AT attachment caption',
+    case when not exists (select 1 from applied where version = '20261023100200') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoice_attachments'
+            and column_name = 'caption' and data_type = 'text' and is_nullable = 'YES')
+        and coalesce((select pg_get_constraintdef(oid) ilike '%60%'
+          from pg_constraint
+          where conrelid = 'public.invoice_attachments'::regclass
+            and conname = 'invoice_attachments_caption_len_chk'), false)
+        and not has_table_privilege('authenticated', 'public.invoice_attachments', 'UPDATE')
+        and not has_table_privilege('anon', 'public.invoice_attachments', 'UPDATE')
+        and coalesce((select pg_get_functiondef(p.oid) ilike '%caption%'
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_locked_estimate_attachments()')), false)
+    end,
+    'caption text null, CHECK <= 60, no client UPDATE, guard treats caption as server-owned',
+    case when not exists (select 1 from applied where version = '20261023100200') then 'not applied yet'
+      else coalesce((select data_type || ' ' || is_nullable
+          from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoice_attachments'
+            and column_name = 'caption'), 'missing')
+        || ' check=' || coalesce((select conname from pg_constraint
+          where conrelid = 'public.invoice_attachments'::regclass
+            and conname = 'invoice_attachments_caption_len_chk'), 'none')
+        || ' auth_upd=' || has_table_privilege('authenticated', 'public.invoice_attachments', 'UPDATE')
+        || ' anon_upd=' || has_table_privilege('anon', 'public.invoice_attachments', 'UPDATE') end
+  union all
+  select 'AU profiles business contact',
+    case when not exists (select 1 from applied where version = '20261023100200') then null
+      else (select count(*) from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles'
+            and column_name in ('business_phone', 'business_email')
+            and data_type = 'text' and is_nullable = 'YES') = 2
+        and coalesce((select pg_get_constraintdef(oid) ilike '%30%'
+          from pg_constraint
+          where conrelid = 'public.profiles'::regclass
+            and conname = 'profiles_business_phone_len_chk'), false)
+        and coalesce((select pg_get_constraintdef(oid) ilike '%254%'
+          from pg_constraint
+          where conrelid = 'public.profiles'::regclass
+            and conname = 'profiles_business_email_len_chk'), false)
+        and has_column_privilege('authenticated', 'public.profiles', 'business_phone', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.profiles', 'business_email', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.profiles', 'business_phone', 'INSERT')
+        and not has_column_privilege('authenticated', 'public.profiles', 'business_email', 'INSERT')
+    end,
+    'business_phone/business_email text null, CHECK <= 30/254, UPDATE only (not onboarding), no INSERT',
+    case when not exists (select 1 from applied where version = '20261023100200') then 'not applied yet'
+      else coalesce((select string_agg(column_name || ' ' || data_type || ' ' || is_nullable, '; ' order by column_name)
+          from information_schema.columns
+          where table_schema = 'public' and table_name = 'profiles'
+            and column_name in ('business_phone', 'business_email')), 'missing')
+        || ' phone_upd=' || has_column_privilege('authenticated', 'public.profiles', 'business_phone', 'UPDATE')
+        || ' email_upd=' || has_column_privilege('authenticated', 'public.profiles', 'business_email', 'UPDATE')
+        || ' phone_ins=' || has_column_privilege('authenticated', 'public.profiles', 'business_phone', 'INSERT')
+        || ' email_ins=' || has_column_privilege('authenticated', 'public.profiles', 'business_email', 'INSERT') end
+  union all
+  select 'AV public.set_estimate_attachment_caption',
+    case when not exists (select 1 from applied where version = '20261023100200') then null
+      when to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)') is null then false
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p
+        where p.oid = to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)')), false)
+        and not has_function_privilege('anon',
+          to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)'), 'EXECUTE')
+        and not has_function_privilege('authenticated',
+          to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)'), 'EXECUTE')
+    end,
+    'SECURITY DEFINER, search_path="", not executable by anon/authenticated',
+    case when not exists (select 1 from applied where version = '20261023100200') then 'not applied yet'
+      when to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)') is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p
+            where p.oid = to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)'))
+        || ' config=' || coalesce((select p.proconfig::text from pg_proc p
+            where p.oid = to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)')), 'none')
+        || ' anon=' || has_function_privilege('anon',
+              to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)'), 'EXECUTE')
+        || ' auth=' || has_function_privilege('authenticated',
+              to_regprocedure('public.set_estimate_attachment_caption(uuid, uuid, uuid, text)'), 'EXECUTE') end
+  union all
+  select 'AW content hash covers title and captions',
+    case when not exists (select 1 from applied where version = '20261023100200') then null
+      else coalesce((select pg_get_functiondef(p.oid) ilike '%''title''%'
+            and pg_get_functiondef(p.oid) ilike '%''caption''%'
+            and pg_get_functiondef(p.oid) ilike '%checksum%'
+            and pg_get_functiondef(p.oid) ilike '%starts_with%'
+          from pg_proc p where p.oid = to_regprocedure('public.estimate_content_hash(uuid)')), false)
+    end,
+    'estimate_content_hash includes title and each attachment caption, still deliverable-filtered',
+    case when not exists (select 1 from applied where version = '20261023100200') then 'not applied yet'
+      when to_regprocedure('public.estimate_content_hash(uuid)') is null then 'missing'
+      else 'title=' || coalesce((select (pg_get_functiondef(p.oid) ilike '%''title''%')::text
+              from pg_proc p where p.oid = to_regprocedure('public.estimate_content_hash(uuid)')), 'missing')
+        || ' caption=' || coalesce((select (pg_get_functiondef(p.oid) ilike '%''caption''%')::text
+              from pg_proc p where p.oid = to_regprocedure('public.estimate_content_hash(uuid)')), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
