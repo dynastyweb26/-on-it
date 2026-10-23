@@ -1412,7 +1412,7 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261023100000') then 'not applied yet'
       when to_regclass('public.estimate_signatures') is null then 'missing'
       else concat_ws('; ',
-        'rls=' || (select relrowsecurity from pg_class where oid = 'public.estimate_signatures'::regclass),
+        'rls=' || (select relrowsecurity from pg_class where oid = to_regclass('public.estimate_signatures')),
         'policies=' || coalesce((select string_agg(policyname || ':' || cmd, ', ' order by policyname)
           from pg_policies where schemaname = 'public' and tablename = 'estimate_signatures'), 'none'),
         'auth_sel=' || has_table_privilege('authenticated', 'public.estimate_signatures', 'SELECT'),
