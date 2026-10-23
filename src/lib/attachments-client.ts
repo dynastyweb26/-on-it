@@ -21,6 +21,9 @@ type Db = ReturnType<typeof createClient>;
 
 export const ATTACHMENT_BUCKET = 'invoice-attachments';
 
+/** Thrown when a reorder would rewrite rows the server verified. */
+export const ATTACHMENT_RENUMBER_VERIFIED = 'attachment-renumber-verified';
+
 export interface AttachmentRow {
   id: string;
   storage_path: string;
@@ -93,6 +96,11 @@ export async function renumberAttachments(
   supabase: Db, userId: string, invoiceId: string, rows: readonly AttachmentRow[],
 ): Promise<AttachmentRow[]> {
   const ordered = [...rows].sort((a, b) => a.position - b.position);
+  // Server-verified rows (estimate attachments) carry mime_type/size_bytes/
+  // checksum, which only the service-role confirm path may write. This helper
+  // deletes before it re-inserts, so a refused re-insert would leave the
+  // document with no attachments at all — refuse the whole reorder up front.
+  if (ordered.some((r) => r.checksum)) throw new Error(ATTACHMENT_RENUMBER_VERIFIED);
   if (ordered.every((r, i) => r.position === i)) return ordered;
   await supabase.from('invoice_attachments').delete().eq('invoice_id', invoiceId);
   const { data } = await supabase

@@ -800,3 +800,11 @@ commit / branch DB URL) was blocked in this worktree: no `main`, no
 | Owner API | **Built — typecheck + build only** | `POST /api/estimates/[id]/send` (valid_until, approved/converted refused, missing date → local +30 on any send), `/extend`, `/revoke`, `GET /preview` (draft preview, public shape), attachments presign → direct upload → `confirm` (bytes re-verified + sha256) and delete. |
 | Proof scripts | **Drafted — not run** | `supabase/tests/estimates_additive_proofs.sql`, `supabase/tests/estimates_lifecycle_proofs.sql` (transactional, rollback; must run on a branch/local DB). Privilege checks AJ–AR added and SKIP until pushed. |
 | Public sign page / owner UI | **Not built** | This session is the data + server layer. The page consumes the GET payload and the typed sign errors; the canvas/typed signer, owner send/extend/revoke/attachment UI and the estimate link in the share flow remain. |
+
+**Session 4 — attachment reorder.** Estimate attachments must be reordered
+through a server route (a SECURITY DEFINER RPC), never through
+`renumberAttachments` in `src/lib/attachments-client.ts`. That helper deletes
+then re-inserts, and the M2 guard refuses a client write of
+`mime_type`/`size_bytes`/`checksum`, so it now throws
+`attachment-renumber-verified` before deleting anything once any row carries a
+checksum.
