@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback' | 'estimate_view' | 'estimate_sign' | 'estimate_upload';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -71,6 +71,14 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   // "Tell us about On It" (POST /api/feedback) — keyed by user. Each send writes a
   // row and emails the founder; a real person sends one or two a sitting.
   feedback:        { tokens: 5,  window: '3600 s' },
+  // Public estimate link (GET) — keyed by IP. The 128-bit token is the real
+  // guessing defense; this caps a sweep from one source.
+  estimate_view:   { tokens: 30, window: '60 s' },
+  // Signing writes a signature + a push. A client taps once; a double tap is
+  // idempotent, so 10/min is generous while capping scripted attempts.
+  estimate_sign:   { tokens: 10, window: '60 s' },
+  // Presign/confirm/delete an estimate attachment (each one storage work).
+  estimate_upload: { tokens: 20, window: '60 s' },
 };
 
 let redis: Redis | null = null;

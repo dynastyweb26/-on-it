@@ -87,6 +87,15 @@ export function renderWebPush(event: NotifyEvent): WebPushMessage {
         tag: `recap-${event.kind}-${event.periodStart}`,
       };
     }
+    case 'estimate_approved': {
+      const no = formatDocNumber('quote', event.invoiceNumber);
+      return {
+        title: `${event.signerName} signed ${no}`,
+        body: `${money(event.total)} · ${event.clientName} · Tap to view.`,
+        url: `/invoices/${event.estimateId}`,
+        tag: `estimate-${event.estimateId}`,
+      };
+    }
     case 'recurring_skipped': {
       // Free-limit skips only (errors never push). Names the first item; the
       // rest are a count. No amounts: the Recurring screen has the detail.

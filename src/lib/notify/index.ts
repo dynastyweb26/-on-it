@@ -30,6 +30,9 @@ const OPTIONS: Record<NotifyEvent['type'], SendOptions> = {
   recap: { ttl: 24 * 3600, urgency: 'normal' },
   // Today's digest; tomorrow's run sends its own if it still can't log.
   recurring_skipped: { ttl: 24 * 3600, urgency: 'normal' },
+  // A signed estimate is news for a day; older than that and the owner has
+  // almost certainly opened the app already.
+  estimate_approved: { ttl: 24 * 3600, urgency: 'high' },
 };
 
 /** The dedupe identity of an event. A payment is its ledger row; a dispute is
@@ -49,6 +52,8 @@ export function dedupeKey(userId: string, event: NotifyEvent): string {
     case 'draft_unsent': return `draft:${event.invoiceId}`;
     case 'recap': return `recap:${event.kind}:${userId}:${event.periodStart}`;
     case 'recurring_skipped': return `recurring_skipped:${userId}:${event.localDate}`;
+    // Must match the key sign_estimate inserts ('estimate_approved:<id>').
+    case 'estimate_approved': return `estimate_approved:${event.estimateId}`;
   }
 }
 
@@ -74,6 +79,25 @@ export async function notify(userId: string, event: NotifyEvent): Promise<number
     return delivered;
   } catch (e) {
     console.error('notify: failed', event.type, (e as Error)?.message);
+    return 0;
+  }
+}
+
+/** Deliver an event whose notification_log row is ALREADY claimed. The sign
+ *  transaction claims it atomically with the signature, so the route must not
+ *  claim again (that would dedupe to nothing and stay silent). Returns devices
+ *  that accepted; never throws. */
+export async function notifyClaimed(
+  userId: string,
+  logId: string,
+  event: NotifyEvent,
+): Promise<number> {
+  try {
+    const delivered = await sendWebPush(userId, renderWebPush(event), OPTIONS[event.type]);
+    await adminClient().from('notification_log').update({ delivered }).eq('id', logId);
+    return delivered;
+  } catch (e) {
+    console.error('notify claimed: failed', event.type, (e as Error)?.message);
     return 0;
   }
 }

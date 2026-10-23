@@ -59,6 +59,14 @@ export type NotifyEvent =
       type: 'recurring_skipped';  // the cron couldn't log recurring charges: free limit (lib/notify/recurring)
       vendors: string[];          // every item skipped this run, oldest due first (the copy names the first)
       localDate: string;          // the owner's local yyyy-mm-dd; with user, the dedupe identity (one digest a day)
+    }
+  | {
+      type: 'estimate_approved';  // the client signed a public estimate link (sign_estimate)
+      estimateId: string;         // invoices.id — the dedupe identity: one push per estimate, ever
+      invoiceNumber: number;
+      clientName: string;
+      total: number;              // the signed total, dollars
+      signerName: string;         // who signed, as typed or drawn-under
     };
 
 export type NotifyEventType = NotifyEvent['type'];

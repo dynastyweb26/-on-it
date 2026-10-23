@@ -1,0 +1,38 @@
+// Request shapes for the estimate routes. The exact consent TEXT is never taken
+// from the client — only the version, which must be the current one; the text
+// recorded is the server's frozen CONSENT_V1 constant.
+import { z } from 'zod';
+import { CONSENT_VERSION } from './consent';
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_SIGNATURE_DATA_CHARS,
+} from './limits';
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+export const SignBodySchema = z.object({
+  signer_name: z.string().trim().min(1).max(120),
+  signature_type: z.enum(['draw', 'type']),
+  signature_data: z.string().max(MAX_SIGNATURE_DATA_CHARS).optional(),
+  consent_version: z.literal(CONSENT_VERSION),
+  // Required: the page signs exactly the content it displayed.
+  expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
+});
+
+export const SendBodySchema = z
+  .object({ valid_until: z.string().regex(DATE_ONLY).optional() })
+  .nullish();
+
+export const ExtendBodySchema = z.object({
+  valid_until: z.string().regex(DATE_ONLY),
+});
+
+export const PresignBodySchema = z.object({
+  mime_type: z.enum(['image/jpeg', 'image/png', 'application/pdf']),
+  size_bytes: z.number().int().positive().max(MAX_ATTACHMENT_BYTES),
+  file_name: z.string().max(200).optional(),
+});
+
+export const ConfirmBodySchema = z.object({
+  path: z.string().min(1).max(400),
+});
