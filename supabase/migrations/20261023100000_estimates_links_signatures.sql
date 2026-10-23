@@ -149,6 +149,9 @@ as $$
   select pg_catalog.encode(
     extensions.digest(
       pg_catalog.jsonb_build_object(
+        -- The billed party is part of what the client reads and signs.
+        'client_name', coalesce(i.client_name, ''),
+        'client_address', coalesce(i.client_address, ''),
         'line_items', i.line_items,
         'subtotal', i.subtotal,
         'tax_rate', i.tax_rate,
