@@ -235,8 +235,12 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                   // (adds up to the summary), with the full total under it.
                   const partPaid = filter === 'open' && Number(r.amount_paid ?? 0) > 0;
                   return (
-                    <Link key={r.id} href={`/invoices/${r.id}`}
-                      className="flex h-full items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
+                    // Holding a row must not raise the browser's link menu (Open /
+                    // Copy link / Open in new tab) in the installed app; a tap still navigates.
+                    <Link key={r.id} href={`/invoices/${r.id}`} draggable={false}
+                      style={{ WebkitTouchCallout: 'none' }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
                         <span className="text-[13.5px] text-on-surface-variant">
