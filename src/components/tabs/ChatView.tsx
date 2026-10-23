@@ -3757,6 +3757,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </div>
       ) : expenseTemplate && expenseDraft ? (
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+          <div className={expenseExiting ? 'onit-card-exit' : 'onit-card-enter'}>
           <ExpenseCard
             draft={expenseDraft}
             onChange={setExpenseDraft}
@@ -3766,6 +3767,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}
           />
+          </div>
         </div>
       ) : (
         <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
