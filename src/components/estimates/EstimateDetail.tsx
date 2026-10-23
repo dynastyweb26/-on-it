@@ -22,8 +22,11 @@ import {
   estimateLink,
   estimateShareText,
   requestEstimateDuplicate,
+  requestEstimateExtend,
   requestEstimatePreview,
+  requestEstimateRevoke,
   requestEstimateSend,
+  requestEstimateTitle,
   shareEstimateLink,
 } from '@/lib/estimates/owner-actions';
 import {
@@ -310,24 +313,13 @@ export default function EstimateDetail({
     setActionError(null);
     const next = extendValidity(inv.valid_until, new Date(), tz);
     try {
-      const res = await fetch(`/api/estimates/${id}/extend`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ valid_until: next }),
-      });
-      const body = (await res.json().catch(() => null)) as
-        | { estimate?: { valid_until: string }; error?: string }
-        | null;
-      if (!res.ok || !body?.estimate?.valid_until) {
-        setActionError(
-          res.status === 409
-            ? 'This estimate can no longer be extended.'
-            : "Couldn't extend the validity. Please try again.",
-        );
+      const outcome = await requestEstimateExtend(id, next);
+      if (!outcome.ok) {
+        setActionError(outcome.message);
         return;
       }
-      setInv((prev) => ({ ...prev, valid_until: body.estimate!.valid_until }));
-      showToast(`Valid until ${shortDate(body.estimate.valid_until) ?? 'the new date'}`);
+      setInv((prev) => ({ ...prev, valid_until: outcome.validUntil }));
+      showToast(`Valid until ${shortDate(outcome.validUntil) ?? 'the new date'}`);
     } finally {
       setBusy(null);
     }
@@ -338,19 +330,12 @@ export default function EstimateDetail({
     setBusy('revoke');
     setActionError(null);
     try {
-      const res = await fetch(`/api/estimates/${id}/revoke`, { method: 'POST' });
-      const body = (await res.json().catch(() => null)) as
-        | { estimate?: { revoked_at: string }; error?: string }
-        | null;
-      if (!res.ok || !body?.estimate?.revoked_at) {
-        setActionError(
-          res.status === 409
-            ? 'This estimate can no longer be deactivated.'
-            : "Couldn't deactivate the link. Please try again.",
-        );
+      const outcome = await requestEstimateRevoke(id);
+      if (!outcome.ok) {
+        setActionError(outcome.message);
         return;
       }
-      setInv((prev) => ({ ...prev, revoked_at: body.estimate!.revoked_at }));
+      setInv((prev) => ({ ...prev, revoked_at: outcome.revokedAt }));
       setConfirmRevoke(false);
       showToast('Link deactivated');
     } finally {
@@ -363,28 +348,13 @@ export default function EstimateDetail({
     const next = titleDraft.trim().slice(0, 120);
     if (next === (inv.title ?? '')) return;
     setActionError(null);
-    try {
-      const res = await fetch(`/api/estimates/${id}/title`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: next || null }),
-      });
-      const body = (await res.json().catch(() => null)) as
-        | { estimate?: { title: string | null }; error?: string }
-        | null;
-      if (!res.ok || !body?.estimate) {
-        setActionError(
-          res.status === 409
-            ? 'This estimate is locked.'
-            : "Couldn't save the title. Please try again.",
-        );
-        return;
-      }
-      setInv((prev) => ({ ...prev, title: body.estimate!.title }));
-      setTitleDraft(body.estimate.title ?? '');
-    } catch {
-      setActionError("Couldn't save the title. Please try again.");
+    const outcome = await requestEstimateTitle(id, next || null);
+    if (!outcome.ok) {
+      setActionError(outcome.message);
+      return;
     }
+    setInv((prev) => ({ ...prev, title: outcome.title }));
+    setTitleDraft(outcome.title ?? '');
   }
 
   // Line-item edits reuse the app's existing editor and the same atomic
@@ -524,21 +494,17 @@ export default function EstimateDetail({
           )}
 
           {(state === 'sent' || state === 'expired') && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid gap-2 ${state === 'sent' ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <button type="button" className={tile} onClick={() => void copyLink()} disabled={!publicUrl}>
                 <Icon name="link" size={20} /> Copy link
               </button>
               <button type="button" className={tile} onClick={() => void shareLink()} disabled={!publicUrl}>
                 <Icon name="share" size={20} /> Share
               </button>
-              {state === 'sent' ? (
+              {state === 'sent' && (
                 <button type="button" className={tile} disabled={busy !== null} onClick={() => void send(true)}>
                   <Icon name="notifications" size={20} />
                   {busy === 'resend' ? 'Sending…' : 'Request signature'}
-                </button>
-              ) : (
-                <button type="button" className={tile} disabled={busy !== null} onClick={() => void extend()}>
-                  <Icon name="schedule" size={20} /> Extend
                 </button>
               )}
             </div>

@@ -21,6 +21,18 @@ export type EstimateDuplicateOutcome =
   | { ok: true; id: string }
   | { ok: false; paywall: boolean; message: string };
 
+export type EstimateExtendOutcome =
+  | { ok: true; validUntil: string }
+  | { ok: false; message: string };
+
+export type EstimateRevokeOutcome =
+  | { ok: true; revokedAt: string }
+  | { ok: false; message: string };
+
+export type EstimateTitleOutcome =
+  | { ok: true; title: string | null }
+  | { ok: false; message: string };
+
 export function sendErrorMessage(status: number, code?: string | null): string {
   if (status === 401) return 'Please sign in again.';
   if (status === 404) return "This estimate couldn't be found.";
@@ -65,6 +77,80 @@ export async function requestEstimatePreview(id: string): Promise<EstimatePrevie
     return { ok: true, preview: body as PublicEstimate };
   } catch {
     return { ok: false, message: "The client preview isn't available right now." };
+  }
+}
+
+export async function requestEstimateExtend(
+  id: string,
+  validUntil: string,
+): Promise<EstimateExtendOutcome> {
+  try {
+    const res = await fetch(`/api/estimates/${id}/extend`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ valid_until: validUntil }),
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { estimate?: { valid_until?: string }; error?: string }
+      | null;
+    if (!res.ok || !body?.estimate?.valid_until) {
+      return {
+        ok: false,
+        message: res.status === 409
+          ? 'This estimate can no longer be extended.'
+          : "Couldn't extend the validity. Please try again.",
+      };
+    }
+    return { ok: true, validUntil: body.estimate.valid_until };
+  } catch {
+    return { ok: false, message: "Couldn't extend the validity. Please try again." };
+  }
+}
+
+export async function requestEstimateRevoke(id: string): Promise<EstimateRevokeOutcome> {
+  try {
+    const res = await fetch(`/api/estimates/${id}/revoke`, { method: 'POST' });
+    const body = (await res.json().catch(() => null)) as
+      | { estimate?: { revoked_at?: string }; error?: string }
+      | null;
+    if (!res.ok || !body?.estimate?.revoked_at) {
+      return {
+        ok: false,
+        message: res.status === 409
+          ? 'This estimate can no longer be deactivated.'
+          : "Couldn't deactivate the link. Please try again.",
+      };
+    }
+    return { ok: true, revokedAt: body.estimate.revoked_at };
+  } catch {
+    return { ok: false, message: "Couldn't deactivate the link. Please try again." };
+  }
+}
+
+export async function requestEstimateTitle(
+  id: string,
+  title: string | null,
+): Promise<EstimateTitleOutcome> {
+  try {
+    const res = await fetch(`/api/estimates/${id}/title`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { estimate?: { title?: string | null }; error?: string }
+      | null;
+    if (!res.ok || !body?.estimate) {
+      return {
+        ok: false,
+        message: res.status === 409
+          ? 'This estimate is locked.'
+          : "Couldn't save the title. Please try again.",
+      };
+    }
+    return { ok: true, title: body.estimate.title ?? null };
+  } catch {
+    return { ok: false, message: "Couldn't save the title. Please try again." };
   }
 }
 
