@@ -1199,7 +1199,12 @@ results(id, ok, expected, actual) as (
                 (p.prosrc ilike ('%new.' || c.col || '%'))
                 and (p.prosrc ilike ('%old.' || c.col || '%')))
               from (values ('amount_paid'), ('status'), ('paid_at'), ('sent_at'),
-                           ('first_sent_at'), ('viewed_at'), ('last_nudge_at')) c(col))
+                           ('first_sent_at'), ('viewed_at'), ('last_nudge_at'),
+                           ('approved_at'), ('valid_until'), ('revoked_at'), ('public_token')) c(col)
+              -- The estimates migration widens the body; every added column must
+              -- appear as both NEW.<col> and OLD.<col> in it.
+              where c.col not in ('approved_at', 'valid_until', 'revoked_at', 'public_token')
+                 or exists (select 1 from applied where version = '20261023100100'))
       ) end,
     'BEFORE INSERT OR UPDATE OF the server columns (11 once the estimates migration is applied); invoker; search_path=""; client-only guard; NEW+OLD per column',
     case when not exists (select 1 from applied where version = '20261020000000') then 'not applied yet'
