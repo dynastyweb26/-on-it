@@ -334,12 +334,15 @@ export default function PayView({ model }: { model: PayModel }) {
 
   const [cardBusy, setCardBusy] = useState(false);
   const [cardError, setCardError] = useState('');
-  // Line items: collapsed to three (each description clamped to two lines),
-  // expanded shows the full list and full descriptions.
+  // Line items: collapsed to the first row (description clamped to two lines),
+  // expanded shows the full list and full descriptions. Scroll targets are
+  // refs, not document order — the payment section stays the "How to pay"
+  // anchor wherever the cards sit.
   const [itemsOpen, setItemsOpen] = useState(false);
   const itemsRef = useRef<HTMLElement | null>(null);
-  const itemsCollapsible = model.lineItems.length > 3;
-  const visibleItems = itemsCollapsible && !itemsOpen ? model.lineItems.slice(0, 3) : model.lineItems;
+  const payRef = useRef<HTMLElement | null>(null);
+  const itemsCollapsible = model.lineItems.length > 1;
+  const visibleItems = itemsCollapsible && !itemsOpen ? model.lineItems.slice(0, 1) : model.lineItems;
   function toggleItems() {
     const wasOpen = itemsOpen;
     setItemsOpen(!wasOpen);
@@ -531,24 +534,6 @@ export default function PayView({ model }: { model: PayModel }) {
           model.fullyPaid ? 'bg-paid-container' : 'bg-surface-container-lowest'
         }`}
       >
-        {/* Money breakdown — reconciles the line items with the total (matches
-            the PDF). Shown only when there's tax to explain. */}
-        {model.showTaxBreakdown ? (
-          <div className="mb-4 space-y-1 border-b border-outline-variant pb-4 text-left">
-            <div className="flex items-center justify-between text-body-md text-on-surface-variant">
-              <span>Subtotal</span>
-              <span>{money(model.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between text-body-md text-on-surface-variant">
-              <span>Tax{model.taxRate > 0 ? ` (${model.taxRate}%)` : ''}</span>
-              <span>{money(model.taxAmount)}</span>
-            </div>
-            <div className="flex items-center justify-between text-body-md font-display text-on-background">
-              <span>Total</span>
-              <span>{money(model.total)}</span>
-            </div>
-          </div>
-        ) : null}
         <p className="text-label-lg uppercase tracking-wide text-on-surface-variant">
           {model.primaryLabel}
         </p>
@@ -569,9 +554,91 @@ export default function PayView({ model }: { model: PayModel }) {
         ) : null}
       </section>
 
-      {/* Payment methods — how to pay. Placed ABOVE the (uncapped) line items so
-          the client sees how to pay without scrolling past a long itemisation.
-          Hidden once fully paid or voided. Card first when the seller takes cards. */}
+      {/* Line items — reference itemisation. Collapsed to the first row (each
+          description clamped to two lines); the summary stays put when the list
+          is open or collapsed. */}
+      {model.lineItems.length > 0 ? (
+        <section
+          ref={itemsRef}
+          className="mt-6 scroll-mt-24 overflow-hidden rounded-card bg-surface-container-lowest shadow-card"
+        >
+          <div className="flex items-baseline justify-between gap-3 px-4 pb-1 pt-4">
+            <h2 className="text-label-lg uppercase tracking-[0.1em] text-on-surface-variant">
+              Line items
+            </h2>
+            <span className="text-sm text-on-surface-variant">
+              {model.lineItems.length} {model.lineItems.length === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+          <ul className="divide-y divide-outline-variant border-t border-outline-variant">
+            {visibleItems.map((li, i) => (
+              <li key={i} className="flex items-start justify-between gap-3 px-4 py-3.5">
+                <div className="min-w-0">
+                  <p
+                    className={`text-body-md text-on-background ${
+                      itemsCollapsible && !itemsOpen ? 'line-clamp-2' : ''
+                    }`}
+                  >
+                    {li.description || 'Item'}
+                  </p>
+                  {li.detail ? <p className="text-sm text-on-surface-variant">{li.detail}</p> : null}
+                  {li.qty !== 1 || li.unitLabel ? (
+                    <p className="text-body-md text-on-surface-variant">
+                      {li.qty}{li.unitLabel ? ` ${li.unitLabel}` : ''} × {money(li.unitPrice)}
+                    </p>
+                  ) : null}
+                </div>
+                <p className="shrink-0 text-body-md text-on-background">{money(li.amount)}</p>
+              </li>
+            ))}
+          </ul>
+          {itemsCollapsible ? (
+            <button
+              type="button"
+              onClick={toggleItems}
+              aria-expanded={itemsOpen}
+              className="flex min-h-[54px] w-full items-center justify-center gap-2 border-t border-outline-variant text-body-md font-semibold text-on-background active:bg-surface-container-low"
+            >
+              <span>{itemsOpen ? 'Show fewer' : `View all ${model.lineItems.length} items`}</span>
+              {!itemsOpen ? (
+                <span className="font-normal text-on-surface-variant">
+                  +{model.lineItems.length - 1}
+                </span>
+              ) : null}
+              <Icon
+                name="expand_more"
+                size={16}
+                className={itemsOpen ? 'rotate-180' : ''}
+              />
+            </button>
+          ) : null}
+          <div className="space-y-2 border-t border-outline-variant bg-surface-container-low px-4 py-4">
+            {model.showTaxBreakdown ? (
+              <>
+                <div className="flex items-center justify-between gap-3 text-body-md text-on-surface-variant">
+                  <span>Subtotal</span>
+                  <span>{money(model.subtotal)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-body-md text-on-surface-variant">
+                  <span>Tax{model.taxRate > 0 ? ` (${model.taxRate}%)` : ''}</span>
+                  <span>{money(model.taxAmount)}</span>
+                </div>
+              </>
+            ) : null}
+            <div
+              className={`flex items-baseline justify-between gap-3 text-body-md font-bold text-on-background ${
+                model.showTaxBreakdown ? 'mt-1 border-t border-outline-variant pt-2' : ''
+              }`}
+            >
+              <span>Total</span>
+              <span className="font-display">{money(model.total)}</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Payment methods — how to pay. Sits below the itemisation. Hidden once
+          fully paid or voided. Card first when the seller takes cards. */}
       {model.voided ? (
         <section className="mt-6 rounded-card bg-surface-container-lowest p-6 text-center shadow-card">
           <Icon name="block" size={32} className="text-on-surface-variant" />
@@ -581,7 +648,7 @@ export default function PayView({ model }: { model: PayModel }) {
           </p>
         </section>
       ) : !model.fullyPaid ? (
-        <section className="mt-6">
+        <section ref={payRef} id="how-to-pay" className="mt-6 scroll-mt-24">
           <h2 className="mb-3 text-label-lg uppercase tracking-wide text-on-surface-variant">How to pay</h2>
 
           {showCard || model.hasHandles ? (
@@ -682,61 +749,6 @@ export default function PayView({ model }: { model: PayModel }) {
           ) : null}
           {cardError ? (
             <p className="mt-2 text-center text-body-md text-error" role="alert">{cardError}</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {/* Line items — reference itemisation. Collapsed to three rows (each
-          description clamped to two lines); tapping the footer shows all. */}
-      {model.lineItems.length > 0 ? (
-        <section
-          ref={itemsRef}
-          className="mt-6 scroll-mt-24 overflow-hidden rounded-card bg-surface-container-lowest shadow-card"
-        >
-          <div className="flex items-baseline justify-between gap-3 px-4 pb-1 pt-4">
-            <h2 className="text-label-lg uppercase tracking-[0.1em] text-on-surface-variant">
-              Line items
-            </h2>
-            <span className="text-sm text-on-surface-variant">
-              {model.lineItems.length} {model.lineItems.length === 1 ? 'item' : 'items'}
-            </span>
-          </div>
-          <ul className="divide-y divide-outline-variant border-t border-outline-variant">
-            {visibleItems.map((li, i) => (
-              <li key={i} className="flex items-start justify-between gap-3 px-4 py-3.5">
-                <div className="min-w-0">
-                  <p
-                    className={`text-body-md text-on-background ${
-                      itemsCollapsible && !itemsOpen ? 'line-clamp-2' : ''
-                    }`}
-                  >
-                    {li.description || 'Item'}
-                  </p>
-                  {li.detail ? <p className="text-sm text-on-surface-variant">{li.detail}</p> : null}
-                  {li.qty !== 1 || li.unitLabel ? (
-                    <p className="text-body-md text-on-surface-variant">
-                      {li.qty}{li.unitLabel ? ` ${li.unitLabel}` : ''} × {money(li.unitPrice)}
-                    </p>
-                  ) : null}
-                </div>
-                <p className="shrink-0 text-body-md text-on-background">{money(li.amount)}</p>
-              </li>
-            ))}
-          </ul>
-          {itemsCollapsible ? (
-            <button
-              type="button"
-              onClick={toggleItems}
-              aria-expanded={itemsOpen}
-              className="flex min-h-[54px] w-full items-center justify-center gap-2 border-t border-outline-variant text-body-md font-semibold text-on-background active:bg-surface-container-low"
-            >
-              {itemsOpen ? 'Show fewer' : `View all ${model.lineItems.length} items`}
-              <Icon
-                name="expand_more"
-                size={16}
-                className={itemsOpen ? 'rotate-180' : ''}
-              />
-            </button>
           ) : null}
         </section>
       ) : null}
