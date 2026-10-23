@@ -235,8 +235,8 @@ select public.sign_estimate(
 select public.proof_assert(
   (:'sign1b'::jsonb->>'code') = 'already_approved', 'second sign is already_approved');
 select public.proof_assert(
-  (:'sign1b'::jsonb->'summary'->>'total') = '120',
-  'already_approved returns the approved summary');
+  (:'sign1b'::jsonb->'signature'->>'signer_name') = 'Ada Lovelace',
+  'already_approved returns the stored signature');
 select public.proof_assert(
   (select count(*) from public.estimate_signatures
     where estimate_id = :'q1') = 1, 'double tap adds no signature');
