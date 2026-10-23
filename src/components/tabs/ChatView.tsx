@@ -666,6 +666,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // slot. It is deliberately outside TemplateKind: an expense must never run
   // openTemplate's archive/clear path, which belongs to invoices and quotes.
   const [expenseTemplate, setExpenseTemplate] = useState(false);
+  const [discardAsk, setDiscardAsk] = useState(false); // confirm-on-discard for the template
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
@@ -2576,6 +2577,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setReceipt(null);
     setExpenseDraft(null);
     setExpenseTemplate(false);
+    setDiscardAsk(false);
     setExpenseError(null);
   }
 
@@ -3741,6 +3743,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
+      {discardAsk && expenseTemplate && (
+        <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
+          onKeep={() => setDiscardAsk(false)}
+          onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
+      )}
       {replaceAsk && (
         <ReplaceTemplateSheet title={replaceAsk.title}
           onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
@@ -3765,7 +3772,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
             draft={expenseDraft}
             onChange={setExpenseDraft}
             onSave={saveExpense}
-            onCancel={discardExpense}
+            onCancel={() => {
+              // Empty template: instant. Anything entered: ask first.
+              const d = expenseDraft;
+              const entered = d.amount > 0 || !!d.vendor?.trim() || !!d.description?.trim() || d.category !== 'other';
+              if (entered) setDiscardAsk(true); else discardExpense();
+            }}
             saving={phase === 'saving'}
             previewUrl={receipt?.previewUrl ?? null}
             error={expenseError}

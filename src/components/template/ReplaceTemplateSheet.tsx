@@ -8,10 +8,12 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 
-export default function ReplaceTemplateSheet({ title, onKeep, onStartNew }: {
+export default function ReplaceTemplateSheet({ title, onKeep, onStartNew, keepLabel = 'Keep editing', startNewLabel = 'Start new' }: {
   title: string;
   onKeep: () => void;
   onStartNew: () => void;
+  keepLabel?: string;
+  startNewLabel?: string;
 }) {
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onKeep);
   useEffect(() => {
@@ -31,8 +33,8 @@ export default function ReplaceTemplateSheet({ title, onKeep, onStartNew }: {
         <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
           <h2 id="replace-template-title" className="text-center text-[18px] font-bold leading-snug text-on-background">{title}</h2>
           <div className="mt-5 flex flex-col gap-2.5">
-            <button type="button" autoFocus onClick={onKeep} className="btn-primary w-full">Keep editing</button>
-            <button type="button" onClick={onStartNew} className="btn-outline w-full">Start new</button>
+            <button type="button" autoFocus onClick={onKeep} className="btn-primary w-full">{keepLabel}</button>
+            <button type="button" onClick={onStartNew} className="btn-outline w-full">{startNewLabel}</button>
           </div>
         </div>
       </div>
