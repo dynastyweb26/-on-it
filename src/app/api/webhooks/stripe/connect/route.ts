@@ -140,6 +140,7 @@ async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: S
         user_id: invoice.user_id,
         amount,
         method,
+        paid_source: 'webhook',
         paid_at: new Date(event.created * 1000).toISOString(),
         note: METHOD_NOTE[method],
         stripe_checkout_session_id: session.id,
