@@ -1342,6 +1342,34 @@ results(id, ok, expected, actual) as (
           where schemaname = 'storage' and tablename = 'objects'
             and policyname like 'invoice attachments%'), 'none'))
       end
+
+  -- AI. Quote signed (20261022120000). SKIP until pushed.
+  --     approved_at is the manual signed stamp; the owner writes it, so the
+  --     column must stay nullable and keep authenticated UPDATE.
+  union all
+  select 'AI quote approved_at',
+    case when not exists (select 1 from applied where version = '20261022120000') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'approved_at'
+            and data_type = 'timestamp with time zone'
+            and is_nullable = 'YES')
+        and coalesce((select has_column_privilege('authenticated', 'public.invoices', a.attname, 'UPDATE')
+          from pg_attribute a
+          where a.attrelid = 'public.invoices'::regclass
+            and a.attname = 'approved_at' and not a.attisdropped), false)
+    end,
+    'invoices.approved_at timestamptz null; authenticated UPDATE',
+    case when not exists (select 1 from applied where version = '20261022120000') then 'not applied yet'
+      else coalesce((select data_type || ' ' || is_nullable
+          from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'approved_at'), 'missing')
+        || ' authenticated_update=' || coalesce((select has_column_privilege('authenticated', 'public.invoices', a.attname, 'UPDATE')
+          from pg_attribute a
+          where a.attrelid = 'public.invoices'::regclass
+            and a.attname = 'approved_at' and not a.attisdropped), false)
+    end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

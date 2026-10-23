@@ -20,7 +20,8 @@ import { getSharedUser } from '@/lib/auth-client';
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
   total: number; status: string; created_at: string; due_date: string | null;
-  converted_from: string | null; amount_paid: number | null; refunded_amount: number | null; viewed_at?: string | null;
+  converted_from: string | null; amount_paid: number | null; refunded_amount: number | null;
+  viewed_at?: string | null; approved_at?: string | null;
 }
 
 type Side = 'invoices' | 'quotes';
@@ -64,8 +65,8 @@ const FIRST_RUN: Record<Side, EmptyCopy> = {
 const FILTERED_EMPTY: Record<Filter, EmptyCopy> = {
   open: { icon: 'check_circle', title: 'Nothing open', body: "You're all caught up." },
   paid: { icon: 'check_circle', title: 'No paid invoices yet', body: 'Invoices move here once you record a payment.' },
-  pending: { icon: 'hourglass_empty', title: 'No pending quotes', body: 'Send a quote and it waits here until your client signs.' },
-  signed: { icon: 'verified', title: 'No signed quotes yet', body: 'Converted quotes land here.' },
+  pending: { icon: 'hourglass_empty', title: 'No pending quotes', body: 'Send a quote and it waits here until you mark it signed.' },
+  signed: { icon: 'verified', title: 'No signed quotes yet', body: 'Signed and converted quotes land here.' },
 };
 
 export default function Invoices({ active = true }: { active?: boolean }) {
@@ -109,7 +110,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
       if (!user) { router.replace('/login'); return; }
       const { data } = await supabase
         .from('invoices')
-        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, refunded_amount, viewed_at')
+        .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, refunded_amount, viewed_at, approved_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -131,8 +132,8 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   const matches = (r: Row, f: Filter) =>
     f === 'open' ? r.kind === 'invoice' && (r.status === 'draft' || r.status === 'sent' || r.status === 'overdue')
     : f === 'paid' ? r.kind === 'invoice' && r.status === 'paid'
-    : f === 'pending' ? r.kind === 'quote' && !isConvertedQuote(r)
-    : r.kind === 'quote' && isConvertedQuote(r);
+    : f === 'pending' ? r.kind === 'quote' && !isConvertedQuote(r) && !r.approved_at
+    : r.kind === 'quote' && (isConvertedQuote(r) || Boolean(r.approved_at));
 
   const filtered = rows.filter((r) => matches(r, filter));
   // One ordering for EVERY filter (Open / Paid / Pending / Signed): newest

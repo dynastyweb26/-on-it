@@ -29,7 +29,8 @@ type Client = {
 type Doc = {
   id: string; kind: string; invoice_number: number; total: number; status: string;
   created_at: string; due_date: string | null; converted_from: string | null;
-  viewed_at: string | null; line_items: { description?: string }[] | null;
+  viewed_at: string | null; approved_at?: string | null;
+  line_items: { description?: string }[] | null;
 };
 
 const since = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -54,7 +55,7 @@ export default function ClientDetail() {
         supabase.from('clients').select('id, name, phone, email, address, notes, created_at').eq('id', id).maybeSingle(),
         supabase.rpc('client_summaries'),
         supabase.from('invoices')
-          .select('id, kind, invoice_number, total, status, created_at, due_date, converted_from, viewed_at, line_items')
+          .select('id, kind, invoice_number, total, status, created_at, due_date, converted_from, viewed_at, approved_at, line_items')
           .eq('client_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(200),
       ]);
       setClient((c.data as Client | null) ?? null);
