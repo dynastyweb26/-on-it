@@ -1370,6 +1370,165 @@ results(id, ok, expected, actual) as (
           where a.attrelid = 'public.invoices'::regclass
             and a.attname = 'approved_at' and not a.attisdropped), false)
     end
+
+  -- AJ–AR. Estimates data layer (20261023100000 / 20261023100100). SKIP until pushed.
+  union all
+  select 'AJ estimate columns',
+    case when not exists (select 1 from applied where version = '20261023100000') then null
+      else exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'valid_until' and data_type = 'date' and is_nullable = 'YES')
+        and exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name = 'revoked_at' and data_type = 'timestamp with time zone' and is_nullable = 'YES')
+    end,
+    'invoices.valid_until date null; invoices.revoked_at timestamptz null',
+    case when not exists (select 1 from applied where version = '20261023100000') then 'not applied yet'
+      else coalesce((select string_agg(column_name || ' ' || data_type || ' ' || is_nullable, '; ' order by column_name)
+        from information_schema.columns
+        where table_schema = 'public' and table_name = 'invoices'
+          and column_name in ('valid_until', 'revoked_at')), 'missing') end
+  union all
+  select 'AK estimate_signatures',
+    case when not exists (select 1 from applied where version = '20261023100000') then null
+      else to_regclass('public.estimate_signatures') is not null
+        and coalesce((select relrowsecurity from pg_class
+          where oid = to_regclass('public.estimate_signatures')), false)
+        and (select count(*) from pg_policies
+          where schemaname = 'public' and tablename = 'estimate_signatures') = 1
+        and exists (select 1 from pg_policies
+          where schemaname = 'public' and tablename = 'estimate_signatures'
+            and cmd = 'SELECT' and qual ilike '%auth.uid()%')
+        and has_table_privilege('authenticated', 'public.estimate_signatures', 'SELECT')
+        and not has_table_privilege('authenticated', 'public.estimate_signatures', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.estimate_signatures', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.estimate_signatures', 'DELETE')
+        and not has_table_privilege('anon', 'public.estimate_signatures', 'SELECT')
+        and not has_table_privilege('anon', 'public.estimate_signatures', 'INSERT')
+        and not has_table_privilege('anon', 'public.estimate_signatures', 'UPDATE')
+        and not has_table_privilege('anon', 'public.estimate_signatures', 'DELETE')
+    end,
+    'RLS on; 1 owner SELECT policy; authenticated SELECT only; anon none',
+    case when not exists (select 1 from applied where version = '20261023100000') then 'not applied yet'
+      when to_regclass('public.estimate_signatures') is null then 'missing'
+      else concat_ws('; ',
+        'rls=' || (select relrowsecurity from pg_class where oid = 'public.estimate_signatures'::regclass),
+        'policies=' || coalesce((select string_agg(policyname || ':' || cmd, ', ' order by policyname)
+          from pg_policies where schemaname = 'public' and tablename = 'estimate_signatures'), 'none'),
+        'auth_sel=' || has_table_privilege('authenticated', 'public.estimate_signatures', 'SELECT'),
+        'auth_ins=' || has_table_privilege('authenticated', 'public.estimate_signatures', 'INSERT'),
+        'auth_upd=' || has_table_privilege('authenticated', 'public.estimate_signatures', 'UPDATE'),
+        'auth_del=' || has_table_privilege('authenticated', 'public.estimate_signatures', 'DELETE'),
+        'anon_sel=' || has_table_privilege('anon', 'public.estimate_signatures', 'SELECT')) end
+  union all
+  select 'AL attachment verification',
+    case when not exists (select 1 from applied where version = '20261023100000') then null
+      else (select count(*) from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoice_attachments'
+            and column_name in ('mime_type', 'size_bytes', 'checksum') and is_nullable = 'YES') = 3
+        and exists (select 1 from pg_constraint where conrelid = 'public.invoice_attachments'::regclass
+          and conname = 'invoice_attachments_mime_chk')
+        and exists (select 1 from pg_constraint where conrelid = 'public.invoice_attachments'::regclass
+          and conname = 'invoice_attachments_size_chk')
+        and exists (select 1 from pg_constraint where conrelid = 'public.invoice_attachments'::regclass
+          and conname = 'invoice_attachments_checksum_chk')
+    end,
+    'mime_type/size_bytes/checksum nullable + mime/size/checksum checks',
+    case when not exists (select 1 from applied where version = '20261023100000') then 'not applied yet'
+      else coalesce((select string_agg(column_name || ' ' || data_type || ' ' || is_nullable, '; ' order by column_name)
+        from information_schema.columns
+        where table_schema = 'public' and table_name = 'invoice_attachments'
+          and column_name in ('mime_type', 'size_bytes', 'checksum')), 'missing')
+        || ' checks=' || coalesce((select string_agg(conname, ',' order by conname)
+          from pg_constraint where conrelid = 'public.invoice_attachments'::regclass
+            and conname in ('invoice_attachments_mime_chk', 'invoice_attachments_size_chk', 'invoice_attachments_checksum_chk')), 'none') end
+  union all
+  select 'AM ' || f.sig,
+    case when not exists (select 1 from applied where version = '20261023100000') then null
+      when to_regprocedure(f.sig) is null then false
+      else coalesce((select p.prosecdef = f.definer and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure(f.sig)), false)
+        and not has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE')
+        and not has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE')
+    end,
+    case when f.definer then 'SECURITY DEFINER, search_path="", not executable by anon/authenticated'
+      else 'search_path="", not executable by anon/authenticated' end,
+    case when not exists (select 1 from applied where version = '20261023100000') then 'not applied yet'
+      when to_regprocedure(f.sig) is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig))
+        || ' config=' || coalesce((select p.proconfig::text from pg_proc p where p.oid = to_regprocedure(f.sig)), 'none')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE')
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE') end
+  from (values
+    ('public.estimate_tz(text)', false),
+    ('public.estimate_expires_at(date, text)', false),
+    ('public.estimate_content_hash(uuid)', true)
+  ) f(sig, definer)
+  union all
+  select 'AN notification estimate_approved',
+    case when not exists (select 1 from applied where version = '20261023100100') then null
+      else coalesce((select pg_get_constraintdef(oid) ilike '%estimate_approved%'
+          and pg_get_constraintdef(oid) ilike '%payment_disputed%'
+          and pg_get_constraintdef(oid) ilike '%recurring_skipped%'
+        from pg_constraint
+        where conrelid = 'public.notification_log'::regclass and conname = 'notification_log_type_chk'), false) end,
+    'type check keeps payment_disputed and adds estimate_approved',
+    case when not exists (select 1 from applied where version = '20261023100100') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = 'public.notification_log'::regclass and conname = 'notification_log_type_chk'), 'missing') end
+  union all
+  select 'AO estimate pin trigger',
+    case when not exists (select 1 from applied where version = '20261023100100') then null
+      else exists (select 1 from pg_trigger t
+        where t.tgrelid = 'public.invoices'::regclass and t.tgname = 'pin_invoice_server_columns'
+          and pg_get_triggerdef(t.oid) ilike '%approved_at%'
+          and pg_get_triggerdef(t.oid) ilike '%valid_until%'
+          and pg_get_triggerdef(t.oid) ilike '%revoked_at%'
+          and pg_get_triggerdef(t.oid) ilike '%public_token%') end,
+    'pin_invoice_server_columns covers approved_at, valid_until, revoked_at, public_token',
+    case when not exists (select 1 from applied where version = '20261023100100') then 'not applied yet'
+      else coalesce((select pg_get_triggerdef(t.oid) from pg_trigger t
+        where t.tgrelid = 'public.invoices'::regclass and t.tgname = 'pin_invoice_server_columns'), 'missing') end
+  union all
+  select 'AP estimate guards',
+    case when not exists (select 1 from applied where version = '20261023100100') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgname in ('guard_locked_estimate_edits', 'guard_locked_estimate_attachments')) = 2 end,
+    'guard_locked_estimate_edits + guard_locked_estimate_attachments installed',
+    case when not exists (select 1 from applied where version = '20261023100100') then 'not applied yet'
+      else coalesce((select string_agg(t.tgname, ', ' order by t.tgname) from pg_trigger t
+        where not t.tgisinternal and t.tgname in ('guard_locked_estimate_edits', 'guard_locked_estimate_attachments')), 'none') end
+  union all
+  select 'AQ attachment position 0..9',
+    case when not exists (select 1 from applied where version = '20261023100100') then null
+      else coalesce((select pg_get_constraintdef(oid) ilike '%position >= 0%'
+          and pg_get_constraintdef(oid) ilike '%position <= 9%'
+        from pg_constraint
+        where conrelid = 'public.invoice_attachments'::regclass and conname = 'invoice_attachments_position_check'), false) end,
+    'position between 0 and 9',
+    case when not exists (select 1 from applied where version = '20261023100100') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = 'public.invoice_attachments'::regclass and conname = 'invoice_attachments_position_check'), 'missing') end
+  union all
+  select 'AR ' || f.sig,
+    case when not exists (select 1 from applied where version = '20261023100100') then null
+      when to_regprocedure(f.sig) is null then false
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure(f.sig)), false)
+        and not has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE')
+        and not has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE')
+    end,
+    'SECURITY DEFINER, search_path="", not executable by anon/authenticated',
+    case when not exists (select 1 from applied where version = '20261023100100') then 'not applied yet'
+      when to_regprocedure(f.sig) is null then 'missing'
+      else 'definer=' || (select p.prosecdef from pg_proc p where p.oid = to_regprocedure(f.sig))
+        || ' config=' || coalesce((select p.proconfig::text from pg_proc p where p.oid = to_regprocedure(f.sig)), 'none')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'EXECUTE')
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure(f.sig), 'EXECUTE') end
+  from (values
+    ('public.sign_estimate(text, text, text, text, text, text, text, text, text)'),
+    ('public.add_estimate_attachment(uuid, uuid, text, text, bigint, text)')
+  ) f(sig)
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
