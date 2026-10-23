@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
+import InvoicesEmpty from '@/components/InvoicesEmpty';
 import DateDivider from '@/components/DateDivider';
 import PillTabs from '@/components/PillTabs';
+import type { IconName } from '@/components/icon-names';
 import { SortCaption } from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
 import { INVOICES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
@@ -51,6 +53,20 @@ const filterFromParam = (v: string | null): Filter | null => (v && FILTER_ALIAS[
 const balanceDue = (r: Row) => Math.max(0, Number(r.total) - Number(r.amount_paid ?? 0));
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
+
+type EmptyCopy = { icon: IconName; title: string; body: string };
+// Zero documents of this kind. Never "all caught up": there is nothing yet.
+const FIRST_RUN: Record<Side, EmptyCopy> = {
+  invoices: { icon: 'receipt_long', title: 'No invoices yet', body: 'Tell On It about a job in Chat and it shows up here.' },
+  quotes: { icon: 'request_quote', title: 'No quotes yet', body: 'Tell On It about a job in Chat and it shows up here.' },
+};
+// This filter is empty but the other one has items.
+const FILTERED_EMPTY: Record<Filter, EmptyCopy> = {
+  open: { icon: 'check_circle', title: 'Nothing open', body: "You're all caught up." },
+  paid: { icon: 'check_circle', title: 'No paid invoices yet', body: 'Invoices move here once you record a payment.' },
+  pending: { icon: 'hourglass_empty', title: 'No pending quotes', body: 'Send a quote and it waits here until your client signs.' },
+  signed: { icon: 'verified', title: 'No signed quotes yet', body: 'Converted quotes land here.' },
+};
 
 export default function Invoices({ active = true }: { active?: boolean }) {
   const supabase = createClient();
@@ -157,6 +173,12 @@ export default function Invoices({ active = true }: { active?: boolean }) {
     : filter === 'paid' ? `${n} paid · ${money(sorted.reduce((s, r) => s + Number(r.total), 0))}`
     : `${n} ${n === 1 ? 'quote' : 'quotes'}`;
 
+  // First-run means the account has zero documents of this kind. Otherwise an
+  // empty filter means the other filter has items ("all caught up" copy).
+  const side = SIDE_OF[filter];
+  const hasAnyOfSide = rows.some((r) => (side === 'invoices' ? r.kind === 'invoice' : r.kind === 'quote'));
+  const emptyCopy = hasAnyOfSide ? FILTERED_EMPTY[filter] : FIRST_RUN[side];
+
   // A chip tap also updates the URL (replace, no new history entry), so Back
   // from a document returns to the same filter. The list crossfades with a
   // 12px shift in the direction of travel (motion inventory "Filter tab").
@@ -197,12 +219,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
       ) : (
         <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
-            <p data-coach="invoices-empty" className="mx-auto mt-16 max-w-sm text-center text-on-surface-variant">
-              {filter === 'open' ? 'Nothing open right now.'
-                : filter === 'paid' ? 'No paid invoices right now.'
-                : filter === 'pending' ? 'No pending quotes right now.'
-                : 'No signed quotes right now.'}
-            </p>
+            <InvoicesEmpty {...emptyCopy} />
           )}
           {groups.map((g) => (
             <div key={g.key}>
