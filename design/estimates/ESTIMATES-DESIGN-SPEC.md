@@ -121,8 +121,8 @@ Header `ATTACHMENTS` with `{n} of 10` on the right.
 The design needs three things the backend does not have:
 
 1. `invoices.title text null` (<= 120). Part of the content hash. Owner-editable until approved or converted (extend `guard_locked_estimate_edits`). Returned in the public payload and shown as the estimate heading.
-2. `invoice_attachments.caption text null` (<= 60). Written only through a service-role RPC/route that enforces the same lock as `add_estimate_attachment` (no client UPDATE grant exists; keep it that way). Part of the content hash (id + checksum + caption). Returned in the public payload.
-3. `profiles.business_phone text null` (<= 30) and `profiles.business_email text null` (<= 254). Editable in Settings -> business info, read live by `get_public_estimate` (not snapshotted: a changed number should reach the client). Follow the existing profile-column pattern (`20261017100000_profiles_team_size.sql`): grant, privcheck privileged-list entry, onboarding-insertable if needed.
+2. `invoice_attachments.caption text null` (<= 60). Written only through the service-role RPC behind `/api/estimates/[id]/attachments/[attachmentId]/caption`, which enforces the same lock as `add_estimate_attachment` (no client UPDATE grant exists; keep it that way). Part of the content hash (id + checksum + caption). Returned in the public payload.
+3. `profiles.business_phone text null` (<= 30) and `profiles.business_email text null` (<= 254). Editable in Settings -> business info, read live by the public payload loader (`src/lib/estimates/public.ts`) (not snapshotted: a changed number should reach the client). Follow the existing profile-column pattern (`20261017100000_profiles_team_size.sql`): grant, privcheck privileged-list entry, onboarding-insertable if needed.
 
 Also required for every object M3 adds: a row in `scripts/privilege-check.mjs` and `supabase/snippets/privilege_check.sql`, a proof in the proof scripts, and `estimate_content_hash` rebuilt from its latest definition (diff first). Apply to the test DB only (ref aiijzulctfpzdfjqyggm) with dry run, full SQL shown, explicit yes. Never touch production.
 
