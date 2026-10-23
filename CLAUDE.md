@@ -76,10 +76,10 @@ Database migrations (Supabase CLI; the project is linked, ref `bitfmmffnigxjjyxo
 
 Deploy workflow:
 - Preview (every feature/fix branch): from the repo root on the branch, run the
-  global CLI `vercel` (not `npx`, never `--prod`), then as the LAST step
-  `vercel alias set <new-deployment-url> onit-dynastyweb-preview.vercel.app`
-  so the installed preview PWA follows the new build. Verify the deployment
-  is Ready before aliasing.
+  global CLI `vercel` (not `npx`, never `--prod`). Verify the deployment is
+  Ready, then report its unique deployment URL (`on-xxxx-....vercel.app`) as
+  the preview link. Never run `vercel alias set`: sessions share the alias
+  and every new preview would overwrite the previous one.
 - Production = merge to `main` (`--no-ff`) + `git push origin main`. The
   Vercel GitHub integration builds production on every push to `main`.
   Do NOT run `vercel --prod` — it creates a duplicate production build.

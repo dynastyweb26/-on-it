@@ -115,7 +115,7 @@ export const TOURS: Record<string, CoachTour> = {
         selector: '[data-coach="invoices-filter"]',
         pad: 6, r: 16,
         title: 'Filter by status',
-        body: 'See everything, or just what\'s unpaid, paid, or still a quote. Your money, sorted.',
+        body: 'Switch between invoices and quotes, then filter by what\'s open, paid, pending, or signed.',
       },
       {
         selector: '[data-coach="invoices-list"]',

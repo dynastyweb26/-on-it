@@ -22,6 +22,15 @@ import { NAV_GUARD_MS, pillCentreAt, pillStretch } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
 import { TABS, exactTabIndex, tabIndexOf } from '@/lib/tabs';
 
+// Mobile header row, shared by every tab: 65px total = 64px content + the
+// 1px border, so swiping can't change the height. md keeps the old auto row.
+const HEADER_CLASS =
+  'flex h-[65px] items-center justify-between border-b border-outline-variant/60 px-4 py-0 md:h-auto md:px-6 md:py-3';
+// Chat actions: 40px visual box inside the 64px row, with an ::after hit area
+// that keeps the 56x56 touch target. Desktop restores the original 56px box.
+const HEADER_ICON_CLASS =
+  "relative grid h-10 w-14 place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] md:h-touch";
+
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
   if (path.startsWith('/invoices/') && path !== '/invoices') return '/invoices';
@@ -545,7 +554,7 @@ export default function AppShell({
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
         {(parentRoute || path.startsWith('/chat')) ? (
-          <header className="flex items-center justify-between border-b border-outline-variant/60 px-4 py-3 md:px-6">
+          <header className={HEADER_CLASS}>
             <div className="flex items-center gap-2">
               {parentRoute && <BackButton parentHref={parentRoute} />}
               <span className="font-display text-xl font-extrabold md:hidden">
@@ -557,14 +566,14 @@ export default function AppShell({
                 <>
                   <button
                     aria-label="New chat"
-                    className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                    className={HEADER_ICON_CLASS}
                     onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
                   >
                     <Icon name="edit_square" size={24} />
                   </button>
                   <button
                     aria-label="Recent conversations"
-                    className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95"
+                    className={HEADER_ICON_CLASS}
                     onClick={() => window.dispatchEvent(new Event('onit-history'))}
                   >
                     <Icon name="history" size={24} />
@@ -583,7 +592,7 @@ export default function AppShell({
             </div>
           </header>
         ) : (
-          <header className="flex items-center justify-between border-b border-outline-variant/60 px-4 py-3 md:hidden">
+          <header className={`${HEADER_CLASS} md:hidden`}>
             <div className="flex items-center gap-2">
               <span className="font-display text-xl font-extrabold">
                 On It<span className="text-primary">.</span>
