@@ -434,6 +434,8 @@ export default function PayView({ model }: { model: PayModel }) {
   const [itemsOpen, setItemsOpen] = useState(false);
   const itemsRef = useRef<HTMLElement | null>(null);
   const payRef = useRef<HTMLElement | null>(null);
+  const heroRef = useRef<HTMLElement | null>(null);
+  const [barVisible, setBarVisible] = useState(false);
   const itemsCollapsible = model.lineItems.length > 1;
   const visibleItems = itemsCollapsible && !itemsOpen ? model.lineItems.slice(0, 1) : model.lineItems;
   function toggleItems() {
@@ -489,6 +491,19 @@ export default function PayView({ model }: { model: PayModel }) {
       document.removeEventListener('visibilitychange', arm);
     };
   }, [model.token]);
+
+  // Sticky bar: the page scrolls normally; this only appears once the amount
+  // card has scrolled fully above the viewport (not while it is still visible).
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setBarVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0),
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const [cardReturn, setCardReturn] = useState<CardReturn>(model.paidReturn ? 'processing' : 'idle');
   // Poll counter as STATE, not a ref: each tick must re-run the effect below.
@@ -579,8 +594,60 @@ export default function PayView({ model }: { model: PayModel }) {
   // While a just-made card payment is being confirmed, don't offer it again.
   const showCard = model.cardAvailable && cardReturn !== 'processing' && cardReturn !== 'slow';
 
+  const barState = model.voided
+    ? 'Cancelled'
+    : model.fullyPaid
+      ? 'Paid'
+      : model.depositDue
+        ? 'Deposit due now'
+        : model.depositPaid
+          ? 'Balance due'
+          : model.noun === 'Quote'
+            ? 'Quoted total'
+            : 'Total due';
+  const barAmount = model.fullyPaid || model.voided ? model.total : model.primaryAmount;
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-container py-10">
+      {/* Sticky bar — appears only after the hero leaves the viewport. */}
+      <div
+        aria-hidden={!barVisible}
+        className={`pointer-events-none fixed inset-x-0 top-0 z-50 transition-transform duration-300 ease-out ${
+          barVisible ? 'translate-y-0' : '-translate-y-full'
+        }`}
+      >
+        <div
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          className="pointer-events-auto border-b border-outline-variant bg-background/95 shadow-sm backdrop-blur"
+        >
+          <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-3 px-container py-2.5">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+                {model.docNumber} · {barState}
+              </p>
+              <p className="font-display text-body-lg font-bold tabular-nums text-on-background">
+                {money(barAmount)}
+              </p>
+            </div>
+            {model.fullyPaid ? (
+              <span className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-paid-container px-3.5 text-label-lg font-semibold text-paid">
+                <Icon name="check_circle" size={18} />
+                Paid
+              </span>
+            ) : model.voided ? null : (
+              <button
+                type="button"
+                onClick={() => payRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                tabIndex={barVisible ? 0 : -1}
+                className={PILL_NEUTRAL}
+              >
+                <Icon name="expand_more" size={16} />
+                How to pay
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       {/* Business identity */}
       <header className="flex flex-col items-center text-center">
         <PayLogo url={model.logoUrl} businessName={model.businessName} />
@@ -623,6 +690,7 @@ export default function PayView({ model }: { model: PayModel }) {
 
       {/* Amount card — the headline figure the client came to see. */}
       <section
+        ref={heroRef}
         className={`mt-8 rounded-card p-6 text-center shadow-card ${
           model.fullyPaid ? 'bg-paid-container' : 'bg-surface-container-lowest'
         }`}
