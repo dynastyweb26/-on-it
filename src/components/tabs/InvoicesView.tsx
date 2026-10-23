@@ -87,11 +87,14 @@ export default function Invoices({ active = true }: { active?: boolean }) {
     // Hidden deck panels must not read the route, redirect, or fetch. The
     // effect re-runs when this tab becomes active.
     if (!active) return;
-    // ?filter=open|paid|pending|signed. Legacy unpaid|quote|all are mapped on
-    // read (Books "Still owed", recap "View invoices"). Read before the data
+    // An explicit ?filter=open|paid|pending|signed wins; legacy unpaid|quote|all
+    // are mapped on read (Books "Still owed", recap "View invoices"). With no
+    // query (e.g. coming back via the tab bar) keep the in-memory selection;
+    // the initial state is already Invoices / Open. Read before the data
     // arrives, while the skeleton shows, so no chip flicker.
     const q = new URLSearchParams(window.location.search).get('filter');
-    setFilter(filterFromParam(q) ?? 'open');
+    const wanted = filterFromParam(q);
+    if (wanted) setFilter(wanted);
     let cancelled = false;
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
