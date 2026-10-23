@@ -79,7 +79,7 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   /** A saved expense, shown as the compact logged card (content keeps the text
    *  confirmation for the model's context). Its thumbnail is the photo
    *  bubble's image, referenced by id — never a second copy. */
-  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null };
+  logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null; viaTemplate?: true };
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
   sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
@@ -2536,6 +2536,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
           category: CATEGORY_LABEL[expenseDraft.category],
           date: expenseDraft.occurred_on ?? today(),
           receiptMsgId: receipt ? receiptBubbleIdRef.current : null,
+          // Saved from the + menu template: its card offers View in Books.
+          ...(expenseTemplate ? { viaTemplate: true as const } : {}),
         },
       });
       // Fold the expense card away first (150ms, onit-card-exit), then the
@@ -3617,6 +3619,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               key={m.id}
               e={{ ...m.logged, thumb: m.logged.receiptMsgId ? messages.find((x) => x.id === m.logged?.receiptMsgId)?.receipt || null : null }}
               animate={liveLoggedIdRef.current === m.id}
+              onViewBooks={m.logged.viaTemplate ? () => router.push('/dashboard') : undefined}
             />
           ) : m.receipt !== undefined ? (
             <ReceiptBubble

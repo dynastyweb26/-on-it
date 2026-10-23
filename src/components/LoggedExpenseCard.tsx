@@ -31,9 +31,11 @@ const COUNT_MS = 500;
 const CHIP_AFTER_MS = 200;
 const ENTER_MS = 240; // onit-logged-in
 
-export default function LoggedExpenseCard({ e, animate = false }: { e: LoggedExpense; animate?: boolean }) {
+// onViewBooks adds a View in Books action along the card's bottom edge (expense
+// template saves only); without it the card is exactly the receipt-path card.
+export default function LoggedExpenseCard({ e, animate = false, onViewBooks }: { e: LoggedExpense; animate?: boolean; onViewBooks?: () => void }) {
   return (
-    <div className={`card flex items-center gap-3 p-3${animate ? ' onit-logged-in' : ''}`}>
+    <div className={`card flex items-center gap-3 p-3${onViewBooks ? ' flex-wrap' : ''}${animate ? ' onit-logged-in' : ''}`}>
       {e.thumb ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={e.thumb} alt="" className="h-12 w-12 shrink-0 rounded-input border border-outline-variant/40 object-cover" />
@@ -57,6 +59,12 @@ export default function LoggedExpenseCard({ e, animate = false }: { e: LoggedExp
           <Icon name="check_circle" size={14} filled /> Logged
         </span>
       </div>
+      {onViewBooks && (
+        <button type="button" onClick={onViewBooks}
+          className="flex min-h-touch w-full basis-full items-center justify-center gap-1.5 text-sm font-semibold text-on-surface-variant underline">
+          <Icon name="payments" size={18} /> View in Books
+        </button>
+      )}
     </div>
   );
 }
