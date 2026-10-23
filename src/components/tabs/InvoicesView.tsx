@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
 import DateDivider from '@/components/DateDivider';
+import PillTabs from '@/components/PillTabs';
 import { SortCaption } from '@/components/SortToggle';
 import { groupByPeriod } from '@/lib/date-groups';
 import { INVOICES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type ListSort } from '@/lib/list-sort';
@@ -19,22 +20,44 @@ interface Row {
   total: number; status: string; created_at: string; due_date: string | null;
   converted_from: string | null; amount_paid: number | null; refunded_amount: number | null; viewed_at?: string | null;
 }
-type Filter = 'all' | 'unpaid' | 'paid' | 'quote';
-const FILTERS: readonly Filter[] = ['all', 'unpaid', 'paid', 'quote'];
-const isFilter = (v: string | null): v is Filter => FILTERS.includes(v as Filter);
+
+type Side = 'invoices' | 'quotes';
+// The filter value alone decides the segment, so a deep link can restore both
+// in one state read.
+type Filter = 'open' | 'paid' | 'pending' | 'signed';
+
+const SIDES: readonly { value: Side; label: string }[] = [
+  { value: 'invoices', label: 'Invoices' },
+  { value: 'quotes', label: 'Quotes' },
+];
+const FILTERS: Record<Side, readonly Filter[]> = {
+  invoices: ['open', 'paid'],
+  quotes: ['pending', 'signed'],
+};
+// Left-to-right order on screen, used only for the list's travel direction.
+const FILTER_ORDER: readonly Filter[] = ['open', 'paid', 'pending', 'signed'];
+const FILTER_LABEL: Record<Filter, string> = { open: 'Open', paid: 'Paid', pending: 'Pending', signed: 'Signed' };
+const SIDE_OF: Record<Filter, Side> = { open: 'invoices', paid: 'invoices', pending: 'quotes', signed: 'quotes' };
+const DEFAULT_FILTER: Record<Side, Filter> = { invoices: 'open', quotes: 'pending' };
+// Legacy deep links (Books "Still owed" tile, recap "View invoices"): replace
+// the old values on read, write the canonical filter only.
+const FILTER_ALIAS: Record<string, Filter> = {
+  all: 'open', unpaid: 'open', paid: 'paid', quote: 'pending',
+  open: 'open', pending: 'pending', signed: 'signed',
+};
+const filterFromParam = (v: string | null): Filter | null => (v && FILTER_ALIAS[v]) || null;
+
 // What an unpaid invoice still owes: the same formula as Books' "Still owed".
 const balanceDue = (r: Row) => Math.max(0, Number(r.total) - Number(r.amount_paid ?? 0));
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
-
-const FILTER_LABEL: Record<Filter, string> = { all: 'All', unpaid: 'Unpaid', paid: 'Paid', quote: 'Quotes' };
 
 export default function Invoices({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>('open');
   const [travel, setTravel] = useState<'left' | 'right' | null>(null);
   // Newest (default) / A–Z by client within each month, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
@@ -48,10 +71,11 @@ export default function Invoices({ active = true }: { active?: boolean }) {
     // Hidden deck panels must not read the route, redirect, or fetch. The
     // effect re-runs when this tab becomes active.
     if (!active) return;
-    // ?filter=unpaid|paid|quote (e.g. from the Books "Still owed" tile). Read
-    // before the data arrives, while the skeleton shows, so no chip flicker.
+    // ?filter=open|paid|pending|signed. Legacy unpaid|quote|all are mapped on
+    // read (Books "Still owed", recap "View invoices"). Read before the data
+    // arrives, while the skeleton shows, so no chip flicker.
     const q = new URLSearchParams(window.location.search).get('filter');
-    if (isFilter(q)) setFilter(q);
+    setFilter(filterFromParam(q) ?? 'open');
     let cancelled = false;
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
@@ -85,28 +109,26 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   );
   const isConvertedQuote = (r: Row) => r.kind === 'quote' && convertedQuoteIds.has(r.id);
 
-  const filtered = rows.filter((r) =>
-    // Hide converted quotes from the main views so one job doesn't read as two
-    // documents. They stay reachable under the Quotes tab.
-    filter === 'all' ? !isConvertedQuote(r)
-    // Unpaid / Paid are money views: invoices only. A sent quote is not owed
-    // money (Books' "Still owed" excludes quotes too); it lives under Quotes.
-    : filter === 'unpaid' ? r.kind === 'invoice' && ['sent', 'overdue'].includes(r.status)
-    : filter === 'paid' ? r.kind === 'invoice' && r.status === 'paid'
-    : r.kind === 'quote'
-  );
-  // One ordering for EVERY tab (All / Unpaid / Paid / Quotes): newest first, then
-  // client name A→Z. The Newest / A–Z toggle (below) reorders rows inside each
-  // month only. This is a client-side sort applied to the filtered set, so it
-  // is the source of truth for display — the query's .order('created_at') alone is
-  // not enough (this sort previously ranked by status then total, which overrode
-  // it). created_at is the invoice's displayed date; ISO timestamps compare
-  // chronologically, so comparing b→a gives newest→oldest.
+  const matches = (r: Row, f: Filter) =>
+    f === 'open' ? r.kind === 'invoice' && (r.status === 'draft' || r.status === 'sent' || r.status === 'overdue')
+    : f === 'paid' ? r.kind === 'invoice' && r.status === 'paid'
+    : f === 'pending' ? r.kind === 'quote' && !isConvertedQuote(r)
+    : r.kind === 'quote' && isConvertedQuote(r);
+
+  const filtered = rows.filter((r) => matches(r, filter));
+  // One ordering for EVERY filter (Open / Paid / Pending / Signed): newest
+  // first, then client name A→Z. The Newest / A–Z toggle (below) reorders rows
+  // inside each month only. This is a client-side sort applied to the filtered
+  // set, so it is the source of truth for display — the query's
+  // .order('created_at') alone is not enough (this sort previously ranked by
+  // status then total, which overrode it). created_at is the document's
+  // displayed date; ISO timestamps compare chronologically, so comparing b→a
+  // gives newest→oldest.
   const sorted = [...filtered].sort((a, b) =>
     b.created_at.localeCompare(a.created_at) ||        // Tier 1: newest → oldest
     a.client_name.localeCompare(b.client_name));       // Tier 2: client name A→Z
 
-  // Month dividers, grouped by CREATION date (every invoice has one; unpaid
+  // Month dividers, grouped by CREATION date (every document has one; unpaid
   // ones have no paid date). No subtotal — a monthly figure here would be
   // ambiguous (invoiced vs collected); the summary page answers the money
   // question. localDay converts the created_at timestamp to the local day the
@@ -114,34 +136,56 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   const byMonth = groupByPeriod(sorted, (r) => localDay(r.created_at), (r) => Number(r.total), 'month');
   // A–Z: the same months, rows by client inside each (ties newest first).
   const groups = sort === 'az' ? sortWithinGroups(byMonth, (r) => r.client_name, (r) => r.created_at) : byMonth;
-  // Unpaid view total — equals Books' "Still owed" (same rows, same formula).
-  const unpaidTotal = filter === 'unpaid' ? sorted.reduce((s, r) => s + balanceDue(r), 0) : 0;
+
+  // Counts come from the fetched rows (the query is capped at 200), never a
+  // separate count query.
+  const counts: Record<Filter, number> = {
+    open: rows.filter((r) => matches(r, 'open')).length,
+    paid: rows.filter((r) => matches(r, 'paid')).length,
+    pending: rows.filter((r) => matches(r, 'pending')).length,
+    signed: rows.filter((r) => matches(r, 'signed')).length,
+  };
+
+  // Open's total is the Books "Still owed" invariant: balance due over
+  // sent/overdue rows only. Drafts count toward N but never toward $X.
+  const openOwed = sorted.reduce(
+    (s, r) => s + (r.kind === 'invoice' && (r.status === 'sent' || r.status === 'overdue') ? balanceDue(r) : 0),
+    0,
+  );
   const n = sorted.length;
-  const summary = filter === 'unpaid' ? `${n} unpaid · ${money(unpaidTotal)}`
+  const summary = filter === 'open' ? `${n} open · ${money(openOwed)}`
     : filter === 'paid' ? `${n} paid · ${money(sorted.reduce((s, r) => s + Number(r.total), 0))}`
-    : filter === 'quote' ? `${n} ${n === 1 ? 'quote' : 'quotes'}`
-    : `${n} ${n === 1 ? 'document' : 'documents'}`;
+    : `${n} ${n === 1 ? 'quote' : 'quotes'}`;
 
   // A chip tap also updates the URL (replace, no new history entry), so Back
-  // from an invoice returns to the same filter. The list crossfades with a
+  // from a document returns to the same filter. The list crossfades with a
   // 12px shift in the direction of travel (motion inventory "Filter tab").
   function chooseFilter(f: Filter) {
     if (f === filter) return;
-    setTravel(FILTERS.indexOf(f) > FILTERS.indexOf(filter) ? 'right' : 'left');
+    setTravel(FILTER_ORDER.indexOf(f) > FILTER_ORDER.indexOf(filter) ? 'right' : 'left');
     try { navigator.vibrate?.(5); } catch { /* unsupported */ }
     setFilter(f);
-    router.replace(f === 'all' ? '/invoices' : `/invoices?filter=${f}`, { scroll: false });
+    router.replace(`/invoices?filter=${f}`, { scroll: false });
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-4 md:px-8">
+      {/* Top segment: invoices or quotes. The filter value decides it. */}
+      <PillTabs label="Invoices or quotes" options={SIDES} value={SIDE_OF[filter]}
+        onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} />
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
-      <div role="tablist" aria-label="Show" data-coach="invoices-filter" className="flex gap-2 overflow-x-auto pb-1">
-        {FILTERS.map((f) => (
+      <div role="tablist" aria-label="Filter" data-coach="invoices-filter" className="flex gap-2 overflow-x-auto pb-1">
+        {FILTERS[SIDE_OF[filter]].map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f}
-            className={`h-[42px] shrink-0 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
+            className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
               ${filter === f ? 'border-2 border-primary-container bg-[#f6ebc6]' : 'border-[1.5px] border-outline bg-surface-container-lowest'}`}
-            onClick={() => chooseFilter(f)}>{FILTER_LABEL[f]}</button>
+            onClick={() => chooseFilter(f)}>
+            {FILTER_LABEL[f]}
+            <span aria-hidden className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums
+              ${filter === f ? 'bg-surface-container-lowest text-primary-on-container' : 'bg-surface-container text-on-surface-variant'}`}>
+              {counts[f]}
+            </span>
+          </button>
         ))}
       </div>
       <div className="flex items-center justify-between px-1 pt-1">
@@ -154,8 +198,10 @@ export default function Invoices({ active = true }: { active?: boolean }) {
         <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
           {sorted.length === 0 && (
             <p data-coach="invoices-empty" className="mx-auto mt-16 max-w-sm text-center text-on-surface-variant">
-              {filter === 'all' ? 'Nothing here yet. Head to Chat and tell me about a job.'
-                : filter === 'quote' ? 'No quotes right now.' : `No ${FILTER_LABEL[filter].toLowerCase()} invoices right now.`}
+              {filter === 'open' ? 'Nothing open right now.'
+                : filter === 'paid' ? 'No paid invoices right now.'
+                : filter === 'pending' ? 'No pending quotes right now.'
+                : 'No signed quotes right now.'}
             </p>
           )}
           {groups.map((g) => (
@@ -164,9 +210,9 @@ export default function Invoices({ active = true }: { active?: boolean }) {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {g.items.map((r) => {
                   const tag = tagFor(r, isConvertedQuote(r));
-                  // On Unpaid, a part-paid invoice shows what it still owes
+                  // On Open, a part-paid invoice shows what it still owes
                   // (adds up to the summary), with the full total under it.
-                  const partPaid = filter === 'unpaid' && Number(r.amount_paid ?? 0) > 0;
+                  const partPaid = filter === 'open' && Number(r.amount_paid ?? 0) > 0;
                   return (
                     <Link key={r.id} href={`/invoices/${r.id}`}
                       className="flex h-full items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
