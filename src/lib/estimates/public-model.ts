@@ -26,6 +26,7 @@ export type PublicModelInvoice = {
   valid_until: string | null;
   client_name: string | null;
   client_address: string | null;
+  title: string | null;
   line_items: StoredLineItem[] | null;
   subtotal: number | string | null;
   tax_rate: number | string | null;
@@ -41,6 +42,10 @@ export type PublicModelProfile = {
   background_color: string | null;
   website_url: string | null;
   slogan: string | null;
+  /** Live read — never snapshotted on the invoice. */
+  business_phone: string | null;
+  /** Live read — never snapshotted on the invoice. */
+  business_email: string | null;
   timezone: string | null;
 };
 
@@ -111,14 +116,13 @@ export function toPublicEstimate(input: PublicModelInput): PublicEstimateResult 
       backgroundColor: text(profile.background_color),
       websiteUrl: text(profile.website_url),
       slogan: text(profile.slogan),
-      // No business phone/email columns exist. Kept in the payload so the page
-      // has a stable shape when they land.
-      phone: null,
-      email: null,
+      // Read live from the profile on every request (not the invoice snapshot),
+      // so a changed number reaches the client.
+      phone: text(profile.business_phone),
+      email: text(profile.business_email),
     },
     clientName: text(invoice.client_name) ?? '',
-    // No job-title column exists.
-    title: null,
+    title: text(invoice.title),
     address: text(invoice.client_address),
     lineItems: (invoice.line_items ?? []).map(toEstimateLineItem),
     subtotal: num(invoice.subtotal),

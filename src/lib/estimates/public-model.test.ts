@@ -17,6 +17,7 @@ const invoice = (over: Partial<PublicModelInput['invoice']> = {}) => ({
   valid_until: '2026-10-30',
   client_name: 'Mike Davis',
   client_address: '12 Oak St',
+  title: 'Deck rebuild',
   line_items: [
     { description: 'Deck repair', qty: '2', unit_price: '150', unit: 'hour', detail: 'Back yard' },
   ],
@@ -35,6 +36,8 @@ const profile = (over: Partial<PublicModelInput['profile']> = {}) => ({
   background_color: '#ffffff',
   website_url: 'https://example.com',
   slogan: 'We fix things',
+  business_phone: '(555) 010-2200',
+  business_email: 'hello@acme.test',
   timezone: 'America/Chicago',
   ...over,
 });
@@ -56,7 +59,7 @@ test('a sent, unsigned estimate is pending with the whole payload', () => {
   if (!('business' in out)) return;
   assert.equal(out.invoiceNumber, 12);
   assert.equal(out.clientName, 'Mike Davis');
-  assert.equal(out.title, null);
+  assert.equal(out.title, 'Deck rebuild');
   assert.equal(out.address, '12 Oak St');
   assert.deepEqual(out.lineItems, [
     { description: 'Deck repair', qty: 2, unitPrice: 150, unit: 'hour', detail: 'Back yard' },
@@ -69,8 +72,8 @@ test('a sent, unsigned estimate is pending with the whole payload', () => {
   assert.equal(out.validUntil, '2026-10-30');
   assert.equal(out.daysRemaining, 7); // Oct 23 → Oct 30, business-local
   assert.equal(out.business.name, 'Acme');
-  assert.equal(out.business.phone, null);
-  assert.equal(out.business.email, null);
+  assert.equal(out.business.phone, '(555) 010-2200');
+  assert.equal(out.business.email, 'hello@acme.test');
   assert.equal(out.business.logoUrl, 'https://example.com/logo.png');
   assert.deepEqual(out.business.brandColors, ['#111111']);
   assert.deepEqual(out.consent, { text: CONSENT_V1, version: '1' });
@@ -79,7 +82,11 @@ test('a sent, unsigned estimate is pending with the whole payload', () => {
 
 test('the payload carries no owner id or storage path', () => {
   const out = toPublicEstimate(
-    input({ attachments: [{ id: 'a1', mimeType: 'application/pdf', sizeBytes: 10, url: 'https://s/x' }] }),
+    input({
+      attachments: [
+        { id: 'a1', mimeType: 'application/pdf', sizeBytes: 10, url: 'https://s/x', caption: 'Site photo' },
+      ],
+    }),
   );
   const json = JSON.stringify(out);
   assert.equal(json.includes('user_id'), false);
@@ -113,6 +120,35 @@ test('expiry is the END of valid_until in the business timezone', () => {
   );
   assert.equal(after.state, 'expired');
   if ('daysRemaining' in after) assert.equal(after.daysRemaining, 0);
+});
+
+test('title and business contact blank to null when empty or whitespace', () => {
+  const out = toPublicEstimate(
+    input({
+      invoice: invoice({ title: '   ' }),
+      profile: profile({ business_phone: '', business_email: null }),
+    }),
+  );
+  if (!('business' in out)) throw new Error('expected a payload');
+  assert.equal(out.title, null);
+  assert.equal(out.business.phone, null);
+  assert.equal(out.business.email, null);
+});
+
+test('an attachment caption travels with the attachment', () => {
+  const out = toPublicEstimate(
+    input({
+      attachments: [
+        { id: 'a1', mimeType: 'image/png', sizeBytes: 10, url: 'https://s/x', caption: 'Before' },
+        { id: 'a2', mimeType: 'image/png', sizeBytes: 10, url: 'https://s/y', caption: null },
+      ],
+    }),
+  );
+  if (!('attachments' in out)) throw new Error('expected a payload');
+  assert.deepEqual(
+    out.attachments.map((a) => a.caption),
+    ['Before', null],
+  );
 });
 
 test('an unrecognised timezone falls back to America/Chicago', () => {

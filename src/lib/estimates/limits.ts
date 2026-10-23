@@ -12,6 +12,11 @@ export type AllowedAttachmentMime = (typeof ALLOWED_ATTACHMENT_MIME)[number];
 
 export const SIGNED_URL_TTL_SECONDS = 10 * 60;
 
+// Estimate heading and attachment caption. Mirrors the SQL CHECK caps
+// (invoices_title_len_chk / invoice_attachments_caption_len_chk).
+export const MAX_TITLE_CHARS = 120;
+export const MAX_CAPTION_CHARS = 60;
+
 export const MAX_SIGNATURE_PNG_BYTES = 200 * 1024;
 export const MAX_TYPED_SIGNATURE_CHARS = 100;
 export const MAX_SIGNER_NAME_CHARS = 120;

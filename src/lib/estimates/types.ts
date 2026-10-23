@@ -38,6 +38,8 @@ export type PublicAttachment = {
   sizeBytes: number;
   /** 10-minute signed URL. Never a storage path. */
   url: string;
+  /** Owner-written caption, max 60 chars. Null when none. */
+  caption: string | null;
 };
 
 export type PublicBusiness = {
@@ -47,9 +49,10 @@ export type PublicBusiness = {
   backgroundColor: string | null;
   websiteUrl: string | null;
   slogan: string | null;
-  /** No business phone/email column exists; always null today. */
-  phone: null;
-  email: null;
+  /** Read live from profiles.business_phone; null when unset. */
+  phone: string | null;
+  /** Read live from profiles.business_email; null when unset. */
+  email: string | null;
 };
 
 export type PublicEstimate = {
@@ -58,8 +61,8 @@ export type PublicEstimate = {
   invoiceNumber: number;
   business: PublicBusiness;
   clientName: string;
-  /** No job-title column exists; always null today. */
-  title: null;
+  /** Estimate heading (invoices.title). Null when the owner left it empty. */
+  title: string | null;
   address: string | null;
   lineItems: EstimateLineItem[];
   subtotal: number;

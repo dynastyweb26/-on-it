@@ -38,6 +38,7 @@ type AttachmentRow = {
   mime_type: string | null;
   size_bytes: number | null;
   checksum: string | null;
+  caption: string | null;
 };
 
 type SignatureRow = {
@@ -49,11 +50,12 @@ type SignatureRow = {
 
 const INVOICE_COLS =
   'id, user_id, kind, public_token, invoice_number, status, deleted_at, approved_at, ' +
-  'revoked_at, valid_until, client_name, client_address, line_items, subtotal, tax_rate, ' +
+  'revoked_at, valid_until, client_name, client_address, title, line_items, subtotal, tax_rate, ' +
   'tax_amount, total, notes';
 
 const PROFILE_COLS =
-  'id, business_name, logo_url, brand_colors, background_color, website_url, slogan, timezone';
+  'id, business_name, logo_url, brand_colors, background_color, website_url, slogan, ' +
+  'business_phone, business_email, timezone';
 
 function signatureSummary(row: SignatureRow | null): SignatureSummary | null {
   if (!row) return null;
@@ -110,7 +112,7 @@ async function shape(
     admin.from('profiles').select(PROFILE_COLS).eq('id', invoice.user_id).maybeSingle(),
     admin
       .from('invoice_attachments')
-      .select('id, storage_path, position, mime_type, size_bytes, checksum')
+      .select('id, storage_path, position, mime_type, size_bytes, checksum, caption')
       .eq('invoice_id', invoice.id)
       .order('position'),
     admin
@@ -156,11 +158,13 @@ async function shape(
         console.error('estimate attachment: sign url failed', row.id, urlError?.message ?? 'no url');
         return null;
       }
+      const caption = (row.caption ?? '').trim();
       return {
         id: row.id,
         mimeType: mime,
         sizeBytes: row.size_bytes ?? 0,
         url: urlData.signedUrl,
+        caption: caption.length ? caption : null,
       };
     }),
   );
