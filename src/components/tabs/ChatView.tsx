@@ -662,6 +662,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // The parsed expense awaiting confirmation. Never auto-saved — the user
   // always sees the four fields and presses save.
   const [expenseDraft, setExpenseDraft] = useState<ExpenseDraft | null>(null);
+  // Record expense (the + menu) opens the same card in the composer's template
+  // slot. It is deliberately outside TemplateKind: an expense must never run
+  // openTemplate's archive/clear path, which belongs to invoices and quotes.
+  const [expenseTemplate, setExpenseTemplate] = useState(false);
   const [expenseError, setExpenseError] = useState<string | null>(null);
   // TODO: sessionRef unused — per-message `source` replaced the speak gate.
   // Left in place intentionally; remove in a dedicated cleanup.
@@ -1069,7 +1073,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, reminderPrompt, feedbackPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, feedbackPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -2569,6 +2573,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     receiptBubbleIdRef.current = null;
     setReceipt(null);
     setExpenseDraft(null);
+    setExpenseTemplate(false);
     setExpenseError(null);
   }
 
@@ -2912,7 +2917,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // menu closes and the field becomes the template card in that mode.
     setPlusMenu(null);
     clearTimeout(plusTimer.current);
-    if (k === 'expense') return;
+    if (k === 'expense') {
+      // Own state, not TemplateKind: opening this must not archive the live
+      // conversation or clear a saved invoice/quote template.
+      if (!expenseDraft) {
+        setReceipt(null);
+        setExpenseDraft({
+          amount: 0,
+          category: 'other',
+          vendor: null,
+          occurred_on: today(),
+          description: null,
+        });
+      }
+      setExpenseError(null);
+      setExpenseTemplate(true);
+      return;
+    }
     startNewTemplate(k);
   }
 
@@ -3647,7 +3668,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {expenseDraft && (
+        {expenseDraft && !expenseTemplate && (
           // Only ever set live (never restored), so the build-in plays once per capture.
           <div className={expenseExiting ? 'onit-card-exit' : 'onit-card-enter'}>
           <ExpenseCard
@@ -3733,6 +3754,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
             onSend={() => { void finalize(); }} />
+        </div>
+      ) : expenseTemplate && expenseDraft ? (
+        <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+          <ExpenseCard
+            draft={expenseDraft}
+            onChange={setExpenseDraft}
+            onSave={saveExpense}
+            onCancel={discardExpense}
+            saving={phase === 'saving'}
+            previewUrl={receipt?.previewUrl ?? null}
+            error={expenseError}
+          />
         </div>
       ) : (
         <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
