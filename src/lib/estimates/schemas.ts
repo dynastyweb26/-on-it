@@ -5,7 +5,9 @@ import { z } from 'zod';
 import { CONSENT_VERSION } from './consent';
 import {
   MAX_ATTACHMENT_BYTES,
+  MAX_CAPTION_CHARS,
   MAX_SIGNATURE_DATA_CHARS,
+  MAX_TITLE_CHARS,
 } from './limits';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,6 +27,16 @@ export const SendBodySchema = z
 
 export const ExtendBodySchema = z.object({
   valid_until: z.string().regex(DATE_ONLY),
+});
+
+// Estimate heading. Empty (or whitespace) clears it — the DB stores NULL.
+export const TitleBodySchema = z.object({
+  title: z.string().max(MAX_TITLE_CHARS).nullable(),
+});
+
+// Attachment caption. Empty clears it — the RPC stores NULL.
+export const CaptionBodySchema = z.object({
+  caption: z.string().max(MAX_CAPTION_CHARS).nullable(),
 });
 
 export const PresignBodySchema = z.object({
