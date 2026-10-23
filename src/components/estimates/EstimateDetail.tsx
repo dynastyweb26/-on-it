@@ -19,6 +19,13 @@ import { defaultDueDate } from '@/lib/dates';
 import { copyAttachments } from '@/lib/attachments-client';
 import type { PublicEstimate } from '@/lib/estimates/types';
 import {
+  estimateLink,
+  estimateShareText,
+  requestEstimatePreview,
+  requestEstimateSend,
+  shareEstimateLink,
+} from '@/lib/estimates/owner-actions';
+import {
   estimateNumber,
   extendValidity,
   firstName,
@@ -176,9 +183,7 @@ export default function EstimateDetail({
     return 'Unavailable';
   })();
 
-  const publicUrl = inv.public_token && typeof window !== 'undefined'
-    ? `${window.location.origin}/e/${inv.public_token}`
-    : null;
+  const publicUrl = estimateLink(inv.public_token);
 
   async function copyLink() {
     if (!publicUrl) return;
@@ -193,19 +198,13 @@ export default function EstimateDetail({
   async function shareLink() {
     if (!publicUrl) return;
     setActionError(null);
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({
-          title: `Estimate ${estimateNumber(inv.invoice_number)}`,
-          text: `Estimate from ${profile.business_name || 'On It'}`,
-          url: publicUrl,
-        });
-        return;
-      } catch (e) {
-        if (e instanceof Error && e.name === 'AbortError') return;
-      }
-    }
-    await copyLink();
+    const result = await shareEstimateLink({
+      url: publicUrl,
+      title: `Estimate ${estimateNumber(inv.invoice_number)}`,
+      text: estimateShareText(profile.business_name),
+    });
+    if (result === 'copied') showToast('Link copied');
+    if (result === 'failed') setActionError('Clipboard is blocked. Long-press the link to copy it.');
   }
 
   async function send(resend: boolean) {
@@ -213,28 +212,13 @@ export default function EstimateDetail({
     setBusy(resend ? 'resend' : 'send');
     setActionError(null);
     try {
-      const res = await fetch(`/api/estimates/${id}/send`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const body = (await res.json().catch(() => null)) as
-        | { estimate?: EstimateDetailRow; firstSend?: boolean; error?: string }
-        | null;
-      if (!res.ok || !body?.estimate) {
-        setActionError(
-          res.status === 409 && body?.error === 'approved'
-            ? 'This estimate is already approved.'
-            : res.status === 404
-              ? "This estimate couldn't be found."
-              : res.status === 429
-                ? 'Too many attempts. Try again in a minute.'
-                : "Couldn't send the estimate. Please try again.",
-        );
+      const outcome = await requestEstimateSend(id);
+      if (!outcome.ok) {
+        setActionError(outcome.message);
         return;
       }
-      setInv((prev) => ({ ...prev, ...body.estimate }));
-      if (resend || !body.firstSend) showToast(`Signature request resent to ${clientFirst}`);
+      setInv((prev) => ({ ...prev, ...(outcome.estimate as Partial<EstimateDetailRow>) }));
+      if (resend || !outcome.firstSend) showToast(`Signature request resent to ${clientFirst}`);
       else showToast(`Estimate sent to ${clientFirst}`);
     } finally {
       setBusy(null);
@@ -246,13 +230,12 @@ export default function EstimateDetail({
     setBusy('preview');
     setActionError(null);
     try {
-      const res = await fetch(`/api/estimates/${id}/preview`);
-      const body = (await res.json().catch(() => null)) as PublicEstimate | { state?: string } | null;
-      if (!res.ok || !body || (body as PublicEstimate).state === 'unavailable') {
-        setActionError("The client preview isn't available right now.");
+      const outcome = await requestEstimatePreview(id);
+      if (!outcome.ok) {
+        setActionError(outcome.message);
         return;
       }
-      setPreview(body as PublicEstimate);
+      setPreview(outcome.preview);
       setPreviewOpen(true);
     } finally {
       setBusy(null);
