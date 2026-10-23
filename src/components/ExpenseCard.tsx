@@ -65,13 +65,14 @@ export default function ExpenseCard({
             {previewUrl ? 'Scanned from receipt' : 'From your message'}
           </span>
         </div>
-        <input
-          type="date"
-          className="h-11 min-w-0 shrink-0 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-sm font-semibold text-on-background outline-none focus:ring-2 focus:ring-primary-container"
-          aria-label="Date"
-          value={draft.occurred_on ?? ''}
-          onChange={(e) => set('occurred_on', e.target.value || null)}
-        />
+        <button
+          type="button"
+          aria-label="Cancel expense"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container active:scale-95"
+          onClick={onCancel}
+        >
+          <Icon name="close" size={20} />
+        </button>
       </div>
 
       {/* Numbers are the hero (§1) — the amount is the largest thing here. */}
@@ -93,17 +94,26 @@ export default function ExpenseCard({
         </div>
       </label>
 
-      <label className="flex min-h-touch items-center gap-1.5 px-1">
-        <span className="text-body-lg font-medium text-on-surface-variant">at</span>
+      <div className="flex min-h-touch items-center gap-2">
+        <label className="flex min-h-touch min-w-0 flex-1 items-center gap-1.5 px-1">
+          <span className="text-body-lg font-medium text-on-surface-variant">at</span>
+          <input
+            className="min-h-touch min-w-0 flex-1 border-b border-dashed border-primary/40 bg-transparent text-body-lg font-semibold text-on-background outline-none placeholder:font-medium placeholder:text-on-surface-variant/60"
+            placeholder="Vendor"
+            maxLength={120}
+            aria-label="Vendor"
+            value={draft.vendor ?? ''}
+            onChange={(e) => set('vendor', e.target.value || null)}
+          />
+        </label>
         <input
-          className="min-h-touch min-w-0 flex-1 border-b border-dashed border-primary/40 bg-transparent text-body-lg font-semibold text-on-background outline-none placeholder:font-medium placeholder:text-on-surface-variant/60"
-          placeholder="Vendor"
-          maxLength={120}
-          aria-label="Vendor"
-          value={draft.vendor ?? ''}
-          onChange={(e) => set('vendor', e.target.value || null)}
+          type="date"
+          className="h-11 w-32 shrink-0 rounded-full border border-outline-variant bg-surface-container-lowest px-2.5 text-sm font-semibold text-on-background outline-none focus:ring-2 focus:ring-primary-container"
+          aria-label="Date"
+          value={draft.occurred_on ?? ''}
+          onChange={(e) => set('occurred_on', e.target.value || null)}
         />
-      </label>
+      </div>
 
       <div role="group" aria-label="Category" data-no-tab-swipe="true"
         className="mt-2 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
