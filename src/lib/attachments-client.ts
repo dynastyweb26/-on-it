@@ -25,6 +25,11 @@ export interface AttachmentRow {
   id: string;
   storage_path: string;
   position: number;
+  // Server verification (estimate attachments). Preserved on renumber so a
+  // reorder never silently unpublishes a confirmed file.
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  checksum?: string | null;
 }
 
 /** Next free slot after the rows already stored (0 when the invoice has none). */
@@ -40,7 +45,7 @@ export function attachmentObjectPath(userId: string, invoiceId: string): string 
 export async function listAttachmentRows(supabase: Db, invoiceId: string): Promise<AttachmentRow[]> {
   const { data } = await supabase
     .from('invoice_attachments')
-    .select('id, storage_path, position')
+    .select('id, storage_path, position, mime_type, size_bytes, checksum')
     .eq('invoice_id', invoiceId)
     .order('position');
   return (data ?? []) as AttachmentRow[];
@@ -94,8 +99,11 @@ export async function renumberAttachments(
     .from('invoice_attachments')
     .insert(ordered.map((r, position) => ({
       user_id: userId, invoice_id: invoiceId, storage_path: r.storage_path, position,
+      mime_type: r.mime_type ?? null,
+      size_bytes: r.size_bytes ?? null,
+      checksum: r.checksum ?? null,
     })))
-    .select('id, storage_path, position');
+    .select('id, storage_path, position, mime_type, size_bytes, checksum');
   return ((data ?? []) as AttachmentRow[]).sort((a, b) => a.position - b.position);
 }
 
