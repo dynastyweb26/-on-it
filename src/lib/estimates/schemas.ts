@@ -2,7 +2,7 @@
 // from the client — only the version, which must be the current one; the text
 // recorded is the server's frozen CONSENT_V1 constant.
 import { z } from 'zod';
-import { CONSENT_VERSION } from './consent';
+import { CONSENT_V1, CONSENT_VERSION } from './consent';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_CAPTION_CHARS,
@@ -17,6 +17,10 @@ export const SignBodySchema = z.object({
   signature_type: z.enum(['draw', 'type']),
   signature_data: z.string().max(MAX_SIGNATURE_DATA_CHARS).optional(),
   consent_version: z.literal(CONSENT_VERSION),
+  // The exact text the signer saw. It must be the frozen copy — the route still
+  // records CONSENT_V1 itself, never the client's string — so a page that drifts
+  // from the recorded consent fails loudly instead of signing the wrong words.
+  consent_text: z.literal(CONSENT_V1).optional(),
   // Required: the page signs exactly the content it displayed.
   expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
 });

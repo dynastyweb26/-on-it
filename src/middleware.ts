@@ -60,8 +60,9 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Runs on app pages; skips auth/entry routes, machine routes, and assets.
   // Excludes: login, the auth callback (auth/), the referral token route (i/),
-  // the public pay page (pay/) — unauthenticated by design, so refreshing a
-  // session it never has is pointless work — the cron routes and the Stripe
+  // the public pay page (pay/) and the public estimate page (e/) — both
+  // unauthenticated by design, so refreshing a session they never have is
+  // pointless work — the cron routes and the Stripe
   // webhook (machine-to-machine, no session and must be left untouched), _next,
   // the manifest / service worker / icons / brand assets, and static files by
   // extension.
@@ -71,6 +72,6 @@ export const config = {
   // so it warns and silently falls back to the default matcher — middleware on
   // EVERY request, assets and webhooks included.
   matcher: [
-    '/((?!login|auth/|i/|pay/|api/followups|api/trial-reminders|api/webhooks/stripe|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
+    '/((?!login|auth/|i/|pay/|e/|api/followups|api/trial-reminders|api/webhooks/stripe|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
   ],
 };
