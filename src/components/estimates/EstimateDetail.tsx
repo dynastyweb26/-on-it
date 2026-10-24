@@ -479,7 +479,7 @@ export default function EstimateDetail({
           {state === 'draft' && (
             <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void send()}>
               <Icon name="send" size={18} />
-              {busy === 'send' ? 'Sending…' : 'Send estimate'}
+              {busy === 'send' ? 'Saving…' : 'Mark as sent'}
             </button>
           )}
 
