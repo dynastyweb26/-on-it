@@ -465,6 +465,7 @@
 }
 
 .docName {
+  display: block;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -473,6 +474,7 @@
 }
 
 .docMeta {
+  display: block;
   font-size: 12px;
   color: #6b6256;
   font-variant-numeric: tabular-nums;
@@ -483,6 +485,7 @@
 }
 
 .docCaption {
+  display: block;
   font-size: 12px;
   color: #4a4236;
   white-space: nowrap;
