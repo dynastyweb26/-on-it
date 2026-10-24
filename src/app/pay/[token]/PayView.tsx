@@ -57,6 +57,8 @@ export interface PayModel {
   docNumber: string; // e.g. "INV-0007"
   noun: string; // "Invoice" | "Quote"
   lineItems: PayLineItem[];
+  /** Terms and conditions frozen at send; null when there are none. */
+  terms: string | null;
   subtotal: number;
   taxRate: number;
   taxAmount: number;
@@ -960,6 +962,13 @@ export default function PayView({ model }: { model: PayModel }) {
           <Icon name="check" size={18} />
           {toast}
         </div>
+      ) : null}
+
+      {model.terms ? (
+        <section aria-label="Terms and conditions" className="mt-8 w-full text-left">
+          <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Terms and conditions</h2>
+          <p className="mt-2 whitespace-pre-wrap break-words text-body-md text-on-surface-variant">{model.terms}</p>
+        </section>
       ) : null}
 
       <footer className="mt-auto pt-10 text-center">
