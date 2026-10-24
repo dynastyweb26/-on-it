@@ -2,8 +2,9 @@
 
 // Attachments card (design spec §2.1.5): photo grid + document rows, first four
 // with View all, and an inline retry that re-requests the short-lived signed
-// URLs. A failed attachment is a local state only — it can never block the
-// signature card, which keeps its own independent sheet.
+// URLs. A row arrives failed (url null) when the object could not be signed, or
+// fails here on an image error / HEAD probe; either way it is local state and
+// can never block the signature card, which keeps its own independent sheet.
 import { useEffect, useRef, useState } from 'react';
 import type { PublicAttachment } from '@/lib/estimates/types';
 import EstIcon from './EstIcon';
@@ -21,6 +22,7 @@ export default function AttachmentsCard({
   onOpenPhoto: (attachmentId: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
+  // Rows that could not be signed arrive with url null: failed from the start.
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState<Set<string>>(new Set());
   const probed = useRef<Set<string>>(new Set());
@@ -40,6 +42,7 @@ export default function AttachmentsCard({
   useEffect(() => {
     const docs = (showAll ? attachments : attachments.slice(0, 4)).filter((a) => !isPhoto(a));
     for (const doc of docs) {
+      if (!doc.url) continue;
       const key = `${doc.id}:${doc.url}`;
       if (probed.current.has(key)) continue;
       probed.current.add(key);
@@ -86,7 +89,7 @@ export default function AttachmentsCard({
   }
 
   function photoTile(photo: PublicAttachment) {
-    const isFailed = failed.has(photo.id);
+    const isFailed = failed.has(photo.id) || photo.url === null;
     return (
       <button
         key={photo.id}
@@ -96,7 +99,7 @@ export default function AttachmentsCard({
         aria-label={photo.caption ? `Open photo: ${photo.caption}` : 'Open photo'}
       >
         <span className={s.photoFrame}>
-          {isFailed ? (
+          {isFailed || !photo.url ? (
             <span className={s.photoFail}>
               Couldn&rsquo;t load photo
               {retryButton(photo.id)}
@@ -119,7 +122,7 @@ export default function AttachmentsCard({
   }
 
   function documentRow(doc: PublicAttachment) {
-    const isFailed = failed.has(doc.id);
+    const isFailed = failed.has(doc.id) || doc.url === null;
     return (
       <div key={doc.id} className={s.docRow}>
         <span className={s.docBadge}>PDF</span>
@@ -131,7 +134,7 @@ export default function AttachmentsCard({
             {isFailed ? 'Couldn’t load file' : `${fileSize(doc.sizeBytes)} · PDF`}
           </span>
         </span>
-        {isFailed ? (
+        {isFailed || !doc.url ? (
           retryButton(doc.id)
         ) : (
           <a className={s.viewLink} href={doc.url} target="_blank" rel="noreferrer noopener">

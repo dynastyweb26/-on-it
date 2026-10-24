@@ -50,8 +50,10 @@ export default function EstimateView({
 
   const payload = data.state === 'unavailable' ? null : data;
   const theme = useMemo(() => (payload ? estimateTheme(payload) : null), [payload]);
+  // The viewer's index and counter run over loadable photos only: a row whose
+  // signed URL failed stays in the card as a failed tile, never in the stage.
   const photos = useMemo(
-    () => (payload ? payload.attachments.filter(isPhoto) : []),
+    () => (payload ? payload.attachments.filter((a) => isPhoto(a) && a.url !== null) : []),
     [payload],
   );
 
