@@ -36,8 +36,10 @@ export type PublicAttachment = {
   id: string;
   mimeType: 'image/jpeg' | 'image/png' | 'application/pdf';
   sizeBytes: number;
-  /** 10-minute signed URL. Never a storage path. */
-  url: string;
+  /** 10-minute signed URL, never a storage path. Null when the object could
+   *  not be signed (missing or unreadable): the page shows that row as failed
+   *  with an inline retry instead of dropping it. */
+  url: string | null;
   /** Owner-written caption, max 60 chars. Null when none. */
   caption: string | null;
 };

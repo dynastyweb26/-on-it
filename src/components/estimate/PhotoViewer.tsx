@@ -80,8 +80,12 @@ export default function PhotoViewer({
             <EstIcon name="chevron_left" size={26} />
           </button>
         )}
-        {/* eslint-disable-next-line @next/next/no-img-element -- signed URL, unknown dimensions */}
-        <img className={s.viewerImage} src={photo.url} alt={photo.caption ?? ''} />
+        {/* A photo whose signed URL could not be minted is skipped: the stage
+            only ever shows an image it can load. */}
+        {photo?.url && (
+          // eslint-disable-next-line @next/next/no-img-element -- signed URL, unknown dimensions
+          <img className={s.viewerImage} src={photo.url} alt={photo.caption ?? ''} />
+        )}
         {index < photos.length - 1 && (
           <button
             type="button"

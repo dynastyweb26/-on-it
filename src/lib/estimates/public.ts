@@ -176,22 +176,24 @@ async function shape(
       if (mime !== 'image/jpeg' && mime !== 'image/png' && mime !== 'application/pdf') {
         return null;
       }
+      const caption = (row.caption ?? '').trim();
+      const base: Omit<PublicAttachment, 'url'> = {
+        id: row.id,
+        mimeType: mime,
+        sizeBytes: row.size_bytes ?? 0,
+        caption: caption.length ? caption : null,
+      };
       const { data: urlData, error: urlError } = await admin.storage
         .from(BUCKET)
         .createSignedUrl(row.storage_path, SIGNED_URL_TTL_SECONDS);
       if (urlError || !urlData?.signedUrl) {
-        // Never log the path: it carries the owner's id.
+        // Keep the row so the page can show it as failed with a retry, instead
+        // of quietly shrinking the attachment count. Never log the path: it
+        // carries the owner's id.
         console.error('estimate attachment: sign url failed', row.id, urlError?.message ?? 'no url');
-        return null;
+        return { ...base, url: null };
       }
-      const caption = (row.caption ?? '').trim();
-      return {
-        id: row.id,
-        mimeType: mime,
-        sizeBytes: row.size_bytes ?? 0,
-        url: urlData.signedUrl,
-        caption: caption.length ? caption : null,
-      };
+      return { ...base, url: urlData.signedUrl };
     }),
   );
 
