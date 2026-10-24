@@ -831,3 +831,10 @@ value, every API route, file and component names, migrations, the legacy
 `/pay/[token]` redirects `kind='quote'` rows to `/e/[token]` — so they still
 say "Quoted total". Change them only if the pay page ever renders a quote
 again.
+
+## Terms and conditions (branch `claude/terms-conditions-c7219f`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Terms and conditions on estimates and invoices | **Built on branch — NOT merged; migration NOT applied** | Settings › Business has a "Terms and conditions" textarea (3000 cap, saves on blur, `#terms` deep link). First send freezes `profiles.terms` onto `invoices.terms` (`renderSnapshot` via `/api/invoices/[id]/send` and `/api/estimates/[id]/send`; resends never re-snapshot). Rendered, and nothing when empty, on: the invoice/estimate PDF (all four templates), the public estimate page (`TermsCard`), and the pay page (via the new RPC `get_public_invoice_terms`). Every read is tolerant of the columns not existing, so the shared-DB preview works before the migration. Migration `20261024100000_terms_and_conditions.sql` is additive only (nullable columns + checks on them + one service-role RPC); privilege-check rows AX/AY added. **Founder must: dry run, read the SQL, yes, `db push`, `npm run db:privcheck`.** |
+| "Add your terms" tip card | **Built on branch** | `ChatNudgeCard` after a first send (`lib/terms-prompt.ts`, tested): terms empty, shown at most twice ever, state in `profiles.terms_prompt_count` / `terms_prompt_dismissed_at` (DB, not localStorage), suppresses the payouts / payment-alerts / feedback tips at the same moment. Chat sends only. |
