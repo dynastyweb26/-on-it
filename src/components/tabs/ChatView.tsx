@@ -9,6 +9,8 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
+import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
+import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
@@ -81,7 +83,14 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
    *  bubble's image, referenced by id — never a second copy. */
   logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null; viaTemplate?: true };
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
-  sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
+  sentCard?: {
+    clientName: string; invoiceNo: string; amount: string;
+    /** Invoice: the due date. Estimate: the valid-until date. */
+    dueDate: string;
+    kind: 'invoice' | 'quote';
+    /** Estimates only: the public /e/<token> link the client gets. */
+    link?: string | null;
+  };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
   payoutsNudge?: true; }
 interface SendResult { reply: string; ready: boolean; }
@@ -570,6 +579,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // non-draft, non-null status locks the card read-only; amount_paid decides the
   // paid/partly-paid copy (and, in Commit C, whether Revise is offered).
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
+  // Synchronous send-in-progress flag for finalize() (send / download).
+  const finalizingRef = useRef(false);
+  // A sent estimate's public token, read from its row so the locked card can
+  // offer Copy link / Share even after a reload or a reopen from history.
+  const [linkedToken, setLinkedToken] = useState<string | null>(null);
   // The document's images (gold "+ Add attachment"): freshly-picked ones carry a
   // blob until the send uploads them, then the row id + storage path; ones loaded
   // from a saved invoice carry only the signed URL. Print order = list order.
@@ -1526,7 +1540,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // row and shows a locked card (with Revise). Any further message is refused in
   // send(). Used by a normal finalize and by an idempotent resume that finds the
   // invoice already sent.
-  function finishFinalize(doneMsg: Msg, retryId?: string) {
+  function finishFinalize(doneMsg: Msg, retryId?: string, estimate?: { link: string | null; validUntil: string | null }) {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
@@ -1555,13 +1569,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
           clientName: draft.client_name ?? 'Client',
           invoiceNo: formatDocNumber(sentKind, pi.no),
           amount: money(totals.amountDueNow),
-          dueDate: formatDate(draft.due_date ?? defaultDueDate()),
+          // An estimate shows when its link stops working, not a due date.
+          dueDate: sentKind === 'quote'
+            ? (estimate?.validUntil ? formatDate(estimate.validUntil) : '')
+            : formatDate(draft.due_date ?? defaultDueDate()),
           kind: sentKind,
+          link: sentKind === 'quote' ? estimate?.link ?? null : null,
         },
       });
       const result: Msg[] = [...archived, cardMsg];
       // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
-      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
+      // Invoices only: the tip is about getting paid, which an estimate isn't.
+      if (sentKind === 'invoice' && connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
         result.push(aMsg('', { payoutsNudge: true }));
       }
       return result;
@@ -1670,7 +1689,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // The DB row is about to be rewritten from the current draft, so an older
       // stashed file may no longer match it. Drop it until this build lands.
       preBuiltRef.current = null;
-    } else if (!internal && phase) return;
+    } else {
+      if (!internal && phase) return;
+      // `phase` is state and lags a render, so two taps inside one frame both
+      // read it as null. This ref flips synchronously: the second tap (or a typed
+      // "send it" racing a tap) is ignored until the first one settles.
+      if (finalizingRef.current) return;
+      finalizingRef.current = true;
+    }
     // A direct card tap (not delegated from a send()) is its own user action:
     // mint a fresh turn id so this finalize and finishFinalize trace under their
     // own id instead of inheriting the previous send()'s turn. An internal call
@@ -1996,7 +2022,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // (finalizeSent persisted across the suspend). The share already happened —
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
-        const kind = docKind(draft);
+        const kind = docNoun(docKind(draft)).toLowerCase();
         finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
         return;
       }
@@ -2011,6 +2037,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
       const materialized = await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
       if (materialized.failedId) throw new Error('attachment materialization failed');
       if (materialized.saved.size) setAttachments(materialized.items);
+
+      // Estimates are delivered as their public /e/<token> link only: no PDF is
+      // rendered, stored or shared. The pre-build just keeps the draft row current
+      // (done above), so it is "ready" as soon as that lands.
+      if (docKind(draft) === 'quote') {
+        if (mode === 'prepare') {
+          if (buildId === preBuildIdRef.current) prepared = true;
+          return;
+        }
+        if (mode === 'download') return; // no PDF to download for an estimate
+        await settleEstimateSend(invoiceId, retryId);
+        return;
+      }
 
       // ── 2. Build render data (reuse the stashed number on a retry).
       const rd = buildRenderData(no);
@@ -2116,6 +2155,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         prepareDone();
         setPreparing(false);
       } else {
+        finalizingRef.current = false;
         setPhase((p) => (p === 'redirecting' ? p : null));
       }
     }
@@ -2197,6 +2237,31 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // the moment to (rarely) ask for feedback on invoices AND quotes.
     const askedAlerts = docKind(draft) === 'invoice' ? await maybeOfferReminders(who) : false;
     if (!askedAlerts) void maybeOfferFeedback();
+  }
+
+  // Estimate send: the server flips the row to sent (and fills valid_until), and
+  // the client gets only the /e/<token> link, so there is no share-sheet race to
+  // protect and no file to build. The link and its Copy link / Share actions go
+  // straight into the confirmation. Mirrors the estimate detail screen.
+  async function settleEstimateSend(id: string, retryId?: string) {
+    if (!profile || !draft) return;
+    const out = await requestEstimateSend(id);
+    if (!out.ok) {
+      if (!retryId) setMessages((m) => [...m, aMsg(out.message, { failed: { op: 'finalize' } })]);
+      return;
+    }
+    const token = typeof out.estimate.public_token === 'string' ? out.estimate.public_token : null;
+    const validUntil = typeof out.estimate.valid_until === 'string' ? out.estimate.valid_until : null;
+    finalizeSentRef.current = true;
+    persistProgress();
+    const who = draft.client_name ?? 'your client';
+    setLinkedToken(token);
+    finishFinalize(
+      aMsg(`Sent! I'll notify you if ${who} hasn't responded in 2 days.`),
+      retryId,
+      { link: estimateLink(token), validUntil },
+    );
+    void maybeOfferFeedback();
   }
 
   // Re-run the operation behind a failed message, in place. The message's id is
@@ -3055,6 +3120,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
 
+  // A locked estimate card needs its public token for Copy link / Share. Read it
+  // from the row (RLS: own rows) so a reload or a reopen from history gets it too.
+  const lockedQuote = locked && !!draft && docKind(draft) === 'quote';
+  useEffect(() => {
+    const id = pendingInvoiceRef.current?.id;
+    if (!lockedQuote || !id) { setLinkedToken(null); return; }
+    let live = true;
+    void supabase.from('invoices').select('public_token').eq('id', id).maybeSingle()
+      .then(({ data }) => { if (live) setLinkedToken((data?.public_token as string) ?? null); }, () => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedQuote, linkedStatus]);
+
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
   // the saved row on send (buildRenderData recomputes subtotal/tax/total from
@@ -3366,6 +3444,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <p className="text-center text-sm text-on-surface-variant">
                 This {docKind(draft) === 'quote' ? 'estimate' : 'invoice'} was sent, so it&apos;s locked.
               </p>
+              {lockedQuote && linkedToken && estimateLink(linkedToken) && (
+                <div className="mt-3">
+                  <EstimateLinkActions
+                    url={estimateLink(linkedToken)!}
+                    title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
+                    businessName={profile?.business_name}
+                  />
+                </div>
+              )}
               <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
                 <Icon name="edit" size={18} /> Revise
               </button>
@@ -3392,7 +3479,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
             disabled={phase !== null || !isValidTotal || !sendReady}
             onClick={() => finalize()}
           >
-            {sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
+            {docKind(draft) === 'quote' ? (
+              // No file to build or share: the client gets the link.
+              <>
+                <Icon name="send" size={18} />
+                {phase === 'building' ? 'Sending…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+              </>
+            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
               // The file is built and waiting: this tap opens the share sheet.
               <>
                 <Icon name="share" size={18} />
@@ -3409,14 +3502,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
               draft (sendable later); does not mark sent or archive. An invoice
               downloaded this way has no pay link (a draft's pay page doesn't
               take payment), so it's labelled a draft with an (i) that says so. */}
+          {/* Invoices only: an estimate has no PDF, so there is nothing to download. */}
+          {docKind(draft) === 'invoice' && (
           <div className="mt-1 flex items-center justify-center gap-1">
             <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
               disabled={phase !== null || !isValidTotal}
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} />
-              {docKind(draft) === 'invoice' ? 'Download draft' : 'Download without sending'}
+              Download draft
             </button>
-            {docKind(draft) === 'invoice' && (
+            {(
               <button
                 type="button"
                 className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant"
@@ -3433,6 +3528,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </button>
             )}
           </div>
+          )}
           {draftInfoOpen && docKind(draft) === 'invoice' && (
             <p role="note" className="-mt-1 text-center text-xs text-on-surface-variant">
               Drafts don&apos;t hold a live pay page.
@@ -3573,11 +3669,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
             // client, doc number, amount due, and due date. Appears right after
             // the "Sent!" confirmation bubble. Static (no animation needed; the
             // bubble above already signals the moment).
-            <div key={m.id} className="flex justify-start">
+            <div key={m.id} className="flex flex-col items-start">
               <div className="flex w-full max-w-[82%] items-center justify-between gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container px-4 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-bold leading-tight text-on-surface">{m.sentCard.clientName}</p>
-                  <p className="mt-0.5 text-xs text-on-surface-variant">{m.sentCard.invoiceNo} · Due {m.sentCard.dueDate}</p>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">
+                    {m.sentCard.invoiceNo}
+                    {m.sentCard.kind === 'quote'
+                      ? (m.sentCard.dueDate ? ` · Valid until ${m.sentCard.dueDate}` : '')
+                      : ` · Due ${m.sentCard.dueDate}`}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-base font-extrabold text-on-surface">{m.sentCard.amount}</span>
@@ -3586,6 +3687,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   </span>
                 </div>
               </div>
+              {m.sentCard.kind === 'quote' && m.sentCard.link && (
+                <div className="mt-2 w-full max-w-[82%]">
+                  <EstimateLinkActions
+                    url={m.sentCard.link}
+                    title={m.sentCard.invoiceNo}
+                    businessName={profile?.business_name}
+                  />
+                </div>
+              )}
             </div>
           ) : m.payoutsNudge ? (
             // Payouts nudge — shown once after a sent invoice when the pro has no
