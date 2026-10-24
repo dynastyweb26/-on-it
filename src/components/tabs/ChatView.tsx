@@ -1475,7 +1475,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const depositType = ((d as any).deposit_type as DepositType) ?? 'none';
     const depositValue = Number((d as any).deposit_value ?? 0);
     const totals = calculateInvoiceTotals(items, d.tax_rate ?? 0, depositType, depositValue);
-    const kind = docKind(d);
+    const kind = docNoun(docKind(d)).toLowerCase();
     const who = d.client_name ?? 'this client';
     const out: string[] = [
       totals.depositAmount > 0
