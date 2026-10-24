@@ -21,6 +21,16 @@
   gap: 16px;
 }
 
+/* Pending page: the sticky bar is on screen from the first paint, so the column
+   keeps room for it (bar = 64px + safe area) and the toast sits above it. */
+.pageHasBar .column {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+.pageHasBar .toast {
+  bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
 .card {
   background: #faf3e6;
   border: 1px solid #ebdfc6;

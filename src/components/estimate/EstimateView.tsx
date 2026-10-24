@@ -5,7 +5,7 @@
 // items, the photo viewer, the sign/success sheets, attachment retries and the
 // sticky bar. One payload state so a refreshed payload (content_changed, a
 // stale state, an attachment retry) re-renders every card together.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PublicAttachment, PublicEstimateResult } from '@/lib/estimates/types';
 import { money } from '@/lib/financials';
 import AttachmentsCard from './AttachmentsCard';
@@ -47,8 +47,6 @@ export default function EstimateView({
   const [sheet, setSheet] = useState<'sign' | 'success' | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [sticky, setSticky] = useState(false);
-  const heroRef = useRef<HTMLElement | null>(null);
 
   const payload = data.state === 'unavailable' ? null : data;
   const theme = useMemo(() => (payload ? estimateTheme(payload) : null), [payload]);
@@ -77,20 +75,6 @@ export default function EstimateView({
       return null;
     }
   }, [preview, previewId, token]);
-
-  // Sticky bar: appears once the hero card has scrolled off the top.
-  useEffect(() => {
-    const hero = heroRef.current;
-    if (!hero || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setSticky(!entry.isIntersecting && entry.boundingClientRect.top < 0);
-      },
-      { threshold: 0 },
-    );
-    observer.observe(hero);
-    return () => observer.disconnect();
-  }, [payload?.invoiceNumber]);
 
   useEffect(() => {
     if (!toast) return;
@@ -129,10 +113,13 @@ export default function EstimateView({
   const validity = validityText(payload);
   const viewerIndex = viewerId ? photos.findIndex((p) => p.id === viewerId) : -1;
   const sheetOpen = sheet !== null || viewerIndex >= 0;
+  // The bar is the pending state's only persistent action: on screen from
+  // first paint, out of the way while a sheet or the viewer is open.
+  const signable = payload.state === 'pending';
 
   return (
     <div
-      className={s.page}
+      className={`${s.page} ${signable ? s.pageHasBar : ''}`}
       style={
         {
           '--accent': theme.accent,
@@ -189,7 +176,7 @@ export default function EstimateView({
           <div className={s.docNumber}>Estimate {estimateNumber(payload.invoiceNumber)}</div>
         </header>
 
-        <section className={s.card} ref={heroRef} aria-label="Estimate summary">
+        <section className={s.card} aria-label="Estimate summary">
           <div className={s.heroTop}>
             {chip ? (
               <span
@@ -235,10 +222,10 @@ export default function EstimateView({
         <Footer />
       </div>
 
-      {payload.state === 'pending' && (
+      {signable && (
         <StickyBar
           total={payload.total}
-          show={sticky && !sheetOpen}
+          show={!sheetOpen}
           onSign={() => setSheet('sign')}
           disabled={preview}
         />

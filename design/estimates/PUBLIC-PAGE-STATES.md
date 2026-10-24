@@ -33,8 +33,8 @@ long notes, tax rate, and the attachments.
 
 | # | Frame | How to reach it | Expect |
 |---|---|---|---|
-| 01 | Pending default | `/e/<token>` for **pending** (SQL step 2 sent it) | Pending chip, `Valid until …`, total, items, notes, `Review & sign` |
-| 01b | Sticky bar after hero | load 01, scroll the hero card off the top | Bar slides up with `ESTIMATE TOTAL`, total and `Review & sign`; hides while a sheet or the viewer is open |
+| 01 | Pending default | `/e/<token>` for **pending** (SQL step 2 sent it) | Pending chip, `Valid until …`, total, items, notes, the inline `Review & sign` button, and the sticky bar already at the bottom on load |
+| 01b | Sticky bar on load | load 01 — no scrolling needed | `ESTIMATE TOTAL`, total and `Review & sign` at the bottom from the first paint; hides while a sheet or the viewer is open; the last content (Privacy/Terms) clears it |
 | 02 | Items expanded (24) | **many items** (SQL step 5) then `View all 24 items`, tap a row | All 24 rows, the tapped row's description unclamps, `Show fewer items` |
 | 03a | Sign sheet, draw empty | 01 → `Review & sign` | Bottom sheet, Draw tab, empty pad with the placeholder, `Clear` disabled, `Still needed: signature, full name, checkbox` |
 | 03b | Draw signed, valid | draw in the pad, type the name, tick the box | Button enables, the missing line disappears, no error |
