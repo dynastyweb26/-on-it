@@ -243,10 +243,13 @@ select format(
               order by invoice_number desc
               limit 1);
 
--- Then strip the branding (test seller only):
+-- Then strip the branding (test seller only). brand_colors is NOT NULL with
+-- default '{}' (001_init.sql), so it resets to an empty array — null would
+-- fail with a not-null violation. The page treats no colors as the gold
+-- fallback, which is frame 09.
 update public.profiles
    set logo_url = null,
-       brand_colors = null,
+       brand_colors = '{}',
        background_color = null
  where id = (select user_id
                from public.invoices
