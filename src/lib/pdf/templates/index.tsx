@@ -46,6 +46,8 @@ export interface InvoiceRenderData {
   paymentStage?: PaymentStage;
   amountDueNow?: number;
   notes?: string | null;
+  // Terms and conditions, printed at the bottom. Empty renders nothing at all.
+  terms?: string | null;
   issuedDate: string;
   dueDate?: string | null;
   paid?: boolean; // drives the Ledger stamp: DUE / QUOTE / PAID
@@ -227,6 +229,39 @@ function formatNotes(text: string) {
     );
   }
   return <span style={{ fontWeight: 700 }}>{text}</span>;
+}
+
+/** Terms and conditions: a small block under the notes. No heading, no space,
+ *  when there are none. */
+function Terms({ terms, t }: { terms?: string | null; t: BrandTheme }) {
+  if (!terms || !terms.trim()) return null;
+  return (
+    <div data-pdf-block="terms" style={{ marginTop: 24 }}>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: t.muted,
+          marginBottom: 4,
+        }}
+      >
+        TERMS AND CONDITIONS
+      </div>
+      <div
+        style={{
+          fontSize: 12,
+          lineHeight: 1.5,
+          color: t.text,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
+        {terms.trim()}
+      </div>
+    </div>
+  );
 }
 
 function Notes({ notes, t, align = 'left' }: { notes?: string | null; t: BrandTheme; align?: 'left' | 'right' }) {
@@ -491,6 +526,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <Notes notes={d.notes} t={t} align="right" />
         </div>
       )}
+      <Terms terms={d.terms} t={t} />
       {/* Pinned closing line: a data-pdf-block, so a multi-page document
           prints it on the final page (like the summaries' footer), not page 1. */}
       <div data-pdf-block="closing" style={{ position: 'absolute', bottom: 40, left: 56, right: 56, textAlign: 'center', fontSize: 12, color: t.muted }}>
@@ -663,6 +699,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <Notes notes={d.notes} t={t} />
         </div>
       )}
+      <Terms terms={d.terms} t={t} />
 
       {/* The closing line ends the document: it travels with the block before it. */}
       <div data-pdf-block="closing" data-pdf-keep-with-prev="true" style={{ fontSize: 13, marginTop: 28, color: t.accent }}>
@@ -762,6 +799,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
             <Notes notes={d.notes} t={t} />
           </div>
         )}
+        <Terms terms={d.terms} t={t} />
       </div>
       <Branding t={t} />
     </div>
@@ -839,6 +877,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
         {d.notes && <Notes notes={d.notes} t={t} />}
         <Totals d={d} t={t} />
       </div>
+      <Terms terms={d.terms} t={t} />
       {/* The closing line ends the document: a last-page block that travels
           with the block before it (notes, or How to pay when there are none),
           so a multi-page document never clips it under page 1's rows. */}

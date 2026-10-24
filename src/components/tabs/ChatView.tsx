@@ -91,6 +91,8 @@ interface Profile {
   color_roles_explicit?: boolean | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  terms?: string | null; // 20261024100000; undefined until the migration is applied
+  terms_prompt_count?: number | null;
   access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
   // Connect flags (select(*)) — for the PDF card line only.
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
@@ -1436,6 +1438,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       remaining: hasDeposit ? totals.remaining : undefined,
       amountDueNow: totals.amountDueNow,
       notes: draft.notes ?? null,
+      // A chat document is always unsent here, so it carries the current terms;
+      // the send route freezes them onto the row.
+      terms: profile.terms ?? null,
       // Both dates go through formatDate() so issued and due read as one format
       // (M/D/YYYY) on the PDF — Jules F8. These are display strings; the ISO
       // due_date written to the DB is set separately in finalize().
