@@ -84,7 +84,7 @@ type SignatureRow = {
   signed_at: string;
 };
 
-type Busy = 'send' | 'resend' | 'convert' | 'duplicate' | 'extend' | 'revoke' | 'preview' | null;
+type Busy = 'send' | 'convert' | 'duplicate' | 'extend' | 'revoke' | 'preview' | null;
 
 const CHIP: Record<OwnerEstimateState, { label: string; icon: 'edit' | 'verified' | 'schedule' | 'lock' | 'link_off' | null; className: string }> = {
   draft: { label: 'Draft', icon: 'edit', className: 'bg-draft-container text-draft' },
@@ -212,9 +212,9 @@ export default function EstimateDetail({
     if (result === 'failed') setActionError('Clipboard is blocked. Long-press the link to copy it.');
   }
 
-  async function send(resend: boolean) {
+  async function send() {
     if (busy) return;
-    setBusy(resend ? 'resend' : 'send');
+    setBusy('send');
     setActionError(null);
     try {
       const outcome = await requestEstimateSend(id);
@@ -223,8 +223,10 @@ export default function EstimateDetail({
         return;
       }
       setInv((prev) => ({ ...prev, ...(outcome.estimate as Partial<EstimateDetailRow>) }));
-      if (resend || !outcome.firstSend) showToast(`Signature request resent to ${clientFirst}`);
-      else showToast(`Estimate sent to ${clientFirst}`);
+      // Marking an estimate sent writes status + snapshot only; nothing is
+      // delivered to the client. The toast says exactly that, so the owner
+      // knows the link is theirs to share.
+      showToast(`Estimate is live. Copy or share the link with ${clientFirst}.`);
     } finally {
       setBusy(null);
     }
@@ -475,7 +477,7 @@ export default function EstimateDetail({
         {/* Actions per state (design §3.2). */}
         <div className="mt-4">
           {state === 'draft' && (
-            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void send(false)}>
+            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void send()}>
               <Icon name="send" size={18} />
               {busy === 'send' ? 'Sending…' : 'Send estimate'}
             </button>
@@ -489,19 +491,13 @@ export default function EstimateDetail({
           )}
 
           {(state === 'sent' || state === 'expired') && (
-            <div className={`grid gap-2 ${state === 'sent' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <div className="grid grid-cols-2 gap-2">
               <button type="button" className={tile} onClick={() => void copyLink()} disabled={!publicUrl}>
                 <Icon name="link" size={20} /> Copy link
               </button>
               <button type="button" className={tile} onClick={() => void shareLink()} disabled={!publicUrl}>
                 <Icon name="share" size={20} /> Share
               </button>
-              {state === 'sent' && (
-                <button type="button" className={tile} disabled={busy !== null} onClick={() => void send(true)}>
-                  <Icon name="notifications" size={20} />
-                  {busy === 'resend' ? 'Sending…' : 'Request signature'}
-                </button>
-              )}
             </div>
           )}
 
