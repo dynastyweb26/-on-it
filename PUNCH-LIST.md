@@ -802,7 +802,7 @@ estimates function definitions match test by hash. C0 is done: the branch is bas
 | Proof scripts | **Run on the test DB — all PASS** | `supabase/tests/estimates_additive_proofs.sql` (10 assertions) and `supabase/tests/estimates_lifecycle_proofs.sql` (36 assertions), transactional and rolled back. Privilege check on the same DB: 157 PASS, 0 FAIL (AJ–AR included). |
 | Public page `/e/[token]` | **Built — typecheck, build, 20 unit tests; preview unverified** (`feat/estimates-public-page`) | Server component on `loadPublicEstimate`, no login, IP rate limit and `robots: noindex` exactly as `/pay`; middleware skips `e/`. Clients for the sign sheet, 2x canvas pad, success sheet and photo viewer; pending/approved/expired/unavailable, item expand, notes clamp, sticky bar, attachment signed-URL retry + document HEAD probe. Route-scoped DM Sans / Allura / Symbols Rounded via `next/font/local`. `?preview=1` = owner preview (banner, signing off). Old `/pay/<quote token>` redirects here. Payload adds `business.timezone`. Seed + walkthrough: `supabase/seeds/estimates_public_page_states.sql`, `design/estimates/PUBLIC-PAGE-STATES.md`. Its Git preview built with the PRODUCTION Supabase env on 2026-10-23 (inlined ref `bitfmmffnigxjjyxoxfr`), so it must not be tested until branch-scoped test env is added for `feat/estimates-public-page`. |
 | M3 columns on the page's DB (`20261023100200`) | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | The page selects `invoices.title` and `profiles.business_phone/business_email`; both columns are present in production. Step 0 of the seed file re-checks them. |
-| Owner estimate UI | **Not built** | `src/app/(app)/invoices/[id]` still shows the quote view. Owner send/extend/revoke/attachment UI, the signed card, Convert to Invoice and the share link remain (design spec §3). |
+| Owner estimate UI | **Done — merged to `main`** (`feat/estimates-owner-ui`, merge `514dfc3`) | `src/app/(app)/invoices/[id]` renders `EstimateDetail` for `kind='quote'` and keeps the invoice view for invoices. Shipped: detail screen with the seven design states (`3097b6c`), send/extend/revoke + inline title edit (`2cd5640`), attachment limits/captions/upload states (`5f01fc7`), convert-after-approval and server-side duplicate (`532ab6d`), reused line-item editor (`becb09c`). |
 
 **Session 4 — attachment reorder.** Estimate attachments must be reordered
 through a server route (a SECURITY DEFINER RPC), never through
@@ -810,4 +810,23 @@ through a server route (a SECURITY DEFINER RPC), never through
 then re-inserts, and the M2 guard refuses a client write of
 `mime_type`/`size_bytes`/`checksum`, so it now throws
 `attachment-renumber-verified` before deleting anything once any row carries a
-checksum.
+checksum. **Still unbuilt:** there is no reorder RPC, route or owner control
+yet, and the estimate attachment client (`src/lib/estimates/attachments-client.ts`)
+never renumbers. One live caller to fix when it lands: `ChatView.removeSavedAttachment`
+(`src/components/tabs/ChatView.tsx:815`) still calls `renumberAttachments` for a
+draft quote — the estimate detail screen does not.
+
+**Session 5 — copy and chat rename (spec §5).** Branch
+`feat/estimates-copy-session-5`. Scope: every visible "Quote" wording becomes
+"Estimate" (list + filters, paywall, delete confirm, detail page, template
+summary, PDFs, notifications), `docPrefix()` returns `E` so no `Q-` is ever
+shown, and chat/voice speak "estimate" while still accepting quote / quotes /
+bid / proposal as synonyms. Unchanged by design: the `kind='quote'` database
+value, every API route, file and component names, migrations, the legacy
+`?filter=quote` URL alias and the parser's stored intent value.
+
+**Follow-up (cosmetic, not done).** The `'Quoted total'` branches in
+`src/app/pay/[token]/PayView.tsx:605` and `figures.ts:70` are unreachable —
+`/pay/[token]` redirects `kind='quote'` rows to `/e/[token]` — so they still
+say "Quoted total". Change them only if the pay page ever renders a quote
+again.
