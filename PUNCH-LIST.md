@@ -831,3 +831,28 @@ value, every API route, file and component names, migrations, the legacy
 `/pay/[token]` redirects `kind='quote'` rows to `/e/[token]` — so they still
 say "Quoted total". Change them only if the pay page ever renders a quote
 again.
+
+**Estimate send = link only (branch `claude/estimate-send-fix-99dfd0`).** Status:
+**Built — typecheck, 600 unit tests and build pass; preview unverified.**
+- Chat send of an estimate no longer renders, stores or shares a PDF: `finalize()`
+  in `src/components/tabs/ChatView.tsx` branches before the PDF build, calls
+  `POST /api/estimates/[id]/send` (so `valid_until` is filled, which the old
+  `/api/invoices/[id]/send` call never did) and shows the `/e/<token>` link with
+  Copy link / Share (`src/components/estimates/EstimateLinkActions.tsx`) in the
+  confirmation and on the locked card. No Vault archive row is written for an
+  estimate any more. Invoice PDF behaviour is untouched.
+- Sent copy says "hasn't responded" for estimates; the payments tip card shows
+  only after an invoice send; the sent card says "Valid until" (list tag too:
+  `VALID UNTIL OCT 16` via `tagFor`). Composer template chip/aria say "estimate".
+- Share thumbnail: `/e/[token]` now has `generateMetadata` (Open Graph/Twitter) and
+  `opengraph-image.tsx` (business name only, no amounts or client data).
+- Double-submit: `finalize()` (chat) and the invoice detail share tap now use a
+  synchronous ref guard; `EstimateDetail.send` too. The old guard read React state
+  (`phase` / `busy`), which lags a render, so two taps in one frame both passed.
+  Root cause of the E-0018/E-0019 pair is NOT proven: a same-conversation repeat
+  would hit the `finalize_key` unique index, so two rows imply two conversation
+  ids (e.g. a restored/reopened chat or template that minted a new id). The guard
+  closes the tap race; it cannot explain a two-conversation duplicate.
+- Still open: `lint` is not configured (`next lint` prompts for an ESLint setup),
+  so it was not run; dead `kind==='quote'` branches remain in
+  `invoices/[id]/page.tsx` and the PDF template (`QUOTE_PAY_NOTE`).
