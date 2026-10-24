@@ -14,7 +14,7 @@ test('clientStatus: overdue beats open beats quotes out', () => {
   assert.deepEqual(clientStatus({ ...base, doc_count: 2, overdue_count: 1, overdue_balance: 2150, open_count: 2, open_balance: 2460 }),
     { text: '1 overdue · $2,150.00', tone: 'overdue' });
   assert.equal(clientStatus({ ...base, doc_count: 1, open_count: 1, open_balance: 1280 }).text, '1 open · $1,280.00');
-  assert.equal(clientStatus({ ...base, doc_count: 1, quotes_out: 1 }).text, '1 quote out');
+  assert.equal(clientStatus({ ...base, doc_count: 1, quotes_out: 1 }).text, '1 estimate out');
   assert.equal(clientStatus({ ...base, doc_count: 3 }).text, 'Paid up');
   assert.equal(clientStatus(base).text, 'No invoices yet');
 });
@@ -45,5 +45,5 @@ test('usageNote', () => {
   assert.equal(usageNote('Mike', 0, 0), null);
   assert.equal(usageNote('Mike', 1, 0), 'Mike is on 1 invoice already. It will link to this client.');
   assert.equal(usageNote('Mike', 2, 0), 'Mike is on 2 invoices already. Both will link to this client.');
-  assert.equal(usageNote('Mike', 2, 1), 'Mike is on 2 invoices and 1 quote already. All 3 will link to this client.');
+  assert.equal(usageNote('Mike', 2, 1), 'Mike is on 2 invoices and 1 estimate already. All 3 will link to this client.');
 });
