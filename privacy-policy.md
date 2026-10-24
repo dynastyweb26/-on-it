@@ -43,11 +43,11 @@ Your business name, trade, slogan, website, logo, brand colors, and preferred in
 
 ### Your customers' information
 
-When you create an invoice or quote, or save a client, you enter details about the person or business you are billing: typically a name, and sometimes a phone number, email address, or street address.
+When you create an invoice or estimate, or save a client, you enter details about the person or business you are billing: typically a name, and sometimes a phone number, email address, or street address.
 
 This matters, so we want to be clear: **this information is about your customers, who have no relationship with us.** You are responsible for having the right to enter it. We store it so we can build your invoices and let you reuse saved clients. We never contact your customers for our own purposes, and we never sell, rent, or share their information for marketing.
 
-### Invoices, quotes, and expenses
+### Invoices, estimates, and expenses
 
 Line items, descriptions, quantities, prices, units, tax rates, due dates, deposits, notes, and payment status. Private notes you add to an invoice (for example, a technician's name from a pasted work order) are saved with the invoice but never printed on the PDF or shown on the payment page.
 
@@ -73,7 +73,7 @@ When On It reads a reply out loud, it uses the text-to-speech voices built into 
 
 Receipt photos are sent for AI reading (see Section 4) and then saved in our file storage so you can see them with the expense. Receipt photos and Vault files are private to your account. Documents and photos you add to your records (the Vault) are saved in our file storage. HEIC photos from iPhones are converted to standard images on your device before upload.
 
-You can add up to six images to an invoice or quote. They are stored in private file storage, shown in the app, and printed on the PDF you generate. They are not sent to AI and are not shown on the payment page. If you share the PDF, whoever receives it can see those images.
+You can add up to six images to an invoice or estimate. They are stored in private file storage, shown in the app, and printed on the PDF you generate. They are not sent to AI and are not shown on the payment page. If you share the PDF, whoever receives it can see those images.
 
 ### Notes you paste
 
@@ -118,7 +118,7 @@ If you add a Zelle phone number or email, a Venmo username, a PayPal.me username
 If you choose to accept bank transfers, you can add your bank details: the account holder name, bank name, routing number, account number, and account type (checking or savings). Here is exactly how we handle them:
 
 - **Your account number is stored encrypted**, and only our server can decrypt it. We keep its last four digits unencrypted so Settings can show which account is on file. The holder name, bank name, routing number (a public number that identifies your bank), and account type are stored with the rest of your business profile.
-- **They are shown on the payment page of invoices you have sent that are still unpaid**, with copy buttons, so your customer can send a transfer from their own bank. They never show on drafts or quotes.
+- **They are shown on the payment page of invoices you have sent that are still unpaid**, with copy buttons, so your customer can send a transfer from their own bank. They never show on drafts or estimates.
 - **They are never printed on your invoice PDFs.** The PDF links to the payment page instead.
 - **They stop showing once an invoice is paid in full.**
 - **On It does not connect to your bank**, verify that the account is yours, start transfers, or see when a transfer arrives. You confirm the money landed in your bank and mark the invoice paid yourself.
@@ -135,7 +135,7 @@ Account and routing numbers are the same details printed on every check you writ
 
 ## 4. Artificial intelligence
 
-On It uses artificial intelligence to understand what you type, say, paste, or photograph and turn it into a structured invoice, quote, or expense record. The replies On It sends you in the chat are written by AI, not by a person.
+On It uses artificial intelligence to understand what you type, say, paste, or photograph and turn it into a structured invoice, estimate, or expense record. The replies On It sends you in the chat are written by AI, not by a person.
 
 ### What is sent to AI providers
 
@@ -153,7 +153,7 @@ On It uses artificial intelligence to understand what you type, say, paste, or p
 - **We do not use your data, or your customers' data, to train AI models.**
 - AI does not make decisions about you that have legal or similarly significant effects. It drafts records. You decide what is saved and what is sent.
 - AI does not decide whether an expense is tax deductible.
-- AI does not read the images you attach to an invoice or quote. They are only printed on your PDF.
+- AI does not read the images you attach to an invoice or estimate. They are only printed on your PDF.
 
 ### AI makes mistakes
 
@@ -207,8 +207,8 @@ On It asks for permission before using your **microphone** (for voice input) or 
 
 We use your information to:
 
-- Build, format, and store your invoices, quotes, expenses, and records
-- Print the images you attach to an invoice or quote on the PDF you generate
+- Build, format, and store your invoices, estimates, expenses, and records
+- Print the images you attach to an invoice or estimate on the PDF you generate
 - Show your payment page and the payment methods you have turned on
 - Record payments, refunds, and disputes, including those Stripe reports to us
 - Calculate your income and expense summaries and recaps
@@ -249,11 +249,11 @@ If On It or Dynasty Web is sold, merged, or transferred, your information may tr
 
 We keep your account and records for as long as your account is open.
 
-**Deleting an item in the app.** When you delete an invoice, quote, or expense, it disappears from your app right away, but it is kept in our database until you delete your account, so your invoice numbering and payment history stay consistent. Saved clients, products, and recurring expenses you delete work the same way, and receipt photos, invoice attachment images, and other files stay in storage too. If you want any of these removed from our systems before you delete your account, email us and we will remove them.
+**Deleting an item in the app.** When you delete an invoice, estimate, or expense, it disappears from your app right away, but it is kept in our database until you delete your account, so your invoice numbering and payment history stay consistent. Saved clients, products, and recurring expenses you delete work the same way, and receipt photos, invoice attachment images, and other files stay in storage too. If you want any of these removed from our systems before you delete your account, email us and we will remove them.
 
 **Deleting your account.** You can delete your account yourself: **Settings, then Delete account.** It takes effect immediately and cancels any active subscription. If you cannot get into the app, email brandon@dynastyweb.co and we will do it for you within 30 days.
 
-When your account is deleted, we remove your profile, customers, invoices, quotes, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files, receipts, invoice attachment images, logo, and stored payment details including your Zelle handle and bank details.
+When your account is deleted, we remove your profile, customers, invoices, estimates, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files, receipts, invoice attachment images, logo, and stored payment details including your Zelle handle and bank details.
 
 Some information is kept after deletion:
 
