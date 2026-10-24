@@ -109,6 +109,6 @@ export function saveTemplateRow(uid: string | null, row: TemplateRow): void {
  *  only when it has a client or a named item; null = nothing worth keeping. */
 export function unfinishedTitle(t: Pick<StoredTemplate, 'kind' | 'client' | 'items'>): string | null {
   if (!t.client && !t.items.some((x) => x.name.trim())) return null;
-  const noun = t.kind === 'quote' ? 'quote' : 'invoice';
+  const noun = t.kind === 'quote' ? 'estimate' : 'invoice';
   return t.client ? `You have an unfinished ${noun} for ${t.client.name}` : `You have an unfinished ${noun}`;
 }

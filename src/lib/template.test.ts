@@ -35,8 +35,8 @@ test('all-hidden unsaved clients leave the visible history section empty', () =>
 
 test('clientDocsLine', () => {
   assert.equal(clientDocsLine({ invoice_count: 4, quote_count: 0 }), '4 invoices');
-  assert.equal(clientDocsLine({ invoice_count: 0, quote_count: 1 }), '1 quote');
-  assert.equal(clientDocsLine({ invoice_count: 2, quote_count: 1 }), '2 invoices · 1 quote');
+  assert.equal(clientDocsLine({ invoice_count: 0, quote_count: 1 }), '1 estimate');
+  assert.equal(clientDocsLine({ invoice_count: 2, quote_count: 1 }), '2 invoices · 1 estimate');
   assert.equal(clientDocsLine({ invoice_count: 0, quote_count: 0 }), 'No invoices yet');
 });
 

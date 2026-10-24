@@ -73,7 +73,7 @@ export function splitClientHistory<T extends { last_used_at: string | null }>(
 export function clientDocsLine(c: Pick<ClientSummary, 'invoice_count' | 'quote_count'>): string {
   const parts = [
     c.invoice_count ? `${c.invoice_count} ${c.invoice_count === 1 ? 'invoice' : 'invoices'}` : '',
-    c.quote_count ? `${c.quote_count} ${c.quote_count === 1 ? 'quote' : 'quotes'}` : '',
+    c.quote_count ? `${c.quote_count} ${c.quote_count === 1 ? 'estimate' : 'estimates'}` : '',
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'No invoices yet';
 }
