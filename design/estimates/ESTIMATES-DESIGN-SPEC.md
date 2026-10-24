@@ -40,7 +40,7 @@ Mobile column: `max-width 440`, centered, padding 20. On desktop the same column
 6. **Notes & terms card**: `NOTES & TERMS`, text with preserved line breaks, clamped to 4 lines, button `Read more` / `Show less`. (Hide the card when notes are empty.)
 7. **Signature card** (depends on status, see 2.2).
 8. **Footer**: `Sent with On It`, then `Privacy · Terms` links.
-9. **Sticky bar** (pending only, after the hero scrolls out of view, hidden while a sheet or the viewer is open): `ESTIMATE TOTAL` + total on the left, `Review & sign` button on the right. Slides up/down.
+9. **Sticky bar** (pending only, on screen from the first paint — not gated on scroll; hidden while a sheet or the viewer is open): `ESTIMATE TOTAL` + total on the left, `Review & sign` button on the right. Slides up/down, respects the iOS safe-area inset, and the page reserves bottom padding for it so it never covers the last content.
 
 ### 2.2 Signature card by status
 
@@ -140,6 +140,6 @@ Also required for every object M3 adds: a row in `scripts/privilege-check.mjs` a
 
 ## 7. Acceptance (the design's own frames)
 
-Client page: 01 pending default; 01b sticky bar after hero; 02 items expanded (24 items); 03a sign sheet draw empty; 03b draw signed valid; 04 type tab; 05a submitting; 05b success; 06 approved revisit; 07 expired read-only; 08 canceled/unavailable; 09 no logo, no brand color fallback; 10 owner preview; 11 attachments photos+docs; 12 full-screen viewer; 13 10+ attachments expanded; 14 attachment failed to load with inline retry; 15 zero attachments (section hidden).
+Client page: 01 pending default; 01b sticky bar on load; 02 items expanded (24 items); 03a sign sheet draw empty; 03b draw signed valid; 04 type tab; 05a submitting; 05b success; 06 approved revisit; 07 expired read-only; 08 canceled/unavailable; 09 no logo, no brand color fallback; 10 owner preview; 11 attachments photos+docs; 12 full-screen viewer; 13 10+ attachments expanded; 14 attachment failed to load with inline retry; 15 zero attachments (section hidden).
 Owner: E1 draft; E2 add attachment sheet; E3 uploading; E4 upload failed; E5 10 of 10 max; E6 sent; E7 approved/locked.
 Done means each frame can be reproduced with real data on the preview, on a 390px screen, with no PDF anywhere and no visible "Quote" anywhere.

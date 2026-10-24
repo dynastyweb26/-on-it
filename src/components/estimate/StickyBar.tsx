@@ -1,7 +1,7 @@
 'use client';
 
-// Sticky bar (design spec §2.1.9): pending only, slides in once the hero has
-// scrolled out of view, hidden while a sheet or the viewer is open.
+// Sticky bar (design spec §2.1.9): pending only, on screen from first paint —
+// not gated on scroll — and hidden while a sheet or the viewer is open.
 import { money } from '@/lib/financials';
 import s from './estimate.module.css';
 
