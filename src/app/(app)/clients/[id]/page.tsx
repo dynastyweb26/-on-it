@@ -148,7 +148,7 @@ export default function ClientDetail() {
       </div>
 
       <div className="mt-6 flex items-baseline justify-between px-1">
-        <h2 className="font-display text-lg font-bold text-on-background">Invoices &amp; quotes</h2>
+        <h2 className="font-display text-lg font-bold text-on-background">Invoices &amp; estimates</h2>
         <span className="text-[14px] text-on-surface-variant">{docs.length}</span>
       </div>
       {docs.length === 0 ? (

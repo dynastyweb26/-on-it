@@ -88,7 +88,7 @@ export default function OwedSlide({ payload: d, timing, clock, reduced, onAction
         {(vu > 0 || q > 0) && (
           <div ref={linesRef} className="rc-lines">
             {vu > 0 && <div><b>{vu}</b><span>{vu === 1 ? 'client opened their invoice but hasn’t paid yet.' : 'clients opened their invoice but haven’t paid yet.'}</span></div>}
-            {q > 0 && <div><b>{q}</b><span>{q === 1 ? 'quote' : 'quotes'} waiting on an answer.</span></div>}
+            {q > 0 && <div><b>{q}</b><span>{q === 1 ? 'estimate' : 'estimates'} waiting on an answer.</span></div>}
           </div>
         )}
         <div className="rc-spacer" />

@@ -211,7 +211,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
         </span>
         <button type="button" onClick={() => onKindChange(other)}
           className="min-h-[36px] px-1.5 text-[13.5px] font-bold text-primary active:opacity-60">
-          Make it {other === 'quote' ? 'a quote' : 'an invoice'}
+          Make it {other === 'quote' ? 'an estimate' : 'an invoice'}
         </button>
         <button type="button" aria-label="Close template" onClick={onClose}
           className="ml-auto grid h-8 w-8 place-items-center rounded-full bg-surface-container-high text-on-background active:scale-90">

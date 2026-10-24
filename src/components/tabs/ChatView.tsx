@@ -3340,7 +3340,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
         <div className="flex items-end justify-between pt-1">
           <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
-            {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Quoted total' : 'Total due'}
+            {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Estimate total' : 'Total due'}
           </span>
           <span className="font-display text-numeric-xl tracking-tight text-on-background tabular-nums">
             <CountUpMoney
@@ -3364,13 +3364,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
             <>
               <p className="text-center text-sm text-on-surface-variant">
-                This {docKind(draft) === 'quote' ? 'quote' : 'invoice'} was sent, so it&apos;s locked.
+                This {docKind(draft) === 'quote' ? 'estimate' : 'invoice'} was sent, so it&apos;s locked.
               </p>
               <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                Opens an editable copy as a new {docKind(draft) === 'quote' ? 'quote' : 'invoice'}. The original stays as it was.
+                Opens an editable copy as a new {docKind(draft) === 'quote' ? 'estimate' : 'invoice'}. The original stays as it was.
               </p>
             </>
           ) : (
@@ -3824,7 +3824,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   ink × that ends it. The splash's rings fly onto it on a cold
                   start (components/Splash.tsx measures it at runtime). */}
               <button
-                aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new quote'}
+                aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new estimate'}
                 aria-haspopup={voiceSession ? undefined : 'menu'}
                 aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
                 data-splash-target=""

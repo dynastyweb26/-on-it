@@ -175,7 +175,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   const n = sorted.length;
   const summary = filter === 'open' ? `${n} open · ${money(openOwed)}`
     : filter === 'paid' ? `${n} paid · ${money(sorted.reduce((s, r) => s + Number(r.total), 0))}`
-    : `${n} ${n === 1 ? 'quote' : 'quotes'}`;
+    : `${n} ${n === 1 ? 'estimate' : 'estimates'}`;
 
   // First-run means the account has zero documents of this kind. Otherwise an
   // empty filter means the other filter has items ("all caught up" copy).
@@ -197,7 +197,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:px-8">
       {/* Top segment: invoices or quotes. The filter value decides it. */}
-      <PillTabs label="Invoices or quotes" options={SIDES} value={SIDE_OF[filter]}
+      <PillTabs label="Invoices or estimates" options={SIDES} value={SIDE_OF[filter]}
         onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} />
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
       <div role="tablist" aria-label="Filter" data-coach="invoices-filter" className="mt-4 flex gap-2 overflow-x-auto pb-1">
