@@ -119,6 +119,7 @@ export default function EstimateDetail({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(inv.title ?? '');
   const titleCancelled = useRef(false);
+  const sendingRef = useRef(false);
   const [preview, setPreview] = useState<PublicEstimate | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -213,7 +214,10 @@ export default function EstimateDetail({
   }
 
   async function send() {
-    if (busy) return;
+    // busy is state and lags a render; the ref makes a second tap in the same
+    // frame a no-op so one tap can never send twice.
+    if (busy || sendingRef.current) return;
+    sendingRef.current = true;
     setBusy('send');
     setActionError(null);
     try {
@@ -223,11 +227,12 @@ export default function EstimateDetail({
         return;
       }
       setInv((prev) => ({ ...prev, ...(outcome.estimate as Partial<EstimateDetailRow>) }));
-      // Marking an estimate sent writes status + snapshot only; nothing is
-      // delivered to the client. The toast says exactly that, so the owner
-      // knows the link is theirs to share.
+      // Sending makes the link live and nothing else: there is no PDF and no
+      // message goes out. The toast says so, so the owner knows the link is
+      // theirs to copy or share.
       showToast(`Estimate is live. Copy or share the link with ${clientFirst}.`);
     } finally {
+      sendingRef.current = false;
       setBusy(null);
     }
   }
@@ -479,7 +484,7 @@ export default function EstimateDetail({
           {state === 'draft' && (
             <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void send()}>
               <Icon name="send" size={18} />
-              {busy === 'send' ? 'Saving…' : 'Mark as sent'}
+              {busy === 'send' ? 'Sending…' : 'Send estimate'}
             </button>
           )}
 
@@ -490,15 +495,20 @@ export default function EstimateDetail({
             </button>
           )}
 
-          {(state === 'sent' || state === 'expired') && (
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={tile} onClick={() => void copyLink()} disabled={!publicUrl}>
-                <Icon name="link" size={20} /> Copy link
-              </button>
-              <button type="button" className={tile} onClick={() => void shareLink()} disabled={!publicUrl}>
-                <Icon name="share" size={20} /> Share
-              </button>
-            </div>
+          {(state === 'draft' || state === 'sent' || state === 'expired') && (
+            <>
+              <div className={`grid grid-cols-2 gap-2${state === 'draft' ? ' mt-2' : ''}`}>
+                <button type="button" className={tile} onClick={() => void copyLink()} disabled={!publicUrl || state === 'draft'}>
+                  <Icon name="link" size={20} /> Copy link
+                </button>
+                <button type="button" className={tile} onClick={() => void shareLink()} disabled={!publicUrl || state === 'draft'}>
+                  <Icon name="share" size={20} /> Share
+                </button>
+              </div>
+              {state === 'draft' && (
+                <p className="mt-1.5 text-center text-xs text-on-surface-variant">The link goes live when you send.</p>
+              )}
+            </>
           )}
 
           {state === 'approved' && (
