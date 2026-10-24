@@ -59,7 +59,7 @@ export default function DeleteConfirmModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Delete ${recordType}`}
+        aria-label={`Delete ${label.toLowerCase()}`}
         className="my-auto w-full max-w-sm rounded-card p-6 shadow-card-raised"
         style={{ backgroundColor: '#fff8f0', animation: 'paywall-in 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
@@ -87,7 +87,7 @@ export default function DeleteConfirmModal({
             </>
           ) : (
             <>
-              Are you sure you want to delete this {recordType}? It will be removed from your list and Books totals.
+              Are you sure you want to delete this {label.toLowerCase()}? It will be removed from your list and Books totals.
             </>
           )}
         </p>
