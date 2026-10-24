@@ -112,3 +112,12 @@ test('a missing invoice is refused', () => {
     reason: 'not_found',
   });
 });
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+test('UUID validation rejects malformed invoice ids to prevent unexpected DB errors', () => {
+  assert.equal(UUID_RE.test('1f58b401-e1b1-41e9-b11f-df5530872007'), true);
+  assert.equal(UUID_RE.test('not-a-uuid'), false);
+  assert.equal(UUID_RE.test("123'; DROP TABLE invoices; --"), false);
+  assert.equal(UUID_RE.test(''), false);
+});
