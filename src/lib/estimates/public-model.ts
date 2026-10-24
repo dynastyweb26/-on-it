@@ -57,6 +57,8 @@ export type PublicModelInput = {
   /** A non-deleted invoice exists with converted_from = invoice.id. */
   converted: boolean;
   contentHash: string;
+  /** The send-time snapshot (or, for an owner preview of a draft, the current terms). */
+  terms?: string | null;
   now: Date;
   /** Owner preview: a draft renders as pending (the sign RPC still refuses it). */
   preview?: boolean;
@@ -132,6 +134,7 @@ export function toPublicEstimate(input: PublicModelInput): PublicEstimateResult 
     taxAmount: num(invoice.tax_amount),
     total: num(invoice.total),
     notes: text(invoice.notes),
+    terms: text(input.terms),
     validUntil: invoice.valid_until,
     daysRemaining:
       state === 'approved'

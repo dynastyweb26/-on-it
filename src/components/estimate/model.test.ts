@@ -53,6 +53,7 @@ const payload = (over: Partial<PublicEstimate> = {}): PublicEstimate => ({
   taxAmount: 24.75,
   total: 324.75,
   notes: null,
+  terms: null,
   validUntil: '2026-11-18',
   daysRemaining: 26,
   attachments: [],
