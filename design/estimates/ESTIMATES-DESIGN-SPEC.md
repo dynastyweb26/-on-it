@@ -89,11 +89,11 @@ Status chip (Draft `edit`, Sent `fiber_manual_record`, Approved `verified`) on t
 
 ### 3.2 Actions per state
 
-- **Draft**: primary `Send estimate` (send icon), secondary `Preview as client` (eye). No Convert.
-- **Sent**: 3 tiles: `Copy link` (toast `Link copied`), `Share` (native share sheet with the link), `Request signature` (resend; toast `Signature request resent to {first name}`); then `Preview as client`. No Convert.
+- **Draft**: primary `Mark as sent` (send icon), secondary `Preview as client` (eye). No Convert. **Label changed 2026-10-24** (was `Send estimate`, busy label now `Saving…`): sending only flips the status to sent — no email, SMS or push provider is called, and there is no `client_email` column to deliver to — so the button names what it does instead of implying a delivery.
+- **Sent**: 2 tiles: `Copy link` (toast `Link copied`), `Share` (native share sheet with the link); then `Preview as client`. No Convert. **`Request signature` removed 2026-10-24:** it only wrote `status`/`sent_at` and toasted `Signature request resent to {first name}` while calling no email, SMS or push provider, so the client was never contacted. There is no `client_email` column to deliver to, so the tile was dropped rather than built on a channel that does not exist. If delivery is added later (column + Resend template + rate limit), restore it as a real resend.
 - **Approved**: primary `Convert to Invoice` (autorenew icon; toast uses the real new invoice number); tiles `Copy link`, `Share`, `Preview as client`. A **Signed** card appears under the top card: green verified icon, `SIGNED`, signature box (drawn image or typed name), rows `Signer`, `Signed` (`Oct 22, 2026 · 10:42 PM`), `Method` (`Drawn, from estimate link` or `Typed, from estimate link`).
-- After sending: toast `Estimate sent to {first name}`.
-- Everything that today produces a PDF for an estimate is removed. Wire Send to `POST /api/estimates/[id]/send`, preview to `.../preview`, resend to the same send route. Never call `/api/invoices/[id]/send` for estimates.
+- After sending: toast `Estimate is live. Copy or share the link with {first name}.` — sending marks the estimate sent and mints nothing to deliver, so the copy tells the owner the link is theirs to share (changed 2026-10-24 with the `Request signature` removal).
+- Everything that today produces a PDF for an estimate is removed. Wire Send to `POST /api/estimates/[id]/send`, preview to `.../preview`. Never call `/api/invoices/[id]/send` for estimates.
 
 ### 3.3 Line items card
 

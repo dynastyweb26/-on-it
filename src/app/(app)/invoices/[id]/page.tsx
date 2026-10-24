@@ -13,26 +13,25 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
 import type { BrandTheme } from '@/lib/colors';
-import { defaultDueDate, formatDate } from '@/lib/dates';
+import { formatDate } from '@/lib/dates';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
 import { invoiceStatusLabel, ledgerEntryLabel } from '@/lib/payment-methods';
-import PaywallModal from '@/components/PaywallModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
 import {
-  ATTACHMENT_LOAD_ERROR, copyAttachments, deleteAttachment, listAttachmentRows,
+  ATTACHMENT_LOAD_ERROR, deleteAttachment, listAttachmentRows,
   loadAttachmentItems, materializeAttachments, renumberAttachments, toPdfAttachments,
 } from '@/lib/attachments-client';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
-import ConvertQuoteBar from '@/components/invoice-detail/ConvertQuoteBar';
+import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
 import type { RecordPaymentInput } from '@/lib/record-payment';
 
 const money = (n: number) =>
@@ -111,8 +110,6 @@ export default function InvoiceDetail() {
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [zelle, setZelle] = useState<string | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false); // free cap hit on convert
-  const [converting, setConverting] = useState(false);
   // If this is a quote that was already converted, the invoice it became — so we
   // show a link to it instead of a convert button that would mint a second one.
   const [convertedTo, setConvertedTo] = useState<{ id: string; invoice_number: number } | null>(null);
@@ -159,10 +156,6 @@ export default function InvoiceDetail() {
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
   const [undoDelete, setUndoDelete] = useState(false);
-  // Quote signed state (manual Mark as signed, no signature capture).
-  const [signing, setSigning] = useState(false);
-  const [signError, setSignError] = useState<string | null>(null);
-  const [undoSigned, setUndoSigned] = useState(false);
   // Attachments for THIS invoice — thumbnails in the strip under the preview,
   // and the images the PDFs print 2-per-page after the body. Loaded from
   // invoice_attachments; edited here only while the document is a draft.
@@ -223,6 +216,18 @@ export default function InvoiceDetail() {
   }, [id]);
 
   if (!inv || !profile) return <InvoiceDetailSkeleton />;
+
+  // Estimates have their own screen (design/estimates/ESTIMATES-DESIGN-SPEC.md
+  // §3). Invoices never enter it.
+  if (inv.kind === 'quote') {
+    return (
+      <EstimateDetail
+        estimate={inv as EstimateDetailRow}
+        profile={profile}
+        convertedToId={convertedTo?.id ?? null}
+      />
+    );
+  }
 
   // Per-ROW snapshot sentinel: a non-null snapshot template means this invoice was
   // finalized WITH the render snapshot, so use the snapshot for ALL ten fields —
@@ -574,51 +579,6 @@ export default function InvoiceDetail() {
     }
   }
 
-  async function convertToInvoice() {
-    // Quote → Invoice: one tap, a fresh INVOICE number assigned server-side, the
-    // quote preserved as its own record and linked via converted_from. The
-    // invoice_number is set by the assign_document_number trigger (NOT sent from
-    // here), so the invoice sequence only advances now — at conversion — and the
-    // quote never left a gap in it. This insert goes through the same cap trigger,
-    // so a free user at the limit is stopped here too, with the paywall modal.
-    if (converting || convertedTo) return;
-    setConverting(true);
-    setPdfError(null);
-    try {
-      const { data: created, error } = await supabase.from('invoices').insert({
-        user_id: inv.user_id, client_id: inv.client_id, kind: 'invoice',
-        client_name: inv.client_name,
-        // Carry the contact snapshot forward so the invoice bills the same person.
-        client_address: inv.client_address ?? null,
-        client_phone: inv.client_phone ?? null,
-        line_items: inv.line_items, subtotal: inv.subtotal, tax_rate: inv.tax_rate,
-        tax_amount: inv.tax_amount, total: inv.total, notes: inv.notes,
-        status: 'draft', converted_from: inv.id,
-        due_date: defaultDueDate(), // every new invoice gets the +30 default
-      }).select('id').single();
-      if (error) {
-        if (error.hint === 'PAYWALL_LIMIT') { setShowPaywall(true); return; }
-        console.error('convert to invoice failed', error);
-        return;
-      }
-      if (created) {
-        // D4: the new invoice carries the quote's pictures (files duplicated into
-        // the invoice's own folder + fresh rows). If a copy fails, undo the
-        // conversion — nothing half-made lingers and a retry starts clean. The
-        // quote's own rows and files are only read, never written.
-        const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
-        if (!copy.ok) {
-          await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
-          setPdfError("Couldn't copy this quote's pictures, so nothing was converted. Please try again.");
-          return;
-        }
-        router.push(`/invoices/${created.id}`);
-      }
-    } finally {
-      setConverting(false);
-    }
-  }
-
   // Apply a line-item edit (description, qty, or unit_price) on a DRAFT. Writes
   // line_items back (allowed while draft by the lock_line_items carve-out in
   // 20260826232448) with subtotal/tax_amount/total recomputed atomically from the
@@ -702,12 +662,6 @@ export default function InvoiceDetail() {
   }
 
   const isDraft = inv.status === 'draft';
-  // A quote's signed stamp is manual and nullable; converting an unsigned quote
-  // stays allowed. Sending is what locks the document, not signing.
-  const isQuote = inv.kind === 'quote';
-  const signedAt = isQuote ? (inv.approved_at as string | null) : null;
-  const isSigned = Boolean(signedAt);
-  const canSign = isQuote && inv.status === 'sent' && !signedAt && !convertedTo;
 
   // ── Receipt header (invoice detail redesign) ──
   // Display-only reads of the financial engine's output; the money math itself
@@ -719,9 +673,7 @@ export default function InvoiceDetail() {
   const partiallyPaid = inv.kind === 'invoice' && amountPaid > 0 && !fullyPaid && totals.total > 0;
   const paidPct = totals.total > 0 ? Math.min(100, Math.max(0, Math.round((amountPaid / totals.total) * 100))) : 0;
   const statusLabel = invoiceStatusLabel(inv.status, inv.refunded_amount, inv.amount_paid);
-  const chipLabel = isSigned
-    ? 'Signed'
-    : fullyPaid
+  const chipLabel = fullyPaid
     ? 'Paid'
     : inv.status === 'overdue'
       ? 'Overdue'
@@ -734,9 +686,7 @@ export default function InvoiceDetail() {
             : statusLabel === 'sent'
               ? 'Sent · Unpaid'
               : statusLabel;
-  const chipClass = isSigned
-    ? 'bg-paid-container text-paid'
-    : fullyPaid
+  const chipClass = fullyPaid
     ? 'bg-paid-container text-paid'
     : inv.status === 'overdue'
       ? 'bg-error-container text-error'
@@ -803,9 +753,6 @@ export default function InvoiceDetail() {
 
   // The sticky bar exists only while an invoice still has a balance to collect.
   const showPayBar = inv.kind === 'invoice' && totals.balanceRemaining > 0;
-  // A signed quote promotes Convert to a gold floating bar; an unsigned one
-  // keeps the outlined chip in the card. A converted quote shows the link only.
-  const showConvertBar = isQuote && isSigned && !convertedTo;
 
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
@@ -827,45 +774,15 @@ export default function InvoiceDetail() {
     }
   }
 
-  async function markSigned() {
-    if (signing || !canSign) return;
-    setSigning(true);
-    setSignError(null);
-    const approvedAt = new Date().toISOString();
-    const { error } = await supabase.from('invoices').update({ approved_at: approvedAt }).eq('id', id);
-    setSigning(false);
-    if (error) {
-      console.error('mark as signed failed', error);
-      setSignError("Couldn't mark this quote as signed. Please try again.");
-      return;
-    }
-    setInv((p: any) => ({ ...p, approved_at: approvedAt }));
-    setUndoSigned(true);
-  }
-
-  async function undoMarkSigned() {
-    setUndoSigned(false);
-    setSignError(null);
-    const { error } = await supabase.from('invoices').update({ approved_at: null }).eq('id', id);
-    if (error) {
-      console.error('undo mark as signed failed', error);
-      setSignError("Couldn't undo that. Please try again.");
-      return;
-    }
-    setInv((p: any) => ({ ...p, approved_at: null }));
-  }
-
   return (
-    <div className={`px-4 py-4${showPayBar || showConvertBar ? ' pb-28' : ''}`}>
+    <div className={`px-4 py-4${showPayBar ? ' pb-28' : ''}`}>
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 
         {/* Receipt top: status chip + doc number, then who and what. */}
         <div className="flex items-center justify-between gap-2">
           <span className={`status-chip ${chipClass}`}>
-            {isSigned
-              ? <Icon name="verified" size={14} />
-              : <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
             {chipLabel}
           </span>
           <span className="font-mono text-xs font-semibold tracking-wide text-on-surface-variant">
@@ -878,7 +795,7 @@ export default function InvoiceDetail() {
         <div className="mt-0.5 text-sm text-on-surface-variant">
           {docNoun(inv.kind)} ·{' '}
           <span className={`inline-block${paidAnim ? ' onit-paid-word' : ''}${fullyPaid ? ' font-semibold text-paid' : ''}`}>
-            {isSigned ? `Signed ${formatDate(signedAt)}` : statusLabel}
+            {statusLabel}
           </span>
         </div>
         {/* First qualifying client view (mark_invoice_viewed), in local time. */}
@@ -984,24 +901,6 @@ export default function InvoiceDetail() {
               <Icon name="send" size={18} /> {shareLabel('Request balance')}
             </button>
           )}
-          {canSign && (
-            <button className="chip flex items-center gap-1.5 border-paid text-paid"
-              disabled={signing} onClick={() => void markSigned()}>
-              <Icon name="verified" size={18} /> {signing ? 'Saving…' : 'Mark as signed'}
-            </button>
-          )}
-          {isQuote && !convertedTo && !isSigned && (
-            <button className="chip flex items-center gap-1.5 border-primary text-primary"
-              disabled={converting} onClick={convertToInvoice}>
-              <Icon name="sync" size={18} /> {converting ? 'Converting…' : 'Convert to Invoice'}
-            </button>
-          )}
-          {inv.kind === 'quote' && convertedTo && (
-            <button className="chip flex items-center gap-1.5 border-paid text-paid"
-              onClick={() => router.push(`/invoices/${convertedTo.id}`)}>
-              <Icon name="check_circle" size={18} /> Converted to {formatDocNumber('invoice', convertedTo.invoice_number)}
-            </button>
-          )}
           {inv.kind === 'invoice' && convertedFrom && (
             <button className="chip flex items-center gap-1.5"
               onClick={() => router.push(`/invoices/${convertedFrom.id}`)}>
@@ -1011,7 +910,6 @@ export default function InvoiceDetail() {
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
-        {signError && <div className="mt-2 text-xs font-semibold text-error">{signError}</div>}
       </div>
       {payments.length > 0 && (
         <div className="card mb-4">
@@ -1215,9 +1113,6 @@ export default function InvoiceDetail() {
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
       )}
-      {showConvertBar && (
-        <ConvertQuoteBar converting={converting} onConvert={() => void convertToInvoice()} />
-      )}
       {paySheetOpen && (
         <RecordPaymentSheet
           clientName={inv.client_name}
@@ -1227,8 +1122,6 @@ export default function InvoiceDetail() {
           onSave={recordPayment}
         />
       )}
-
-      {showPaywall && <PaywallModal returnTo="invoices" onClose={() => setShowPaywall(false)} />}
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}
@@ -1248,13 +1141,6 @@ export default function InvoiceDetail() {
             setUndoDelete(false);
             router.push('/invoices');
           }}
-        />
-      )}
-      {undoSigned && (
-        <UndoToast
-          message="Quote marked as signed."
-          onUndo={() => void undoMarkSigned()}
-          onDismiss={() => setUndoSigned(false)}
         />
       )}
     </div>
