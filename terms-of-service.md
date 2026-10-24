@@ -8,7 +8,7 @@ These terms are the agreement between you and Brandon Fotsing Talla, doing busin
 
 ## 1. What On It is
 
-On It is an invoicing and bookkeeping app for tradespeople and home service businesses. You can create invoices and quotes by typing, talking, or pasting job notes; send them to your customers; show your customers how to pay you; log expenses by typing, talking, or photographing receipts; track payments; and see summaries of your income and expenses.
+On It is an invoicing and bookkeeping app for tradespeople and home service businesses. You can create invoices and estimates by typing, talking, or pasting job notes; send them to your customers; show your customers how to pay you; log expenses by typing, talking, or photographing receipts; track payments; and see summaries of your income and expenses.
 
 **On It is a software tool. It is not a bank, payment processor, money transmitter, lender, collection agency, accountant, or law firm.** We never hold, receive, or move your money or your customers' money.
 
@@ -32,7 +32,7 @@ You are responsible for everything that happens under your account.
 
 ## 3. Subscription and billing
 
-**Free tier.** You can create up to 3 invoices and log up to 5 expenses without paying. Quotes do not count toward the limit. Deleting an invoice or expense does not free up a spot. Recurring expenses that log automatically count toward the expense limit. Some features, such as reports and recaps, are only available with a subscription.
+**Free tier.** You can create up to 3 invoices and log up to 5 expenses without paying. Estimates do not count toward the limit. Deleting an invoice or expense does not free up a spot. Recurring expenses that log automatically count toward the expense limit. Some features, such as reports and recaps, are only available with a subscription.
 
 **Pro subscription.** $9.99 per month, plus any applicable tax, with a 14-day free trial for first-time subscribers.
 
@@ -122,11 +122,11 @@ You decide what goes into On It and what gets sent. We process your customers' i
 
 ## 6. AI features
 
-On It uses artificial intelligence to turn what you type, say, paste, or photograph into invoices, quotes, and expense records, and to write the replies you see in the chat. Speech is transcribed by AssemblyAI. Messages, pasted notes, and receipt photos are interpreted by Anthropic's Claude models. Invoice and quote attachments are not sent to AI; they are only printed on your PDF. **The replies in the chat come from AI, not a person.**
+On It uses artificial intelligence to turn what you type, say, paste, or photograph into invoices, estimates, and expense records, and to write the replies you see in the chat. Speech is transcribed by AssemblyAI. Messages, pasted notes, and receipt photos are interpreted by Anthropic's Claude models. Invoice and estimate attachments are not sent to AI; they are only printed on your PDF. **The replies in the chat come from AI, not a person.**
 
 **AI makes mistakes.** It can mishear an amount, misread a receipt, copy a line wrong, put a description next to the wrong price, get a name wrong, or misunderstand what you meant.
 
-**You must review every invoice, quote, and expense before you save or send it.** You are solely responsible for what your invoices say: the amounts, the descriptions, the taxes, and the recipient. We are not responsible for errors in AI-generated content or for the results of sending a document you did not check.
+**You must review every invoice, estimate, and expense before you save or send it.** You are solely responsible for what your invoices say: the amounts, the descriptions, the taxes, and the recipient. We are not responsible for errors in AI-generated content or for the results of sending a document you did not check.
 
 Do not use the AI features to create anything illegal, deceptive, or harmful, or try to make them ignore their instructions.
 

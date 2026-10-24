@@ -818,8 +818,9 @@ draft quote — the estimate detail screen does not.
 
 **Session 5 — copy and chat rename (spec §5).** Branch
 `feat/estimates-copy-session-5`. Scope: every visible "Quote" wording becomes
-"Estimate" (list + filters, paywall, delete confirm, detail page, template
-summary, PDFs, notifications), `docPrefix()` returns `E` so no `Q-` is ever
+"Estimate" (list + filters, paywall, delete confirm, detail page, chat draft
+card, client status lines, template summary, PDFs, notifications, and the
+rendered Terms and Privacy pages), `docPrefix()` returns `E` so no `Q-` is ever
 shown, and chat/voice speak "estimate" while still accepting quote / quotes /
 bid / proposal as synonyms. Unchanged by design: the `kind='quote'` database
 value, every API route, file and component names, migrations, the legacy
