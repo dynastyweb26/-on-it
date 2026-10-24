@@ -26,11 +26,30 @@ import { estimateFontClassName } from './fonts';
 
 export const dynamic = 'force-dynamic'; // per-request: headers, session, live data
 
-export const metadata: Metadata = {
-  title: 'Your estimate — On It',
-  // Bearer-token links must never be indexed (same rule as /pay).
-  robots: { index: false, follow: false },
-};
+// The link IS the delivery (no PDF is attached), so the preview a messaging app
+// unfurls from it is the thumbnail the client sees: title + the sibling
+// opengraph-image. Neither carries amounts or line items. Bearer-token links must
+// never be indexed (same rule as /pay).
+export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
+  let business: string | null = null;
+  try {
+    const result = await loadPublicEstimate(params.token);
+    if (result.state !== 'unavailable') business = result.business.name?.trim() || null;
+  } catch { /* fall back to the generic title */ }
+  const h = await headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  const proto = h.get('x-forwarded-proto') ?? 'https';
+  const title = business ? `Estimate from ${business}` : 'Your estimate — On It';
+  const description = 'Review your estimate and approve it online.';
+  return {
+    ...(host ? { metadataBase: new URL(`${proto}://${host}`) } : {}),
+    title,
+    description,
+    robots: { index: false, follow: false },
+    openGraph: { title, description, type: 'website' },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
 
 export default async function EstimatePage({
   params,
