@@ -31,7 +31,7 @@ type Filter = 'open' | 'paid' | 'pending' | 'signed';
 
 const SIDES: readonly { value: Side; label: string }[] = [
   { value: 'invoices', label: 'Invoices' },
-  { value: 'quotes', label: 'Quotes' },
+  { value: 'quotes', label: 'Estimates' },
 ];
 const FILTERS: Record<Side, readonly Filter[]> = {
   invoices: ['open', 'paid'],
@@ -59,14 +59,14 @@ type EmptyCopy = { icon: IconName; title: string; body: string };
 // Zero documents of this kind. Never "all caught up": there is nothing yet.
 const FIRST_RUN: Record<Side, EmptyCopy> = {
   invoices: { icon: 'receipt_long', title: 'No invoices yet', body: 'Tell On It about a job in Chat and it shows up here.' },
-  quotes: { icon: 'request_quote', title: 'No quotes yet', body: 'Tell On It about a job in Chat and it shows up here.' },
+  quotes: { icon: 'request_quote', title: 'No estimates yet', body: 'Tell On It about a job in Chat and it shows up here.' },
 };
 // This filter is empty but the other one has items.
 const FILTERED_EMPTY: Record<Filter, EmptyCopy> = {
   open: { icon: 'check_circle', title: 'Nothing open', body: "You're all caught up." },
   paid: { icon: 'check_circle', title: 'No paid invoices yet', body: 'Invoices move here once you record a payment.' },
-  pending: { icon: 'hourglass_empty', title: 'No pending quotes', body: 'Send a quote and it waits here until you mark it signed.' },
-  signed: { icon: 'verified', title: 'No signed quotes yet', body: 'Signed and converted quotes land here.' },
+  pending: { icon: 'hourglass_empty', title: 'No pending estimates', body: 'Send an estimate and it waits here until you mark it signed.' },
+  signed: { icon: 'verified', title: 'No signed estimates yet', body: 'Signed and converted estimates land here.' },
 };
 
 export default function Invoices({ active = true }: { active?: boolean }) {

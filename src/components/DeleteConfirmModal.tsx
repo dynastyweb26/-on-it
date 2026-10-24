@@ -30,7 +30,7 @@ export default function DeleteConfirmModal({
   const requiresTypedConfirm = (recordType === 'invoice' || recordType === 'quote') && isSentOrPaid;
 
   const canConfirm = !requiresTypedConfirm || typedConfirm.trim().toUpperCase() === 'DELETE';
-  const label = recordType === 'quote' ? 'Quote'
+  const label = recordType === 'quote' ? 'Estimate'
     : recordType === 'invoice' ? 'Invoice'
     : recordType === 'client' ? 'Client'
     : 'Expense';

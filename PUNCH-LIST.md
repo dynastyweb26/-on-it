@@ -784,24 +784,25 @@ the pre-deck shell and swipe threshold. Motion spec: `MOTION-SPEC.md` §17._
 
 _An estimate is an `invoices` row with `kind='quote'`; there is no separate
 table. Approved = `approved_at IS NOT NULL`; converted = a non-deleted invoice
-with `converted_from` set. No new status value. **Branches below exist only on `feat/estimates-data-layer`.** M1 and M2 are
-**applied to the estimates test DB** (`aiijzulctfpzdfjqyggm`) as of 2026-10-23
-and **not to production**. Prod rollout stays: M1 with Session 2, M2 only after
-Sessions 3 and 4 merge. C0 is done: the branch is based on `origin/main`
+with `converted_from` set. No new status value. **Branches below exist only on `feat/estimates-data-layer`.** M1, M2 and M3 are
+**applied to production** (and to the estimates test DB, `aiijzulctfpzdfjqyggm`),
+verified 2026-10-23 by schema check: all columns/table/function present, and all
+estimates function definitions match test by hash. C0 is done: the branch is based on `origin/main`
 (`0d257da`, DB override) merged with `origin/fix/migration-bom` (`049cfcc`)._
 
 | Item | Status | Evidence |
 |---|---|---|
-| Additive migration M1 | **Applied to the test DB — not production** | `supabase/migrations/20261023100000_estimates_links_signatures.sql`: nullable `invoices.valid_until date` / `revoked_at timestamptz`; `estimate_signatures` (RLS, owner SELECT, service-role writes, one per estimate); nullable `invoice_attachments.mime_type/size_bytes/checksum` + checks; `estimate_tz`, `estimate_expires_at` (end of local day) and `estimate_content_hash` (sha256, SECURITY DEFINER, service-role only). |
-| Lifecycle migration M2 | **Applied to the test DB — production only after Sessions 3–4 merge** | `supabase/migrations/20261023100100_estimates_lifecycle.sql`: attachment slots 0..9; notification type keeps `payment_disputed`/`recap`/`recurring_skipped` and adds `estimate_approved`; `pin_invoice_server_columns` also pins `approved_at`, `valid_until`, `revoked_at`, `public_token`; sent-unsigned quotes keep editable content (invoices and approved/converted rows stay pinned); `guard_locked_estimate_edits` / `guard_locked_estimate_attachments` reject client writes after approval/conversion; `sign_estimate` (row lock, idempotent `already_approved`, stale-hash refusal, atomic signature + notification claim); `add_estimate_attachment` (count/size/position under a row lock). |
+| Additive migration M1 | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | `supabase/migrations/20261023100000_estimates_links_signatures.sql`: nullable `invoices.valid_until date` / `revoked_at timestamptz`; `estimate_signatures` (RLS, owner SELECT, service-role writes, one per estimate); nullable `invoice_attachments.mime_type/size_bytes/checksum` + checks; `estimate_tz`, `estimate_expires_at` (end of local day) and `estimate_content_hash` (sha256, SECURITY DEFINER, service-role only). |
+| Lifecycle migration M2 | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | `supabase/migrations/20261023100100_estimates_lifecycle.sql`: attachment slots 0..9; notification type keeps `payment_disputed`/`recap`/`recurring_skipped` and adds `estimate_approved`; `pin_invoice_server_columns` also pins `approved_at`, `valid_until`, `revoked_at`, `public_token`; sent-unsigned quotes keep editable content (invoices and approved/converted rows stay pinned); `guard_locked_estimate_edits` / `guard_locked_estimate_attachments` reject client writes after approval/conversion; `sign_estimate` (row lock, idempotent `already_approved`, stale-hash refusal, atomic signature + notification claim); `add_estimate_attachment` (count/size/position under a row lock). |
+| Title, attachment caption, business contact (M3) | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | `supabase/migrations/20261023100200_estimates_title_caption_contact.sql`: nullable `invoices.title` (<=120, CHECK; editable on drafts and sent-unsigned quotes, refused after approval/conversion and pinned on sent documents), nullable `invoice_attachments.caption` (<=60, CHECK; no client UPDATE, written only by the SECURITY DEFINER `set_estimate_attachment_caption`), nullable `profiles.business_phone` (<=30) / `business_email` (<=254) with column-level UPDATE only (not onboarding-insertable); `estimate_content_hash` rebuilt from its M1 body to include the title and each attachment's caption; guards extended for title and caption. Routes `PATCH /api/estimates/[id]/title` and `PATCH /api/estimates/[id]/attachments/[attachmentId]/caption` (shared `estimate_edit` rate bucket). The public payload returns `title`, per-attachment `caption` and live `business.phone`/`business.email`; Settings > Business profile edits both contact fields. |
 | Expiry rule | **Done — unit-tested** | `valid_until` is a DATE; expiry is the first instant of the next local day in `profiles.timezone` (fallback `America/Chicago`). `src/lib/estimates/dates.ts` + 10 tests incl. 23:59/00:00 and both 2026 DST transitions; the SQL helper implements the same boundary. |
 | Public payload + validation helpers | **Done — unit-tested** | `src/lib/estimates/{state,public-model,signature,file-type,deliverable,limits,consent}.ts`; draw = PNG magic ≤200 KB, typed = the name ≤100 chars, signer ≤120; attachments JPG/PNG/PDF only (HEIC detected and refused after conversion). 55 estimate tests; full `npm test` 552 pass. |
 | Public API | **Built — typecheck + build only** | `GET /api/public/estimates/[token]` returns the whitelisted payload (subtotal/tax/line items, address, logo, 10-min signed attachment URLs) or the single `{state:'unavailable'}`; `POST /api/public/estimates/[token]/sign` maps RPC codes to 400 validation/invalid_signature, 409 already_approved (with signature) / content_changed, 410 expired/unavailable, 429. The sign transaction already claimed the notification; the route delivers it via `notifyClaimed` (`estimate_approved` push added to `src/lib/notify`). |
 | Owner API | **Built — typecheck + build only** | `POST /api/estimates/[id]/send` (valid_until, approved/converted refused, missing date → local +30 on any send), `/extend`, `/revoke`, `GET /preview` (draft preview, public shape), attachments presign → direct upload → `confirm` (bytes re-verified + sha256) and delete. |
 | Proof scripts | **Run on the test DB — all PASS** | `supabase/tests/estimates_additive_proofs.sql` (10 assertions) and `supabase/tests/estimates_lifecycle_proofs.sql` (36 assertions), transactional and rolled back. Privilege check on the same DB: 157 PASS, 0 FAIL (AJ–AR included). |
 | Public page `/e/[token]` | **Built — typecheck, build, 20 unit tests; preview unverified** (`feat/estimates-public-page`) | Server component on `loadPublicEstimate`, no login, IP rate limit and `robots: noindex` exactly as `/pay`; middleware skips `e/`. Clients for the sign sheet, 2x canvas pad, success sheet and photo viewer; pending/approved/expired/unavailable, item expand, notes clamp, sticky bar, attachment signed-URL retry + document HEAD probe. Route-scoped DM Sans / Allura / Symbols Rounded via `next/font/local`. `?preview=1` = owner preview (banner, signing off). Old `/pay/<quote token>` redirects here. Payload adds `business.timezone`. Seed + walkthrough: `supabase/seeds/estimates_public_page_states.sql`, `design/estimates/PUBLIC-PAGE-STATES.md`. Its Git preview built with the PRODUCTION Supabase env on 2026-10-23 (inlined ref `bitfmmffnigxjjyxoxfr`), so it must not be tested until branch-scoped test env is added for `feat/estimates-public-page`. |
-| M3 on the test DB (`20261023100200`) | **Unverified** | The page selects `invoices.title` and `profiles.business_phone/business_email`; M3 must be on `aiijzulctfpzdfjqyggm` before the preview can render. Step 0 of the seed file checks it. This branch pushes no migration. |
-| Owner estimate UI | **Not built** | `src/app/(app)/invoices/[id]` still shows the quote view. Owner send/extend/revoke/attachment UI, the signed card, Convert to Invoice and the share link remain (design spec §3). |
+| M3 columns on the page's DB (`20261023100200`) | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | The page selects `invoices.title` and `profiles.business_phone/business_email`; both columns are present in production. Step 0 of the seed file re-checks them. |
+| Owner estimate UI | **Done — merged to `main`** (`feat/estimates-owner-ui`, merge `514dfc3`) | `src/app/(app)/invoices/[id]` renders `EstimateDetail` for `kind='quote'` and keeps the invoice view for invoices. Shipped: detail screen with the seven design states (`3097b6c`), send/extend/revoke + inline title edit (`2cd5640`), attachment limits/captions/upload states (`5f01fc7`), convert-after-approval and server-side duplicate (`532ab6d`), reused line-item editor (`becb09c`). |
 
 **Session 4 — attachment reorder.** Estimate attachments must be reordered
 through a server route (a SECURITY DEFINER RPC), never through
@@ -809,4 +810,23 @@ through a server route (a SECURITY DEFINER RPC), never through
 then re-inserts, and the M2 guard refuses a client write of
 `mime_type`/`size_bytes`/`checksum`, so it now throws
 `attachment-renumber-verified` before deleting anything once any row carries a
-checksum.
+checksum. **Still unbuilt:** there is no reorder RPC, route or owner control
+yet, and the estimate attachment client (`src/lib/estimates/attachments-client.ts`)
+never renumbers. One live caller to fix when it lands: `ChatView.removeSavedAttachment`
+(`src/components/tabs/ChatView.tsx:815`) still calls `renumberAttachments` for a
+draft quote — the estimate detail screen does not.
+
+**Session 5 — copy and chat rename (spec §5).** Branch
+`feat/estimates-copy-session-5`. Scope: every visible "Quote" wording becomes
+"Estimate" (list + filters, paywall, delete confirm, detail page, template
+summary, PDFs, notifications), `docPrefix()` returns `E` so no `Q-` is ever
+shown, and chat/voice speak "estimate" while still accepting quote / quotes /
+bid / proposal as synonyms. Unchanged by design: the `kind='quote'` database
+value, every API route, file and component names, migrations, the legacy
+`?filter=quote` URL alias and the parser's stored intent value.
+
+**Follow-up (cosmetic, not done).** The `'Quoted total'` branches in
+`src/app/pay/[token]/PayView.tsx:605` and `figures.ts:70` are unreachable —
+`/pay/[token]` redirects `kind='quote'` rows to `/e/[token]` — so they still
+say "Quoted total". Change them only if the pay page ever renders a quote
+again.

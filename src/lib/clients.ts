@@ -42,7 +42,7 @@ export function normalizeSummary(r: Record<string, unknown>): ClientSummary {
 export function clientStatus(c: ClientSummary): { text: string; tone: 'overdue' | 'normal' } {
   if (c.overdue_count > 0) return { text: `${c.overdue_count} overdue · ${money(c.overdue_balance)}`, tone: 'overdue' };
   if (c.open_count > 0) return { text: `${c.open_count} open · ${money(c.open_balance)}`, tone: 'normal' };
-  if (c.quotes_out > 0) return { text: `${c.quotes_out} ${c.quotes_out === 1 ? 'quote' : 'quotes'} out`, tone: 'normal' };
+  if (c.quotes_out > 0) return { text: `${c.quotes_out} ${c.quotes_out === 1 ? 'estimate' : 'estimates'} out`, tone: 'normal' };
   if (c.doc_count > 0) return { text: 'Paid up', tone: 'normal' };
   return { text: 'No invoices yet', tone: 'normal' };
 }
@@ -88,7 +88,7 @@ export function usageNote(first: string, invoices: number, quotes: number): stri
   if (n === 0) return null;
   const parts = [
     invoices ? `${invoices} ${invoices === 1 ? 'invoice' : 'invoices'}` : '',
-    quotes ? `${quotes} ${quotes === 1 ? 'quote' : 'quotes'}` : '',
+    quotes ? `${quotes} ${quotes === 1 ? 'estimate' : 'estimates'}` : '',
   ].filter(Boolean).join(' and ');
   const tail = n === 1 ? 'It will link to this client.' : n === 2 ? 'Both will link to this client.' : `All ${n} will link to this client.`;
   return `${first} is on ${parts} already. ${tail}`;

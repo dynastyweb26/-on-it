@@ -310,7 +310,7 @@ const FLASH_PEAK_MS = 120;
 function greeting(): Msg {
   const h = new Date().getHours();
   const part = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
-  return aMsg(`${part}! Snap a receipt, or tap + to start an invoice or quote.`);
+  return aMsg(`${part}! Snap a receipt, or tap + to start an invoice or estimate.`);
 }
 
 // The day label over the conversation ("TODAY", "YESTERDAY", or the date),
@@ -3234,7 +3234,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     <div className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
         <Icon name="description" size={18} />
-        {docKind(draft) === 'quote' ? 'Quote' : 'Invoice'} for {draft.client_name}
+        {docNoun(docKind(draft))} for {draft.client_name}
       </div>
       {locked && (
         // Read-only: the linked invoice has left 'draft' (sent/paid).
