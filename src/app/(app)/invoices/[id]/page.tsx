@@ -696,7 +696,7 @@ export default function InvoiceDetail() {
   const heroLabel = fullyPaid
     ? 'Paid in full'
     : inv.kind === 'quote'
-      ? 'Quote total'
+      ? 'Estimate total'
       : totals.depositAmount > 0 && amountPaid < totals.depositAmount
         ? 'Deposit due'
         : partiallyPaid
@@ -1135,7 +1135,7 @@ export default function InvoiceDetail() {
 
       {undoDelete && (
         <UndoToast
-          message={`${inv.kind === 'quote' ? 'Quote' : 'Invoice'} deleted.`}
+          message={`${inv.kind === 'quote' ? 'Estimate' : 'Invoice'} deleted.`}
           onUndo={handleUndo}
           onDismiss={() => {
             setUndoDelete(false);

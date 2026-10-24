@@ -44,7 +44,7 @@ export function templateToDraft(
 
 /** The user-turn summary bubble: "Invoice for Mike Davis: Deck staining $450.00, Labor 3 hr × $40.00". */
 export function templateSummary(d: Partial<ExtractResult>): string {
-  const noun = d.intent === 'quote' ? 'Quote' : 'Invoice';
+  const noun = d.intent === 'quote' ? 'Estimate' : 'Invoice';
   const lines = ((d.line_items ?? []) as LineItem[]).map((li) =>
     li.qty === 1 && (!li.unit || li.unit === 'each' || li.unit === 'job')
       ? `${li.description} ${money(li.unit_price)}`
