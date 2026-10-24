@@ -72,7 +72,7 @@ type Cell = string | boolean;
 const INCLUDED: { label: string; free: Cell; paid: Cell; recapsOnly?: boolean }[] = [
   { label: 'Invoices', free: '3 free', paid: 'Unlimited' },
   { label: 'Expenses & receipt scans', free: '5 free', paid: 'Unlimited' },
-  { label: 'Quotes', free: 'Unlimited', paid: 'Unlimited' },
+  { label: 'Estimates', free: 'Unlimited', paid: 'Unlimited' },
   { label: 'Voice invoicing', free: true, paid: true },
   { label: 'Online pay page', free: true, paid: true },
   { label: 'Income & expense reports (PDF)', free: false, paid: true },

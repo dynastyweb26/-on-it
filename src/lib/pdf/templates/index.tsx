@@ -83,8 +83,8 @@ const showCardLine = (d: InvoiceRenderData) => Boolean(d.cardAvailable && payLin
 const showBankLine = (d: InvoiceRenderData) => Boolean(d.bankTransferAvailable && payLink(d));
 const BANK_LINE = 'Bank transfer / Direct deposit';
 
-// Shown under "How to pay" on every quote, in place of any pay link.
-const QUOTE_PAY_NOTE = 'Payment options become active once this quote is converted to an invoice.';
+// Shown under "How to pay" on every estimate, in place of any pay link.
+const QUOTE_PAY_NOTE = 'Payment options become active once this estimate is converted to an invoice.';
 
 // One quiet line under the pay block: the whole block is a single tappable
 // link to the pay page (invoices with a pay link only — the caller sets payUrl
@@ -104,7 +104,7 @@ function dominantLabel(d: InvoiceRenderData): string {
   if (stage === 'paid') return 'Paid in full';
   if (stage === 'deposit_paid' || stage === 'partial') return 'Balance due';
   if ((d.depositAmount ?? 0) > 0) return 'Deposit due now';
-  return d.kind === 'quote' ? 'Quoted total' : 'Total due';
+  return d.kind === 'quote' ? 'Estimate total' : 'Total due';
 }
 
 const isPercentDeposit = (d: InvoiceRenderData) =>

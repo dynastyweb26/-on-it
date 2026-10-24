@@ -30,7 +30,7 @@ export default function DeleteConfirmModal({
   const requiresTypedConfirm = (recordType === 'invoice' || recordType === 'quote') && isSentOrPaid;
 
   const canConfirm = !requiresTypedConfirm || typedConfirm.trim().toUpperCase() === 'DELETE';
-  const label = recordType === 'quote' ? 'Quote'
+  const label = recordType === 'quote' ? 'Estimate'
     : recordType === 'invoice' ? 'Invoice'
     : recordType === 'client' ? 'Client'
     : 'Expense';
@@ -79,7 +79,7 @@ export default function DeleteConfirmModal({
         <p className="text-body-md text-on-background">
           {recordType === 'client' ? (
             <>
-              Are you sure you want to remove this client from your list? Their invoices and quotes stay in your history.
+              Are you sure you want to remove this client from your list? Their invoices and estimates stay in your history.
             </>
           ) : requiresTypedConfirm ? (
             <>

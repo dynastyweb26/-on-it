@@ -739,7 +739,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         <section className="card space-y-1">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
           <p className="text-sm font-semibold text-on-surface">Free access · via code</p>
-          <p className="text-sm text-on-surface-variant">Unlimited invoices, quotes and expenses.</p>
+          <p className="text-sm text-on-surface-variant">Unlimited invoices, estimates and expenses.</p>
         </section>
       )}
 
@@ -820,7 +820,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
                     : <span aria-hidden className="h-4 w-40 animate-pulse self-center rounded bg-surface-container" />}
                 </div>
               )}
-              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, quotes, expenses and reminders.</p>
+              <p className="text-sm text-on-surface-variant">Go unlimited — invoices, estimates, expenses and reminders.</p>
               {/* Subscription disclosure — plain, body-size, visible before the Stripe
                   redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
                   first-time customers only (lib/trial.ts), otherwise billed today. */}

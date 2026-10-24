@@ -54,5 +54,5 @@ test('unfinishedTitle: only with a client or a named item', () => {
   const client = { name: 'Greenway HOA', id: null, address: null, phone: null };
   assert.equal(unfinishedTitle({ kind: 'invoice', client: null, items: [item('')] }), null);
   assert.equal(unfinishedTitle({ kind: 'invoice', client, items: [item('')] }), 'You have an unfinished invoice for Greenway HOA');
-  assert.equal(unfinishedTitle({ kind: 'quote', client: null, items: [item('Labor')] }), 'You have an unfinished quote');
+  assert.equal(unfinishedTitle({ kind: 'quote', client: null, items: [item('Labor')] }), 'You have an unfinished estimate');
 });

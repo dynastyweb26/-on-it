@@ -23,7 +23,7 @@ const OPTIONS: { key: ComposerPick; label: string; sub: string; icon: IconName; 
   { key: 'mic', label: 'Voice', sub: 'Say it, On It writes it', icon: 'mic', disc: 'bg-primary-soft' },
   // Invoice, quote and expense open a guided template in place (merge 2 · 2·12c).
   { key: 'invoice', label: 'New invoice', sub: 'Guided template', icon: 'description', disc: 'bg-primary-container' },
-  { key: 'quote', label: 'New quote', sub: 'Guided template', icon: 'request_quote', disc: 'bg-primary-soft' },
+  { key: 'quote', label: 'New estimate', sub: 'Guided template', icon: 'request_quote', disc: 'bg-primary-soft' },
   { key: 'expense', label: 'Record expense', sub: 'Guided template', icon: 'receipt_long', disc: 'bg-primary-soft' },
 ];
 export const MENU_CLOSE_MS = 180;
