@@ -108,6 +108,9 @@ export default function InvoiceDetail() {
   const [connectOn, setConnectOn] = useState(false);
   useEffect(() => { void fetchConnectEnabled().then(setConnectOn); }, []);
   const [busy, setBusy] = useState(false);
+  // Synchronous twin of `busy` for the share/send tap: state lags a render, so a
+  // second tap in the same frame would still read busy as false.
+  const sendingRef = useRef(false);
   const [downloading, setDownloading] = useState(false);
   const [zelle, setZelle] = useState<string | null>(null);
   // If this is a quote that was already converted, the invoice it became — so we
@@ -500,6 +503,8 @@ export default function InvoiceDetail() {
       setPrebuildNonce((n) => n + 1);
       return;
     }
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     const lead = isBalanceRequest ? `Balance due ${money(totals.balanceRemaining)}` : docNoun(inv.kind);
     const file = shareFile;
     void settleShare(sharePdf(file, shareText(lead, inv.client_name, shareUrl)), file, isBalanceRequest);
@@ -561,6 +566,7 @@ export default function InvoiceDetail() {
         }
       }
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   }
@@ -1086,7 +1092,7 @@ export default function InvoiceDetail() {
         onClick={() => setShowDeleteModal(true)}
         className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] border border-error/40 bg-transparent text-[15px] font-semibold text-error transition active:scale-[0.985]"
       >
-        <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'quote' : 'invoice'}
+        <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'estimate' : 'invoice'}
       </button>
 
       {/* Offscreen capture source — natural scale, no transform. Mirrors the chat

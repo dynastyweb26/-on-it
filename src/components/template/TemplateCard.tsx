@@ -2,7 +2,7 @@
 // ═══ Template card ═══ (release frames 1e / 1f / 7a–7d; UI-REDESIGN-AUDIT §1.4)
 // The composer's guided mode: it takes the bar's slot in place (the tab bar
 // stays, the chat above stays scrollable). Not a modal.
-//   Header: "New invoice" / "New quote" chip · "Make it a quote / an invoice"
+//   Header: "New invoice" / "New estimate" chip · "Make it a quote / an invoice"
 //   (keeps every slot) · close × (discards; nothing was written).
 //   Name slot: dashed "Name" → solid ink chip; opens the Client sheet. Its
 //   second line (2·10d) shows what will print: "address · phone", or "No
@@ -30,7 +30,7 @@
 //   Q3) or Subtotal · "50% deposit due now: $X" · Total. No tax (§1.4).
 //
 //   Send ↗ (2·12b; founder lock): a black #2E2822 circle with a cream
-//   north_east arrow, no text, aria-label "Send invoice" / "Send quote".
+//   north_east arrow, no text, aria-label "Send invoice" / "Send estimate".
 //   Disabled (#EFE7D8, arrow at 40 %, no press scale) until the template is
 //   complete; busy while the chat pre-builds the PDF, so the tap always takes
 //   the synchronous iOS share. The card hands its draft to the chat page,
@@ -132,7 +132,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   const scrollToEnd = useRef(false);
   const [edges, setEdges] = useState({ top: false, bottom: false });
 
-  const noun = kind === 'quote' ? 'quote' : 'invoice';
+  const noun = kind === 'quote' ? 'estimate' : 'invoice';
   const other: TemplateKind = kind === 'quote' ? 'invoice' : 'quote';
   const update = (key: string, patch: Partial<TemplateItem>) =>
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));

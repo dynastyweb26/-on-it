@@ -55,7 +55,7 @@ export interface PayModel {
   businessName: string;
   logoUrl: string | null;
   docNumber: string; // e.g. "INV-0007"
-  noun: string; // "Invoice" | "Quote"
+  noun: string; // "Invoice" | "Estimate"
   lineItems: PayLineItem[];
   subtotal: number;
   taxRate: number;
@@ -602,8 +602,8 @@ export default function PayView({ model }: { model: PayModel }) {
         ? 'Deposit due now'
         : model.depositPaid
           ? 'Balance due'
-          : model.noun === 'Quote'
-            ? 'Quoted total'
+          : model.noun === 'Estimate'
+            ? 'Estimate total'
             : 'Total due';
   const barAmount = model.fullyPaid || model.voided ? model.total : model.primaryAmount;
 
