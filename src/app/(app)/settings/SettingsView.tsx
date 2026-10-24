@@ -629,6 +629,18 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         <input className="input" placeholder="Slogan"
           value={p.slogan ?? ''} onChange={(e) => setP({ ...p, slogan: e.target.value })}
           onBlur={(e) => save({ slogan: e.target.value || null })} />
+        {/* Shown on the client estimate page, read live from the profile —
+            never snapshotted, so a changed number reaches the client. */}
+        <input className="input" type="tel" inputMode="tel" aria-label="Business phone"
+          placeholder="Business phone (shown on estimates)" maxLength={30}
+          value={p.business_phone ?? ''}
+          onChange={(e) => setP({ ...p, business_phone: e.target.value })}
+          onBlur={(e) => save({ business_phone: e.target.value.trim() || null })} />
+        <input className="input" type="email" inputMode="email" aria-label="Business email"
+          placeholder="Business email (shown on estimates)" maxLength={254}
+          value={p.business_email ?? ''}
+          onChange={(e) => setP({ ...p, business_email: e.target.value })}
+          onBlur={(e) => save({ business_email: e.target.value.trim() || null })} />
       </section>
 
       <section className="card space-y-3">

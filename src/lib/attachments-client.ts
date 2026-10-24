@@ -21,10 +21,18 @@ type Db = ReturnType<typeof createClient>;
 
 export const ATTACHMENT_BUCKET = 'invoice-attachments';
 
+/** Thrown when a reorder would rewrite rows the server verified. */
+export const ATTACHMENT_RENUMBER_VERIFIED = 'attachment-renumber-verified';
+
 export interface AttachmentRow {
   id: string;
   storage_path: string;
   position: number;
+  // Server verification (estimate attachments). Preserved on renumber so a
+  // reorder never silently unpublishes a confirmed file.
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  checksum?: string | null;
 }
 
 /** Next free slot after the rows already stored (0 when the invoice has none). */
@@ -40,7 +48,7 @@ export function attachmentObjectPath(userId: string, invoiceId: string): string 
 export async function listAttachmentRows(supabase: Db, invoiceId: string): Promise<AttachmentRow[]> {
   const { data } = await supabase
     .from('invoice_attachments')
-    .select('id, storage_path, position')
+    .select('id, storage_path, position, mime_type, size_bytes, checksum')
     .eq('invoice_id', invoiceId)
     .order('position');
   return (data ?? []) as AttachmentRow[];
@@ -88,14 +96,22 @@ export async function renumberAttachments(
   supabase: Db, userId: string, invoiceId: string, rows: readonly AttachmentRow[],
 ): Promise<AttachmentRow[]> {
   const ordered = [...rows].sort((a, b) => a.position - b.position);
+  // Server-verified rows (estimate attachments) carry mime_type/size_bytes/
+  // checksum, which only the service-role confirm path may write. This helper
+  // deletes before it re-inserts, so a refused re-insert would leave the
+  // document with no attachments at all — refuse the whole reorder up front.
+  if (ordered.some((r) => r.checksum)) throw new Error(ATTACHMENT_RENUMBER_VERIFIED);
   if (ordered.every((r, i) => r.position === i)) return ordered;
   await supabase.from('invoice_attachments').delete().eq('invoice_id', invoiceId);
   const { data } = await supabase
     .from('invoice_attachments')
     .insert(ordered.map((r, position) => ({
       user_id: userId, invoice_id: invoiceId, storage_path: r.storage_path, position,
+      mime_type: r.mime_type ?? null,
+      size_bytes: r.size_bytes ?? null,
+      checksum: r.checksum ?? null,
     })))
-    .select('id, storage_path, position');
+    .select('id, storage_path, position, mime_type, size_bytes, checksum');
   return ((data ?? []) as AttachmentRow[]).sort((a, b) => a.position - b.position);
 }
 

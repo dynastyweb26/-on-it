@@ -1,6 +1,7 @@
 import 'server-only';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { adminClient } from '@/lib/supabase/admin';
 import { connectEnabled } from '@/lib/stripe/connect';
 import { rateLimit } from '@/lib/ratelimit';
@@ -20,6 +21,9 @@ import { payFigures } from './figures';
 // there would bounce a signed-out client to /login. The refresh-only
 // middleware never redirects and now skips pay/ entirely, so a guest reaches
 // this route with no session.
+//
+// Estimates never render here: a kind='quote' row redirects to /e/[token], its
+// signing page (and the only place a quote link is shown).
 //
 // The ONLY data path is the service-role get_public_invoice RPC, which returns
 // an explicit whitelist (no owner id, no client PII, no tax/subtotal, line
@@ -255,6 +259,11 @@ export default async function PayPage({
   }
 
   const res = await fetchPublicInvoice(params.token);
+  // An estimate is not payable and no longer renders here: old /pay links for a
+  // kind='quote' row move to its signing page, which owns every quote state
+  // (pending, approved, expired, withdrawn). A quote that cannot be loaded keeps
+  // the single not-found answer below, so a token still cannot be probed.
+  if (res.ok && res.row.kind === 'quote') redirect(`/e/${params.token}`);
   if (!res.ok) {
     if (res.reason === 'error') {
       return (

@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nextAttachmentPosition, attachmentObjectPath, loadAttachmentCopies, loadAttachmentItems,
-  materializeAttachments, toPdfAttachments, copyAttachments, ATTACHMENT_LOAD_ERROR,
+  materializeAttachments, toPdfAttachments, copyAttachments, renumberAttachments,
+  ATTACHMENT_LOAD_ERROR, ATTACHMENT_RENUMBER_VERIFIED,
   type AttachmentRow,
 } from './attachments-client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
@@ -212,4 +213,48 @@ test('toPdfAttachments: more than the cap throws instead of printing a partial s
     id: `x${i}`, previewUrl: 'signed:x', storagePath: `u/s/${i}.jpg`, rowId: `r${i}`,
   }));
   await assert.rejects(() => toPdfAttachments(db, seven), (e: Error) => e.message === ATTACHMENT_LOAD_ERROR);
+});
+
+// ── Reorder guard: server-verified rows are never rewritten client-side ───
+test('renumberAttachments: one checksummed row throws BEFORE any delete', async () => {
+  const calls: string[] = [];
+  const db: any = {
+    from: () => ({
+      delete: () => { calls.push('delete'); return { eq: async () => ({ data: null }) }; },
+      insert: () => { calls.push('insert'); return { select: () => Promise.resolve({ data: [] }) }; },
+    }),
+  };
+
+  await assert.rejects(
+    () => renumberAttachments(db, 'u', 'inv-1', [
+      { id: 'r1', storage_path: 'u/inv-1/1.pdf', position: 0, checksum: 'a'.repeat(64) },
+      { id: 'r2', storage_path: 'u/inv-1/2.pdf', position: 1 },
+    ]),
+    (e: Error) => e.message === ATTACHMENT_RENUMBER_VERIFIED,
+  );
+
+  assert.deepEqual(calls, [], 'a verified delete followed by a refused insert would wipe the rows');
+});
+
+test('renumberAttachments: unverified rows still renumber 0..n-1 with NULL verification', async () => {
+  const inserted: any[] = [];
+  const db: any = {
+    from: () => ({
+      delete: () => ({ eq: async () => ({ data: null }) }),
+      insert: (rows: any[]) => {
+        inserted.push(...rows);
+        return { select: () => Promise.resolve({ data: rows.map((r, i) => ({ id: `n${i}`, ...r })) }) };
+      },
+    }),
+  };
+
+  const out = await renumberAttachments(db, 'u', 'inv-1', [
+    { id: 'r2', storage_path: 'u/inv-1/two.jpg', position: 3 },
+    { id: 'r1', storage_path: 'u/inv-1/one.jpg', position: 1 },
+  ]);
+
+  assert.deepEqual(inserted.map((r) => r.position), [0, 1]);
+  assert.deepEqual(inserted.map((r) => r.storage_path), ['u/inv-1/one.jpg', 'u/inv-1/two.jpg']);
+  assert.ok(inserted.every((r) => r.mime_type === null && r.size_bytes === null && r.checksum === null));
+  assert.deepEqual(out.map((r) => r.position), [0, 1]);
 });
