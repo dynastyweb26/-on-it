@@ -27,8 +27,8 @@ export type SlideId = 'invoice' | 'estimate' | 'paid' | 'expense' | 'recurring' 
 
 export const SLIDE_TITLE: Record<SlideId, [string, string]> = {
   invoice: ['Say it.', 'It’s invoiced.'],
-  estimate: ['Quote the job.', 'Get it signed.'],
-  paid: ['Get paid', 'your way.'],
+  estimate: ['Estimate', 'approved.'],
+  paid: ['Get paid', 'faster.'],
   expense: ['Snap a receipt.', 'It’s logged.'],
   recurring: ['Set it once.', 'It repeats.'],
   reports: ['Your books,', 'one tap.'],

@@ -3,8 +3,9 @@
 // ~57% of the screen height). A native CSS scroll-snap carousel — no carousel
 // library: swipe is the browser's own scrolling, the page dots and
 // auto-advance just scroll the track.
-//  - Auto-advance every 4s; any touch, drag, wheel or dot tap pauses it, and it
-//    resumes after 6s with no interaction.
+//  - Auto-advance every `intervalMs` (4s by default, 4.2s on the paywall
+//    showcase); any touch, drag, wheel or dot tap pauses it, and it resumes
+//    after 6s with no interaction.
 //  - prefers-reduced-motion: no auto-advance, and dot taps jump instead of
 //    animating (swipes are the user's own scroll, so they stay).
 //  - Opens on `start` (the feature the wall was hit on).
@@ -37,10 +38,12 @@ function layout(height: number, width: number) {
   return { titleFs, titleH, area, scale: Math.max(0.4, scale) };
 }
 
-export default function PaywallSlideshow({ slides, start, height }: {
+export default function PaywallSlideshow({ slides, start, height, intervalMs = ADVANCE_MS }: {
   slides: SlideId[];
   start: SlideId;
   height: number;
+  /** Time on each slide; the paywall showcase uses its own 4.2s beat. */
+  intervalMs?: number;
 }) {
   const n = slides.length;
   const trackRef = useRef<HTMLDivElement>(null);
@@ -99,12 +102,12 @@ export default function PaywallSlideshow({ slides, start, height }: {
   const nudge = useCallback(() => { hold(); release(); }, [hold, release]);
   useEffect(() => () => clearTimeout(resumeTimer.current), []);
 
-  // Auto-advance: 4s on each slide, restarting whenever the slide changes.
+  // Auto-advance: `intervalMs` on each slide, restarting whenever it changes.
   useEffect(() => {
     if (reduced || paused || n < 2) return;
-    const t = setTimeout(() => go(idx + 1), ADVANCE_MS);
+    const t = setTimeout(() => go(idx + 1), intervalMs);
     return () => clearTimeout(t);
-  }, [idx, paused, reduced, n, go]);
+  }, [idx, paused, reduced, n, go, intervalMs]);
 
   const { titleFs, titleH, scale } = layout(height, width);
   const slideH = height - DOTS_H;
