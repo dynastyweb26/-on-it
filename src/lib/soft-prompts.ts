@@ -162,8 +162,16 @@ export function estimateApprovedPrompt(
   };
 }
 
-/** The first payment this user ever recorded in the ledger. Once per user,
- *  ever — the moment cannot happen twice. */
+/** Does the ledger say this user has been paid? At least one payment row
+ *  (entry_type 'payment'; refund and dispute reversals don't count), however
+ *  many there are: a customer whose second payment landed before they opened
+ *  the app still gets the note once. */
+export function hasBeenPaid(paymentRows: number | null | undefined): boolean {
+  return typeof paymentRows === 'number' && paymentRows >= 1;
+}
+
+/** The first-payment note. Once per user, ever (its cap), however many
+ *  payments follow. */
 export function firstPaymentPrompt(): SoftPrompt {
   return {
     id: 'first-payment',

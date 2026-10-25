@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasAccess } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { firstPaymentPrompt, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
+import { firstPaymentPrompt, hasBeenPaid, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -41,15 +41,15 @@ export async function GET(req: NextRequest) {
   if (access.tier === 'canceled') prompts.push(winbackPrompt());
 
   if (access.tier === 'free' || access.tier === 'canceled') {
-    // The FIRST ledger payment this user ever recorded. `entry_type` filters
-    // out refund / dispute reversals; one row means the moment just happened,
-    // more than one means it has passed (never nudge a late "first").
+    // At least one ledger payment, ever. `entry_type` filters out refund /
+    // dispute reversals. The once-per-user cap lives in the shown-state
+    // (soft-prompts.ts), not in a count here.
     const { count } = await supabase
       .from('invoice_payments')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('entry_type', 'payment');
-    if (count === 1) prompts.push(firstPaymentPrompt());
+    if (hasBeenPaid(count)) prompts.push(firstPaymentPrompt());
   }
 
   return NextResponse.json({ prompts }, NO_STORE);
