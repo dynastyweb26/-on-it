@@ -35,7 +35,11 @@ export function endsWithPlanLine(recapsLive: boolean): string {
 }
 
 // Discount offer. No price is hard-coded: 50% of $9.99 is 499.5 cents and
-// Stripe does the rounding, so the copy says "half price".
+// Stripe does the rounding, so the copy says "half price". The percentage is
+// here so the cancel screen's button matches the offer (Stripe coupon:
+// 50% off, repeating 2 months).
+export const DISCOUNT_PERCENT = 50;
+export const discountCta = `Take ${DISCOUNT_PERCENT}% off`;
 export const discountTitle = 'Half price for your next 2 months';
 export const discountLine = (trialing: boolean): string =>
   trialing

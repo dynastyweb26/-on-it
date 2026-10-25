@@ -864,4 +864,50 @@ again.
 | Item | Status | Evidence |
 |---|---|---|
 | Terms and conditions on estimates and invoices | **Built on branch — NOT merged; migration NOT applied** | Settings › Business has a "Terms and conditions" textarea (3000 cap, saves on blur, `#terms` deep link). First send freezes `profiles.terms` onto `invoices.terms` (`renderSnapshot` via `/api/invoices/[id]/send` and `/api/estimates/[id]/send`; resends never re-snapshot). Rendered, and nothing when empty, on: the invoice/estimate PDF (all four templates), the public estimate page (`TermsCard`), and the pay page (via the new RPC `get_public_invoice_terms`). Every read is tolerant of the columns not existing, so the shared-DB preview works before the migration. Migration `20261024100000_terms_and_conditions.sql` is additive only (nullable columns + checks on them + one service-role RPC); privilege-check rows AX/AY added. **Founder must: dry run, read the SQL, yes, `db push`, `npm run db:privcheck`.** |
-| "Add your terms" tip card | **Built on branch** | `ChatNudgeCard` after a first send (`lib/terms-prompt.ts`, tested): terms empty, shown at most twice ever, state in `profiles.terms_prompt_count` / `terms_prompt_dismissed_at` (DB, not localStorage), suppresses the payouts / payment-alerts / feedback tips at the same moment. Chat sends only. |
+| "Add your terms" tip card | **Built on branch** | `ChatNudgeCard` after a first send (`lib/terms-prompt.ts`, tested): terms empty, shown at most twice ever, state in `profiles.terms_prompt_count` / `terms_prompt_dismissed_at` (DB, not localStorage), suppresses the payouts / payment-alerts / feedback tips at the same moment. **A "Not now" is permanent:** `shouldOfferTermsPrompt` returns false whenever `terms_prompt_dismissed_at` is set, before the twice-ever cap — so a dismissal is not followed by the second show it saved. The profile already arrives via `select('*')` in `ChatView.tsx`, so no new query or select change; the unit test covers dismissed-under-the-cap plus the two existing cap cases. Typecheck, `npm test`, build pass. |
+
+## Post-launch / needs real user data — logged 2026-10-25
+
+_Items that need real usage (repeated sends, paid invoices, real dismissals) to
+tune. The current behaviour is stated where it is a deliberate decision, not an
+oversight; nothing here is built yet._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Payouts "Not now" is permanent | **Open — post-launch** | Dismissing the payouts nudge writes `PAYOUTS_NUDGE_DISMISSED_KEY` once and it never asks again (`src/components/tabs/ChatView.tsx`, `payoutsNudgeDismissed`). Make it a snooze instead — re-ask after N invoices or N days — so a pro who connects a processor later is still offered the tip. |
+| Save-client / save-item re-asks are uncapped | **Open — post-launch** | `src/lib/save-prompts.ts` ("Not now" only closes the prompt; the next repeat asks again) is the deliberate Q7 decision — nothing is recorded. Cap it at 2 dismissals per name, then stay quiet for that name. |
+| Feedback card fires on the 3rd send | **Open — post-launch** | `src/lib/feedback.ts` `PROMPT_MIN_DOCS = 3` counts documents **sent**, so the "Got a minute?" card can arrive before the pro has ever been paid. Move the trigger to the first **paid** invoice instead. |
+
+## Store submission prep — logged 2026-10-25 (checklist, not built)
+
+_Native wrappers (iOS webview + store billing) are not built yet. This is the
+submission checklist to work through once they are; none of it is a change to
+the web app's behaviour except where noted._
+
+- [ ] **iOS usage strings in the native project**: add `NSCameraUsageDescription` (receipt capture) and `NSMicrophoneUsageDescription` (voice invoices). The web app uses both through the browser today; inside a webview the native declarations are required or capture/record fails silently.
+- [ ] **iOS edge-swipe back vs tab swipes**: test the tab `TabDeck` (drag-follow tab navigation, `src/app/(app)/layout.tsx`) and `SwipeableRow` (invoice/expense rows) inside the iOS webview. The system back gesture owns screen-edge swipes; the deck must still win where it should and must never trap the user.
+- [ ] **Native sign-in registration**: add the iOS bundle ID to Supabase's Apple Client IDs and the iOS client ID to Google's authorized list. Calendar a recurring reminder to rotate the Apple OAuth client secret every 6 months — it expires.
+- [ ] **Access codes vs Apple's IAP rules**: `CodeEntry` / `POST /api/redeem` unlock features outside IAP (founder and invite codes). Verify against Apple's rules on unlocking digital features outside IAP before submission; get it confirmed rather than assumed.
+- [ ] **Legal refresh AFTER the subscription/paywall decisions land** (not before): `privacy-policy.md`, `terms-of-service.md`, `/privacy`, `/terms`, plus the EULA decision (default to Apple's standard EULA). Cover Apple-billed subscriptions and refunds, voice and receipt processing and exactly which vendors see that data, push tokens, and Stripe Connect for client payments.
+
+## IAP / native billing phase — logged 2026-10-25
+
+_Post-launch, once the subscription/paywall provider decision lands. Not built._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Subscription price hard-coded in several places | **Open — post-launch** | `$9.99` is a literal in `src/components/PaywallModal.tsx` (renewal disclosure and the subscribe CTA, four spots) and is the trial-reminder fallback in `src/app/api/trial-reminders/route.ts` (`fmtAmount`, "the locked On It price"). Centralize one price string (ideally read from the billing provider) so a price change can't leave stale copy. |
+| Cancel flow has no provider variants | **Open — post-launch** | The cancel screen assumes Stripe semantics: a server-side cancel, a pause, and the 50%-off retention offer. Apple has no pause — the offer becomes a promo offer, and "cancel" links out to iOS subscription management instead of being done in-app. |
+| Delete account for Apple subscribers | **Open — post-launch** | `src/app/api/delete-account/route.ts` cancels live Stripe subscriptions first and aborts if that fails. An Apple-billed subscriber has no Stripe subscription: the flow must tell them to cancel in iOS Settings (or the App Store keeps billing after the account is gone) instead of applying the Stripe cancel-first rule. |
+| Legal copy is Stripe-only | **Open — post-launch** | `privacy-policy.md` and `terms-of-service.md` describe Stripe-billed subscriptions and refunds. Refresh both (and the `/privacy` / `/terms` pages) after the paywall decision so the named provider is the one that actually bills, and the refund path matches it. |
+
+## Tip arbitration + alerts copy — logged 2026-10-25 (branch `freebuff/bc631ad60021d60ce91b6486`)
+
+_Built — typecheck, 612 unit tests and build pass; **Vercel preview not run**
+(no Vercel CLI or credentials in the build environment). One nudge per send now
+goes through `src/lib/tip-arbiter.ts` (`pickTip`, 4/4 matrix tests)._
+
+| Item | Status | Evidence |
+|---|---|---|
+| One nudge per send | **Built — preview unverified** | `pickTip` returns at most one of `terms / payouts / alerts / feedback` in that priority. `ChatView` resolves each existing eligibility rule (terms-prompt.ts, the payouts conditions, push availability, feedback.ts) and calls the arbiter once per send; the payouts card is no longer appended alongside a second card and is gated on the arbiter's winner inside `finishFinalize`. Save prompts (client/item/recurring) are a separate floating surface and can still stack with a nudge on the same send — unchanged (Q7). |
+| Alerts card copy follows online-pay availability | **Built — preview unverified** | Without a connected processor the card now asks "Want a nudge if X hasn't paid in 2 days?" and the enable confirmation promises only that; with online pay the copy is unchanged. `reminderPrompt.onlinePay` carries `cardAvailableFor(profile, connectOn)`. |

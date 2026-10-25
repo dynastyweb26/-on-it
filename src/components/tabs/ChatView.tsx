@@ -15,6 +15,7 @@ import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
 import { shouldOfferTermsPrompt } from '@/lib/terms-prompt';
+import { pickTip, type Tip } from '@/lib/tip-arbiter';
 import { buildTheme, explicitColorRoles, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
@@ -630,15 +631,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
-  // or 'install' (iPhone Safari tab: Home Screen hint). See maybeOfferReminders.
-  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
-  // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see maybeOfferFeedback.
+  // or 'install' (iPhone Safari tab: Home Screen hint). See showRemindersCard.
+  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string; onlinePay: boolean } | null>(null);
+  // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
-  // "Add your terms" tip after a first send (lib/terms-prompt.ts); see maybeOfferTerms.
+  // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
   const [termsPrompt, setTermsPrompt] = useState(false);
-  // Set for the one moment a terms card is up, so the payouts nudge appended by
-  // finishFinalize stays out of the same moment (one tip at a time).
-  const termsShownRef = useRef(false);
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -1555,7 +1553,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // row and shows a locked card (with Revise). Any further message is refused in
   // send(). Used by a normal finalize and by an idempotent resume that finds the
   // invoice already sent.
-  function finishFinalize(doneMsg: Msg, retryId?: string) {
+  // `tip` is the one card this send won from lib/tip-arbiter (or null). It only
+  // arbitrates: the payouts nudge still checks its own conditions below.
+  function finishFinalize(doneMsg: Msg, retryId?: string, tip?: Tip | null) {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
@@ -1597,9 +1597,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
         },
       });
       const result: Msg[] = [...archived, cardMsg];
-      // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
+      // Nudge only when this send's arbitration picked payouts, Connect is on, no
+      // payment processor is set up, and the user hasn't dismissed it before.
       // Invoices only: the tip is about getting paid, which an estimate isn't.
-      if (sentKind === 'invoice' && connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed && !termsShownRef.current) {
+      if (tip === 'payouts' && sentKind === 'invoice' && connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
         result.push(aMsg('', { payoutsNudge: true }));
       }
       return result;
@@ -2042,7 +2043,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // don't re-render, re-share, or re-archive. Finish once and reset.
       if (finalizeSentRef.current) {
         const kind = docNoun(docKind(draft)).toLowerCase();
-        finishFinalize(aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`), retryId);
+        // Same tip question as a normal send, through the arbiter. This path only
+        // ever offered the payouts nudge (it never asked about terms, alerts or
+        // feedback), so that is the only candidate it passes.
+        finishFinalize(
+          aMsg(`All set — your ${kind} for ${draft.client_name ?? 'your client'} is sent.`),
+          retryId,
+          pickTip({ payouts: payoutsEligible() }),
+        );
         return;
       }
 
@@ -2229,10 +2237,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
     finalizeSentRef.current = true;
     persistProgress();
-    // Tip priority: the terms card wins the moment, so decide before the done
-    // message is built (it appends the payouts nudge unless a terms card is up).
     const firstSend = await sendRes.json().then((j: { firstSend?: unknown }) => j?.firstSend === true).catch(() => false);
-    const askedTerms = maybeOfferTerms(firstSend);
     // Archive in the Vault — best-effort; a storage hiccup must not undo the send.
     try {
       const path = `${profile.id}/${pb.file.name}`;
@@ -2250,34 +2255,57 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const paidOnline = docKind(draft) === 'invoice' && pb.token && cardAvailableFor(profile, connectOn)
       ? ` You'll also get a notification when ${who} pays online.`
       : '';
+    // One nudge per send (lib/tip-arbiter.ts): terms > payouts > alerts >
+    // feedback. The eligibility rules themselves are unchanged — terms-prompt.ts,
+    // the payouts conditions, push availability and feedback.ts — the arbiter
+    // only picks the single card that gets this moment, so payouts no longer
+    // rides along with a second card. Cheap candidates are checked first; a
+    // higher-priority winner makes the slower checks irrelevant.
+    const terms = termsEligible(firstSend);
+    const payouts = payoutsEligible();
+    const alerts = terms || payouts ? false : await alertsEligible();
+    const feedback = terms || payouts || alerts ? false : await feedbackEligible();
+    const tip = pickTip({ terms, payouts, alerts, feedback });
     // On a retry the done message replaces the failed bubble instead of appending.
     finishFinalize(aMsg(downloaded
       ? `Downloaded! Send it to ${who} however you like. I'll keep an eye on it.`
-      : `Sent! I'll notify you if ${who} hasn't paid in 2 days.${paidOnline}`), retryId);
-    // The right moment to ask about payment alerts: right after an invoice
-    // actually goes out. One-time; skipped if already subscribed.
-    // One ask per moment: the payment-alerts card wins; otherwise this is also
-    // the moment to (rarely) ask for feedback on invoices AND quotes.
-    const askedAlerts = !askedTerms && docKind(draft) === 'invoice' ? await maybeOfferReminders(who) : false;
-    if (!askedTerms && !askedAlerts) void maybeOfferFeedback();
+      : `Sent! I'll notify you if ${who} hasn't paid in 2 days.${paidOnline}`), retryId, tip);
+    // Payouts is a chat card, appended by finishFinalize. The other three are
+    // prompt cards; showing one clears any card left over from an earlier send.
+    if (tip === 'terms') showTermsCard();
+    else {
+      setTermsPrompt(false);
+      if (tip === 'alerts') showRemindersCard(who);
+      else if (tip === 'feedback') showFeedbackCard();
+    }
   }
 
-  // The "Add your terms" tip. Rules in lib/terms-prompt.ts. The count goes up
-  // in the database the moment the card is shown (best-effort), so a second
-  // device or a reload can't show it a third time.
-  function maybeOfferTerms(firstSend: boolean): boolean {
-    termsShownRef.current = false;
-    setTermsPrompt(false);
+  // Eligibility for the "Add your terms" tip (rules in lib/terms-prompt.ts).
+  // Pure: showing the card is showTermsCard's job, and only a shown card counts.
+  function termsEligible(firstSend: boolean): boolean {
     if (!profile) return false;
     const blocked = sessionRef.current || template !== null || paywallFor !== null;
-    if (!shouldOfferTermsPrompt(profile, { firstSend, blocked: !!blocked })) return false;
+    return shouldOfferTermsPrompt(profile, { firstSend, blocked: !!blocked });
+  }
+
+  // The "Add your terms" card. The count goes up in the database the moment the
+  // card is shown (best-effort), so a second device or a reload can't show it a
+  // third time.
+  function showTermsCard() {
+    if (!profile) return;
     const next = (profile.terms_prompt_count ?? 0) + 1;
     setProfile((p) => (p ? { ...p, terms_prompt_count: next } : p));
     void supabase.from('profiles').update({ terms_prompt_count: next }).eq('id', profile.id)
       .then(({ error }) => { if (error) console.error('terms prompt count failed', error.code); });
-    termsShownRef.current = true;
     setTermsPrompt(true);
-    return true;
+  }
+
+  // Payouts nudge eligibility: invoices only (the tip is about getting paid,
+  // which an estimate isn't), Connect on in this deployment, no processor
+  // connected yet, and never after a "Not now".
+  function payoutsEligible(): boolean {
+    return !!draft && docKind(draft) === 'invoice' && connectOn && !!profile
+      && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed;
   }
 
   function addTermsFromPrompt() {
@@ -2318,7 +2346,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // No confirmation bubble for an estimate (see finishFinalize); the locked
     // card shows the link with Copy link / Share.
     finishFinalize(aMsg(''), retryId);
-    void maybeOfferFeedback();
+    // One nudge per send, through the same arbiter. An estimate can only ever
+    // get the feedback card: terms is its own document rule, and payouts and
+    // alerts are invoice-only.
+    const tip = pickTip({ feedback: await feedbackEligible() });
+    if (tip === 'feedback') showFeedbackCard();
   }
 
   // Re-run the operation behind a failed message, in place. The message's id is
@@ -2337,49 +2369,65 @@ export default function Chat({ active = true }: { active?: boolean }) {
     });
   }
 
-  // Payment-alerts offer, shown once after a completed invoice send (never on
-  // load). Replaces the old "first invoice only" count check, which drafts now
-  // inflate (a card creates its draft row on render), so it could never fire.
-  // A new storage key, so people who dismissed the old reminders-only card are
-  // asked once about payment alerts. On an iPhone in a Safari tab (no web push
-  // there) it becomes a Home Screen hint instead; blocked or unsupported
-  // browsers get nothing.
-  async function maybeOfferReminders(clientName: string): Promise<boolean> {
-    if (!profile) return false;
+  // Payment-alerts eligibility, offered once after a completed invoice send
+  // (never on load). Replaces the old "first invoice only" count check, which
+  // drafts now inflate (a card creates its draft row on render), so it could
+  // never fire. A new storage key, so people who dismissed the old
+  // reminders-only card are asked once about payment alerts. On an iPhone in a
+  // Safari tab (no web push there) it becomes a Home Screen hint instead;
+  // blocked or unsupported browsers get nothing.
+  async function alertsEligible(): Promise<boolean> {
+    if (!profile || !draft || docKind(draft) !== 'invoice') return false;
     try {
       if (localStorage.getItem(ALERTS_PROMPTED_KEY)) return false;
       const avail = pushAvailability();
       if (avail === 'unsupported' || avail === 'denied') return false;
       if (avail === 'ready' && (await getPushSubscription())) return false; // already on
-      setReminderPrompt({ kind: avail === 'needs-install' ? 'install' : 'ask', client: clientName });
       return true;
     } catch { return false; /* never block the send flow */ }
   }
 
-  // The "Got a minute?" card, right after a quote or invoice goes out.
-  // Rules live in lib/feedback.ts (shouldAskForFeedback): 3+ documents sent,
-  // never again once the user has submitted feedback (read from the table, so
-  // it holds across devices), 21-day snooze, 60 days after two dismissals.
+  function showRemindersCard(clientName: string) {
+    setReminderPrompt({
+      kind: pushAvailability() === 'needs-install' ? 'install' : 'ask',
+      client: clientName,
+      // With no online-pay path there is no card payment to notify about, so the
+      // ask (and its confirmation) is only the 2-day unpaid nudge.
+      onlinePay: cardAvailableFor(profile, connectOn),
+    });
+  }
+
+  // Eligibility for the "Got a minute?" card, right after a quote or invoice
+  // goes out. Rules live in lib/feedback.ts (shouldAskForFeedback): 3+ documents
+  // sent, never again once the user has submitted feedback (read from the table,
+  // so it holds across devices), 21-day snooze, 60 days after two dismissals.
   // Skipped during a voice session, an open template or the paywall. The
   // walkthrough is on-demand and runs on sample data, so it can't overlap a
   // real send. Best-effort: any failure means no card.
-  async function maybeOfferFeedback() {
-    if (!profile) return;
+  async function feedbackEligible(): Promise<boolean> {
+    if (!profile) return false;
     try {
-      if (sessionRef.current || template !== null || paywallFor !== null) return;
+      if (sessionRef.current || template !== null || paywallFor !== null) return false;
       const state = parsePromptState(localStorage.getItem(FEEDBACK_PROMPT_KEY));
       const now = Date.now();
       // Cheap local gate first so most sends never touch the database.
-      if (!shouldAskForFeedback({ now, docsSent: PROMPT_MIN_DOCS, moment: true, hasSubmitted: false, blocked: false, state })) return;
+      if (!shouldAskForFeedback({ now, docsSent: PROMPT_MIN_DOCS, moment: true, hasSubmitted: false, blocked: false, state })) return false;
       const [{ count: submitted }, { count: sent }] = await Promise.all([
         supabase.from('feedback').select('id', { count: 'exact', head: true }),
         supabase.from('invoices').select('id', { count: 'exact', head: true })
           .is('deleted_at', null).neq('status', 'draft'),
       ]);
-      if (!shouldAskForFeedback({
+      return shouldAskForFeedback({
         now, docsSent: sent ?? 0, moment: true, hasSubmitted: (submitted ?? 0) > 0, blocked: false, state,
-      })) return;
-      localStorage.setItem(FEEDBACK_PROMPT_KEY, JSON.stringify(afterShown(state, now)));
+      });
+    } catch { return false; /* never block the send flow */ }
+  }
+
+  // Shown: the storage stamp is what keeps it from coming back for 21 days.
+  function showFeedbackCard() {
+    try {
+      const state = parsePromptState(localStorage.getItem(FEEDBACK_PROMPT_KEY));
+      localStorage.setItem(FEEDBACK_PROMPT_KEY, JSON.stringify(afterShown(state, Date.now())));
       setFeedbackPrompt(true);
     } catch { /* never block the send flow */ }
   }
@@ -2402,11 +2450,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function enableReminders() {
     if (!profile || !reminderPrompt) return;
     const who = reminderPrompt.client;
+    // Only promise what push can actually do for this pro: the paid-online
+    // notification needs a connected payment processor.
+    const onlinePay = reminderPrompt.onlinePay;
     setReminderPrompt(null);
     try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
     const ok = await subscribeToPush();
     setMessages((m) => [...m, aMsg(ok
-      ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+      ? onlinePay
+        ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+        : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`
       : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
   }
 
@@ -3893,7 +3946,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
         {reminderPrompt?.kind === 'ask' && (
           <div className="card border-primary-container/50">
-            <p className="text-body-md">Want a notification when {reminderPrompt.client} pays online?</p>
+            <p className="text-body-md">
+              {reminderPrompt.onlinePay
+                ? `Want a notification when ${reminderPrompt.client} pays online?`
+                : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
+            </p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now

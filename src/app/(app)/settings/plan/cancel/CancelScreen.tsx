@@ -20,7 +20,7 @@ import { applyOffer, cancel, getSummary, resume, type CancelSummary } from '@/li
 import { DETAIL_MAX, type CancelReason } from '@/lib/subscription/reasons';
 import { offerFor, pauseResumesAt, PAUSE_MONTHS, type PauseMonths } from '@/lib/subscription/offers';
 import type { StatTile } from '@/lib/subscription/stats';
-import { discountLine, discountTitle, endsWithPlanLine, fmtPlanDate, pauseOfferLine } from '@/lib/subscription/copy';
+import { discountCta, discountLine, discountTitle, endsWithPlanLine, fmtPlanDate, pauseOfferLine } from '@/lib/subscription/copy';
 
 
 const REASONS: { key: CancelReason; label: string; icon: IconName }[] = [
@@ -193,7 +193,7 @@ export default function CancelScreen() {
             <p className="font-display text-[17px] font-bold text-on-background">{discountTitle}</p>
             <p className="text-sm text-on-surface-variant">{discountLine(trialing)}</p>
             <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeOffer('discount')}>
-              {busy === 'offer' ? 'Applying…' : 'Take 50% off'}
+              {busy === 'offer' ? 'Applying…' : discountCta}
             </button>
           </div>
         )}
