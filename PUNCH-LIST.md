@@ -889,3 +889,14 @@ the web app's behaviour except where noted._
 - [ ] **Native sign-in registration**: add the iOS bundle ID to Supabase's Apple Client IDs and the iOS client ID to Google's authorized list. Calendar a recurring reminder to rotate the Apple OAuth client secret every 6 months — it expires.
 - [ ] **Access codes vs Apple's IAP rules**: `CodeEntry` / `POST /api/redeem` unlock features outside IAP (founder and invite codes). Verify against Apple's rules on unlocking digital features outside IAP before submission; get it confirmed rather than assumed.
 - [ ] **Legal refresh AFTER the subscription/paywall decisions land** (not before): `privacy-policy.md`, `terms-of-service.md`, `/privacy`, `/terms`, plus the EULA decision (default to Apple's standard EULA). Cover Apple-billed subscriptions and refunds, voice and receipt processing and exactly which vendors see that data, push tokens, and Stripe Connect for client payments.
+
+## IAP / native billing phase — logged 2026-10-25
+
+_Post-launch, once the subscription/paywall provider decision lands. Not built._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Subscription price hard-coded in several places | **Open — post-launch** | `$9.99` is a literal in `src/components/PaywallModal.tsx` (renewal disclosure and the subscribe CTA, four spots) and is the trial-reminder fallback in `src/app/api/trial-reminders/route.ts` (`fmtAmount`, "the locked On It price"). Centralize one price string (ideally read from the billing provider) so a price change can't leave stale copy. |
+| Cancel flow has no provider variants | **Open — post-launch** | The cancel screen assumes Stripe semantics: a server-side cancel, a pause, and the 50%-off retention offer. Apple has no pause — the offer becomes a promo offer, and "cancel" links out to iOS subscription management instead of being done in-app. |
+| Delete account for Apple subscribers | **Open — post-launch** | `src/app/api/delete-account/route.ts` cancels live Stripe subscriptions first and aborts if that fails. An Apple-billed subscriber has no Stripe subscription: the flow must tell them to cancel in iOS Settings (or the App Store keeps billing after the account is gone) instead of applying the Stripe cancel-first rule. |
+| Legal copy is Stripe-only | **Open — post-launch** | `privacy-policy.md` and `terms-of-service.md` describe Stripe-billed subscriptions and refunds. Refresh both (and the `/privacy` / `/terms` pages) after the paywall decision so the named provider is the one that actually bills, and the refund path matches it. |
