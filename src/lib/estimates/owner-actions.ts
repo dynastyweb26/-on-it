@@ -46,12 +46,14 @@ export function sendErrorMessage(status: number, code?: string | null): string {
   return "Couldn't send the estimate. Please try again.";
 }
 
-export async function requestEstimateSend(id: string): Promise<EstimateSendOutcome> {
+/** `validUntil` (YYYY-MM-DD) is optional; without it the server keeps the row's
+ *  date or sets local today + 30. A past date is refused (400). */
+export async function requestEstimateSend(id: string, validUntil?: string | null): Promise<EstimateSendOutcome> {
   try {
     const res = await fetch(`/api/estimates/${id}/send`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify(validUntil ? { valid_until: validUntil } : {}),
     });
     const body = (await res.json().catch(() => null)) as
       | { estimate?: Record<string, unknown>; firstSend?: boolean; error?: string }

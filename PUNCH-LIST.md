@@ -832,6 +832,33 @@ value, every API route, file and component names, migrations, the legacy
 say "Quoted total". Change them only if the pay page ever renders a quote
 again.
 
+**Estimate send = link only (branch `claude/estimate-send-fix-99dfd0`).** Status:
+**Built — typecheck, 600 unit tests and build pass; preview unverified.**
+- Chat send of an estimate no longer renders, stores or shares a PDF: `finalize()`
+  in `src/components/tabs/ChatView.tsx` branches before the PDF build, calls
+  `POST /api/estimates/[id]/send` (so `valid_until` is filled, which the old
+  `/api/invoices/[id]/send` call never did) and shows the `/e/<token>` link with
+  Copy link / Share (`src/components/estimates/EstimateLinkActions.tsx`) in the
+  confirmation and on the locked card. No Vault archive row is written for an
+  estimate any more. Invoice PDF behaviour is untouched.
+- Sent copy says "hasn't responded" for estimates; the payments tip card shows
+  only after an invoice send; the sent card says "Valid until" (list tag too:
+  `VALID UNTIL OCT 16` via `tagFor`). Composer template chip/aria say "estimate".
+- Share thumbnail: `/e/[token]` now has `generateMetadata` (Open Graph/Twitter) and
+  `opengraph-image.tsx` (business name only, no amounts or client data).
+- Double-submit: `finalize()` (chat) and the invoice detail share tap now use a
+  synchronous ref guard; `EstimateDetail.send` too. The old guard read React state
+  (`phase` / `busy`), which lags a render, so two taps in one frame both passed.
+  Root cause of the E-0018/E-0019 pair is NOT proven: a same-conversation repeat
+  would hit the `finalize_key` unique index, so two rows imply two conversation
+  ids (e.g. a restored/reopened chat or template that minted a new id). The guard
+  closes the tap race; it cannot explain a two-conversation duplicate.
+- Still open: `lint` is not configured (`next lint` prompts for an ESLint setup),
+  so it was not run; dead `kind==='quote'` branches remain in
+  `invoices/[id]/page.tsx` and the PDF template (`QUOTE_PAY_NOTE`).
+
+**Tax and estimate dates on the chat card / template (same branch).** Built — typecheck, 602 tests, build pass; preview unverified. The chat card has a Tax row under Deposit ("+ Add tax" → % field, capped 30, remove button). The template card has an "Add tax" slot with its own one-field sheet (`TaxSheet`); the rate is stored with the template and goes to `tax_rate`, not into the notes. For an estimate the Extra info date is its valid-until date ("Valid until Friday" / "Valid for 14 days"; "due …" still reads): it is passed to `/api/estimates/[id]/send`, so the notes, the sent card and the link page agree. There is no stored default tax rate (it varies by state, county and job), so nothing is added automatically. Idea, not built: remember the last rate used.
+
 ## Terms and conditions (branch `claude/terms-conditions-c7219f`)
 
 | Item | Status | Evidence |

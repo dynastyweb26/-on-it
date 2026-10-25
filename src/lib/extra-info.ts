@@ -5,6 +5,8 @@
 //            "$200 deposit" / "deposit $200"                        → fixed
 //   due:     "Due Friday" (the next Friday; a week out if it's Friday today),
 //            "Due today" / "Due tomorrow", "Due in 14 days" / "Due in 2 weeks"
+//            An estimate reads the same date as "Valid until Friday" /
+//            "Valid for 14 days"; it becomes the estimate's valid-until date.
 // The deposit spelling is 'percentage' (the DB check rejects 'percent').
 
 export const EXTRA_MAX = 500;
@@ -37,8 +39,8 @@ export function parseExtraInfo(text: string, today: Date = new Date()): ExtraInf
   }
 
   let due: string | null = null;
-  const inN = t.match(/due\s+in\s+(\d{1,3})\s*(day|days|week|weeks)\b/);
-  const wd = t.match(/due\s+(?:on\s+|this\s+|next\s+)?(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)[a-z]*\b/);
+  const inN = t.match(/(?:due\s+in|valid\s+for)\s+(\d{1,3})\s*(day|days|week|weeks)\b/);
+  const wd = t.match(/(?:due|valid\s+(?:until|through))\s+(?:on\s+|this\s+|next\s+)?(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)[a-z]*\b/);
   if (inN) {
     const n = Number(inN[1]) * (inN[2].startsWith('week') ? 7 : 1);
     if (n > 0 && n <= 366) due = ymd(addDays(today, n));
@@ -55,6 +57,7 @@ export function parseExtraInfo(text: string, today: Date = new Date()): ExtraInf
   }
   return { deposit, due };
 }
+
 
 /** Add a chip's phrase to the text: on its own line, never twice. */
 export function addPhrase(text: string, phrase: string): string {

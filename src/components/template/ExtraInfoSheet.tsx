@@ -14,8 +14,10 @@ import { useSheetDrag } from '@/lib/use-sheet-drag';
 const shortDate = (ymd: string) =>
   new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-export default function ExtraInfoSheet({ value, address, onDone, onClose }: {
+export default function ExtraInfoSheet({ value, address, kind = 'invoice', onDone, onClose }: {
   value: string;
+  /** An estimate's date is "valid until", not "due". */
+  kind?: 'invoice' | 'quote';
   /** The picked client's address, for the "Job at …" chip. */
   address: string | null;
   onDone: (text: string) => void;
@@ -23,6 +25,7 @@ export default function ExtraInfoSheet({ value, address, onDone, onClose }: {
 }) {
   const [text, setText] = useState(value);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const quote = kind === 'quote';
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
 
   useEffect(() => {
@@ -32,10 +35,14 @@ export default function ExtraInfoSheet({ value, address, onDone, onClose }: {
   }, [onClose]);
 
   const job = address ? `Job at ${address.replace(/\s*\n\s*/g, ', ').trim()}` : null;
-  const chips = ['Due Friday', 'Due in 14 days', '50% deposit', ...(job ? [job] : [])];
+  const chips = [
+    ...(quote ? ['Valid until Friday', 'Valid for 14 days'] : ['Due Friday', 'Due in 14 days']),
+    '50% deposit',
+    ...(job ? [job] : []),
+  ];
   const read = parseExtraInfo(text);
   const understood = [
-    read.due ? `Due ${shortDate(read.due)}` : null,
+    read.due ? `${quote ? 'Valid until' : 'Due'} ${shortDate(read.due)}` : null,
     read.deposit ? (read.deposit.type === 'percentage' ? `${read.deposit.value}% deposit` : `$${read.deposit.value} deposit`) : null,
   ].filter(Boolean);
 
@@ -55,7 +62,7 @@ export default function ExtraInfoSheet({ value, address, onDone, onClose }: {
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <textarea ref={ref} value={text} rows={4} maxLength={EXTRA_MAX} aria-label="Extra info"
             onChange={(e) => setText(e.target.value.slice(0, EXTRA_MAX))}
-            placeholder="Due Friday, job address, notes for the client…"
+            placeholder={quote ? 'Valid for 14 days, job address, notes for the client…' : 'Due Friday, job address, notes for the client…'}
             className="w-full resize-none rounded-card border border-outline-variant/60 bg-surface-container-lowest px-4 py-3 text-body-lg text-on-background outline-none placeholder:text-on-surface-variant/70 focus:border-primary" />
           <div className="mt-2 flex flex-wrap gap-2">
             {chips.map((c) => (
@@ -66,7 +73,7 @@ export default function ExtraInfoSheet({ value, address, onDone, onClose }: {
             ))}
           </div>
           {understood.length > 0 && (
-            <p className="mt-3 text-[13.5px] text-on-surface-variant">On the invoice: {understood.join(' · ')}</p>
+            <p className="mt-3 text-[13.5px] text-on-surface-variant">On the {quote ? 'estimate' : 'invoice'}: {understood.join(' · ')}</p>
           )}
         </div>
       </div>

@@ -6,7 +6,7 @@ import type { IconName } from '@/components/icon-names';
 import { invoiceStatusLabel } from '@/lib/payment-methods';
 
 export type TagDoc = { kind: string; status: string; due_date: string | null; viewed_at?: string | null;
-  approved_at?: string | null; refunded_amount?: number | null; amount_paid?: number | null };
+  approved_at?: string | null; valid_until?: string | null; refunded_amount?: number | null; amount_paid?: number | null };
 
 const TAG: Record<string, { cls: string; icon: IconName }> = {
   paid: { cls: 'bg-paid-container text-paid', icon: 'check_circle' },
@@ -18,16 +18,27 @@ const TAG: Record<string, { cls: string; icon: IconName }> = {
   signed: { cls: 'bg-paid-container text-paid', icon: 'verified' },
 };
 
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const shortDate = (ymd: string) =>
   new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 
-export function tagFor(r: TagDoc, converted: boolean): { key: string; text: string; cls: string; icon: IconName } {
+/** `today` (local YYYY-MM-DD) is injectable for tests. */
+export function tagFor(r: TagDoc, converted: boolean, today = localToday()): { key: string; text: string; cls: string; icon: IconName } {
   if (converted) return { key: 'converted', text: 'CONVERTED', ...TAG.converted };
   // A converted quote keeps the CONVERTED tag even if it was signed first.
   if (r.kind === 'quote' && r.approved_at) return { key: 'signed', text: 'SIGNED', ...TAG.signed };
   const base = TAG[r.status] ?? TAG.draft;
   if (r.status === 'sent' && r.kind === 'invoice' && r.due_date) {
     return { key: `due-${r.viewed_at ? 'v' : 's'}`, text: `DUE ${shortDate(r.due_date)}`, ...base, icon: r.viewed_at ? 'visibility' : base.icon };
+  }
+  // A sent, unsigned estimate reads "VALID UNTIL OCT 16" while its link is live
+  // (an invoice's date is a due date; an estimate's is when it stops working).
+  if (r.status === 'sent' && r.kind === 'quote' && r.valid_until && r.valid_until >= today) {
+    return { key: `valid-${r.viewed_at ? 'v' : 's'}`, text: `VALID UNTIL ${shortDate(r.valid_until)}`, ...base, icon: r.viewed_at ? 'visibility' : base.icon };
   }
   if (r.status === 'sent' && r.viewed_at) return { key: 'viewed', text: 'VIEWED', ...base, icon: 'visibility' };
   // A paid invoice with refunds reads REFUNDED / REFUNDED $X (it stays paid).

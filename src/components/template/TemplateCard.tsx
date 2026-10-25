@@ -2,7 +2,7 @@
 // ═══ Template card ═══ (release frames 1e / 1f / 7a–7d; UI-REDESIGN-AUDIT §1.4)
 // The composer's guided mode: it takes the bar's slot in place (the tab bar
 // stays, the chat above stays scrollable). Not a modal.
-//   Header: "New invoice" / "New quote" chip · "Make it a quote / an invoice"
+//   Header: "New invoice" / "New estimate" chip · "Make it a quote / an invoice"
 //   (keeps every slot) · close × (discards; nothing was written).
 //   Name slot: dashed "Name" → solid ink chip; opens the Client sheet. Its
 //   second line (2·10d) shows what will print: "address · phone", or "No
@@ -30,7 +30,7 @@
 //   Q3) or Subtotal · "50% deposit due now: $X" · Total. No tax (§1.4).
 //
 //   Send ↗ (2·12b; founder lock): a black #2E2822 circle with a cream
-//   north_east arrow, no text, aria-label "Send invoice" / "Send quote".
+//   north_east arrow, no text, aria-label "Send invoice" / "Send estimate".
 //   Disabled (#EFE7D8, arrow at 40 %, no press scale) until the template is
 //   complete; busy while the chat pre-builds the PDF, so the tap always takes
 //   the synchronous iOS share. The card hands its draft to the chat page,
@@ -45,6 +45,7 @@ import KeypadSheet from '@/components/template/KeypadSheet';
 import OnItSpinner from '@/components/OnItSpinner';
 import ExtraInfoSheet from '@/components/template/ExtraInfoSheet';
 import { parseExtraInfo } from '@/lib/extra-info';
+import TaxSheet from '@/components/template/TaxSheet';
 import { templateToDraft } from '@/lib/template-send';
 import type { ExtractResult } from '@/lib/ai';
 import { money, calculateLineAmount, calculateInvoiceTotals } from '@/lib/financials';
@@ -59,7 +60,7 @@ const UNDO_MS = 5000;
 /** Only these units print after the quantity (frames 7c / 7e: "3 hr", "120 sq ft"). */
 const qtyUnit = (u: TemplateItem['unit']) => (u === 'hour' ? 'hr' : u === 'sq ft' ? 'sq ft' : '');
 
-type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind } | { type: 'extra' };
+type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind } | { type: 'extra' } | { type: 'tax' };
 
 export type SendState = 'disabled' | 'preparing' | 'ready' | 'busy';
 
@@ -70,7 +71,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   /** Signed-in user id (null = guest): scopes the saved template. */
   uid: string | null;
   /** A template restored from storage (2·11a). */
-  restored?: { client: TemplateClient | null; items: TemplateItem[]; extra?: string } | null;
+  restored?: { client: TemplateClient | null; items: TemplateItem[]; extra?: string; tax?: number | null } | null;
   /** The chat draft while the template is sendable, else null (2·12b). */
   onDraft: (d: Partial<ExtractResult> | null) => void;
   sendState: SendState;
@@ -86,15 +87,16 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   onRemoveAttachment?: (item: EditorAttachment) => void;
 }) {
   const [extra, setExtra] = useState(() => restored?.extra ?? '');
+  const [tax, setTax] = useState<number | null>(() => restored?.tax ?? null);
   const [client, setClient] = useState<TemplateClient | null>(() => restored?.client ?? null);
   const [items, setItems] = useState<TemplateItem[]>(() => (restored?.items.length ? restored.items : [emptyItem()]));
 
   // ── Persist every change (2·11a).
-  useEffect(() => { saveTemplate({ uid, kind, client, items, extra }); }, [uid, kind, client, items, extra]);
+  useEffect(() => { saveTemplate({ uid, kind, client, items, extra, tax }); }, [uid, kind, client, items, extra, tax]);
   // Hand the chat its draft whenever the sendable content changes (2·12b).
-  useEffect(() => { onDraft(templateToDraft(kind, client, items, extra)); },
+  useEffect(() => { onDraft(templateToDraft(kind, client, items, extra, new Date(), tax)); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, client, items, extra]);
+    [kind, client, items, extra, tax]);
 
   // ── After a restore, re-read the picked client and items (signed in only):
   // the chips show their current saved details; a keypad-set price stays.
@@ -132,7 +134,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   const scrollToEnd = useRef(false);
   const [edges, setEdges] = useState({ top: false, bottom: false });
 
-  const noun = kind === 'quote' ? 'quote' : 'invoice';
+  const noun = kind === 'quote' ? 'estimate' : 'invoice';
   const other: TemplateKind = kind === 'quote' ? 'invoice' : 'quote';
   const update = (key: string, patch: Partial<TemplateItem>) =>
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
@@ -184,11 +186,11 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
     : named.length === 0 ? 'Add an item to send'
     : unpriced ? `Add a price for ${unpriced.name.trim()}` : null;
 
-  // ── Totals: named, priced lines; no tax on template documents.
+  // ── Totals: named, priced lines; tax only when the Extra info carries one.
   const info = parseExtraInfo(extra);
   const totals = calculateInvoiceTotals(
     named.filter((x) => x.unit_price != null).map((x) => ({ qty: x.qty, unit_price: x.unit_price! })),
-    0, info.deposit?.type ?? 'none', info.deposit?.value ?? 0);
+    tax ?? 0, info.deposit?.type ?? 'none', info.deposit?.value ?? 0);
   const depositLabel = info.deposit?.type === 'percentage' ? `${info.deposit.value}% deposit` : 'Deposit';
 
   const keypadItem = sheet?.type === 'keypad' ? items.find((x) => x.key === sheet.key) : undefined;
@@ -312,6 +314,17 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
       {/* Attachments: the same gold control as the card, under "+ Add item". */}
       <AttachmentsEditor items={attachments} editable onChange={onAttachments} onRemove={onRemoveAttachment} />
 
+      {/* Tax slot: its own small sheet (one % field). */}
+      <button type="button" onClick={() => setSheet({ type: 'tax' })}
+        aria-label={tax != null ? `Tax ${tax}%. Change tax` : 'Add tax'}
+        className={`mt-1 flex min-h-[44px] w-full items-center gap-2.5 rounded-[12px] px-3 text-left transition active:scale-[0.99]
+          ${tax != null ? 'bg-inverse-surface text-inverse-on-surface' : 'border border-dashed border-outline-variant bg-surface-container-lowest/70 text-on-surface-variant'}`}>
+        <Icon name={tax != null ? 'sell' : 'add'} size={20} className={tax != null ? 'text-primary-fixed-dim' : ''} />
+        <span className="min-w-0 flex-1 truncate text-[16px] font-bold">
+          {tax != null ? `Tax ${tax}%` : <span className="font-normal">Add tax</span>}
+        </span>
+      </button>
+
       {/* Extra info slot */}
       <button type="button" onClick={() => setSheet({ type: 'extra' })}
         aria-label={extra ? `Extra info: ${extra}. Change extra info` : 'Add extra info: dates, notes, deposit'}
@@ -337,6 +350,9 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           ) : (
             <div className="leading-tight">
               <p className="text-[13px] text-on-surface-variant">Subtotal {money(totals.subtotal)}</p>
+              {totals.taxAmount > 0 && (
+                <p className="text-[13px] text-on-surface-variant">Tax ({tax}%) {money(totals.taxAmount)}</p>
+              )}
               {totals.depositAmount > 0 && (
                 <p className="text-[13px] font-bold text-primary">{depositLabel} due now: {money(totals.depositAmount)}</p>
               )}
@@ -372,8 +388,11 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           }} />
       )}
       {sheet?.type === 'extra' && (
-        <ExtraInfoSheet value={extra} address={client?.address ?? null} onClose={() => setSheet(null)}
+        <ExtraInfoSheet value={extra} address={client?.address ?? null} kind={kind} onClose={() => setSheet(null)}
           onDone={(t) => { setExtra(t); setSheet(null); }} />
+      )}
+      {sheet?.type === 'tax' && (
+        <TaxSheet value={tax} onClose={() => setSheet(null)} onDone={(r) => { setTax(r); setSheet(null); }} />
       )}
       {sheet?.type === 'keypad' && keypadItem && (
         <KeypadSheet kind={sheet.kind} itemName={keypadItem.name.trim()} unit={keypadItem.unit}

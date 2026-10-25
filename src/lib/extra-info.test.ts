@@ -37,3 +37,9 @@ test('addPhrase', () => {
   assert.equal(addPhrase('Gate 44  ', 'Due Friday'), 'Gate 44\nDue Friday');
   assert.equal(addPhrase('due friday', 'Due Friday'), 'due friday');
 });
+
+
+test('valid until / valid for read as the date', () => {
+  assert.equal(parseExtraInfo('Valid until Friday', WED).due, '2026-10-09');
+  assert.equal(parseExtraInfo('Valid for 14 days', WED).due, '2026-10-21');
+});
