@@ -11,6 +11,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import SegmentedControl from '@/components/SegmentedControl';
+import PaywallModal from '@/components/PaywallModal';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/expenses';
@@ -42,6 +43,7 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [showPaywall, setShowPaywall] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   const parsed = parseAmount(amount);
@@ -74,6 +76,9 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
       ? await supabase.from('recurring_expenses').insert({ ...fields, user_id: session.user.id })
       : await supabase.from('recurring_expenses').update(fields).eq('id', item!.id);
     setBusy(false);
+    // Free and canceled users can't create a recurring item (PAYWALL_RECURRING):
+    // the wall, with the form still filled in.
+    if (err?.hint === 'PAYWALL_RECURRING') { setShowPaywall(true); return; }
     if (err) {
       setError(err.code === '23505'
         ? `You already have ${fields.vendor} as a ${CADENCE_LABEL[cadence].toLowerCase()} recurring expense.`
@@ -166,6 +171,8 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
           <Icon name="delete" size={20} /> Stop &amp; delete
         </button>
       )}
+
+      {showPaywall && <PaywallModal variant="recurring" returnTo="recurring" onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }

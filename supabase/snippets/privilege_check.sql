@@ -1723,6 +1723,109 @@ results(id, ok, expected, actual) as (
       else 'service_role=' || has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
         || ' anon=' || has_function_privilege('anon', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
         || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute') end
+
+  -- BA. Paywall v3: estimate cap + paid-only recurring (20261025100000).
+  --     SKIP until pushed. scripts/privilege-check.mjs fails if any BA1-BA6
+  --     row is missing from the output.
+  --     BA1/BA3: the two trigger functions are definer, search_path="", and
+  --     not executable by anon / authenticated. BA2/BA4: the two constants are
+  --     invoker + immutable, authenticated may execute (access.ts reads them
+  --     via rpc), anon may not.
+  union all
+  select 'BA1 v3 trigger functions definer',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else (select count(*) from pg_proc p
+        where p.oid in (to_regprocedure('public.enforce_free_invoice_limit()'),
+                        to_regprocedure('public.enforce_paid_recurring_expenses()'))
+          and p.prosecdef and 'search_path=""' = any(p.proconfig)) = 2 end,
+    'enforce_free_invoice_limit + enforce_paid_recurring_expenses: SECURITY DEFINER, search_path=""',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select string_agg(p.proname || ': definer=' || p.prosecdef
+          || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
+        from pg_proc p
+        where p.oid in (to_regprocedure('public.enforce_free_invoice_limit()'),
+                        to_regprocedure('public.enforce_paid_recurring_expenses()'))), 'missing') end
+  union all
+  select 'BA2 v3 constants invoker',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else (select count(*) from pg_proc p
+        where p.oid in (to_regprocedure('public.estimate_reset_at()'),
+                        to_regprocedure('public.free_estimate_limit()'))
+          and not p.prosecdef and p.provolatile = 'i'
+          and 'search_path=""' = any(p.proconfig)) = 2 end,
+    'estimate_reset_at + free_estimate_limit: SECURITY INVOKER, immutable, search_path=""',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select string_agg(p.proname || ': definer=' || p.prosecdef
+          || ' volatility=' || p.provolatile || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
+        from pg_proc p
+        where p.oid in (to_regprocedure('public.estimate_reset_at()'),
+                        to_regprocedure('public.free_estimate_limit()'))), 'missing') end
+  union all
+  select 'BA3 v3 trigger functions no execute',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else (select count(*) from (values
+          ('public.enforce_free_invoice_limit()'), ('public.enforce_paid_recurring_expenses()')) f(sig)
+        cross join (values ('anon'), ('authenticated')) ro(r)
+        where to_regprocedure(f.sig) is not null
+          and not has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')) = 4 end,
+    'neither trigger function executable by anon or authenticated',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select string_agg(f.sig || ' ' || ro.r, ', ' order by f.sig, ro.r)
+        from (values ('public.enforce_free_invoice_limit()'), ('public.enforce_paid_recurring_expenses()')) f(sig)
+        cross join (values ('anon'), ('authenticated')) ro(r)
+        where to_regprocedure(f.sig) is not null
+          and has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')), 'no execute') end
+  union all
+  select 'BA4 v3 constants authenticated only',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else (select count(*) from (values
+          ('public.estimate_reset_at()'), ('public.free_estimate_limit()')) f(sig)
+        where to_regprocedure(f.sig) is not null
+          and has_function_privilege('authenticated', to_regprocedure(f.sig), 'execute')
+          and not has_function_privilege('anon', to_regprocedure(f.sig), 'execute')) = 2 end,
+    'estimate_reset_at + free_estimate_limit: authenticated EXECUTE, anon none',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select string_agg(f.sig || ' authenticated='
+          || has_function_privilege('authenticated', to_regprocedure(f.sig), 'execute')
+          || ' anon=' || has_function_privilege('anon', to_regprocedure(f.sig), 'execute'), '; ' order by f.sig)
+        from (values ('public.estimate_reset_at()'), ('public.free_estimate_limit()')) f(sig)
+        where to_regprocedure(f.sig) is not null), 'missing') end
+  union all
+  select 'BA5 v3 triggers',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D' and (t.tgtype & 31) = 7
+          and ((t.tgrelid = 'public.invoices'::regclass and t.tgname = 'enforce_free_invoice_limit')
+            or (t.tgrelid = 'public.recurring_expenses'::regclass and t.tgname = 'enforce_paid_recurring_expenses'))) = 2 end,
+    'invoices: enforce_free_invoice_limit + recurring_expenses: enforce_paid_recurring_expenses (both before insert, per row)',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select string_agg(t.tgrelid::regclass::text || '.' || t.tgname || ' type=' || t.tgtype, ', ' order by t.tgname)
+        from pg_trigger t
+        where not t.tgisinternal
+          and ((t.tgrelid = 'public.invoices'::regclass and t.tgname = 'enforce_free_invoice_limit')
+            or (t.tgrelid = 'public.recurring_expenses'::regclass and t.tgname = 'enforce_paid_recurring_expenses'))), 'none') end
+  union all
+  select 'BA6 v3 cap bodies',
+    case when not exists (select 1 from applied where version = '20261025100000') then null
+      else coalesce((select strpos(p.prosrc, '''quote''') > 0
+          and strpos(p.prosrc, 'estimate_reset_at') > 0
+          and strpos(p.prosrc, '''PAYWALL_LIMIT''') > 0
+          and strpos(p.prosrc, '''PAYWALL_LIMIT_ESTIMATE''') > 0
+          and strpos(p.prosrc, 'pg_advisory_xact_lock') > 0
+          and strpos(p.prosrc, 'invoice_cap:') > 0
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_free_invoice_limit()')), false)
+        and coalesce((select strpos(p.prosrc, '''PAYWALL_RECURRING''') > 0
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_paid_recurring_expenses()')), false) end,
+    'cap body: quote + estimate_reset_at + both hints + advisory lock invoice_cap:; recurring body: PAYWALL_RECURRING',
+    case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
+      else coalesce((select 'cap: quote=' || (strpos(p.prosrc, '''quote''') > 0)
+          || ' reset=' || (strpos(p.prosrc, 'estimate_reset_at') > 0)
+          || ' hint=' || (strpos(p.prosrc, '''PAYWALL_LIMIT''') > 0)
+          || ' hint_estimate=' || (strpos(p.prosrc, '''PAYWALL_LIMIT_ESTIMATE''') > 0)
+          || ' lock=' || (strpos(p.prosrc, 'pg_advisory_xact_lock') > 0 and strpos(p.prosrc, 'invoice_cap:') > 0)
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_free_invoice_limit()')), 'cap missing')
+        || '; recurring hint=' || coalesce((select (strpos(p.prosrc, '''PAYWALL_RECURRING''') > 0)::text
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_paid_recurring_expenses()')), 'missing') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

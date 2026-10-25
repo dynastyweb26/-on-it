@@ -163,7 +163,7 @@ export async function requestEstimateDuplicate(id: string): Promise<EstimateDupl
       | { estimate?: { id?: string }; error?: string }
       | null;
     if (res.status === 402 || body?.error === 'paywall') {
-      return { ok: false, paywall: true, message: 'You have reached the free invoice limit.' };
+      return { ok: false, paywall: true, message: 'You have reached the free estimate limit.' };
     }
     if (!res.ok || !body?.estimate?.id) {
       return {

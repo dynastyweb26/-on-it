@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated: October 19, 2026**
+**Last updated: October 25, 2026**
 
 These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"), for your use of On It, including the app at onit.dynastyweb.co and any version of On It you install on your phone or computer. By creating an account or using On It, you agree to these terms and to our Privacy Policy (https://onit.dynastyweb.co/privacy). If you do not agree, do not use On It.
 
@@ -32,7 +32,7 @@ You are responsible for everything that happens under your account.
 
 ## 3. Subscription and billing
 
-**Free tier.** You can create up to 3 invoices and log up to 5 expenses without paying. Estimates do not count toward the limit. Deleting an invoice or expense does not free up a spot. Recurring expenses that log automatically count toward the expense limit. Some features, such as reports and recaps, are only available with a subscription.
+**Free tier.** You can create up to 3 invoices, create up to 3 estimates, and log up to 5 expenses without paying. Deleting an invoice, estimate, or expense does not free up a spot. Setting up a new recurring expense requires a subscription. Recurring expenses you set up while subscribed stay in your account if you stop subscribing, and the expenses they log automatically count toward the free expense limit. Some features, such as reports and recaps, are only available with a subscription.
 
 **Pro subscription.** $9.99 per month, plus any applicable tax, with a 14-day free trial for first-time subscribers.
 

@@ -15,8 +15,8 @@ import { TRIAL_DAYS, trialEligible } from '@/lib/trial';
 // screen that showed the wall (chat keeps the blocked invoice card in local
 // storage, so the user lands back on it and can send). A fixed whitelist of
 // in-app paths, never a URL. Validated anyway (security pattern).
-const RETURN_PATHS = { chat: '/chat', summary: '/summary', books: '/dashboard', invoices: '/invoices', settings: '/settings' } as const;
-const CheckoutBody = z.object({ returnTo: z.enum(['chat', 'summary', 'books', 'invoices', 'settings']).optional() }).nullish();
+const RETURN_PATHS = { chat: '/chat', summary: '/summary', books: '/dashboard', invoices: '/invoices', recurring: '/dashboard/recurring', settings: '/settings' } as const;
+const CheckoutBody = z.object({ returnTo: z.enum(['chat', 'summary', 'books', 'invoices', 'recurring', 'settings']).optional() }).nullish();
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();

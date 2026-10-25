@@ -911,3 +911,9 @@ goes through `src/lib/tip-arbiter.ts` (`pickTip`, 4/4 matrix tests)._
 |---|---|---|
 | One nudge per send | **Built — preview unverified** | `pickTip` returns at most one of `terms / payouts / alerts / feedback` in that priority. `ChatView` resolves each existing eligibility rule (terms-prompt.ts, the payouts conditions, push availability, feedback.ts) and calls the arbiter once per send; the payouts card is no longer appended alongside a second card and is gated on the arbiter's winner inside `finishFinalize`. Save prompts (client/item/recurring) are a separate floating surface and can still stack with a nudge on the same send — unchanged (Q7). |
 | Alerts card copy follows online-pay availability | **Built — preview unverified** | Without a connected processor the card now asks "Want a nudge if X hasn't paid in 2 days?" and the enable confirmation promises only that; with online pay the copy is unchanged. `reminderPrompt.onlinePay` carries `cardAvailableFor(profile, connectOn)`. |
+
+## Paywall v3 — estimate cap + paid-only recurring (branch `feat/paywall-v3`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Free estimate cap (3) and paid-only recurring expenses | **Built on branch — NOT merged; migration NOT applied** | Code: `src/lib/access.ts` flags, estimate/recurring walls in `ChatView`, `PaywallModal` variants, soft prompts (`/api/prompts`, `src/lib/soft-prompts.ts`). Typecheck, 624 tests, build pass. Migration `20261025100000_paywall_v3_estimates_recurring.sql` + privilege-check section BA are written but **not dry-run or pushed**; until then `estimate_reset_at()` is absent, so `access.ts` leaves estimates uncapped (no wall fires). **Founder must: dry run, read the SQL, yes, apply, `npm run db:privcheck`, smoke test.** |

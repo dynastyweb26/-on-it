@@ -1,7 +1,8 @@
 'use client';
 /* ═══ Paywall ═══
-   Shown when a free/canceled user hits the 3-invoice or 5-expense cap, or taps
-   an Income/Expense PDF export (variant). A full-screen cream page with a
+   Shown when a free/canceled user hits the 3-invoice, 3-estimate or 5-expense
+   cap, tries to create a recurring expense, taps an Income/Expense PDF export,
+   or is nudged back after canceling (variant). A full-screen cream page with a
    close X (top-left, "Not now") and the app icon, then ONE scrolling column:
      context pill + slideshow (the hero, ~57% of the screen height)
      → Trial reminder → Have a code? (expands into CodeEntry) → 14-day trial
@@ -26,29 +27,47 @@ import { RECAPS_LIVE } from '@/lib/recaps-live';
 
 // Slide 5 ("Your week at a glance") and the recaps row in "What's included"
 // appear only once recaps launch: the one shared flag (lib/recaps-live).
-const SLIDES: SlideId[] = ['invoice', 'paid', 'expense', 'reports', ...(RECAPS_LIVE ? ['recap' as const] : [])];
+const SLIDES: SlideId[] = ['invoice', 'estimate', 'paid', 'expense', 'recurring', 'reports', ...(RECAPS_LIVE ? ['recap' as const] : [])];
 
 // Which wall: 'invoice' = the 4th invoice at Send, 'expense' = the 6th expense
-// before the camera/upload, 'reports' = an Income/Expense PDF export.
-export type PaywallVariant = 'invoice' | 'expense' | 'reports';
+// before the camera/upload, 'estimate' = the 4th estimate, 'recurring' = a
+// recurring expense (paid only), 'reports' = an Income/Expense PDF export,
+// 'winback' = a canceled customer's nudge (no limit was hit).
+export type PaywallVariant = 'invoice' | 'expense' | 'estimate' | 'recurring' | 'reports' | 'winback';
 
 // The slide each wall opens on: the feature the user just ran into.
 const START_SLIDE: Record<PaywallVariant, SlideId> = {
   invoice: 'invoice',
   expense: 'expense',
+  estimate: 'estimate',
+  recurring: 'recurring',
   reports: 'reports',
+  winback: 'invoice',
 };
 
 // Why the wall opened: a quiet pill above the slides, fixed while they change.
 const REASON: Record<PaywallVariant, string> = {
   invoice: 'You’ve used your 3 free invoices',
   expense: 'You’ve used your 5 free expenses',
+  estimate: 'You’ve used your 3 free estimates',
+  recurring: 'Recurring expenses are part of On It',
   reports: 'Reports are part of On It',
+  winback: 'Welcome back — pick up where you left off',
+};
+
+// Where each wall's Checkout returns by default when the caller doesn't say.
+const DEFAULT_RETURN: Record<PaywallVariant, CheckoutReturn> = {
+  invoice: 'chat',
+  expense: 'chat',
+  estimate: 'chat',
+  recurring: 'recurring',
+  reports: 'summary',
+  winback: 'chat',
 };
 
 // Where Stripe Checkout returns to (POST /api/checkout's whitelist): the screen
 // that showed the wall, so a blocked invoice card or expense is right there.
-export type CheckoutReturn = 'chat' | 'summary' | 'books' | 'invoices' | 'settings';
+export type CheckoutReturn = 'chat' | 'summary' | 'books' | 'invoices' | 'recurring' | 'settings';
 
 const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const long = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -66,13 +85,14 @@ const HERO_SHARE = 0.57;
 const HERO_MIN = 260;
 
 // "What's included": TRUE rows only — each matches what the code enforces
-// (free_invoice_limit() / free_expense_limit(), quotes never capped, PDF
-// exports paid-only). `true` = ✓, `false` = —.
+// (free_invoice_limit() / free_estimate_limit() / free_expense_limit(),
+// recurring expenses and PDF exports paid-only). `true` = ✓, `false` = —.
 type Cell = string | boolean;
 const INCLUDED: { label: string; free: Cell; paid: Cell; recapsOnly?: boolean }[] = [
   { label: 'Invoices', free: '3 free', paid: 'Unlimited' },
+  { label: 'Estimates', free: '3 free', paid: 'Unlimited' },
   { label: 'Expenses & receipt scans', free: '5 free', paid: 'Unlimited' },
-  { label: 'Estimates', free: 'Unlimited', paid: 'Unlimited' },
+  { label: 'Recurring expenses', free: false, paid: true },
   { label: 'Voice invoicing', free: true, paid: true },
   { label: 'Online pay page', free: true, paid: true },
   { label: 'Income & expense reports (PDF)', free: false, paid: true },
@@ -85,12 +105,14 @@ function CellValue({ v }: { v: Cell }): ReactNode {
   return v;
 }
 
-export default function PaywallModal({ onClose, variant = 'invoice', returnTo }: {
+export default function PaywallModal({ onClose, variant = 'invoice', returnTo, reason }: {
   onClose: () => void;
   variant?: PaywallVariant;
   returnTo?: CheckoutReturn;
+  /** Replaces the variant's reason pill (the soft prompts open a wall nobody hit a limit on). */
+  reason?: string;
 }) {
-  const back: CheckoutReturn = returnTo ?? (variant === 'reports' ? 'summary' : 'chat');
+  const back: CheckoutReturn = returnTo ?? DEFAULT_RETURN[variant];
   const pageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const codeCardRef = useRef<HTMLDivElement>(null);
@@ -257,7 +279,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
               id="paywall-reason"
               className="rounded-full bg-surface-container px-3 py-1 text-[13px] font-semibold leading-[18px] text-on-surface-variant"
             >
-              {REASON[variant]}
+              {reason ?? REASON[variant]}
             </p>
           </div>
           {heroH > 0 && <PaywallSlideshow slides={SLIDES} start={START_SLIDE[variant]} height={heroH} />}
