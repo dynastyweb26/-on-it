@@ -11,6 +11,8 @@ export type AccessRead = {
   tier?: string;
   hasAccess?: boolean;
   canExpense?: boolean;
+  canEstimate?: boolean;
+  canRecurring?: boolean;
   canExport?: boolean;
   [k: string]: unknown;
 };

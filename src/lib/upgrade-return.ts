@@ -75,7 +75,10 @@ export function recentlyUpgraded(): boolean {
   }
 }
 
-type Access = { hasAccess?: boolean; canExpense?: boolean; canExport?: boolean; [k: string]: unknown };
+type Access = {
+  hasAccess?: boolean; canExpense?: boolean; canEstimate?: boolean; canRecurring?: boolean; canExport?: boolean;
+  [k: string]: unknown;
+};
 
 /** Re-read /api/access until `ok(access)` is true (about 9 s at most). Returns
  *  the last access read, or null if it never answered. */

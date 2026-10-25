@@ -3,39 +3,49 @@
 // as null otherwise, and the callers render nothing for null. Secondary text,
 // no gold, no alerts or toasts.
 
-export type UsageKind = 'invoice' | 'expense';
+export type UsageKind = 'invoice' | 'expense' | 'estimate';
 
 export interface UsageSnapshot {
   invoiceCount?: number;
   expenseCount?: number;
+  estimateCount?: number;
   invoiceLimit?: number | null;
   expenseLimit?: number | null;
+  estimateLimit?: number | null;
   trialEligible?: boolean;
 }
 
+const COUNT_KEY = { invoice: 'invoiceCount', expense: 'expenseCount', estimate: 'estimateCount' } as const;
+const LIMIT_KEY = { invoice: 'invoiceLimit', expense: 'expenseLimit', estimate: 'estimateLimit' } as const;
+
 /** The line after a save, or null when there's nothing to say (no cap, or
- *  already past it — the wall covers that). */
+ *  already past it — the wall covers that). Estimates also warn one before the
+ *  last free one ("1 left"), since there are only 3. */
 export function usageLine(kind: UsageKind, a: UsageSnapshot | null | undefined): string | null {
   if (!a) return null;
-  const used = kind === 'invoice' ? a.invoiceCount : a.expenseCount;
-  const limit = kind === 'invoice' ? a.invoiceLimit : a.expenseLimit;
+  const used = a[COUNT_KEY[kind]];
+  const limit = a[LIMIT_KEY[kind]];
   if (typeof used !== 'number' || typeof limit !== 'number' || used < 1 || used > limit) return null;
-  const noun = kind === 'invoice' ? 'invoice' : 'expense';
   if (used === limit) {
     // A returning customer gets no trial, so don't promise one.
     return a.trialEligible === false
-      ? `Last free ${noun}.`
-      : `Last free ${noun}. Your next one starts a free trial.`;
+      ? `Last free ${kind}.`
+      : `Last free ${kind}. Your next one starts a free trial.`;
   }
-  return `${used} of ${limit} free ${noun}s used`;
+  if (kind === 'estimate' && used === limit - 1) return `${used} of ${limit} free estimates used. 1 left.`;
+  return `${used} of ${limit} free ${kind}s used`;
 }
 
-/** Settings → "Free plan" row: both counts, or null when not on the free plan. */
+/** Settings → "Free plan" row: the counts, or null when not on the free plan.
+ *  The estimates count is added once the estimate cap is live. */
 export function freePlanSummary(a: UsageSnapshot | null | undefined): string | null {
   if (!a || typeof a.invoiceLimit !== 'number' || typeof a.expenseLimit !== 'number') return null;
   const inv = Math.min(a.invoiceCount ?? 0, a.invoiceLimit);
   const exp = Math.min(a.expenseCount ?? 0, a.expenseLimit);
-  return `${inv} of ${a.invoiceLimit} invoices · ${exp} of ${a.expenseLimit} expenses used`;
+  const est = typeof a.estimateLimit === 'number'
+    ? ` · ${Math.min(a.estimateCount ?? 0, a.estimateLimit)} of ${a.estimateLimit} estimates`
+    : '';
+  return `${inv} of ${a.invoiceLimit} invoices · ${exp} of ${a.expenseLimit} expenses${est} used`;
 }
 
 /** Fresh /api/access read → the line for `kind`, or null (paid, paywall off,
