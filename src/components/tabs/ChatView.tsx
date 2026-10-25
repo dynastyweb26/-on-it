@@ -28,8 +28,9 @@ import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { noteUpgradeReturn, recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
+import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
 import { fetchUsageLine } from '@/lib/usage';
+import { dismissSoftPrompt, isSoftPromptDismissed, type SoftPrompt } from '@/lib/soft-prompts';
 import DepositValueInput from '@/components/DepositValueInput';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
@@ -636,6 +637,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
   const [termsPrompt, setTermsPrompt] = useState(false);
+  // The one soft paywall nudge (GET /api/prompts, lib/soft-prompts.ts), read
+  // once per visit to Chat. "Not now" is remembered per device. `softWall` is
+  // the paywall it opens (a separate state: nothing was blocked, so the send
+  // gate's paywallFor must not be involved).
+  const [softPrompt, setSoftPrompt] = useState<SoftPrompt | null>(null);
+  const [softWall, setSoftWall] = useState<SoftPrompt | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    fetch('/api/prompts', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { prompt?: SoftPrompt | null } | null) => {
+        const p = d?.prompt ?? null;
+        if (!cancelled && p && !isSoftPromptDismissed(p.key)) setSoftPrompt(p);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [active]);
+  // Upgraded while the card is up (checkout finished, code redeemed): it has nothing left to say.
+  useEffect(() => subscribeAccess(() => { setSoftPrompt(null); setSoftWall(null); }), []);
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -4005,6 +4026,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
+        {hydrated && softPrompt && !termsPrompt && !feedbackPrompt && (
+          <div className="flex justify-start">
+            <ChatNudgeCard
+              className="w-full max-w-[82%]"
+              icon="workspace_premium"
+              eyebrow={softPrompt.eyebrow}
+              title={softPrompt.title}
+              body={softPrompt.body}
+              actions={[
+                {
+                  label: softPrompt.cta,
+                  variant: 'primary',
+                  onClick: () => (softPrompt.action === 'plan' ? router.push('/settings/plan') : setSoftWall(softPrompt)),
+                },
+                {
+                  label: 'Not now',
+                  variant: 'secondary',
+                  onClick: () => { dismissSoftPrompt(softPrompt.key); setSoftPrompt(null); },
+                },
+              ]}
+            />
+          </div>
+        )}
+
         {feedbackPrompt && (
           <div className="flex justify-start">
             <ChatNudgeCard
@@ -4245,6 +4290,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       )}
 
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
+      {softWall && (
+        <PaywallModal variant={softWall.variant ?? 'invoice'} reason={softWall.reason} returnTo="chat" onClose={() => setSoftWall(null)} />
+      )}
     </div>
   );
 }

@@ -105,10 +105,12 @@ function CellValue({ v }: { v: Cell }): ReactNode {
   return v;
 }
 
-export default function PaywallModal({ onClose, variant = 'invoice', returnTo }: {
+export default function PaywallModal({ onClose, variant = 'invoice', returnTo, reason }: {
   onClose: () => void;
   variant?: PaywallVariant;
   returnTo?: CheckoutReturn;
+  /** Replaces the variant's reason pill (the soft prompts open a wall nobody hit a limit on). */
+  reason?: string;
 }) {
   const back: CheckoutReturn = returnTo ?? DEFAULT_RETURN[variant];
   const pageRef = useRef<HTMLDivElement>(null);
@@ -277,7 +279,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo }:
               id="paywall-reason"
               className="rounded-full bg-surface-container px-3 py-1 text-[13px] font-semibold leading-[18px] text-on-surface-variant"
             >
-              {REASON[variant]}
+              {reason ?? REASON[variant]}
             </p>
           </div>
           {heroH > 0 && <PaywallSlideshow slides={SLIDES} start={START_SLIDE[variant]} height={heroH} />}
