@@ -23,12 +23,14 @@ export const GRAPHIC_H = 216;
 const OBJECTS_DX = -9;
 export const GRAPHIC_CONTENT_W = 360;
 
-export type SlideId = 'invoice' | 'paid' | 'expense' | 'reports' | 'recap';
+export type SlideId = 'invoice' | 'estimate' | 'paid' | 'expense' | 'recurring' | 'reports' | 'recap';
 
 export const SLIDE_TITLE: Record<SlideId, [string, string]> = {
   invoice: ['Say it.', 'It’s invoiced.'],
+  estimate: ['Quote the job.', 'Get it signed.'],
   paid: ['Get paid', 'your way.'],
   expense: ['Snap a receipt.', 'It’s logged.'],
+  recurring: ['Set it once.', 'It repeats.'],
   reports: ['Your books,', 'one tap.'],
   recap: ['Your week', 'at a glance.'],
 };
@@ -137,6 +139,46 @@ function InvoiceGraphic() {
   );
 }
 
+// ── Estimates · Quote the job. Get it signed. ───────────────────────────────
+function EstimateGraphic() {
+  return (
+    <>
+      <div style={{ ...BASE, gap: 12 }}>
+        <div style={{ ...row, alignItems: 'center' }}>
+          <ContractorMark size={24} />
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: MONT, fontWeight: 800, fontSize: 11, letterSpacing: '.14em', color: GOLD_TEXT }}>ESTIMATE</div>
+            <div style={{ fontSize: 9.5, color: MUTED, marginTop: 2 }}>EST-0012 · Oct 1</div>
+          </div>
+        </div>
+        <div>
+          <div style={eyebrow}>PREPARED FOR</div>
+          <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 14, marginTop: 3 }}>Sarah Lee</div>
+        </div>
+        <LineItems />
+        <div style={{ ...row, alignItems: 'baseline', borderTop: `1px solid ${HAIRLINE}`, paddingTop: 9 }}>
+          <span style={{ fontSize: 11, color: MUTED }}>Total</span>
+          <span style={{ fontFamily: MONT, fontWeight: 800, fontSize: 20 }}>$850.00</span>
+        </div>
+      </div>
+
+      <div style={{ ...OVERLAY, width: 236 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 'none', width: 38, height: 38, borderRadius: 11, background: '#f6ecd9', display: 'grid', placeItems: 'center' }}>
+            <Icon name="request_quote" size={21} className="text-primary" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 14 }}>Sarah Lee</div>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Signed on her phone</div>
+          </div>
+          <div style={{ fontFamily: MONT, fontWeight: 800, fontSize: 19 }}>$850</div>
+        </div>
+        <div style={{ alignSelf: 'flex-start' }}><Chip icon="check">Approved</Chip></div>
+      </div>
+    </>
+  );
+}
+
 // ── Slide 2 · Get paid your way. ────────────────────────────────────────────
 function PaidGraphic() {
   return (
@@ -238,6 +280,48 @@ function ExpenseGraphic() {
   );
 }
 
+// ── Recurring · Set it once. It repeats. ────────────────────────────────────
+const RECURRING_ROWS: [string, string, string][] = [
+  ['Truck insurance', 'Monthly', '$186.00'],
+  ['Software', 'Monthly', '$29.00'],
+  ['Dump permit', 'Yearly', '$240.00'],
+];
+
+function RecurringGraphic() {
+  return (
+    <>
+      <div style={{ ...BASE, gap: 12 }}>
+        <div style={eyebrow}>RECURRING EXPENSES</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+          {RECURRING_ROWS.map(([name, cadence, amount]) => (
+            <div key={name} style={{ ...row, alignItems: 'center', fontSize: 11.5 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{name}</div>
+                <div style={{ fontSize: 9.5, color: MUTED, marginTop: 2 }}>{cadence}</div>
+              </div>
+              <span style={{ fontFamily: MONT, fontWeight: 700 }}>{amount}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ ...OVERLAY, width: 236 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 'none', width: 38, height: 38, borderRadius: 11, background: '#f6ecd9', display: 'grid', placeItems: 'center' }}>
+            <Icon name="autorenew" size={21} className="text-primary" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 14 }}>Truck insurance</div>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Next logs Nov 1</div>
+          </div>
+          <div style={{ fontFamily: MONT, fontWeight: 800, fontSize: 19 }}>$186</div>
+        </div>
+        <div style={{ alignSelf: 'flex-start' }}><Chip icon="check">Logs itself</Chip></div>
+      </div>
+    </>
+  );
+}
+
 // ── Slide 4 · Your books, one tap. ──────────────────────────────────────────
 const REPORT_ROWS: [string, string][] = [
   ['Mike Davis', '$850.00'],
@@ -334,8 +418,10 @@ function RecapGraphic() {
 
 const GRAPHIC: Record<SlideId, () => JSX.Element> = {
   invoice: InvoiceGraphic,
+  estimate: EstimateGraphic,
   paid: PaidGraphic,
   expense: ExpenseGraphic,
+  recurring: RecurringGraphic,
   reports: ReportsGraphic,
   recap: RecapGraphic,
 };
