@@ -1163,8 +1163,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // isn't sent hunting for the header compose icon. It fires the same reset.
       setMessages((m) => [...m, aMsg(
         docKind(draft) === 'quote'
-          ? `${label} is ready to share. Tap Revise on the card to change it, or start a new job.`
-          : `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
+          ? `${label} is ready to share. Tap Revise to change it, or start a new chat`
+          : `${label} is sent and locked. Tap Revise to change it, or start a new chat`,
         { action: 'new-chat' }
       )]);
       return null;
@@ -3751,12 +3751,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"
             // control that fires the same reset as the header compose icon
-            // (onit-new-chat), so "start a new job" isn't prose the user has to
+            // (onit-new-chat), so "start a new chat" isn't prose the user has to
             // act on by hunting for the header button.
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
                 <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
-                  {m.content}
+                  {/* The sentence ends on the header compose glyph (edit_square,
+                      the header New chat button's own icon) so "start a new
+                      chat" points at the control it names. */}
+                  {m.content}{' '}
+                  <Icon name="edit_square" size={16} className="inline-block align-[-2px]" />
                 </div>
                 <button
                   className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 py-2 text-label-lg font-semibold text-primary transition active:scale-95"
