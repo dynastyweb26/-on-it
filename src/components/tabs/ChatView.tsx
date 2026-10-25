@@ -1157,14 +1157,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // editable copy; a new chat starts a new job. Runs before setFinished(false)
     // so the sent conversation stays marked finished (not re-archived as a draft).
     if (pendingInvoiceRef.current && isLockedStatus(linkedStatus)) {
-      const label = formatDocNumber(docKind(draft), pendingInvoiceRef.current.no);
-      // "Revise" is a real button on the card; make "New chat" a real control too
+      // "Revise" is a real button on the card; "New chat" is a real control too
       // (action: 'new-chat' renders the button below the bubble) so the user
       // isn't sent hunting for the header compose icon. It fires the same reset.
+      // The card above already names the document, so the bubble doesn't repeat
+      // the number — it only says what the user can do next.
       setMessages((m) => [...m, aMsg(
-        docKind(draft) === 'quote'
-          ? `${label} is ready to share. Tap Revise on the card to change it, or start a new job.`
-          : `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
+        'Tap Revise to change it, or start a new chat',
         { action: 'new-chat' }
       )]);
       return null;
@@ -3757,6 +3756,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <div className="flex max-w-[82%] flex-col items-start gap-2">
                 <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
                   {m.content}
+                  <Icon name="edit_square" size={16} className="ml-1 inline-block align-[-3px] text-primary" />
                 </div>
                 <button
                   className="flex items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 py-2 text-label-lg font-semibold text-primary transition active:scale-95"
