@@ -15,6 +15,7 @@ import TabDeck from '@/components/tabs/TabDeck';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
+import { ENABLE_CAMERA_ANIMATION } from '@/lib/feature-flags';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import { reducedMotion } from '@/lib/list-motion';
@@ -284,6 +285,13 @@ export default function AppShell({
   const cameraUserId = useRef<string | null>(null);
   const cameraCheckSeq = useRef(0);
   const checkCameraTutorial = useCallback(async (userId: string | null) => {
+    if (!ENABLE_CAMERA_ANIMATION) {
+      // Vaulted: do not read the profile, start the timer or render the tip.
+      cameraUserId.current = null;
+      setCameraSeenAt(undefined);
+      setCameraTip(false);
+      return;
+    }
     const seq = ++cameraCheckSeq.current;
     cameraUserId.current = userId;
     if (!userId) {
@@ -327,7 +335,7 @@ export default function AppShell({
   // visible. While an overlay or the target resolves, re-check rather than
   // starting underneath it.
   useEffect(() => {
-    if (cameraTip) return;
+    if (!ENABLE_CAMERA_ANIMATION || cameraTip) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tick = () => {
@@ -609,7 +617,7 @@ export default function AppShell({
         )}
 
         {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
-        {cameraTip && (
+        {ENABLE_CAMERA_ANIMATION && cameraTip && (
           <CoachMarks
             key="camera-tip"
             tab="/chat"
