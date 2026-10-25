@@ -8,7 +8,6 @@
 //   estimate-approved  free / canceled, an estimate was signed      → estimate screen
 //   first-payment      free / canceled, their first ledger payment  → app banner
 //   winback            canceled, once per 14 days                   → app banner
-//   trial-ending       trialing, 3 days or fewer left, once a day    → app banner
 //
 // Tier gating runs through hasAccess() server-side (the ONE access source) and
 // isPaidTier() (its client-safe set) — never a second copy of the tier rules.
@@ -20,21 +19,18 @@
 // Pure: no DOM at module scope, no server-only (the route and the client both
 // import it).
 import { isPaidTier } from '@/lib/paywall';
-import { TRIAL_REMINDER_DAYS } from '@/lib/trial';
 import type { UsageSnapshot } from '@/lib/usage';
 
 export type SoftPromptId =
   | 'usage'
   | 'estimate-approved'
   | 'first-payment'
-  | 'winback'
-  | 'trial-ending';
+  | 'winback';
 
 /** How often one prompt may appear:
- *  once → forever (per device), 14d → at most once per WINBACK_DAYS,
- *  day  → once per local calendar day. */
-export type SoftPromptCap = 'once' | '14d' | 'day';
-export type SoftPromptAction = 'wall' | 'plan' | 'convert';
+ *  once → forever (per device), 14d → at most once per WINBACK_DAYS. */
+export type SoftPromptCap = 'once' | '14d';
+export type SoftPromptAction = 'wall' | 'convert';
 /** The paywall variant a prompt opens (PaywallModal's own union, narrowed). */
 export type SoftPromptVariant = 'invoice' | 'estimate' | 'winback';
 
@@ -49,8 +45,8 @@ export interface SoftPrompt {
   body: string;
   /** Primary button label. */
   cta: string;
-  /** 'wall' opens the paywall, 'plan' opens Settings → Plan, 'convert' is
-   *  handled by the screen it lives on (the estimate's Convert action). */
+  /** 'wall' opens the paywall; 'convert' is handled by the screen it lives on
+   *  (the estimate's Convert action). */
   action: SoftPromptAction;
   variant?: SoftPromptVariant;
   /** Replaces the paywall's default reason pill (nobody hit a limit here). */
@@ -62,14 +58,13 @@ export const WINBACK_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ── Tier gate ───────────────────────────────────────────────────────────────
-// Non-paid users only (free and canceled): founder, active and past_due never
-// see an upgrade prompt. The one exception is the trial banner, which exists
-// only FOR a trialing user.
+// Non-paid users only (free and canceled): founder, trialing, active and
+// past_due never see an upgrade prompt. A trialing customer's reminder is the
+// Resend trial email, not a banner.
 export function promptAllowedForTier(
   id: SoftPromptId,
   tier: string | null | undefined,
 ): boolean {
-  if (id === 'trial-ending') return tier === 'trialing';
   if (id === 'winback') return tier === 'canceled';
   return !isPaidTier(tier);
 }
@@ -109,19 +104,11 @@ export function markSeen(userId: string, key: string, now: Date = new Date()): v
   } catch { /* storage blocked: the prompt may ask again next load */ }
 }
 
-/** The LOCAL calendar day of a date, as YYYY-MM-DD (a day cap resets at local
- *  midnight, not 24 hours after the last show). */
-export function dayKey(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 /** Is `prompt` allowed to appear right now, given this device's dismissals? */
 export function promptDue(prompt: SoftPrompt, userId: string, now: Date = new Date()): boolean {
   const at = seenAt(userId, prompt.key, now);
   if (!at) return true;
   if (prompt.cap === '14d') return now.getTime() - at.getTime() >= WINBACK_DAYS * DAY_MS;
-  if (prompt.cap === 'day') return dayKey(at) !== dayKey(now);
   return false; // 'once'
 }
 
@@ -207,29 +194,5 @@ export function winbackPrompt(): SoftPrompt {
     action: 'wall',
     variant: 'winback',
     reason: 'Welcome back — pick up where you left off',
-  };
-}
-
-/** The last days of a trial (day 11 of 14 with TRIAL_REMINDER_DAYS = 3). The
- *  CTA is Settings → Plan rather than the paywall: a trialing customer already
- *  has a plan, and Checkout would charge them today with trial days left. */
-export function trialEndingPrompt(
-  trialEndsAt: string | null | undefined,
-  now: Date = new Date(),
-): SoftPrompt | null {
-  if (!trialEndsAt) return null;
-  const end = new Date(trialEndsAt);
-  if (Number.isNaN(end.getTime())) return null;
-  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / DAY_MS);
-  if (daysLeft < 1 || daysLeft > TRIAL_REMINDER_DAYS) return null;
-  return {
-    id: 'trial-ending',
-    key: `trial-ending:${trialEndsAt}`,
-    cap: 'day',
-    eyebrow: 'Your trial',
-    title: `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left in your trial`,
-    body: 'Add a plan to keep unlimited invoices, estimates and expenses. You can cancel anytime in Settings.',
-    cta: 'Manage plan',
-    action: 'plan',
   };
 }

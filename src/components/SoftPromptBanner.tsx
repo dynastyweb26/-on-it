@@ -8,14 +8,12 @@
 // this device (localStorage), so a 14-day or once cap survives a reload, and
 // the prompt is marked seen when shown — a soft prompt is a moment, not a nag.
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PaywallModal from '@/components/PaywallModal';
 import { getSharedUser } from '@/lib/auth-client';
 import { markSeen, promptDue, type SoftPrompt } from '@/lib/soft-prompts';
 
 export default function SoftPromptBanner() {
-  const router = useRouter();
   const [prompt, setPrompt] = useState<SoftPrompt | null>(null);
   const [wall, setWall] = useState<SoftPrompt | null>(null);
 
@@ -43,16 +41,10 @@ export default function SoftPromptBanner() {
 
   if (!prompt) return null;
 
-  // 'plan' is Settings → Plan (the trial's Manage plan): a trialing customer is
-  // not trial-eligible, so the paywall's Checkout would charge today.
+  // Every prompt opens the existing paywall — the same opener the hard triggers
+  // use — so the billing swap (Stripe → Apple IAP) never touches this file.
   function act() {
-    if (!prompt) return;
-    if (prompt.action === 'plan') {
-      setPrompt(null);
-      router.push('/settings/plan');
-      return;
-    }
-    setWall(prompt);
+    if (prompt) setWall(prompt);
   }
 
   return (
@@ -62,11 +54,7 @@ export default function SoftPromptBanner() {
         className="shrink-0 border-t border-outline-variant/50 bg-surface-container-low px-container py-2.5"
       >
         <div className="flex items-center gap-3">
-          <Icon
-            name={prompt.id === 'trial-ending' ? 'schedule' : 'workspace_premium'}
-            size={22}
-            className="shrink-0 text-primary"
-          />
+          <Icon name="workspace_premium" size={22} className="shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
             <p className="text-label-lg font-bold text-on-background">{prompt.title}</p>
             <p className="text-[13px] leading-snug text-on-surface-variant">{prompt.body}</p>
