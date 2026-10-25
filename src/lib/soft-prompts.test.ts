@@ -20,6 +20,7 @@ const {
   WINBACK_DAYS,
   dayKey,
   estimateApprovedPrompt,
+  firstPaymentPrompt,
   markSeen,
   promptAllowedForTier,
   promptDue,
@@ -88,6 +89,20 @@ test('estimate-approved moment is per estimate, uses the first name, and is not 
   assert.equal(estimateApprovedPrompt('  ', 'est-3').title, 'Your estimate was approved');
   // A different estimate is a different moment.
   assert.notEqual(estimateApprovedPrompt('Jordan', 'est-1').key, estimateApprovedPrompt('Jordan', 'est-2').key);
+});
+
+test('first-payment prompt is once ever and opens the paywall', () => {
+  const p = firstPaymentPrompt();
+  assert.equal(p.id, 'first-payment');
+  assert.equal(p.key, 'first-payment');
+  assert.equal(p.cap, 'once');
+  assert.equal(p.action, 'wall');
+  assert.equal(p.variant, 'invoice');
+  assert.ok(p.reason);
+  mem.clear();
+  assert.equal(promptDue(p, U, NOW), true);
+  markSeen(U, p.key, NOW);
+  assert.equal(promptDue(p, U, new Date(NOW.getTime() + 10 * 365 * DAY)), false);
 });
 
 test('tier gate table: upgrade prompts skip paid tiers; the trial banner is trialing-only', () => {

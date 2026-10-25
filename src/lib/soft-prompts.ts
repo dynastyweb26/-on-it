@@ -172,3 +172,20 @@ export function estimateApprovedPrompt(
     variant: 'estimate',
   };
 }
+
+/** The first payment this user ever recorded in the ledger. Once per user,
+ *  ever — the moment cannot happen twice. */
+export function firstPaymentPrompt(): SoftPrompt {
+  return {
+    id: 'first-payment',
+    key: 'first-payment',
+    cap: 'once',
+    eyebrow: 'You got paid',
+    title: 'First payment received',
+    body: 'On It recorded it for you. Unlimited invoices, estimates and expenses come with a plan.',
+    cta: 'See plans',
+    action: 'wall',
+    variant: 'invoice',
+    reason: 'You got paid through On It',
+  };
+}
