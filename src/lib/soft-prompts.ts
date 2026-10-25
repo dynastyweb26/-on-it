@@ -151,3 +151,24 @@ export function usageNudge(
     reason: `${used} of ${limit} free ${plural} used — ${left} left`,
   };
 }
+
+/** The moment an estimate comes back signed. The estimate screen owns the
+ *  primary action (its existing Convert to Invoice), so `action: 'convert'` is
+ *  a marker, not a wall — the quiet "Go Pro" link opens the paywall. */
+export function estimateApprovedPrompt(
+  clientName: string | null | undefined,
+  estimateId: string,
+): SoftPrompt {
+  const first = (clientName ?? '').trim().split(/\s+/)[0] ?? '';
+  return {
+    id: 'estimate-approved',
+    key: `estimate-approved:${estimateId}`,
+    cap: 'once',
+    eyebrow: 'Signed',
+    title: first ? `${first} approved your estimate` : 'Your estimate was approved',
+    body: 'Turn it into an invoice and get paid. Go Pro to keep estimates, invoices and expenses unlimited.',
+    cta: 'Turn it into an invoice',
+    action: 'convert',
+    variant: 'estimate',
+  };
+}

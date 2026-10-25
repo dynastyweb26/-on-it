@@ -19,6 +19,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 const {
   WINBACK_DAYS,
   dayKey,
+  estimateApprovedPrompt,
   markSeen,
   promptAllowedForTier,
   promptDue,
@@ -71,6 +72,22 @@ test('usage nudge tier gate: canceled sees it, every paid tier does not', () => 
   }
   // A missing tier is "unknown", never a paid tier.
   assert.ok(usageNudge('invoice', { ...freeSnap, tier: undefined }));
+});
+
+test('estimate-approved moment is per estimate, uses the first name, and is not a wall', () => {
+  const p = estimateApprovedPrompt('Jordan Reyes', 'est-1');
+  assert.equal(p.id, 'estimate-approved');
+  assert.equal(p.key, 'estimate-approved:est-1');
+  assert.equal(p.cap, 'once');
+  assert.equal(p.action, 'convert');
+  assert.equal(p.variant, 'estimate');
+  assert.equal(p.title, 'Jordan approved your estimate');
+  assert.match(p.body, /invoice/);
+  // No client name: still a sentence, never " approved your estimate".
+  assert.equal(estimateApprovedPrompt(null, 'est-2').title, 'Your estimate was approved');
+  assert.equal(estimateApprovedPrompt('  ', 'est-3').title, 'Your estimate was approved');
+  // A different estimate is a different moment.
+  assert.notEqual(estimateApprovedPrompt('Jordan', 'est-1').key, estimateApprovedPrompt('Jordan', 'est-2').key);
 });
 
 test('tier gate table: upgrade prompts skip paid tiers; the trial banner is trialing-only', () => {
