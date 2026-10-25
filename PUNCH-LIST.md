@@ -920,17 +920,19 @@ goes through `src/lib/tip-arbiter.ts` (`pickTip`, 4/4 matrix tests)._
 
 | Failed estimate duplicate still burns a free slot | **Open — minor** | `src/app/api/estimates/[id]/duplicate/route.ts`: if the attachment copy (or caption) fails after the new quote row is inserted, `rollback()` only soft-deletes that row. Soft-deleted quotes count toward the free estimate cap (by design), so a failed duplicate consumes one of the 3 slots with nothing to show for it. Fix options: hard-delete the half-made row on rollback, or insert the row last. |
 
-## Paywall soft prompts — 5 upgrade moments (branch `feat/paywall-soft-prompts`, 2026-10-25)
+## Paywall soft prompts — 4 upgrade moments (merged to `main` `c678045`, 2026-10-25)
 
-_Code only: typecheck, unit tests and build pass; **no preview run** (no Vercel
-CLI or credentials in this environment — the founder verifies branch env vars
-and the preview URL). No migration: dismissals are per user, per device, in
-localStorage (`onit_soft_prompts_v2:<uid>`), every access in try/catch._
+_Shipped to production via the Vercel GitHub integration. No migration:
+dismissals are per user, per device, in localStorage
+(`onit_soft_prompts_v2:<uid>`), every access in try/catch. Typecheck, 628 unit
+tests and build pass. The trial day-11 banner was dropped before merge._
 
 | Item | Status | Evidence |
 |---|---|---|
-| 5 soft upgrade prompts | **Built — preview unverified** | `src/lib/soft-prompts.ts`: user-keyed store + `promptDue` (caps `once` / `14d` / `day`), `usageNudge` (2 of 3, rides the existing `/api/access` counters), `estimateApprovedPrompt`, `firstPaymentPrompt`, `winbackPrompt`, `trialEndingPrompt`. Surfaces: usage card on the saved doc (`ChatView`), signed moment on `EstimateDetail` (primary = its existing Convert, quiet "Go Pro" link), one app-open banner (`SoftPromptBanner` in `AppShell`, priority trial > win-back > first payment). `/api/prompts` gates on `hasAccess()` — no second tier source. |
+| Four soft upgrade prompts | **Shipped** | `src/lib/soft-prompts.ts`: user-keyed store + `promptDue` (caps `once` / `14d`), `usageNudge` (2 of 3, rides the existing `/api/access` counters), `estimateApprovedPrompt`, `firstPaymentPrompt`, `winbackPrompt`. Surfaces: usage card on the saved doc (`ChatView`), signed moment on `EstimateDetail` (primary = its existing Convert, quiet "Go Pro" link), one app-open banner (`SoftPromptBanner` in `AppShell`, priority win-back > first payment). Every prompt opens the existing paywall opener; `/api/prompts` gates on `hasAccess()` — no second tier source. |
+| Trial day-11 banner | **Dropped — not shipped** | Built in `451f7bf`, removed in `e725d75` before merge: the Resend `/api/trial-reminders` email already states the charge date, the amount and how to cancel, so it is the only trial reminder. Its `day` cap, `dayKey`, `plan` action and Settings → Plan CTA went with it; the old v3 trial chat card stays retired. |
 | v3 chat soft prompts | **Replaced** | `pickSoftPrompt` (estimate-signed / first-payment / trial-ending / winback chat cards) removed, so one moment can never nudge twice. |
 | Estimate moment timing | **Decision** | Marked seen when shown (not on dismiss); the estimate screen's Convert button remains the permanent affordance. There is no push-to-owner event for a signature, so the moment appears on the owner's next view. |
-| Trial day-11 CTA | **Decision** | Settings → Plan, not the paywall: a trialing profile is not trial-eligible, so Checkout would charge immediately with trial days left. |
-| Expenses usage nudge | **Open — idea, not built** | #1 covers invoices and estimates per the brief; the same counters and card would serve expenses (2 of 5) if wanted. |
+| 3-page paywall showcase | **Open — next up** | The paywall is still one scrolling page (hero slideshow → Trial reminder → code entry → What's included). The showcase is not built; nothing in the soft-prompt work depends on it, since every prompt opens the current opener. |
+| Expenses usage nudge (2 of 5) | **Open — possible later add** | #1 covers invoices and estimates per the brief; the same counters and card would serve expenses (2 of 5) if wanted. |
+| Failed estimate duplicate burns a free slot | **Open — minor** | Still open (row above the v3 section): a failed duplicate soft-deletes the new quote, and soft-deleted quotes count toward the free estimate cap. |
