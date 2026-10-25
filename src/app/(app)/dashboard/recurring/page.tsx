@@ -1,9 +1,9 @@
 'use client';
 // ═══ Recurring ═══ (release frames 3h / 3j; UI-REDESIGN-AUDIT §1.12, merge 3 · 3·2)
-// Reached from Books. Title + PRO tag (a feature tag shown to everyone, F6),
+// Reached from Books. Title "Recurring expenses" (the PRO tag and note are off for now),
 // gold + (new item). The dark card: "$X per month · N recurring" (weekly ×
 // 52 / 12, yearly / 12; paused items included) and "On It logs each charge on
-// its date"; the PRO note; Next 2 weeks (total + rows, weekly items repeat);
+// its date"; Next 2 weeks (total + rows, weekly items repeat);
 // All recurring A–Z: vendor, "Category · Monthly", amount, "Next Nov 2" /
 // "Paused", a skip notice when On It couldn't log a charge. Tap → edit; swipe
 // or long-press → Edit / Delete (soft, with Undo; logged expenses stay).
@@ -11,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import UndoToast from '@/components/UndoToast';
-import ProTag from '@/components/recurring/ProTag';
 import { AlphaSections, ListRow, ListSkeleton, RowMenu } from '@/components/lists/SavedList';
 import { createClient } from '@/lib/supabase/client';
 import { groupByLetter } from '@/lib/clients';
@@ -67,7 +66,7 @@ export default function RecurringPage() {
 
   const header = (
     <div className="flex items-center justify-between px-1 pb-3">
-      <h1 className="flex items-center gap-2.5 font-display text-[28px] font-extrabold leading-tight">Recurring <ProTag /></h1>
+      <h1 className="flex items-center gap-2.5 font-display text-[28px] font-extrabold leading-tight">Recurring expenses</h1>
       <button type="button" aria-label="New recurring expense" onClick={add}
         className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
         <Icon name="add" size={24} />
@@ -126,7 +125,6 @@ export default function RecurringPage() {
           <Icon name="autorenew" size={16} /> On It logs each charge on its date.
         </div>
       </div>
-      <p className="mt-2.5 px-1 text-[13.5px] text-on-surface-variant">PRO is part of an upcoming plan. It’s included free for now.</p>
 
       <section aria-label="Next 2 weeks" className="mt-4">
         <div className="flex items-baseline justify-between border-b-2 border-outline-variant/60 px-1 pb-2">

@@ -163,13 +163,17 @@ function isLockedStatus(status: string | null): boolean {
 
 // Short read-only badge for a locked card. Paid and partly-paid read distinctly
 // so the user knows money has landed; a sent-but-unpaid invoice just reads sent.
-function lockBadgeText(status: string | null, amountPaid: number): string {
+function lockBadgeText(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
+  // Nothing has necessarily gone out for an estimate (the owner shares the link
+  // themselves), so it is "ready to share", never "sent".
+  if (kind === 'quote') return 'Ready to share';
   if (amountPaid > 0) return status === 'paid' ? 'Paid — locked' : 'Payment received — locked';
   return 'Sent — locked';
 }
 
 // The refusal shown when the user tries to edit a locked invoice from chat.
-function lockEditNotice(status: string | null, amountPaid: number): string {
+function lockEditNotice(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
+  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Tap Revise on the card to make an edited copy.";
   if (amountPaid > 0) {
     return status === 'paid'
       ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
@@ -1158,7 +1162,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // (action: 'new-chat' renders the button below the bubble) so the user
       // isn't sent hunting for the header compose icon. It fires the same reset.
       setMessages((m) => [...m, aMsg(
-        `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
+        docKind(draft) === 'quote'
+          ? `${label} is ready to share. Tap Revise on the card to change it, or start a new job.`
+          : `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
         { action: 'new-chat' }
       )]);
       return null;
@@ -1309,7 +1315,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // "what's the total?" still works. Revising is offered on the card.
         if (pendingInvoiceRef.current && isLockedStatus(linkedStatus) && draft
           && draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
-          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid))]);
+          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid, docKind(draft)))]);
           return { reply, ready: isReady };
         }
 
@@ -1946,7 +1952,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             if (isLockedStatus((existing.status as string) ?? null)) {
               setLinkedStatus((existing.status as string) ?? null);
               setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
-              if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
+              if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0), docKind(draft)))]);
               return;
             }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
@@ -2004,7 +2010,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         if (live && isLockedStatus((live.status as string) ?? null)) {
           setLinkedStatus((live.status as string) ?? null);
           setLinkedAmountPaid(Number(live.amount_paid ?? 0));
-          if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
+          if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0), docKind(draft)))]);
           return; // outer finally clears phase; the locked card stays put
         }
         publicToken = (live?.public_token as string) ?? null;
@@ -3377,7 +3383,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Read-only: the linked invoice has left 'draft' (sent/paid).
         <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
           <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
-          {lockBadgeText(linkedStatus, linkedAmountPaid)}
+          {lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))}
         </div>
       )}
       {duplicateHint && !locked && (
@@ -3551,7 +3557,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                Opens an editable copy as a new {docKind(draft) === 'quote' ? 'estimate' : 'invoice'}. The original stays as it was.
+                {docKind(draft) === 'quote'
+                  ? 'Makes a new estimate you can edit. This one and its link stay as they are.'
+                  : 'Opens an editable copy as a new invoice. The original stays as it was.'}
               </p>
             </>
           ) : (
