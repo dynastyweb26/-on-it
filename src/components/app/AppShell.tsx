@@ -8,7 +8,6 @@ import TourPicker from '@/components/tutorial/TourPicker';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import BackButton from '@/components/BackButton';
-import InstallBanner from '@/components/InstallBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
@@ -549,9 +548,6 @@ export default function AppShell({
           })}
         </nav>
 
-        <div className="mt-auto pt-6">
-          <InstallBanner />
-        </div>
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
@@ -643,10 +639,6 @@ export default function AppShell({
             {children}
           </main>
         )}
-
-        <div className="md:hidden">
-          <InstallBanner />
-        </div>
 
         {/* Bottom tab bar for Mobile viewports */}
         <nav ref={navRef} data-kb-hide="" data-coach="tab-bar" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
