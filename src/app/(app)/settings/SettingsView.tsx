@@ -548,6 +548,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     }
   }
 
+  // Deep link from the "Add terms" tip: /settings/business#terms scrolls to the
+  // field and focuses it once the profile has loaded.
+  const termsReady = !!p && section === 'business';
+  useEffect(() => {
+    if (!termsReady || window.location.hash !== '#terms') return;
+    const el = document.getElementById('terms');
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    (el as HTMLTextAreaElement).focus({ preventScroll: true });
+  }, [termsReady]);
+
   if (redirecting) return <p className="p-6 text-on-surface-variant">Redirecting…</p>;
   // Auth stalled (observed under Brave with Shields; cause unidentified)
   // and no profile yet — actionable, not a hang.
@@ -566,17 +577,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
       </div>
     </div>
   );
-  // Deep link from the "Add terms" tip: /settings/business#terms scrolls to the
-  // field and focuses it once the profile has loaded.
-  const termsReady = !!p && section === 'business';
-  useEffect(() => {
-    if (!termsReady || window.location.hash !== '#terms') return;
-    const el = document.getElementById('terms');
-    if (!el) return;
-    el.scrollIntoView({ block: 'center' });
-    (el as HTMLTextAreaElement).focus({ preventScroll: true });
-  }, [termsReady]);
-
   if (!p) return <SettingsSkeleton />;
 
   const is = (s: SettingsSection) => section === s;
