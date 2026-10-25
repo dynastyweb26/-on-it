@@ -69,12 +69,18 @@ const FILTERED_EMPTY: Record<Filter, EmptyCopy> = {
   signed: { icon: 'verified', title: 'No signed estimates yet', body: 'Signed and converted estimates land here.' },
 };
 
+// The deck unmounts while an invoice or estimate is open; remembering the last
+// filter at module level puts the owner back on Estimates (or Paid, Signed)
+// when they come back instead of resetting to Invoices / Open.
+let lastFilter: Filter = 'open';
+
 export default function Invoices({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('open');
+  const [filter, setFilter] = useState<Filter>(lastFilter);
+  useEffect(() => { lastFilter = filter; }, [filter]);
   const [travel, setTravel] = useState<'left' | 'right' | null>(null);
   // Newest (default) / A–Z by client within each month, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');

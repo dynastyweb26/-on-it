@@ -1,12 +1,11 @@
 'use client';
 // Books › Recurring row (release frame 5a; UI-REDESIGN-AUDIT §1.16, merge 3 ·
-// 3·3): gold ↻ disc, "Recurring" + PRO, "7 charges · next Oct 6", "$632.49/mo",
+// 3·3): gold ↻ disc, "Recurring expenses", "7 charges · next Oct 6", "$632.49/mo",
 // → the Recurring screen. Items come from Books (useRecurringItems); null
 // (loading, or the table can't be read before migration D is live) shows the
 // row without figures.
 import Link from 'next/link';
 import Icon from '@/components/Icon';
-import ProTag from '@/components/recurring/ProTag';
 import { money } from '@/lib/financials';
 import { RECURRING_PATH, booksLine, localToday, type Recurring } from '@/lib/recurring';
 
@@ -21,7 +20,7 @@ export default function RecurringBooksRow({ items }: { items: Recurring[] | null
         <Icon name="autorenew" size={21} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-center gap-2 text-base font-semibold text-on-background">Recurring <ProTag /></span>
+        <span className="flex items-center gap-2 text-base font-semibold text-on-background">Recurring expenses</span>
         <span className="truncate text-[13px] text-on-surface-variant">{line?.caption ?? 'Charges that repeat'}</span>
       </span>
       {line?.monthly != null && (

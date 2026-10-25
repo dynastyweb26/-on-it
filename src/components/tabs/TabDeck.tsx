@@ -19,6 +19,7 @@ import {
   tabProgress,
 } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
+import TabScroller from './TabScroller';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, markTabGestureNavigation } from './tab-motion';
 
 const ClientsView = dynamic(() => import('./ClientsView'), { loading: () => null });
@@ -650,8 +651,8 @@ export default function TabDeck({
             }}
           >
             {mounted.has(i) ? (
-              <div
-                data-tab-scroll-owner=""
+              <TabScroller
+                index={i}
                 className={i === 2 ? 'h-full min-h-0' : 'h-full overflow-y-auto'}
               >
                 {i === 0 && <ClientsView active={i === currentIndex} />}
@@ -659,7 +660,7 @@ export default function TabDeck({
                 {i === 2 && <ChatView active={i === currentIndex} />}
                 {i === 3 && <BooksView active={i === currentIndex} />}
                 {i === 4 && <SettingsTab connectEnabled={connectEnabled} active={i === currentIndex} />}
-              </div>
+              </TabScroller>
             ) : (
               <div className="h-full w-full bg-background" />
             )}

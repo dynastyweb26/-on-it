@@ -1,4 +1,4 @@
-// The PRO feature tag on Recurring (F6: shown to everyone, usable by everyone;
+// (Unused for now: the PRO tag was removed from Recurring expenses.) The PRO feature tag on Recurring (F6: shown to everyone, usable by everyone;
 // not the paid plan). Ink pill, gold letters.
 export default function ProTag() {
   return (

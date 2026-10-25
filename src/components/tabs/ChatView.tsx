@@ -84,14 +84,7 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
    *  bubble's image, referenced by id — never a second copy. */
   logged?: Omit<LoggedExpense, 'thumb'> & { receiptMsgId?: string | null; viaTemplate?: true };
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
-  sentCard?: {
-    clientName: string; invoiceNo: string; amount: string;
-    /** Invoice: the due date. Estimate: the valid-until date. */
-    dueDate: string;
-    kind: 'invoice' | 'quote';
-    /** Estimates only: the public /e/<token> link the client gets. */
-    link?: string | null;
-  };
+  sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
   payoutsNudge?: true; }
 interface SendResult { reply: string; ready: boolean; }
@@ -170,13 +163,17 @@ function isLockedStatus(status: string | null): boolean {
 
 // Short read-only badge for a locked card. Paid and partly-paid read distinctly
 // so the user knows money has landed; a sent-but-unpaid invoice just reads sent.
-function lockBadgeText(status: string | null, amountPaid: number): string {
+function lockBadgeText(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
+  // Nothing has necessarily gone out for an estimate (the owner shares the link
+  // themselves), so it is "ready to share", never "sent".
+  if (kind === 'quote') return 'Ready to share';
   if (amountPaid > 0) return status === 'paid' ? 'Paid — locked' : 'Payment received — locked';
   return 'Sent — locked';
 }
 
 // The refusal shown when the user tries to edit a locked invoice from chat.
-function lockEditNotice(status: string | null, amountPaid: number): string {
+function lockEditNotice(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
+  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Tap Revise on the card to make an edited copy.";
   if (amountPaid > 0) {
     return status === 'paid'
       ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
@@ -1165,7 +1162,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // (action: 'new-chat' renders the button below the bubble) so the user
       // isn't sent hunting for the header compose icon. It fires the same reset.
       setMessages((m) => [...m, aMsg(
-        `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
+        docKind(draft) === 'quote'
+          ? `${label} is ready to share. Tap Revise on the card to change it, or start a new job.`
+          : `${label} is sent and locked. Tap Revise on the card to change it, or start a new job.`,
         { action: 'new-chat' }
       )]);
       return null;
@@ -1316,7 +1315,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // "what's the total?" still works. Revising is offered on the card.
         if (pendingInvoiceRef.current && isLockedStatus(linkedStatus) && draft
           && draftFingerprint(draft) !== draftFingerprint(mergedDraft)) {
-          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid))]);
+          setMessages((m) => [...m, aMsg(lockEditNotice(linkedStatus, linkedAmountPaid, docKind(draft)))]);
           return { reply, ready: isReady };
         }
 
@@ -1556,7 +1555,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // row and shows a locked card (with Revise). Any further message is refused in
   // send(). Used by a normal finalize and by an idempotent resume that finds the
   // invoice already sent.
-  function finishFinalize(doneMsg: Msg, retryId?: string, estimate?: { link: string | null; validUntil: string | null }) {
+  function finishFinalize(doneMsg: Msg, retryId?: string) {
     // Point 4: the final confirmation string — summarized like the input, since
     // it embeds the client name; raw text only under NEXT_PUBLIC_TRACE_VERBOSE.
     traceTurn(turnIdRef.current, 'confirm', { ...redactText(doneMsg.content) });
@@ -1565,7 +1564,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const summary = template && draft && !retryId ? uMsg(templateSummary(draft), 'typed') : null;
     // On a finalize retry the done message replaces the failed bubble in place,
     // so neither the transcript nor the archived history keeps a dead error.
-    const archived = emitResult(summary ? [...messages, summary] : messages, doneMsg, retryId);
+    // An estimate says nothing after its card: nothing has gone to the client
+    // until the owner copies or shares the link, and the locked card already
+    // carries the link, Copy link and Share. So no confirmation bubble, no sent
+    // chip, no tips; a failed-send bubble being retried is simply removed.
+    const isEstimate = !!draft && docKind(draft) === 'quote';
+    const base = summary ? [...messages, summary] : messages;
+    const archived = isEstimate
+      ? (retryId ? base.filter((m) => m.id !== retryId) : base)
+      : emitResult(base, doneMsg, retryId);
     // Sent invoice summary card + optional payouts nudge — appended after the
     // done message so they appear right below the confirmation bubble.
     // Only for invoices/quotes (not downloads), and only when a real invoice number
@@ -1574,7 +1581,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const pi = pendingInvoiceRef.current;
     const sentKind = draft ? docKind(draft) : null;
     const withCards: Msg[] = (() => {
-      if (!pi || !draft || !sentKind) return archived;
+      if (!pi || !draft || !sentKind || isEstimate) return archived;
       const items = (draft.line_items ?? []) as LineItem[];
       const taxRate = draft.tax_rate ?? 0;
       const depositType = ((draft as any).deposit_type as DepositType) ?? 'none';
@@ -1585,12 +1592,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
           clientName: draft.client_name ?? 'Client',
           invoiceNo: formatDocNumber(sentKind, pi.no),
           amount: money(totals.amountDueNow),
-          // An estimate shows when its link stops working, not a due date.
-          dueDate: sentKind === 'quote'
-            ? (estimate?.validUntil ? formatDate(estimate.validUntil) : '')
-            : formatDate(draft.due_date ?? defaultDueDate()),
+          dueDate: formatDate(draft.due_date ?? defaultDueDate()),
           kind: sentKind,
-          link: sentKind === 'quote' ? estimate?.link ?? null : null,
         },
       });
       const result: Msg[] = [...archived, cardMsg];
@@ -1949,7 +1952,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             if (isLockedStatus((existing.status as string) ?? null)) {
               setLinkedStatus((existing.status as string) ?? null);
               setLinkedAmountPaid(Number(existing.amount_paid ?? 0));
-              if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0)))]);
+              if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((existing.status as string) ?? null, Number(existing.amount_paid ?? 0), docKind(draft)))]);
               return;
             }
             await supabase.from('invoices').update(draftCols).eq('id', newId);
@@ -2007,7 +2010,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         if (live && isLockedStatus((live.status as string) ?? null)) {
           setLinkedStatus((live.status as string) ?? null);
           setLinkedAmountPaid(Number(live.amount_paid ?? 0));
-          if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0)))]);
+          if (mode !== 'prepare') setMessages((m) => [...m, aMsg(lockEditNotice((live.status as string) ?? null, Number(live.amount_paid ?? 0), docKind(draft)))]);
           return; // outer finally clears phase; the locked card stays put
         }
         publicToken = (live?.public_token as string) ?? null;
@@ -2279,7 +2282,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   function addTermsFromPrompt() {
     setTermsPrompt(false);
-    router.push('/settings/business#terms');
+    router.push('/settings/business-info#terms');
   }
 
   // "Not now" is stored on the profile, not in the browser.
@@ -2300,7 +2303,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // parse carried) is the estimate's valid-until date, so the link, the sent
     // card and the notes can never disagree. A date already past is ignored and
     // the server's +30 days applies.
-    const asked = typeof draft.due_date === 'string' && /^d{4}-d{2}-d{2}$/.test(draft.due_date) ? draft.due_date : null;
+    const asked = typeof draft.due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(draft.due_date) ? draft.due_date : null;
     const today = new Date();
     const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const out = await requestEstimateSend(id, asked && asked >= todayYmd ? asked : null);
@@ -2309,16 +2312,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return;
     }
     const token = typeof out.estimate.public_token === 'string' ? out.estimate.public_token : null;
-    const validUntil = typeof out.estimate.valid_until === 'string' ? out.estimate.valid_until : null;
     finalizeSentRef.current = true;
     persistProgress();
-    const who = draft.client_name ?? 'your client';
     setLinkedToken(token);
-    finishFinalize(
-      aMsg(`Sent! I'll notify you if ${who} hasn't responded in 2 days.`),
-      retryId,
-      { link: estimateLink(token), validUntil },
-    );
+    // No confirmation bubble for an estimate (see finishFinalize); the locked
+    // card shows the link with Copy link / Share.
+    finishFinalize(aMsg(''), retryId);
     void maybeOfferFeedback();
   }
 
@@ -3384,7 +3383,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Read-only: the linked invoice has left 'draft' (sent/paid).
         <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
           <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
-          {lockBadgeText(linkedStatus, linkedAmountPaid)}
+          {lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))}
         </div>
       )}
       {duplicateHint && !locked && (
@@ -3541,7 +3540,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {linkedStatus === 'sent' && linkedAmountPaid === 0 ? (
             <>
               <p className="text-center text-sm text-on-surface-variant">
-                This {docKind(draft) === 'quote' ? 'estimate' : 'invoice'} was sent, so it&apos;s locked.
+                {docKind(draft) === 'quote'
+                  ? `Copy or share the link with ${draft.client_name ?? 'your client'}.`
+                  : <>This invoice was sent, so it&apos;s locked.</>}
               </p>
               {lockedQuote && linkedToken && estimateLink(linkedToken) && (
                 <div className="mt-3">
@@ -3556,7 +3557,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                Opens an editable copy as a new {docKind(draft) === 'quote' ? 'estimate' : 'invoice'}. The original stays as it was.
+                {docKind(draft) === 'quote'
+                  ? 'Makes a new estimate you can edit. This one and its link stay as they are.'
+                  : 'Opens an editable copy as a new invoice. The original stays as it was.'}
               </p>
             </>
           ) : (
@@ -3764,7 +3767,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.sentCard ? (
-            // Sent invoice summary chip — a compact confirmation card showing the
+            // Sent invoice summary chip (invoices only) — a compact card showing the
             // client, doc number, amount due, and due date. Appears right after
             // the "Sent!" confirmation bubble. Static (no animation needed; the
             // bubble above already signals the moment).
@@ -3773,10 +3776,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-bold leading-tight text-on-surface">{m.sentCard.clientName}</p>
                   <p className="mt-0.5 text-xs text-on-surface-variant">
-                    {m.sentCard.invoiceNo}
-                    {m.sentCard.kind === 'quote'
-                      ? (m.sentCard.dueDate ? ` · Valid until ${m.sentCard.dueDate}` : '')
-                      : ` · Due ${m.sentCard.dueDate}`}
+                    {m.sentCard.invoiceNo} · Due {m.sentCard.dueDate}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -3786,15 +3786,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   </span>
                 </div>
               </div>
-              {m.sentCard.kind === 'quote' && m.sentCard.link && (
-                <div className="mt-2 w-full max-w-[82%]">
-                  <EstimateLinkActions
-                    url={m.sentCard.link}
-                    title={m.sentCard.invoiceNo}
-                    businessName={profile?.business_name}
-                  />
-                </div>
-              )}
             </div>
           ) : m.payoutsNudge ? (
             // Payouts nudge — shown once after a sent invoice when the pro has no

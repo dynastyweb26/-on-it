@@ -42,6 +42,8 @@ function getParentRoute(path: string): string | null {
   if (path === '/recaps') return '/dashboard';
   if (path === '/vault') return '/settings';
   if (path === '/settings/help/feedback') return '/settings/help';
+  // Business profile's two screens back to the Business profile menu.
+  if (path === '/settings/business-info' || path === '/settings/business-brand') return '/settings/business';
   if (path.startsWith('/settings/')) return '/settings';
   return null;
 }
