@@ -13,6 +13,9 @@ import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import LineItemsEditor, { type EditableLineItem as LineItemRow } from '@/components/LineItemsEditor';
 import PaywallModal from '@/components/PaywallModal';
+import ChatNudgeCard from '@/components/ChatNudgeCard';
+import { isPaidTier } from '@/lib/paywall';
+import { estimateApprovedPrompt, markSeen, promptDue, type SoftPrompt } from '@/lib/soft-prompts';
 import { createClient } from '@/lib/supabase/client';
 import { calculateInvoiceTotals, money } from '@/lib/financials';
 import { defaultDueDate } from '@/lib/dates';
@@ -116,6 +119,8 @@ export default function EstimateDetail({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Converting hits the invoice cap, duplicating hits the estimate cap.
   const [paywallFor, setPaywallFor] = useState<null | 'invoice' | 'estimate'>(null);
+  // The signed moment (lib/soft-prompts.ts): shown once per estimate.
+  const [moment, setMoment] = useState<SoftPrompt | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(inv.title ?? '');
@@ -191,6 +196,29 @@ export default function EstimateDetail({
   })();
 
   const publicUrl = estimateLink(inv.public_token);
+
+  // The moment this estimate came back signed: a non-paid owner gets one quiet
+  // card, with the screen's own Convert as the primary action. Tier comes from
+  // /api/access (the one access source) and it is marked seen when shown, so it
+  // never returns for this estimate.
+  useEffect(() => {
+    if (state !== 'approved' || convertedToId) {
+      setMoment(null);
+      return;
+    }
+    const prompt = estimateApprovedPrompt(inv.client_name, id);
+    if (!promptDue(prompt, inv.user_id)) return;
+    let cancelled = false;
+    fetch('/api/access', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a: { tier?: string | null } | null) => {
+        if (cancelled || !a || isPaidTier(a.tier)) return;
+        markSeen(inv.user_id, prompt.key);
+        setMoment(prompt);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [state, convertedToId, id, inv.user_id, inv.client_name]);
 
   async function copyLink() {
     if (!publicUrl) return;
@@ -479,6 +507,23 @@ export default function EstimateDetail({
         <div className="mt-0.5 font-display text-4xl font-bold leading-none tracking-tight text-primary tabular-nums">
           {money(totals.total)}
         </div>
+
+        {moment && (
+          <div className="mt-4">
+            <ChatNudgeCard
+              className="w-full"
+              icon="workspace_premium"
+              eyebrow={moment.eyebrow}
+              title={moment.title}
+              body={moment.body}
+              actions={[
+                { label: moment.cta, variant: 'primary', onClick: () => void convertToInvoice() },
+                { label: 'Not now', variant: 'secondary', onClick: () => setMoment(null) },
+                { label: 'Go Pro', variant: 'link', onClick: () => { setMoment(null); setPaywallFor('estimate'); } },
+              ]}
+            />
+          </div>
+        )}
 
         {/* Actions per state (design §3.2). */}
         <div className="mt-4">

@@ -11,13 +11,16 @@ import type { IconName } from '@/components/icon-names';
 export type ChatNudgeAction = {
   label: string;
   onClick: () => void;
-  /** "primary" is the dark-gold pill (e.g. Set up Payouts); the other is outlined. */
-  variant: 'primary' | 'secondary';
+  /** "primary" is the dark-gold pill (e.g. Set up Payouts); "secondary" is
+   *  outlined; "link" is a quiet gold text action with no fill. */
+  variant: 'primary' | 'secondary' | 'link';
 };
 
 const ACTION_CLASS: Record<ChatNudgeAction['variant'], string> = {
   primary: 'rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-on-primary transition active:scale-95',
   secondary: 'rounded-full border border-outline-variant px-4 py-2 text-[13px] font-semibold text-on-surface-variant transition active:scale-95',
+  // Gold as TEXT only (#735c00 via primary): never a gold fill for a quiet link.
+  link: 'px-2 py-2 text-[13px] font-semibold text-primary underline-offset-2 transition active:scale-95',
 };
 
 export default function ChatNudgeCard({
@@ -44,7 +47,7 @@ export default function ChatNudgeCard({
       </div>
       <p className="mb-1 text-[15px] font-bold leading-snug text-on-surface">{title}</p>
       <p className="mb-3 text-[13px] leading-snug text-on-surface-variant">{body}</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {actions.map((action) => (
           <button
             key={action.label}

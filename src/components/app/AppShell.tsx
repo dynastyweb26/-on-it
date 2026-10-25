@@ -9,6 +9,7 @@ import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from 
 import Icon from '@/components/Icon';
 import BackButton from '@/components/BackButton';
 import InstallBanner from '@/components/InstallBanner';
+import SoftPromptBanner from '@/components/SoftPromptBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
@@ -643,6 +644,10 @@ export default function AppShell({
             {children}
           </main>
         )}
+
+        {/* The one soft upgrade banner due on this app open (lib/soft-prompts.ts).
+            A flex sibling, so it never covers the screen or the composer. */}
+        <SoftPromptBanner />
 
         <div className="md:hidden">
           <InstallBanner />

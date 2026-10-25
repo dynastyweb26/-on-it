@@ -29,8 +29,8 @@ import { defaultDueDate, formatDate } from '@/lib/dates';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
-import { fetchUsageLine } from '@/lib/usage';
-import { dismissSoftPrompt, isSoftPromptDismissed, type SoftPrompt } from '@/lib/soft-prompts';
+import { fetchUsageLine, fetchUsageSnapshot, usageLine } from '@/lib/usage';
+import { markSeen, promptDue, usageNudge as usageNudgeFor, type SoftPrompt } from '@/lib/soft-prompts';
 import DepositValueInput from '@/components/DepositValueInput';
 import { speak, primeSpeech } from '@/lib/tts';
 import { newTurnId, traceTurn, redactText, namesDocType, redactPresence } from '@/lib/trace';
@@ -637,26 +637,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
   const [termsPrompt, setTermsPrompt] = useState(false);
-  // The one soft paywall nudge (GET /api/prompts, lib/soft-prompts.ts), read
-  // once per visit to Chat. "Not now" is remembered per device. `softWall` is
-  // the paywall it opens (a separate state: nothing was blocked, so the send
-  // gate's paywallFor must not be involved).
-  const [softPrompt, setSoftPrompt] = useState<SoftPrompt | null>(null);
+  // Soft upgrade prompts (lib/soft-prompts.ts). Nothing is blocked: the walls
+  // are the paywall; `softWall` is the paywall a prompt opened (a separate
+  // state: nothing was blocked, so the send gate's paywallFor must not be
+  // involved). The usage nudge itself lives on the saved document's card.
   const [softWall, setSoftWall] = useState<SoftPrompt | null>(null);
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    fetch('/api/prompts', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { prompt?: SoftPrompt | null } | null) => {
-        const p = d?.prompt ?? null;
-        if (!cancelled && p && !isSoftPromptDismissed(p.key)) setSoftPrompt(p);
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [active]);
   // Upgraded while the card is up (checkout finished, code redeemed): it has nothing left to say.
-  useEffect(() => subscribeAccess(() => { setSoftPrompt(null); setSoftWall(null); }), []);
+  useEffect(() => subscribeAccess(() => { setSoftWall(null); }), []);
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -1513,8 +1500,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Free-tier cap hit: which wall to show (invoice or expense), or none.
   const [paywallFor, setPaywallFor] = useState<null | PaywallVariant>(null);
   // "1 of 3 free invoices used" under the card after a free-tier invoice is
-  // saved (lib/usage.ts). Tied to the invoice row so it never outlives it.
-  const [invoiceUsage, setInvoiceUsage] = useState<{ id: string; text: string } | null>(null);
+  // saved (lib/usage.ts), plus the 2-of-3 upgrade nudge (lib/soft-prompts.ts)
+  // when that moment is due. Tied to the invoice row so it never outlives it.
+  const [invoiceUsage, setInvoiceUsage] =
+    useState<{ id: string; text: string; nudge?: SoftPrompt } | null>(null);
   // Back from Stripe Checkout (?upgraded=1): remember it so the gates below
   // wait out the webhook instead of re-showing the wall.
   useEffect(() => {
@@ -2001,11 +1990,22 @@ export default function Chat({ active = true }: { active?: boolean }) {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
-          // Free-tier usage line (null for paid tiers / paywall off).
+          // Free-tier usage line (null for paid tiers / paywall off), and the
+          // 2-of-3 nudge that rides the same counters — one /api/access read,
+          // no recount. Shown once per kind; marked when shown.
           {
             const savedId = newId;
-            void fetchUsageLine(rd0.kind === 'quote' ? 'estimate' : 'invoice')
-              .then((text) => { if (text) setInvoiceUsage({ id: savedId, text }); });
+            const usageKind = rd0.kind === 'quote' ? 'estimate' : 'invoice';
+            void fetchUsageSnapshot().then((snap) => {
+              const text = usageLine(usageKind, snap);
+              const nudge = usageNudgeFor(usageKind, snap);
+              const uid = profile?.id;
+              const due = nudge && uid && promptDue(nudge, uid) ? nudge : null;
+              if (due && uid) markSeen(uid, due.key);
+              if (text || due) {
+                setInvoiceUsage({ id: savedId, text: text ?? '', nudge: due ?? undefined });
+              }
+            });
           }
           publicToken = (saved.public_token as string) ?? null;
         }
@@ -3940,7 +3940,32 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
-            <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
+            <>
+              {invoiceUsage.text && (
+                <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
+              )}
+              {invoiceUsage.nudge && (
+                <ChatNudgeCard
+                  className="mt-2 w-full"
+                  icon="workspace_premium"
+                  eyebrow={invoiceUsage.nudge.eyebrow}
+                  title={invoiceUsage.nudge.title}
+                  body={invoiceUsage.nudge.body}
+                  actions={[
+                    {
+                      label: invoiceUsage.nudge.cta,
+                      variant: 'primary',
+                      onClick: () => setSoftWall(invoiceUsage.nudge ?? null),
+                    },
+                    {
+                      label: 'Not now',
+                      variant: 'secondary',
+                      onClick: () => setInvoiceUsage((prev) => (prev ? { ...prev, nudge: undefined } : prev)),
+                    },
+                  ]}
+                />
+              )}
+            </>
           )}
         </Fragment>
         ))}
@@ -4021,30 +4046,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
               actions={[
                 { label: 'Add terms', variant: 'primary', onClick: addTermsFromPrompt },
                 { label: 'Not now', variant: 'secondary', onClick: dismissTermsPrompt },
-              ]}
-            />
-          </div>
-        )}
-
-        {hydrated && softPrompt && !termsPrompt && !feedbackPrompt && (
-          <div className="flex justify-start">
-            <ChatNudgeCard
-              className="w-full max-w-[82%]"
-              icon="workspace_premium"
-              eyebrow={softPrompt.eyebrow}
-              title={softPrompt.title}
-              body={softPrompt.body}
-              actions={[
-                {
-                  label: softPrompt.cta,
-                  variant: 'primary',
-                  onClick: () => (softPrompt.action === 'plan' ? router.push('/settings/plan') : setSoftWall(softPrompt)),
-                },
-                {
-                  label: 'Not now',
-                  variant: 'secondary',
-                  onClick: () => { dismissSoftPrompt(softPrompt.key); setSoftPrompt(null); },
-                },
               ]}
             />
           </div>

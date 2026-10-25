@@ -1,11 +1,21 @@
-// GET /api/prompts — the one soft nudge (lib/soft-prompts.ts) this user should
-// see in chat right now, or { prompt: null }. Read-only, RLS-scoped. Whether it
-// was dismissed is the device's business (localStorage), not stored here.
+// GET /api/prompts — the soft upgrade prompts due when the app opens.
+//
+// Read-only, RLS-scoped. The tier comes from hasAccess() (the ONE access
+// source) — never a second read of profiles.access_tier and never a copy of
+// the tier rules. Whether a prompt was already seen is the device's business
+// (localStorage), so the route only decides what is ELIGIBLE and returns it in
+// PRIORITY ORDER; the client shows the first one still due.
+//
+//   winback       (canceled)                        → banner, once per 14 days
+//   first-payment (free / canceled, first payment)  → banner, once ever
+//
+// Nothing here is a wall: the client opens the existing paywall.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasAccess } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { SOFT_PROMPT_WINDOW_DAYS, pickSoftPrompt } from '@/lib/soft-prompts';
+import { firstPaymentPrompt, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -18,45 +28,29 @@ export async function GET(req: NextRequest) {
   }
 
   // Paywall off: nothing here is about upgrading.
-  if (!PAYWALL_ENABLED) return NextResponse.json({ prompt: null }, NO_STORE);
+  if (!PAYWALL_ENABLED) return NextResponse.json({ prompts: [] }, NO_STORE);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('access_tier, trial_ends_at')
-    .eq('id', user.id)
-    .maybeSingle();
-  const tier = (profile?.access_tier ?? 'free') as string;
+  const access = await hasAccess(user.id);
+  const prompts: SoftPrompt[] = [];
 
-  // Only a free user's prompts depend on activity; the others read the profile.
-  let webhookPayments = 0;
-  let lastWebhookPaymentAt: string | null = null;
-  let estimatesSigned = 0;
-  let lastEstimateSignedAt: string | null = null;
-  if (tier === 'free') {
-    const since = new Date(Date.now() - SOFT_PROMPT_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    const [payments, estimates] = await Promise.all([
-      // limit 2: "a single payment" only needs to tell 1 from 2-or-more.
-      supabase.from('invoice_payments').select('paid_at')
-        .eq('user_id', user.id).eq('paid_source', 'webhook').gte('paid_at', since)
-        .order('paid_at', { ascending: false }).limit(2),
-      supabase.from('invoices').select('approved_at')
-        .eq('user_id', user.id).eq('kind', 'quote').is('deleted_at', null).gte('approved_at', since)
-        .order('approved_at', { ascending: false }).limit(1),
-    ]);
-    // A failed read is "nothing to say", never an error the chat has to handle.
-    webhookPayments = payments.data?.length ?? 0;
-    lastWebhookPaymentAt = (payments.data?.[0]?.paid_at as string | undefined) ?? null;
-    estimatesSigned = estimates.data?.length ?? 0;
-    lastEstimateSignedAt = (estimates.data?.[0]?.approved_at as string | undefined) ?? null;
+  // Non-paid users only (free and canceled); founder, trialing, active and
+  // past_due are gated out by hasAccess()'s tier, not by a second check here.
+
+  // A lapsed customer hears about it at most once per 14 days, and that beats
+  // the first-payment note below (one banner at a time, in priority order).
+  if (access.tier === 'canceled') prompts.push(winbackPrompt());
+
+  if (access.tier === 'free' || access.tier === 'canceled') {
+    // The FIRST ledger payment this user ever recorded. `entry_type` filters
+    // out refund / dispute reversals; one row means the moment just happened,
+    // more than one means it has passed (never nudge a late "first").
+    const { count } = await supabase
+      .from('invoice_payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('entry_type', 'payment');
+    if (count === 1) prompts.push(firstPaymentPrompt());
   }
 
-  const prompt = pickSoftPrompt({
-    tier,
-    trialEndsAt: (profile?.trial_ends_at as string | null | undefined) ?? null,
-    webhookPayments,
-    lastWebhookPaymentAt,
-    estimatesSigned,
-    lastEstimateSignedAt,
-  });
-  return NextResponse.json({ prompt }, NO_STORE);
+  return NextResponse.json({ prompts }, NO_STORE);
 }
