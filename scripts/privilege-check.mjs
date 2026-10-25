@@ -1,4 +1,4 @@
-// Runs supabase/snippets/privilege_check.sql and prints one PASS/FAIL line per
+﻿// Runs supabase/snippets/privilege_check.sql and prints one PASS/FAIL line per
 // check. Exit code 0 = all PASS, 1 = any FAIL or an error.
 //
 //   npm run db:privcheck
@@ -14,6 +14,9 @@
 //   • Without an override, the target is the LINKED project and the banner
 //     prints its ref. Check the banner before trusting a result: a database
 //     without the migrations reports SKIP, which looks like a pass.
+//
+// Rows BA1-BA6 (paywall v3) must be present in the output, SKIP included; a
+// result without them fails.
 //
 // The same SQL file still runs as-is in the SQL Editor: it is a single query
 // returning the same table.
@@ -75,6 +78,7 @@ if (override) {
 // whether an AI agent is running it: JSON for an agent, a box-drawing table in
 // a plain terminal (the "Unexpected token '┌'" failure on Windows). --agent no
 // pins the shape too: a bare array of rows, not the agent's { rows } envelope.
+const scrub = (s) => (override ? s.split(override).join('<db-url>') : s);
 const run = spawnSync(
   'npx',
   [
@@ -99,7 +103,7 @@ const run = spawnSync(
 );
 if (run.status !== 0) {
   console.error('privilege check: supabase db query failed');
-  console.error((run.stderr || run.stdout || '').trim());
+  console.error(scrub((run.stderr || run.stdout || '').trim()));
   process.exit(1);
 }
 
@@ -131,8 +135,13 @@ for (const r of rows) {
   console.log(`${label(r)}  ${r.check_id.padEnd(width)}  ${r.expected}`);
   if (label(r) === 'FAIL') console.log(`${' '.repeat(6 + width)}  found: ${r.found}`);
 }
+// Rows that must be in the output at all (a SKIP still counts as present). A
+// stale copy of the SQL, or a query that dropped a section, must not pass.
+const REQUIRED = ['BA1', 'BA2', 'BA3', 'BA4', 'BA5', 'BA6'];
+const missing = REQUIRED.filter((id) => !rows.some((r) => r.check_id.split(' ')[0] === id));
+for (const id of missing) console.log(`FAIL  ${id}  row missing from the privilege check output`);
 const count = (s) => rows.filter((r) => label(r) === s).length;
-const failed = count('FAIL');
+const failed = count('FAIL') + missing.length;
 const skipped = count('SKIP');
 console.log(`\n${count('PASS')} PASS, ${failed} FAIL${skipped ? `, ${skipped} SKIP (migration not pushed yet)` : ''}`);
 process.exit(failed ? 1 : 0);
