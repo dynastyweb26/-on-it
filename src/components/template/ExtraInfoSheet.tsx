@@ -8,18 +8,16 @@
 // pickers (2·10c); Cancel / scrim / Escape / swipe-down discard the edit.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { EXTRA_MAX, addPhrase, parseExtraInfo, setTaxPhrase } from '@/lib/extra-info';
+import { EXTRA_MAX, addPhrase, parseExtraInfo } from '@/lib/extra-info';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 
 const shortDate = (ymd: string) =>
   new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-export default function ExtraInfoSheet({ value, address, kind = 'invoice', focusTax, onDone, onClose }: {
+export default function ExtraInfoSheet({ value, address, kind = 'invoice', onDone, onClose }: {
   value: string;
   /** An estimate's date is "valid until", not "due". */
   kind?: 'invoice' | 'quote';
-  /** Open with the tax field focused (the card's Add tax button). */
-  focusTax?: boolean;
   /** The picked client's address, for the "Job at …" chip. */
   address: string | null;
   onDone: (text: string) => void;
@@ -27,12 +25,6 @@ export default function ExtraInfoSheet({ value, address, kind = 'invoice', focus
 }) {
   const [text, setText] = useState(value);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const taxRef = useRef<HTMLInputElement>(null);
-  const [taxText, setTaxText] = useState(() => {
-    const t = parseExtraInfo(value).tax;
-    return t == null ? '' : String(t);
-  });
-  useEffect(() => { if (focusTax) taxRef.current?.focus(); }, [focusTax]);
   const quote = kind === 'quote';
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
 
@@ -51,7 +43,6 @@ export default function ExtraInfoSheet({ value, address, kind = 'invoice', focus
   const read = parseExtraInfo(text);
   const understood = [
     read.due ? `${quote ? 'Valid until' : 'Due'} ${shortDate(read.due)}` : null,
-    read.tax != null ? `${read.tax}% tax` : null,
     read.deposit ? (read.deposit.type === 'percentage' ? `${read.deposit.value}% deposit` : `$${read.deposit.value} deposit`) : null,
   ].filter(Boolean);
 
@@ -69,19 +60,6 @@ export default function ExtraInfoSheet({ value, address, kind = 'invoice', focus
           </div>
         </div>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <label className="mb-2 flex items-center gap-3">
-            <span className="text-[15px] font-bold text-on-background">Tax</span>
-            <input ref={taxRef} type="text" inputMode="decimal" autoComplete="off" aria-label="Tax rate percent"
-              value={taxText} placeholder="0"
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^0-9.]/g, '').slice(0, 5);
-                setTaxText(raw);
-                const n = Number(raw);
-                setText((t) => setTaxPhrase(t, Number.isFinite(n) && n > 0 && n <= 30 ? n : null));
-              }}
-              className="h-11 w-24 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-right text-[16px] font-semibold text-on-background outline-none focus:border-primary" />
-            <span className="text-[15px] text-on-surface-variant">% (varies by where the job is)</span>
-          </label>
           <textarea ref={ref} value={text} rows={4} maxLength={EXTRA_MAX} aria-label="Extra info"
             onChange={(e) => setText(e.target.value.slice(0, EXTRA_MAX))}
             placeholder={quote ? 'Valid for 14 days, job address, notes for the client…' : 'Due Friday, job address, notes for the client…'}

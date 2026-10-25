@@ -3,7 +3,6 @@
 // notes as written, and two things are read out of it on the device — no AI:
 //   deposit: "50% deposit" / "deposit 50%" / "50 percent deposit" → percentage;
 //            "$200 deposit" / "deposit $200"                        → fixed
-//   tax:     "8.25% tax" / "tax 8.25%" / "8% sales tax"            → a tax rate (<= 30)
 //   due:     "Due Friday" (the next Friday; a week out if it's Friday today),
 //            "Due today" / "Due tomorrow", "Due in 14 days" / "Due in 2 weeks"
 //            An estimate reads the same date as "Valid until Friday" /
@@ -14,8 +13,6 @@ export const EXTRA_MAX = 500;
 
 export type ExtraInfo = {
   deposit: { type: 'percentage' | 'fixed'; value: number } | null;
-  /** Tax rate in percent; null when none is written. */
-  tax: number | null;
   /** YYYY-MM-DD in the device's time zone. */
   due: string | null;
 };
@@ -41,13 +38,6 @@ export function parseExtraInfo(text: string, today: Date = new Date()): ExtraInf
     }
   }
 
-  let tax: number | null = null;
-  const taxM = t.match(/(\d{1,2}(?:\.\d{1,3})?)\s*(?:%|percent)\s*(?:sales\s+)?tax/) ?? t.match(/tax\s*(?:of|at|rate)?\s*:?\s*(\d{1,2}(?:\.\d{1,3})?)\s*(?:%|percent)/);
-  if (taxM) {
-    const v = Number(taxM[1]);
-    if (v > 0 && v <= 30) tax = v;
-  }
-
   let due: string | null = null;
   const inN = t.match(/(?:due\s+in|valid\s+for)\s+(\d{1,3})\s*(day|days|week|weeks)\b/);
   const wd = t.match(/(?:due|valid\s+(?:until|through))\s+(?:on\s+|this\s+|next\s+)?(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)[a-z]*\b/);
@@ -65,15 +55,9 @@ export function parseExtraInfo(text: string, today: Date = new Date()): ExtraInf
       due = ymd(addDays(today, diff));
     }
   }
-  return { deposit, tax, due };
+  return { deposit, due };
 }
 
-/** Write (or replace, or clear) the tax line in the extra-info text. */
-export function setTaxPhrase(text: string, rate: number | null): string {
-  const kept = text.split('\n').filter((l) => parseExtraInfo(l).tax == null).join('\n').replace(/\s+$/, '');
-  if (!rate || rate <= 0) return kept;
-  return addPhrase(kept, `${rate}% tax`);
-}
 
 /** Add a chip's phrase to the text: on its own line, never twice. */
 export function addPhrase(text: string, phrase: string): string {

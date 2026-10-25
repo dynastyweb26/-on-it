@@ -11,7 +11,7 @@ import type { TemplateClient, TemplateItem, TemplateKind } from '@/lib/template'
 
 /** The chat draft for a complete template; null while it isn't sendable (Q3). */
 export function templateToDraft(
-  kind: TemplateKind, client: TemplateClient | null, items: TemplateItem[], extra: string, today: Date = new Date(),
+  kind: TemplateKind, client: TemplateClient | null, items: TemplateItem[], extra: string, today: Date = new Date(), tax: number | null = null,
 ): Partial<ExtractResult> | null {
   const named = items.filter((x) => x.name.trim());
   if (!client || named.length === 0 || named.some((x) => x.unit_price == null)) return null;
@@ -30,7 +30,7 @@ export function templateToDraft(
     client_address: client.address,
     client_phone: client.phone,
     line_items,
-    tax_rate: info.tax ?? 0,            // only when the Extra info says so ("8% tax")
+    tax_rate: tax != null && tax > 0 && tax <= 30 ? tax : 0,   // only when the user added tax
     due_date: info.due,                 // null → finalize's +30-day default
     notes: extra.trim() || null,
     deposit_type: info.deposit?.type ?? 'none',

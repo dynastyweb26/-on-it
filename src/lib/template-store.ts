@@ -20,6 +20,8 @@ export type StoredTemplate = {
   items: TemplateItem[];
   /** Extra info text (2·12a). */
   extra: string;
+  /** Tax rate in percent the user added; null/absent = none. */
+  tax?: number | null;
 };
 
 const str = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : null);
@@ -55,7 +57,7 @@ export function parseStored(raw: string | null, uid: string | null, now: number)
     }];
   });
   if (items.length === 0) return null;
-  return { v: 1, uid, savedAt, kind: o.kind, client, items, extra: str(o.extra, 500) ?? '' };
+  return { v: 1, uid, savedAt, kind: o.kind, client, items, extra: str(o.extra, 500) ?? '', tax: (() => { const n = num(o.tax); return n != null && n > 0 && n <= 30 ? n : null; })() };
 }
 
 export function loadTemplate(uid: string | null): StoredTemplate | null {

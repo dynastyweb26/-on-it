@@ -24,7 +24,7 @@ test('templateToDraft: the chat draft', () => {
   assert.equal(d.intent_explicit, true);
   assert.equal(d.client_address, '40 Park Ave');
   assert.equal(d.tax_rate, 0);
-  assert.equal(templateToDraft('invoice', client, [item('Labor', 100)], '8% tax', WED)!.tax_rate, 8);
+  assert.equal(templateToDraft('invoice', client, [item('Labor', 100)], '', WED, 8)!.tax_rate, 8);
   assert.equal(d.due_date, '2026-10-09');
   assert.equal(d.deposit_type, 'percentage');
   assert.equal(d.deposit_value, 50);

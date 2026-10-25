@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addPhrase, parseExtraInfo, setTaxPhrase } from './extra-info';
+import { addPhrase, parseExtraInfo } from './extra-info';
 
 const WED = new Date(2026, 9, 7); // Wed Oct 7, 2026
 const FRI = new Date(2026, 9, 9); // Fri Oct 9, 2026
@@ -29,7 +29,7 @@ test('due dates', () => {
 
 test('both in one note', () => {
   assert.deepEqual(parseExtraInfo('Due Friday\n50% deposit\nJob at 12 Elm St', WED),
-    { deposit: { type: 'percentage', value: 50 }, tax: null, due: '2026-10-09' });
+    { deposit: { type: 'percentage', value: 50 }, due: '2026-10-09' });
 });
 
 test('addPhrase', () => {
@@ -38,16 +38,6 @@ test('addPhrase', () => {
   assert.equal(addPhrase('due friday', 'Due Friday'), 'due friday');
 });
 
-test('tax: read from the text, capped, and written back', () => {
-  assert.equal(parseExtraInfo('8.25% tax', WED).tax, 8.25);
-  assert.equal(parseExtraInfo('tax 7%', WED).tax, 7);
-  assert.equal(parseExtraInfo('6 percent sales tax', WED).tax, 6);
-  assert.equal(parseExtraInfo('50% deposit', WED).tax, null);
-  assert.equal(parseExtraInfo('99% tax', WED).tax, null);
-  assert.equal(setTaxPhrase('Due Friday', 8), 'Due Friday\n8% tax');
-  assert.equal(setTaxPhrase('Due Friday\n8% tax', 9.5), 'Due Friday\n9.5% tax');
-  assert.equal(setTaxPhrase('Due Friday\n8% tax', null), 'Due Friday');
-});
 
 test('valid until / valid for read as the date', () => {
   assert.equal(parseExtraInfo('Valid until Friday', WED).due, '2026-10-09');
