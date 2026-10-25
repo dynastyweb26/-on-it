@@ -10,6 +10,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { planEstimateSend, type EstimateSendableInvoice } from '@/lib/estimates/send';
 import { SendBodySchema } from '@/lib/estimates/schemas';
 import { hasConverted, isUuid } from '@/lib/estimates/owner';
+import { readProfileTerms } from '@/lib/terms';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return refuse(500, 'send_failed');
   }
 
+  const terms = await readProfileTerms(admin, user.id);
   const sentAt = new Date().toISOString();
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const plan = planEstimateSend(
       invoice as EstimateSendableInvoice | null,
       user.id,
-      profile ?? {},
+      { ...(profile ?? {}), terms },
       new Date(sentAt),
       { converted, requestedValidUntil },
     );

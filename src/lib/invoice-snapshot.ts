@@ -14,6 +14,8 @@
 //     removed the stored URL can 404 on an old invoice. Truly freezing the asset
 //     (copying the file at finalize) is correct but out of scope. Known limitation.
 
+import { termsSnapshot } from './terms';
+
 export interface RenderSnapshotSource {
   invoice_template?: string | null;
   brand_colors?: string[] | null;
@@ -26,6 +28,8 @@ export interface RenderSnapshotSource {
   cashapp_tag?: string | null;
   paypal_me?: string | null;
   venmo_username?: string | null;
+  /** profiles.terms, read tolerantly by the send routes (column may not exist yet). */
+  terms?: string | null;
 }
 
 /** The snapshot object to merge into the invoices UPDATE at finalize. */
@@ -42,5 +46,8 @@ export function renderSnapshot(p: RenderSnapshotSource) {
     cashapp_tag: p.cashapp_tag ?? null,
     paypal_me: p.paypal_me ?? null,
     venmo_username: p.venmo_username ?? null,
+    // Only when there are terms to freeze, so an empty profile never writes the
+    // column (invoices.terms, 20261024100000) and a database without it still sends.
+    ...termsSnapshot(p.terms),
   };
 }

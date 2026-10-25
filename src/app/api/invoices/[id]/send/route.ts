@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { planInvoiceSend, type SendableInvoice } from '@/lib/invoice-send';
+import { readProfileTerms } from '@/lib/terms';
 
 export const runtime = 'nodejs';
 
@@ -46,6 +47,7 @@ export async function POST(
     return NextResponse.json({ error: 'send failed' }, { status: 500 });
   }
 
+  const terms = await readProfileTerms(admin, user.id);
   const sentAt = new Date().toISOString();
 
   // A payment can land between the read and the update. The conditional update
@@ -60,7 +62,7 @@ export async function POST(
       return NextResponse.json({ error: 'send failed' }, { status: 500 });
     }
 
-    const plan = planInvoiceSend(invoice, user.id, profile ?? {}, sentAt);
+    const plan = planInvoiceSend(invoice, user.id, { ...(profile ?? {}), terms }, sentAt);
     if (!plan.ok) {
       if (plan.reason === 'void') {
         return NextResponse.json({ error: 'invoice is void' }, { status: 409 });

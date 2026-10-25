@@ -75,6 +75,8 @@ export type PublicEstimate = {
   taxAmount: number;
   total: number;
   notes: string | null;
+  /** Terms and conditions frozen at first send; null when none. */
+  terms: string | null;
   /** yyyy-mm-dd in the business timezone; null on legacy rows. */
   validUntil: string | null;
   daysRemaining: number | null;

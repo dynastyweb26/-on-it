@@ -112,3 +112,17 @@ test('a missing invoice is refused', () => {
     reason: 'not_found',
   });
 });
+
+test('first send freezes the terms; empty terms never write the column; resend never re-snapshots', () => {
+  const withTerms = planInvoiceSend(invoice('draft'), U, { ...profile, terms: '  Net 15.  ' }, NOW);
+  assert.ok(withTerms.ok && withTerms.patch.terms === 'Net 15.');
+
+  const empty = planInvoiceSend(invoice('draft'), U, { ...profile, terms: '   ' }, NOW);
+  assert.ok(empty.ok && !('terms' in empty.patch));
+
+  const none = planInvoiceSend(invoice('draft'), U, profile, NOW);
+  assert.ok(none.ok && !('terms' in none.patch));
+
+  const resend = planInvoiceSend(invoice('sent'), U, { ...profile, terms: 'Changed later' }, NOW);
+  assert.ok(resend.ok && !('terms' in resend.patch));
+});

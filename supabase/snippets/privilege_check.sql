@@ -1664,6 +1664,65 @@ results(id, ok, expected, actual) as (
               from pg_proc p where p.oid = to_regprocedure('public.estimate_content_hash(uuid)')), 'missing')
         || ' caption=' || coalesce((select (pg_get_functiondef(p.oid) ilike '%''caption''%')::text
               from pg_proc p where p.oid = to_regprocedure('public.estimate_content_hash(uuid)')), 'missing') end
+
+  -- AX. Terms and conditions (20261024100000). SKIP until pushed.
+  --     profiles.terms / terms_prompt_count / terms_prompt_dismissed_at are
+  --     user-writable (column UPDATE, no INSERT); invoices.terms is the
+  --     send-time snapshot; get_public_invoice_terms is service_role only.
+  union all
+  select 'AX terms columns',
+    case when not exists (select 1 from applied where version = '20261024100000') then null
+      else (select count(*) = 4 and bool_and(is_nullable = 'YES')
+          from information_schema.columns
+          where table_schema = 'public'
+            and ((table_name = 'profiles' and column_name in ('terms', 'terms_prompt_count', 'terms_prompt_dismissed_at'))
+              or (table_name = 'invoices' and column_name = 'terms')))
+        and has_column_privilege('authenticated', 'public.profiles', 'terms', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.profiles', 'terms_prompt_count', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.profiles', 'terms_prompt_dismissed_at', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.profiles', 'terms', 'INSERT')
+        and not has_column_privilege('authenticated', 'public.profiles', 'terms_prompt_count', 'INSERT')
+        and not has_column_privilege('authenticated', 'public.profiles', 'terms_prompt_dismissed_at', 'INSERT')
+    end,
+    '4 nullable columns; profiles terms* authenticated UPDATE, no INSERT',
+    case when not exists (select 1 from applied where version = '20261024100000') then 'not applied yet'
+      else (select count(*)::text || ' columns' from information_schema.columns
+          where table_schema = 'public'
+            and ((table_name = 'profiles' and column_name in ('terms', 'terms_prompt_count', 'terms_prompt_dismissed_at'))
+              or (table_name = 'invoices' and column_name = 'terms')))
+    end
+  union all
+  select 'AY get_public_invoice_terms',
+    case when not exists (select 1 from applied where version = '20261024100000') then null
+      else to_regprocedure('public.get_public_invoice_terms(text)') is not null
+        and has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
+        and not has_function_privilege('anon', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
+        and not has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
+        and coalesce((select p.prosecdef and p.proconfig::text ilike '%search_path%'
+            from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_terms(text)')), false)
+    end,
+    'SECURITY DEFINER, search_path set; EXECUTE for service_role only',
+    case when not exists (select 1 from applied where version = '20261024100000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_terms(text)') is null then 'missing'
+      else 'service_role=' || has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute') end
+  union all
+  select 'AZ get_public_invoice_contact',
+    case when not exists (select 1 from applied where version = '20261024100000') then null
+      else to_regprocedure('public.get_public_invoice_contact(text)') is not null
+        and has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and not has_function_privilege('anon', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and not has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and coalesce((select p.prosecdef and p.proconfig::text ilike '%search_path%'
+            from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_contact(text)')), false)
+    end,
+    'SECURITY DEFINER, search_path set; EXECUTE for service_role only',
+    case when not exists (select 1 from applied where version = '20261024100000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_contact(text)') is null then 'missing'
+      else 'service_role=' || has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

@@ -276,6 +276,8 @@ export default function InvoiceDetail() {
     logoUrl: snapped ? inv.logo_url : profile.logo_url,
     websiteUrl: snapped ? inv.website_url : profile.website_url,
     slogan: snapped ? inv.slogan : profile.slogan,
+    businessPhone: profile.business_phone ?? null, // live, like Zelle
+    businessEmail: profile.business_email ?? null,
     clientName: inv.client_name, clientAddress: inv.client_address ?? null,
     clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
@@ -288,7 +290,10 @@ export default function InvoiceDetail() {
     paymentsReceived: amountPaid,
     paymentDate,
     paymentStage: totals.paymentStage,
-    notes: inv.notes, issuedDate: formatDate(inv.created_at),
+    notes: inv.notes,
+    // Frozen at first send (invoices.terms); a draft shows the owner's current terms.
+    terms: snapped ? inv.terms : profile.terms,
+    issuedDate: formatDate(inv.created_at),
     dueDate: formatDate(inv.due_date), paid: inv.status === 'paid',
     zelle, // live — Zelle is never snapshotted, in either case
     cashappTag: snapped ? inv.cashapp_tag : profile.cashapp_tag,

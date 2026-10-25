@@ -12,6 +12,7 @@ import AttachmentsCard from './AttachmentsCard';
 import EstIcon from './EstIcon';
 import ItemsCard from './ItemsCard';
 import NotesCard from './NotesCard';
+import TermsCard from './TermsCard';
 import PhotoViewer from './PhotoViewer';
 import SignSheet, { type SignOutcome } from './SignSheet';
 import SignatureCard from './SignatureCard';
@@ -220,6 +221,8 @@ export default function EstimateView({
         {payload.notes && <NotesCard notes={payload.notes} />}
 
         <SignatureCard payload={payload} preview={preview} onSign={() => setSheet('sign')} />
+
+        <TermsCard terms={payload.terms} />
 
         <Footer />
       </div>

@@ -548,6 +548,17 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     }
   }
 
+  // Deep link from the "Add terms" tip: /settings/business#terms scrolls to the
+  // field and focuses it once the profile has loaded.
+  const termsReady = !!p && section === 'business';
+  useEffect(() => {
+    if (!termsReady || window.location.hash !== '#terms') return;
+    const el = document.getElementById('terms');
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    (el as HTMLTextAreaElement).focus({ preventScroll: true });
+  }, [termsReady]);
+
   if (redirecting) return <p className="p-6 text-on-surface-variant">Redirecting…</p>;
   // Auth stalled (observed under Brave with Shields; cause unidentified)
   // and no profile yet — actionable, not a hang.
@@ -641,6 +652,16 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
           value={p.business_email ?? ''}
           onChange={(e) => setP({ ...p, business_email: e.target.value })}
           onBlur={(e) => save({ business_email: e.target.value.trim() || null })} />
+        {/* Printed at the bottom of every estimate and invoice. The text is
+            copied onto a document when it is first sent, so editing it here
+            never changes a document that already went out. */}
+        <textarea id="terms" className="input min-h-[8rem] resize-y" aria-label="Terms and conditions"
+          placeholder={'Terms and conditions (printed on every estimate and invoice)\nExample: 50% deposit due to schedule the work. Balance due on completion. Estimates valid for 30 days.'}
+          maxLength={3000} rows={5}
+          value={p.terms ?? ''}
+          onChange={(e) => setP({ ...p, terms: e.target.value })}
+          onBlur={(e) => save({ terms: e.target.value.trim() || null })} />
+        <p className="-mt-1 text-right text-xs text-on-surface-variant">{(p.terms ?? '').length}/3000</p>
       </section>
 
       <section className="card space-y-3">

@@ -13,6 +13,7 @@ import type { IconName } from '@/components/icon-names';
 import PayView, { type PayModel } from './PayView';
 import { publicBank, pageBank, type PublicBankRow } from '@/lib/pay-bank';
 import { payFigures } from './figures';
+import { cleanTerms } from '@/lib/terms';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public, unauthenticated pay page: /pay/[token].
@@ -30,7 +31,8 @@ import { payFigures } from './figures';
 // items re-projected) and decrypts Zelle server-side with ZELLE_ENC_KEY. This
 // component runs the admin client (RLS-bypassing) — so it must call NOTHING
 // else against the DB. Never add a table query here. The one other call is
-// get_public_invoice_bank (20261016000000), the same kind of whitelisted
+// get_public_invoice_terms (20261024100000: the send-time terms snapshot, a
+// non-draft invoice only) and get_public_invoice_bank (20261016000000), the same kind of whitelisted
 // service-role RPC: bank details only for a sent/overdue, unpaid invoice
 // whose owner has bank transfer on — gated in SQL, not here. The account
 // number reaches the model masked (last 4); the full one is fetched on tap.
@@ -77,7 +79,7 @@ interface PublicInvoiceRow {
 
 
 type FetchResult =
-  | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null }
+  | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null; terms: string | null; contact: { phone: string | null; email: string | null } }
   | { ok: false; reason: 'notfound' | 'error' };
 
 const num = (v: unknown): number => {
@@ -97,9 +99,11 @@ async function fetchPublicInvoice(token: string): Promise<FetchResult> {
   const key = process.env.ZELLE_ENC_KEY ?? '';
   try {
     const admin = adminClient();
-    const [{ data, error }, bankRes] = await Promise.all([
+    const [{ data, error }, bankRes, termsRes, contactRes] = await Promise.all([
       admin.rpc('get_public_invoice', { p_token: token, p_key: key }),
       admin.rpc('get_public_invoice_bank', { p_token: token, p_key: key }),
+      admin.rpc('get_public_invoice_terms', { p_token: token }),
+      admin.rpc('get_public_invoice_contact', { p_token: token }),
     ]);
     if (error) {
       console.error('get_public_invoice failed', error.message);
@@ -111,7 +115,18 @@ async function fetchPublicInvoice(token: string): Promise<FetchResult> {
     // still loads.
     if (bankRes.error) console.error('get_public_invoice_bank failed', bankRes.error.message);
     const bank = ((bankRes.data as PublicBankRow[] | null) ?? [])[0] ?? null;
-    return { ok: true, row: rows[0]!, bank };
+    // Terms are the send-time snapshot (get_public_invoice_terms, 20261024100000).
+    // Like the bank lookup, a failure (including the RPC not existing yet) only
+    // drops the terms; the page still loads.
+    const terms = termsRes.error
+      ? null
+      : cleanTerms(((termsRes.data as { terms: string | null }[] | null) ?? [])[0]?.terms);
+    // Business phone / email, same tolerance: a failure just drops them.
+    const c = contactRes.error
+      ? null
+      : ((contactRes.data as { phone: string | null; email: string | null }[] | null) ?? [])[0] ?? null;
+    const contact = { phone: clean(c?.phone ?? null), email: clean(c?.email ?? null) };
+    return { ok: true, row: rows[0]!, bank, terms, contact };
   } catch (e) {
     console.error('get_public_invoice threw', e);
     return { ok: false, reason: 'error' };
@@ -136,7 +151,7 @@ function Notice({ icon, title, body }: { icon: IconName; title: string; body: st
   );
 }
 
-function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token: string, paidReturn: boolean): PayModel {
+function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, terms: string | null, contact: { phone: string | null; email: string | null }, token: string, paidReturn: boolean): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
   // Every figure and state label comes from one pure function, tested against
   // calculateInvoiceTotals (figures.test.ts). It derives due-now / balance from
@@ -190,6 +205,9 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, token:
     docNumber: formatDocNumber(kind, row.invoice_number),
     noun: docNoun(kind),
     lineItems,
+    terms,
+    contactPhone: contact.phone,
+    contactEmail: contact.email,
     subtotal: figures.subtotal,
     taxRate: figures.taxRate,
     taxAmount: figures.taxAmount,
@@ -285,5 +303,5 @@ export default async function PayPage({
     );
   }
 
-  return <PayView model={buildModel(res.row, res.bank, params.token, searchParams?.paid === '1')} />;
+  return <PayView model={buildModel(res.row, res.bank, res.terms, res.contact, params.token, searchParams?.paid === '1')} />;
 }
