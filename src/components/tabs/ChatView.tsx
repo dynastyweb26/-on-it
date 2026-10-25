@@ -579,6 +579,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // non-draft, non-null status locks the card read-only; amount_paid decides the
   // paid/partly-paid copy (and, in Commit C, whether Revise is offered).
   const [linkedStatus, setLinkedStatus] = useState<string | null>(null);
+  // "+ Add tax" opened the (still empty) tax field.
+  const [taxOpen, setTaxOpen] = useState(false);
   // Synchronous send-in-progress flag for finalize() (send / download).
   const finalizingRef = useRef(false);
   // A sent estimate's public token, read from its row so the locked card can
@@ -2245,7 +2247,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // straight into the confirmation. Mirrors the estimate detail screen.
   async function settleEstimateSend(id: string, retryId?: string) {
     if (!profile || !draft) return;
-    const out = await requestEstimateSend(id);
+    // The date the user asked for ("Valid for 14 days", or a due date a chat
+    // parse carried) is the estimate's valid-until date, so the link, the sent
+    // card and the notes can never disagree. A date already past is ignored and
+    // the server's +30 days applies.
+    const asked = typeof draft.due_date === 'string' && /^d{4}-d{2}-d{2}$/.test(draft.due_date) ? draft.due_date : null;
+    const today = new Date();
+    const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const out = await requestEstimateSend(id, asked && asked >= todayYmd ? asked : null);
     if (!out.ok) {
       if (!retryId) setMessages((m) => [...m, aMsg(out.message, { failed: { op: 'finalize' } })]);
       return;
@@ -3151,6 +3160,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
   }
 
+  // Tax rate in percent, 0 = none. Capped at 30 (no sales tax is higher).
+  function applyDraftTax(rate: number) {
+    if (draft) {
+      setDraftHistory((prev) => [...prev.slice(-19), draft]);
+      setDraft({ ...draft, tax_rate: Math.min(Math.max(rate, 0), 30) } as any);
+    }
+  }
+
   function applyDraftNotes(notes: string) {
     if (draft) {
       setDraftHistory((prev) => [...prev.slice(-19), draft]);
@@ -3364,6 +3381,39 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 placeholder={(draft as any).deposit_type === 'percentage' ? '40' : '100'}
                 onChange={(v) => applyDraftDeposit((draft as any).deposit_type as DepositType, v)}
               />
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-on-surface-variant">Tax</span>
+          <div className="flex items-center gap-1.5">
+            {(draft.tax_rate ?? 0) > 0 || taxOpen ? (
+              <>
+                <DepositValueInput
+                  mode="percentage"
+                  disabled={locked}
+                  className="h-11 min-h-[44px] w-20 rounded-md border border-outline-variant/60 bg-surface-container-lowest px-2 py-1 text-right text-xs font-semibold outline-none disabled:opacity-50"
+                  value={(draft.tax_rate ?? 0) > 0 ? draft.tax_rate : null}
+                  placeholder="0"
+                  onChange={applyDraftTax}
+                />
+                <span className="text-xs font-semibold text-on-surface-variant">%</span>
+                {!locked && (
+                  <button type="button" aria-label="Remove tax" onClick={() => { setTaxOpen(false); applyDraftTax(0); }}
+                    className="grid h-11 min-h-[44px] w-11 place-items-center text-on-surface-variant">
+                    <Icon name="close" size={16} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => setTaxOpen(true)}
+                className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-xs font-semibold text-primary outline-none disabled:opacity-50"
+              >
+                + Add tax
+              </button>
             )}
           </div>
         </div>

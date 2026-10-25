@@ -59,7 +59,7 @@ const UNDO_MS = 5000;
 /** Only these units print after the quantity (frames 7c / 7e: "3 hr", "120 sq ft"). */
 const qtyUnit = (u: TemplateItem['unit']) => (u === 'hour' ? 'hr' : u === 'sq ft' ? 'sq ft' : '');
 
-type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind } | { type: 'extra' };
+type Sheet = { type: 'client' } | { type: 'item'; key: string } | { type: 'keypad'; key: string; kind: KeypadKind } | { type: 'extra'; focus?: 'tax' };
 
 export type SendState = 'disabled' | 'preparing' | 'ready' | 'busy';
 
@@ -184,11 +184,11 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
     : named.length === 0 ? 'Add an item to send'
     : unpriced ? `Add a price for ${unpriced.name.trim()}` : null;
 
-  // ── Totals: named, priced lines; no tax on template documents.
+  // ── Totals: named, priced lines; tax only when the Extra info carries one.
   const info = parseExtraInfo(extra);
   const totals = calculateInvoiceTotals(
     named.filter((x) => x.unit_price != null).map((x) => ({ qty: x.qty, unit_price: x.unit_price! })),
-    0, info.deposit?.type ?? 'none', info.deposit?.value ?? 0);
+    info.tax ?? 0, info.deposit?.type ?? 'none', info.deposit?.value ?? 0);
   const depositLabel = info.deposit?.type === 'percentage' ? `${info.deposit.value}% deposit` : 'Deposit';
 
   const keypadItem = sheet?.type === 'keypad' ? items.find((x) => x.key === sheet.key) : undefined;
@@ -312,6 +312,17 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
       {/* Attachments: the same gold control as the card, under "+ Add item". */}
       <AttachmentsEditor items={attachments} editable onChange={onAttachments} onRemove={onRemoveAttachment} />
 
+      {/* Tax slot: opens Extra info on its tax field; the rate is written there as "8% tax". */}
+      <button type="button" onClick={() => setSheet({ type: 'extra', focus: 'tax' })}
+        aria-label={info.tax != null ? `Tax ${info.tax}%. Change tax` : 'Add tax'}
+        className={`mt-1 flex min-h-[44px] w-full items-center gap-2.5 rounded-[12px] px-3 text-left transition active:scale-[0.99]
+          ${info.tax != null ? 'bg-inverse-surface text-inverse-on-surface' : 'border border-dashed border-outline-variant bg-surface-container-lowest/70 text-on-surface-variant'}`}>
+        <Icon name={info.tax != null ? 'sell' : 'add'} size={20} className={info.tax != null ? 'text-primary-fixed-dim' : ''} />
+        <span className="min-w-0 flex-1 truncate text-[16px] font-bold">
+          {info.tax != null ? `Tax ${info.tax}%` : <span className="font-normal">Add tax</span>}
+        </span>
+      </button>
+
       {/* Extra info slot */}
       <button type="button" onClick={() => setSheet({ type: 'extra' })}
         aria-label={extra ? `Extra info: ${extra}. Change extra info` : 'Add extra info: dates, notes, deposit'}
@@ -337,6 +348,9 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           ) : (
             <div className="leading-tight">
               <p className="text-[13px] text-on-surface-variant">Subtotal {money(totals.subtotal)}</p>
+              {totals.taxAmount > 0 && (
+                <p className="text-[13px] text-on-surface-variant">Tax ({info.tax}%) {money(totals.taxAmount)}</p>
+              )}
               {totals.depositAmount > 0 && (
                 <p className="text-[13px] font-bold text-primary">{depositLabel} due now: {money(totals.depositAmount)}</p>
               )}
@@ -372,7 +386,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           }} />
       )}
       {sheet?.type === 'extra' && (
-        <ExtraInfoSheet value={extra} address={client?.address ?? null} onClose={() => setSheet(null)}
+        <ExtraInfoSheet value={extra} address={client?.address ?? null} kind={kind} focusTax={sheet.focus === 'tax'} onClose={() => setSheet(null)}
           onDone={(t) => { setExtra(t); setSheet(null); }} />
       )}
       {sheet?.type === 'keypad' && keypadItem && (

@@ -30,7 +30,7 @@ export function templateToDraft(
     client_address: client.address,
     client_phone: client.phone,
     line_items,
-    tax_rate: 0,                        // templates go out without tax (§1.4)
+    tax_rate: info.tax ?? 0,            // only when the Extra info says so ("8% tax")
     due_date: info.due,                 // null → finalize's +30-day default
     notes: extra.trim() || null,
     deposit_type: info.deposit?.type ?? 'none',
