@@ -6,6 +6,7 @@
 // minted, so a forged row cannot publish someone else's object.
 import 'server-only';
 import { adminClient } from '@/lib/supabase/admin';
+import { cleanTerms, readProfileTerms } from '@/lib/terms';
 import { deliverableAttachments } from './deliverable';
 import { ATTACHMENT_BUCKET, SIGNED_URL_TTL_SECONDS } from './limits';
 import { toPublicEstimate, type PublicModelInvoice, type PublicModelProfile } from './public-model';
@@ -200,6 +201,21 @@ async function shape(
   const contentHash = hashRes.data as string | null;
   if (!contentHash) return { state: 'unavailable' };
 
+  // Terms are read on their own, tolerantly: until migration 20261024100000 is
+  // applied the columns do not exist and this must not take the page down.
+  // The frozen copy wins; an owner preview of a never-sent draft shows the
+  // owner's current terms instead.
+  let terms: string | null = null;
+  try {
+    const snap = await admin.from('invoices').select('terms').eq('id', invoice.id).maybeSingle();
+    terms = cleanTerms((snap.data as { terms?: unknown } | null)?.terms);
+    if (!terms && preview && (invoice.status === 'draft' || invoice.status == null)) {
+      terms = await readProfileTerms(admin, invoice.user_id);
+    }
+  } catch {
+    terms = null;
+  }
+
   return toPublicEstimate({
     invoice,
     profile,
@@ -207,6 +223,7 @@ async function shape(
     signature: signatureSummary(signatureRes.data as SignatureRow | null),
     converted: (convertedRes.data ?? []).length > 0,
     contentHash,
+    terms,
     now: new Date(),
     preview,
   });

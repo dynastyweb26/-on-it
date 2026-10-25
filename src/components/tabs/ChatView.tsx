@@ -12,6 +12,7 @@ import ChatNudgeCard from '@/components/ChatNudgeCard';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
+import { shouldOfferTermsPrompt } from '@/lib/terms-prompt';
 import { buildTheme, explicitColorRoles, BrandTheme } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
@@ -91,6 +92,9 @@ interface Profile {
   color_roles_explicit?: boolean | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  business_phone?: string | null; business_email?: string | null;
+  terms?: string | null; // 20261024100000; undefined until the migration is applied
+  terms_prompt_count?: number | null;
   access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
   // Connect flags (select(*)) — for the PDF card line only.
   stripe_account_id?: string | null; stripe_charges_enabled?: boolean | null;
@@ -617,6 +621,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see maybeOfferFeedback.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
+  // "Add your terms" tip after a first send (lib/terms-prompt.ts); see maybeOfferTerms.
+  const [termsPrompt, setTermsPrompt] = useState(false);
+  // Set for the one moment a terms card is up, so the payouts nudge appended by
+  // finishFinalize stays out of the same moment (one tip at a time).
+  const termsShownRef = useRef(false);
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -1074,7 +1083,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, feedbackPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, feedbackPrompt, termsPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -1423,6 +1432,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
       businessName: profile.business_name,
       logoUrl: profile.logo_url,
       websiteUrl: profile.website_url,
+      businessPhone: profile.business_phone ?? null,
+      businessEmail: profile.business_email ?? null,
       slogan: profile.slogan,
       clientName: draft.client_name ?? 'Client',
       clientAddress: draft.client_address ?? null,
@@ -1436,6 +1447,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       remaining: hasDeposit ? totals.remaining : undefined,
       amountDueNow: totals.amountDueNow,
       notes: draft.notes ?? null,
+      // A chat document is always unsent here, so it carries the current terms;
+      // the send route freezes them onto the row.
+      terms: profile.terms ?? null,
       // Both dates go through formatDate() so issued and due read as one format
       // (M/D/YYYY) on the PDF — Jules F8. These are display strings; the ISO
       // due_date written to the DB is set separately in finalize().
@@ -1561,7 +1575,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       });
       const result: Msg[] = [...archived, cardMsg];
       // Nudge only if Connect is on, no payment processor set up, and user hasn't dismissed it before.
-      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed) {
+      if (connectOn && profile && !cardAvailableFor(profile, connectOn) && !payoutsNudgeDismissed && !termsShownRef.current) {
         result.push(aMsg('', { payoutsNudge: true }));
       }
       return result;
@@ -2170,6 +2184,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
     finalizeSentRef.current = true;
     persistProgress();
+    // Tip priority: the terms card wins the moment, so decide before the done
+    // message is built (it appends the payouts nudge unless a terms card is up).
+    const firstSend = await sendRes.json().then((j: { firstSend?: unknown }) => j?.firstSend === true).catch(() => false);
+    const askedTerms = maybeOfferTerms(firstSend);
     // Archive in the Vault — best-effort; a storage hiccup must not undo the send.
     try {
       const path = `${profile.id}/${pb.file.name}`;
@@ -2195,8 +2213,39 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // actually goes out. One-time; skipped if already subscribed.
     // One ask per moment: the payment-alerts card wins; otherwise this is also
     // the moment to (rarely) ask for feedback on invoices AND quotes.
-    const askedAlerts = docKind(draft) === 'invoice' ? await maybeOfferReminders(who) : false;
-    if (!askedAlerts) void maybeOfferFeedback();
+    const askedAlerts = !askedTerms && docKind(draft) === 'invoice' ? await maybeOfferReminders(who) : false;
+    if (!askedTerms && !askedAlerts) void maybeOfferFeedback();
+  }
+
+  // The "Add your terms" tip. Rules in lib/terms-prompt.ts. The count goes up
+  // in the database the moment the card is shown (best-effort), so a second
+  // device or a reload can't show it a third time.
+  function maybeOfferTerms(firstSend: boolean): boolean {
+    termsShownRef.current = false;
+    setTermsPrompt(false);
+    if (!profile) return false;
+    const blocked = sessionRef.current || template !== null || paywallFor !== null;
+    if (!shouldOfferTermsPrompt(profile, { firstSend, blocked: !!blocked })) return false;
+    const next = (profile.terms_prompt_count ?? 0) + 1;
+    setProfile((p) => (p ? { ...p, terms_prompt_count: next } : p));
+    void supabase.from('profiles').update({ terms_prompt_count: next }).eq('id', profile.id)
+      .then(({ error }) => { if (error) console.error('terms prompt count failed', error.code); });
+    termsShownRef.current = true;
+    setTermsPrompt(true);
+    return true;
+  }
+
+  function addTermsFromPrompt() {
+    setTermsPrompt(false);
+    router.push('/settings/business#terms');
+  }
+
+  // "Not now" is stored on the profile, not in the browser.
+  function dismissTermsPrompt() {
+    setTermsPrompt(false);
+    if (!profile) return;
+    void supabase.from('profiles').update({ terms_prompt_dismissed_at: new Date().toISOString() }).eq('id', profile.id)
+      .then(({ error }) => { if (error) console.error('terms prompt dismiss failed', error.code); });
   }
 
   // Re-run the operation behind a failed message, in place. The message's id is
@@ -3711,6 +3760,22 @@ export default function Chat({ active = true }: { active?: boolean }) {
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now
             </button>
+          </div>
+        )}
+
+        {termsPrompt && (
+          <div className="flex justify-start">
+            <ChatNudgeCard
+              className="w-full max-w-[82%]"
+              icon="description"
+              eyebrow="Tip"
+              title="Add your terms"
+              body="Add your terms so they print on every estimate and invoice. Takes a minute."
+              actions={[
+                { label: 'Add terms', variant: 'primary', onClick: addTermsFromPrompt },
+                { label: 'Not now', variant: 'secondary', onClick: dismissTermsPrompt },
+              ]}
+            />
           </div>
         )}
 

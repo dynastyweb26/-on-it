@@ -205,3 +205,12 @@ test('preview still hides a deleted or revoked estimate', () => {
     { state: 'unavailable' },
   );
 });
+
+test('terms ride the payload trimmed; none or blank is null so no heading renders', () => {
+  const withTerms = toPublicEstimate(input({ terms: '  50% deposit.  ' }));
+  assert.ok(withTerms.state !== 'unavailable' && withTerms.terms === '50% deposit.');
+  const blank = toPublicEstimate(input({ terms: '   ' }));
+  assert.ok(blank.state !== 'unavailable' && blank.terms === null);
+  const none = toPublicEstimate(input());
+  assert.ok(none.state !== 'unavailable' && none.terms === null);
+});
