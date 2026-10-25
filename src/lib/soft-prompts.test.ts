@@ -20,6 +20,7 @@ const {
   WINBACK_DAYS,
   estimateApprovedPrompt,
   firstPaymentPrompt,
+  hasBeenPaid,
   markSeen,
   promptAllowedForTier,
   promptDue,
@@ -103,6 +104,19 @@ test('first-payment prompt is once ever and opens the paywall', () => {
   assert.equal(promptDue(p, U, NOW), true);
   markSeen(U, p.key, NOW);
   assert.equal(promptDue(p, U, new Date(NOW.getTime() + 10 * 365 * DAY)), false);
+});
+
+test('first-payment fires for at least one payment row, however many there are', () => {
+  assert.equal(hasBeenPaid(1), true);
+  assert.equal(hasBeenPaid(2), true); // 2+ payments before the first app open still counts
+  assert.equal(hasBeenPaid(40), true);
+  assert.equal(hasBeenPaid(0), false);
+  assert.equal(hasBeenPaid(null), false);
+  assert.equal(hasBeenPaid(undefined), false);
+  // And the cap is once per user, so a later payment never brings it back.
+  mem.clear();
+  markSeen(U, firstPaymentPrompt().key, NOW);
+  assert.equal(promptDue(firstPaymentPrompt(), U, new Date(NOW.getTime() + 30 * DAY)), false);
 });
 
 test('tier gate table: upgrade prompts skip paid tiers; each special prompt has its own tier', () => {
