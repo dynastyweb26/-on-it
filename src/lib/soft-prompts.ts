@@ -1,147 +1,153 @@
-// Soft prompts: the one dismissible nudge card in chat (ChatNudgeCard). Nothing
-// here blocks anything — the walls are the paywall; these are moments worth a
-// quiet word. GET /api/prompts gathers the facts and calls pickSoftPrompt();
-// the card shows it; "Not now" is remembered per device (localStorage).
+// ═══ Soft upgrade prompts ═══
+// The quiet, dismissible upgrade moments. Nothing here blocks anything — the
+// walls are the paywall (PaywallModal); these are a small word at a moment that
+// already happened. Each prompt carries its OWN copy, its own frequency cap and
+// its own dismissal key, so one can never eat another's.
 //
-//   canceled tier                     → winback (the paywall, winback variant)
-//   trialing, trial day 11 or later   → trial ending (TRIAL_REMINDER_DAYS before
-//                                       the end; points at Settings → Plan)
-//   free, an estimate signed ≤ 14 d   → estimate signed (paywall, estimate variant)
-//   free, ONE Stripe-webhook payment
-//     in the last 14 days             → first payment (paywall, invoice variant)
+//   usage              free / canceled, 2 of 3 invoices or estimates → chat card
+//   estimate-approved  free / canceled, an estimate was signed      → estimate screen
+//   first-payment      free / canceled, their first ledger payment  → app banner
+//   winback            canceled, once per 14 days                   → app banner
+//   trial-ending       trialing, 3 days or fewer left, once a day    → app banner
 //
-// Pure: no DOM, no fetch, no server-only (the route and the chat both import it).
-import { TRIAL_REMINDER_DAYS } from '@/lib/trial';
+// Tier gating runs through hasAccess() server-side (the ONE access source) and
+// isPaidTier() (its client-safe set) — never a second copy of the tier rules.
+//
+// Dismissals are per user, per DEVICE, in localStorage, every access wrapped in
+// try/catch: blocked storage must never break a screen, it only means the
+// prompt may ask again. No migration, no server-side dismissal row.
+//
+// Pure: no DOM at module scope, no server-only (the route and the client both
+// import it).
+import { isPaidTier } from '@/lib/paywall';
+import type { UsageSnapshot } from '@/lib/usage';
 
-export const SOFT_PROMPT_WINDOW_DAYS = 14;
-const DAY_MS = 24 * 60 * 60 * 1000;
+export type SoftPromptId =
+  | 'usage'
+  | 'estimate-approved'
+  | 'first-payment'
+  | 'winback'
+  | 'trial-ending';
 
-export type SoftPromptId = 'first-payment' | 'estimate-signed' | 'trial-ending' | 'winback';
+/** How often one prompt may appear:
+ *  once → forever (per device), 14d → at most once per WINBACK_DAYS,
+ *  day  → once per local calendar day. */
+export type SoftPromptCap = 'once' | '14d' | 'day';
+export type SoftPromptAction = 'wall' | 'plan' | 'convert';
+/** The paywall variant a prompt opens (PaywallModal's own union, narrowed). */
+export type SoftPromptVariant = 'invoice' | 'estimate' | 'winback';
 
 export interface SoftPrompt {
   id: SoftPromptId;
   /** Dismissal key: the prompt plus the moment it is about, so the next
-   *  occasion (a later payment, another trial) asks again. */
+   *  occasion (another estimate, a later trial) asks again. */
   key: string;
+  cap: SoftPromptCap;
   eyebrow: string;
   title: string;
   body: string;
   /** Primary button label. */
   cta: string;
-  /** 'wall' opens the paywall (variant + reason); 'plan' opens Settings → Plan. */
-  action: 'wall' | 'plan';
-  variant?: 'invoice' | 'estimate' | 'winback';
+  /** 'wall' opens the paywall, 'plan' opens Settings → Plan, 'convert' is
+   *  handled by the screen it lives on (the estimate's Convert action). */
+  action: SoftPromptAction;
+  variant?: SoftPromptVariant;
+  /** Replaces the paywall's default reason pill (nobody hit a limit here). */
   reason?: string;
 }
 
-export interface PromptFacts {
-  tier: string | null | undefined;
-  trialEndsAt: string | null;
-  /** Stripe-webhook ledger rows in the last 14 days (2 means "two or more"). */
-  webhookPayments: number;
-  lastWebhookPaymentAt: string | null;
-  /** Estimates signed in the last 14 days. */
-  estimatesSigned: number;
-  lastEstimateSignedAt: string | null;
-  now?: Date;
+/** Canceled users get the win-back at most this often. */
+export const WINBACK_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// ── Tier gate ───────────────────────────────────────────────────────────────
+// Non-paid users only (free and canceled): founder, active and past_due never
+// see an upgrade prompt. The one exception is the trial banner, which exists
+// only FOR a trialing user.
+export function promptAllowedForTier(
+  id: SoftPromptId,
+  tier: string | null | undefined,
+): boolean {
+  if (id === 'trial-ending') return tier === 'trialing';
+  return !isPaidTier(tier);
 }
 
-const longDay = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// ── Dismissals (per user, per device) ───────────────────────────────────────
+export type SeenMap = Record<string, string>; // dismissal key → ISO timestamp
 
-export function pickSoftPrompt(f: PromptFacts): SoftPrompt | null {
-  const now = f.now ?? new Date();
-  const tier = f.tier ?? 'free';
+const storeKey = (userId: string) => `onit_soft_prompts_v2:${userId}`;
 
-  if (tier === 'canceled') {
-    return {
-      id: 'winback',
-      key: 'winback',
-      eyebrow: 'Welcome back',
-      title: 'Pick up where you left off',
-      body: 'Restart On It for unlimited invoices, estimates and expenses, plus recurring expenses and reports.',
-      cta: 'See plans',
-      action: 'wall',
-      variant: 'winback',
-    };
-  }
-
-  if (tier === 'trialing' && f.trialEndsAt) {
-    const end = new Date(f.trialEndsAt);
-    const remindFrom = end.getTime() - TRIAL_REMINDER_DAYS * DAY_MS;
-    if (!Number.isNaN(end.getTime()) && now.getTime() >= remindFrom && now.getTime() < end.getTime()) {
-      return {
-        id: 'trial-ending',
-        key: `trial-ending:${f.trialEndsAt}`,
-        eyebrow: 'Your trial',
-        title: `Your free trial ends ${longDay(end)}`,
-        body: 'After that it’s $9.99/month, renewing monthly until you cancel. You can manage or cancel anytime in Settings.',
-        cta: 'Manage plan',
-        action: 'plan',
-      };
+/** Every dismissal this user has on this device. Never throws. */
+export function readSeen(userId: string): SeenMap {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(storeKey(userId)) ?? '{}');
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out: SeenMap = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v;
     }
-    return null;
-  }
-
-  if (tier !== 'free') return null; // paid tiers and anything unexpected: nothing to say
-
-  if (f.estimatesSigned > 0) {
-    return {
-      id: 'estimate-signed',
-      key: `estimate-signed:${f.lastEstimateSignedAt ?? ''}`,
-      eyebrow: 'Signed',
-      title: 'Your estimate was signed',
-      body: 'Nice work. A free trial lifts the limits so you can invoice the job and keep estimates coming.',
-      cta: 'Start free trial',
-      action: 'wall',
-      variant: 'estimate',
-      reason: 'Your estimate was signed',
-    };
-  }
-
-  if (f.webhookPayments === 1) {
-    return {
-      id: 'first-payment',
-      key: `first-payment:${f.lastWebhookPaymentAt ?? ''}`,
-      eyebrow: 'You got paid',
-      title: 'A customer paid you online',
-      body: 'On It collected it for you. A free trial lifts the invoice, estimate and expense limits.',
-      cta: 'Start free trial',
-      action: 'wall',
-      variant: 'invoice',
-      reason: 'You got paid through On It',
-    };
-  }
-
-  return null;
-}
-
-// ── Dismissals (per device) ─────────────────────────────────────────────────
-const DISMISSED_KEY = 'onit_soft_prompts_dismissed';
-const DISMISSED_MAX = 30;
-
-export function parseDismissed(raw: string | null | undefined): string[] {
-  try {
-    const v = JSON.parse(raw ?? '[]');
-    return Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string') : [];
+    return out;
   } catch {
-    return [];
+    return {}; // storage blocked or corrupt: behave as if nothing was seen
   }
 }
 
-export function withDismissed(list: string[], key: string): string[] {
-  return [...list.filter((k) => k !== key), key].slice(-DISMISSED_MAX);
+/** When this user last saw `key`, or null. Unparseable stamps read as null. */
+export function seenAt(userId: string, key: string, now: Date = new Date()): Date | null {
+  const at = new Date(readSeen(userId)[key] ?? '');
+  return Number.isNaN(at.getTime()) ? null : at;
 }
 
-export function isSoftPromptDismissed(key: string): boolean {
+/** Remember that the prompt was shown (or dismissed) — starts its cap. */
+export function markSeen(userId: string, key: string, now: Date = new Date()): void {
   try {
-    return parseDismissed(localStorage.getItem(DISMISSED_KEY)).includes(key);
-  } catch {
-    return false; // storage blocked: show it; the next load asks again
-  }
+    const seen = readSeen(userId);
+    seen[key] = now.toISOString();
+    localStorage.setItem(storeKey(userId), JSON.stringify(seen));
+  } catch { /* storage blocked: the prompt may ask again next load */ }
 }
 
-export function dismissSoftPrompt(key: string): void {
-  try {
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify(withDismissed(parseDismissed(localStorage.getItem(DISMISSED_KEY)), key)));
-  } catch { /* storage blocked */ }
+/** The LOCAL calendar day of a date, as YYYY-MM-DD (a day cap resets at local
+ *  midnight, not 24 hours after the last show). */
+export function dayKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Is `prompt` allowed to appear right now, given this device's dismissals? */
+export function promptDue(prompt: SoftPrompt, userId: string, now: Date = new Date()): boolean {
+  const at = seenAt(userId, prompt.key, now);
+  if (!at) return true;
+  if (prompt.cap === '14d') return now.getTime() - at.getTime() >= WINBACK_DAYS * DAY_MS;
+  if (prompt.cap === 'day') return dayKey(at) !== dayKey(now);
+  return false; // 'once'
+}
+
+// ── The prompts ─────────────────────────────────────────────────────────────
+/** The invoice/estimate free counters, read the SAME way the usage line reads
+ *  them (GET /api/access → hasAccess). No recount here. */
+export function usageNudge(
+  kind: 'invoice' | 'estimate',
+  a: UsageSnapshot | null | undefined,
+): SoftPrompt | null {
+  if (!a || !promptAllowedForTier('usage', a.tier)) return null;
+  const used = kind === 'invoice' ? a.invoiceCount : a.estimateCount;
+  const limit = kind === 'invoice' ? a.invoiceLimit : a.estimateLimit;
+  if (typeof used !== 'number' || typeof limit !== 'number' || limit < 2) return null;
+  // One before the last is the moment worth a word: the last one is the wall's.
+  if (used !== limit - 1) return null;
+  const left = limit - used;
+  const plural = kind === 'invoice' ? 'invoices' : 'estimates';
+  return {
+    id: 'usage',
+    key: `usage:${kind}`,
+    cap: 'once',
+    eyebrow: 'Free plan',
+    title: `${left} free ${kind} left`,
+    body: `You’ve used ${used} of ${limit} free ${plural}. Unlimited ${plural} come with a plan.`,
+    cta: 'See plans',
+    action: 'wall',
+    variant: kind,
+    reason: `${used} of ${limit} free ${plural} used — ${left} left`,
+  };
 }

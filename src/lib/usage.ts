@@ -13,6 +13,8 @@ export interface UsageSnapshot {
   expenseLimit?: number | null;
   estimateLimit?: number | null;
   trialEligible?: boolean;
+  /** hasAccess()'s tier, from the same GET /api/access payload. */
+  tier?: string | null;
 }
 
 const COUNT_KEY = { invoice: 'invoiceCount', expense: 'expenseCount', estimate: 'estimateCount' } as const;
@@ -48,13 +50,19 @@ export function freePlanSummary(a: UsageSnapshot | null | undefined): string | n
   return `${inv} of ${a.invoiceLimit} invoices · ${exp} of ${a.expenseLimit} expenses${est} used`;
 }
 
-/** Fresh /api/access read → the line for `kind`, or null (paid, paywall off,
- *  offline). Called right after a save, so the count includes it. */
-export async function fetchUsageLine(kind: UsageKind): Promise<string | null> {
+/** Fresh /api/access read → the counters it reports, or null (offline, or the
+ *  route refused). Called right after a save, so the count includes it. */
+export async function fetchUsageSnapshot(): Promise<UsageSnapshot | null> {
   try {
     const r = await fetch('/api/access', { cache: 'no-store' });
-    return r.ok ? usageLine(kind, (await r.json()) as UsageSnapshot) : null;
+    return r.ok ? ((await r.json()) as UsageSnapshot) : null;
   } catch {
     return null;
   }
+}
+
+/** Fresh /api/access read → the line for `kind`, or null (paid, paywall off,
+ *  offline). */
+export async function fetchUsageLine(kind: UsageKind): Promise<string | null> {
+  return usageLine(kind, await fetchUsageSnapshot());
 }
