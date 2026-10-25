@@ -18,6 +18,9 @@ export async function resolve(specifier, context, next) {
   else if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {
     file = withExtension(path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier));
   }
+  if (specifier === 'next/server') {
+    return { format: 'module', url: 'data:text/javascript,export class NextResponse{static redirect(url){return {url}}}', shortCircuit: true };
+  }
   return file ? next(pathToFileURL(file).href, context) : next(specifier, context);
 }
 

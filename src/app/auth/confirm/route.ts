@@ -24,11 +24,13 @@ import { SIGNED_IN_COOKIE } from '@/components/tutorial/throb';
 const RELATIVE_PATH = /^\/[A-Za-z0-9\-._~/]*$/;
 const MAX_NEXT_LEN = 200;
 
-function safeNext(raw: string | null): string {
-  if (raw && raw.length <= MAX_NEXT_LEN && !raw.startsWith('//') && RELATIVE_PATH.test(raw)) {
-    return raw;
+export function safeNext(raw: string | null): string {
+  if (!raw || raw.length > MAX_NEXT_LEN) return '/chat';
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\') || raw.includes('\\') || raw.includes('//')) {
+    return '/chat';
   }
-  return '/chat';
+  if (!RELATIVE_PATH.test(raw)) return '/chat';
+  return raw;
 }
 
 export async function GET(request: NextRequest) {
