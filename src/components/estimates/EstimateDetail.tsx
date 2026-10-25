@@ -114,7 +114,8 @@ export default function EstimateDetail({
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showPaywall, setShowPaywall] = useState(false);
+  // Converting hits the invoice cap, duplicating hits the estimate cap.
+  const [paywallFor, setPaywallFor] = useState<null | 'invoice' | 'estimate'>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(inv.title ?? '');
@@ -278,7 +279,7 @@ export default function EstimateDetail({
       }).select('id').single();
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
-          setShowPaywall(true);
+          setPaywallFor('invoice');
           return;
         }
         console.error('convert estimate failed', error);
@@ -305,7 +306,7 @@ export default function EstimateDetail({
     try {
       const outcome = await requestEstimateDuplicate(id);
       if (!outcome.ok) {
-        if (outcome.paywall) setShowPaywall(true);
+        if (outcome.paywall) setPaywallFor('estimate');
         else setActionError(outcome.message);
         return;
       }
@@ -685,7 +686,7 @@ export default function EstimateDetail({
         </div>
       )}
 
-      {showPaywall && <PaywallModal variant="invoice" returnTo="invoices" onClose={() => setShowPaywall(false)} />}
+      {paywallFor && <PaywallModal variant={paywallFor} returnTo="invoices" onClose={() => setPaywallFor(null)} />}
 
       {previewOpen && preview && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[80] flex items-end justify-center" data-no-tab-swipe="true">

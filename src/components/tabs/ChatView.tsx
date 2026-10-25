@@ -112,11 +112,11 @@ const UNLIMITED_TIERS = new Set(['founder', 'trialing', 'active', 'past_due']);
 /** The chat reply when a capped user asks for a document over the free cap:
  *  the card still shows, but nothing is saved until they upgrade. The limit
  *  comes from /api/access (the SQL cap functions); 3/5 only if it's missing. */
-function overCapReply(kind: 'invoice' | 'expense', limit: unknown): string {
-  const n = typeof limit === 'number' ? limit : kind === 'invoice' ? 3 : 5;
-  return kind === 'invoice'
-    ? `Here's your invoice. You've used your ${n} free invoices, so start your free trial to send it.`
-    : `Here's your expense. You've used your ${n} free expenses, so start your free trial to save it.`;
+function overCapReply(kind: 'invoice' | 'expense' | 'estimate', limit: unknown): string {
+  const n = typeof limit === 'number' ? limit : kind === 'expense' ? 5 : 3;
+  if (kind === 'invoice') return `Here's your invoice. You've used your ${n} free invoices, so start your free trial to send it.`;
+  if (kind === 'estimate') return `Here's your estimate. You've used your ${n} free estimates, so start your free trial to send it.`;
+  return `Here's your expense. You've used your ${n} free expenses, so start your free trial to save it.`;
 }
 
 // The document kind a draft renders as: 'quote' or 'invoice', handled
@@ -599,11 +599,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Capped tiers (free, canceled, anything not unlimited) get no background
   // pre-build for an INVOICE: it INSERTs the draft row before Send, which would
   // spend a free invoice slot on a card that may never be sent. Their Send
-  // builds at tap time instead (the slow path). Quotes never count, so they
-  // keep the pre-build. Only while the paywall is on.
+  // builds at tap time instead (the slow path). Estimates are capped too now,
+  // so they skip it as well. Only while the paywall is on.
   const skipPreBuild = PAYWALL_ENABLED && !!profile
-    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free')
-    && docKind(draft) === 'invoice';
+    && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
   useEffect(() => {
@@ -1204,19 +1203,28 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // not a spoken/blocking reply — so the reply is always the normal one.
       // Over the free cap? The model's reply ("You're all set") can't know, and
       // nothing is saved until Send/Save, so it must not claim success. Checked
-      // only for a capped tier's new, ready invoice or a complete expense
-      // (quotes are never capped); fails open like the Send gate.
+      // only for a capped tier's new, ready invoice or estimate, or a complete
+      // expense; fails open like the Send gate.
       const effIntent = data.intent_explicit === false && draft?.intent ? draft.intent : data.intent;
       const isReady = Boolean(data.ready) && data.intent !== 'expense';
       const expenseComplete = data.intent === 'expense' && typeof data.expense?.amount === 'number' && data.expense.amount > 0;
       const cappedTier = PAYWALL_ENABLED && !!profile && !UNLIMITED_TIERS.has(profile.access_tier ?? 'free');
-      let overCap: null | 'invoice' | 'expense' = null;
-      if (cappedTier && ((isReady && effIntent === 'invoice' && !pendingInvoiceRef.current) || expenseComplete)) {
+      const readyDoc = isReady && (effIntent === 'invoice' || effIntent === 'quote') && !pendingInvoiceRef.current;
+      let overCap: null | 'invoice' | 'expense' | 'estimate' = null;
+      if (cappedTier && (readyDoc || expenseComplete)) {
         try {
           const gate = await (await fetch('/api/access')).json();
-          if (expenseComplete && gate?.canExpense === false) overCap = 'expense';
-          if (!expenseComplete && gate?.hasAccess === false) overCap = 'invoice';
-          if (overCap) data.reply = overCapReply(overCap, overCap === 'invoice' ? gate.invoiceLimit : gate.expenseLimit);
+          if (expenseComplete) {
+            if (gate?.canExpense === false) overCap = 'expense';
+          } else if (effIntent === 'quote') {
+            if (gate?.canEstimate === false) overCap = 'estimate';
+          } else if (gate?.hasAccess === false) {
+            overCap = 'invoice';
+          }
+          if (overCap) {
+            const limit = overCap === 'invoice' ? gate.invoiceLimit : overCap === 'estimate' ? gate.estimateLimit : gate.expenseLimit;
+            data.reply = overCapReply(overCap, limit);
+          }
         } catch { /* unreachable — fail open, keep the model's reply */ }
       }
       const reply: string = data.reply ?? 'Say that again?';
@@ -1782,21 +1790,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // it", Download) waits for it, so the two never write the row concurrently.
     if (mode !== 'prepare' && preparePromiseRef.current) await preparePromiseRef.current;
 
-    // Quotes are never capped (the trigger skips kind <> 'invoice'), so only a
-    // new INVOICE is gated — for every tier the trigger caps, canceled included.
-    if (!pendingInvoiceRef.current && docKind(draft) === 'invoice') {
+    // A new invoice is gated by hasAccess, a new estimate (kind 'quote') by
+    // canEstimate — for every tier the trigger caps, canceled included.
+    if (!pendingInvoiceRef.current) {
+      const isEstimate = docKind(draft) === 'quote';
+      const field = isEstimate ? 'canEstimate' : 'hasAccess';
       try {
         let gate = await (await fetch('/api/access')).json();
         // Just back from Checkout? The webhook may not have landed yet: give it
         // a few seconds before showing the wall again (lib/upgrade-return).
-        if (gate && gate.hasAccess === false && recentlyUpgraded()) {
-          gate = (await waitForAccess((a) => a.hasAccess === true)) ?? gate;
+        if (gate && gate[field] === false && recentlyUpgraded()) {
+          gate = (await waitForAccess((a) => a[field] === true)) ?? gate;
         }
-        if (gate && gate.hasAccess === false) {
-          if (mode !== 'prepare') setPaywallFor('invoice'); // the send tap shows it
+        if (gate && gate[field] === false) {
+          if (mode !== 'prepare') setPaywallFor(isEstimate ? 'estimate' : 'invoice'); // the send tap shows it
           return;
         }
-      } catch { /* access check unreachable — fail open, allow the invoice */ }
+      } catch { /* access check unreachable — fail open, allow the document */ }
     }
 
     try {
@@ -1912,8 +1922,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
           // gate above normally catches this first, but the trigger is the real
           // boundary and fires even if the gate failed open or was bypassed —
           // surface the paywall, never a generic error.
-          if (insErr?.hint === 'PAYWALL_LIMIT') {
-            if (mode !== 'prepare') setPaywallFor('invoice');
+          if (insErr?.hint === 'PAYWALL_LIMIT' || insErr?.hint === 'PAYWALL_LIMIT_ESTIMATE') {
+            if (mode !== 'prepare') setPaywallFor(insErr.hint === 'PAYWALL_LIMIT_ESTIMATE' ? 'estimate' : 'invoice');
             return; // draft + ready untouched — upgrade, then tap send again
           }
           // 23505 on finalize_key: THIS conversation's row already exists (the
@@ -1970,11 +1980,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
         } else {
           newId = saved.id as string;
           newNo = saved.invoice_number as number; // trigger-assigned, authoritative
-          // Free-tier usage line (null for paid tiers / paywall off). Quotes are
-          // never capped, so they never show one.
-          if (rd0.kind === 'invoice') {
+          // Free-tier usage line (null for paid tiers / paywall off).
+          {
             const savedId = newId;
-            void fetchUsageLine('invoice').then((text) => { if (text) setInvoiceUsage({ id: savedId, text }); });
+            void fetchUsageLine(rd0.kind === 'quote' ? 'estimate' : 'invoice')
+              .then((text) => { if (text) setInvoiceUsage({ id: savedId, text }); });
           }
           publicToken = (saved.public_token as string) ?? null;
         }
@@ -3048,6 +3058,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
         user_id: profile.id, vendor: p.name, amount: p.amount, category: p.category,
         cadence: p.cadence, anchor_day: anchorFor(p.cadence, p.nextOn), next_on: p.nextOn, auto_log: true,
       });
+      // Free and canceled users can't create recurring items (the trigger's
+      // PAYWALL_RECURRING): this prompt is the upsell. Close the card (its
+      // error state would claim a failed save) and open the wall instead.
+      if (error?.hint === 'PAYWALL_RECURRING') {
+        setPromptShown(null);
+        setPaywallFor('recurring');
+        return false;
+      }
       // 23505: it's already recurring (another device, a moment ago) — that's the goal.
       if (error && error.code !== '23505') return false;
       setMessages((m) => [...m, aMsg(savedLine(p, localToday()))]);

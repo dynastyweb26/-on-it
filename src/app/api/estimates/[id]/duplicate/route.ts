@@ -74,7 +74,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .single();
 
     if (insertError) {
-      if (insertError.hint === 'PAYWALL_LIMIT') return refuse(402, 'paywall');
+      // A copy is a new quote, so the estimate cap is the one that fires; the
+      // invoice hint is accepted too in case the trigger ever reports it.
+      if (insertError.hint === 'PAYWALL_LIMIT' || insertError.hint === 'PAYWALL_LIMIT_ESTIMATE') {
+        return refuse(402, 'paywall');
+      }
       console.error('estimate duplicate: insert failed', insertError);
       return refuse(500, 'duplicate_failed');
     }
