@@ -865,3 +865,53 @@ again.
 |---|---|---|
 | Terms and conditions on estimates and invoices | **Built on branch — NOT merged; migration NOT applied** | Settings › Business has a "Terms and conditions" textarea (3000 cap, saves on blur, `#terms` deep link). First send freezes `profiles.terms` onto `invoices.terms` (`renderSnapshot` via `/api/invoices/[id]/send` and `/api/estimates/[id]/send`; resends never re-snapshot). Rendered, and nothing when empty, on: the invoice/estimate PDF (all four templates), the public estimate page (`TermsCard`), and the pay page (via the new RPC `get_public_invoice_terms`). Every read is tolerant of the columns not existing, so the shared-DB preview works before the migration. Migration `20261024100000_terms_and_conditions.sql` is additive only (nullable columns + checks on them + one service-role RPC); privilege-check rows AX/AY added. **Founder must: dry run, read the SQL, yes, `db push`, `npm run db:privcheck`.** |
 | "Add your terms" tip card | **Built on branch** | `ChatNudgeCard` after a first send (`lib/terms-prompt.ts`, tested): terms empty, shown at most twice ever, state in `profiles.terms_prompt_count` / `terms_prompt_dismissed_at` (DB, not localStorage), suppresses the payouts / payment-alerts / feedback tips at the same moment. Chat sends only. |
+
+## Chat wrap-up — logged 2026-10-25 (branch `freebuff/859f6bb62d4dcb00de630cd7`)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Install banner removed | **Done** | Deleted `src/components/InstallBanner.tsx`, both mounts in `src/components/app/AppShell.tsx` (sidebar footer block + the `md:hidden` block above the tab bar) and the `onit_install_banner_dismissed` key that lived in it. `useInstallPrompt` (`src/lib/install/useInstallPrompt.ts`) and `/install` are kept: the service worker still needs them and the payment-alerts card in ChatView links to `/install`. |
+| Locked-chat refusal copy | **Done** | `send()` in `src/components/tabs/ChatView.tsx` now posts one message, "Tap Revise to change it, or start a new chat", rendered with the header's own `edit_square` icon inline; the doc number is dropped here because the locked card above already shows it. `action: 'new-chat'` button unchanged. Quote and invoice variants now share the copy. |
+
+## Post-launch hardening — logged 2026-10-25 (listed only, NOT built)
+
+Wait for real usage before doing any of this; none of it blocks launch.
+
+### Chat rollover
+
+- **Soft "Start fresh?" nudge.** After a long conversation, offer a fresh chat so the
+  transcript (and its carry-over context) does not grow without bound. Proposed
+  threshold: **20 messages** (≈10 exchanges) *and* only when the conversation is
+  `finished` (no live draft/preview card) — roughly 2–3× a normal single-job
+  conversation, so it never nags mid-job. Show it at most once per conversation,
+  as a passive `ChatNudgeCard` (same mechanism as the payouts / alerts / terms
+  tips), never a blocking modal. Reset clears the transcript, so the nudge must
+  not fire while `pendingInvoiceRef` is set.
+- **Logged-expense messages in history.** Verify whether expense/expense-card turns
+  (a receipt logged mid-conversation) confuse the next `/api/parse` call on a
+  long transcript — a real risk, since those turns describe money that is *already
+  booked* and could be re-read as a new job's line item. Test explicitly (log an
+  expense, then start an invoice in the same chat); if the parse degrades, filter
+  those turns out of the history sent to parse the same way `skipHistory` already
+  excludes cards that should not re-feed the model.
+
+### Native wrap
+
+- **Push plugin.** `pushAvailability` is built on web push only; a wrapped native
+  build needs a native push plugin (APNs/FCM) or the payment-alerts card silently
+  never appears on iOS.
+- **Retire the web-install path after store launch.** Remove `/install` and the
+  `needs-install` branch of the payment-alerts card once the app ships in the
+  stores; until then they are the only install route for PWA users.
+- **Prompt state out of localStorage.** `payouts-tip` dismissal, `alerts-prompted`
+  and the feedback snooze live in localStorage, so they reset on a new device or a
+  cleared browser and can re-nag. Move them to profile columns, following the
+  `terms_prompt_count` / `terms_prompt_dismissed_at` precedent (DB-backed, per
+  account, migration additive).
+- **Splash collision.** The web `Splash` plus a native launch screen will double
+  up (two animations on cold start). Decide one owner — most likely suppress the
+  web splash when running in the native shell.
+- **Open question: subscription payments inside an iOS app.** Paying for the On It
+  subscription inside a wrapped iOS app runs into App Store rules on
+  digital-goods purchases. Not resolved; decide before submitting to review
+  (in-app purchase, or read-only "manage on the web" and no purchase UI in-app).
