@@ -6,6 +6,7 @@
 // (localStorage), so the route only decides what is ELIGIBLE and returns it in
 // PRIORITY ORDER; the client shows the first one still due.
 //
+//   trial-ending  (trialing, 3 days or fewer left)     → banner, once a day
 //   winback       (canceled)                          → banner, once per 14 days
 //   first-payment (free / canceled, first payment)    → banner, once ever
 //
@@ -15,7 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasAccess } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { firstPaymentPrompt, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
+import { firstPaymentPrompt, trialEndingPrompt, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -33,8 +34,20 @@ export async function GET(req: NextRequest) {
   const access = await hasAccess(user.id);
   const prompts: SoftPrompt[] = [];
 
-  // Non-paid users only (free and canceled); founder, trialing, active and
-  // past_due are gated out by hasAccess()'s tier, not by a second check here.
+  // A trial in its last days outranks everything (one banner at a time). The
+  // date is DATA, not a tier decision — the tier still comes from hasAccess().
+  if (access.tier === 'trialing') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('trial_ends_at')
+      .eq('id', user.id)
+      .maybeSingle();
+    const trial = trialEndingPrompt(profile?.trial_ends_at as string | null | undefined);
+    if (trial) prompts.push(trial);
+  }
+
+  // Non-paid users only (free and canceled); founder, active and past_due are
+  // gated out by hasAccess()'s tier, not by a second check here.
 
   // A lapsed customer hears about it at most once per 14 days, and that beats
   // the first-payment note below (one banner at a time, in priority order).

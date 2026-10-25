@@ -20,6 +20,7 @@
 // Pure: no DOM at module scope, no server-only (the route and the client both
 // import it).
 import { isPaidTier } from '@/lib/paywall';
+import { TRIAL_REMINDER_DAYS } from '@/lib/trial';
 import type { UsageSnapshot } from '@/lib/usage';
 
 export type SoftPromptId =
@@ -206,5 +207,29 @@ export function winbackPrompt(): SoftPrompt {
     action: 'wall',
     variant: 'winback',
     reason: 'Welcome back — pick up where you left off',
+  };
+}
+
+/** The last days of a trial (day 11 of 14 with TRIAL_REMINDER_DAYS = 3). The
+ *  CTA is Settings → Plan rather than the paywall: a trialing customer already
+ *  has a plan, and Checkout would charge them today with trial days left. */
+export function trialEndingPrompt(
+  trialEndsAt: string | null | undefined,
+  now: Date = new Date(),
+): SoftPrompt | null {
+  if (!trialEndsAt) return null;
+  const end = new Date(trialEndsAt);
+  if (Number.isNaN(end.getTime())) return null;
+  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / DAY_MS);
+  if (daysLeft < 1 || daysLeft > TRIAL_REMINDER_DAYS) return null;
+  return {
+    id: 'trial-ending',
+    key: `trial-ending:${trialEndsAt}`,
+    cap: 'day',
+    eyebrow: 'Your trial',
+    title: `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left in your trial`,
+    body: 'Add a plan to keep unlimited invoices, estimates and expenses. You can cancel anytime in Settings.',
+    cta: 'Manage plan',
+    action: 'plan',
   };
 }

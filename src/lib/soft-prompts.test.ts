@@ -26,6 +26,7 @@ const {
   promptDue,
   readSeen,
   seenAt,
+  trialEndingPrompt,
   usageNudge,
   winbackPrompt,
 } = await import('./soft-prompts');
@@ -167,6 +168,36 @@ test('win-back 14-day cap: due again on the 14th day, not before', () => {
   markSeen(U, p.key, NOW);
   assert.equal(promptDue(p, U, new Date(NOW.getTime() + (WINBACK_DAYS - 1) * DAY)), false);
   assert.equal(promptDue(p, U, new Date(NOW.getTime() + WINBACK_DAYS * DAY)), true);
+});
+
+test('trial banner: day 11 onward, gone at the end, Manage plan not the wall', () => {
+  const end = (days: number) => new Date(NOW.getTime() + days * DAY).toISOString();
+  // More than 3 days left: not yet (day 10 of 14).
+  assert.equal(trialEndingPrompt(end(4), NOW), null);
+  const p = trialEndingPrompt(end(3), NOW);
+  assert.equal(p?.id, 'trial-ending');
+  assert.equal(p?.cap, 'day');
+  assert.equal(p?.action, 'plan');
+  assert.equal(p?.key, `trial-ending:${end(3)}`);
+  assert.equal(p?.title, '3 days left in your trial');
+  // A partly-used day still counts as one day left, not "0".
+  assert.equal(trialEndingPrompt(end(0.4), NOW)?.title, '1 day left in your trial');
+  // At or past the end, and with no date, nothing to say.
+  assert.equal(trialEndingPrompt(end(0), NOW), null);
+  assert.equal(trialEndingPrompt(end(-1), NOW), null);
+  assert.equal(trialEndingPrompt(null, NOW), null);
+  assert.equal(trialEndingPrompt('not a date', NOW), null);
+});
+
+test('trial banner is once per local day, and a new trial is a new key', () => {
+  mem.clear();
+  const p = trialEndingPrompt(new Date(NOW.getTime() + 2 * DAY).toISOString(), NOW)!;
+  const laterSameDay = new Date(2026, 9, 25, 23, 0, 0);
+  markSeen(U, p.key, laterSameDay);
+  assert.equal(promptDue(p, U, laterSameDay), false);
+  assert.equal(promptDue(p, U, new Date(2026, 9, 26, 8, 0, 0)), true);
+  const other = trialEndingPrompt(new Date(NOW.getTime() + 3 * DAY).toISOString(), NOW)!;
+  assert.notEqual(other.key, p.key);
 });
 
 test('day cap: returns the next local day, not 24 hours later', () => {

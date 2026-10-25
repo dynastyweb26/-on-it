@@ -8,12 +8,14 @@
 // this device (localStorage), so a 14-day or once cap survives a reload, and
 // the prompt is marked seen when shown — a soft prompt is a moment, not a nag.
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PaywallModal from '@/components/PaywallModal';
 import { getSharedUser } from '@/lib/auth-client';
 import { markSeen, promptDue, type SoftPrompt } from '@/lib/soft-prompts';
 
 export default function SoftPromptBanner() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState<SoftPrompt | null>(null);
   const [wall, setWall] = useState<SoftPrompt | null>(null);
 
@@ -41,6 +43,18 @@ export default function SoftPromptBanner() {
 
   if (!prompt) return null;
 
+  // 'plan' is Settings → Plan (the trial's Manage plan): a trialing customer is
+  // not trial-eligible, so the paywall's Checkout would charge today.
+  function act() {
+    if (!prompt) return;
+    if (prompt.action === 'plan') {
+      setPrompt(null);
+      router.push('/settings/plan');
+      return;
+    }
+    setWall(prompt);
+  }
+
   return (
     <>
       <div
@@ -62,7 +76,7 @@ export default function SoftPromptBanner() {
               strip action InstallBanner uses. */}
           <button
             type="button"
-            onClick={() => setWall(prompt)}
+            onClick={act}
             className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95"
           >
             {prompt.cta}
