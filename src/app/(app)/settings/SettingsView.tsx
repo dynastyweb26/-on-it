@@ -548,9 +548,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     }
   }
 
-  // Deep link from the "Add terms" tip: /settings/business#terms scrolls to the
+  // Deep link from the "Add terms" tip: /settings/business-info#terms scrolls to the
   // field and focuses it once the profile has loaded.
-  const termsReady = !!p && section === 'business';
+  const termsReady = !!p && section === 'business-info';
   useEffect(() => {
     if (!termsReady || window.location.hash !== '#terms') return;
     const el = document.getElementById('terms');
@@ -582,7 +582,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
   const is = (s: SettingsSection) => section === s;
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
-      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
+      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('business-info') ? 'Business Info' : is('business-brand') ? 'Brand Design' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
 
@@ -628,7 +628,15 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         </SettingsGroup>
       </>)}
 
-      {is('business') && (<>
+      {/* Business profile: a menu of two screens, same rows as Settings. */}
+      {is('business') && (
+        <SettingsGroup title="Manage">
+          <SettingsRow icon="storefront" title="Business Info" value={p.business_name || null} href="/settings/business-info" />
+          <SettingsRow icon="image" title="Brand Design" href="/settings/business-brand" />
+        </SettingsGroup>
+      )}
+
+      {is('business-info') && (<>
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
         <input className="input" aria-label="Business name" placeholder="Business name" value={p.business_name ?? ''}
@@ -663,7 +671,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
           onBlur={(e) => save({ terms: e.target.value.trim() || null })} />
         <p className="-mt-1 text-right text-xs text-on-surface-variant">{(p.terms ?? '').length}/3000</p>
       </section>
+      </>)}
 
+      {is('business-brand') && (<>
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Logo</h2>
         <div className="flex items-center gap-3">
@@ -700,7 +710,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
             connect={{ busy: connectBusy, notice: connectNotice, start: () => void startConnect() }} />
         : <PayoutsIndex p={p} zelleMasked={zelleMasked} connectOn={connectOn} />)}
 
-      {is('business') && (
+      {is('business-brand') && (
         <InvoiceStyleCard
           profile={p}
           onSave={(patch) => save(patch, { silent: true })}

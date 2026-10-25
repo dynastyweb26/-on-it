@@ -2282,7 +2282,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   function addTermsFromPrompt() {
     setTermsPrompt(false);
-    router.push('/settings/business#terms');
+    router.push('/settings/business-info#terms');
   }
 
   // "Not now" is stored on the profile, not in the browser.

@@ -1,4 +1,4 @@
 // Settings screens: 'main' is /settings (the grouped rows); the rest are
 // /settings/<section> sub-screens.
-export const SETTINGS_SECTIONS = ['main', 'business', 'payouts', 'plan', 'notifications', 'help', 'login'] as const;
+export const SETTINGS_SECTIONS = ['main', 'business', 'business-info', 'business-brand', 'payouts', 'plan', 'notifications', 'help', 'login'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
