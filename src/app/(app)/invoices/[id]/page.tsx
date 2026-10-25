@@ -273,6 +273,8 @@ export default function InvoiceDetail() {
     logoUrl: snapped ? inv.logo_url : profile.logo_url,
     websiteUrl: snapped ? inv.website_url : profile.website_url,
     slogan: snapped ? inv.slogan : profile.slogan,
+    businessPhone: profile.business_phone ?? null, // live, like Zelle
+    businessEmail: profile.business_email ?? null,
     clientName: inv.client_name, clientAddress: inv.client_address ?? null,
     clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),

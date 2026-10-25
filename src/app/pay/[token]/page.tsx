@@ -79,7 +79,7 @@ interface PublicInvoiceRow {
 
 
 type FetchResult =
-  | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null; terms: string | null }
+  | { ok: true; row: PublicInvoiceRow; bank: PublicBankRow | null; terms: string | null; contact: { phone: string | null; email: string | null } }
   | { ok: false; reason: 'notfound' | 'error' };
 
 const num = (v: unknown): number => {
@@ -99,10 +99,11 @@ async function fetchPublicInvoice(token: string): Promise<FetchResult> {
   const key = process.env.ZELLE_ENC_KEY ?? '';
   try {
     const admin = adminClient();
-    const [{ data, error }, bankRes, termsRes] = await Promise.all([
+    const [{ data, error }, bankRes, termsRes, contactRes] = await Promise.all([
       admin.rpc('get_public_invoice', { p_token: token, p_key: key }),
       admin.rpc('get_public_invoice_bank', { p_token: token, p_key: key }),
       admin.rpc('get_public_invoice_terms', { p_token: token }),
+      admin.rpc('get_public_invoice_contact', { p_token: token }),
     ]);
     if (error) {
       console.error('get_public_invoice failed', error.message);
@@ -120,7 +121,12 @@ async function fetchPublicInvoice(token: string): Promise<FetchResult> {
     const terms = termsRes.error
       ? null
       : cleanTerms(((termsRes.data as { terms: string | null }[] | null) ?? [])[0]?.terms);
-    return { ok: true, row: rows[0]!, bank, terms };
+    // Business phone / email, same tolerance: a failure just drops them.
+    const c = contactRes.error
+      ? null
+      : ((contactRes.data as { phone: string | null; email: string | null }[] | null) ?? [])[0] ?? null;
+    const contact = { phone: clean(c?.phone ?? null), email: clean(c?.email ?? null) };
+    return { ok: true, row: rows[0]!, bank, terms, contact };
   } catch (e) {
     console.error('get_public_invoice threw', e);
     return { ok: false, reason: 'error' };
@@ -145,7 +151,7 @@ function Notice({ icon, title, body }: { icon: IconName; title: string; body: st
   );
 }
 
-function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, terms: string | null, token: string, paidReturn: boolean): PayModel {
+function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, terms: string | null, contact: { phone: string | null; email: string | null }, token: string, paidReturn: boolean): PayModel {
   const kind = row.kind === 'quote' ? 'quote' : 'invoice';
   // Every figure and state label comes from one pure function, tested against
   // calculateInvoiceTotals (figures.test.ts). It derives due-now / balance from
@@ -200,6 +206,8 @@ function buildModel(row: PublicInvoiceRow, bankRow: PublicBankRow | null, terms:
     noun: docNoun(kind),
     lineItems,
     terms,
+    contactPhone: contact.phone,
+    contactEmail: contact.email,
     subtotal: figures.subtotal,
     taxRate: figures.taxRate,
     taxAmount: figures.taxAmount,
@@ -295,5 +303,5 @@ export default async function PayPage({
     );
   }
 
-  return <PayView model={buildModel(res.row, res.bank, res.terms, params.token, searchParams?.paid === '1')} />;
+  return <PayView model={buildModel(res.row, res.bank, res.terms, res.contact, params.token, searchParams?.paid === '1')} />;
 }

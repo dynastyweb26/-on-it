@@ -59,6 +59,9 @@ export interface PayModel {
   lineItems: PayLineItem[];
   /** Terms and conditions frozen at send; null when there are none. */
   terms: string | null;
+  /** The business's phone / email, read live; null when not set. */
+  contactPhone: string | null;
+  contactEmail: string | null;
   subtotal: number;
   taxRate: number;
   taxAmount: number;
@@ -962,6 +965,15 @@ export default function PayView({ model }: { model: PayModel }) {
           <Icon name="check" size={18} />
           {toast}
         </div>
+      ) : null}
+
+      {model.contactPhone || model.contactEmail ? (
+        <p className="mt-8 text-center text-body-md text-on-surface-variant">
+          Questions? Contact {model.businessName}
+          {model.contactPhone ? <> at <a href={`tel:${model.contactPhone}`} className="underline underline-offset-2">{model.contactPhone}</a></> : null}
+          {model.contactPhone && model.contactEmail ? ' or ' : model.contactEmail ? ' at ' : null}
+          {model.contactEmail ? <a href={`mailto:${model.contactEmail}`} className="underline underline-offset-2">{model.contactEmail}</a> : null}
+        </p>
       ) : null}
 
       {model.terms ? (

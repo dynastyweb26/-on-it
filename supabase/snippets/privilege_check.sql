@@ -1707,6 +1707,22 @@ results(id, ok, expected, actual) as (
       else 'service_role=' || has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
         || ' anon=' || has_function_privilege('anon', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute')
         || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_terms(text)'), 'execute') end
+  union all
+  select 'AZ get_public_invoice_contact',
+    case when not exists (select 1 from applied where version = '20261024100000') then null
+      else to_regprocedure('public.get_public_invoice_contact(text)') is not null
+        and has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and not has_function_privilege('anon', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and not has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        and coalesce((select p.prosecdef and p.proconfig::text ilike '%search_path%'
+            from pg_proc p where p.oid = to_regprocedure('public.get_public_invoice_contact(text)')), false)
+    end,
+    'SECURITY DEFINER, search_path set; EXECUTE for service_role only',
+    case when not exists (select 1 from applied where version = '20261024100000') then 'not applied yet'
+      when to_regprocedure('public.get_public_invoice_contact(text)') is null then 'missing'
+      else 'service_role=' || has_function_privilege('service_role', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        || ' anon=' || has_function_privilege('anon', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute')
+        || ' auth=' || has_function_privilege('authenticated', to_regprocedure('public.get_public_invoice_contact(text)'), 'execute') end
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

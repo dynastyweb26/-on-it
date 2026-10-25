@@ -24,7 +24,12 @@
 -- It returns the snapshot only for a non-draft, non-deleted invoice (never a
 -- quote: estimates have their own loader), so a draft's terms are never public.
 -- SECURITY DEFINER, search_path '', EXECUTE for service_role only.
--- Verify after applying: npm run db:privcheck - the AX rows must PASS.
+--
+-- get_public_invoice_contact is a second NEW service-role RPC of the same shape:
+-- the business phone / email (profiles.business_phone / business_email, added in
+-- 20261023100200) for the pay page, for a non-draft, non-deleted invoice only.
+-- Read live, like the estimate page does.
+-- Verify after applying: npm run db:privcheck - the AX / AY / AZ rows must PASS.
 -- ═══════════════════════════════════════════════════════════════
 
 alter table public.profiles
@@ -80,6 +85,27 @@ $$;
 revoke execute on function public.get_public_invoice_terms(text)
   from public, anon, authenticated;
 grant execute on function public.get_public_invoice_terms(text)
+  to service_role;
+
+create or replace function public.get_public_invoice_contact(p_token text)
+returns table (phone text, email text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.business_phone, p.business_email
+  from public.invoices i
+  join public.profiles p on p.id = i.user_id
+  where i.public_token = p_token
+    and i.kind = 'invoice'
+    and i.status is distinct from 'draft'
+    and i.deleted_at is null;
+$$;
+
+revoke execute on function public.get_public_invoice_contact(text)
+  from public, anon, authenticated;
+grant execute on function public.get_public_invoice_contact(text)
   to service_role;
 
 -- ── Verification - run after applying ─────────────────────────

@@ -92,6 +92,7 @@ interface Profile {
   color_roles_explicit?: boolean | null;
   invoice_template: TemplateKey; paypal_me: string | null; cashapp_tag: string | null;
   venmo_username: string | null;
+  business_phone?: string | null; business_email?: string | null;
   terms?: string | null; // 20261024100000; undefined until the migration is applied
   terms_prompt_count?: number | null;
   access_tier?: string | null; // read only to decide the pre-build (skipPreBuild)
@@ -1431,6 +1432,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
       businessName: profile.business_name,
       logoUrl: profile.logo_url,
       websiteUrl: profile.website_url,
+      businessPhone: profile.business_phone ?? null,
+      businessEmail: profile.business_email ?? null,
       slogan: profile.slogan,
       clientName: draft.client_name ?? 'Client',
       clientAddress: draft.client_address ?? null,

@@ -28,6 +28,10 @@ export interface InvoiceRenderData {
   businessName: string;
   logoUrl?: string | null;
   websiteUrl?: string | null;
+  // Business phone / email, read live from the profile (never snapshotted), so
+  // a changed number reaches the client. Empty prints nothing.
+  businessPhone?: string | null;
+  businessEmail?: string | null;
   slogan?: string | null;
   clientName: string;
   clientAddress?: string | null;
@@ -458,6 +462,11 @@ function DocTypeMark({ d, t, align = 'left', size = 22 }: {
   );
 }
 
+const Contact = ({ d, style }: { d: InvoiceRenderData; style?: React.CSSProperties }) => {
+  const line = [d.businessPhone, d.businessEmail].map((v) => (v ?? '').trim()).filter(Boolean).join('  ·  ');
+  return line ? <div style={{ fontSize: 13, marginTop: 2, ...style }}>{line}</div> : null;
+};
+
 const Website = ({ url, t, style }: { url?: string | null; t: BrandTheme; style?: React.CSSProperties }) => {
   const href = websiteHref(url);
   if (!href) return null;
@@ -499,6 +508,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
           {d.slogan && <div style={{ color: t.accentInk, fontStyle: 'italic', fontSize: 14, marginTop: 2 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
+          <Contact d={d} />
         </div>
       </div>
       <div style={{ height: 2, background: t.rule, margin: '16px 0 20px' }} />
@@ -716,6 +726,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div data-pdf-business-name="true" style={{ fontSize: d.logoUrl ? 28 : 34, fontWeight: 900, lineHeight: 1.05, letterSpacing: 0.5, color: ink }}>{d.businessName}</div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 14, marginTop: 4 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 2 }} />
+          <Contact d={d} />
         </div>
         <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
           <div data-pdf-doc-noun="true" style={{ fontSize: 36, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: ink, fontFamily: SLAB }}>{docNoun(d.kind)}</div>
@@ -762,6 +773,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
           {d.slogan && <div style={{ color: t.accent, fontWeight: 700, fontSize: 14 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 13, marginTop: 4 }} />
+          <Contact d={d} />
         </div>
         {d.logoUrl && <img src={d.logoUrl} style={{ height: 140 }} alt="" />}
       </div>
@@ -835,6 +847,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           </div>
           {d.slogan && <div style={{ color: t.accent, fontSize: 13 }}>{d.slogan}</div>}
           <Website url={d.websiteUrl} t={t} style={{ fontSize: 12 }} />
+          <Contact d={d} />
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{
