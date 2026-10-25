@@ -69,6 +69,7 @@ export function promptAllowedForTier(
   tier: string | null | undefined,
 ): boolean {
   if (id === 'trial-ending') return tier === 'trialing';
+  if (id === 'winback') return tier === 'canceled';
   return !isPaidTier(tier);
 }
 
@@ -187,5 +188,23 @@ export function firstPaymentPrompt(): SoftPrompt {
     action: 'wall',
     variant: 'invoice',
     reason: 'You got paid through On It',
+  };
+}
+
+/** A lapsed customer (access_tier = 'canceled'): copy only, no discount and no
+ *  coupon — the STRIPE_RETENTION_COUPON path is deliberately not involved.
+ *  At most once per WINBACK_DAYS. */
+export function winbackPrompt(): SoftPrompt {
+  return {
+    id: 'winback',
+    key: 'winback',
+    cap: '14d',
+    eyebrow: 'Welcome back',
+    title: 'Pick up where you left off',
+    body: 'Your plan ended, so you’re back on the free limits. Restart for unlimited invoices, estimates and expenses.',
+    cta: 'See plans',
+    action: 'wall',
+    variant: 'winback',
+    reason: 'Welcome back — pick up where you left off',
   };
 }

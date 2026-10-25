@@ -6,6 +6,7 @@
 // (localStorage), so the route only decides what is ELIGIBLE and returns it in
 // PRIORITY ORDER; the client shows the first one still due.
 //
+//   winback       (canceled)                          → banner, once per 14 days
 //   first-payment (free / canceled, first payment)    → banner, once ever
 //
 // Nothing here is a wall: the client opens the existing paywall.
@@ -14,7 +15,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasAccess } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { firstPaymentPrompt, type SoftPrompt } from '@/lib/soft-prompts';
+import { firstPaymentPrompt, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -34,6 +35,11 @@ export async function GET(req: NextRequest) {
 
   // Non-paid users only (free and canceled); founder, trialing, active and
   // past_due are gated out by hasAccess()'s tier, not by a second check here.
+
+  // A lapsed customer hears about it at most once per 14 days, and that beats
+  // the first-payment note below (one banner at a time, in priority order).
+  if (access.tier === 'canceled') prompts.push(winbackPrompt());
+
   if (access.tier === 'free' || access.tier === 'canceled') {
     // The FIRST ledger payment this user ever recorded. `entry_type` filters
     // out refund / dispute reversals; one row means the moment just happened,

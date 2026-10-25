@@ -27,6 +27,7 @@ const {
   readSeen,
   seenAt,
   usageNudge,
+  winbackPrompt,
 } = await import('./soft-prompts');
 
 const U = 'user-1';
@@ -105,14 +106,16 @@ test('first-payment prompt is once ever and opens the paywall', () => {
   assert.equal(promptDue(p, U, new Date(NOW.getTime() + 10 * 365 * DAY)), false);
 });
 
-test('tier gate table: upgrade prompts skip paid tiers; the trial banner is trialing-only', () => {
-  for (const id of ['usage', 'estimate-approved', 'first-payment', 'winback'] as const) {
+test('tier gate table: upgrade prompts skip paid tiers; each special prompt has its own tier', () => {
+  for (const id of ['usage', 'estimate-approved', 'first-payment'] as const) {
     assert.equal(promptAllowedForTier(id, 'free'), true);
     assert.equal(promptAllowedForTier(id, 'canceled'), true);
     for (const tier of ['founder', 'trialing', 'active', 'past_due']) {
       assert.equal(promptAllowedForTier(id, tier), false);
     }
   }
+  assert.equal(promptAllowedForTier('winback', 'canceled'), true);
+  assert.equal(promptAllowedForTier('winback', 'free'), false);
   assert.equal(promptAllowedForTier('trial-ending', 'trialing'), true);
   assert.equal(promptAllowedForTier('trial-ending', 'free'), false);
   assert.equal(promptAllowedForTier('trial-ending', 'canceled'), false);
@@ -148,15 +151,22 @@ test('blocked or corrupt storage reads as "nothing seen" and never throws', () =
   assert.equal(promptDue(p, 'bad-date', NOW), true);
 });
 
-test('14-day cap: due again on the 14th day, not before', () => {
+test('win-back is copy only (no discount, no coupon) and opens the paywall', () => {
+  const p = winbackPrompt();
+  assert.equal(p.id, 'winback');
+  assert.equal(p.cap, '14d');
+  assert.equal(p.action, 'wall');
+  assert.equal(p.variant, 'winback');
+  assert.doesNotMatch(`${p.title} ${p.body} ${p.cta}`, /discount|coupon|% off|promo/i);
+});
+
+test('win-back 14-day cap: due again on the 14th day, not before', () => {
   mem.clear();
-  const p = {
-    id: 'winback', key: 'winback', cap: '14d', eyebrow: '', title: '', body: '',
-    cta: '', action: 'wall',
-  } as const;
+  const p = winbackPrompt();
+  assert.equal(promptDue(p, U, NOW), true);
   markSeen(U, p.key, NOW);
-  assert.equal(promptDue({ ...p, cap: '14d' }, U, new Date(NOW.getTime() + (WINBACK_DAYS - 1) * DAY)), false);
-  assert.equal(promptDue({ ...p, cap: '14d' }, U, new Date(NOW.getTime() + WINBACK_DAYS * DAY)), true);
+  assert.equal(promptDue(p, U, new Date(NOW.getTime() + (WINBACK_DAYS - 1) * DAY)), false);
+  assert.equal(promptDue(p, U, new Date(NOW.getTime() + WINBACK_DAYS * DAY)), true);
 });
 
 test('day cap: returns the next local day, not 24 hours later', () => {
