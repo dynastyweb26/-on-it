@@ -632,7 +632,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
   // or 'install' (iPhone Safari tab: Home Screen hint). See showRemindersCard.
-  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string } | null>(null);
+  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string; onlinePay: boolean } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
@@ -2388,7 +2388,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   function showRemindersCard(clientName: string) {
-    setReminderPrompt({ kind: pushAvailability() === 'needs-install' ? 'install' : 'ask', client: clientName });
+    setReminderPrompt({
+      kind: pushAvailability() === 'needs-install' ? 'install' : 'ask',
+      client: clientName,
+      // With no online-pay path there is no card payment to notify about, so the
+      // ask (and its confirmation) is only the 2-day unpaid nudge.
+      onlinePay: cardAvailableFor(profile, connectOn),
+    });
   }
 
   // Eligibility for the "Got a minute?" card, right after a quote or invoice
@@ -2444,11 +2450,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function enableReminders() {
     if (!profile || !reminderPrompt) return;
     const who = reminderPrompt.client;
+    // Only promise what push can actually do for this pro: the paid-online
+    // notification needs a connected payment processor.
+    const onlinePay = reminderPrompt.onlinePay;
     setReminderPrompt(null);
     try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
     const ok = await subscribeToPush();
     setMessages((m) => [...m, aMsg(ok
-      ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+      ? onlinePay
+        ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+        : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`
       : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
   }
 
@@ -3935,7 +3946,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
         {reminderPrompt?.kind === 'ask' && (
           <div className="card border-primary-container/50">
-            <p className="text-body-md">Want a notification when {reminderPrompt.client} pays online?</p>
+            <p className="text-body-md">
+              {reminderPrompt.onlinePay
+                ? `Want a notification when ${reminderPrompt.client} pays online?`
+                : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
+            </p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
             <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
               Not now
