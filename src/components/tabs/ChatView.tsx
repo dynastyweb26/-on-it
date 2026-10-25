@@ -3748,10 +3748,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.action === 'new-chat' ? (
-            // Locked-conversation refusal: the bubble plus a tappable "New chat"
-            // control that fires the same reset as the header compose icon
-            // (onit-new-chat), so "start a new job" isn't prose the user has to
-            // act on by hunting for the header button.
+            // Locked-conversation refusal: the bubble ends in the header's own
+            // New chat glyph, then a tappable "New chat" control that fires the
+            // same reset (onit-new-chat), so it isn't prose the user has to act on
+            // by hunting for the header button.
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
                 <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
