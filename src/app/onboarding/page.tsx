@@ -142,6 +142,9 @@ export default function Onboarding() {
   // The grant cookie couldn't be settled (offline / 5xx): offer a retry instead
   // of dropping the code. See redeemGrant.
   const [grantRetry, setGrantRetry] = useState(false);
+  // The logo upload failed: say so instead of silently saving without it.
+  const [logoNotice, setLogoNotice] = useState(false);
+  const logoFailedRef = useRef(false);
 
   const [business, setBusiness] = useState('');
   const [trade, setTrade] = useState('');
@@ -232,6 +235,13 @@ export default function Onboarding() {
     return 'done';
   }
 
+  // Leave onboarding. A logo that failed to upload is announced first and the
+  // Continue button below finishes the exit, so it is never silently dropped.
+  function goToChat() {
+    if (logoFailedRef.current) { setLogoNotice(true); return; }
+    router.push('/chat');
+  }
+
   // Retry only the grant check (the profile is already saved), then continue.
   async function retryGrant() {
     setBusy(true);
@@ -243,7 +253,7 @@ export default function Onboarding() {
       return;
     }
     setBusy(false);
-    router.push('/chat');
+    goToChat();
   }
 
   async function finish() {
@@ -253,12 +263,12 @@ export default function Onboarding() {
     if (!user) { router.push('/login'); return; }
 
     let logoUrl: string | null = null;
+    logoFailedRef.current = false;
     if (logoFile) {
       const path = `${user.id}/logo-${Date.now()}`;
       const { error: upErr } = await supabase.storage.from('logos').upload(path, logoFile);
-      if (!upErr) {
-        logoUrl = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl;
-      }
+      if (upErr) logoFailedRef.current = true;
+      else logoUrl = supabase.storage.from('logos').getPublicUrl(path).data.publicUrl;
     }
 
     const { error: dbErr } = await supabase.from('profiles').upsert({
@@ -282,7 +292,7 @@ export default function Onboarding() {
       setGrantRetry(true);
       return;
     }
-    router.push('/chat');
+    goToChat();
   }
 
   // One pinned footer for all five steps: optional hint or error strip, then
@@ -295,13 +305,17 @@ export default function Onboarding() {
       : step === 4 && !background ? 'Pick a background to continue' : '';
   const showSaveError = step === 5 && Boolean(error) && !busy;
   const showGrantRetry = step === 5 && grantRetry && !busy;
+  const showLogoNotice = step === 5 && logoNotice && !busy;
   const ctaLabel = step < 5
     ? 'Continue'
-    : showGrantRetry ? 'Try again' : busy ? 'Setting up…' : 'Confirm and continue';
+    : showGrantRetry ? 'Try again'
+      : showLogoNotice ? 'Continue to On It'
+        : busy ? 'Setting up…' : 'Confirm and continue';
   function onContinue() {
     if (step === 5) {
       if (busy) return;
       if (grantRetry) { void retryGrant(); return; }
+      if (logoNotice) { router.push('/chat'); return; }
       finish();
       return;
     }
@@ -550,6 +564,12 @@ export default function Onboarding() {
               <Icon name="error" size={20} className="shrink-0" />
               <span>Your setup is saved. I couldn&apos;t check your invite code — try again.</span>
             </div>
+          )}
+          {showLogoNotice && (
+            <p role="status" className="flex items-center gap-2 rounded-xl bg-surface-container-high px-3.5 py-2.5 text-sm font-semibold leading-5 text-on-surface-variant">
+              <Icon name="image" size={20} className="shrink-0" />
+              Logo didn&apos;t upload. You can add it later in Settings.
+            </p>
           )}
           <div className="flex gap-3">
             {step > 1 && (
