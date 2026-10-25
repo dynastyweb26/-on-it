@@ -67,6 +67,27 @@ const nameOfColor = (hex: string) => PALETTE.find((p) => p.hex === hex)?.name ??
 // Neutral stand-in theme for the preview before a background is picked.
 const PLACEHOLDER_THEME = buildTheme(['#9a9a9a', '#c4c4c4'], '#FFFFFF');
 
+// ── The /i/<token> grant cookie ──────────────────────────────────────────────
+// /i/<token> stashes a founder/access code or a referral code here for
+// redemption at the end of onboarding. It is cleared ONLY on a definitive
+// answer, so a network error or a 5xx can't silently throw the code away.
+const GRANT_COOKIE = 'onit_grant';
+
+function readGrantCookie(): string | null {
+  const raw = document.cookie.split('; ')
+    .find((c) => c.startsWith(`${GRANT_COOKIE}=`))?.slice(GRANT_COOKIE.length + 1);
+  if (!raw) return null;
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
+function clearGrantCookie() {
+  document.cookie = `${GRANT_COOKIE}=; max-age=0; path=/`;
+}
+
+// 'done' = the server answered (redeemed, or definitively not a code, then
+// tried as a referral). 'unknown' = no usable answer; keep the cookie.
+type GrantOutcome = 'done' | 'unknown';
+
 // The real invoice template at its A4 size (794 x 1123), scaled to the card
 // width so the whole page always shows with no clipped edge and no empty strip.
 // scale = (card - 2) / 794; height = (card - 2) * 1123 / 794 + 2.
@@ -118,6 +139,9 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The grant cookie couldn't be settled (offline / 5xx): offer a retry instead
+  // of dropping the code. See redeemGrant.
+  const [grantRetry, setGrantRetry] = useState(false);
 
   const [business, setBusiness] = useState('');
   const [trade, setTrade] = useState('');
@@ -186,6 +210,42 @@ export default function Onboarding() {
     colors.length >= 2 &&
     (colors.every((c) => isDark(c)) || colors.every((c) => !isDark(c)));
 
+  // Redeem the stashed token: access code first (server-only redemption via
+  // /api/redeem, exact match), then, only when the server says it isn't one,
+  // as a referral code. The cookie survives anything inconclusive.
+  async function redeemGrant(token: string): Promise<GrantOutcome> {
+    let res: Response;
+    try {
+      res = await fetch('/api/redeem', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: token }),
+      });
+    } catch { return 'unknown'; } // offline / unreachable: retry later
+    if (!res.ok) return 'unknown'; // 5xx, rate-limited or signed-out: no verdict
+    const body = await res.json().catch(() => null) as { ok?: unknown } | null;
+    if (body?.ok === true) { clearGrantCookie(); return 'done'; }
+    // A definitive "not an access code": try it as a referral code, then the
+    // token has been answered either way.
+    try { await supabase.rpc('redeem_referral', { p_token: token }); } catch { /* answered */ }
+    clearGrantCookie();
+    return 'done';
+  }
+
+  // Retry only the grant check (the profile is already saved), then continue.
+  async function retryGrant() {
+    setBusy(true);
+    setGrantRetry(false);
+    const token = readGrantCookie();
+    if (token && (await redeemGrant(token)) === 'unknown') {
+      setBusy(false);
+      setGrantRetry(true);
+      return;
+    }
+    setBusy(false);
+    router.push('/chat');
+  }
+
   async function finish() {
     setBusy(true);
     setError('');
@@ -215,22 +275,12 @@ export default function Onboarding() {
     });
     setBusy(false);
     if (dbErr) { setError(dbErr.message); return; }
-    const grantToken = document.cookie
-      .split('; ').find((c) => c.startsWith('onit_grant='))?.split('=')[1];
-    if (grantToken) {
-      // Access code first (server-only redemption via /api/redeem, exact
-      // match); if it isn't one, try it as a referral code.
-      let granted = false;
-      try {
-        const res = await fetch('/api/redeem', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ code: decodeURIComponent(grantToken) }),
-        });
-        granted = Boolean((await res.json())?.ok);
-      } catch { /* redeem unreachable — fall through to the referral try */ }
-      if (!granted) await supabase.rpc('redeem_referral', { p_token: grantToken });
-      document.cookie = 'onit_grant=; max-age=0; path=/';
+    const grantToken = readGrantCookie();
+    if (grantToken && (await redeemGrant(grantToken)) === 'unknown') {
+      // Couldn't confirm the code. Keep the cookie and let the user retry —
+      // dropping it here would lose their invite/access code for good.
+      setGrantRetry(true);
+      return;
     }
     router.push('/chat');
   }
@@ -244,9 +294,17 @@ export default function Onboarding() {
       ? extraHint ? "That's 3. Tap one to remove it first." : colors.length < 2 ? 'Pick at least 2' : ''
       : step === 4 && !background ? 'Pick a background to continue' : '';
   const showSaveError = step === 5 && Boolean(error) && !busy;
-  const ctaLabel = step < 5 ? 'Continue' : busy ? 'Setting up…' : 'Confirm and continue';
+  const showGrantRetry = step === 5 && grantRetry && !busy;
+  const ctaLabel = step < 5
+    ? 'Continue'
+    : showGrantRetry ? 'Try again' : busy ? 'Setting up…' : 'Confirm and continue';
   function onContinue() {
-    if (step === 5) { if (!busy) finish(); return; }
+    if (step === 5) {
+      if (busy) return;
+      if (grantRetry) { void retryGrant(); return; }
+      finish();
+      return;
+    }
     setStep(step + 1);
   }
 
@@ -485,6 +543,12 @@ export default function Onboarding() {
             <div role="alert" className="flex items-center gap-2 rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container">
               <Icon name="error" size={20} />
               Couldn&apos;t save. Try again.
+            </div>
+          )}
+          {showGrantRetry && (
+            <div role="alert" className="flex items-start gap-2 rounded-xl bg-error-container px-3.5 py-2.5 text-sm font-semibold leading-5 text-error-on-container">
+              <Icon name="error" size={20} className="shrink-0" />
+              <span>Your setup is saved. I couldn&apos;t check your invite code — try again.</span>
             </div>
           )}
           <div className="flex gap-3">
