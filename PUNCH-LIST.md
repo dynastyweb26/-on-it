@@ -900,3 +900,14 @@ _Post-launch, once the subscription/paywall provider decision lands. Not built._
 | Cancel flow has no provider variants | **Open — post-launch** | The cancel screen assumes Stripe semantics: a server-side cancel, a pause, and the 50%-off retention offer. Apple has no pause — the offer becomes a promo offer, and "cancel" links out to iOS subscription management instead of being done in-app. |
 | Delete account for Apple subscribers | **Open — post-launch** | `src/app/api/delete-account/route.ts` cancels live Stripe subscriptions first and aborts if that fails. An Apple-billed subscriber has no Stripe subscription: the flow must tell them to cancel in iOS Settings (or the App Store keeps billing after the account is gone) instead of applying the Stripe cancel-first rule. |
 | Legal copy is Stripe-only | **Open — post-launch** | `privacy-policy.md` and `terms-of-service.md` describe Stripe-billed subscriptions and refunds. Refresh both (and the `/privacy` / `/terms` pages) after the paywall decision so the named provider is the one that actually bills, and the refund path matches it. |
+
+## Tip arbitration + alerts copy — logged 2026-10-25 (branch `freebuff/bc631ad60021d60ce91b6486`)
+
+_Built — typecheck, 612 unit tests and build pass; **Vercel preview not run**
+(no Vercel CLI or credentials in the build environment). One nudge per send now
+goes through `src/lib/tip-arbiter.ts` (`pickTip`, 4/4 matrix tests)._
+
+| Item | Status | Evidence |
+|---|---|---|
+| One nudge per send | **Built — preview unverified** | `pickTip` returns at most one of `terms / payouts / alerts / feedback` in that priority. `ChatView` resolves each existing eligibility rule (terms-prompt.ts, the payouts conditions, push availability, feedback.ts) and calls the arbiter once per send; the payouts card is no longer appended alongside a second card and is gated on the arbiter's winner inside `finishFinalize`. Save prompts (client/item/recurring) are a separate floating surface and can still stack with a nudge on the same send — unchanged (Q7). |
+| Alerts card copy follows online-pay availability | **Built — preview unverified** | Without a connected processor the card now asks "Want a nudge if X hasn't paid in 2 days?" and the enable confirmation promises only that; with online pay the copy is unchanged. `reminderPrompt.onlinePay` carries `cardAvailableFor(profile, connectOn)`. |
