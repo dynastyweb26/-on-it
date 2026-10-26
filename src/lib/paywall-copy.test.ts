@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { TRIAL_DAYS, TRIAL_REMINDER_DAYS } from './trial';
+import { TRIAL_DAYS } from './trial';
 import {
   PLAN_ROWS,
   PRICE_MONTHLY,
@@ -50,6 +50,9 @@ test('only the trial state promises nothing is charged today', () => {
 
   const trial = disclosure('trial');
   assert.ok(trial.startsWith('Nothing charged today.'), trial);
+  const dated = disclosure('trial', 'Nov 8, 2026');
+  assert.ok(dated.startsWith('Free until Nov 8, 2026.'), dated);
+  assert.match(dated, /renews monthly until you cancel/);
   assert.match(trial, /renews monthly until you cancel/);
   assert.match(trial, /Cancel anytime in Settings\./);
   assert.match(trial, /\$9\.99\/month/);
@@ -68,12 +71,8 @@ test('only the trial state promises nothing is charged today', () => {
 test('the copy stays in step with lib/trial', () => {
   assert.ok(STEP_TITLE.trial.includes(String(TRIAL_DAYS)));
   assert.equal(STEP_TITLE.showcase, 'What you win');
-  assert.equal(STEP_TITLE.plan, 'Plan');
+  assert.equal(STEP_TITLE.plan, 'What’s included');
 
-  assert.ok(
-    TRIAL_COPY.reminderText.includes(`${TRIAL_REMINDER_DAYS} days`),
-    'the reminder line counts the same days the cron uses',
-  );
   assert.equal(TRIAL_COPY.todayAmount, '$0.00');
   assert.equal(TRIAL_COPY.startAmount, '$9.99/mo');
 });

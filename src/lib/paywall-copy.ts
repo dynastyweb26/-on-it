@@ -14,7 +14,7 @@
 //
 // Pure: no DOM, no server-only, no fetch — safe in a client component and in a
 // node:test file.
-import { TRIAL_DAYS, TRIAL_REMINDER_DAYS } from '@/lib/trial';
+import { TRIAL_DAYS } from '@/lib/trial';
 
 // Which wall: 'invoice' = the 4th invoice at Send, 'expense' = the 6th expense
 // before the camera/upload, 'estimate' = the 4th estimate, 'recurring' = a
@@ -50,7 +50,7 @@ export type PaywallStepId = 'showcase' | 'trial' | 'plan';
 export const STEP_TITLE: Record<PaywallStepId, string> = {
   showcase: 'What you win',
   trial: `Try On It free for ${TRIAL_DAYS} days`,
-  plan: 'Plan',
+  plan: 'What’s included',
 };
 
 /**
@@ -74,13 +74,14 @@ export function ctaLabel(state: PaywallState): string {
 
 /**
  * The disclosure under the CTA. Material terms only, and they follow the state:
- * a trial promises "nothing charged today", everyone else is told the plan
- * starts (and bills) today. `checking` promises neither.
+ * a trial says it is free until `freeUntil` (the same trialDates() end the
+ * timeline shows), everyone else is told the plan starts (and bills) today.
+ * `checking` promises neither.
  */
-export function disclosure(state: PaywallState): string {
+export function disclosure(state: PaywallState, freeUntil?: string): string {
   switch (state) {
     case 'trial':
-      return 'Nothing charged today. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.';
+      return `${freeUntil ? `Free until ${freeUntil}.` : 'Nothing charged today.'} Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.`;
     case 'paid-today':
       return '$9.99/month starts today, renews monthly until you cancel. Cancel anytime in Settings.';
     default:
@@ -91,14 +92,20 @@ export function disclosure(state: PaywallState): string {
 // ── Step 2 · the trial timeline ─────────────────────────────────────────────
 // Static copy only — there is no reminder toggle: the reminder email is a
 // cron (/api/trial-reminders) that goes out TRIAL_REMINDER_DAYS before the end,
-// and trialDates() (lib/trial) is where both dates come from.
+// and trialDates() (lib/trial) is where both dates come from. The words are
+// the design's (design-reference/paywall-mockup.html); the dates are real.
 export const TRIAL_COPY = {
+  subtitle: 'Here’s exactly what happens, and when.',
   todayLabel: 'Today',
+  todayText: 'Full access. Nothing charged today.',
+  todayMeta: 'Unlimited invoices, estimates and receipt scans.',
+  reminderText: 'We’ll email you a reminder before it ends.',
+  reminderMeta: 'From On It · keep it or cancel in Settings',
+  startText: 'Your plan starts at $9.99/month unless you cancel.',
+  dueTodayLabel: 'Due today',
   todayAmount: '$0.00',
-  reminderLabel: 'Reminder email',
-  reminderText: `We’ll email you ${TRIAL_REMINDER_DAYS} days before it ends. Cancel before then and you won’t be charged.`,
-  startLabel: 'Plan starts',
   startAmount: '$9.99/mo',
+  cancelNote: 'Cancel anytime in Settings.',
 } as const;
 
 // ── Step 3 · Free vs On It ──────────────────────────────────────────────────
