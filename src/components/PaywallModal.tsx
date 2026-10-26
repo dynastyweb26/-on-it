@@ -29,7 +29,6 @@ import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
 import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
-import type { SlideId } from '@/components/paywall/PaywallDemo';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import { trialDates } from '@/lib/trial';
 import {
@@ -45,18 +44,6 @@ import {
 // from here, whichever module owns the rule.
 export type { PaywallVariant } from '@/lib/paywall-copy';
 export type { CheckoutReturn } from '@/lib/subscription/start';
-
-// The slide each wall opens on — the feature the user just ran into, mapped
-// onto the four-slide showcase (expense/recurring have no demo of their own,
-// so they open on the invoice story).
-const START_SLIDE: Record<PaywallVariant, SlideId> = {
-  invoice: 'invoice',
-  expense: 'invoice',
-  estimate: 'estimate',
-  recurring: 'invoice',
-  reports: 'recap',
-  winback: 'invoice',
-};
 
 // Where each wall's Checkout returns by default when the caller doesn't say.
 const DEFAULT_RETURN: Record<PaywallVariant, CheckoutReturn> = {
@@ -235,7 +222,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {current === 'showcase' && (
-            <ShowcaseStep reason={reason ?? REASON[variant]} start={START_SLIDE[variant]} />
+            <ShowcaseStep reason={reason ?? REASON[variant]} />
           )}
           {current === 'trial' && <TrialStep />}
           {current === 'plan' && (

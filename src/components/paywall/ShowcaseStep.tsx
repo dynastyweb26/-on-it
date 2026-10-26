@@ -10,13 +10,13 @@ import PaywallDemo, { type SlideId } from '@/components/paywall/PaywallDemo';
 import { STEP_TITLE } from '@/lib/paywall-copy';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 
-const DECK: SlideId[] = ['invoice', 'estimate', 'paid', ...(RECAPS_LIVE ? ['recap' as const] : [])];
+// One reel for every wall: it always opens on the estimate approval; the
+// variant only changes the reason pill.
+const DECK: SlideId[] = ['estimate', 'invoice', 'paid', ...(RECAPS_LIVE ? ['recap' as const] : [])];
 
-export default function ShowcaseStep({ reason, start }: {
+export default function ShowcaseStep({ reason }: {
   /** The wall's reason pill (a soft prompt may have replaced the variant's). */
   reason: string;
-  /** The slide this wall opens on (START_SLIDE), always one of the deck's. */
-  start: SlideId;
 }) {
   return (
     <div
@@ -29,7 +29,7 @@ export default function ShowcaseStep({ reason, start }: {
         <Icon name="receipt_long" size={17} className="shrink-0 text-primary" />
         {reason}
       </p>
-      <PaywallDemo slides={DECK} start={start} />
+      <PaywallDemo slides={DECK} />
     </div>
   );
 }

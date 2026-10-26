@@ -310,13 +310,12 @@ const SLIDE_LABEL: Record<SlideId, string> = {
   recap: 'Your week at a glance.',
 };
 
-export default function PaywallDemo({ slides, start }: {
+export default function PaywallDemo({ slides }: {
+  /** In reel order; the reel opens on the first. */
   slides: SlideId[];
-  /** The slide this wall opens on, always one of `slides`. */
-  start: SlideId;
 }) {
   const n = slides.length;
-  const [idx, setIdx] = useState(() => Math.max(0, slides.indexOf(start)));
+  const [idx, setIdx] = useState(0);
   const reduced = usePrefersReducedMotion();
   const go = useCallback((i: number) => setIdx(((i % n) + n) % n), [n]);
 
