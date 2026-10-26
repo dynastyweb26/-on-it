@@ -41,8 +41,8 @@ export default function TutorialOverlay({
   const [t, setT] = useState(0);
   const [scale, setScale] = useState(1);
   const [stageH, setStageH] = useState(PROTO_H);
-  // True when the stage doesn't cover the whole viewport (wide or very tall).
-  const [framed, setFramed] = useState(false);
+  // True on iPad/laptop widths: the stage is a framed phone on an opaque backdrop.
+  const [wide, setWide] = useState(false);
   const [realPhone, setRealPhone] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(REAL_PHONE).matches,
   );
@@ -88,7 +88,7 @@ export default function TutorialOverlay({
       const k = stageW / STAGE_W;
       setScale(k);
       setStageH(stageHpx / k);
-      setFramed(stageW < w - 0.5 || stageHpx < h - 0.5);
+      setWide(w > MAX_STAGE_W);
     };
     update();
     window.addEventListener('resize', update);
@@ -267,6 +267,83 @@ export default function TutorialOverlay({
     return () => cancelAnimationFrame(raf);
   }, [stageH]);
 
+  // Remember what opened the tutorial (the pill, a picker item) so focus can go
+  // back to it on close. Captured before the effect below moves focus in.
+  const openerRef = useRef<HTMLElement | null>(null);
+  const wideRef = useRef(false);
+  wideRef.current = wide;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    // (Dev StrictMode re-runs this once focus is already inside the dialog; keep
+    // the first capture then.)
+    const a = document.activeElement;
+    if (a instanceof HTMLElement && !rootRef.current?.contains(a)) openerRef.current = a;
+  }, []);
+
+  // Wide screens only (phones are untouched): the app behind must not scroll
+  // (wheel, touch), be reached by Tab, or be seen by assistive tech while the
+  // tutorial is open. Everything outside the dialog is made inert and restored on
+  // close; Tab/Shift+Tab cycle inside the dialog; Esc skips even if focus was lost.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !wide) return;
+    const stop = (e: Event) => e.preventDefault();
+    root.addEventListener('wheel', stop, { passive: false });
+    root.addEventListener('touchmove', stop, { passive: false });
+
+    const inerted: HTMLElement[] = [];
+    for (let node: HTMLElement = root; node.parentElement && node !== document.body; node = node.parentElement) {
+      for (const sib of Array.from(node.parentElement.children)) {
+        if (sib === node || !(sib instanceof HTMLElement) || sib.hasAttribute('inert')) continue;
+        sib.setAttribute('inert', '');
+        inerted.push(sib);
+      }
+    }
+
+    const focusables = () =>
+      Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"])')).filter(
+        (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden',
+      );
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const list = focusables();
+      e.preventDefault();
+      if (!list.length) {
+        root.focus();
+        return;
+      }
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey ? (i <= 0 ? list.length - 1 : i - 1) : i === -1 || i === list.length - 1 ? 0 : i + 1;
+      list[next].focus();
+    };
+    document.addEventListener('keydown', onKey);
+    root.focus();
+
+    return () => {
+      root.removeEventListener('wheel', stop);
+      root.removeEventListener('touchmove', stop);
+      document.removeEventListener('keydown', onKey);
+      for (const el of inerted) el.removeAttribute('inert');
+    };
+  }, [wide]);
+
+  // On close, give focus back to what opened the tutorial. Declared after the
+  // effect above so its cleanup (which lifts inert) has already run.
+  useEffect(
+    () => () => {
+      const opener = openerRef.current;
+      if (wideRef.current && opener && opener.isConnected) opener.focus({ preventScroll: true });
+    },
+    [],
+  );
+
   useEffect(() => {
     const mq = window.matchMedia(REAL_PHONE);
     const on = () => setRealPhone(mq.matches);
@@ -274,7 +351,9 @@ export default function TutorialOverlay({
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
-  const sbH = realPhone ? SB_H : 0;
+  // The framed phone on a wide screen drops the fake status bar too (nothing real
+  // sits above it, and the 47px lets Chat 1's invoice card clear the compact card).
+  const sbH = realPhone || wide ? SB_H : 0;
 
   const goNext = useCallback(() => {
     if (isLast) {
@@ -356,15 +435,37 @@ export default function TutorialOverlay({
       tabIndex={-1}
       onKeyDown={onKeyDown}
       className={styles.root}
-      // The backdrop only shows when the stage doesn't fill the viewport; it keeps
-      // the app underneath dimmed and unreachable, and a tap on it does nothing.
-      style={{ outline: 'none', background: framed ? 'rgba(22,18,12,.6)' : undefined }}
+      // On wide screens the root is an opaque dark backdrop (none of the real app
+      // shows through) that blocks the app's pointer and scroll input; a tap on it
+      // does nothing. Phones keep the cream root.
+      style={
+        wide
+          ? {
+              outline: 'none',
+              background: 'radial-gradient(ellipse at 50% 40%, #2b241b 0%, #14110c 70%)',
+              overscrollBehavior: 'contain',
+              touchAction: 'none',
+            }
+          : { outline: 'none' }
+      }
     >
       <div ref={safeRef} className={styles.safeArea}>
         <div
           ref={stageRef}
           className={styles.stage}
-          style={{ '--tut-scale': scale, '--tut-h': `${stageH}px` } as React.CSSProperties}
+          style={
+            {
+              '--tut-scale': scale,
+              '--tut-h': `${stageH}px`,
+              // Device frame on wide screens: rounded corners, hairline, soft shadow.
+              ...(wide
+                ? {
+                    borderRadius: 40,
+                    boxShadow: '0 0 0 1px rgba(255,255,255,.16), 0 40px 90px rgba(0,0,0,.6)',
+                  }
+                : null),
+            } as React.CSSProperties
+          }
         >
           {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
               bottom; the extra top strip (the fake status bar) is clipped away. */}
