@@ -937,3 +937,5 @@ tests and build pass. The trial day-11 banner was dropped before merge._
 | 3-page paywall showcase | **Open — next up** | The paywall is still one scrolling page (hero slideshow → Trial reminder → code entry → What's included). The showcase is not built; nothing in the soft-prompt work depends on it, since every prompt opens the current opener. |
 | Expenses usage nudge (2 of 5) | **Open — possible later add** | #1 covers invoices and estimates per the brief; the same counters and card would serve expenses (2 of 5) if wanted. |
 | Failed estimate duplicate burns a free slot | **Open — minor** | Still open (row above the v3 section): a failed duplicate soft-deletes the new quote, and soft-deleted quotes count toward the free estimate cap. |
+
+Testimonial built, flag off in prod until Cyril’s written OK.
