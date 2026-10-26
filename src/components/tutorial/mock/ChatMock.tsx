@@ -48,7 +48,15 @@ function Mono({
   );
 }
 
-export default function ChatMock({ state, chatMax }: { state: SceneState; chatMax: number }) {
+export default function ChatMock({
+  state,
+  chatMax,
+  nudge = 0,
+}: {
+  state: SceneState;
+  chatMax: number;
+  nudge?: number;
+}) {
   const { st, nT, jT, pT, comp, nameFilled, jobFilled, priceFilled, footFilled } = state;
   if (st.screen !== 'chat') return null;
 
@@ -80,13 +88,14 @@ export default function ChatMock({ state, chatMax }: { state: SceneState; chatMa
           >
             <div
               data-chat-content
+              data-tut-base={chatShift}
               style={{
                 flex: 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 14,
                 padding: '16px 0',
-                transform: `translateY(${chatShift}px)`,
+                transform: `translateY(${chatShift + nudge}px)`,
                 transition: 'transform 1s cubic-bezier(.65,0,.35,1)',
               }}
             >

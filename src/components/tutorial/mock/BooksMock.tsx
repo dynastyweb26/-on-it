@@ -9,12 +9,13 @@ const dot = (color: string) => (
   <span style={{ width: 9, height: 9, borderRadius: 5, background: color }} />
 );
 
-export default function BooksMock({ state }: { state: SceneState }) {
+export default function BooksMock({ state, nudge = 0 }: { state: SceneState; nudge?: number }) {
   const { st, netI, netD, owedI, owedD, collI, collD, spentI, spentD } = state;
   return (
     <div aria-hidden className={styles.mockProtoScope}>
       <MockChrome hdrChat={false} hdrBack={false} tabNow="books">
         <div
+          data-tut-scroll-area
           className={styles.aScrIn}
           style={{
             position: 'absolute',
@@ -30,6 +31,17 @@ export default function BooksMock({ state }: { state: SceneState }) {
             gap: 12,
           }}
         >
+          <div
+            data-tut-scroll-content
+            data-tut-base={0}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              transform: `translateY(${nudge}px)`,
+              transition: 'transform .5s cubic-bezier(.65,0,.35,1)',
+            }}
+          >
           <div
             data-spot="recaps"
             style={{
@@ -310,6 +322,7 @@ export default function BooksMock({ state }: { state: SceneState }) {
                 <Icon name="chevron_right" size={20} />
               </span>
             </div>
+          </div>
           </div>
         </div>
       </MockChrome>

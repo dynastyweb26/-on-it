@@ -43,6 +43,7 @@ export default function TutorialOverlay({
   const [lastSpot, setLastSpot] = useState<Rect | null>(null);
   const [hlH, setHlH] = useState(150);
   const [chatMax, setChatMax] = useState(0);
+  const [nudge, setNudge] = useState(0);
   const reducedMotion = usePrefersReducedMotion();
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -164,12 +165,46 @@ export default function TutorialOverlay({
       setHlH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
     }
 
-    const a = root.querySelector<HTMLElement>('[data-chat-area]');
-    const c = root.querySelector<HTMLElement>('[data-chat-content]');
+    const a = root.querySelector<HTMLElement>('[data-chat-area],[data-tut-scroll-area]');
+    const c = root.querySelector<HTMLElement>('[data-chat-content],[data-tut-scroll-content]');
     if (a && c) {
       const m = Math.max(0, c.offsetHeight - a.clientHeight);
       setChatMax((prev) => (Math.abs(prev - m) > 1 ? m : prev));
     }
+
+    // Auto-scroll: if the target sits inside a scrolling area but outside its
+    // visible part (a tall card pushed under the header, a row under the tab
+    // bar), nudge the area so it lands inside. It works from the target's
+    // position with the area's *current* translation removed, so it stays
+    // stable while the area's own transition runs.
+    let want = 0;
+    const key = keysRef.current.spot;
+    const tgt = key ? root.querySelector<HTMLElement>(`[data-spot="${key}"]`) : null;
+    if (sr && a && c && tgt && c.contains(tgt)) {
+      const ar = a.getBoundingClientRect();
+      const aT = (ar.top - pr.top) / k;
+      const aB = (ar.bottom - pr.top) / k;
+      // A target taller than the visible area (Chat 1's invoice card on a short
+      // stage) can't be fully inside: pin its top below the header and never
+      // scroll it up for the bottom edge.
+      const fits = sr.h + 16 <= aB - aT;
+      const applied = new DOMMatrix(getComputedStyle(c).transform).m42;
+      const base = Number(c.dataset.tutBase) || 0;
+      const yb = sr.y - applied + base;
+      const M = 8;
+      let total = base;
+      if (yb < aT + M) total = base + (aT + M - yb);
+      else if (fits && yb + sr.h + M > aB) total = base - Math.min(yb + sr.h + M - aB, yb - (aT + M));
+      // Keep the content covering the area: with overflow the translation may
+      // range from "bottom edge flush" to "top edge flush", whichever way the
+      // area aligns its content (top for a ready chat, bottom while it fills).
+      const offset0 = (c.getBoundingClientRect().top - ar.top) / k - applied;
+      const over = c.offsetHeight - a.clientHeight;
+      const lo = over > 0 ? -over - offset0 : base;
+      const hi = over > 0 ? -offset0 : base;
+      want = Math.min(hi, Math.max(lo, total)) - base;
+    }
+    setNudge((prev) => (Math.abs(prev - want) > 0.5 ? want : prev));
   }, []);
 
   useLayoutEffect(() => {
@@ -320,7 +355,7 @@ export default function TutorialOverlay({
           {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
               bottom; the extra top strip (the fake status bar) is clipped away. */}
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>
-            <MockScreen state={state} chatMax={chatMax} />
+            <MockScreen state={state} chatMax={chatMax} nudge={nudge} />
           </div>
 
         <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
