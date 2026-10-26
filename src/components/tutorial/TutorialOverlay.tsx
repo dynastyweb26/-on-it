@@ -525,7 +525,8 @@ export default function TutorialOverlay({
               </div>
             </LaptopShell>
           ) : (
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>                <MockScreen state={state} chatMax={chatMax} nudge={nudge} laptop />
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>
+              <MockScreen state={state} chatMax={chatMax} nudge={nudge} />
             </div>
           )}
 
