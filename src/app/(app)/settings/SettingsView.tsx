@@ -582,7 +582,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
   const is = (s: SettingsSection) => section === s;
   return (
-    <PageContainer size="narrow" className="space-y-4 overflow-x-hidden py-4">
+    <PageContainer size="narrow" className={`space-y-4 overflow-x-hidden py-4${is('main') ? ' xl:mx-0 xl:h-full xl:w-[440px] xl:max-w-none xl:overflow-visible xl:border-r xl:border-outline-variant/35 xl:px-0 xl:pb-8 xl:pl-6 xl:pr-5 xl:pt-6' : ''}`}>
       {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('business-info') ? 'Business Info' : is('business-brand') ? 'Brand Design' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
