@@ -1,0 +1,393 @@
+{
+  "tolerancePx": 10,
+  "cases": [
+    {
+      "name": "clients-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)" },
+          { "key": "Escape" },
+          { "wait": 700 }
+        ]
+      },
+      "app": { "path": "/clients", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "how it works pill", "design": "[data-spot=\"howBtn\"]", "app": "aside button[aria-haspopup=\"menu\"]", "check": ["w", "h"], "animations": false },
+        { "name": "client search field", "design": "[data-spot=\"search\"]", "app": "label:has(> input[type=\"search\"])", "check": ["w", "h"], "animations": false },
+        { "name": "add client button", "design": "[data-coach=\"clients-add\"]", "app": "[data-coach=\"clients-add\"]", "check": ["w", "h"], "animations": false },
+        { "name": "clients list card", "design": "[data-coach=\"clients-list\"]", "app": "[data-coach=\"clients-list\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "clients-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)" },
+          { "key": "Escape" },
+          { "wait": 700 }
+        ]
+      },
+      "app": { "path": "/clients", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "how it works pill", "design": "[data-spot=\"howBtn\"]", "app": "aside button[aria-haspopup=\"menu\"]", "check": ["w", "h"], "animations": false },
+        { "name": "client search field", "design": "[data-spot=\"search\"]", "app": "label:has(> input[type=\"search\"])", "check": ["w", "h"], "animations": false },
+        { "name": "add client button", "design": "[data-coach=\"clients-add\"]", "app": "[data-coach=\"clients-add\"]", "check": ["w", "h"], "animations": false },
+        { "name": "clients list card", "design": "[data-coach=\"clients-list\"]", "app": "[data-coach=\"clients-list\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "invoices-list-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)" },
+          { "key": "Escape" },
+          { "wait": 700 }
+        ]
+      },
+      "app": { "path": "/invoices", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "invoices/estimates toggle", "design": "[data-spot=\"segToggle\"]", "app": "[role=\"tablist\"][aria-label=\"Invoices or estimates\"]", "check": ["w", "h"], "animations": false },
+        { "name": "filter chips row", "design": "[data-coach=\"invoices-filter\"]", "app": "[data-coach=\"invoices-filter\"]", "check": ["w", "h"], "animations": false },
+        { "name": "invoice list", "design": "[data-coach=\"invoices-list\"]", "app": "[data-coach=\"invoices-list\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "invoices-list-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)" },
+          { "key": "Escape" },
+          { "wait": 700 }
+        ]
+      },
+      "app": { "path": "/invoices", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "invoices/estimates toggle", "design": "[data-spot=\"segToggle\"]", "app": "[role=\"tablist\"][aria-label=\"Invoices or estimates\"]", "check": ["w", "h"], "animations": false },
+        { "name": "filter chips row", "design": "[data-coach=\"invoices-filter\"]", "app": "[data-coach=\"invoices-filter\"]", "check": ["w", "h"], "animations": false },
+        { "name": "invoice list", "design": "[data-coach=\"invoices-list\"]", "app": "[data-coach=\"invoices-list\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "books-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)" },
+          { "key": "Escape" },
+          { "wait": 900 }
+        ]
+      },
+      "app": { "path": "/dashboard", "steps": [{ "wait": 3000 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "net card", "design": "[data-coach=\"books-net\"]", "app": "[data-coach=\"books-net\"]", "check": ["w", "h"], "animations": false },
+        { "name": "owed/collected/spent grid", "design": "[data-coach=\"books-stats\"]", "app": "[data-coach=\"books-stats\"]", "check": ["w", "h"], "animations": false },
+        { "name": "add expense button", "design": "[data-coach=\"books-add-expense\"]", "app": "[data-coach=\"books-add-expense\"]", "check": ["w", "h"], "animations": false },
+        { "name": "view expenses row", "design": "[data-spot=\"viewExpenses\"]", "app": "a[href=\"/expenses\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "books-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)" },
+          { "key": "Escape" },
+          { "wait": 900 }
+        ]
+      },
+      "app": { "path": "/dashboard", "steps": [{ "wait": 3000 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "net card", "design": "[data-coach=\"books-net\"]", "app": "[data-coach=\"books-net\"]", "check": ["w", "h"], "animations": false },
+        { "name": "owed/collected/spent grid", "design": "[data-coach=\"books-stats\"]", "app": "[data-coach=\"books-stats\"]", "check": ["w", "h"], "animations": false },
+        { "name": "add expense button", "design": "[data-coach=\"books-add-expense\"]", "app": "[data-coach=\"books-add-expense\"]", "check": ["w", "h"], "animations": false },
+        { "name": "view expenses row", "design": "[data-spot=\"viewExpenses\"]", "app": "a[href=\"/expenses\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chat-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [{ "key": "Escape" }, { "wait": 700 }]
+      },
+      "app": { "path": "/chat", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "header action icons", "design": "[data-spot=\"hdrIcons\"]", "app": "header div:has(> button[aria-label=\"New chat\"])", "check": ["w", "h"], "animations": false },
+        { "name": "message column", "design": "[data-coach=\"chat-messages\"]", "app": "[data-coach=\"chat-messages\"]", "check": ["w", "h"], "animations": false },
+        { "name": "composer", "design": "[data-coach=\"chat-composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chat-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [{ "key": "Escape" }, { "wait": 700 }]
+      },
+      "app": { "path": "/chat", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "header action icons", "design": "[data-spot=\"hdrIcons\"]", "app": "header div:has(> button[aria-label=\"New chat\"])", "check": ["w", "h"], "animations": false },
+        { "name": "message column", "design": "[data-coach=\"chat-messages\"]", "app": "[data-coach=\"chat-messages\"]", "check": ["w", "h"], "animations": false },
+        { "name": "composer", "design": "[data-coach=\"chat-composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)" },
+          { "key": "Escape" },
+          { "wait": 900 }
+        ]
+      },
+      "app": { "path": "/settings", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "business profile row", "design": "[data-coach=\"settings-profile\"]", "app": "[data-coach=\"settings-profile\"]", "check": ["w", "h"], "animations": false },
+        { "name": "payment options row", "design": "[data-coach=\"settings-payouts\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false },
+        { "name": "how it works row", "design": "[data-coach=\"settings-replay\"]", "app": "[data-coach=\"settings-replay\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)" },
+          { "key": "Escape" },
+          { "wait": 900 }
+        ]
+      },
+      "app": { "path": "/settings", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "sidebar nav", "design": "nav[data-coach=\"side-nav\"]", "app": "[data-coach=\"side-nav\"]", "check": ["w", "h"], "animations": false },
+        { "name": "business profile row", "design": "[data-coach=\"settings-profile\"]", "app": "[data-coach=\"settings-profile\"]", "check": ["w", "h"], "animations": false },
+        { "name": "payment options row", "design": "[data-coach=\"settings-payouts\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false },
+        { "name": "how it works row", "design": "[data-coach=\"settings-replay\"]", "app": "[data-coach=\"settings-replay\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-payouts-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 400 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)" },
+          { "wait": 1200 },
+          { "key": "ArrowRight" },
+          { "wait": 1400 }
+        ]
+      },
+      "app": { "path": "/settings/payouts", "steps": [{ "wait": 2500 }] },
+      "pairs": [
+        { "name": "payment options row", "design": "[data-coach=\"settings-payouts\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false },
+        { "name": "card & wallets row", "design": "[data-spot=\"payCard\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false },
+        { "name": "payment apps card", "design": "[data-spot=\"payApps\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [{ "wait": 1600 }]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          { "wait": 2000 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Chat\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false, "motionTimesMs": [0, 500, 1500] },
+        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false },
+        { "name": "next button", "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]", "app": "button[aria-label=\"Next scene\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-1280",
+      "viewport": { "width": 1280, "height": 800 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [{ "wait": 1600 }]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          { "wait": 2000 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Chat\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false, "motionTimesMs": [0, 500, 1500] },
+        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false },
+        { "name": "next button", "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]", "app": "button[aria-label=\"Next scene\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-invoices-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 300 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)" },
+          { "wait": 1600 }
+        ]
+      },
+      "app": {
+        "path": "/invoices",
+        "steps": [
+          { "wait": 2200 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Invoices\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (segment toggle)", "design": "[data-spot=\"segToggle\"]", "app": "[role=\"tablist\"][aria-label=\"Invoices or estimates\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-clients-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 300 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)" },
+          { "wait": 1600 }
+        ]
+      },
+      "app": {
+        "path": "/clients",
+        "steps": [
+          { "wait": 2200 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Clients\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (search)", "design": "[data-spot=\"search\"]", "app": "label:has(> input[type=\"search\"])", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-books-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 300 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)" },
+          { "wait": 1600 }
+        ]
+      },
+      "app": {
+        "path": "/dashboard",
+        "steps": [
+          { "wait": 2600 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Books\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (net card)", "design": "[data-coach=\"books-net\"]", "app": "[data-coach=\"books-net\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-settings-1440",
+      "viewport": { "width": 1440, "height": 900 },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          { "key": "Escape" },
+          { "wait": 300 },
+          { "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)" },
+          { "wait": 1600 }
+        ]
+      },
+      "app": {
+        "path": "/settings",
+        "steps": [
+          { "wait": 2200 },
+          { "click": "aside button[aria-haspopup=\"menu\"]" },
+          { "click": "[role=\"menuitem\"]:has-text(\"Settings\")" },
+          { "wait": 1600 }
+        ]
+      },
+      "pairs": [
+        { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[role=\"dialog\"][aria-label$=\"tutorial\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (payment options)", "design": "[data-coach=\"settings-payouts\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false }
+      ],
+      "maxPixelDiffPct": null
+    }
+  ]
+}
