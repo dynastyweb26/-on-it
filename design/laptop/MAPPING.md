@@ -185,3 +185,42 @@ Pairs used by `diff.config.json` (both sides must resolve, else the case FAILs):
 States where the export differs legitimately (different sample data): list row
 count, month labels, money values. Report those with `check:["w","h"]` and never
 gate on `maxPixelDiffPct`.
+
+## 10. Paywall, wide card — `PaywallModal.tsx`, `paywall/ShowcaseStep.tsx`, `paywall/FitToHeight.tsx`
+
+Measured from `design/laptop/paywall.html` at 1440×900. **The export draws one
+slide only** (the voice/"Say it. It's invoiced." showcase, step 1): the card's
+`role="dialog"` is the single `Try On It` card, its text is 676 characters, and
+there is no `data-step` switcher — the "Tweaks" panel the page's own copy
+mentions is not in the standalone build. Every other slide (estimate, payment
+apps, weekly recap, trial timeline, plan, success) has **no reference here**, so
+no rows are written for them.
+
+| Design element | Measured (1440×900, identical at 1280×800) | App |
+| --- | --- | --- |
+| card `[role=dialog]` | 1040×760, r28, bg `#fff8f0` | `PaywallModal` card at `xl:` (today `max-w-md` / 860 tall) |
+| card header | 1040×84, padding `16px 20px 8px`, grid `44px 1fr 44px` | header block |
+| close `button:first-of-type` | 44×44, r999 | `[aria-label="Not now"]` |
+| logo `img:nth-child(2)` | 44×44, r12 | `img[alt="On It"]` |
+| header dots | row 44×6, gap 6; active 20×6, rest 6×6, r99 | step dots |
+| body | 1040×587, inner padding `8px 56px 12px`, gap 16 | step area |
+| reason pill | 249×33, r999, padding `7px 13px`, gap 7, 12.5/600, white, border `#efe4d2` | `ShowcaseStep` pill |
+| content row | 928×432 → copy column 412, demo panel 460×432 r20 padding `18px 16px` gap 14 bg `#faefdc` | step 1 two columns (today: one column) |
+| copy | headline 32/800, sub 16/400 | slide headline + sub |
+| body dots | 72×26, active 24×6 (inner 16×6), rest 12×6 | slide dots |
+| footer | 1040×89, padding `14px 24px 18px`, hairline `#f0e7d8` | pinned footer |
+| CTA | 400×56, r999, gold `#d4af37`, 16/700 | Continue / Start trial |
+
+Steps 1–2 must fit 1440×900 and 1280×800 with no inner scroll (the card is 760
+tall, so 800 - 2×20 is exactly enough); step 3 scrolls inside the card. Below
+`md` nothing changes: the 448px phone column stays as it is.
+
+| Diff-gate selector (design) | App |
+| --- | --- |
+| `[role=dialog]` | `[role="dialog"] > div` |
+| `… > div:nth-child(1)` (header) | `[role="dialog"] > div > div:nth-child(1)` |
+| `… button:first-of-type` (close) | `[aria-label="Not now"]` |
+| `… img:nth-child(2)` (logo) | `img[alt="On It"]` |
+| `… div:nth-child(2) > div:nth-child(1) > div:nth-child(1)` (reason) | `[role="dialog"] p.whitespace-nowrap` |
+| `… div:nth-child(3)` (footer) | `[role="dialog"] > div > div:nth-child(3)` |
+| `… div:nth-child(3) > button:nth-child(1)` (CTA) | `[role="dialog"] button.bg-primary-container` |
