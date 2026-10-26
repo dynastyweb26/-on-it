@@ -25,7 +25,7 @@ const TAB_KEY: Record<string, TutorialTab> = {
 // Expanded as each mock screen lands. The player/mocks for the remaining tabs
 // are committed separately (4–8); keeping the gate here means the minimal host
 // cannot open a half-built screen.
-const READY_TABS: TutorialTab[] = ['chat', 'invoices', 'clients', 'books'];
+const READY_TABS: TutorialTab[] = ['chat', 'invoices', 'clients', 'books', 'settings'];
 
 function exactTabAt(path: string): TutorialTab | null {
   const i = exactTabIndex(path);
