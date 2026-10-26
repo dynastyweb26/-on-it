@@ -24,6 +24,7 @@
 
    Focus trap, Escape dismiss, body scroll lock, safe-area padding. */
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
@@ -171,7 +172,13 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
-  return (
+  // Portaled to <body>: a `fixed inset-0` layer inside the app shell is
+  // positioned against whichever ancestor makes a containing block (a
+  // transform, a filter), so it covered only the area under the app header and
+  // left the header (and its tour button) showing and tappable above the wall.
+  // Mounted only after a tap, never during SSR, so document exists here.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <div
       ref={pageRef}
       role="dialog"
@@ -312,6 +319,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
