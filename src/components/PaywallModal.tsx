@@ -186,10 +186,17 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
       aria-labelledby="paywall-step-title"
       tabIndex={-1}
       data-kb-fit=""
-      className="fixed inset-0 z-[70] flex justify-center bg-background font-body text-on-background outline-none"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-[70] flex justify-center bg-background font-body text-on-background outline-none md:items-center md:bg-on-background/45 md:p-6"
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
     >
-      <div className="flex h-full w-full max-w-md flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* Phone: the column is the whole screen. Tablet and up (md): a centered
+          card on a dimmed backdrop, capped in height, so the wall isn't a phone
+          layout floating in a wide empty page. */}
+      <div
+        className="flex h-full w-full max-w-md flex-col md:h-[min(100%,860px)] md:overflow-hidden md:rounded-[28px] md:bg-background md:shadow-[0_24px_64px_rgba(31,27,19,.35)]"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         {/* Header: dismiss, the app icon, and where you are in the steps. The
             way out is always the X at the left; going back a step is the
             footer's Back link. */}
