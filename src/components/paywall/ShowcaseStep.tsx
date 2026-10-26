@@ -1,21 +1,14 @@
 'use client';
-// Step 1 · What you win — four demo slides that show the product doing the
-// thing before asking for anything. The deck is the existing paywall carousel
-// (PaywallSlideshow: scroll-snap, dots, pause on interaction, reduced-motion
-// off switch), rotated on the showcase's own 4.2s beat and pointed at the four
-// slides the design names.
+// Step 1 · What you win — the reason the wall opened (a quiet pill), then four
+// demo slides that show the product doing the thing before asking for anything
+// (PaywallDemo, built to design-reference/paywall-mockup.html).
 //
-// Nothing here is new art: each slide is the static DOM/SVG graphic in
-// PaywallSlides.tsx with a live-text headline. Slide 4 is the recaps slide and
-// rides lib/recaps-live — off, the deck is three slides, never a blank one.
-import { useLayoutEffect, useRef, useState } from 'react';
-import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
-import type { SlideId } from '@/components/paywall/PaywallSlides';
+// Slide 4 is the recaps slide and rides lib/recaps-live — off, the deck is
+// three slides, never a blank one.
+import Icon from '@/components/Icon';
+import PaywallDemo, { type SlideId } from '@/components/paywall/PaywallDemo';
 import { STEP_TITLE } from '@/lib/paywall-copy';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
-
-/** The showcase beat (the carousel's own default is the old page's 4s). */
-export const SHOWCASE_MS = 4200;
 
 const DECK: SlideId[] = ['invoice', 'estimate', 'paid', ...(RECAPS_LIVE ? ['recap' as const] : [])];
 
@@ -25,37 +18,18 @@ export default function ShowcaseStep({ reason, start }: {
   /** The slide this wall opens on (START_SLIDE), always one of the deck's. */
   start: SlideId;
 }) {
-  // The deck fills whatever height the step has, measured rather than assumed,
-  // so the four slides stay in view above the Continue button on an SE too.
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [deckH, setDeckH] = useState(0);
-  useLayoutEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const measure = () => setDeckH(el.clientHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   return (
-    <div className="flex h-full min-h-0 flex-col px-4">
-      <div className="flex justify-center pb-2">
-        <p className="rounded-full bg-surface-container px-3 py-1 text-[13px] font-semibold leading-[18px] text-on-surface-variant">
-          {reason}
-        </p>
-      </div>
-      <h2
-        id="paywall-step-title"
-        tabIndex={-1}
-        className="mb-1 shrink-0 text-center font-display text-[22px] font-extrabold tracking-[-0.01em] outline-none"
-      >
-        {STEP_TITLE.showcase}
-      </h2>
-      <div ref={boxRef} className="min-h-0 flex-1">
-        {deckH > 0 && <PaywallSlideshow slides={DECK} start={start} height={deckH} intervalMs={SHOWCASE_MS} />}
-      </div>
+    <div
+      className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1"
+      style={{ animation: 'oi-slide .4s cubic-bezier(.2,.8,.2,1) both' }}
+    >
+      {/* The slide headlines are visual; this is the step's name for screen readers. */}
+      <h2 id="paywall-step-title" tabIndex={-1} className="sr-only outline-none">{STEP_TITLE.showcase}</h2>
+      <p className="flex items-center gap-[7px] whitespace-nowrap rounded-full border border-[#efe4d2] bg-white px-[13px] py-[7px] font-body text-[12.5px] font-semibold leading-none text-[#4d4635]">
+        <Icon name="receipt_long" size={17} className="shrink-0 text-primary" />
+        {reason}
+      </p>
+      <PaywallDemo slides={DECK} start={start} />
     </div>
   );
 }

@@ -29,7 +29,7 @@ import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
 import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
-import type { SlideId } from '@/components/paywall/PaywallSlides';
+import type { SlideId } from '@/components/paywall/PaywallDemo';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import {
   REASON,

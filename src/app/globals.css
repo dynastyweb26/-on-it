@@ -213,6 +213,43 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
   to   { transform: translateY(0); }
 }
 
+/* Paywall motion (design-reference/paywall-mockup.html): the demo slides, the
+   trial timeline and the step change. Names and timings are the mockup's. The
+   global reduce block below sets `animation: none`, which leaves every element
+   at its resting state; the two counters need their end value spelled out. */
+@property --n { syntax: '<integer>'; inherits: false; initial-value: 0; }
+@keyframes oi-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes oi-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes oi-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes oi-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes oi-pop { 0% { opacity: 0; transform: scale(.4); } 70% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes oi-stamp { 0% { opacity: 0; transform: rotate(-9deg) scale(2.2); } 100% { opacity: 1; transform: rotate(-9deg) scale(1); } }
+@keyframes oi-draw { from { stroke-dashoffset: 420; } to { stroke-dashoffset: 0; } }
+@keyframes oi-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes oi-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes oi-ring { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes oi-slide { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes oi-slideup { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+@keyframes oi-c850 { from { --n: 0; } to { --n: 850; } }
+@keyframes oi-cnet { from { --n: 0; } to { --n: 2415; } }
+@keyframes oi-tap { 0% { opacity: .55; transform: scale(0); } 100% { opacity: 0; transform: scale(3.2); } }
+@keyframes oi-press { 0%, 100% { transform: scale(1); } 50% { transform: scale(.96); } }
+/* Count-ups: --oi-d is the duration, --oi-dl the delay. */
+.oi-count-850::after {
+  content: '$' counter(n) '.00';
+  counter-reset: n var(--n);
+  animation: oi-c850 var(--oi-d, .9s) cubic-bezier(.2, .8, .2, 1) var(--oi-dl, 0s) both;
+}
+.oi-count-net::after {
+  content: '$' counter(k) ',' counter(h) counter(t) counter(o);
+  counter-reset: k round(down, var(--n) / 1000, 1) h mod(round(down, var(--n) / 100, 1), 10) t mod(round(down, var(--n) / 10, 1), 10) o mod(var(--n), 10);
+  animation: oi-cnet 1.4s cubic-bezier(.2, .8, .2, 1) 1.2s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .oi-count-850 { --n: 850; }
+  .oi-count-net { --n: 2415; }
+}
+
 /* ---- Splash: brand logo reveal (components/Splash.tsx) ----
    Server-rendered, CSS-driven so it plays from first paint without waiting for
    hydration. Hidden unless the head script in layout.tsx set html[data-splash]
