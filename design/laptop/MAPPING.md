@@ -224,3 +224,10 @@ tall, so 800 - 2×20 is exactly enough); step 3 scrolls inside the card. Below
 | `… div:nth-child(2) > div:nth-child(1) > div:nth-child(1)` (reason) | `[role="dialog"] p.whitespace-nowrap` |
 | `… div:nth-child(3)` (footer) | `[role="dialog"] > div > div:nth-child(3)` |
 | `… div:nth-child(3) > button:nth-child(1)` (CTA) | `[role="dialog"] button.bg-primary-container` |
+
+### Gate relaxations, with reasons
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `card` | `w`, `h` only | The export draws the card inside a mock browser frame with a 44px margin, so its absolute x/y are the frame's, not a viewport-centred overlay's. Size is the transferable part. |
+| `reason pill` | `h` only | The pill is content-sized. The design's 249px is its own trigger copy ("You've used your 3 free invoices"); the app's `REASON` strings differ per variant and the copy must not change. |

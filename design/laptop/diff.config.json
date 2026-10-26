@@ -1212,7 +1212,8 @@
           "check": [
             "w",
             "h"
-          ]
+          ],
+          "why": "size only: the design draws the card inside its 44px-margin mock browser frame, so absolute x/y do not transfer to a viewport-centred overlay"
         },
         {
           "name": "card header",
@@ -1247,7 +1248,8 @@
           "app": "[role=\"dialog\"] p.whitespace-nowrap",
           "check": [
             "h"
-          ]
+          ],
+          "why": "height only: the pill is sized by its own copy (design 249px for \"You have used your 3 free invoices\"); the app keeps its own reason strings"
         },
         {
           "name": "footer",
@@ -1303,7 +1305,8 @@
           "check": [
             "w",
             "h"
-          ]
+          ],
+          "why": "size only: the design draws the card inside its 44px-margin mock browser frame, so absolute x/y do not transfer to a viewport-centred overlay"
         },
         {
           "name": "card header",
@@ -1338,7 +1341,8 @@
           "app": "[role=\"dialog\"] p.whitespace-nowrap",
           "check": [
             "h"
-          ]
+          ],
+          "why": "height only: the pill is sized by its own copy (design 249px for \"You have used your 3 free invoices\"); the app keeps its own reason strings"
         },
         {
           "name": "footer",
