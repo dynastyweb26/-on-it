@@ -16,7 +16,11 @@ import Icon from '@/components/Icon';
 
 const DISMISSED_KEY = 'onit_install_banner_dismissed';
 
-export default function InstallBanner() {
+export default function InstallBanner({ variant = 'bar' }: {
+  /** 'bar' = the slim mobile strip above the tab bar. 'sidebar' = the tablet /
+   *  desktop sidebar: an icon-only button in the md rail, a stacked card at lg+. */
+  variant?: 'bar' | 'sidebar';
+}) {
   const { canPrompt, isInstalled, promptInstall } = useInstallPrompt();
   const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -56,6 +60,49 @@ export default function InstallBanner() {
 
   const canInstallHere = canPrompt || iosSafari;
   if (!mounted || dismissed || isInstalled || !canInstallHere) return null;
+
+  if (variant === 'sidebar') {
+    const label = canPrompt ? 'Install On It' : 'Show how to add On It';
+    const railButton = 'grid h-11 w-11 place-items-center rounded-2xl bg-primary-container text-on-background transition active:scale-95 lg:hidden';
+    const cardButton = 'inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95';
+    return (
+      <div data-kb-hide="" className="flex flex-col items-center lg:block">
+        {/* md rail: just the icon (80px has no room for words). */}
+        {canPrompt ? (
+          <button onClick={() => promptInstall()} aria-label={label} title={label} className={railButton}>
+            <Icon name="install_mobile" size={22} />
+          </button>
+        ) : (
+          <Link href="/install" aria-label={label} title={label} className={railButton}>
+            <Icon name="install_mobile" size={22} />
+          </Link>
+        )}
+        {/* lg+: a card in the 288px sidebar: message on top, actions below. */}
+        <div className="hidden rounded-2xl border border-outline-variant/50 bg-surface-container p-4 lg:block">
+          <div className="flex items-start gap-3">
+            <Icon name="install_mobile" size={24} className="mt-0.5 shrink-0 text-primary" />
+            <p className="min-w-0 flex-1 text-body-md text-on-background">
+              {canPrompt ? 'Install On It for faster access.' : 'Add On It to your home screen.'}
+            </p>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            {canPrompt ? (
+              <button onClick={() => promptInstall()} className={cardButton}>Install</button>
+            ) : (
+              <Link href="/install" className={cardButton}>Show how</Link>
+            )}
+            <button
+              onClick={dismiss}
+              aria-label="Dismiss install banner"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-kb-hide="" className="shrink-0 border-t border-outline-variant/50 bg-surface-container-low px-container py-2.5">
