@@ -9,23 +9,11 @@
 // The reminder is static text, not a toggle: the email is the cron's job
 // (/api/trial-reminders). There is nothing here to switch off.
 //
-// Testimonial: held behind SHOW_TESTIMONIAL. A real customer quote needs their
-// permission and their name, so nothing renders (and no placeholder quote
-// ships) until that constant is flipped with cleared copy.
 import { useState, type ReactNode } from 'react';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { STEP_TITLE, TRIAL_COPY } from '@/lib/paywall-copy';
 import { trialDates } from '@/lib/trial';
-
-/** Flip only with a cleared, attributed quote from a real customer. */
-export const SHOW_TESTIMONIAL = false;
-
-const TESTIMONIAL = {
-  quote: '',
-  name: '',
-  role: '',
-};
 
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
 const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -120,14 +108,6 @@ export default function TrialStep() {
         <Icon name="settings" size={17} />{TRIAL_COPY.cancelNote}
       </p>
 
-      {SHOW_TESTIMONIAL && TESTIMONIAL.quote && (
-        <figure className="rounded-2xl border border-[#efe4d2] bg-white p-4">
-          <blockquote className="text-[15px] leading-[22px]">“{TESTIMONIAL.quote}”</blockquote>
-          <figcaption className="mt-2 text-[13px] leading-[18px] text-[#4d4635]">
-            {TESTIMONIAL.name} · {TESTIMONIAL.role}
-          </figcaption>
-        </figure>
-      )}
     </div>
   );
 }
