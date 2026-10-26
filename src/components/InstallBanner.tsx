@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useInstallPrompt } from '@/lib/install/useInstallPrompt';
 import { isIOSSafari } from '@/lib/install/platform';
+import { NATIVE_WRAP } from '@/lib/install/nativeWrap';
 import Icon from '@/components/Icon';
 
 // Slim, dismissible strip that invites the user to install On It. Rendered in the
@@ -55,7 +56,7 @@ export default function InstallBanner() {
   }
 
   const canInstallHere = canPrompt || iosSafari;
-  if (!mounted || dismissed || isInstalled || !canInstallHere) return null;
+  if (NATIVE_WRAP || !mounted || dismissed || isInstalled || !canInstallHere) return null;
 
   return (
     <div data-kb-hide="" className="shrink-0 border-t border-outline-variant/50 bg-surface-container-low px-container py-2.5">
