@@ -129,7 +129,7 @@ export default function ClientsList({ active = true, tabs }: { active?: boolean;
       {shown.length === 0 ? (
         <p className="mt-10 text-center text-body-md text-on-surface-variant">No clients match “{query.trim()}”</p>
       ) : (
-        <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()} query={query}
+        <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()} query={query} coach="clients-list"
           renderRow={(c) => (
             <ListRow key={c.id} id={`client-row-${c.id}`} motion={fresh?.id === c.id ? fresh.motion : null} onOpen={() => open(c)}
               onLongPress={(rect) => setMenu({ row: c, rect })}

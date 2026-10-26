@@ -35,7 +35,7 @@ export default function Clients({ active = true }: { active?: boolean }) {
   );
   return (
     <PageContainer className="py-4 xl:pt-6">
-      <div key={segment} role="tabpanel" data-coach={segment === 'clients' ? 'clients-list' : undefined}>
+      <div key={segment} role="tabpanel">
         {segment === 'clients' ? <ClientsList active={active} tabs={tabs} /> : <ProductsList active={active} tabs={tabs} />}
       </div>
     </PageContainer>

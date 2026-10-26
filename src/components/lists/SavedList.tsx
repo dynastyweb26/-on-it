@@ -35,13 +35,15 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
 }
 
 /** A–Z sticky headers plus the scrub rail (hidden while searching). */
-export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query = '' }: {
+export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query = '', coach }: {
   groups: { letter: string; rows: T[] }[];
   idPrefix: string;
   showRail: boolean;
   renderRow: (row: T) => ReactNode;
   /** The search text: each change reflows the list (fade + 6 px settle). */
   query?: string;
+  /** data-coach id for the card itself (the tour spotlights the list card). */
+  coach?: string;
 }) {
   const present = new Set(groups.map((g) => g.letter));
   const railRef = useRef<HTMLDivElement>(null);
@@ -77,7 +79,7 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
     }
   }
   return (
-    <div ref={listRef} className="relative mt-2 pr-5 xl:mt-5 xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
+    <div ref={listRef} data-coach={coach} className="relative mt-2 pr-5 xl:mt-5 xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
       {groups.map((g) => (
         <section key={g.letter} aria-label={g.letter}>
           <h2 id={`${idPrefix}-letter-${g.letter}`}
