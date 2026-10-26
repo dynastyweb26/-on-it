@@ -941,3 +941,16 @@ tests and build pass. The trial day-11 banner was dropped before merge._
 | 3-page paywall showcase | **Open — next up** | The paywall is still one scrolling page (hero slideshow → Trial reminder → code entry → What's included). The showcase is not built; nothing in the soft-prompt work depends on it, since every prompt opens the current opener. |
 | Expenses usage nudge (2 of 5) | **Open — possible later add** | #1 covers invoices and estimates per the brief; the same counters and card would serve expenses (2 of 5) if wanted. |
 | Failed estimate duplicate burns a free slot | **Open — minor** | Still open (row above the v3 section): a failed duplicate soft-deletes the new quote, and soft-deleted quotes count toward the free estimate cap. |
+
+Testimonial built, flag off in prod until Cyril’s written OK.
+
+## Open — logged 2026-10-26 (tablet / iPad layout pass)
+
+_Found while checking `feat/paywall-mockup-v2` in DevTools (iPad Mini 768, iPad Pro 13, Surface Pro 10). The paywall itself is handled on that branch (portal to body, steps 1-2 fit-to-height, centered card at `md`+). The rest of the app was NOT touched. Do after the paywall and tutorials ship._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Install banner wraps one word per line in the sidebar | **Open** | Sidebar footer card at tablet width: "Install On It for faster access." breaks per word beside the Install button. |
+| Books dashboard cards squash at iPad Pro width | **Open** | Net card shrinks to a narrow tile beside Still owed / Collected / Spent instead of staying a full-width hero. |
+| Screens leave large empty areas below content | **Open** | Books (and likely others) end ~40% down the page on iPad / Surface; no tablet-specific layout. |
+| Phone-first paywall steps had no tablet treatment | **Fixed on `feat/paywall-mockup-v2`** | `42dc6da` card at `md`+, `b651516` portal, `cb95e39` fit-to-height. Verify on a real iPad before merge. |

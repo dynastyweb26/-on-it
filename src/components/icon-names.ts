@@ -44,6 +44,7 @@ export const ICON_NAMES = [
   'error_outline',
   'expand_more',
   'folder',
+  'format_quote',
   'graphic_eq',
   'group',
   'handyman',
