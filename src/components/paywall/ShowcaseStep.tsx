@@ -1,64 +1,124 @@
 'use client';
-// Step 1 · What you win — four demo slides that show the product doing the
-// thing before asking for anything. The deck is the existing paywall carousel
-// (PaywallSlideshow: scroll-snap, dots, pause on interaction, reduced-motion
-// off switch), rotated on the showcase's own 4.2s beat and pointed at the four
-// slides the design names.
+// Step 1 · What you win — the mockup's static layout, nothing moving: the
+// reason pill, a left-aligned headline and subtitle, one demo tile on the warm
+// #faefdc band, and the reel track at rest. This replaces the old centred
+// "What you win" title and the slideshow carousel it sat over.
 //
-// Nothing here is new art: each slide is the static DOM/SVG graphic in
-// PaywallSlides.tsx with a live-text headline. Slide 4 is the recaps slide and
-// rides lib/recaps-live — off, the deck is three slides, never a blank one.
-import { useLayoutEffect, useRef, useState } from 'react';
+// Not ported yet (the reel step owns them): the four scenes, their 4.2s beat,
+// and the mockup's oi-* keyframes — the entry slide, the typed line, the
+// staged line items, the total counting up, the APPROVED stamp. What is on
+// screen here is the invoice story at its end state, so the tile reads as a
+// finished invoice rather than an animation caught mid-flight.
 import Icon from '@/components/Icon';
-import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
-import type { SlideId } from '@/components/paywall/PaywallSlides';
-import { STEP_TITLE } from '@/lib/paywall-copy';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 
-/** The showcase beat (the carousel's own default is the old page's 4s). */
-export const SHOWCASE_MS = 4200;
+// How many scenes the reel will carry: the recaps story is live-only, so the
+// track must not promise a fourth scene when RECAPS_LIVE is off.
+const SCENES = RECAPS_LIVE ? 4 : 3;
 
-const DECK: SlideId[] = ['invoice', 'estimate', 'paid', ...(RECAPS_LIVE ? ['recap' as const] : [])];
-
-export default function ShowcaseStep({ reason, start }: {
+export default function ShowcaseStep({
+  reason,
+}: {
   /** The wall's reason pill (a soft prompt may have replaced the variant's). */
   reason: string;
-  /** The slide this wall opens on (START_SLIDE), always one of the deck's. */
-  start: SlideId;
 }) {
-  // The deck fills whatever height the step has, measured rather than assumed,
-  // so the four slides stay in view above the Continue button on an SE too.
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [deckH, setDeckH] = useState(0);
-  useLayoutEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const measure = () => setDeckH(el.clientHeight);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
   return (
-    <div className="flex h-full min-h-0 flex-col px-4">
+    <div className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1">
       {/* The reason pill, to the mockup: white capsule on the page cream, a
           hairline border, one gold receipt mark, and the variant's words. */}
-      <div className="flex justify-center pb-2">
-        <p className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline bg-surface-container-lowest px-[13px] py-[7px] text-[12.5px] font-semibold leading-none text-on-surface-variant">
-          <Icon name="receipt_long" size={17} className="text-primary" />
-          {reason}
-        </p>
+      <p className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline bg-surface-container-lowest px-[13px] py-[7px] text-[12.5px] font-semibold leading-none text-on-surface-variant">
+        <Icon name="receipt_long" size={17} className="text-primary" />
+        {reason}
+      </p>
+
+      <div className="flex w-full flex-col gap-3">
+        {/* Two lines reserved, so the tile sits still from scene to scene. */}
+        <div className="min-h-[78px]">
+          <h2
+            id="paywall-step-title"
+            tabIndex={-1}
+            className="font-display text-[25px] font-extrabold leading-[1.15] tracking-[-0.02em] outline-none"
+          >
+            Say it. It’s invoiced.
+          </h2>
+          <p className="mt-1.5 text-[14.5px] leading-[1.45] text-on-surface-variant [text-wrap:pretty]">
+            Talk through the job. On It writes the invoice.
+          </p>
+        </div>
+
+        {/* The demo tile: one invoice story, already finished. */}
+        <div className="flex h-[432px] flex-col gap-3.5 overflow-hidden rounded-[20px] bg-tile px-4 py-[18px]">
+          <div className="flex items-center gap-[11px] rounded-full border border-hairline bg-surface-container-lowest py-1.5 pl-1.5 pr-3.5">
+            <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full bg-primary-container">
+              <Icon name="mic" size={21} filled className="text-on-background" />
+            </span>
+            {/* The mockup types this line on one row; at rest the whole
+                sentence is there, so it wraps rather than clipping the
+                amount on a 375px phone. */}
+            <span className="min-w-0 flex-1 text-[13px] font-medium leading-[1.3]">
+              “Invoice Mike Davis, back door install, 850”
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-hairline bg-surface-container-lowest p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] bg-[#2b2721] text-xs font-bold leading-none text-background">
+                RH
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-semibold leading-[1.2]">Reyes Home Repair</div>
+                <div className="mt-[3px] text-[10.5px] font-semibold uppercase leading-[1.2] tracking-[.1em] text-on-surface-variant">
+                  Invoice
+                </div>
+              </div>
+              <span className="font-mono text-xs font-medium leading-none text-on-surface-variant">INV-0081</span>
+            </div>
+
+            <span className="h-px bg-hairline" />
+
+            <div>
+              <div className="text-[10.5px] font-semibold uppercase leading-none tracking-[.1em] text-on-surface-variant">
+                Bill to
+              </div>
+              <div className="mt-[5px] font-display text-[18px] font-extrabold leading-[1.2]">Mike Davis</div>
+            </div>
+
+            <div className="flex flex-col gap-2 font-mono text-[13.5px] leading-[1.3]">
+              <div className="flex justify-between">
+                <span>Back door install</span>
+                <span>$780.00</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Hardware &amp; trim</span>
+                <span>$70.00</span>
+              </div>
+            </div>
+
+            <div className="flex items-baseline justify-between border-t-[1.5px] border-dashed border-dash pt-2.5">
+              <span className="text-[13px] font-semibold leading-none text-on-surface-variant">Total</span>
+              <span className="font-display text-[28px] font-extrabold leading-none tabular-nums text-primary">
+                $850.00
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <h2
-        id="paywall-step-title"
-        tabIndex={-1}
-        className="mb-1 shrink-0 text-center font-display text-[22px] font-extrabold tracking-[-0.01em] outline-none"
-      >
-        {STEP_TITLE.showcase}
-      </h2>
-      <div ref={boxRef} className="min-h-0 flex-1">
-        {deckH > 0 && <PaywallSlideshow slides={DECK} start={start} height={deckH} intervalMs={SHOWCASE_MS} />}
+
+      {/* The reel, at rest: the current scene's track (not yet filling) and a
+          dot per scene behind it. The 4.2s fill and the scene swap come with
+          the reel; the slots are already the mockup's tap areas. */}
+      <div aria-hidden className="flex items-center gap-0.5">
+        {Array.from({ length: SCENES }, (_, i) => (
+          <span key={i} className="flex px-[3px] py-[10px]">
+            <span
+              className={
+                i === 0
+                  ? 'block h-1.5 w-6 rounded-full bg-reel'
+                  : 'block h-1.5 w-1.5 rounded-full bg-reel'
+              }
+            />
+          </span>
+        ))}
       </div>
     </div>
   );
