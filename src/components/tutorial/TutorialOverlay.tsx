@@ -13,6 +13,10 @@ type Rect = { x: number; y: number; w: number; h: number; r: number };
 // The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
 const STAGE_W = 390;
 const PROTO_H = 844;
+// The mock's fake status bar (9:41, signal, wifi) is 47 tall. On a real phone the
+// real one is already there, so the mock slides up under the top edge instead.
+const SB_H = 47;
+const REAL_PHONE = '(max-width: 500px), (pointer: coarse)';
 
 function sameRect(a: Rect | null, b: Rect | null): boolean {
   if (!a !== !b) return false;
@@ -32,6 +36,9 @@ export default function TutorialOverlay({
   const [t, setT] = useState(0);
   const [scale, setScale] = useState(1);
   const [stageH, setStageH] = useState(PROTO_H);
+  const [realPhone, setRealPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(REAL_PHONE).matches,
+  );
   const [spotRect, setSpotRect] = useState<Rect | null>(null);
   const [tapRect, setTapRect] = useState<Rect | null>(null);
   const [lastSpot, setLastSpot] = useState<Rect | null>(null);
@@ -208,6 +215,15 @@ export default function TutorialOverlay({
     return () => cancelAnimationFrame(raf);
   }, [stageH]);
 
+  useEffect(() => {
+    const mq = window.matchMedia(REAL_PHONE);
+    const on = () => setRealPhone(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const sbH = realPhone ? SB_H : 0;
+
   const goNext = useCallback(() => {
     if (isLast) {
       onClose();
@@ -247,7 +263,7 @@ export default function TutorialOverlay({
   const sw = lr.w + pad * 2;
   const sh = lr.h + pad * 2;
   const H = hlH || 150;
-  const TOP = 54;
+  const TOP = 54 - sbH;
   const BOT = stageH - 84 - 14 - 58 - 12 - H;
   let hlTop = lastHlTopRef.current;
   if (r) {
@@ -293,7 +309,11 @@ export default function TutorialOverlay({
           className={styles.stage}
           style={{ '--tut-scale': scale, '--tut-h': `${stageH}px` } as React.CSSProperties}
         >
-          <MockScreen state={state} chatMax={chatMax} />
+          {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
+              bottom; the extra top strip (the fake status bar) is clipped away. */}
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>
+            <MockScreen state={state} chatMax={chatMax} />
+          </div>
 
         <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
           <div key={sceneIndex} className={styles.aVeil} style={{ position: 'absolute', inset: 0, background: '#FDF7EE', pointerEvents: 'none' }} />
