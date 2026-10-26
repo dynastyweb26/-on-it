@@ -1,13 +1,14 @@
 /* Scoped player chrome. Every visual value below is lifted from the prototype
-   (On It Tutorials.html). The stage is the prototype's 390 × 844 phone screen,
-   not the outer demo harness (bezel/shadow). */
+   (On It Tutorials.html). The stage is the prototype's 390-wide phone screen
+   (844 tall at its own size, taller to fill a taller viewport), not the outer
+   demo harness (bezel/shadow). */
 
 .root {
   position: fixed;
   inset: 0;
   z-index: 1000;
   overflow: hidden;
-  background: #ece6db;
+  background: #fdf7ee;
   color: #1e1a14;
   font-family: Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -15,17 +16,16 @@
 
 .stage {
   position: absolute;
-  left: 50%;
-  top: 50%;
+  left: 0;
+  top: 0;
   width: 390px;
-  height: 844px;
-  margin-left: -195px;
-  margin-top: -422px;
+  /* 844 at the prototype's size; --tut-h is viewport height / scale. */
+  height: var(--tut-h, 844px);
   overflow: hidden;
   background: #fdf7ee;
   isolation: isolate;
   transform: scale(var(--tut-scale, 1));
-  transform-origin: center center;
+  transform-origin: 0 0;
 }
 
 .stage *,

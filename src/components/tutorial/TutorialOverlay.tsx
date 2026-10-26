@@ -29,6 +29,8 @@ export default function TutorialOverlay({
   const [sceneIndex, setSceneIndex] = useState(0);
   const [t, setT] = useState(0);
   const [scale, setScale] = useState(1);
+  // The stage's height in its own 390-wide units: viewport height / scale.
+  const [stageH, setStageH] = useState(844);
   const [spotRect, setSpotRect] = useState<Rect | null>(null);
   const [tapRect, setTapRect] = useState<Rect | null>(null);
   const [lastSpot, setLastSpot] = useState<Rect | null>(null);
@@ -48,21 +50,30 @@ export default function TutorialOverlay({
   const isLast = sceneIndex === tutorial.scenes.length - 1;
   const finished = t >= duration;
 
-  // The prototype's 390 × 844 phone screen, scaled down to whatever viewport
-  // the real app has. At 390 × 844 the scale is exactly 1.
-  useEffect(() => {
+  // The prototype's phone screen, 390 wide, filling whatever viewport the real
+  // app has: scaled by width, and as tall as the viewport needs (height /
+  // scale) so there are no bars on any phone. The top (status bar) and bottom
+  // (composer, tab bar) chrome are pinned to the stage's edges, the middle
+  // flexes. At exactly 390 × 844 the scale is 1 and the stage is 844 tall, as in
+  // the prototype.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
     const update = () => {
-      const vv = window.visualViewport;
-      const w = vv?.width ?? window.innerWidth;
-      const h = vv?.height ?? window.innerHeight;
-      setScale(Math.min(w / 390, h / 844));
+      const w = root?.clientWidth || window.innerWidth;
+      const h = root?.clientHeight || window.innerHeight;
+      const s = w / 390;
+      setScale(s);
+      setStageH(h / s);
     };
     update();
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
+    const ro = root ? new ResizeObserver(update) : null;
+    if (root) ro?.observe(root);
     return () => {
       window.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('resize', update);
+      ro?.disconnect();
     };
   }, []);
 
@@ -98,8 +109,13 @@ export default function TutorialOverlay({
   }, [duration, reducedMotion, sceneIndex]);
 
   // Geometry is measured in stage coordinates (divide the rendered rect by the
-  // current scale), exactly like the prototype's measure().
-  useLayoutEffect(() => {
+  // current scale), exactly like the prototype's measure(). The prototype runs
+  // it on every animation frame, so a target that moves after the scene clock
+  // stops (the chat scrolling to its end, a sheet settling, the stage changing
+  // height) is still tracked; the setters below only re-render on a change.
+  const keysRef = useRef<{ spot: string | null; tap: string | null }>({ spot: null, tap: null });
+  keysRef.current = { spot: state.spotKey ?? null, tap: state.tapKey ?? null };
+  const measure = useCallback(() => {
     const root = stageRef.current;
     if (!root) return;
     const pr = root.getBoundingClientRect();
@@ -118,8 +134,8 @@ export default function TutorialOverlay({
       };
     };
 
-    const sr = rel(state.spotKey);
-    const tr = rel(state.tapKey);
+    const sr = rel(keysRef.current.spot);
+    const tr = rel(keysRef.current.tap);
     setSpotRect((prev) => (sameRect(prev, sr) ? prev : sr));
     setTapRect((prev) => (sameRect(prev, tr) ? prev : tr));
     if (sr) {
@@ -139,7 +155,21 @@ export default function TutorialOverlay({
       const m = Math.max(0, c.offsetHeight - a.clientHeight);
       setChatMax((prev) => (Math.abs(prev - m) > 1 ? m : prev));
     }
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
   });
+
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      measure();
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [measure]);
 
   const goNext = useCallback(() => {
     if (isLast) {
@@ -181,7 +211,7 @@ export default function TutorialOverlay({
   const sh = lr.h + pad * 2;
   const H = hlH || 150;
   const TOP = 54;
-  const BOT = 844 - 84 - 14 - 58 - 12 - H;
+  const BOT = stageH - 84 - 14 - 58 - 12 - H;
   let hlTop = lastHlTopRef.current;
   if (r) {
     const y1 = r.y - 8;
@@ -189,13 +219,13 @@ export default function TutorialOverlay({
     const ov = (a: number, c: number) => Math.max(0, Math.min(y2, c) - Math.max(y1, a));
     const oT = ov(TOP, TOP + H);
     const oB = ov(BOT, BOT + H);
-    if (oT === 0 && oB === 0) hlTop = (y1 + y2) / 2 > 422 ? TOP : BOT;
+    if (oT === 0 && oB === 0) hlTop = (y1 + y2) / 2 > stageH / 2 ? TOP : BOT;
     else hlTop = oT <= oB ? TOP : BOT;
   }
   lastHlTopRef.current = hlTop;
 
-  const NT = 844 - 84 - 14 - 58;
-  const nextTop = r && r.y + r.h + 8 > NT ? 844 - 14 - 58 : NT;
+  const NT = stageH - 84 - 14 - 58;
+  const nextTop = r && r.y + r.h + 8 > NT ? stageH - 14 - 58 : NT;
   const tapX = tapRect ? tapRect.x + tapRect.w / 2 : 0;
   const tapY = tapRect ? tapRect.y + tapRect.h / 2 : 0;
 
@@ -213,7 +243,7 @@ export default function TutorialOverlay({
       <div
         ref={stageRef}
         className={styles.stage}
-        style={{ '--tut-scale': scale } as React.CSSProperties}
+        style={{ '--tut-scale': scale, '--tut-h': `${stageH}px` } as React.CSSProperties}
       >
         <MockScreen state={state} chatMax={chatMax} />
 
@@ -232,8 +262,8 @@ export default function TutorialOverlay({
             opacity: r ? 1 : 0,
             // Prototype: 2000px. 900px still covers the 844px stage from any
             // spotlight position; 2000px triggers Chromium's huge-shadow
-            // tiling seams. Visually identical at this stage size.
-            boxShadow: `0 0 0 900px rgba(22,18,12,${state.st.dim === false ? 0 : 0.6})`,
+            // tiling seams. A taller stage gets just enough extra to cover it.
+            boxShadow: `0 0 0 ${Math.max(900, Math.ceil(stageH) + 50)}px rgba(22,18,12,${state.st.dim === false ? 0 : 0.6})`,
             transition:
               'left .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), width .55s cubic-bezier(.2,.8,.2,1), height .55s cubic-bezier(.2,.8,.2,1), border-radius .55s, opacity .4s, box-shadow .4s',
             pointerEvents: 'none',
