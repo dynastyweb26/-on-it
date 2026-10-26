@@ -35,6 +35,12 @@ export default function RecapsPage() {
 
   useEffect(() => { if (!RECAPS_LIVE || access === 'off') router.replace('/dashboard'); }, [access, router]);
 
+  // Design-diff gate hook: /recaps?paywall=reports opens the wall exactly as its
+  // own locked rows do, so the laptop card can be measured against the design.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('paywall') === 'reports') setPaywall(true);
+  }, []);
+
   useEffect(() => {
     if (access !== 'open' && access !== 'locked') return;
     const supabase = createClient();

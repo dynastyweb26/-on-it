@@ -169,7 +169,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     // started: the browser is on its way to the payment sheet; stay busy.
   }
 
-  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background xl:max-w-[400px]';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
   // Portaled to <body>: a `fixed inset-0` layer inside the app shell is
@@ -194,13 +194,13 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           card on a dimmed backdrop, capped in height, so the wall isn't a phone
           layout floating in a wide empty page. */}
       <div
-        className="flex h-full w-full max-w-md flex-col md:h-[min(100%,860px)] md:overflow-hidden md:rounded-[28px] md:bg-background md:shadow-[0_24px_64px_rgba(31,27,19,.35)]"
+        className="flex h-full w-full max-w-md flex-col md:h-[min(100%,860px)] md:overflow-hidden md:rounded-[28px] md:bg-background md:shadow-[0_24px_64px_rgba(31,27,19,.35)] xl:h-[760px] xl:w-[1040px] xl:max-w-none"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         {/* Header: dismiss, the app icon, and where you are in the steps. The
             way out is always the X at the left; going back a step is the
             footer's Back link. */}
-        <div className="flex shrink-0 flex-col items-center gap-2.5 px-3 pb-2.5 pt-3.5">
+        <div className="flex shrink-0 flex-col items-center gap-2.5 px-3 pb-2.5 pt-3.5 xl:gap-2.5 xl:px-5 xl:pb-2 xl:pt-4">
           <div className="grid w-full grid-cols-[44px_1fr_44px] items-center">
             <button
               type="button"
@@ -258,8 +258,8 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             with its disclosure. Steps aside while the code field is typing. */}
         <div
           data-kb-hide=""
-          className="flex shrink-0 flex-col items-center gap-2.5 border-t border-[#f0e7d8] bg-background px-5 pt-3.5"
-          style={{ paddingBottom: 'calc(22px + env(safe-area-inset-bottom))' }}
+          className="flex shrink-0 flex-col items-center gap-2.5 border-t border-[#f0e7d8] bg-background px-5 pt-3.5 xl:h-[89px] xl:px-6 xl:pb-0 xl:pt-[14px] xl:[--pw-pb:18px]"
+          style={{ paddingBottom: 'calc(var(--pw-pb, 22px) + env(safe-area-inset-bottom))' }}
         >
           {notice && (
             <p className="w-full rounded-input bg-surface-container p-3 text-center text-sm text-on-surface-variant">{notice}</p>

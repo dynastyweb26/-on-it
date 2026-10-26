@@ -1194,19 +1194,13 @@
         ]
       },
       "app": {
-        "path": "/dashboard",
+        "path": "/recaps?paywall=reports",
         "steps": [
           {
             "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
           },
           {
-            "wait": 2500
-          },
-          {
-            "eval": "document.querySelector('[data-paywall-open]')?.click()"
-          },
-          {
-            "wait": 1200
+            "wait": 3000
           }
         ]
       },
@@ -1288,19 +1282,13 @@
         ]
       },
       "app": {
-        "path": "/dashboard",
+        "path": "/recaps?paywall=reports",
         "steps": [
           {
             "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
           },
           {
-            "wait": 2500
-          },
-          {
-            "eval": "document.querySelector('[data-paywall-open]')?.click()"
-          },
-          {
-            "wait": 1200
+            "wait": 3000
           }
         ]
       },
