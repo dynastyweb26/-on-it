@@ -34,6 +34,16 @@
   box-sizing: border-box;
 }
 
+/* Screens ported after the chat mock keep the prototype's default content-box
+   model, so fixed-height bordered boxes measure exactly as they do there.
+   Declared after the stage rule, which wins on source order at equal weight. */
+.mockProtoScope,
+.mockProtoScope *,
+.mockProtoScope *::before,
+.mockProtoScope *::after {
+  box-sizing: content-box;
+}
+
 .unbutton {
   appearance: none;
   margin: 0;
