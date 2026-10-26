@@ -11,6 +11,7 @@
     "launch:build": "node scripts/build-launch-images.mjs",
     "splash:paths": "node scripts/build-splash-paths.mjs",
     "db:privcheck": "node scripts/privilege-check.mjs",
+    "design:diff": "node scripts/design-diff.mjs",
     "test": "node --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\""
   },
   "dependencies": {
