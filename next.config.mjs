@@ -36,6 +36,12 @@ const nextConfig = {
     config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
     return config;
   },
+  // Native wrapper build (NEXT_PUBLIC_NATIVE_WRAP=true): no PWA install page.
+  // Adds nothing when the flag is off.
+  redirects: async () =>
+    process.env.NEXT_PUBLIC_NATIVE_WRAP === 'true'
+      ? [{ source: '/install', destination: '/', permanent: false }]
+      : [],
   headers: async () => [
     {
       source: '/(.*)',
