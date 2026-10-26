@@ -77,24 +77,27 @@ export default function InstallBanner({ variant = 'bar' }: {
             <Icon name="install_mobile" size={22} />
           </Link>
         )}
-        {/* lg+: a card in the 288px sidebar: message on top, actions below. */}
-        <div className="hidden rounded-2xl border border-outline-variant/50 bg-surface-container p-4 lg:block">
+        {/* lg+: a card in the 288px sidebar: message on top, actions below.
+            xl: the design's compact card — one 13px block of text on two lines
+            beside the icon, the Install pill under it, no wrapping (the old card
+            broke this sentence one word per line in the narrow column). */}
+        <div className="hidden rounded-2xl border border-outline-variant/50 bg-surface-container p-4 lg:block xl:rounded-card xl:border-outline-variant/35 xl:bg-surface-container-lowest xl:p-3.5">
           <div className="flex items-start gap-3">
             <Icon name="install_mobile" size={24} className="mt-0.5 shrink-0 text-primary" />
-            <p className="min-w-0 flex-1 text-body-md text-on-background">
+            <p className="min-w-0 flex-1 text-body-md text-on-background xl:text-[13px] xl:leading-[1.35]">
               {canPrompt ? 'Install On It for faster access.' : 'Add On It to your home screen.'}
             </p>
           </div>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 xl:mt-2.5">
             {canPrompt ? (
-              <button onClick={() => promptInstall()} className={cardButton}>Install</button>
+              <button onClick={() => promptInstall()} className={`${cardButton} xl:h-8 xl:flex-none xl:whitespace-nowrap xl:px-3 xl:text-[13px]`}>Install</button>
             ) : (
-              <Link href="/install" className={cardButton}>Show how</Link>
+              <Link href="/install" className={`${cardButton} xl:h-8 xl:flex-none xl:whitespace-nowrap xl:px-3 xl:text-[13px]`}>Show how</Link>
             )}
             <button
               onClick={dismiss}
               aria-label="Dismiss install banner"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 xl:h-8 xl:w-8"
             >
               <Icon name="close" size={20} />
             </button>

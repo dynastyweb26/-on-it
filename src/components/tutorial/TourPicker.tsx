@@ -110,7 +110,7 @@ export default function TourPicker({ onPick, buttonClassName, children, align = 
           role="menu"
           aria-label="Pick a tutorial to watch"
           onKeyDown={onMenuKey}
-          className={`absolute top-full z-[80] mt-2 w-56 max-w-[calc(100vw-32px)] origin-top overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface py-1.5 shadow-xl ${align === 'right' ? 'right-0' : 'left-0'}`}
+          className={`absolute top-full z-[80] mt-2 w-56 max-w-[calc(100vw-32px)] origin-top overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface py-1.5 shadow-xl xl:w-[300px] xl:rounded-card xl:border-outline-variant/35 xl:bg-surface-container-lowest xl:p-2 xl:py-2 ${align === 'right' ? 'right-0' : 'left-0'}`}
         >
           <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             Watch a tutorial
@@ -122,7 +122,7 @@ export default function TourPicker({ onPick, buttonClassName, children, align = 
               type="button"
               role="menuitem"
               tabIndex={-1}
-              className="flex min-h-[44px] w-full items-center px-4 text-left text-base font-semibold text-on-background transition-colors hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none"
+              className="flex min-h-[44px] w-full items-center px-4 text-left text-base font-semibold text-on-background transition-colors hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none xl:h-[52px] xl:rounded-[14px] xl:px-3 xl:text-[15px]"
               onClick={() => { close(true); onPick(key); }}
             >
               {TUTORIALS[key].name}

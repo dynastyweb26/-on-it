@@ -500,23 +500,25 @@ export default function AppShell({
       {/* Tablet / desktop sidebar. md (768-1023, iPad portrait): an 80px icon
           rail so the content keeps ~690px. lg (1024+): the full 288px sidebar
           with labels. Phones have the bottom tab bar instead. */}
-      <aside className="hidden md:flex w-20 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-3 py-6 lg:px-5">
-        <div className="flex flex-col items-center gap-3 pb-6 pt-1 lg:flex-row lg:justify-between lg:gap-0 lg:px-1 lg:pb-8">
-          <span className="font-display text-2xl font-extrabold tracking-tight">
+      <aside className="hidden md:flex w-20 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-3 py-6 lg:px-5 xl:border-outline-variant/35 xl:px-5 xl:pb-5 xl:pt-7">
+        <div className="flex flex-col items-center gap-3 pb-6 pt-1 lg:flex-row lg:justify-between lg:gap-0 lg:px-1 lg:pb-8 xl:pb-7">
+          <span className="font-display text-2xl font-extrabold tracking-tight xl:text-[26px] xl:tracking-[-0.01em]">
             On<span className="hidden lg:inline"> It</span><span className="text-primary">.</span>
           </span>
           <TourPicker
             align="left"
             onPick={playTutorial}
             onButtonPress={endThrob}
-            buttonClassName={`inline-flex h-10 w-10 items-center justify-center rounded-button bg-primary-container text-on-background transition active:scale-95 lg:h-9 lg:w-auto lg:px-3 lg:text-xs lg:font-semibold${throbClass}`}
+            buttonClassName={`inline-flex h-10 w-10 items-center justify-center rounded-button bg-primary-container text-on-background transition active:scale-95 lg:h-9 lg:w-auto lg:px-3 lg:text-xs lg:font-semibold xl:gap-1.5 xl:px-3.5 xl:text-[13.5px]${throbClass}`}
           >
             <Icon name="help" size={22} className="lg:hidden" />
             <span className="sr-only lg:not-sr-only">How it works</span>
+            {/* The dropdown affordance the design shows beside the label. */}
+            <Icon name="expand_more" size={18} className="hidden xl:inline" />
           </TourPicker>
         </div>
 
-        <nav data-coach="side-nav" className="flex flex-col gap-2.5">
+        <nav data-coach="side-nav" className="flex flex-col gap-2.5 xl:gap-1">
           {TABS.map(({ href, label, icon }) => {
             const active = path.startsWith(href);
             return (
@@ -526,15 +528,15 @@ export default function AppShell({
                 aria-current={active ? 'page' : undefined}
                 aria-label={label}
                 title={label}
-                className={`relative flex items-center justify-center gap-3.5 rounded-2xl px-0 py-3.5 transition-colors lg:justify-start lg:px-4 ${
+                className={`relative flex items-center justify-center gap-3.5 rounded-2xl px-0 py-3.5 transition-colors lg:justify-start lg:px-4 xl:h-12 xl:gap-3.5 xl:py-0 ${
                   active
                     ? 'bg-primary-container font-bold text-on-background shadow-sm'
                     : 'font-semibold text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
-                <div className="relative flex items-center justify-center">
+                <div className="relative grid h-6 w-6 place-items-center">
                   <Icon name={icon} size={24} filled={active} />
-                  {href === '/dashboard' && <BooksDot />}
+                  {href === '/dashboard' && <BooksDot variant="side" />}
                 </div>
                 <span className="hidden text-base lg:inline">{label}</span>
                 {bump?.href === href && (
@@ -699,12 +701,16 @@ export default function AppShell({
 
 /** (14d) Books tab dot: an unwatched recap from the last 14 days. Red with a
  *  cream ring, top-right of the Books pill (release frames 0a). */
-function BooksDot() {
+function BooksDot({ variant = 'tab' }: { variant?: 'tab' | 'side' }) {
   const { unwatched } = useRecaps();
   if (!unwatched) return null;
+  // The 9px dot was measured against the bottom tab's 58px pill. Inside the
+  // sidebar/rail the icon box is 24px, so the same offsets put it off the icon;
+  // `side` pins it to the icon's top-right corner instead.
+  const pos = variant === 'side' ? '-right-1 -top-1' : 'right-[13px] top-0.5';
   return (
     <>
-      <span aria-hidden className="absolute right-[13px] top-0.5 h-[9px] w-[9px] rounded-full border-2 border-background bg-[#c8452c]" />
+      <span aria-hidden className={`absolute ${pos} h-[9px] w-[9px] rounded-full border-2 border-background bg-[#c8452c]`} />
       <span className="sr-only">, new recap</span>
     </>
   );

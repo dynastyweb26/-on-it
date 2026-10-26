@@ -253,7 +253,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false, "motionTimesMs": [0, 500, 1500] },
-        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-spot=\"composer\"]", "check": ["w", "h"], "animations": false },
         { "name": "next button", "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]", "app": "button[aria-label=\"Next scene\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
@@ -276,7 +276,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false, "motionTimesMs": [0, 500, 1500] },
-        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-coach=\"chat-composer\"]", "check": ["w", "h"], "animations": false },
+        { "name": "spotlight target (composer)", "design": "[data-spot=\"composer\"]", "app": "[data-spot=\"composer\"]", "check": ["w", "h"], "animations": false },
         { "name": "next button", "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]", "app": "button[aria-label=\"Next scene\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
@@ -294,7 +294,7 @@
         ]
       },
       "app": {
-        "path": "/invoices",
+        "path": "/chat",
         "steps": [
           { "wait": 2200 },
           { "click": "aside button[aria-haspopup=\"menu\"]" },
@@ -304,7 +304,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false },
-        { "name": "spotlight target (segment toggle)", "design": "[data-spot=\"segToggle\"]", "app": "[role=\"tablist\"][aria-label=\"Invoices or estimates\"]", "check": ["w", "h"], "animations": false }
+        { "name": "spotlight target (segment toggle)", "design": "[data-spot=\"segToggle\"]", "app": "[data-spot=\"segToggle\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
     },
@@ -321,7 +321,7 @@
         ]
       },
       "app": {
-        "path": "/clients",
+        "path": "/chat",
         "steps": [
           { "wait": 2200 },
           { "click": "aside button[aria-haspopup=\"menu\"]" },
@@ -331,7 +331,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false },
-        { "name": "spotlight target (search)", "design": "[data-spot=\"search\"]", "app": "label:has(> input[type=\"search\"])", "check": ["w", "h"], "animations": false }
+        { "name": "spotlight target (search)", "design": "[data-spot=\"search\"]", "app": "[data-spot=\"search\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
     },
@@ -348,7 +348,7 @@
         ]
       },
       "app": {
-        "path": "/dashboard",
+        "path": "/chat",
         "steps": [
           { "wait": 2600 },
           { "click": "aside button[aria-haspopup=\"menu\"]" },
@@ -358,7 +358,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false },
-        { "name": "spotlight target (net card)", "design": "[data-coach=\"books-net\"]", "app": "[data-coach=\"books-net\"]", "check": ["w", "h"], "animations": false }
+        { "name": "spotlight target (net card)", "design": "[data-spot=\"net\"]", "app": "[data-spot=\"net\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
     },
@@ -375,7 +375,7 @@
         ]
       },
       "app": {
-        "path": "/settings",
+        "path": "/chat",
         "steps": [
           { "wait": 2200 },
           { "click": "aside button[aria-haspopup=\"menu\"]" },
@@ -385,7 +385,7 @@
       },
       "pairs": [
         { "name": "callout card", "design": "[data-hl=\"1\"]", "app": "div[data-hl]", "check": ["w", "h"], "animations": false },
-        { "name": "spotlight target (payment options)", "design": "[data-coach=\"settings-payouts\"]", "app": "[data-coach=\"settings-payouts\"]", "check": ["w", "h"], "animations": false }
+        { "name": "spotlight target (payment options)", "design": "[data-spot=\"paymentRow\"]", "app": "[data-spot=\"paymentRow\"]", "check": ["w", "h"], "animations": false }
       ],
       "maxPixelDiffPct": null
     }
