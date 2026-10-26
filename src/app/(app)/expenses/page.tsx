@@ -16,6 +16,7 @@ import DateDivider from '@/components/DateDivider';
 import { SortCaption } from '@/components/SortToggle';
 import SegmentedControl from '@/components/SegmentedControl';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
+import PageHeader from '@/components/layout/PageHeader';
 import { groupByPeriod } from '@/lib/date-groups';
 import { EXPENSES_SORT_KEY, readExpenseGrouping, readListSort, sortWithinGroups, writeExpenseGrouping, writeListSort, type ExpenseGrouping, type ListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
@@ -205,17 +206,28 @@ export default function Books() {
     }
   }
 
+  const addButton = (
+    <button aria-label="Add expense" onClick={() => setAdding(true)}
+      className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
+      <Icon name="add" size={24} />
+    </button>
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-4 pb-4 pt-2 md:px-6">
       {/* Release frames 4b: title + gold "+" (the same Add expense sheet as
-          Books), search, Week / Month + sort, then the groups. */}
-      <div className="flex items-center justify-between px-1 pb-2.5">
-        <h1 className="font-display text-[28px] font-extrabold leading-tight">Expenses</h1>
-        <button aria-label="Add expense" onClick={() => setAdding(true)}
-          className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
-          <Icon name="add" size={24} />
-        </button>
-      </div>
+          Books), search, Week / Month + sort, then the groups. Laptop (xl) puts
+          the title and the + on one shared 40px page-header row. */}
+      <PageHeader
+        title="Expenses"
+        actions={addButton}
+        legacy={
+          <div className="flex items-center justify-between px-1 pb-2.5">
+            <h1 className="font-display text-[28px] font-extrabold leading-tight">Expenses</h1>
+            {addButton}
+          </div>
+        }
+      />
       {loading ? (
         <ExpensesSkeleton />
       ) : (

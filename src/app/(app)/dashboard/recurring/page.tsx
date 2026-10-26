@@ -12,8 +12,9 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import UndoToast from '@/components/UndoToast';
 import { AlphaSections, ListRow, ListSkeleton, RowMenu } from '@/components/lists/SavedList';
-import { createClient } from '@/lib/supabase/client';
 import { groupByLetter } from '@/lib/clients';
+import { createClient } from '@/lib/supabase/client';
+import PageHeader from '@/components/layout/PageHeader';
 import { money } from '@/lib/financials';
 import {
   RECURRING_COLS, RECURRING_PATH, dayTag, localToday, monthlyTotal, nextLine, normalizeRecurring, recurringSubtitle,
@@ -64,14 +65,23 @@ export default function RecurringPage() {
     if (error) setRows((rs) => (rs ?? []).filter((x) => x.id !== r.id));
   }
 
+  const addButton = (
+    <button type="button" aria-label="New recurring expense" onClick={add}
+      className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
+      <Icon name="add" size={24} />
+    </button>
+  );
   const header = (
-    <div className="flex items-center justify-between px-1 pb-3">
-      <h1 className="flex items-center gap-2.5 font-display text-[28px] font-extrabold leading-tight">Recurring expenses</h1>
-      <button type="button" aria-label="New recurring expense" onClick={add}
-        className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90">
-        <Icon name="add" size={24} />
-      </button>
-    </div>
+    <PageHeader
+      title="Recurring expenses"
+      actions={addButton}
+      legacy={
+        <div className="flex items-center justify-between px-1 pb-3">
+          <h1 className="flex items-center gap-2.5 font-display text-[28px] font-extrabold leading-tight">Recurring expenses</h1>
+          {addButton}
+        </div>
+      }
+    />
   );
 
   if (rows === null) return <div className="px-4 pt-2">{header}<ListSkeleton /></div>;
