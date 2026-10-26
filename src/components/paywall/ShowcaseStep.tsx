@@ -1,14 +1,28 @@
 'use client';
-// Step 1 · What you win — the mockup's reason pill over the scene the wall
-// opens on, with the reel's track at rest. Artwork only for now: the four
-// scenes live in ShowcaseScenes.tsx, and the 4.2s reel, the oi-* keyframes and
-// the step's entrance are their own commits.
+// Step 1 · What you win — the mockup's reel: one scene per 4.2s, a track that
+// belongs to the current scene and a dot per scene behind it. The wall opens
+// on the scene its variant names (START_SCENE in PaywallModal), so an estimate
+// limit lands on the estimate story.
 //
-// The opening scene follows the wall's variant (START_SLIDE in PaywallModal),
-// so an estimate cap opens on the estimate story again; a scene that the build
-// does not carry (recaps off) falls back to the first one.
+// The reel is the only thing timing this step; each scene is a static artwork
+// until the oi-* keyframes land, and the step's own entrance is its own commit.
+// Reduce Motion turns the reel off (no auto-advance); the dots still switch
+// scenes, because that is the user's own tap, and every scene then renders its
+// resting state.
+import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import ShowcaseScene, { SCENES, type SceneId } from '@/components/paywall/ShowcaseScenes';
+import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
+
+/** The mockup's beat: one scene per 4.2s, its track filling the whole time. */
+const REEL_MS = 4200;
+
+const SCENE_LABEL: Record<SceneId, string> = {
+  invoice: 'Invoice',
+  estimate: 'Estimate',
+  payments: 'Payment apps',
+  recap: 'Recap',
+};
 
 export default function ShowcaseStep({
   reason,
@@ -19,8 +33,17 @@ export default function ShowcaseStep({
   /** The scene this wall opens on — always one of SCENES. */
   start: SceneId;
 }) {
-  const scene = SCENES.includes(start) ? start : SCENES[0];
-  const active = SCENES.indexOf(scene);
+  const [idx, setIdx] = useState(() => Math.max(0, SCENES.indexOf(start)));
+  const reduced = usePrefersReducedMotion();
+  const scene = SCENES[Math.min(idx, SCENES.length - 1)];
+
+  // One beat per scene, then the next one (wrapping). Reduce Motion: no
+  // auto-advance at all — the reel rests on the opening scene.
+  useEffect(() => {
+    if (reduced) return;
+    const t = setTimeout(() => setIdx((i) => (i + 1) % SCENES.length), REEL_MS);
+    return () => clearTimeout(t);
+  }, [idx, reduced]);
 
   return (
     <div className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1">
@@ -35,20 +58,26 @@ export default function ShowcaseStep({
         <ShowcaseScene id={scene} key={scene} />
       </div>
 
-      {/* The reel, at rest: the opening scene's track (not yet filling) and a
-          dot per scene behind it. The 4.2s fill and the scene swap come with
-          the reel; the slots are already the mockup's tap areas. */}
-      <div aria-hidden className="flex items-center gap-0.5">
+      {/* The reel: the current scene's 24×6 track, then a 6×6 dot per scene.
+          A tap jumps to that scene and restarts the beat. */}
+      <div role="group" aria-label="Reel" className="flex items-center gap-0.5">
         {SCENES.map((id, i) => (
-          <span key={id} className="flex px-[3px] py-[10px]">
+          <button
+            key={id}
+            type="button"
+            aria-label={SCENE_LABEL[id]}
+            aria-current={i === idx ? 'true' : undefined}
+            onClick={() => setIdx(i)}
+            className="flex cursor-pointer border-0 bg-transparent px-[3px] py-[10px] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
             <span
               className={
-                i === active
+                i === idx
                   ? 'block h-1.5 w-6 rounded-full bg-reel'
                   : 'block h-1.5 w-1.5 rounded-full bg-reel'
               }
             />
-          </span>
+          </button>
         ))}
       </div>
     </div>
