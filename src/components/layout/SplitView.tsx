@@ -5,8 +5,9 @@ import type { ReactNode } from 'react';
 // scroll, from xl (1280) up. Below xl it renders the list alone — a tap still
 // opens the full detail route, exactly as today.
 //
-// Widths come from the design's measured master column (392 at 1280, 440 at
-// 1440+), not from the content area: this round is viewport-breakpoint driven.
+// Widths come from the design's measured master column (440 at every xl size;
+// its 24 left + 20 right padding leaves the 396px card the design draws), not
+// from the content area: this round is viewport-breakpoint driven.
 //
 // Do NOT wrap this in a container query: a `container-type` element becomes the
 // containing block for fixed children, which would break the sheets inside the
@@ -28,7 +29,7 @@ export default function SplitView({
   return (
     <div
       data-split-view=""
-      className={`xl:grid xl:h-full xl:min-h-0 xl:grid-cols-[392px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)] ${className}`.trim()}
+      className={`xl:grid xl:h-full xl:min-h-0 xl:grid-cols-[440px_minmax(0,1fr)] ${className}`.trim()}
     >
       {/* Pane paddings are the design's: 24 top, 24 left, 20 right, and a
           hairline on the seam. No bottom padding — the pane scrolls. */}
