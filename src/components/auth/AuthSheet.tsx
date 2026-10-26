@@ -46,10 +46,10 @@ export default function AuthSheet({ entry, auth, onClose }: {
   const label = 'text-[13px] font-semibold leading-[18px] text-on-surface-variant';
 
   return (
-    <div data-kb-fit className="fixed inset-0 z-[80] flex items-end justify-center bg-on-background/45" onClick={onClose}>
+    <div data-kb-fit className="fixed inset-0 z-[80] flex items-end md:items-center md:p-6 justify-center bg-on-background/45" onClick={onClose}>
       <div
         role="dialog" aria-modal="true" aria-label={title}
-        className="max-h-full w-full max-w-lg overflow-y-auto rounded-t-[20px] bg-background pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-card-raised"
+        className="max-h-full w-full max-w-lg overflow-y-auto rounded-t-[20px] md:rounded-[20px] bg-background pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-card-raised"
         style={{ animation: 'onit-sheet-in var(--motion-slow) var(--ease-standard) both' }}
         onClick={(e) => e.stopPropagation()}
       >

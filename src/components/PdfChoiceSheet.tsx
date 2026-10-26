@@ -16,14 +16,14 @@ export default function PdfChoiceSheet({ kind, onPick, onClose }: {
   const title = kind === 'expenses' ? 'Expenses PDF' : 'Income PDF';
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-on-background/45"
+      className="fixed inset-0 z-[80] flex items-end md:items-center md:p-6 justify-center bg-on-background/45"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-lg rounded-t-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
+        className="w-full max-w-lg rounded-t-card md:rounded-card bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
         style={{ animation: 'paywall-in 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >

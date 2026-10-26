@@ -723,9 +723,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         // host read dynamically so the link survives the custom-domain move
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
         return (
-          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setInviteOpen(false)}>
+          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={() => setInviteOpen(false)}>
           <div role="dialog" aria-label="Invite a contractor"
-            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card md:rounded-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Invite a contractor</h2>

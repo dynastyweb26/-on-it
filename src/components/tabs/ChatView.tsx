@@ -4249,12 +4249,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       )}
 
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
+        <div className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Recent conversations"
-            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card md:rounded-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-3 font-display text-lg font-bold">Recent conversations</h2>
