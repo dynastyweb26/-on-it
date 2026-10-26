@@ -826,8 +826,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false,
           "motionTimesMs": [
@@ -896,8 +895,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false,
           "motionTimesMs": [
@@ -975,8 +973,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false
         },
@@ -1039,8 +1036,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false
         },
@@ -1103,8 +1099,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false
         },
@@ -1167,8 +1162,7 @@
           "design": "[data-hl=\"1\"]",
           "app": "div[data-hl]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false
         },

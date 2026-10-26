@@ -564,7 +564,7 @@ export default function TutorialOverlay({
           </div>
         )}
 
-        {finished && !compact && (
+        {(finished || wide) && !compact && (
           <button
             type="button"
             onClick={goNext}
