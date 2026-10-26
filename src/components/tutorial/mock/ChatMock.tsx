@@ -1041,9 +1041,10 @@ export default function ChatMock({
             <div
               style={{
                 position: 'absolute',
-                // Laptop: centred in the 1152 content area (past the 288 sidebar)
-                // so the 612 composer lands at the design's x, 44 tall.
-                left: laptop ? 288 : 0,
+                // Laptop: this render already sits inside the 1152 content area,
+                // so centring the 44 + 8 + 612 + 8 + 44 row here puts the composer
+                // at the design's x, 44 tall.
+                left: 0,
                 right: 0,
                 bottom: 0,
                 height: laptop ? 64 : 72,
