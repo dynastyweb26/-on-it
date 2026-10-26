@@ -7,10 +7,13 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback' | 'estimate_view' | 'estimate_sign' | 'estimate_upload' | 'estimate_edit' | 'prompts';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback' | 'estimate_view' | 'estimate_sign' | 'estimate_upload' | 'estimate_edit' | 'prompts' | 'invoice_send';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
+  // Marking an invoice as sent (POST /api/invoices/[id]/send) — keyed by user.
+  // A contractor sends an invoice once or twice; 10/min prevents automated loops/spam.
+  invoice_send:   { tokens: 10, window: '60 s' },
   parse:          { tokens: 20, window: '60 s' },
   // Vision costs meaningfully more per call than a text parse, and a human
   // photographing receipts can't outpace 10/min. Tighter on purpose.
