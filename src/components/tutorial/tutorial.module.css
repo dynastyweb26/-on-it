@@ -1,0 +1,426 @@
+/* Scoped player chrome. Every visual value below is lifted from the prototype
+   (On It Tutorials.html). The stage is the prototype's 390 × 844 phone screen,
+   not the outer demo harness (bezel/shadow). */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: #fdf7ee;
+  color: #1e1a14;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.safeArea {
+  position: absolute;
+  inset: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  flex: none;
+  width: 390px;
+  height: var(--tut-h, 844px);
+  overflow: hidden;
+  background: #fdf7ee;
+  isolation: isolate;
+  transform: scale(var(--tut-scale, 1));
+  transform-origin: center center;
+}
+
+.stage *,
+.stage *::before,
+.stage *::after {
+  box-sizing: border-box;
+}
+
+/* Screens ported after the chat mock keep the prototype's default content-box
+   model, so fixed-height bordered boxes measure exactly as they do there.
+   Declared after the stage rule, which wins on source order at equal weight. */
+.mockProtoScope,
+.mockProtoScope *,
+.mockProtoScope *::before,
+.mockProtoScope *::after {
+  box-sizing: content-box;
+}
+
+.unbutton {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.unbutton:focus-visible {
+  outline: 2px solid #e6c65a;
+  outline-offset: 3px;
+}
+
+.aScrIn {
+  animation: scrIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aSlideIn {
+  animation: slideIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aCardIn {
+  animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aCardIn55 {
+  animation: cardIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aCardIn6 {
+  animation: cardIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aCard05 {
+  animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+}
+/* Payment options: the prototype leaves these on the CSS default easing. */
+.aPayCard {
+  animation: cardIn 0.45s 0.1s both;
+}
+.aPayBank {
+  animation: cardIn 0.45s 0.18s both;
+}
+.aPayApps {
+  animation: cardIn 0.45s 0.26s both;
+}
+.aCard12 {
+  animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
+}
+.aCard19 {
+  animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.19s both;
+}
+.aPop3 {
+  animation: pop 0.3s both;
+}
+.aPop35 {
+  animation: pop 0.35s both;
+}
+.aPop4 {
+  animation: pop 0.4s both;
+}
+.aPop45 {
+  animation: pop 0.45s both;
+}
+.aPop5 {
+  animation: pop 0.5s both;
+}
+.aFade3 {
+  animation: fadeIn 0.3s both;
+}
+.aFade35 {
+  animation: fadeIn 0.35s both;
+}
+.aFade4 {
+  animation: fadeIn 0.4s both;
+}
+.aMenu0 {
+  animation: menuIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0s both;
+}
+.aMenu05 {
+  animation: menuIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+}
+.aMenu1 {
+  animation: menuIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+.aMenu15 {
+  animation: menuIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+.aBlink {
+  animation: blink 1s steps(1) infinite;
+}
+.aRing {
+  animation: ringPulse 1.6s ease-out infinite;
+}
+.aRipple15 {
+  animation: ripple 0.9s ease-out 0.15s both;
+}
+.aRipple35 {
+  animation: ripple 0.9s ease-out 0.35s both;
+}
+.aPress {
+  animation: press 0.6s ease-out both;
+}
+.aFlash {
+  animation: flash 0.5s ease-out both;
+}
+.aScan {
+  animation: scan 1.1s ease-in-out 0.2s 2 both;
+}
+.aHl {
+  animation: hlIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aVeil {
+  animation: veil 0.5s ease-out both;
+}
+.aSheet {
+  animation: sheetUp 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.aPrice {
+  animation:
+    pop 0.4s both,
+    glow 1s 0.35s 2;
+}
+.aTwinkle {
+  animation: twinkle 0.8s ease-in-out 3;
+}
+.aNext {
+  animation:
+    nextIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    nextPulse 1.8s ease-in-out 0.8s infinite;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes scrIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(44px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ringPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(230, 198, 90, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(230, 198, 90, 0);
+  }
+}
+
+@keyframes ripple {
+  from {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes press {
+  0% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(0.8);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.95;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: 100%;
+  }
+}
+
+@keyframes hlIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes veil {
+  from {
+    opacity: 0.92;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(212, 175, 55, 0);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0);
+  }
+  50% {
+    transform: scale(1.3) rotate(14deg);
+  }
+}
+
+@keyframes nextIn {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1.07);
+  }
+  80% {
+    transform: scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nextPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 14px 30px -8px rgba(20, 16, 10, 0.55),
+      0 0 18px rgba(230, 198, 90, 0.35),
+      0 0 0 0 rgba(230, 198, 90, 0.6);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow:
+      0 18px 36px -8px rgba(20, 16, 10, 0.55),
+      0 0 30px rgba(230, 198, 90, 0.65),
+      0 0 0 10px rgba(230, 198, 90, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage *,
+  .stage *::before,
+  .stage *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

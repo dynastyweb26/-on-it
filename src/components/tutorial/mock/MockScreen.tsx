@@ -1,0 +1,25 @@
+import type { SceneState } from '../player-state';
+import BooksMock from './BooksMock';
+import ChatMock from './ChatMock';
+import ClientsMock from './ClientsMock';
+import InvoicesMock from './InvoicesMock';
+import SettingsMock from './SettingsMock';
+
+// `nudge` is the overlay's auto-scroll: px added to the scrolling area's translateY
+// so the spotlight target stays inside the visible content area.
+export function MockScreen({
+  state,
+  chatMax,
+  nudge,
+}: {
+  state: SceneState;
+  chatMax: number;
+  nudge: number;
+}) {
+  if (state.screen === 'chat') return <ChatMock state={state} chatMax={chatMax} nudge={nudge} />;
+  if (state.tabNow === 'invoices') return <InvoicesMock state={state} />;
+  if (state.tabNow === 'clients') return <ClientsMock state={state} />;
+  if (state.tabNow === 'books') return <BooksMock state={state} nudge={nudge} />;
+  if (state.tabNow === 'settings') return <SettingsMock state={state} />;
+  return null;
+}

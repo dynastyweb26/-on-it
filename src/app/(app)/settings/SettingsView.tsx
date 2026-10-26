@@ -993,7 +993,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
       {is('help') && (
         <SettingsGroup title="Help">
-          {/* Opens the same tab picker as the header "How On It works" pill. */}
+          {/* Opens the same tutorial picker as the header "How On It works" pill. */}
           <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_PICKER))} />
           <SettingsRow icon="chat_bubble" title="Tell us about On It" href="/settings/help/feedback" />
           {/* §L Q9 */}

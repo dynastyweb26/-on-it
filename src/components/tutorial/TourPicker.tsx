@@ -1,8 +1,8 @@
 'use client';
-/* ═══ TourPicker — "How On It works" button + tab picker dropdown ═══
-   The ONLY entry point to the coach-mark tours. Lists the five tabs; picking
-   one calls onPick(tourKey) and the layout navigates there, waits for the
-   tab's targets to mount and runs just that tab's tour.
+/* ═══ TourPicker — "How On It works" button + tutorial picker dropdown ═══
+   Lists the five tutorials (data.ts), the tab you are on first; picking one
+   calls onPick(tab) and the shell plays it in the full-screen overlay (no
+   navigation).
 
    One component, used for every "How On It works" button (header pill on
    phones, sidebar pill from md up). Settings › Help › "Replay the
@@ -15,12 +15,15 @@
    tap closes it. Every item is ≥44px tall. */
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { TOURS, TOUR_TABS } from './coach-marks';
+import { usePathname } from 'next/navigation';
+import type { TutorialTab } from '@/lib/tutorial-seen';
+import { TUTORIALS } from './data';
+import { tabAt } from './TutorialHost';
 
 export const OPEN_TOUR_PICKER = 'onit-open-tour-picker';
 
 interface Props {
-  onPick: (tourKey: string) => void;
+  onPick: (tab: TutorialTab) => void;
   /** Classes for the trigger button (each placement keeps its own look). */
   buttonClassName: string;
   children: ReactNode;
@@ -36,6 +39,10 @@ export default function TourPicker({ onPick, buttonClassName, children, align = 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const menuId = useId();
+  const current = tabAt(usePathname());
+  const tabs = (Object.keys(TUTORIALS) as TutorialTab[]).sort(
+    (a, b) => Number(b === current) - Number(a === current),
+  );
 
   const close = useCallback((refocus: boolean) => {
     setOpen(false);
@@ -101,14 +108,14 @@ export default function TourPicker({ onPick, buttonClassName, children, align = 
         <div
           id={menuId}
           role="menu"
-          aria-label="Pick a tab to tour"
+          aria-label="Pick a tutorial to watch"
           onKeyDown={onMenuKey}
           className={`absolute top-full z-[80] mt-2 w-56 max-w-[calc(100vw-32px)] origin-top overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface py-1.5 shadow-xl ${align === 'right' ? 'right-0' : 'left-0'}`}
         >
           <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
-            Show me around
+            Watch a tutorial
           </p>
-          {TOUR_TABS.map((key, i) => (
+          {tabs.map((key, i) => (
             <button
               key={key}
               ref={(el) => { itemRefs.current[i] = el; }}
@@ -118,7 +125,7 @@ export default function TourPicker({ onPick, buttonClassName, children, align = 
               className="flex min-h-[44px] w-full items-center px-4 text-left text-base font-semibold text-on-background transition-colors hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none"
               onClick={() => { close(true); onPick(key); }}
             >
-              {TOURS[key].name}
+              {TUTORIALS[key].name}
             </button>
           ))}
         </div>

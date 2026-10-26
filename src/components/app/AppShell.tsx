@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { CAMERA_TIP, TOURS } from '@/components/tutorial/coach-marks';
+import { CAMERA_TIP } from '@/components/tutorial/coach-marks';
+import type { TutorialTab } from '@/lib/tutorial-seen';
 import TourPicker from '@/components/tutorial/TourPicker';
+import TutorialHost from '@/components/tutorial/TutorialHost';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import BackButton from '@/components/BackButton';
@@ -16,6 +18,7 @@ import TabDeck from '@/components/tabs/TabDeck';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
+import { ENABLE_CAMERA_ANIMATION } from '@/lib/feature-flags';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import { reducedMotion } from '@/lib/list-motion';
@@ -122,6 +125,19 @@ export default function AppShell({
   const [bounceIdx, setBounceIdx] = useState(-1);
   // M2 (2·13): a saved client / item lands on a tab — bump + "+1".
   const [bump, setBump] = useState<{ href: string; n: number } | null>(null);
+  // The in-app walkthrough is a full-screen layer owned by TutorialHost. The
+  // recap prompt must never open over it (same rule the old tour had).
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setTutorialOpen(true);
+    const onClose = () => setTutorialOpen(false);
+    window.addEventListener('onit:tutorial-open', onOpen);
+    window.addEventListener('onit:tutorial-close', onClose);
+    return () => {
+      window.removeEventListener('onit:tutorial-open', onOpen);
+      window.removeEventListener('onit:tutorial-close', onClose);
+    };
+  }, []);
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const onBump = (e: Event) => {
@@ -275,9 +291,6 @@ export default function AppShell({
   // Back from Stripe Checkout (?upgraded=1) on ANY tab, e.g. /invoices: record
   // it and start the unlock poll. A no-op when a page already handled it.
   useEffect(() => { noteUpgradeReturn(); }, []);
-  // The full coach-marks tour that is running (a TOURS key), or null. Full
-  // tours are on-demand only; the one-step camera tip is separate below.
-  const [coachTab, setCoachTab] = useState<string | null>(null);
   // First-sign-in camera tip: signed-in only, offered exactly once. `seenAt`
   // stays undefined until the profile answers (or when the DB column is not
   // applied yet), so an unknown account never auto-starts anything.
@@ -287,6 +300,13 @@ export default function AppShell({
   const cameraUserId = useRef<string | null>(null);
   const cameraCheckSeq = useRef(0);
   const checkCameraTutorial = useCallback(async (userId: string | null) => {
+    if (!ENABLE_CAMERA_ANIMATION) {
+      // Vaulted: do not read the profile, start the timer or render the tip.
+      cameraUserId.current = null;
+      setCameraSeenAt(undefined);
+      setCameraTip(false);
+      return;
+    }
     const seq = ++cameraCheckSeq.current;
     cameraUserId.current = userId;
     if (!userId) {
@@ -322,7 +342,6 @@ export default function AppShell({
     })();
   }, [checkCameraTutorial]);
 
-  const closeCoachMarks = useCallback(() => setCoachTab(null), []);
   const closeCameraTip = useCallback(() => setCameraTip(false), []);
 
   // Offer the one-time camera tip only when Chat is actually ready: signed in,
@@ -330,7 +349,7 @@ export default function AppShell({
   // visible. While an overlay or the target resolves, re-check rather than
   // starting underneath it.
   useEffect(() => {
-    if (cameraTip) return;
+    if (!ENABLE_CAMERA_ANIMATION || cameraTip) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tick = () => {
@@ -339,7 +358,7 @@ export default function AppShell({
         signedIn,
         seenAt: cameraSeenAt,
         path,
-        coachOpen: coachTab !== null,
+        coachOpen: tutorialOpen,
         overlayOpen: isVisible(OVERLAY_SELECTOR),
         targetVisible: isVisible(CAMERA_TUTORIAL_TARGET),
       });
@@ -363,7 +382,7 @@ export default function AppShell({
         }
         return;
       }
-      if (signedIn && cameraSeenAt === null && path === '/chat' && coachTab === null) {
+      if (signedIn && cameraSeenAt === null && path === '/chat' && !tutorialOpen) {
         timer = setTimeout(tick, 300);
       }
     };
@@ -372,7 +391,7 @@ export default function AppShell({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [cameraSeenAt, cameraTip, coachTab, path, signedIn]);
+  }, [cameraSeenAt, cameraTip, path, signedIn, tutorialOpen]);
 
   // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
   const [throb, setThrob] = useState(false);
@@ -419,38 +438,11 @@ export default function AppShell({
   }, [startThrob, checkCameraTutorial]);
   const throbClass = throb ? ' onit-help-throb' : '';
 
-  // Tab picker → go to that tab, wait for its first target, run its tour.
-  // pendingTour holds the pick across the navigation; a newer pick or any
-  // other navigation simply replaces / abandons it.
-  const pendingTour = useRef<string | null>(null);
-  const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runWhenMounted = useCallback((tab: string) => {
-    if (waitTimer.current) clearTimeout(waitTimer.current);
-    const selector = TOURS[tab].steps[0].selector;
-    const started = Date.now();
-    const tick = () => {
-      if (window.location.pathname !== tab) return; // navigated elsewhere — drop it
-      const ready = Array.from(document.querySelectorAll(selector))
-        .some((el) => el.getClientRects().length > 0);
-      // Start anyway after 4s: the overlay keeps looking for the target.
-      if (ready || Date.now() - started > 4000) setCoachTab(tab);
-      else waitTimer.current = setTimeout(tick, 80);
-    };
-    tick();
+  // Picker pick: the host plays that tutorial in the overlay. The player never
+  // navigates; it plays over whatever tab you are on.
+  const playTutorial = useCallback((tab: TutorialTab) => {
+    window.dispatchEvent(new CustomEvent('onit:tutorial-play', { detail: tab }));
   }, []);
-  function startTour(tab: string) {
-    setCoachTab(null);
-    setCameraTip(false); // a deliberate tour replaces the first-sign-in tip
-    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); return; }
-    pendingTour.current = tab;
-    router.push(tab);
-  }
-  useEffect(() => {
-    const tab = pendingTour.current;
-    if (!tab) return;
-    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); }
-  }, [path, runWhenMounted]);
-  useEffect(() => () => { if (waitTimer.current) clearTimeout(waitTimer.current); }, []);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -503,7 +495,7 @@ export default function AppShell({
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={coachTab !== null || cameraTip}>
+      <RecapProvider suppressed={cameraTip || tutorialOpen}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -513,7 +505,7 @@ export default function AppShell({
           </span>
           <TourPicker
             align="left"
-            onPick={startTour}
+            onPick={playTutorial}
             onButtonPress={endThrob}
             buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
           >
@@ -585,7 +577,7 @@ export default function AppShell({
               )}
               <div className="md:hidden">
                 <TourPicker
-                  onPick={startTour}
+                  onPick={playTutorial}
                   onButtonPress={endThrob}
                   buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
                 >
@@ -602,7 +594,7 @@ export default function AppShell({
               </span>
             </div>
             <TourPicker
-              onPick={startTour}
+              onPick={playTutorial}
               onButtonPress={endThrob}
               buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
             >
@@ -611,8 +603,7 @@ export default function AppShell({
           </header>
         )}
 
-        {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
-        {cameraTip && (
+        {ENABLE_CAMERA_ANIMATION && cameraTip && (
           <CoachMarks
             key="camera-tip"
             tab="/chat"
@@ -621,6 +612,7 @@ export default function AppShell({
             onDone={closeCameraTip}
           />
         )}
+        <TutorialHost />
 
         {exactTab >= 0 ? (
           <main className="min-h-0 flex-1 overflow-hidden">
