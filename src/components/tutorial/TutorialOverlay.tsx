@@ -37,6 +37,7 @@ export default function TutorialOverlay({
   const reducedMotion = usePrefersReducedMotion();
 
   const stageRef = useRef<HTMLDivElement>(null);
+  const safeRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const t0Ref = useRef(0);
   const tRef = useRef(0);
@@ -52,9 +53,11 @@ export default function TutorialOverlay({
   // the real app has. At 390 × 844 the scale is exactly 1.
   useEffect(() => {
     const update = () => {
-      const vv = window.visualViewport;
-      const w = vv?.width ?? window.innerWidth;
-      const h = vv?.height ?? window.innerHeight;
+      const el = safeRef.current;
+      if (!el) return;
+      const cs = getComputedStyle(el);
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       setScale(Math.min(w / 390, h / 844));
     };
     update();
@@ -210,12 +213,13 @@ export default function TutorialOverlay({
       className={styles.root}
       style={{ outline: 'none' }}
     >
-      <div
-        ref={stageRef}
-        className={styles.stage}
-        style={{ '--tut-scale': scale } as React.CSSProperties}
-      >
-        <MockScreen state={state} chatMax={chatMax} />
+      <div ref={safeRef} className={styles.safeArea}>
+        <div
+          ref={stageRef}
+          className={styles.stage}
+          style={{ '--tut-scale': scale } as React.CSSProperties}
+        >
+          <MockScreen state={state} chatMax={chatMax} />
 
         <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
           <div key={sceneIndex} className={styles.aVeil} style={{ position: 'absolute', inset: 0, background: '#FDF7EE', pointerEvents: 'none' }} />
@@ -433,6 +437,7 @@ export default function TutorialOverlay({
         </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
