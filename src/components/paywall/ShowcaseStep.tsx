@@ -4,11 +4,11 @@
 // on the scene its variant names (START_SCENE in PaywallModal), so an estimate
 // limit lands on the estimate story.
 //
-// The reel is the only thing timing this step; each scene is a static artwork
-// until the oi-* keyframes land, and the step's own entrance is its own commit.
-// Reduce Motion turns the reel off (no auto-advance); the dots still switch
-// scenes, because that is the user's own tap, and every scene then renders its
-// resting state.
+// The track fills over the same 4.2s the timer runs (oi-bar, globals.css), and
+// it restarts on every scene. Reduce Motion turns the reel off (no
+// auto-advance) and, with animations killed, leaves the track empty and each
+// scene in its resting state; the dots still switch scenes, because that is the
+// user's own tap.
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import ShowcaseScene, { SCENES, type SceneId } from '@/components/paywall/ShowcaseScenes';
@@ -58,8 +58,9 @@ export default function ShowcaseStep({
         <ShowcaseScene id={scene} key={scene} />
       </div>
 
-      {/* The reel: the current scene's 24×6 track, then a 6×6 dot per scene.
-          A tap jumps to that scene and restarts the beat. */}
+      {/* The reel: the current scene's 24×6 track, filling as the scene reads,
+          then a 6×6 dot per scene. A tap jumps to that scene and restarts the
+          beat. */}
       <div role="group" aria-label="Reel" className="flex items-center gap-0.5">
         {SCENES.map((id, i) => (
           <button
@@ -70,13 +71,19 @@ export default function ShowcaseStep({
             onClick={() => setIdx(i)}
             className="flex cursor-pointer border-0 bg-transparent px-[3px] py-[10px] outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <span
-              className={
-                i === idx
-                  ? 'block h-1.5 w-6 rounded-full bg-reel'
-                  : 'block h-1.5 w-1.5 rounded-full bg-reel'
-              }
-            />
+            {i === idx ? (
+              <span className="block h-1.5 w-6 overflow-hidden rounded-full bg-reel">
+                {/* The beat's fill, restarted on every scene (key). Resting
+                    state is the empty track, so Reduce Motion leaves it so. */}
+                <span
+                  key={idx}
+                  className="block h-full w-full origin-left scale-x-0 rounded-full bg-on-background"
+                  style={{ animation: 'oi-bar 4.2s cubic-bezier(.3,.6,.4,1) both' }}
+                />
+              </span>
+            ) : (
+              <span className="block h-1.5 w-1.5 rounded-full bg-reel" />
+            )}
           </button>
         ))}
       </div>
