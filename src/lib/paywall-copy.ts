@@ -123,9 +123,9 @@ export interface PlanRow {
 }
 
 export const PLAN_ROWS: readonly PlanRow[] = [
-  { label: 'Invoices', free: '3', paid: 'Unlimited' },
-  { label: 'Expenses & receipt scans', free: '5', paid: 'Unlimited' },
-  { label: 'Estimates', free: '3', paid: 'Unlimited' },
+  { label: 'Invoices', free: '3 free', paid: 'Unlimited' },
+  { label: 'Expenses & receipt scans', free: '5 free', paid: 'Unlimited' },
+  { label: 'Estimates', free: '3 free', paid: 'Unlimited' },
   { label: 'Voice invoicing', free: true, paid: true },
   { label: 'Online pay page', free: true, paid: true },
   { label: 'Recurring expenses', free: false, paid: true },

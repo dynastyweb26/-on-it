@@ -111,11 +111,11 @@ test('the plan table matches the caps the database enforces', () => {
   };
 
   // Free caps: 3 invoices, 5 expenses, 3 estimates — free_*_limit().
-  assert.equal(row('Invoices').free, '3');
+  assert.equal(row('Invoices').free, '3 free');
   assert.equal(row('Invoices').paid, 'Unlimited');
-  assert.equal(row('Expenses & receipt scans').free, '5');
+  assert.equal(row('Expenses & receipt scans').free, '5 free');
   assert.equal(row('Expenses & receipt scans').paid, 'Unlimited');
-  assert.equal(row('Estimates').free, '3');
+  assert.equal(row('Estimates').free, '3 free');
   assert.equal(row('Estimates').paid, 'Unlimited');
 
   // Included on both tiers.
