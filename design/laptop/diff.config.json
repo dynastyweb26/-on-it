@@ -1184,6 +1184,194 @@
         }
       ],
       "maxPixelDiffPct": null
+    },
+    {
+      "name": "paywall-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/paywall.html",
+        "steps": [
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/dashboard",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          },
+          {
+            "eval": "document.querySelector('[data-paywall-open]')?.click()"
+          },
+          {
+            "wait": 1200
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "card",
+          "design": "[role=dialog]",
+          "app": "[role=\"dialog\"] > div"
+        },
+        {
+          "name": "card header",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(1)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "close",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > button:nth-child(1)",
+          "app": "[aria-label=\"Not now\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "logo",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > img:nth-child(2)",
+          "app": "img[alt=\"On It\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "reason pill",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] p.whitespace-nowrap",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "footer",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(3)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "cta",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > button:nth-child(1)",
+          "app": "[role=\"dialog\"] button.bg-primary-container",
+          "check": [
+            "w",
+            "h"
+          ]
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "paywall-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/paywall.html",
+        "steps": [
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/dashboard",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          },
+          {
+            "eval": "document.querySelector('[data-paywall-open]')?.click()"
+          },
+          {
+            "wait": 1200
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "card",
+          "design": "[role=dialog]",
+          "app": "[role=\"dialog\"] > div"
+        },
+        {
+          "name": "card header",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(1)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "close",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > button:nth-child(1)",
+          "app": "[aria-label=\"Not now\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "logo",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > img:nth-child(2)",
+          "app": "img[alt=\"On It\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "reason pill",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] p.whitespace-nowrap",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "footer",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(3)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "cta",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > button:nth-child(1)",
+          "app": "[role=\"dialog\"] button.bg-primary-container",
+          "check": [
+            "w",
+            "h"
+          ]
+        }
+      ],
+      "maxPixelDiffPct": null
     }
   ]
 }
