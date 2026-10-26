@@ -10,6 +10,7 @@ import {
   TRIAL_COPY,
   ctaLabel,
   disclosure,
+  nothingChargedToday,
   paywallState,
   planRows,
   stepsFor,
@@ -48,15 +49,20 @@ test('only the trial state promises nothing is charged today', () => {
   assert.equal(ctaLabel('paid-today'), 'Subscribe — $9.99/month');
   assert.equal(ctaLabel('checking'), 'Start 14-day free trial', 'disabled CTA keeps the trial label');
 
-  const trial = disclosure('trial');
-  assert.ok(trial.startsWith('Nothing charged today.'), trial);
+  assert.equal(nothingChargedToday('trial'), true);
+  assert.equal(nothingChargedToday('paid-today'), false);
+  assert.equal(nothingChargedToday('checking'), false);
+
+  const end = new Date(2026, 10, 9);
+  const trial = disclosure('trial', end);
+  assert.ok(trial.startsWith('Free until Nov 9, 2026.'), trial);
+  assert.match(trial, /Then \$9\.99\/month/);
   assert.match(trial, /renews monthly until you cancel/);
   assert.match(trial, /Cancel anytime in Settings\./);
-  assert.match(trial, /\$9\.99\/month/);
 
-  const paid = disclosure('paid-today');
+  const paid = disclosure('paid-today', end);
   assert.ok(paid.startsWith('$9.99/month starts today'), paid);
-  assert.ok(!paid.includes('Nothing charged today'), 'a returning customer is charged today');
+  assert.ok(!paid.includes('Free until'), 'a returning customer is charged today');
   assert.ok(!/free/i.test(paid), 'no free period is promised');
   assert.match(paid, /Cancel anytime in Settings\./);
 

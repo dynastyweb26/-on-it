@@ -76,15 +76,25 @@ export function ctaLabel(state: PaywallState): string {
   return state === 'paid-today' ? 'Subscribe — $9.99/month' : 'Start 14-day free trial';
 }
 
+const long = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+/** The badge over the disclosure, only while a trial is really coming. */
+export function nothingChargedToday(state: PaywallState): boolean {
+  return state === 'trial';
+}
+
 /**
  * The disclosure under the CTA. Material terms only, and they follow the state:
- * a trial promises "nothing charged today", everyone else is told the plan
- * starts (and bills) today. `checking` promises neither.
+ * a trial names the day billing starts (with the "nothing charged today" badge
+ * above it), everyone else is told the plan starts — and bills — today.
+ * `checking` promises neither.
  */
-export function disclosure(state: PaywallState): string {
+export function disclosure(state: PaywallState, trialEnd?: Date): string {
   switch (state) {
     case 'trial':
-      return 'Nothing charged today. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.';
+      return trialEnd
+        ? `Free until ${long(trialEnd)}. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.`
+        : 'Nothing charged today. Then $9.99/month, renews monthly until you cancel. Cancel anytime in Settings.';
     case 'paid-today':
       return '$9.99/month starts today, renews monthly until you cancel. Cancel anytime in Settings.';
     default:

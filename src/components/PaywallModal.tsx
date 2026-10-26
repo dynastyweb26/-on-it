@@ -35,10 +35,12 @@ import {
   REASON,
   ctaLabel,
   disclosure,
+  nothingChargedToday,
   paywallState,
   stepsFor,
   type PaywallVariant,
 } from '@/lib/paywall-copy';
+import { trialDates } from '@/lib/trial';
 
 // The props' public types stay on this module: every mount point imports them
 // from here, whichever module owns the rule.
@@ -99,6 +101,8 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // that finished in another tab): the wall has nothing left to say.
   useEffect(() => subscribeAccess(() => onClose()), [onClose]);
 
+  // The trial's end date in the viewer's timezone, for the footer disclosure.
+  const [{ end }] = useState(() => trialDates());
   const state = paywallState(trialEligible);
   const steps = stepsFor(variant, state);
   const [step, setStep] = useState(0);
@@ -177,7 +181,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     // started: the browser is on its way to the payment sheet; stay busy.
   }
 
-  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-[17px] font-bold text-on-background outline-none transition-transform active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-[16px] font-bold text-on-background outline-none transition-transform duration-150 hover:brightness-105 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
   return (
@@ -259,10 +263,9 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             with its disclosure. Steps aside while the code field is typing. */}
         <div
           data-kb-hide=""
-          className="relative flex shrink-0 flex-col items-center gap-2.5 bg-background px-5 pt-2.5"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+          className="flex shrink-0 flex-col items-center gap-2.5 border-t border-hairline bg-background px-5 pt-3.5"
+          style={{ paddingBottom: 'calc(22px + env(safe-area-inset-bottom))' }}
         >
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-[22px] h-[22px] bg-gradient-to-b from-[rgba(255,248,240,0)] to-background" />
 
           {notice && (
             <p className="w-full rounded-input bg-surface-container p-3 text-center text-sm text-on-surface-variant">{notice}</p>
@@ -280,23 +283,32 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
                 {busy ? 'One sec…' : (
                   <>
                     <span>{ctaLabel(state)}</span>
-                    <Icon name="arrow_forward" size={22} />
+                    <Icon name="arrow_forward" size={20} />
                   </>
                 )}
               </button>
 
+              {/* "Nothing charged today" is a badge, and only while a trial is
+                  really coming; a returning customer never sees it. */}
+              {nothingChargedToday(state) && (
+                <div className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em]">
+                  <Icon name="verified" size={16} className="text-primary" />
+                  Nothing charged today
+                </div>
+              )}
+
               {/* Subscription disclosure — readable (not fine print), visible
                   before the payment sheet. Material terms follow the state:
-                  first-time customers see nothing charged today, everyone else
+                  first-time customers see the trial's end date, everyone else
                   is told the plan starts today (lib/paywall-copy). */}
-              <p className="text-center text-[13.5px] leading-[1.45] text-on-surface-variant [text-wrap:pretty]">
-                {disclosure(state)}
+              <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-on-surface-variant [text-wrap:pretty]">
+                {disclosure(state, end)}
               </p>
 
-              <p className="flex items-center gap-2.5 text-[13px] font-semibold">
-                <a href="/terms" className="text-primary underline underline-offset-2">Terms</a>
-                <span aria-hidden className="text-on-surface-variant">·</span>
-                <a href="/privacy" className="text-primary underline underline-offset-2">Privacy</a>
+              <p className="flex items-center gap-2 text-[12.5px] font-medium leading-none text-on-surface-variant">
+                <a href="/terms" className="text-on-background underline underline-offset-[3px]">Terms</a>
+                <span aria-hidden>·</span>
+                <a href="/privacy" className="text-on-background underline underline-offset-[3px]">Privacy</a>
               </p>
             </>
           ) : (
