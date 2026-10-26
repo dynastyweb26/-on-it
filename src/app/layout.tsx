@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { Caveat, IBM_Plex_Mono } from 'next/font/google';
 import Splash from '@/components/Splash';
 import KeyboardAvoider from '@/components/KeyboardAvoider';
 import launchScreens from '@/lib/launch-screens.json';
@@ -28,6 +29,20 @@ const inter = localFont({
   variable: '--font-inter',
   weight: '100 900',
   style: 'normal',
+  display: 'swap',
+});
+// Tutorial-only faces, ported from the approved prototype (receipt/invoice
+// numbers, signature). Exposed as variables; no app surface uses them.
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
+  display: 'swap',
+});
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['600'],
+  variable: '--font-caveat',
   display: 'swap',
 });
 // Material Symbols Outlined — the app's only icon system (§4). Self-hosted
@@ -116,7 +131,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // white. Mirrored in globals.css.
     <html
       lang="en"
-      className={`${montserrat.variable} ${inter.variable} ${symbols.variable}`}
+      className={`${montserrat.variable} ${inter.variable} ${plexMono.variable} ${caveat.variable} ${symbols.variable}`}
       style={{ backgroundColor: '#fff8f0', colorScheme: 'light' }}
     >
       <head>
