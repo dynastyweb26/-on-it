@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
-import { CAMERA_TIP, TOURS } from '@/components/tutorial/coach-marks';
-import TourPicker from '@/components/tutorial/TourPicker';
+import { CAMERA_TIP } from '@/components/tutorial/coach-marks';
+import TutorialHost from '@/components/tutorial/TutorialHost';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import BackButton from '@/components/BackButton';
@@ -120,6 +120,19 @@ export default function AppShell({
   const [bounceIdx, setBounceIdx] = useState(-1);
   // M2 (2·13): a saved client / item lands on a tab — bump + "+1".
   const [bump, setBump] = useState<{ href: string; n: number } | null>(null);
+  // The in-app walkthrough is a full-screen layer owned by TutorialHost. The
+  // recap prompt must never open over it (same rule the old tour had).
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setTutorialOpen(true);
+    const onClose = () => setTutorialOpen(false);
+    window.addEventListener('onit:tutorial-open', onOpen);
+    window.addEventListener('onit:tutorial-close', onClose);
+    return () => {
+      window.removeEventListener('onit:tutorial-open', onOpen);
+      window.removeEventListener('onit:tutorial-close', onClose);
+    };
+  }, []);
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const onBump = (e: Event) => {
@@ -273,9 +286,6 @@ export default function AppShell({
   // Back from Stripe Checkout (?upgraded=1) on ANY tab, e.g. /invoices: record
   // it and start the unlock poll. A no-op when a page already handled it.
   useEffect(() => { noteUpgradeReturn(); }, []);
-  // The full coach-marks tour that is running (a TOURS key), or null. Full
-  // tours are on-demand only; the one-step camera tip is separate below.
-  const [coachTab, setCoachTab] = useState<string | null>(null);
   // First-sign-in camera tip: signed-in only, offered exactly once. `seenAt`
   // stays undefined until the profile answers (or when the DB column is not
   // applied yet), so an unknown account never auto-starts anything.
@@ -327,7 +337,6 @@ export default function AppShell({
     })();
   }, [checkCameraTutorial]);
 
-  const closeCoachMarks = useCallback(() => setCoachTab(null), []);
   const closeCameraTip = useCallback(() => setCameraTip(false), []);
 
   // Offer the one-time camera tip only when Chat is actually ready: signed in,
@@ -344,7 +353,7 @@ export default function AppShell({
         signedIn,
         seenAt: cameraSeenAt,
         path,
-        coachOpen: coachTab !== null,
+        coachOpen: tutorialOpen,
         overlayOpen: isVisible(OVERLAY_SELECTOR),
         targetVisible: isVisible(CAMERA_TUTORIAL_TARGET),
       });
@@ -368,7 +377,7 @@ export default function AppShell({
         }
         return;
       }
-      if (signedIn && cameraSeenAt === null && path === '/chat' && coachTab === null) {
+      if (signedIn && cameraSeenAt === null && path === '/chat' && !tutorialOpen) {
         timer = setTimeout(tick, 300);
       }
     };
@@ -377,7 +386,7 @@ export default function AppShell({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [cameraSeenAt, cameraTip, coachTab, path, signedIn]);
+  }, [cameraSeenAt, cameraTip, path, signedIn, tutorialOpen]);
 
   // Sign-in throb: the pill glows gold for 10s after a sign-in, once.
   const [throb, setThrob] = useState(false);
@@ -424,38 +433,12 @@ export default function AppShell({
   }, [startThrob, checkCameraTutorial]);
   const throbClass = throb ? ' onit-help-throb' : '';
 
-  // Tab picker → go to that tab, wait for its first target, run its tour.
-  // pendingTour holds the pick across the navigation; a newer pick or any
-  // other navigation simply replaces / abandons it.
-  const pendingTour = useRef<string | null>(null);
-  const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runWhenMounted = useCallback((tab: string) => {
-    if (waitTimer.current) clearTimeout(waitTimer.current);
-    const selector = TOURS[tab].steps[0].selector;
-    const started = Date.now();
-    const tick = () => {
-      if (window.location.pathname !== tab) return; // navigated elsewhere — drop it
-      const ready = Array.from(document.querySelectorAll(selector))
-        .some((el) => el.getClientRects().length > 0);
-      // Start anyway after 4s: the overlay keeps looking for the target.
-      if (ready || Date.now() - started > 4000) setCoachTab(tab);
-      else waitTimer.current = setTimeout(tick, 80);
-    };
-    tick();
-  }, []);
-  function startTour(tab: string) {
-    setCoachTab(null);
-    setCameraTip(false); // a deliberate tour replaces the first-sign-in tip
-    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); return; }
-    pendingTour.current = tab;
-    router.push(tab);
-  }
-  useEffect(() => {
-    const tab = pendingTour.current;
-    if (!tab) return;
-    if (path === tab) { pendingTour.current = null; runWhenMounted(tab); }
-  }, [path, runWhenMounted]);
-  useEffect(() => () => { if (waitTimer.current) clearTimeout(waitTimer.current); }, []);
+  // Header/sidebar/settings replay: the host resolves the current tab, so no
+  // navigation and no picker. The player never leaves the tab you are on.
+  const replayTutorial = useCallback(() => {
+    endThrob();
+    window.dispatchEvent(new Event('onit:tutorial-replay'));
+  }, [endThrob]);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -508,7 +491,7 @@ export default function AppShell({
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
-      <RecapProvider suppressed={coachTab !== null || cameraTip}>
+      <RecapProvider suppressed={cameraTip || tutorialOpen}>
 
       {/* Desktop/Tablet Sidebar (Option A) */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
@@ -516,14 +499,13 @@ export default function AppShell({
           <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
-          <TourPicker
-            align="left"
-            onPick={startTour}
-            onButtonPress={endThrob}
-            buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
+          <button
+            type="button"
+            onClick={replayTutorial}
+            className={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
           >
             How it works
-          </TourPicker>
+          </button>
         </div>
 
         <nav data-coach="side-nav" className="flex flex-col gap-2.5">
@@ -589,13 +571,13 @@ export default function AppShell({
                 </>
               )}
               <div className="md:hidden">
-                <TourPicker
-                  onPick={startTour}
-                  onButtonPress={endThrob}
-                  buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
+                <button
+                  type="button"
+                  onClick={replayTutorial}
+                  className={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
                 >
                   How On It works
-                </TourPicker>
+                </button>
               </div>
             </div>
           </header>
@@ -606,17 +588,16 @@ export default function AppShell({
                 On It<span className="text-primary">.</span>
               </span>
             </div>
-            <TourPicker
-              onPick={startTour}
-              onButtonPress={endThrob}
-              buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
+            <button
+              type="button"
+              onClick={replayTutorial}
+              className={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
             >
               How On It works
-            </TourPicker>
+            </button>
           </header>
         )}
 
-        {coachTab && <CoachMarks key={coachTab} tab={coachTab} currentPath={path} onDone={closeCoachMarks} />}
         {ENABLE_CAMERA_ANIMATION && cameraTip && (
           <CoachMarks
             key="camera-tip"
@@ -626,6 +607,7 @@ export default function AppShell({
             onDone={closeCameraTip}
           />
         )}
+        <TutorialHost />
 
         {exactTab >= 0 ? (
           <main className="min-h-0 flex-1 overflow-hidden">
