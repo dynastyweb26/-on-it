@@ -29,6 +29,7 @@ import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
 import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
+import FitToHeight from '@/components/paywall/FitToHeight';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import { trialDates } from '@/lib/trial';
 import {
@@ -216,16 +217,14 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           </div>
         </div>
 
-        {/* The step; it scrolls on a screen too short for it. */}
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {current === 'showcase' && (
-            <ShowcaseStep reason={reason ?? REASON[variant]} />
-          )}
-          {current === 'trial' && <TrialStep />}
-          {current === 'plan' && (
+        {/* The step. Showcase and trial are single full-screen pages: they scale
+            to fit the visible height and never scroll (FitToHeight). The plan
+            step keeps its own scroller (the code row, Free vs On It). */}
+        {current === 'plan' ? (
+          <div
+            ref={scrollRef}
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <PlanStep
               state={state}
               showCode={showCode}
@@ -234,8 +233,12 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
               onRedeemed={() => { setTimeout(onClose, 1200); }}
               codeCardRef={codeCardRef}
             />
-          )}
-        </div>
+          </div>
+        ) : (
+          <FitToHeight key={current}>
+            {current === 'showcase' ? <ShowcaseStep reason={reason ?? REASON[variant]} /> : <TrialStep />}
+          </FitToHeight>
+        )}
 
         {/* Pinned footer: Continue until the plan step, then the one gold CTA
             with its disclosure. Steps aside while the code field is typing. */}
