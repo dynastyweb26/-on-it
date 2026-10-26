@@ -103,8 +103,12 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
   );
 }
 
-/** A list row: tap opens, long-press opens the menu. Nested routes opt into swipe. */
-export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, children }: {
+/** A list row: tap opens, long-press opens the menu. Nested routes opt into swipe.
+ *  From xl the row is the design's laptop row (LAPTOP-SPEC "Clients"): 18px
+ *  side padding, a 14px corner, a hairline on top, a hover wash and a visible
+ *  focus ring, plus a right-aligned meta column (`meta`) that is only rendered
+ *  on laptop — phones keep the exact row they have today. */
+export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, meta, children }: {
   onOpen: () => void;
   /** Both are required to opt into SwipeableRow; tab-root rows omit them. */
   onEdit?: () => void;
@@ -113,16 +117,19 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, chi
   /** 'new': slides into its slot and glows; 'expand': re-opens after Undo. */
   motion?: 'new' | 'expand' | null;
   id?: string;
+  /** xl only: the right-aligned meta cell (e.g. "2 estimates out"). */
+  meta?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const press = useLongPress(() => { if (ref.current) onLongPress(ref.current.getBoundingClientRect()); });
   const row = (
     <button ref={ref} type="button"
-      className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
+      className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container xl:min-h-[62px] xl:gap-3.5 xl:rounded-[14px] xl:border-b-0 xl:border-t xl:border-outline-variant/50 xl:px-[18px] xl:hover:bg-surface-container-low xl:focus-visible:outline-none xl:focus-visible:ring-2 xl:focus-visible:ring-primary-container xl:focus-visible:ring-offset-2${motion === 'new' ? ' onit-new-entry' : ''}`}
       {...press.handlers}
       onClick={() => { if (press.consumeClick()) return; onOpen(); }}>
       {children}
+      {meta ? <span className="hidden shrink-0 pl-3 text-right text-[14.5px] text-on-surface-variant xl:block">{meta}</span> : null}
     </button>
   );
   return (
