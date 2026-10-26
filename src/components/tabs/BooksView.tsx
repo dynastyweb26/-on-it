@@ -195,17 +195,22 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     ? 'No invoices yet'
     : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
-    <PageContainer size="wide" className="space-y-4 pb-8 pt-6 xl:flex xl:flex-col xl:gap-5 xl:space-y-0 xl:pt-6">
+    <PageContainer size="wide" className="space-y-4 pb-8 pt-6 xl:flex xl:flex-wrap xl:items-start xl:gap-5 xl:space-y-0 xl:pt-6">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the two metric tiles + Spent row, Add expense, the
           list card and Income & Expenses (§L Q4 keeps today's label). */}
-      <RecapsCard />
+      {/* xl: the design puts Recaps at the END of the page, beside the list
+          card. DOM order stays phone's (Recaps first) and `xl:order-5` moves it
+          into the cards line — flex order, so nothing below xl changes. */}
+      <div className="xl:order-5 xl:w-[calc((100%-1.25rem)*0.386)]">
+        <RecapsCard />
+      </div>
       {/* A recurring charge On It couldn't log (3·6, L3). */}
-      <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
-        <div className="@container">
+        <div className="@container space-y-4 xl:order-3 xl:w-full">
+        <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
         {/* xl: the design's row 1 — Net card on the left, Still owed +
             Collected over Spent on the right. The @4xl container grid keeps the
             tablet layout it had, untouched. */}
@@ -252,12 +257,12 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
         // the page column at xl (so the title + pills can sit first) while the
         // 24px rhythm below xl stays exactly as it was.
         <div className="space-y-6 xl:contents">
-          <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center xl:order-first xl:mx-0 xl:h-10 xl:max-w-none xl:items-center xl:justify-between xl:gap-2.5">
+          <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center xl:order-1 xl:mx-0 xl:h-10 xl:w-full xl:max-w-none xl:items-center xl:justify-between xl:gap-2.5">
             <h1 className="hidden whitespace-nowrap font-display text-2xl font-bold leading-none text-on-background xl:block">Books</h1>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center xl:ml-auto xl:flex-row xl:gap-2.5">
             <button
               data-coach="books-add-expense"
-              className={`btn-primary flex-1 xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:px-[18px] xl:text-[15px] xl:font-bold xl:min-h-0${intro ? ' onit-rise' : ''}`}
+              className={`btn-primary flex-1 xl:order-2 xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:px-[18px] xl:text-[15px] xl:font-bold xl:min-h-0${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '300ms' } : undefined}
               onClick={() => setShowForm(true)}
             >
@@ -265,7 +270,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
             </button>
             <Link
               href="/summary"
-              className={`btn-outline flex-1 text-primary justify-center xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:border-[1.5px] xl:border-outline-variant xl:bg-surface-container xl:px-4 xl:text-[15px] xl:font-semibold xl:min-h-0${intro ? ' onit-rise' : ''}`}
+              className={`btn-outline flex-1 text-primary justify-center xl:order-1 xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:border-[1.5px] xl:border-outline-variant xl:bg-surface-container xl:px-4 xl:text-[15px] xl:font-semibold xl:min-h-0${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '400ms' } : undefined}
             >
               <Icon name="description" size={20} /> Income &amp; Expenses
@@ -273,9 +278,9 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
             </div>
           </div>
           {/* List card: Expenses + Recurring (merge 3 · 3·3) at bottom. */}
-          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest xl:rounded-[18px]${intro ? ' onit-rise' : ''}`}
+          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest xl:order-4 xl:w-[calc((100%-1.25rem)*0.614)] xl:rounded-[18px]${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}>
-            <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
+            <Link href="/expenses" data-coach="books-view-expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-container-high">
                 <Icon name="receipt_long" size={21} />
               </span>
