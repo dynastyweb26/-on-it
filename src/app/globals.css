@@ -234,20 +234,27 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
 @keyframes oi-cnet { from { --n: 0; } to { --n: 2415; } }
 @keyframes oi-tap { 0% { opacity: .55; transform: scale(0); } 100% { opacity: 0; transform: scale(3.2); } }
 @keyframes oi-press { 0%, 100% { transform: scale(1); } 50% { transform: scale(.96); } }
-/* Count-ups: --oi-d is the duration, --oi-dl the delay. */
-.oi-count-850::after {
-  content: '$' counter(n) '.00';
-  counter-reset: n var(--n);
-  animation: oi-c850 var(--oi-d, .9s) cubic-bezier(.2, .8, .2, 1) var(--oi-dl, 0s) both;
-}
-.oi-count-net::after {
-  content: '$' counter(k) ',' counter(h) counter(t) counter(o);
-  counter-reset: k round(down, var(--n) / 1000, 1) h mod(round(down, var(--n) / 100, 1), 10) t mod(round(down, var(--n) / 10, 1), 10) o mod(var(--n), 10);
-  animation: oi-cnet 1.4s cubic-bezier(.2, .8, .2, 1) 1.2s both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .oi-count-850 { --n: 850; }
-  .oi-count-net { --n: 2415; }
+/* Count-ups: --oi-d is the duration, --oi-dl the delay. Resting state is the
+   literal end value (also the fallback where counting can't work). Counting
+   sits under no-preference because the global reduce rule's `*` does not
+   reach pseudo-elements, and behind @supports (round()/mod()) because the
+   recap net's thousands separator needs them — without, no count-up, same
+   number, never $0,000. */
+.oi-count-850::after { content: '$850.00'; }
+.oi-count-net::after { content: '$2,415'; }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (width: round(1px, 1px)) {
+    .oi-count-850::after {
+      content: '$' counter(n) '.00';
+      counter-reset: n var(--n);
+      animation: oi-c850 var(--oi-d, .9s) cubic-bezier(.2, .8, .2, 1) var(--oi-dl, 0s) both;
+    }
+    .oi-count-net::after {
+      content: '$' counter(k) ',' counter(h) counter(t) counter(o);
+      counter-reset: k round(down, var(--n) / 1000, 1) h mod(round(down, var(--n) / 100, 1), 10) t mod(round(down, var(--n) / 10, 1), 10) o mod(var(--n), 10);
+      animation: oi-cnet 1.4s cubic-bezier(.2, .8, .2, 1) 1.2s both;
+    }
+  }
 }
 
 /* ---- Splash: brand logo reveal (components/Splash.tsx) ----
