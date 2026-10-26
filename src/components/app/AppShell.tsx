@@ -497,19 +497,22 @@ export default function AppShell({
           the sheet waits while the walkthrough or the reference is open. */}
       <RecapProvider suppressed={cameraTip || tutorialOpen}>
 
-      {/* Desktop/Tablet Sidebar (Option A) */}
-      <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-5 py-6">
-        <div className="flex items-center justify-between pb-8 pt-1 px-1">
+      {/* Tablet / desktop sidebar. md (768-1023, iPad portrait): an 80px icon
+          rail so the content keeps ~690px. lg (1024+): the full 288px sidebar
+          with labels. Phones have the bottom tab bar instead. */}
+      <aside className="hidden md:flex w-20 lg:w-72 shrink-0 flex-col border-r border-outline-variant/60 bg-surface-container-low px-3 py-6 lg:px-5">
+        <div className="flex flex-col items-center gap-3 pb-6 pt-1 lg:flex-row lg:justify-between lg:gap-0 lg:px-1 lg:pb-8">
           <span className="font-display text-2xl font-extrabold tracking-tight">
-            On It<span className="text-primary">.</span>
+            On<span className="hidden lg:inline"> It</span><span className="text-primary">.</span>
           </span>
           <TourPicker
             align="left"
             onPick={playTutorial}
             onButtonPress={endThrob}
-            buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
+            buttonClassName={`inline-flex h-10 w-10 items-center justify-center rounded-button bg-primary-container text-on-background transition active:scale-95 lg:h-9 lg:w-auto lg:px-3 lg:text-xs lg:font-semibold${throbClass}`}
           >
-            How it works
+            <Icon name="help" size={22} className="lg:hidden" />
+            <span className="sr-only lg:not-sr-only">How it works</span>
           </TourPicker>
         </div>
 
@@ -521,7 +524,9 @@ export default function AppShell({
                 key={href}
                 href={href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3.5 rounded-2xl px-4 py-3.5 transition-colors ${
+                aria-label={label}
+                title={label}
+                className={`relative flex items-center justify-center gap-3.5 rounded-2xl px-0 py-3.5 transition-colors lg:justify-start lg:px-4 ${
                   active
                     ? 'bg-primary-container font-bold text-on-background shadow-sm'
                     : 'font-semibold text-on-surface-variant hover:bg-surface-container-high'
@@ -531,9 +536,9 @@ export default function AppShell({
                   <Icon name={icon} size={24} filled={active} />
                   {href === '/dashboard' && <BooksDot />}
                 </div>
-                <span className="text-base">{label}</span>
+                <span className="hidden text-base lg:inline">{label}</span>
                 {bump?.href === href && (
-                  <span className="ml-auto rounded-full bg-primary-container px-2 py-0.5 text-xs font-bold text-on-background">
+                  <span className="absolute right-1 top-1 rounded-full bg-primary-container px-2 py-0.5 text-xs font-bold text-on-background lg:static lg:ml-auto">
                     +1
                   </span>
                 )}
@@ -543,7 +548,7 @@ export default function AppShell({
         </nav>
 
         <div className="mt-auto pt-6">
-          <InstallBanner />
+          <InstallBanner variant="sidebar" />
         </div>
       </aside>
 
