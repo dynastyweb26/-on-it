@@ -37,6 +37,15 @@ const config: Config = {
         tertiary: { DEFAULT: '#415ba4', container: '#97b0ff', 'on-container': '#254188' },
         error: { DEFAULT: '#ba1a1a', container: '#ffdad6', 'on-container': '#93000a' },
         paid: { DEFAULT: '#0f6d31', container: '#c9f2d4' },
+        // Paywall surfaces and accents, taken from the design mockup
+        // (design-reference/paywall-mockup.html). Gold stays a fill only.
+        tile: '#faefdc',       // demo/table band, the mockup's warm card
+        hairline: '#f0e7d8',   // 1px card and table rules
+        dash: '#e6d9c3',       // dashed receipt divider, input border
+        muted: '#a59a84',      // “not set”, disabled values
+        reel: '#e3d6bf',       // deck dots, switch track off
+        positive: { DEFAULT: '#17703a', container: '#c9f0d5' },
+        alert: '#a1321f',      // code-entry error
         sent: { DEFAULT: '#735c00', container: '#f3e9c8' },
         draft: { DEFAULT: '#474742', container: '#e5e2db' },
       },
