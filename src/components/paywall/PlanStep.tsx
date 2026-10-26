@@ -10,7 +10,8 @@
 import type { ReactNode, RefObject } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
-import { STEP_TITLE, planRows, type PlanCell } from '@/lib/paywall-copy';
+import { STEP_TITLE, planRows, type PaywallState, type PlanCell } from '@/lib/paywall-copy';
+import { TRIAL_DAYS } from '@/lib/trial';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 
 // Card styles from the design: white, hairline warm border, 16px radius.
@@ -25,8 +26,11 @@ function CellValue({ v }: { v: PlanCell }): ReactNode {
 }
 
 export default function PlanStep({
-  showCode, onToggleCode, onRedeemed, onEscapeCode, codeCardRef,
+  state, showCode, onToggleCode, onRedeemed, onEscapeCode, codeCardRef,
 }: {
+  /** What the access check answered: the plan row promises a trial only when
+   *  one is really coming. */
+  state: PaywallState;
   showCode: boolean;
   onToggleCode: () => void;
   onRedeemed: () => void;
@@ -34,6 +38,7 @@ export default function PlanStep({
   codeCardRef: RefObject<HTMLDivElement>;
 }) {
   const rows = planRows(RECAPS_LIVE);
+  const trial = state === 'trial';
 
   return (
     <div className="flex flex-col gap-4 px-4">
@@ -44,6 +49,25 @@ export default function PlanStep({
       >
         {STEP_TITLE.plan}
       </h2>
+
+      {/* The one selected plan (single tier). A trial customer sees the trial
+          they are getting; everyone else sees what starts today. */}
+      <div role="radiogroup" aria-label="Plan">
+        <div
+          role="radio"
+          aria-checked="true"
+          className="flex items-center gap-2.5 rounded-2xl border-[1.5px] border-on-background bg-surface-container-lowest px-4 py-[15px]"
+        >
+          <Icon name="radio_button_checked" size={22} className="text-on-background" />
+          <span className="flex-1 font-display text-[12.5px] font-extrabold uppercase tracking-[.08em]">
+            {trial ? `${TRIAL_DAYS}-DAY FREE TRIAL` : 'MONTHLY'}
+          </span>
+          <span className="text-[14px] leading-none text-on-surface-variant">
+            {trial && 'then '}
+            <b className="font-bold text-on-background">$9.99</b> / month
+          </span>
+        </div>
+      </div>
 
       <table className={`${CARD} w-full border-separate border-spacing-0 overflow-hidden text-[14px] leading-5`}>
         <caption className="sr-only">What’s included with Free and On It</caption>

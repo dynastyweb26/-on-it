@@ -245,6 +245,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           {current === 'trial' && <TrialStep />}
           {current === 'plan' && (
             <PlanStep
+              state={state}
               showCode={showCode}
               onToggleCode={toggleCode}
               onEscapeCode={() => setShowCode(false)}
