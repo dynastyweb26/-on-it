@@ -11,12 +11,15 @@ export function MockScreen({
   state,
   chatMax,
   nudge,
+  laptop,
 }: {
   state: SceneState;
   chatMax: number;
   nudge: number;
+  /** Dormant laptop stage (?laptop=1); only the chat mock reads it so far. */
+  laptop?: boolean;
 }) {
-  if (state.screen === 'chat') return <ChatMock state={state} chatMax={chatMax} nudge={nudge} />;
+  if (state.screen === 'chat') return <ChatMock state={state} chatMax={chatMax} nudge={nudge} laptop={laptop} />;
   if (state.tabNow === 'invoices') return <InvoicesMock state={state} />;
   if (state.tabNow === 'clients') return <ClientsMock state={state} />;
   if (state.tabNow === 'books') return <BooksMock state={state} nudge={nudge} />;

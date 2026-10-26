@@ -52,25 +52,35 @@ export default function ChatMock({
   state,
   chatMax,
   nudge = 0,
+  laptop,
 }: {
   state: SceneState;
   chatMax: number;
   nudge?: number;
+  /** Dormant laptop stage (?laptop=1): the composer group is the design's 612x44
+   *  inside the 720 column. Absent everywhere else, so the phone is untouched. */
+  laptop?: boolean;
 }) {
   const { st, nT, jT, pT, comp, nameFilled, jobFilled, priceFilled, footFilled } = state;
   if (st.screen !== 'chat') return null;
 
   const isEst = Boolean(st.estCard);
   const showCard = Boolean(st.tpl);
-  const chatBottom = state.composerOn ? 72 : 0;
+  const chatBottom = state.composerOn ? (laptop ? 64 : 72) : 0;
   const chatShift = st.ready && st.scrollEnd ? -chatMax : 0;
 
   return (
     <div aria-hidden>
-      <MockChrome hdrChat hdrBack={false} tabNow="chat">
+      <MockChrome hdrChat hdrBack={false} tabNow="chat" laptop={laptop}>
         <div
           className={styles.aScrIn}
-          style={{ position: 'absolute', top: 103, left: 0, right: 0, bottom: 84 }}
+          style={{
+            position: 'absolute',
+            top: laptop ? 56 : 103,
+            left: 0,
+            right: 0,
+            bottom: laptop ? 0 : 84,
+          }}
         >
           <div
             data-chat-area
@@ -1031,16 +1041,19 @@ export default function ChatMock({
             <div
               style={{
                 position: 'absolute',
-                left: 0,
+                // Laptop: centred in the 1152 content area (past the 288 sidebar)
+                // so the 612 composer lands at the design's x, 44 tall.
+                left: laptop ? 288 : 0,
                 right: 0,
                 bottom: 0,
-                height: 72,
-                borderTop: '1px solid #E8DFD0',
-                background: '#FDF7EE',
+                height: laptop ? 64 : 72,
+                borderTop: laptop ? 'none' : '1px solid #E8DFD0',
+                background: laptop ? 'transparent' : '#FDF7EE',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 9,
-                padding: '0 12px',
+                justifyContent: laptop ? 'center' : 'flex-start',
+                gap: laptop ? 8 : 9,
+                padding: laptop ? 0 : '0 12px',
                 boxSizing: 'border-box',
               }}
             >
@@ -1048,24 +1061,25 @@ export default function ChatMock({
                 data-spot="plus"
                 style={{
                   flex: 'none',
-                  width: 50,
-                  height: 50,
-                  borderRadius: 25,
+                  width: laptop ? 44 : 50,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: '#F2E5BC',
                   display: 'grid',
                   placeItems: 'center',
                   color: '#1E1A14',
                 }}
               >
-                <Icon name="add" size={30} />
+                <Icon name="add" size={laptop ? 26 : 30} />
               </span>
               <div
                 data-spot="composer"
                 style={{
-                  flex: 1,
+                  flex: laptop ? 'none' : 1,
+                  width: laptop ? 612 : undefined,
                   minWidth: 0,
-                  height: 50,
-                  borderRadius: 25,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: '#fff',
                   border: '1.5px solid #CFC5B3',
                   display: 'flex',
@@ -1104,9 +1118,9 @@ export default function ChatMock({
                   data-spot="camera"
                   style={{
                     flex: 'none',
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: laptop ? 32 : 40,
+                    height: laptop ? 32 : 40,
+                    borderRadius: laptop ? 16 : 20,
                     background: '#F2E5BC',
                     display: 'grid',
                     placeItems: 'center',
@@ -1120,9 +1134,9 @@ export default function ChatMock({
                 data-spot="send"
                 style={{
                   flex: 'none',
-                  width: 50,
-                  height: 50,
-                  borderRadius: 25,
+                  width: laptop ? 44 : 50,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: state.sendBg,
                   color: state.sendFg,
                   display: 'grid',

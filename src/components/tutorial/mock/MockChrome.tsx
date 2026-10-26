@@ -55,13 +55,13 @@ export function StatusBar() {
   );
 }
 
-export function MockHeader({ hdrChat, hdrBack }: { hdrChat: boolean; hdrBack: boolean }) {
+export function MockHeader({ hdrChat, hdrBack, top = 47 }: { hdrChat: boolean; hdrBack: boolean; top?: number }) {
   return (
     <div
       aria-hidden
       style={{
         position: 'absolute',
-        top: 47,
+        top,
         left: 0,
         right: 0,
         height: 56,
@@ -210,18 +210,22 @@ export function MockChrome({
   hdrBack,
   tabNow,
   children,
+  laptop,
 }: {
   hdrChat: boolean;
   hdrBack: boolean;
   tabNow: TutorialTab;
   children: ReactNode;
+  /** Dormant laptop stage: no 9:41 bar and no phone tab bar, and the header moves
+   *  up to the frame's top edge. Undefined on every phone/iPad render. */
+  laptop?: boolean;
 }) {
   return (
     <>
-      <StatusBar />
-      <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} />
+      {!laptop && <StatusBar />}
+      <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} top={laptop ? 0 : 47} />
       {children}
-      <MockTabs tabNow={tabNow} />
+      {!laptop && <MockTabs tabNow={tabNow} />}
     </>
   );
 }
