@@ -416,8 +416,9 @@ export default function TutorialOverlay({
   // Next), parked at the top or the bottom of the stage (above the tab bar) so it
   // never covers the spotlight. If neither slot is clear the compact cluster is
   // used: title, one-line subtitle, and Next as a small pill inside the card.
-  // Laptop: the design spaces the card 18px off the spotlight ring.
-  const GAP = wide ? 18 : 12;
+  // Laptop: the design spaces the card 18px off the spotlight ring. Stage pixels
+  // are scaled by --tut-scale, so the design's rendered values divide by it.
+  const GAP = wide ? 18 / scale : 12;
   const NEXT_H = 58;
   const TOP = 54 - sbH;
   const CLUSTER_BOTTOM = stageH - 84 - 14;
@@ -437,7 +438,9 @@ export default function TutorialOverlay({
   };
   const fullCh = fullHRef.current + GAP + NEXT_H;
   let place = choose(fullCh);
-  const compact = !!r && place.overlap > 0;
+  // The compact cluster is a phone device: the design's laptop card is always the
+  // full one (its 159px two-line card), so only the phone falls back.
+  const compact = !wide && !!r && place.overlap > 0;
   if (compact) place = choose(compactHRef.current);
   lastSlotRef.current = place.slot;
   const H = compact ? compactHRef.current : fullHRef.current;
@@ -602,7 +605,7 @@ export default function TutorialOverlay({
             // Laptop (design gallery): a fixed 360 card, 16px off the frame's
             // sides; the phone keeps its full-width card.
             ...(wide
-              ? { left: '50%', right: 'auto', width: 360, marginLeft: -180 }
+              ? { left: '50%', right: 'auto', width: 360 / scale, marginLeft: -180 / scale }
               : { left: 14, right: 14 }),
             top: hlTop,
             transition: 'top .6s cubic-bezier(.65,0,.35,1)',
