@@ -63,6 +63,7 @@ import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expe
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
+import { NATIVE_WRAP } from '@/lib/install/nativeWrap';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -2419,6 +2420,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   function showRemindersCard(clientName: string) {
+    // Native wrapper: no Home Screen install exists, so skip the install hint.
+    if (NATIVE_WRAP && pushAvailability() === 'needs-install') return;
     setReminderPrompt({
       kind: pushAvailability() === 'needs-install' ? 'install' : 'ask',
       client: clientName,

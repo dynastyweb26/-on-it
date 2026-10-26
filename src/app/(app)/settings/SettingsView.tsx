@@ -20,6 +20,7 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import { NATIVE_WRAP } from '@/lib/install/nativeWrap';
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -948,7 +949,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
             </button>
           </div>
         )}
-        {!pushOn && pushAvail === 'needs-install' && (
+        {!NATIVE_WRAP && !pushOn && pushAvail === 'needs-install' && (
           <p className="text-sm text-on-surface-variant">
             Add On It to your Home Screen to turn these on.{' '}
             <a href="/install" className="text-primary underline">Show me how</a>
