@@ -228,7 +228,17 @@ export default function TutorialOverlay({
   lastHlTopRef.current = hlTop;
 
   const NT = stageH - 84 - 14 - 58;
-  const nextTop = r && r.y + r.h + 8 > NT ? stageH - 14 - 58 : NT;
+  let nextTop = r && r.y + r.h + 8 > NT ? stageH - 14 - 58 : NT;
+  if (r) {
+    // On a short stage the bottom slot can sit on the spotlight. Then put Next in
+    // the top half instead: under the headline card, or above it when the card
+    // is at the bottom. Slots that still collide leave Next where it was.
+    const hit = (top: number, h: number) => top < r.y + r.h + 8 && top + h > r.y - 8;
+    if (hit(nextTop, 58)) {
+      const upper = hlTop === TOP ? TOP + H + 12 : TOP;
+      if (!hit(upper, 58) && (hlTop === TOP || upper + 58 <= hlTop)) nextTop = upper;
+    }
+  }
   const tapX = tapRect ? tapRect.x + tapRect.w / 2 : 0;
   const tapY = tapRect ? tapRect.y + tapRect.h / 2 : 0;
 
