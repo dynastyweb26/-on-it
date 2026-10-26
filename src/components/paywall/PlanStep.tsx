@@ -58,7 +58,7 @@ export default function PlanStep({
           className="m-0 rounded-2xl border border-[#efe4d2] bg-white px-[18px] pb-4 pt-[18px]"
           style={{ animation: 'oi-up .45s cubic-bezier(.2,.8,.2,1) .05s both' }}
         >
-          <Icon name="format_quote" size={30} filled className="text-primary" />
+          <div className="flex"><Icon name="format_quote" size={30} filled className="text-primary" /></div>
           <blockquote className="m-0 mt-1 text-[16.5px] font-medium leading-[1.45] [text-wrap:pretty]">
             This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.
           </blockquote>
