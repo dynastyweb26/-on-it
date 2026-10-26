@@ -10,7 +10,7 @@
 import type { ReactNode, RefObject } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
-import { STEP_TITLE, planRows, type PaywallState, type PlanCell } from '@/lib/paywall-copy';
+import { INCLUDED_TITLE, STEP_TITLE, planRows, type PaywallState, type PlanCell } from '@/lib/paywall-copy';
 import { TRIAL_DAYS } from '@/lib/trial';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 
@@ -42,11 +42,9 @@ export default function PlanStep({
 
   return (
     <div className="flex flex-col gap-4 px-4">
-      <h2
-        id="paywall-step-title"
-        tabIndex={-1}
-        className="text-center font-display text-[22px] font-extrabold tracking-[-0.01em] outline-none"
-      >
+      {/* The mockup has no step title on the plan screen; keep one for the
+          dialog's label and for screen readers, out of the visual flow. */}
+      <h2 id="paywall-step-title" tabIndex={-1} className="sr-only">
         {STEP_TITLE.plan}
       </h2>
 
@@ -68,6 +66,8 @@ export default function PlanStep({
           </span>
         </div>
       </div>
+
+      <h3 className="font-display text-[20px] font-extrabold leading-[1.2] tracking-[-0.01em]">{INCLUDED_TITLE}</h3>
 
       {/* Free vs On It, to the mockup: a fixed 76/86px pair of value columns,
           small display-caps headers, and the gold OUTLINED check (never a

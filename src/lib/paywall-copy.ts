@@ -53,6 +53,10 @@ export const STEP_TITLE: Record<PaywallStepId, string> = {
   plan: 'Plan',
 };
 
+/** The plan step's only visible heading (the step's own title is hidden: the
+ *  mockup goes straight from the plan row into the comparison). */
+export const INCLUDED_TITLE = 'What’s included';
+
 /**
  * The steps this wall shows, in order. The trial step needs BOTH a trial to
  * give (state 'trial') and a wall that can offer one — the winback prompt is
