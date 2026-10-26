@@ -9,6 +9,7 @@
 // PaywallSlides.tsx with a live-text headline. Slide 4 is the recaps slide and
 // rides lib/recaps-live — off, the deck is three slides, never a blank one.
 import { useLayoutEffect, useRef, useState } from 'react';
+import Icon from '@/components/Icon';
 import PaywallSlideshow from '@/components/paywall/PaywallSlideshow';
 import type { SlideId } from '@/components/paywall/PaywallSlides';
 import { STEP_TITLE } from '@/lib/paywall-copy';
@@ -41,8 +42,11 @@ export default function ShowcaseStep({ reason, start }: {
 
   return (
     <div className="flex h-full min-h-0 flex-col px-4">
+      {/* The reason pill, to the mockup: white capsule on the page cream, a
+          hairline border, one gold receipt mark, and the variant's words. */}
       <div className="flex justify-center pb-2">
-        <p className="rounded-full bg-surface-container px-3 py-1 text-[13px] font-semibold leading-[18px] text-on-surface-variant">
+        <p className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline bg-surface-container-lowest px-[13px] py-[7px] text-[12.5px] font-semibold leading-none text-on-surface-variant">
+          <Icon name="receipt_long" size={17} className="text-primary" />
           {reason}
         </p>
       </div>
