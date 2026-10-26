@@ -16,7 +16,6 @@ import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine, type FreeLimit
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
-import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
@@ -950,8 +949,13 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
       {is('help') && (
         <SettingsGroup title="Help">
-          {/* Opens the same tab picker as the header "How On It works" pill. */}
-          <SettingsRow icon="play_arrow" title="Replay the walkthrough" onClick={() => window.dispatchEvent(new Event(OPEN_TOUR_PICKER))} />
+          {/* Same path as the header "How On It works" pill: the host replays
+              the tab you are on, so this never navigates or opens a picker. */}
+          <SettingsRow
+            icon="play_arrow"
+            title="Replay the walkthrough"
+            onClick={() => window.dispatchEvent(new Event('onit:tutorial-replay'))}
+          />
           <SettingsRow icon="chat_bubble" title="Tell us about On It" href="/settings/help/feedback" />
           {/* §L Q9 */}
           <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
