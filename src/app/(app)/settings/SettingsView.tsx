@@ -20,6 +20,7 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -581,7 +582,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
   const is = (s: SettingsSection) => section === s;
   return (
-    <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
+    <PageContainer size="narrow" className="space-y-4 overflow-x-hidden py-4">
       {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('business-info') ? 'Business Info' : is('business-brand') ? 'Brand Design' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
@@ -1070,6 +1071,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
       {is('main') && (
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
       )}
-    </div>
+    </PageContainer>
   );
 }

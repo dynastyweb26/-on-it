@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
@@ -201,7 +202,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:px-8">
+    <PageContainer size="wide" className="pb-8 pt-4">
       {/* Top segment: invoices or quotes. The filter value decides it. */}
       <PillTabs label="Invoices or estimates" options={SIDES} value={SIDE_OF[filter]}
         onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} />
@@ -234,7 +235,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
           {groups.map((g, gi) => (
             <div key={g.key}>
               <DateDivider label={g.label} flush={gi === 0} />
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <div className="@container"><div className="grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-3">
                 {g.items.map((r) => {
                   const tag = tagFor(r, isConvertedQuote(r));
                   // On Open, a part-paid invoice shows what it still owes
@@ -269,11 +270,11 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                     </Link>
                   );
                 })}
-              </div>
+              </div></div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

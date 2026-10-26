@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import ClientsList from '@/components/clients/ClientsList';
 import ProductsList from '@/components/clients/ProductsList';
 import PillTabs from '@/components/PillTabs';
+import PageContainer from '@/components/PageContainer';
 
 type Segment = 'clients' | 'products';
 const SEGMENTS: { value: Segment; label: string }[] = [
@@ -24,13 +25,13 @@ export default function Clients({ active = true }: { active?: boolean }) {
     if (new URLSearchParams(window.location.search).get('segment') === 'products') setSegment('products');
   }, [active]);
   return (
-    <div className="mx-auto max-w-5xl px-4 py-4 md:px-6">
+    <PageContainer className="py-4">
       {/* Segmented control: the gold thumb slides by transform (MOTION-SPEC §13). */}
       <PillTabs label="Clients or products" options={SEGMENTS} value={segment} onChange={setSegment} />
 
       <div key={segment} role="tabpanel" data-coach={segment === 'clients' ? 'clients-list' : undefined}>
         {segment === 'clients' ? <ClientsList active={active} /> : <ProductsList active={active} />}
       </div>
-    </div>
+    </PageContainer>
   );
 }

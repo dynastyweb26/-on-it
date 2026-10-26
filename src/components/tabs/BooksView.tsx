@@ -18,6 +18,7 @@ import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -194,7 +195,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     ? 'No invoices yet'
     : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-6 md:px-8">
+    <PageContainer size="wide" className="space-y-4 pb-8 pt-6">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the two metric tiles + Spent row, Add expense, the
           list card and Income & Expenses (§L Q4 keeps today's label). */}
@@ -204,7 +205,8 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
-        <div className="grid grid-cols-1 gap-3 lg:gap-5 lg:grid-cols-3">
+        <div className="@container">
+        <div className="grid grid-cols-1 gap-3 @4xl:gap-5 @4xl:grid-cols-3">
           {/* Net hero — design 1b: number first, then "Net · all time · N
               invoices" on one line. Cream, never colored (a negative reads
               "−$…"); opens the Books summary at All time, whose "Kept" is the
@@ -213,7 +215,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
             data-coach="books-net"
-            className={`lg:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
+            className={`@4xl:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
           >
             <div className="flex min-w-0 flex-col gap-1.5">
               <div className={`whitespace-nowrap font-display text-[clamp(30px,13cqi,40px)] font-extrabold leading-[1.05] tracking-[-0.03em] tabular-nums ${isZero ? 'text-inverse-on-surface/50' : 'text-inverse-on-surface'}`}>
@@ -228,13 +230,14 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           {/* Design 1b: Owed and Collected are half-width tiles, Spent is a
               full-width row. Amounts keep their cents (the accessible label
               carries the same full figure); nothing is truncated. */}
-          <div data-coach="books-stats" className="lg:col-span-2 flex flex-col gap-2">
+          <div data-coach="books-stats" className="@4xl:col-span-2 flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2.5 md:gap-4">
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
               <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
             </div>
             <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} />
           </div>
+        </div>
         </div>
       )}
 
@@ -292,7 +295,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           onSaved={() => { setHiddenSkips(hideSkip(skipKey(manualFrom))); setManualFrom(null); void loadStats(); }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 
