@@ -16,6 +16,8 @@ import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 
 /** The mockup's beat: one scene per 4.2s, its track filling the whole time. */
 const REEL_MS = 4200;
+/** The mockup's easing, shared with the scenes and the step entrance. */
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
 
 const SCENE_LABEL: Record<SceneId, string> = {
   invoice: 'Invoice',
@@ -46,7 +48,12 @@ export default function ShowcaseStep({
   }, [idx, reduced]);
 
   return (
-    <div className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1">
+    <div
+      className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1"
+      // The mockup's step entrance (oi-slide, .4s). Reduce Motion turns it off
+      // with the rest of the oi-* motion and the step simply appears.
+      style={{ animation: `oi-slide .4s ${EASE} both` }}
+    >
       {/* The reason pill, to the mockup: white capsule on the page cream, a
           hairline border, one gold receipt mark, and the variant's words. */}
       <p className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline bg-surface-container-lowest px-[13px] py-[7px] text-[12.5px] font-semibold leading-none text-on-surface-variant">
