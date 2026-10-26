@@ -18,11 +18,12 @@ const PROTO_H = 844;
 const SB_H = 47;
 const REAL_PHONE = '(max-width: 500px), (pointer: coarse)';
 // Shortest stage (fake status bar included) at which all 20 scenes keep their
-// spotlight on screen and uncovered by the header or tab bar. Measured at 390 wide
-// with the status bar hidden: every scene fits at 770 tall, Books 4 fails at 765.
-// Below this the stage scales down instead of squeezing, and the side gutters
-// show the overlay backdrop.
-const MIN_STAGE_H = 770 + SB_H;
+// spotlight on screen, uncovered by the header, tab bar, headline card and Next.
+// Measured at 390 wide with the status bar hidden: every scene fits at 820 tall (832 leaves room for the ring);
+// Chat 1's invoice card (the tallest target) still collides with even the
+// compact card at 815. Below this the stage scales down instead of squeezing,
+// and the side gutters show the overlay backdrop.
+const MIN_STAGE_H = 832 + SB_H;
 
 function sameRect(a: Rect | null, b: Rect | null): boolean {
   if (!a !== !b) return false;
@@ -58,7 +59,10 @@ export default function TutorialOverlay({
   const t0Ref = useRef(0);
   const tRef = useRef(0);
   const lastSpotRef = useRef<Rect | null>(null);
-  const lastHlTopRef = useRef(54);
+  const lastSlotRef = useRef<'top' | 'bot'>('top');
+  // Last measured card heights: full, and the compact variant.
+  const fullHRef = useRef(150);
+  const compactHRef = useRef(112);
   const scene = tutorial.scenes[sceneIndex];
   const duration = sceneDuration(scene);
   const state = deriveScene(tab, scene, t);
@@ -165,6 +169,8 @@ export default function TutorialOverlay({
     const hl = root.querySelector<HTMLElement>('[data-hl]');
     if (hl) {
       const h = hl.offsetHeight;
+      if (hl.hasAttribute('data-compact')) compactHRef.current = h;
+      else fullHRef.current = h;
       setHlH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
     }
 
@@ -271,33 +277,36 @@ export default function TutorialOverlay({
   const pad = 6;
   const sw = lr.w + pad * 2;
   const sh = lr.h + pad * 2;
-  const H = hlH || 150;
+  // Placement solver. The headline card and Next are one cluster (card, 12px gap,
+  // Next), parked at the top or the bottom of the stage (above the tab bar) so it
+  // never covers the spotlight. If neither slot is clear the compact cluster is
+  // used: title, one-line subtitle, and Next as a small pill inside the card.
+  const GAP = 12;
+  const NEXT_H = 58;
   const TOP = 54 - sbH;
-  const BOT = stageH - 84 - 14 - 58 - 12 - H;
-  let hlTop = lastHlTopRef.current;
-  if (r) {
-    const y1 = r.y - 8;
-    const y2 = r.y + r.h + 8;
-    const ov = (a: number, c: number) => Math.max(0, Math.min(y2, c) - Math.max(y1, a));
-    const oT = ov(TOP, TOP + H);
-    const oB = ov(BOT, BOT + H);
-    if (oT === 0 && oB === 0) hlTop = (y1 + y2) / 2 > stageH / 2 ? TOP : BOT;
-    else hlTop = oT <= oB ? TOP : BOT;
-  }
-  lastHlTopRef.current = hlTop;
-
-  const NT = stageH - 84 - 14 - 58;
-  let nextTop = r && r.y + r.h + 8 > NT ? stageH - 14 - 58 : NT;
-  if (r) {
-    // On a short stage the bottom slot can sit on the spotlight. Then put Next in
-    // the top half instead: under the headline card, or above it when the card
-    // is at the bottom. Slots that still collide leave Next where it was.
-    const hit = (top: number, h: number) => top < r.y + r.h + 8 && top + h > r.y - 8;
-    if (hit(nextTop, 58)) {
-      const upper = hlTop === TOP ? TOP + H + 12 : TOP;
-      if (!hit(upper, 58) && (hlTop === TOP || upper + 58 <= hlTop)) nextTop = upper;
+  const CLUSTER_BOTTOM = stageH - 84 - 14;
+  const y1 = r ? r.y - 8 : 0;
+  const y2 = r ? r.y + r.h + 8 : 0;
+  const ov = (a: number, c: number) => (r ? Math.max(0, Math.min(y2, c) - Math.max(y1, a)) : 0);
+  const choose = (ch: number) => {
+    const botY = CLUSTER_BOTTOM - ch;
+    const oT = ov(TOP, TOP + ch);
+    const oB = ov(botY, botY + ch);
+    let slot = lastSlotRef.current;
+    if (r) {
+      if (oT === 0 && oB === 0) slot = (y1 + y2) / 2 > stageH / 2 ? 'top' : 'bot';
+      else slot = oT <= oB ? 'top' : 'bot';
     }
-  }
+    return { slot, y: slot === 'top' ? TOP : botY, overlap: slot === 'top' ? oT : oB };
+  };
+  const fullCh = fullHRef.current + GAP + NEXT_H;
+  let place = choose(fullCh);
+  const compact = !!r && place.overlap > 0;
+  if (compact) place = choose(compactHRef.current);
+  lastSlotRef.current = place.slot;
+  const H = compact ? compactHRef.current : fullHRef.current;
+  const hlTop = place.y;
+  const nextTop = hlTop + H + GAP;
   const tapX = tapRect ? tapRect.x + tapRect.w / 2 : 0;
   const tapY = tapRect ? tapRect.y + tapRect.h / 2 : 0;
 
@@ -392,7 +401,7 @@ export default function TutorialOverlay({
           </div>
         )}
 
-        {finished && (
+        {finished && !compact && (
           <button
             type="button"
             onClick={goNext}
@@ -424,6 +433,7 @@ export default function TutorialOverlay({
         <div
           key={sceneIndex}
           data-hl
+          data-compact={compact ? '' : undefined}
           className={styles.aHl}
           aria-live="polite"
           style={{
@@ -434,7 +444,7 @@ export default function TutorialOverlay({
             transition: 'top .6s cubic-bezier(.65,0,.35,1)',
             background: '#1E1A15',
             borderRadius: 24,
-            padding: '14px 18px 18px',
+            padding: compact ? '12px 16px 14px' : '14px 18px 18px',
             boxShadow: '0 18px 50px rgba(20,16,10,.35), inset 0 0 0 1px rgba(255,255,255,.07)',
             color: '#FFF8EC',
           }}
@@ -516,7 +526,7 @@ export default function TutorialOverlay({
               Skip
             </button>
           </div>
-          {state.badge && (
+          {state.badge && !compact && (
             <span
               style={{
                 display: 'inline-block',
@@ -532,26 +542,80 @@ export default function TutorialOverlay({
               {state.badge}
             </span>
           )}
-          <div
-            style={{
-              marginTop: 10,
-              font: '800 27px/1.1 var(--font-montserrat)',
-              letterSpacing: '-.015em',
-              textWrap: 'balance',
-            }}
-          >
-            {scene.h}
-          </div>
-          <div
-            style={{
-              marginTop: 7,
-              font: '500 15.5px/1.38 var(--font-inter)',
-              color: '#DCD3C3',
-              textWrap: 'pretty',
-            }}
-          >
-            {state.hlSub}
-          </div>
+          {compact ? (
+            <>
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    font: '800 21px/1.15 var(--font-montserrat)',
+                    letterSpacing: '-.015em',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {scene.h}
+                </div>
+                <button
+                  type="button"
+                  onClick={goNext}
+                  tabIndex={finished ? 0 : -1}
+                  aria-hidden={!finished}
+                  aria-label={isLast ? 'Got it, finish tutorial' : 'Next scene'}
+                  className={styles.unbutton}
+                  style={{
+                    flex: 'none',
+                    visibility: finished ? 'visible' : 'hidden',
+                    height: 36,
+                    padding: '0 16px',
+                    borderRadius: 18,
+                    background: '#D4AF37',
+                    font: '800 15px/1 var(--font-montserrat)',
+                    color: '#1E1A14',
+                  }}
+                >
+                  {isLast ? 'Got it' : 'Next →'}
+                </button>
+              </div>
+              <div
+                style={{
+                  marginTop: 4,
+                  font: '500 14px/1.3 var(--font-inter)',
+                  color: '#DCD3C3',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {state.hlSub}
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  marginTop: 10,
+                  font: '800 27px/1.1 var(--font-montserrat)',
+                  letterSpacing: '-.015em',
+                  textWrap: 'balance',
+                }}
+              >
+                {scene.h}
+              </div>
+              <div
+                style={{
+                  marginTop: 7,
+                  font: '500 15.5px/1.38 var(--font-inter)',
+                  color: '#DCD3C3',
+                  textWrap: 'pretty',
+                }}
+              >
+                {state.hlSub}
+              </div>
+            </>
+          )}
         </div>
         </div>
       </div>
