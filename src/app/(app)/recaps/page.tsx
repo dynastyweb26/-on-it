@@ -37,7 +37,11 @@ export default function RecapsPage() {
 
   // Design-diff gate hook: /recaps?paywall=reports opens the wall exactly as its
   // own locked rows do, so the laptop card can be measured against the design.
+  // Never in production: Vercel exposes NEXT_PUBLIC_VERCEL_ENV to the browser
+  // (the bare VERCEL_ENV is not in a client bundle), and only "production" is a
+  // real customer build.
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') return;
     if (new URLSearchParams(window.location.search).get('paywall') === 'reports') setPaywall(true);
   }, []);
 
