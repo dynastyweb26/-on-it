@@ -6,12 +6,18 @@ import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import { TUTORIALS } from './data';
 import { deriveScene, sceneDuration } from './player-state';
 import { MockScreen } from './mock/MockScreen';
+import { LaptopShell } from './mock/MockChrome';
 import styles from './tutorial.module.css';
 
 type Rect = { x: number; y: number; w: number; h: number; r: number };
 
 // The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
 const STAGE_W = 390;
+// The laptop stage (design/laptop/tutorial.html: a 1380x860 frame holding the
+// 288 sidebar, the 1152 content area and its 72px page header). Dormant until
+// ?laptop=1 turns it on; the phone stage above is untouched.
+const LAPTOP_W = 1380;
+const LAPTOP_H = 860;
 const PROTO_H = 844;
 // Widest the stage may render (viewport px), and tallest once the viewport is
 // wider than that. Phones up to 430 wide fill the viewport at any height; wider
@@ -43,6 +49,16 @@ export default function TutorialOverlay({
   const [stageH, setStageH] = useState(PROTO_H);
   // True on iPad/laptop widths: the stage is a framed phone on an opaque backdrop.
   const [wide, setWide] = useState(false);
+  // Dormant laptop stage: off unless the URL asks for it. The matchMedia flip is
+  // a later commit, so nothing a phone, iPad or laptop visitor sees changes yet.
+  const [laptop, setLaptop] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('laptop') === '1') setLaptop(true);
+  }, []);
+  const frameW = laptop ? LAPTOP_W : STAGE_W;
+  const frameH = laptop ? LAPTOP_H : stageH;
+  const frameRef = useRef({ w: frameW, h: frameH });
+  frameRef.current = { w: frameW, h: frameH };
   const [realPhone, setRealPhone] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(REAL_PHONE).matches,
   );
@@ -86,6 +102,12 @@ export default function TutorialOverlay({
       const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       if (!(w > 0) || !(h > 0)) return;
+      if (laptop) {
+        // The laptop frame shrinks to fit, never grows past 1:1.
+        setScale(Math.min(1, w / LAPTOP_W, h / LAPTOP_H));
+        setWide(true);
+        return;
+      }
       const stageW = Math.min(w, MAX_STAGE_W);
       // The height cap only applies once the viewport is wider than a phone, so a
       // tall phone (360 x 1000) still fills the screen.
@@ -106,7 +128,7 @@ export default function TutorialOverlay({
       window.visualViewport?.removeEventListener('resize', update);
       ro?.disconnect();
     };
-  }, []);
+  }, [laptop]);
 
   // Scene clock. The prototype holds the final frame forever; nothing advances
   // until Next/Got it.
@@ -150,7 +172,7 @@ export default function TutorialOverlay({
     const root = stageRef.current;
     if (!root) return;
     const pr = root.getBoundingClientRect();
-    const k = pr.width / STAGE_W || 1;
+    const k = pr.width / frameRef.current.w || 1;
     const rel = (key: string | null): Rect | null => {
       if (!key) return null;
       const el = root.querySelector<HTMLElement>(`[data-spot="${key}"]`);
@@ -259,7 +281,7 @@ export default function TutorialOverlay({
       const h = parseFloat(cs.height) || 0;
       const rr = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, w / 2, h / 2);
       const d =
-        `M-2 -2H${STAGE_W + 2}V${stageH + 2}H-2Z` +
+        `M-2 -2H${frameW + 2}V${frameH + 2}H-2Z` +
         `M${x + rr} ${y}H${x + w - rr}A${rr} ${rr} 0 0 1 ${x + w} ${y + rr}V${y + h - rr}` +
         `A${rr} ${rr} 0 0 1 ${x + w - rr} ${y + h}H${x + rr}A${rr} ${rr} 0 0 1 ${x} ${y + h - rr}` +
         `V${y + rr}A${rr} ${rr} 0 0 1 ${x + rr} ${y}Z`;
@@ -270,7 +292,7 @@ export default function TutorialOverlay({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [stageH]);
+  }, [frameH, frameW]);
 
   // Remember what opened the tutorial (the pill, a picker item) so focus can go
   // back to it on close. Captured before the effect below moves focus in.
@@ -369,7 +391,7 @@ export default function TutorialOverlay({
   }, []);
   // The framed phone on a wide screen drops the fake status bar too (nothing real
   // sits above it, and the 47px lets Chat 1's invoice card clear the compact card).
-  const sbH = realPhone || wide ? SB_H : 0;
+  const sbH = laptop ? 0 : realPhone || wide ? SB_H : 0;
 
   const goNext = useCallback(() => {
     if (isLast) {
@@ -405,7 +427,7 @@ export default function TutorialOverlay({
   };
 
   const r = state.spotKey ? spotRect : null;
-  const lr = r || lastSpot || lastSpotRef.current || { x: STAGE_W / 2, y: stageH / 2, w: 0, h: 0, r: 12 };
+  const lr = r || lastSpot || lastSpotRef.current || { x: frameW / 2, y: frameH / 2, w: 0, h: 0, r: 12 };
   const pad = 6;
   const sw = lr.w + pad * 2;
   const sh = lr.h + pad * 2;
@@ -420,8 +442,9 @@ export default function TutorialOverlay({
   // are scaled by --tut-scale, so the design's rendered values divide by it.
   const GAP = wide ? 18 / scale : 12;
   const NEXT_H = 58;
-  const TOP = 54 - sbH;
-  const CLUSTER_BOTTOM = stageH - 84 - 14;
+  // Laptop: the cluster parks under the 72px page header and above the footer.
+  const TOP = laptop ? 96 : 54 - sbH;
+  const CLUSTER_BOTTOM = laptop ? frameH - 40 : stageH - 84 - 14;
   const y1 = r ? r.y - 8 : 0;
   const y2 = r ? r.y + r.h + 8 : 0;
   const ov = (a: number, c: number) => (r ? Math.max(0, Math.min(y2, c) - Math.max(y1, a)) : 0);
@@ -431,7 +454,7 @@ export default function TutorialOverlay({
     const oB = ov(botY, botY + ch);
     let slot = lastSlotRef.current;
     if (r) {
-      if (oT === 0 && oB === 0) slot = (y1 + y2) / 2 > stageH / 2 ? 'top' : 'bot';
+      if (oT === 0 && oB === 0) slot = (y1 + y2) / 2 > frameH / 2 ? 'top' : 'bot';
       else slot = oT <= oB ? 'top' : 'bot';
     }
     return { slot, y: slot === 'top' ? TOP : botY, overlap: slot === 'top' ? oT : oB };
@@ -479,7 +502,8 @@ export default function TutorialOverlay({
           style={
             {
               '--tut-scale': scale,
-              '--tut-h': `${stageH}px`,
+              '--tut-h': `${frameH}px`,
+              width: frameW,
               // Device frame on wide screens: rounded corners, hairline, soft shadow.
               ...(wide
                 ? {
@@ -491,10 +515,20 @@ export default function TutorialOverlay({
           }
         >
           {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
-              bottom; the extra top strip (the fake status bar) is clipped away. */}
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>
-            <MockScreen state={state} chatMax={chatMax} nudge={nudge} />
-          </div>
+              bottom; the extra top strip (the fake status bar) is clipped away.
+              Dormant laptop stage (?laptop=1): the same mock sits inside the
+              design's 288 / 1152 / 72 shell until a later commit re-places it. */}
+          {laptop ? (
+            <LaptopShell tab={tab}>
+              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
+                <MockScreen state={state} chatMax={chatMax} nudge={nudge} />
+              </div>
+            </LaptopShell>
+          ) : (
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -sbH }}>
+              <MockScreen state={state} chatMax={chatMax} nudge={nudge} />
+            </div>
+          )}
 
         <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
           <div key={sceneIndex} className={styles.aVeil} style={{ position: 'absolute', inset: 0, background: '#FDF7EE', pointerEvents: 'none' }} />
@@ -504,14 +538,14 @@ export default function TutorialOverlay({
           style={{
             position: 'absolute',
             inset: 0,
-            width: STAGE_W,
-            height: stageH,
+            width: frameW,
+            height: frameH,
             opacity: r && state.st.dim !== false ? 1 : 0,
             transition: 'opacity .4s',
             pointerEvents: 'none',
           }}
         >
-          <svg width={STAGE_W} height={stageH} style={{ display: 'block' }}>
+          <svg width={frameW} height={frameH} style={{ display: 'block' }}>
             <path ref={scrimRef} fillRule="evenodd" fill="rgba(22,18,12,0.6)" />
           </svg>
         </div>

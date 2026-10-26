@@ -225,3 +225,97 @@ export function MockChrome({
     </>
   );
 }
+
+/** Dormant laptop stage (design tutorial frame): 288 sidebar + 1152 content with
+ *  the 72px page header. Only rendered when the tour is opened with ?laptop=1;
+ *  the phone frame above is what every visitor still gets. */
+export function LaptopShell({ tab, children }: { tab: TutorialTab; children: ReactNode }) {
+  const label = TABS.find((t) => t.key === tab)?.label ?? '';
+  return (
+    <div aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', background: '#FDF7EE' }}>
+      <aside
+        style={{
+          width: 288,
+          flex: 'none',
+          borderRight: '1px solid #EFE4D2',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '0 4px 18px',
+            font: '800 26px/1 var(--font-montserrat)',
+            letterSpacing: '-.01em',
+            color: '#1E1A14',
+          }}
+        >
+          On It<span style={{ color: '#B8960F' }}>.</span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: 40,
+            padding: '0 14px',
+            marginBottom: 14,
+            borderRadius: 999,
+            background: '#D4AF37',
+            color: '#1E1A14',
+            font: '700 14px/1 var(--font-inter)',
+          }}
+        >
+          How it works
+          <Icon name="expand_more" size={20} />
+        </div>
+        {TABS.map((t) => {
+          const active = t.key === tab;
+          return (
+            <div
+              key={t.key}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                height: 44,
+                padding: '0 14px',
+                borderRadius: 14,
+                background: active ? '#D4AF37' : 'transparent',
+                color: '#1E1A14',
+                font: '600 17px/1 var(--font-inter)',
+              }}
+            >
+              <Icon name={t.icon} size={22} />
+              {t.label}
+            </div>
+          );
+        })}
+      </aside>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            height: 72,
+            flex: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '0 32px',
+            borderBottom: '1px solid #EFE4D2',
+            font: '700 24px/1 var(--font-montserrat)',
+            color: '#1E1A14',
+          }}
+        >
+          {label}
+        </div>
+        <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
