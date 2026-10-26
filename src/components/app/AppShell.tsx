@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { usePathname, useRouter } from 'next/navigation';
 import CoachMarks from '@/components/tutorial/CoachMarks';
 import { CAMERA_TIP } from '@/components/tutorial/coach-marks';
+import type { TutorialTab } from '@/lib/tutorial-seen';
+import TourPicker from '@/components/tutorial/TourPicker';
 import TutorialHost from '@/components/tutorial/TutorialHost';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
@@ -433,12 +435,11 @@ export default function AppShell({
   }, [startThrob, checkCameraTutorial]);
   const throbClass = throb ? ' onit-help-throb' : '';
 
-  // Header/sidebar/settings replay: the host resolves the current tab, so no
-  // navigation and no picker. The player never leaves the tab you are on.
-  const replayTutorial = useCallback(() => {
-    endThrob();
-    window.dispatchEvent(new Event('onit:tutorial-replay'));
-  }, [endThrob]);
+  // Picker pick: the host plays that tutorial in the overlay. The player never
+  // navigates; it plays over whatever tab you are on.
+  const playTutorial = useCallback((tab: TutorialTab) => {
+    window.dispatchEvent(new CustomEvent('onit:tutorial-play', { detail: tab }));
+  }, []);
 
   function onTouchStart(e: React.TouchEvent) {
     gesture.current = null;
@@ -499,13 +500,14 @@ export default function AppShell({
           <span className="font-display text-2xl font-extrabold tracking-tight">
             On It<span className="text-primary">.</span>
           </span>
-          <button
-            type="button"
-            onClick={replayTutorial}
-            className={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
+          <TourPicker
+            align="left"
+            onPick={playTutorial}
+            onButtonPress={endThrob}
+            buttonClassName={`inline-flex h-9 items-center rounded-button bg-primary-container px-3 text-xs font-semibold text-on-background transition active:scale-95${throbClass}`}
           >
             How it works
-          </button>
+          </TourPicker>
         </div>
 
         <nav data-coach="side-nav" className="flex flex-col gap-2.5">
@@ -571,13 +573,13 @@ export default function AppShell({
                 </>
               )}
               <div className="md:hidden">
-                <button
-                  type="button"
-                  onClick={replayTutorial}
-                  className={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
+                <TourPicker
+                  onPick={playTutorial}
+                  onButtonPress={endThrob}
+                  buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
                 >
                   How On It works
-                </button>
+                </TourPicker>
               </div>
             </div>
           </header>
@@ -588,13 +590,13 @@ export default function AppShell({
                 On It<span className="text-primary">.</span>
               </span>
             </div>
-            <button
-              type="button"
-              onClick={replayTutorial}
-              className={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
+            <TourPicker
+              onPick={playTutorial}
+              onButtonPress={endThrob}
+              buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
             >
               How On It works
-            </button>
+            </TourPicker>
           </header>
         )}
 

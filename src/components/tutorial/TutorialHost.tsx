@@ -32,7 +32,7 @@ function exactTabAt(path: string): TutorialTab | null {
   return i >= 0 ? (TAB_KEY[TABS[i].href] ?? null) : null;
 }
 
-function tabAt(path: string): TutorialTab | null {
+export function tabAt(path: string): TutorialTab | null {
   const i = tabIndexOf(path);
   return i >= 0 ? (TAB_KEY[TABS[i].href] ?? null) : null;
 }
@@ -108,16 +108,17 @@ export default function TutorialHost() {
     setActive(tab);
   }, [active, pathname, seen]);
 
-  // Header/sidebar/Settings entry point. Always the current tab, never a picker.
+  // Picker entry point (header/sidebar pill, Settings › Help): the shell's
+  // TourPicker says which tutorial to play. Autoplay stays direct, no picker.
   useEffect(() => {
-    const onReplay = () => {
+    const onPlay = (e: Event) => {
       if (activeRef.current) return;
-      const tab = tabAt(window.location.pathname);
+      const tab = (e as CustomEvent<TutorialTab>).detail;
       if (!tab || !READY_TABS.includes(tab)) return;
       setActive(tab);
     };
-    window.addEventListener('onit:tutorial-replay', onReplay);
-    return () => window.removeEventListener('onit:tutorial-replay', onReplay);
+    window.addEventListener('onit:tutorial-play', onPlay);
+    return () => window.removeEventListener('onit:tutorial-play', onPlay);
   }, []);
 
   // Keep the weekly/monthly recap sheet from opening over the walkthrough. The
