@@ -20,8 +20,8 @@ const CARD = 'rounded-2xl border border-[#efe4d2] bg-surface-container-lowest';
 const ROW_H = 'min-h-[60px] [@media(max-height:700px)]:min-h-[52px]';
 
 function CellValue({ v }: { v: PlanCell }): ReactNode {
-  if (v === true) return <span role="img" aria-label="Included"><Icon name="check" size={20} className="text-primary" /></span>;
-  if (v === false) return <span role="img" aria-label="Not included" className="text-on-surface-variant">—</span>;
+  if (v === true) return <span role="img" aria-label="Included"><Icon name="check" size={19} className="text-primary" /></span>;
+  if (v === false) return <span role="img" aria-label="Not included" className="text-muted">—</span>;
   return v;
 }
 
@@ -69,23 +69,31 @@ export default function PlanStep({
         </div>
       </div>
 
-      <table className={`${CARD} w-full border-separate border-spacing-0 overflow-hidden text-[14px] leading-5`}>
+      {/* Free vs On It, to the mockup: a fixed 76/86px pair of value columns,
+          small display-caps headers, and the gold OUTLINED check (never a
+          filled glyph). */}
+      <table className={`${CARD} w-full table-fixed border-separate border-spacing-0 overflow-hidden text-[13.5px] leading-[1.3]`}>
         <caption className="sr-only">What’s included with Free and On It</caption>
+        <colgroup>
+          <col />
+          <col className="w-[76px]" />
+          <col className="w-[86px]" />
+        </colgroup>
         <thead>
-          <tr className="text-[12px] font-semibold uppercase tracking-[.08em] text-on-surface-variant">
-            <th scope="col" className="px-3.5 py-2.5 text-left font-semibold"><span className="sr-only">Feature</span></th>
-            <th scope="col" className="w-[84px] px-2 py-2.5 text-center font-semibold">Free</th>
-            <th scope="col" className="w-[96px] bg-primary-container/25 px-2 py-2.5 text-center font-display font-extrabold text-on-background">On It</th>
+          <tr>
+            <th scope="col" className="px-3.5 py-3 text-left"><span className="sr-only">Feature</span></th>
+            <th scope="col" className="px-1.5 py-3 text-center font-display text-[10.5px] font-bold uppercase tracking-[.12em] text-on-surface-variant">Free</th>
+            <th scope="col" className="bg-tile px-1.5 py-3 text-center font-display text-[10.5px] font-extrabold uppercase tracking-[.12em]">On It</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.label}>
-              <th scope="row" className="border-t border-[#efe4d2] px-3.5 py-3 text-left font-semibold">{r.label}</th>
-              <td className="border-t border-[#efe4d2] px-2 py-3 text-center text-on-surface-variant">
+              <th scope="row" className="border-t border-hairline px-3.5 py-3 text-left font-medium">{r.label}</th>
+              <td className="border-t border-hairline px-1.5 py-3 text-center text-on-surface-variant">
                 <span className="inline-flex justify-center"><CellValue v={r.free} /></span>
               </td>
-              <td className="border-t border-[#efe4d2] bg-primary-container/25 px-2 py-3 text-center font-semibold">
+              <td className="border-t border-hairline bg-tile px-1.5 py-3 text-center font-bold">
                 <span className="inline-flex justify-center"><CellValue v={r.paid} /></span>
               </td>
             </tr>
