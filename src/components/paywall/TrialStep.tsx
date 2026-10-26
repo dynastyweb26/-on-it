@@ -14,6 +14,7 @@ import { STEP_TITLE, TRIAL_COPY } from '@/lib/paywall-copy';
 import { trialDates } from '@/lib/trial';
 
 const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const long = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 /** One timeline stop: gold disc, uppercase gold date/eyebrow, the statement,
  *  then whatever the step adds under it. */
@@ -71,13 +72,42 @@ export default function TrialStep() {
           icon="notifications"
           eyebrow={short(remind)}
           title={TRIAL_COPY.reminderTitle}
-        />
+        >
+          {/* What lands in the inbox, shown where it is promised. */}
+          <div className="mt-2.5 flex items-center gap-2.5 rounded-2xl border border-hairline bg-surface-container-lowest px-3 py-2.5">
+            <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-chip">
+              <Icon name="mail" size={18} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold leading-[1.25]">Your trial ends {short(end)}</div>
+              <div className="text-[11.5px] leading-[1.3] text-on-surface-variant">{TRIAL_COPY.emailFrom}</div>
+            </div>
+          </div>
+        </Stop>
         <Stop
           icon="event"
           eyebrow={short(end)}
           title={TRIAL_COPY.startTitle}
         />
       </div>
+
+      {/* The bill, plainly: nothing today, $9.99 a month from the end date. */}
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-hairline bg-surface-container-lowest px-4 py-3.5 font-mono text-[13px] leading-none">
+        <div className="flex justify-between">
+          <span>{TRIAL_COPY.dueLabel}</span>
+          <span className="font-semibold">{TRIAL_COPY.dueAmount}</span>
+        </div>
+        <div aria-hidden className="border-t-[1.5px] border-dashed border-dash" />
+        <div className="flex justify-between text-on-surface-variant">
+          <span>{TRIAL_COPY.fromLabel} {long(end)}</span>
+          <span>{TRIAL_COPY.monthlyAmount}</span>
+        </div>
+      </div>
+
+      <p className="flex items-center justify-center gap-1.5 text-[13.5px] leading-none text-on-surface-variant">
+        <Icon name="settings" size={17} />
+        {TRIAL_COPY.cancelNote}
+      </p>
     </div>
   );
 }

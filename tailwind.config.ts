@@ -44,6 +44,7 @@ const config: Config = {
         dash: '#e6d9c3',       // dashed receipt divider, input border
         muted: '#a59a84',      // “not set”, disabled values
         reel: '#e3d6bf',       // deck dots, switch track off
+        chip: '#f1e6d3',       // icon tile inside the mockup's cards
         positive: { DEFAULT: '#17703a', container: '#c9f0d5' },
         alert: '#a1321f',      // code-entry error
         sent: { DEFAULT: '#735c00', container: '#f3e9c8' },
