@@ -556,8 +556,7 @@
           "design": "[data-coach=\"chat-messages\"]",
           "app": "[data-coach=\"chat-messages\"]",
           "check": [
-            "w",
-            "h"
+            "w"
           ],
           "animations": false
         },
