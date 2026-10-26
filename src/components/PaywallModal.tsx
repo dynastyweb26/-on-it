@@ -192,40 +192,44 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
     >
       <div className="flex h-full w-full max-w-md flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        {/* Top bar: back once there is a step behind you (the first step's
-            control is "Not now"), the app icon, and a dismiss X from step 2 on. */}
-        <div className="relative flex h-11 shrink-0 items-center px-1.5">
-          <button
-            type="button"
-            aria-label={idx === 0 ? 'Not now' : 'Back'}
-            onClick={idx === 0 ? onClose : () => setStep(idx - 1)}
-            className="grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-[rgba(31,27,19,.08)] transition-colors active:bg-[rgba(31,27,19,.14)]">
-              <Icon name={idx === 0 ? 'close' : 'arrow_back'} size={22} />
-            </span>
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icons/apple-icon-180.png"
-            alt="On It"
-            width={28}
-            height={28}
-            className="absolute left-1/2 top-2 h-7 w-7 -translate-x-1/2 rounded-lg object-cover"
-          />
-          {idx > 0 && (
+        {/* Header, to the mockup: dismiss X, the app icon, then the step
+            progress — a dark pill for this step, gold for the ones behind it. */}
+        <header className="flex shrink-0 flex-col items-center gap-2.5 px-3 pb-2.5 pt-3.5">
+          <div className="grid w-full grid-cols-[44px_1fr_44px] items-center">
             <button
               type="button"
               aria-label="Not now"
               onClick={onClose}
-              className="ml-auto grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="grid h-11 w-11 place-items-center rounded-full text-on-background outline-none transition-colors hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-[rgba(31,27,19,.08)] transition-colors active:bg-[rgba(31,27,19,.14)]">
-                <Icon name="close" size={22} />
-              </span>
+              <Icon name="close" size={24} />
             </button>
-          )}
-        </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icons/apple-icon-180.png"
+              alt="On It"
+              width={44}
+              height={44}
+              className="h-11 w-11 justify-self-center rounded-xl object-cover shadow-[0_4px_12px_rgba(212,175,55,.32)]"
+            />
+            <span aria-hidden />
+          </div>
+          <div role="group" aria-label="Step progress" className="flex items-center gap-1.5">
+            {steps.map((id, i) => (
+              <span
+                key={id}
+                aria-current={i === idx ? 'step' : undefined}
+                className={
+                  i === idx
+                    ? 'h-1.5 w-5 rounded-full bg-on-background'
+                    : i < idx
+                      ? 'h-1.5 w-1.5 rounded-full bg-primary-container'
+                      : 'h-1.5 w-1.5 rounded-full bg-reel'
+                }
+              />
+            ))}
+          </div>
+        </header>
 
         {/* The step. Step 1 fills the height (the deck is measured from it);
             steps 2–3 scroll if they need to. */}
@@ -295,15 +299,27 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
               </p>
             </>
           ) : (
-            <button
-              type="button"
-              className={footerButton}
-              style={footerShadow}
-              onClick={() => setStep(idx + 1)}
-            >
-              <span>Continue</span>
-              <Icon name="arrow_forward" size={22} />
-            </button>
+            <>
+              <button
+                type="button"
+                className={footerButton}
+                style={footerShadow}
+                onClick={() => setStep(idx + 1)}
+              >
+                Continue
+              </button>
+              {/* The mockup's only back control: a quiet text link under
+                  Continue, on the trial step. */}
+              {current === 'trial' && (
+                <button
+                  type="button"
+                  onClick={() => setStep(idx - 1)}
+                  className="min-h-8 px-4 font-body text-sm font-semibold text-on-surface-variant outline-none transition-colors hover:text-on-background focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Back
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
