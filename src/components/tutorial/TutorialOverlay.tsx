@@ -174,6 +174,40 @@ export default function TutorialOverlay({
     return () => cancelAnimationFrame(raf);
   }, [measure]);
 
+  // The dim scrim is an SVG evenodd path whose rounded-rect hole follows the
+  // gold ring frame by frame (the ring's own CSS transition drives both, so the
+  // two can never drift apart). A path, not a giant box-shadow: no spread to
+  // size and no tiling seam on iOS.
+  const scrimRef = useRef<SVGPathElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    let last = '';
+    const frame = () => {
+      raf = requestAnimationFrame(frame);
+      const ring = ringRef.current;
+      const path = scrimRef.current;
+      if (!ring || !path) return;
+      const cs = getComputedStyle(ring);
+      const x = parseFloat(cs.left) || 0;
+      const y = parseFloat(cs.top) || 0;
+      const w = parseFloat(cs.width) || 0;
+      const h = parseFloat(cs.height) || 0;
+      const rr = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, w / 2, h / 2);
+      const d =
+        `M-2 -2H${STAGE_W + 2}V${stageH + 2}H-2Z` +
+        `M${x + rr} ${y}H${x + w - rr}A${rr} ${rr} 0 0 1 ${x + w} ${y + rr}V${y + h - rr}` +
+        `A${rr} ${rr} 0 0 1 ${x + w - rr} ${y + h}H${x + rr}A${rr} ${rr} 0 0 1 ${x} ${y + h - rr}` +
+        `V${y + rr}A${rr} ${rr} 0 0 1 ${x + rr} ${y}Z`;
+      if (d !== last) {
+        last = d;
+        path.setAttribute('d', d);
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [stageH]);
+
   const goNext = useCallback(() => {
     if (isLast) {
       onClose();
@@ -268,18 +302,32 @@ export default function TutorialOverlay({
           aria-hidden
           style={{
             position: 'absolute',
+            inset: 0,
+            width: STAGE_W,
+            height: stageH,
+            opacity: r && state.st.dim !== false ? 1 : 0,
+            transition: 'opacity .4s',
+            pointerEvents: 'none',
+          }}
+        >
+          <svg width={STAGE_W} height={stageH} style={{ display: 'block' }}>
+            <path ref={scrimRef} fillRule="evenodd" fill="rgba(22,18,12,0.6)" />
+          </svg>
+        </div>
+
+        <div
+          ref={ringRef}
+          aria-hidden
+          style={{
+            position: 'absolute',
             left: lr.x - pad,
             top: lr.y - pad,
             width: sw,
             height: sh,
             borderRadius: Math.min(lr.r + pad, sh / 2),
             opacity: r ? 1 : 0,
-            // Prototype: 2000px. The spread only has to cover the stage from any
-            // spotlight position (900px at 844 tall); 2000px triggers
-            // Chromium's huge-shadow tiling seams.
-            boxShadow: `0 0 0 ${Math.max(900, Math.ceil(stageH) + 56)}px rgba(22,18,12,${state.st.dim === false ? 0 : 0.6})`,
             transition:
-              'left .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), width .55s cubic-bezier(.2,.8,.2,1), height .55s cubic-bezier(.2,.8,.2,1), border-radius .55s, opacity .4s, box-shadow .4s',
+              'left .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), width .55s cubic-bezier(.2,.8,.2,1), height .55s cubic-bezier(.2,.8,.2,1), border-radius .55s, opacity .4s',
             pointerEvents: 'none',
           }}
         >
