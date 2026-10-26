@@ -64,6 +64,11 @@ export default function TutorialOverlay({
   // Last measured card heights: full, and the compact variant.
   const fullHRef = useRef(150);
   const compactHRef = useRef(112);
+  // Laptop keyboard (design tutorial): ArrowRight/Enter = next, ArrowLeft = back,
+  // Esc = skip (handled by the dialog's own key handler). The callbacks are
+  // defined below, so the document listener reads them through refs.
+  const goNextRef = useRef<() => void>(() => {});
+  const goBackRef = useRef<() => void>(() => {});
   const scene = tutorial.scenes[sceneIndex];
   const duration = sceneDuration(scene);
   const state = deriveScene(tab, scene, t);
@@ -312,6 +317,17 @@ export default function TutorialOverlay({
         onCloseRef.current();
         return;
       }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        (e.key === 'ArrowRight' ? goNextRef : goBackRef).current();
+        return;
+      }
+      // Enter steps on too, unless it is activating a focused control.
+      if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        goNextRef.current();
+        return;
+      }
       if (e.key !== 'Tab') return;
       const list = focusables();
       e.preventDefault();
@@ -393,11 +409,15 @@ export default function TutorialOverlay({
   const pad = 6;
   const sw = lr.w + pad * 2;
   const sh = lr.h + pad * 2;
+  goNextRef.current = goNext;
+  goBackRef.current = goBack;
+
   // Placement solver. The headline card and Next are one cluster (card, 12px gap,
   // Next), parked at the top or the bottom of the stage (above the tab bar) so it
   // never covers the spotlight. If neither slot is clear the compact cluster is
   // used: title, one-line subtitle, and Next as a small pill inside the card.
-  const GAP = 12;
+  // Laptop: the design spaces the card 18px off the spotlight ring.
+  const GAP = wide ? 18 : 12;
   const NEXT_H = 58;
   const TOP = 54 - sbH;
   const CLUSTER_BOTTOM = stageH - 84 - 14;
@@ -546,7 +566,8 @@ export default function TutorialOverlay({
             type="button"
             onClick={goNext}
             aria-label={isLast ? 'Got it, finish tutorial' : 'Next scene'}
-            className={`${styles.unbutton} ${styles.aNext}`}
+            aria-keyshortcuts="ArrowRight Enter"
+            className={`${styles.unbutton} ${styles.aNext} ${styles.focusGold}`}
             style={{
               position: 'absolute',
               left: 16,
@@ -578,13 +599,16 @@ export default function TutorialOverlay({
           aria-live="polite"
           style={{
             position: 'absolute',
-            left: 14,
-            right: 14,
+            // Laptop (design gallery): a fixed 360 card, 16px off the frame's
+            // sides; the phone keeps its full-width card.
+            ...(wide
+              ? { left: '50%', right: 'auto', width: 360, marginLeft: -180 }
+              : { left: 14, right: 14 }),
             top: hlTop,
             transition: 'top .6s cubic-bezier(.65,0,.35,1)',
             background: '#1E1A15',
-            borderRadius: 24,
-            padding: compact ? '12px 16px 14px' : '14px 18px 18px',
+            borderRadius: wide ? 20 : 24,
+            padding: compact ? '12px 16px 14px' : wide ? '16px 18px' : '14px 18px 18px',
             boxShadow: '0 18px 50px rgba(20,16,10,.35), inset 0 0 0 1px rgba(255,255,255,.07)',
             color: '#FFF8EC',
           }}
@@ -633,7 +657,8 @@ export default function TutorialOverlay({
                 type="button"
                 onClick={goBack}
                 aria-label="Previous scene"
-                className={styles.unbutton}
+                aria-keyshortcuts="ArrowLeft"
+                className={`${styles.unbutton} ${styles.focusGold}`}
                 style={{
                   width: 28,
                   height: 28,
@@ -654,7 +679,7 @@ export default function TutorialOverlay({
             <button
               type="button"
               onClick={skip}
-              className={styles.unbutton}
+              className={`${styles.unbutton} ${styles.focusGold}`}
               style={{
                 padding: '7px 12px',
                 borderRadius: 99,
@@ -704,7 +729,7 @@ export default function TutorialOverlay({
                   tabIndex={finished ? 0 : -1}
                   aria-hidden={!finished}
                   aria-label={isLast ? 'Got it, finish tutorial' : 'Next scene'}
-                  className={styles.unbutton}
+                  className={`${styles.unbutton} ${styles.focusGold}`}
                   style={{
                     flex: 'none',
                     visibility: finished ? 'visible' : 'hidden',
