@@ -29,6 +29,7 @@ import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
 import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
+import type { SceneId } from '@/components/paywall/ShowcaseScenes';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import {
   REASON,
@@ -46,7 +47,19 @@ import { trialDates } from '@/lib/trial';
 export type { PaywallVariant } from '@/lib/paywall-copy';
 export type { CheckoutReturn } from '@/lib/subscription/start';
 
-// Where each wall's Checkout returns by default when the caller doesn't say.
+// The scene each wall opens on — the feature the user just ran into, mapped
+// onto the showcase's four scenes (expense/recurring have no demo of their
+// own, so they open on the invoice story).
+const START_SCENE: Record<PaywallVariant, SceneId> = {
+  invoice: 'invoice',
+  expense: 'invoice',
+  estimate: 'estimate',
+  recurring: 'invoice',
+  reports: 'recap',
+  winback: 'invoice',
+};
+
+
 const DEFAULT_RETURN: Record<PaywallVariant, CheckoutReturn> = {
   invoice: 'chat',
   expense: 'chat',
@@ -228,7 +241,9 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {current === 'showcase' && <ShowcaseStep reason={reason ?? REASON[variant]} />}
+          {current === 'showcase' && (
+            <ShowcaseStep reason={reason ?? REASON[variant]} start={START_SCENE[variant]} />
+          )}
           {current === 'trial' && <TrialStep />}
           {current === 'plan' && (
             <PlanStep
