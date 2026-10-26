@@ -20,7 +20,7 @@ export default function ShowcaseStep({ reason }: {
 }) {
   return (
     <div
-      className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1 xl:items-stretch xl:gap-4 xl:px-0 xl:pb-0 xl:pt-0"
+      className="flex flex-col items-center gap-3.5 px-4 pb-4 pt-1 xl:items-stretch xl:gap-4 xl:px-14 xl:pb-0 xl:pt-2"
       style={{ animation: 'oi-slide .4s cubic-bezier(.2,.8,.2,1) both' }}
     >
       {/* The slide headlines are visual; this is the step's name for screen readers. */}
