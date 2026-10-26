@@ -241,7 +241,10 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
    The counters are CSS counters over a registered --n, as in the mockup:
    content itself cannot animate, so the number is a counter and --n is what
    moves. Their animation sits under no-preference because the global reduce
-   rule's `*` does not reach pseudo-elements. */
+   rule's `*` does not reach pseudo-elements, and the counting version is
+   behind @supports (round()/mod()) because an engine without those functions
+   cannot format the recap net — it keeps the literal end value instead and
+   simply shows the finished number. */
 @keyframes oi-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes oi-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes oi-out { from { opacity: 1; } to { opacity: 0; } }
@@ -263,29 +266,35 @@ html.icons-loading .material-symbols-outlined { color: transparent; }
 
 .oi-gone { opacity: 0; }
 
-/* Resting counters: the end frame, as plain text. */
+/* Resting counters: the end frame, as plain text. This is also the fallback
+   for engines that cannot count — no support, no count-up, same number. */
 .oi-amt::after { content: '$850.00'; }
 .oi-amt-late::after { content: '$850.00'; }
 .oi-net::after { content: '$2,415'; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .oi-amt::after {
-    content: '$' counter(n) '.00';
-    counter-reset: n var(--n);
-    animation: oi-c850 .9s cubic-bezier(.2,.8,.2,1) 2.6s both;
-  }
-  .oi-amt-late::after {
-    content: '$' counter(n) '.00';
-    counter-reset: n var(--n);
-    animation: oi-c850 .8s cubic-bezier(.2,.8,.2,1) 2.8s both;
-  }
-  .oi-net::after {
-    content: '$' counter(k) ',' counter(h) counter(t) counter(o);
-    counter-reset: k round(down, var(--n) / 1000, 1)
-      h mod(round(down, var(--n) / 100, 1), 10)
-      t mod(round(down, var(--n) / 10, 1), 10)
-      o mod(var(--n), 10);
-    animation: oi-cnet 1.4s cubic-bezier(.2,.8,.2,1) 1.2s both;
+  /* Counting needs round()/mod() to write the thousands separator out of a
+     counter (the recap net), so the pair is gated together: a browser without
+     them keeps the literal end value above rather than rendering $0,000. */
+  @supports (width: round(1px, 1px)) {
+    .oi-amt::after {
+      content: '$' counter(n) '.00';
+      counter-reset: n var(--n);
+      animation: oi-c850 .9s cubic-bezier(.2,.8,.2,1) 2.6s both;
+    }
+    .oi-amt-late::after {
+      content: '$' counter(n) '.00';
+      counter-reset: n var(--n);
+      animation: oi-c850 .8s cubic-bezier(.2,.8,.2,1) 2.8s both;
+    }
+    .oi-net::after {
+      content: '$' counter(k) ',' counter(h) counter(t) counter(o);
+      counter-reset: k round(down, var(--n) / 1000, 1)
+        h mod(round(down, var(--n) / 100, 1), 10)
+        t mod(round(down, var(--n) / 10, 1), 10)
+        o mod(var(--n), 10);
+      animation: oi-cnet 1.4s cubic-bezier(.2,.8,.2,1) 1.2s both;
+    }
   }
 }
 
