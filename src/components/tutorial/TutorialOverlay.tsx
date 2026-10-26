@@ -13,6 +13,12 @@ type Rect = { x: number; y: number; w: number; h: number; r: number };
 // The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
 const STAGE_W = 390;
 const PROTO_H = 844;
+// Widest the stage may render (viewport px), and tallest once the viewport is
+// wider than that. Phones up to 430 wide fill the viewport at any height; wider
+// ones (iPad, laptop) get a phone-sized stage centred on a dimmed backdrop
+// instead of a 5x scaled one.
+const MAX_STAGE_W = 430;
+const MAX_STAGE_H = 932;
 // The mock's fake status bar (9:41, signal, wifi) is 47 tall. On a real phone the
 // real one is already there, so the mock slides up under the top edge instead.
 const SB_H = 47;
@@ -35,6 +41,8 @@ export default function TutorialOverlay({
   const [t, setT] = useState(0);
   const [scale, setScale] = useState(1);
   const [stageH, setStageH] = useState(PROTO_H);
+  // True when the stage doesn't cover the whole viewport (wide or very tall).
+  const [framed, setFramed] = useState(false);
   const [realPhone, setRealPhone] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(REAL_PHONE).matches,
   );
@@ -62,10 +70,9 @@ export default function TutorialOverlay({
   const isLast = sceneIndex === tutorial.scenes.length - 1;
   const finished = t >= duration;
 
-  // The prototype's 390-wide phone screen, scaled by width to the real viewport;
-  // the stage then grows or shrinks in height to fill what is left, so there are
-  // no bars at any viewport. At 390 × 844 the scale is exactly 1 and the stage
-  // is exactly 844.
+  // The prototype's 390-wide phone screen, scaled by width to the viewport up to
+  // MAX_STAGE_W; the stage height flexes to fill (up to MAX_STAGE_H), so a phone
+  // has no bars. At 390 × 844 the scale is exactly 1 and the stage is exactly 844.
   useLayoutEffect(() => {
     const update = () => {
       const el = safeRef.current;
@@ -74,9 +81,14 @@ export default function TutorialOverlay({
       const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       if (!(w > 0) || !(h > 0)) return;
-      const k = w / STAGE_W;
+      const stageW = Math.min(w, MAX_STAGE_W);
+      // The height cap only applies once the viewport is wider than a phone, so a
+      // tall phone (360 x 1000) still fills the screen.
+      const stageHpx = w > MAX_STAGE_W ? Math.min(h, MAX_STAGE_H) : h;
+      const k = stageW / STAGE_W;
       setScale(k);
-      setStageH(h / k);
+      setStageH(stageHpx / k);
+      setFramed(stageW < w - 0.5 || stageHpx < h - 0.5);
     };
     update();
     window.addEventListener('resize', update);
@@ -344,7 +356,9 @@ export default function TutorialOverlay({
       tabIndex={-1}
       onKeyDown={onKeyDown}
       className={styles.root}
-      style={{ outline: 'none' }}
+      // The backdrop only shows when the stage doesn't fill the viewport; it keeps
+      // the app underneath dimmed and unreachable, and a tap on it does nothing.
+      style={{ outline: 'none', background: framed ? 'rgba(22,18,12,.6)' : undefined }}
     >
       <div ref={safeRef} className={styles.safeArea}>
         <div
