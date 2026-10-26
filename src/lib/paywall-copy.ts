@@ -93,12 +93,18 @@ export function disclosure(state: PaywallState): string {
 // cron (/api/trial-reminders) that goes out TRIAL_REMINDER_DAYS before the end,
 // and trialDates() (lib/trial) is where both dates come from.
 export const TRIAL_COPY = {
-  todayLabel: 'Today',
-  todayAmount: '$0.00',
-  reminderLabel: 'Reminder email',
-  reminderText: `We’ll email you ${TRIAL_REMINDER_DAYS} days before it ends. Cancel before then and you won’t be charged.`,
-  startLabel: 'Plan starts',
-  startAmount: '$9.99/mo',
+  subtitle: 'Here’s exactly what happens, and when.',
+  todayEyebrow: 'Today',
+  todayTitle: 'Full access. Nothing charged today.',
+  todayNote: 'Unlimited invoices, estimates and receipt scans.',
+  reminderTitle: 'We’ll email you a reminder before it ends.',
+  startTitle: 'Your plan starts at $9.99/month unless you cancel.',
+  emailFrom: 'From On It · keep it or cancel in Settings',
+  dueLabel: 'Due today',
+  dueAmount: '$0.00',
+  fromLabel: 'From',
+  monthlyAmount: '$9.99/mo',
+  cancelNote: 'Cancel anytime in Settings.',
 } as const;
 
 // ── Step 3 · Free vs On It ──────────────────────────────────────────────────

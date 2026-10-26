@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { TRIAL_DAYS, TRIAL_REMINDER_DAYS } from './trial';
+import { TRIAL_DAYS, TRIAL_REMINDER_DAYS, trialDates } from './trial';
 import {
   PLAN_ROWS,
   PRICE_MONTHLY,
@@ -70,12 +70,15 @@ test('the copy stays in step with lib/trial', () => {
   assert.equal(STEP_TITLE.showcase, 'What you win');
   assert.equal(STEP_TITLE.plan, 'Plan');
 
-  assert.ok(
-    TRIAL_COPY.reminderText.includes(`${TRIAL_REMINDER_DAYS} days`),
-    'the reminder line counts the same days the cron uses',
-  );
-  assert.equal(TRIAL_COPY.todayAmount, '$0.00');
-  assert.equal(TRIAL_COPY.startAmount, '$9.99/mo');
+  // The timeline's reminder stop is the trial end minus TRIAL_REMINDER_DAYS,
+  // the same window /api/trial-reminders uses. Compare calendar days, not ms:
+  // a DST change inside the trial must not shift the date.
+  const { end, remind } = trialDates(new Date(2026, 9, 26));
+  const day = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
+  assert.equal(day(end) - day(remind), TRIAL_REMINDER_DAYS);
+
+  assert.equal(TRIAL_COPY.todayTitle, 'Full access. Nothing charged today.');
+  assert.match(TRIAL_COPY.startTitle, /\$9\.99\/month/);
 });
 
 test('every wall has its own reason pill', () => {
