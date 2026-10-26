@@ -33,7 +33,7 @@ const HEADER_CLASS =
 // Chat actions: 40px visual box inside the 64px row, with an ::after hit area
 // that keeps the 56x56 touch target. Desktop restores the original 56px box.
 const HEADER_ICON_CLASS =
-  "relative grid h-10 w-14 place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] md:h-touch";
+  "relative grid h-10 w-14 place-items-center rounded-full text-on-surface-variant transition-transform active:scale-95 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] md:h-touch xl:h-10 xl:w-10 xl:rounded-xl";
 
 // Secondary routes (not primary tabs) get a Back button to their parent.
 function getParentRoute(path: string): string | null {
@@ -556,14 +556,17 @@ export default function AppShell({
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
         {(parentRoute || path.startsWith('/chat')) ? (
-          <header className={HEADER_CLASS}>
+          // xl: the design's 72px chat header — wordmark on the left with its
+          // two actions immediately beside it, a hairline under it. Achieved by
+          // left-aligning the same two clusters; nothing moves below xl.
+          <header className={`${HEADER_CLASS} xl:justify-start xl:gap-3.5 xl:border-b xl:border-surface-container-high xl:px-8 xl:py-0 xl:h-[72px]`}>
             <div className="flex items-center gap-2">
               {parentRoute && <BackButton parentHref={parentRoute} />}
-              <span className="font-display text-xl font-extrabold md:hidden">
+              <span className="font-display text-xl font-extrabold md:hidden xl:inline xl:text-[25px] xl:tracking-[-0.01em]">
                 On It<span className="text-primary">.</span>
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 xl:gap-1">
               {path.startsWith('/chat') && (
                 <>
                   <button
