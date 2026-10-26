@@ -42,6 +42,16 @@
   box-sizing: border-box;
 }
 
+/* Screens ported after the chat mock keep the prototype's default content-box
+   model, so fixed-height bordered boxes measure exactly as they do there.
+   Declared after the stage rule, which wins on source order at equal weight. */
+.mockProtoScope,
+.mockProtoScope *,
+.mockProtoScope *::before,
+.mockProtoScope *::after {
+  box-sizing: content-box;
+}
+
 .unbutton {
   appearance: none;
   margin: 0;
@@ -77,6 +87,16 @@
 }
 .aCard05 {
   animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+}
+/* Payment options: the prototype leaves these on the CSS default easing. */
+.aPayCard {
+  animation: cardIn 0.45s 0.1s both;
+}
+.aPayBank {
+  animation: cardIn 0.45s 0.18s both;
+}
+.aPayApps {
+  animation: cardIn 0.45s 0.26s both;
 }
 .aCard12 {
   animation: cardIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
