@@ -3752,9 +3752,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   ) : null;
 
   return (
-    // xl: one 720px message column (768 minus its 24px gutters) with the
-    // composer on exactly the same left/right edges (design "Chat").
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col xl:max-w-[768px]">
+    // xl: the design's 720px column; the composer is a child of it, so the two
+    // share left and right edges exactly (gate: design 720, app 720).
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col xl:max-w-[720px]">
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -4124,7 +4124,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         </div>
       ) : (
-        <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5 xl:border-surface-container-high xl:px-6 xl:py-[18px]${plusMenu ? ' z-[46]' : ''}`}>
+        <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5 xl:border-surface-container-high xl:px-0 xl:py-[18px]${plusMenu ? ' z-[46]' : ''}`}>
           {/* The save prompt floats just above the composer, no scrim (2·13). */}
           {promptShown && !plusMenu && (
             <div className="absolute inset-x-3 bottom-full z-30 mb-2">
