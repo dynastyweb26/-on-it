@@ -70,9 +70,13 @@ export default function TutorialOverlay({
     update();
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
+    const box = safeRef.current;
+    const ro = box ? new ResizeObserver(update) : null;
+    if (box) ro?.observe(box);
     return () => {
       window.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('resize', update);
+      ro?.disconnect();
     };
   }, []);
 
@@ -108,8 +112,13 @@ export default function TutorialOverlay({
   }, [duration, reducedMotion, sceneIndex]);
 
   // Geometry is measured in stage coordinates (divide the rendered rect by the
-  // current scale), exactly like the prototype's measure().
-  useLayoutEffect(() => {
+  // current scale), exactly like the prototype's measure(). The prototype runs
+  // it on every animation frame, so a target that moves after the scene clock
+  // stops (the chat scrolling to its end, a sheet settling, the stage changing
+  // height) is still tracked; the setters below only re-render on a change.
+  const keysRef = useRef<{ spot: string | null; tap: string | null }>({ spot: null, tap: null });
+  keysRef.current = { spot: state.spotKey ?? null, tap: state.tapKey ?? null };
+  const measure = useCallback(() => {
     const root = stageRef.current;
     if (!root) return;
     const pr = root.getBoundingClientRect();
@@ -128,8 +137,8 @@ export default function TutorialOverlay({
       };
     };
 
-    const sr = rel(state.spotKey);
-    const tr = rel(state.tapKey);
+    const sr = rel(keysRef.current.spot);
+    const tr = rel(keysRef.current.tap);
     setSpotRect((prev) => (sameRect(prev, sr) ? prev : sr));
     setTapRect((prev) => (sameRect(prev, tr) ? prev : tr));
     if (sr) {
@@ -149,7 +158,21 @@ export default function TutorialOverlay({
       const m = Math.max(0, c.offsetHeight - a.clientHeight);
       setChatMax((prev) => (Math.abs(prev - m) > 1 ? m : prev));
     }
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
   });
+
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      measure();
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [measure]);
 
   const goNext = useCallback(() => {
     if (isLast) {
