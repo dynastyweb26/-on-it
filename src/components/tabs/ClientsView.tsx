@@ -4,6 +4,11 @@
 // Services (UI-REDESIGN-AUDIT §L14). Clients is the saved-clients list
 // (merge 2 · 2·3, components/clients/ClientsList); Products & Services is the
 // saved-items list (merge 2 · 2·8, components/clients/ProductsList).
+//
+// The pill tabs are handed to the list component instead of being rendered
+// here: on laptop the design puts title, tabs, search and + on ONE row, and the
+// search box lives with the list state (it counts the rows). One DOM order
+// serves both — tabs, then the search on the next line below xl.
 import { useEffect, useState } from 'react';
 import ClientsList from '@/components/clients/ClientsList';
 import ProductsList from '@/components/clients/ProductsList';
@@ -24,13 +29,14 @@ export default function Clients({ active = true }: { active?: boolean }) {
     if (!active) return;
     if (new URLSearchParams(window.location.search).get('segment') === 'products') setSegment('products');
   }, [active]);
+  const tabs = (
+    <PillTabs label="Clients or products" options={SEGMENTS} value={segment} onChange={setSegment}
+      className="xl:h-10 xl:rounded-[20px]" />
+  );
   return (
-    <PageContainer className="py-4">
-      {/* Segmented control: the gold thumb slides by transform (MOTION-SPEC §13). */}
-      <PillTabs label="Clients or products" options={SEGMENTS} value={segment} onChange={setSegment} />
-
+    <PageContainer className="py-4 xl:pt-6">
       <div key={segment} role="tabpanel" data-coach={segment === 'clients' ? 'clients-list' : undefined}>
-        {segment === 'clients' ? <ClientsList active={active} /> : <ProductsList active={active} />}
+        {segment === 'clients' ? <ClientsList active={active} tabs={tabs} /> : <ProductsList active={active} tabs={tabs} />}
       </div>
     </PageContainer>
   );

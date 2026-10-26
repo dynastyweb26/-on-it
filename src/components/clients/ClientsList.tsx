@@ -7,7 +7,7 @@
 // off to the tab deck. Delete = un-save and clear phone / email / address /
 // notes (Q6) with Undo; the client row itself and every invoice stay, so it
 // lives on as history.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import UndoToast from '@/components/UndoToast';
@@ -22,7 +22,18 @@ type Removed = {
   prev: ClientContactFields;
 };
 
-export default function ClientsList({ active = true }: { active?: boolean }) {
+export default function ClientsList({ active = true, tabs }: { active?: boolean; tabs?: ReactNode }) {
+  // Laptop header (design "Clients"): title, pill tabs, search and + on one
+  // 40px row. `tabs` comes from ClientsView so the segmented control keeps its
+  // own state there; below xl the same nodes stack exactly as before.
+  const head = (search?: ReactNode) => (
+    <div className="xl:flex xl:h-10 xl:min-w-0 xl:items-center xl:gap-4">
+      <h1 className="hidden xl:block xl:shrink-0 xl:whitespace-nowrap xl:font-display xl:text-2xl xl:font-bold xl:leading-none">Clients</h1>
+      {tabs ? <div className="xl:w-[340px] xl:shrink-0">{tabs}</div> : null}
+      {search ? <div className="mt-4 xl:mt-0 xl:ml-auto xl:w-[352px] xl:shrink-0">{search}</div> : null}
+    </div>
+  );
+
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<ClientSummary[] | null>(null);
@@ -83,13 +94,16 @@ export default function ClientsList({ active = true }: { active?: boolean }) {
     if (error) setRows((rs) => (rs ?? []).filter((r) => r.id !== row.id));
   }
 
-  if (rows === null) return <ListSkeleton />;
+  if (rows === null) return <>{head()}<ListSkeleton /></>;
 
   if (rows.length === 0 && !removed) {
     return (
-      <SavedEmpty icon="group" title="No clients yet"
-        body="Save a client once and you can pick them in a tap. On It will also offer to save anyone you bill twice."
-        action="Add client" onAction={() => router.push('/clients/new')} coach="clients-empty-add" />
+      <>
+        {head()}
+        <SavedEmpty icon="group" title="No clients yet"
+          body="Save a client once and you can pick them in a tap. On It will also offer to save anyone you bill twice."
+          action="Add client" onAction={() => router.push('/clients/new')} coach="clients-empty-add" />
+      </>
     );
   }
 
@@ -98,16 +112,19 @@ export default function ClientsList({ active = true }: { active?: boolean }) {
     return (
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[17px] font-bold text-on-background">{c.name}</span>
-        <span className={`block truncate text-[14px] ${status.tone === 'overdue' ? 'font-semibold text-error' : 'text-on-surface-variant'}`}>{status.text}</span>
+        {/* Laptop moves the status line into the row's meta column. */}
+        <span className={`block truncate text-[14px] xl:hidden ${status.tone === 'overdue' ? 'font-semibold text-error' : 'text-on-surface-variant'}`}>{status.text}</span>
       </span>
     );
   };
 
   return (
-    <div className="mt-4">
-      <SearchBar value={query} onChange={setQuery} label="Search clients" addLabel="New client"
-        placeholder={`Search ${rows.length} ${rows.length === 1 ? 'client' : 'clients'}`}
-        onAdd={() => router.push('/clients/new')} />
+    <div>
+      {head(
+        <SearchBar value={query} onChange={setQuery} label="Search clients" addLabel="New client"
+          placeholder={`Search ${rows.length} ${rows.length === 1 ? 'client' : 'clients'}`}
+          onAdd={() => router.push('/clients/new')} />,
+      )}
 
       {shown.length === 0 ? (
         <p className="mt-10 text-center text-body-md text-on-surface-variant">No clients match “{query.trim()}”</p>
@@ -115,7 +132,8 @@ export default function ClientsList({ active = true }: { active?: boolean }) {
         <AlphaSections groups={groups} idPrefix="clients" showRail={!query.trim()} query={query}
           renderRow={(c) => (
             <ListRow key={c.id} id={`client-row-${c.id}`} motion={fresh?.id === c.id ? fresh.motion : null} onOpen={() => open(c)}
-              onLongPress={(rect) => setMenu({ row: c, rect })}>
+              onLongPress={(rect) => setMenu({ row: c, rect })}
+              meta={<span className={clientStatus(c).tone === 'overdue' ? 'font-semibold text-error' : ''}>{clientStatus(c).text}</span>}>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft text-[15px] font-bold text-primary-on-container">
                 {initials(c.name)}
               </span>

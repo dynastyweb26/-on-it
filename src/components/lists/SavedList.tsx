@@ -20,13 +20,14 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
 }) {
   return (
     <div className="flex items-center gap-3">
-      <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4">
+      {/* xl: the design's 300×40 search field (row total 352 with the 40px +). */}
+      <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 xl:h-10 xl:gap-2 xl:rounded-[20px] xl:border-[1.5px] xl:border-outline-variant xl:px-3.5">
         <Icon name="search" size={20} className="shrink-0 text-on-surface-variant" />
         <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label}
-          className="min-w-0 flex-1 bg-transparent text-body-lg text-on-background outline-none placeholder:text-on-surface-variant" />
+          className="min-w-0 flex-1 bg-transparent text-body-lg text-on-background outline-none placeholder:text-on-surface-variant xl:text-[15px]" />
       </label>
       <button type="button" aria-label={addLabel} onClick={onAdd} data-coach="clients-add"
-        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card transition active:scale-90">
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card transition active:scale-90 xl:h-10 xl:w-10">
         <Icon name="add" size={26} />
       </button>
     </div>
@@ -76,11 +77,11 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
     }
   }
   return (
-    <div ref={listRef} className="relative mt-2 pr-5">
+    <div ref={listRef} className="relative mt-2 pr-5 xl:mt-5 xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
       {groups.map((g) => (
         <section key={g.letter} aria-label={g.letter}>
           <h2 id={`${idPrefix}-letter-${g.letter}`}
-            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10]">
+            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10] xl:bg-surface-container-low xl:px-[18px] xl:py-2.5 xl:text-[11.5px] xl:tracking-[.1em] xl:text-primary">
             <span className="inline-block origin-left">{g.letter}</span>
           </h2>
           {g.rows.map(renderRow)}
@@ -94,7 +95,7 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
             onPointerDown={(e) => { (e.target as Element).releasePointerCapture?.(e.pointerId); lastJump.current = ''; jumpAt(e.clientY); }}
             onPointerMove={(e) => { if (e.buttons) jumpAt(e.clientY); }}>
             {RAIL_LETTERS.map((l) => (
-              <span key={l} className={`w-5 text-center text-[10.5px] font-bold leading-[15px] ${present.has(l) ? 'text-[#8C6D10]' : 'text-[#D6CCB8]'}`}>{l}</span>
+              <span key={l} className={`w-5 text-center text-[10.5px] font-bold leading-[15px] xl:leading-[14px] ${present.has(l) ? 'text-[#8C6D10]' : 'text-[#D6CCB8]'}`}>{l}</span>
             ))}
           </div>
         </div>

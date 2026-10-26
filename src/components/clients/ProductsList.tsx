@@ -6,7 +6,7 @@
 // Long-press → Edit · Duplicate · Delete; horizontal drags hand off to the
 // tab deck. Duplicate saves "{name} (copy)". Delete is soft (deleted_at)
 // with Undo; a later use on an invoice brings the item back as unsaved history.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import UndoToast from '@/components/UndoToast';
 import { AlphaSections, ListRow, ListSkeleton, RowMenu, SavedEmpty, SearchBar } from '@/components/lists/SavedList';
@@ -16,7 +16,16 @@ import { PRODUCT_COLS, copyName, normalizeProduct, priceText, productSubtitle, t
 import { clientNameKey } from '@/lib/client-name';
 import { takeNewEntry } from '@/lib/list-motion';
 
-export default function ProductsList({ active = true }: { active?: boolean }) {
+export default function ProductsList({ active = true, tabs }: { active?: boolean; tabs?: ReactNode }) {
+  // Same laptop header as Clients (title, tabs, search, + on one 40px row).
+  const head = (search?: ReactNode) => (
+    <div className="xl:flex xl:h-10 xl:min-w-0 xl:items-center xl:gap-4">
+      <h1 className="hidden xl:block xl:shrink-0 xl:whitespace-nowrap xl:font-display xl:text-2xl xl:font-bold xl:leading-none">Products &amp; Services</h1>
+      {tabs ? <div className="xl:w-[340px] xl:shrink-0">{tabs}</div> : null}
+      {search ? <div className="mt-4 xl:mt-0 xl:ml-auto xl:w-[352px] xl:shrink-0">{search}</div> : null}
+    </div>
+  );
+
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Product[] | null>(null);
@@ -97,13 +106,16 @@ export default function ProductsList({ active = true }: { active?: boolean }) {
     setFresh({ id: copy.id, motion: 'new' });
   }
 
-  if (rows === null) return <ListSkeleton />;
+  if (rows === null) return <>{head()}<ListSkeleton /></>;
 
   if (rows.length === 0 && !removed) {
     return (
-      <SavedEmpty icon="handyman" round={false} title="Nothing saved yet"
-        body="Add the jobs you do most, with a price if you have one. Picking one in an invoice fills in the price."
-        action="Add product or service" onAction={add} />
+      <>
+        {head()}
+        <SavedEmpty icon="handyman" round={false} title="Nothing saved yet"
+          body="Add the jobs you do most, with a price if you have one. Picking one in an invoice fills in the price."
+          action="Add product or service" onAction={add} />
+      </>
     );
   }
 
@@ -123,9 +135,11 @@ export default function ProductsList({ active = true }: { active?: boolean }) {
   };
 
   return (
-    <div className="mt-4">
-      <SearchBar value={query} onChange={setQuery} label="Search products and services" addLabel="New product or service"
-        placeholder={`Search ${rows.length} ${rows.length === 1 ? 'item' : 'items'}`} onAdd={add} />
+    <div>
+      {head(
+        <SearchBar value={query} onChange={setQuery} label="Search products and services" addLabel="New product or service"
+          placeholder={`Search ${rows.length} ${rows.length === 1 ? 'item' : 'items'}`} onAdd={add} />,
+      )}
 
       {failed && <p role="status" className="mt-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{failed}</p>}
 

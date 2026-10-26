@@ -2,17 +2,19 @@
 // The large pill segmented control (MOTION-SPEC §13): the gold thumb slides
 // between options by transform. Extracted from ClientsView so the Invoices tab
 // can share it. Not the small h-9 SegmentedControl used by expenses/recurring.
-export default function PillTabs<T extends string>({ options, value, onChange, label }: {
+export default function PillTabs<T extends string>({ options, value, onChange, label, className = '' }: {
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   /** Accessible name, e.g. "Clients or products". */
   label: string;
+  /** Screen-specific sizing at xl (Clients is 40 tall, Invoices 44). */
+  className?: string;
 }) {
   const i = Math.max(0, options.findIndex((o) => o.value === value));
   return (
     <div role="tablist" aria-label={label}
-      className="relative grid h-14 rounded-full bg-surface-container p-1"
+      className={`relative grid h-14 rounded-full bg-surface-container p-1 ${className}`.trim()}
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       <span aria-hidden
         className="absolute bottom-1 left-1 top-1 rounded-full bg-primary-container shadow-card"
