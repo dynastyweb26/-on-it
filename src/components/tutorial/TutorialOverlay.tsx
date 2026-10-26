@@ -10,7 +10,9 @@ import styles from './tutorial.module.css';
 
 type Rect = { x: number; y: number; w: number; h: number; r: number };
 
-const FALLBACK_RECT: Rect = { x: 195, y: 422, w: 0, h: 0, r: 12 };
+// The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
+const STAGE_W = 390;
+const PROTO_H = 844;
 
 function sameRect(a: Rect | null, b: Rect | null): boolean {
   if (!a !== !b) return false;
@@ -29,6 +31,7 @@ export default function TutorialOverlay({
   const [sceneIndex, setSceneIndex] = useState(0);
   const [t, setT] = useState(0);
   const [scale, setScale] = useState(1);
+  const [stageH, setStageH] = useState(PROTO_H);
   const [spotRect, setSpotRect] = useState<Rect | null>(null);
   const [tapRect, setTapRect] = useState<Rect | null>(null);
   const [lastSpot, setLastSpot] = useState<Rect | null>(null);
@@ -49,16 +52,20 @@ export default function TutorialOverlay({
   const isLast = sceneIndex === tutorial.scenes.length - 1;
   const finished = t >= duration;
 
-  // The prototype's 390 × 844 phone screen, scaled down to whatever viewport
-  // the real app has. At 390 × 844 the scale is exactly 1.
-  useEffect(() => {
+  // The prototype's 390-wide phone screen, scaled by width to the real viewport;
+  // the stage then grows or shrinks in height to fill what is left, so there are
+  // no bars. At 390 × 844 the scale is exactly 1 and the stage is exactly 844.
+  useLayoutEffect(() => {
     const update = () => {
       const el = safeRef.current;
       if (!el) return;
       const cs = getComputedStyle(el);
       const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-      setScale(Math.min(w / 390, h / 844));
+      if (!(w > 0) || !(h > 0)) return;
+      const k = w / STAGE_W;
+      setScale(k);
+      setStageH(h / k);
     };
     update();
     window.addEventListener('resize', update);
@@ -106,7 +113,7 @@ export default function TutorialOverlay({
     const root = stageRef.current;
     if (!root) return;
     const pr = root.getBoundingClientRect();
-    const k = pr.width / 390 || 1;
+    const k = pr.width / STAGE_W || 1;
     const rel = (key: string | null): Rect | null => {
       if (!key) return null;
       const el = root.querySelector<HTMLElement>(`[data-spot="${key}"]`);
@@ -178,13 +185,13 @@ export default function TutorialOverlay({
   };
 
   const r = state.spotKey ? spotRect : null;
-  const lr = r || lastSpot || lastSpotRef.current || FALLBACK_RECT;
+  const lr = r || lastSpot || lastSpotRef.current || { x: STAGE_W / 2, y: stageH / 2, w: 0, h: 0, r: 12 };
   const pad = 6;
   const sw = lr.w + pad * 2;
   const sh = lr.h + pad * 2;
   const H = hlH || 150;
   const TOP = 54;
-  const BOT = 844 - 84 - 14 - 58 - 12 - H;
+  const BOT = stageH - 84 - 14 - 58 - 12 - H;
   let hlTop = lastHlTopRef.current;
   if (r) {
     const y1 = r.y - 8;
@@ -192,13 +199,13 @@ export default function TutorialOverlay({
     const ov = (a: number, c: number) => Math.max(0, Math.min(y2, c) - Math.max(y1, a));
     const oT = ov(TOP, TOP + H);
     const oB = ov(BOT, BOT + H);
-    if (oT === 0 && oB === 0) hlTop = (y1 + y2) / 2 > 422 ? TOP : BOT;
+    if (oT === 0 && oB === 0) hlTop = (y1 + y2) / 2 > stageH / 2 ? TOP : BOT;
     else hlTop = oT <= oB ? TOP : BOT;
   }
   lastHlTopRef.current = hlTop;
 
-  const NT = 844 - 84 - 14 - 58;
-  const nextTop = r && r.y + r.h + 8 > NT ? 844 - 14 - 58 : NT;
+  const NT = stageH - 84 - 14 - 58;
+  const nextTop = r && r.y + r.h + 8 > NT ? stageH - 14 - 58 : NT;
   const tapX = tapRect ? tapRect.x + tapRect.w / 2 : 0;
   const tapY = tapRect ? tapRect.y + tapRect.h / 2 : 0;
 
@@ -217,7 +224,7 @@ export default function TutorialOverlay({
         <div
           ref={stageRef}
           className={styles.stage}
-          style={{ '--tut-scale': scale } as React.CSSProperties}
+          style={{ '--tut-scale': scale, '--tut-h': `${stageH}px` } as React.CSSProperties}
         >
           <MockScreen state={state} chatMax={chatMax} />
 
@@ -234,10 +241,10 @@ export default function TutorialOverlay({
             height: sh,
             borderRadius: Math.min(lr.r + pad, sh / 2),
             opacity: r ? 1 : 0,
-            // Prototype: 2000px. 900px still covers the 844px stage from any
-            // spotlight position; 2000px triggers Chromium's huge-shadow
-            // tiling seams. Visually identical at this stage size.
-            boxShadow: `0 0 0 900px rgba(22,18,12,${state.st.dim === false ? 0 : 0.6})`,
+            // Prototype: 2000px. The spread only has to cover the stage from any
+            // spotlight position (900px at 844 tall); 2000px triggers
+            // Chromium's huge-shadow tiling seams.
+            boxShadow: `0 0 0 ${Math.max(900, Math.ceil(stageH) + 56)}px rgba(22,18,12,${state.st.dim === false ? 0 : 0.6})`,
             transition:
               'left .55s cubic-bezier(.2,.8,.2,1), top .55s cubic-bezier(.2,.8,.2,1), width .55s cubic-bezier(.2,.8,.2,1), height .55s cubic-bezier(.2,.8,.2,1), border-radius .55s, opacity .4s, box-shadow .4s',
             pointerEvents: 'none',
