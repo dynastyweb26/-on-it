@@ -4,9 +4,9 @@
    3-estimate or 5-expense cap, tries to create a recurring expense, taps an
    Income/Expense PDF export, or is nudged back after canceling (variant):
 
-     1 What you win — four demo slides (4.2s each, dots, pause on touch)
+     1 What you win — four demo slides (4.2s each, reel dots)
      2 Try On It free for 14 days — the trial timeline (first-time customers)
-     3 Plan — Free vs On It, the code row, and the one gold CTA in the footer
+     3 What’s included — the code row, the plan, Free vs On It, and the one gold CTA
 
    The trial step is not a decoration: it appears only when the access check
    says this customer has a trial (lib/trial through /api/access), and never on
@@ -31,6 +31,7 @@ import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
 import type { SlideId } from '@/components/paywall/PaywallDemo';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
+import { trialDates } from '@/lib/trial';
 import {
   REASON,
   ctaLabel,
@@ -100,6 +101,8 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   useEffect(() => subscribeAccess(() => onClose()), [onClose]);
 
   const state = paywallState(trialEligible);
+  // Fixed for the visit, like the timeline's: the disclosure names the same end date.
+  const [freeUntil] = useState(() => trialDates().end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
   const steps = stepsFor(variant, state);
   const [step, setStep] = useState(0);
   // A step can disappear when the check answers (trial → plan): clamp, never
@@ -177,7 +180,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     // started: the browser is on its way to the payment sheet; stay busy.
   }
 
-  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-[17px] font-bold text-on-background outline-none transition-transform active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+  const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
   return (
@@ -192,55 +195,52 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
     >
       <div className="flex h-full w-full max-w-md flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        {/* Top bar: back once there is a step behind you (the first step's
-            control is "Not now"), the app icon, and a dismiss X from step 2 on. */}
-        <div className="relative flex h-11 shrink-0 items-center px-1.5">
-          <button
-            type="button"
-            aria-label={idx === 0 ? 'Not now' : 'Back'}
-            onClick={idx === 0 ? onClose : () => setStep(idx - 1)}
-            className="grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-[rgba(31,27,19,.08)] transition-colors active:bg-[rgba(31,27,19,.14)]">
-              <Icon name={idx === 0 ? 'close' : 'arrow_back'} size={22} />
-            </span>
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icons/apple-icon-180.png"
-            alt="On It"
-            width={28}
-            height={28}
-            className="absolute left-1/2 top-2 h-7 w-7 -translate-x-1/2 rounded-lg object-cover"
-          />
-          {idx > 0 && (
+        {/* Header: dismiss, the app icon, and where you are in the steps. The
+            way out is always the X at the left; going back a step is the
+            footer's Back link. */}
+        <div className="flex shrink-0 flex-col items-center gap-2.5 px-3 pb-2.5 pt-3.5">
+          <div className="grid w-full grid-cols-[44px_1fr_44px] items-center">
             <button
               type="button"
               aria-label="Not now"
               onClick={onClose}
-              className="ml-auto grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="grid h-11 w-11 place-items-center rounded-full outline-none transition-colors hover:bg-[#f4ead9] focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-[rgba(31,27,19,.08)] transition-colors active:bg-[rgba(31,27,19,.14)]">
-                <Icon name="close" size={22} />
-              </span>
+              <Icon name="close" size={24} />
             </button>
-          )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icons/apple-icon-180.png"
+              alt="On It"
+              width={44}
+              height={44}
+              className="block h-11 w-11 justify-self-center rounded-xl object-cover shadow-[0_4px_12px_rgba(212,175,55,.32)]"
+            />
+            <div />
+          </div>
+          <div className="flex items-center gap-1.5" role="img" aria-label={`Step ${idx + 1} of ${steps.length}`}>
+            {steps.map((id, i) => (
+              <span
+                key={id}
+                aria-hidden
+                className={`h-1.5 rounded-full ${i === idx ? 'w-5 bg-on-background' : i < idx ? 'w-1.5 bg-primary-container' : 'w-1.5 bg-[#e3d6bf]'}`}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* The step. Step 1 fills the height (the deck is measured from it);
-            steps 2–3 scroll if they need to. */}
+        {/* The step; it scrolls on a screen too short for it. */}
         <div
           ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {current === 'showcase' && (
-            <div className="h-full">
-              <ShowcaseStep reason={reason ?? REASON[variant]} start={START_SLIDE[variant]} />
-            </div>
+            <ShowcaseStep reason={reason ?? REASON[variant]} start={START_SLIDE[variant]} />
           )}
           {current === 'trial' && <TrialStep />}
           {current === 'plan' && (
             <PlanStep
+              state={state}
               showCode={showCode}
               onToggleCode={toggleCode}
               onEscapeCode={() => setShowCode(false)}
@@ -254,11 +254,9 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             with its disclosure. Steps aside while the code field is typing. */}
         <div
           data-kb-hide=""
-          className="relative flex shrink-0 flex-col items-center gap-2.5 bg-background px-5 pt-2.5"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+          className="flex shrink-0 flex-col items-center gap-2.5 border-t border-[#f0e7d8] bg-background px-5 pt-3.5"
+          style={{ paddingBottom: 'calc(22px + env(safe-area-inset-bottom))' }}
         >
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-[22px] h-[22px] bg-gradient-to-b from-[rgba(255,248,240,0)] to-background" />
-
           {notice && (
             <p className="w-full rounded-input bg-surface-container p-3 text-center text-sm text-on-surface-variant">{notice}</p>
           )}
@@ -275,35 +273,52 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
                 {busy ? 'One sec…' : (
                   <>
                     <span>{ctaLabel(state)}</span>
-                    <Icon name="arrow_forward" size={22} />
+                    <Icon name="arrow_forward" size={20} />
                   </>
                 )}
               </button>
 
+              {state === 'trial' && (
+                <p className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em] text-on-background">
+                  <Icon name="verified" size={16} className="shrink-0 text-primary" />
+                  Nothing charged today
+                </p>
+              )}
+
               {/* Subscription disclosure — readable (not fine print), visible
                   before the payment sheet. Material terms follow the state:
-                  first-time customers see nothing charged today, everyone else
-                  is told the plan starts today (lib/paywall-copy). */}
-              <p className="text-center text-[13.5px] leading-[1.45] text-on-surface-variant [text-wrap:pretty]">
-                {disclosure(state)}
+                  first-time customers are told when the free period ends,
+                  everyone else that the plan starts today (lib/paywall-copy). */}
+              <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-[#4d4635] [text-wrap:pretty]">
+                {disclosure(state, freeUntil)}
               </p>
 
-              <p className="flex items-center gap-2.5 text-[13px] font-semibold">
-                <a href="/terms" className="text-primary underline underline-offset-2">Terms</a>
-                <span aria-hidden className="text-on-surface-variant">·</span>
-                <a href="/privacy" className="text-primary underline underline-offset-2">Privacy</a>
+              <p className="flex items-center gap-2 text-[12.5px] font-medium leading-none text-[#4d4635]">
+                <a href="/terms" className="text-on-background underline underline-offset-[3px]">Terms</a>
+                <span aria-hidden>·</span>
+                <a href="/privacy" className="text-on-background underline underline-offset-[3px]">Privacy</a>
               </p>
             </>
           ) : (
-            <button
-              type="button"
-              className={footerButton}
-              style={footerShadow}
-              onClick={() => setStep(idx + 1)}
-            >
-              <span>Continue</span>
-              <Icon name="arrow_forward" size={22} />
-            </button>
+            <>
+              <button
+                type="button"
+                className={footerButton}
+                style={footerShadow}
+                onClick={() => setStep(idx + 1)}
+              >
+                <span>Continue</span>
+              </button>
+              {idx > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(idx - 1)}
+                  className="min-h-8 px-4 text-sm font-semibold leading-none text-[#4d4635] outline-none hover:text-on-background focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Back
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
