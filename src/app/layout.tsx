@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import Splash from '@/components/Splash';
 import KeyboardAvoider from '@/components/KeyboardAvoider';
 import launchScreens from '@/lib/launch-screens.json';
+import { NATIVE_WRAP } from '@/lib/install/nativeWrap';
 import './globals.css';
 
 // Warm Premium dual-font strategy (Design Standard §3):
@@ -163,14 +164,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             infobar, and stashes it on window so useInstallPrompt can adopt it on
             mount (its own listener still handles a late/second fire). Inline is
             allowed by the CSP's script-src 'unsafe-inline'. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "window.__deferredInstallPrompt=null;" +
-              "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__deferredInstallPrompt=e;});" +
-              "window.addEventListener('appinstalled',function(){window.__deferredInstallPrompt=null;});",
-          }}
-        />
+        {!NATIVE_WRAP && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                "window.__deferredInstallPrompt=null;" +
+                "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__deferredInstallPrompt=e;});" +
+                "window.addEventListener('appinstalled',function(){window.__deferredInstallPrompt=null;});",
+            }}
+          />
+        )}
       </head>
       <body>
         <Splash />
