@@ -194,7 +194,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           card on a dimmed backdrop, capped in height, so the wall isn't a phone
           layout floating in a wide empty page. */}
       <div
-        className="flex h-full w-full max-w-md flex-col md:h-[min(100%,860px)] md:overflow-hidden md:rounded-[28px] md:bg-background md:shadow-[0_24px_64px_rgba(31,27,19,.35)] xl:h-[760px] xl:w-[1040px] xl:max-w-none"
+        className="flex h-full w-full max-w-md flex-col md:h-[min(100%,860px)] md:overflow-hidden md:rounded-[28px] md:bg-background md:shadow-[0_24px_64px_rgba(31,27,19,.35)] xl:h-[760px] xl:w-[1040px] xl:max-w-none xl:[animation:oi-up_400ms_cubic-bezier(.2,.8,.2,1)_both]"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         {/* Header: dismiss, the app icon, and where you are in the steps. The

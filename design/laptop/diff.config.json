@@ -1208,7 +1208,11 @@
         {
           "name": "card",
           "design": "[role=dialog]",
-          "app": "[role=\"dialog\"] > div"
+          "app": "[role=\"dialog\"] > div",
+          "check": [
+            "w",
+            "h"
+          ]
         },
         {
           "name": "card header",
@@ -1242,7 +1246,6 @@
           "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
           "app": "[role=\"dialog\"] p.whitespace-nowrap",
           "check": [
-            "w",
             "h"
           ]
         },
@@ -1296,7 +1299,11 @@
         {
           "name": "card",
           "design": "[role=dialog]",
-          "app": "[role=\"dialog\"] > div"
+          "app": "[role=\"dialog\"] > div",
+          "check": [
+            "w",
+            "h"
+          ]
         },
         {
           "name": "card header",
@@ -1330,7 +1337,6 @@
           "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
           "app": "[role=\"dialog\"] p.whitespace-nowrap",
           "check": [
-            "w",
             "h"
           ]
         },
