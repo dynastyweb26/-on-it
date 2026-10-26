@@ -17,14 +17,6 @@ const PROTO_H = 844;
 // real one is already there, so the mock slides up under the top edge instead.
 const SB_H = 47;
 const REAL_PHONE = '(max-width: 500px), (pointer: coarse)';
-// Shortest stage (fake status bar included) at which all 20 scenes keep their
-// spotlight on screen, uncovered by the header, tab bar, headline card and Next.
-// Measured at 390 wide with the status bar hidden: every scene fits at 820 tall (832 leaves room for the ring);
-// Chat 1's invoice card (the tallest target) still collides with even the
-// compact card at 815. Below this the stage scales down instead of squeezing,
-// and the side gutters show the overlay backdrop.
-const MIN_STAGE_H = 832 + SB_H;
-
 function sameRect(a: Rect | null, b: Rect | null): boolean {
   if (!a !== !b) return false;
   if (!a || !b) return true;
@@ -71,9 +63,8 @@ export default function TutorialOverlay({
 
   // The prototype's 390-wide phone screen, scaled by width to the real viewport;
   // the stage then grows or shrinks in height to fill what is left, so there are
-  // no bars. When that would leave it shorter than MIN_STAGE_H it scales by
-  // height instead and the backdrop fills the side gutters. At 390 × 844 the
-  // scale is exactly 1 and the stage is exactly 844.
+  // no bars at any viewport. At 390 × 844 the scale is exactly 1 and the stage
+  // is exactly 844.
   useLayoutEffect(() => {
     const update = () => {
       const el = safeRef.current;
@@ -82,8 +73,7 @@ export default function TutorialOverlay({
       const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       if (!(w > 0) || !(h > 0)) return;
-      const minH = MIN_STAGE_H - (window.matchMedia(REAL_PHONE).matches ? SB_H : 0);
-      const k = Math.min(w / STAGE_W, h / minH);
+      const k = w / STAGE_W;
       setScale(k);
       setStageH(h / k);
     };
