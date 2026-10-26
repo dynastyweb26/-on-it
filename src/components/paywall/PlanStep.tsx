@@ -9,15 +9,13 @@
 // price and no plan picker here.
 import type { ReactNode, RefObject } from 'react';
 import Icon from '@/components/Icon';
-import CodeEntry from '@/components/CodeEntry';
+import PaywallCodeEntry from '@/components/paywall/PaywallCodeEntry';
 import { INCLUDED_TITLE, STEP_TITLE, planRows, type PaywallState, type PlanCell } from '@/lib/paywall-copy';
 import { TRIAL_DAYS } from '@/lib/trial';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 
 // Card styles from the design: white, hairline warm border, 16px radius.
-const CARD = 'rounded-2xl border border-[#efe4d2] bg-surface-container-lowest';
-// Rows tighten on short screens (SE), per the design's SE frames.
-const ROW_H = 'min-h-[60px] [@media(max-height:700px)]:min-h-[52px]';
+const CARD = 'rounded-2xl border border-hairline bg-surface-container-lowest';
 
 function CellValue({ v }: { v: PlanCell }): ReactNode {
   if (v === true) return <span role="img" aria-label="Included"><Icon name="check" size={19} className="text-primary" /></span>;
@@ -103,32 +101,33 @@ export default function PlanStep({
 
       {/* Access code: a real system (access_grants + /api/redeem), collapsed
           until asked for. Redeemed → free access is on; close so they can
-          retry what was blocked. */}
+          retry what was blocked. Styled to the mockup, forked from the shared
+          CodeEntry so Settings keeps its own look. */}
       <div ref={codeCardRef} className={`${CARD} overflow-hidden`}>
         <button
           type="button"
           aria-expanded={showCode}
           aria-controls="paywall-code"
           onClick={onToggleCode}
-          className={`flex ${ROW_H} w-full items-center gap-3 px-3.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary`}
+          className="flex w-full items-center gap-3 px-[14px] py-[13px] text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
         >
-          <Icon name="confirmation_number" size={24} className="shrink-0 text-primary" />
+          <Icon name="confirmation_number" size={22} className="shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold leading-5">Have a code?</div>
-            <div className="mt-0.5 text-[13px] leading-[18px] text-on-surface-variant">Founder and invite codes</div>
+            <div className="text-[14.5px] font-semibold leading-[1.25]">Have a code?</div>
+            <div className="text-[12.5px] leading-[1.35] text-on-surface-variant">Founder and invite codes</div>
           </div>
-          {!showCode && (
-            <span className="shrink-0 text-sm font-semibold text-primary max-[379px]:hidden">Enter code</span>
-          )}
-          <Icon
-            name="expand_more"
-            size={22}
-            className={`shrink-0 text-primary transition-transform duration-[250ms] ${showCode ? 'rotate-180' : ''}`}
-          />
+          <span className="flex shrink-0 items-center gap-0.5 text-[13px] font-semibold text-primary">
+            Enter code
+            <Icon
+              name="expand_more"
+              size={20}
+              className={`transition-transform duration-200 ${showCode ? 'rotate-180' : ''}`}
+            />
+          </span>
         </button>
         {showCode && (
-          <div id="paywall-code" className="px-3.5 pb-3">
-            <CodeEntry autoFocus onEscape={onEscapeCode} onRedeemed={onRedeemed} />
+          <div id="paywall-code" className="px-[14px] pb-[14px]">
+            <PaywallCodeEntry onEscape={onEscapeCode} onRedeemed={onRedeemed} />
           </div>
         )}
       </div>
