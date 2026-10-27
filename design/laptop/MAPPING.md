@@ -500,3 +500,116 @@ pre-flip phone values again (`segment toggle` h 62, `search` 318, `net` 395×114
 
 **Removal condition:** delete `&& tab === 'chat'` per tour as its mock lands, leaving
 plain `xl` (the guard's comment carries this).
+
+## 12. `feat/laptop-books-settings` — the Books Recaps card and the Settings split
+
+Branch `feat/laptop-books-settings`, off `main` (`6a5722b`). Two commits: the
+Books card, then the Settings master/detail. Design source: the Books and
+Settings frames of `design/laptop/tutorial.html` (extracted for this round into
+`.design-diff/books-design.txt` and `.design-diff/settings-design.txt`).
+
+### 12a. Books — the Recaps card is the design's tall card
+
+The design's row 2 is `grid-template-columns: minmax(0,1.6fr) minmax(0,1fr)`
+beside View expenses + Recurring (two 64px rows: 130px with its borders) and
+draws Recaps as a card of the same height — header, then the action pill.
+
+| Design (`data-spot="recaps"`) | App | Classes |
+|---|---|---|
+| card pad 18, radius 20, `#fff`, border 1.5 `#efe4d2`, column, gap 14 | `RecapsCard` `CARD` | `p-[18px] rounded-card border-[1.5px] border-outline-variant/70 bg-surface-container-lowest gap-3.5` |
+| header gap 10; sparkle 24 `#735c00`; "Recaps" 600 17/1; chevron 20 `#4d4635` | `CARD_HEAD` + `Lead wide` | `gap-2.5`; `size={24} text-primary`; `text-[17px] leading-none font-semibold` |
+| pill h 36, pad `0 14 0 10`, radius 999, `#f5eddf`, gap 4, play_arrow 22 FILL 1, 600 14/1 | `CARD_PILL` | `h-9 pl-2.5 pr-3.5 rounded-full bg-surface-container text-sm font-semibold` + `size={22} filled` |
+| both row-2 cards one height | `BooksView` | the line is `xl:items-stretch`; the Recaps wrapper carries `xl:mt-6`, matching the 24px `space-y-6` margin-top the list card still has when `space-y-6`'s children become xl flex items |
+
+**Why a client width and not `xl:` classes.** The phone arrangement is one 50px
+row whose lead block (sparkle + "Recaps" + dot) lives *inside* the play button;
+the design's is a header row with the pill under it. No `xl:`-only class can move
+a button's children out of the button without breaking its tap target, so the
+card reads `matchMedia('(min-width: 1280px)')` after mount and swaps structure.
+It renders nothing until `useRecaps()` resolves (`access === 'loading'`), so the
+server HTML can never mismatch.
+
+Measured at 1440×900 on the preview: Recaps card 412.2×130 at (995.8, 308), the
+View expenses + Recurring card 655.8×130 at (320, 308) — equal height, tops
+aligned; pill 36 high (`bg rgb(245,237,223)`); card `bg rgb(255,255,255)`,
+`border-radius 20px`, `padding 18px`. Only the locked state ("Unlock") is
+observable on the test-seller account; the paid "Watch again" label renders in
+the same card and pill.
+
+Below 1280: `/dashboard` at 1279×800 and 390×844 — the innerHTML hash with every
+`xl:` token stripped (`f351101f`, `9b1adf1`) and the every-element geometry hash
+(`17688676`, `41d13f`) are identical to the pre-change build; the raw hash moves
+only by the two inert `xl:` tokens (`xl:items-stretch` replacing `xl:items-start`,
+plus `xl:mt-6`). Console and hydration warnings: none.
+
+### 12b. Settings — the design's master/detail at xl
+
+The design's Settings frame is `grid-template-columns: 440px minmax(0,1fr)` with
+the grouped list on the left and the selected row's page on the right. The app
+ships exactly that by reusing `SplitView` (§4) and the existing section screens.
+
+| Design | App | Classes |
+|---|---|---|
+| master column 440 | `SplitView` list pane | `xl:grid-cols-[440px_minmax(0,1fr)]`, pane `xl:pl-6 xl:pr-5 xl:pt-6 xl:border-r xl:border-outline-variant/35` |
+| "Settings" title 24 on a 40px line | `SettingsTitle` in the list pane | unchanged (already the laptop row) |
+| group label 12, `.12em` | `SettingsGroup` | unchanged (`xl:text-xs xl:tracking-[.12em]`) |
+| row 48, pad 14, 32 tile | `SettingsRow` | unchanged (`xl:h-12`); selected row adds `xl:bg-sent-container` (`#f3e9c8`, the design's `rowBizBg`) |
+| pane content | the section's existing screen | `SplitView` detail (max 720), keyed by the section |
+| nothing selected | icon-only placeholder | no new copy — the design's frames always show a section, so there is no empty-detail copy to reuse (same call the Invoices split made) |
+
+How the panes are wired (§ the Invoices split's rules, from `fix/split-detail-sync`
+— which is not on `main`, so the pattern was ported rather than merged):
+
+- At xl, `/settings/<section>` is the **Settings tab**, not a nested route
+  (`AppShell`, `sectionFromPath`), so the deck — and the list pane inside it —
+  stays mounted. One `SettingsView` renders both panes; the section comes from the
+  pathname.
+- The row click sets the selection and then **pushes** `/settings/<section>`, so
+  the pane follows the tap instead of the navigation payload, and Back/Forward
+  step through the sections you opened. No Back button is rendered over the split
+  (`parentRoute` is null for the Settings tab at xl).
+- The detail pane is keyed by the section, so a selection change hands it a fresh
+  instance (the Invoice style card seeds state from the profile).
+- A payout method (`/settings/payouts/<method>`) is its own screen at every width:
+  the split only covers the Settings screen and its **one-level** section routes.
+
+What opens in the pane, and what does not (audit, section by section):
+
+| Row | Target | In the pane? |
+|---|---|---|
+| Business profile | `/settings/business` | yes |
+| Payment options | `/settings/payouts` | yes |
+| Plan | `/settings/plan` | yes |
+| Notifications | `/settings/notifications` | yes |
+| Help & feedback | `/settings/help` | yes |
+| Manage login | `/settings/login` | yes |
+| Clients, Products & Services | the Clients tab | no — another tab, unchanged |
+| Records | `/vault` | no — its own route, unchanged |
+| Recurring expenses | `/dashboard/recurring` | no — the Books tab, unchanged |
+| Invite a contractor | sheet (no route) | no — the invite sheet, unchanged |
+
+The pane's own actions are untouched: Payment options lists its six method rows
+(`stripe`, `bank`, `zelle`, `cashapp`, `paypal`, `venmo`) and each opens its own
+page (with its Back button) at every width, the same as on `main`.
+
+Verified on the preview (1440×900, 1920×1080, 1279×800, 390×844): all six sections
+clicked in sequence and back to the first — correct path, correct pane title,
+correct row highlighted, the list's marker and `scrollTop` preserved on every
+click (no remount), never a Back button over the split, console and hydration
+clean. `/settings/notifications` deep-linked and hard-reloaded renders the split
+with the row selected. History: list → Plan → Notifications → Back → Plan →
+Forward → Notifications → Back → `/settings`. 1440 → 1000 → 1440 keeps the
+selection and returns to the split; at 1000 the full page renders with its Back
+button, byte-identical to `main`. The list scrolls when it must (at 1440×560 the
+pane is 560 with 828 of content, `scrollTop` 268 kept across a click).
+
+Below 1280: `/settings` and `/settings/plan` at 1279×800 and 390×844 — the
+stripped-`xl:` innerHTML hash (`673ad1ac` / `f4b8aa0b`) and the geometry hash
+(`7fb3f743` / `c504b4f`) are identical to the pre-change build; the Settings
+markup itself adds no `xl:` token below 1280 (the selected-row token is only
+emitted while a row is selected, which only the split does).
+
+**Cost of the client-resolved width:** a direct load of `/settings/<section>` at
+xl paints the nested route's own page for one frame before the shell swaps to the
+deck — the same trade the Invoices split made, and the reason no width is read on
+the server.
