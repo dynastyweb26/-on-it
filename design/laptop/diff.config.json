@@ -1644,10 +1644,10 @@
           "design": "[data-spot=\"segToggle\"]",
           "app": "[data-spot=\"segToggle\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only. The design keys the list pane on its frame width (masterCol 440 at >=1440, 392 below) and its own frame at this viewport is 1440, so the design toggle is 395 wide; the app stage is 1380x860 (accepted in 11a), which is the design's <1440 case, so the app pane is 392 and the toggle 347. Both are 44 high, which is the value that was wrong before the redraw (62)."
         }
       ],
       "maxPixelDiffPct": null

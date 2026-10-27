@@ -537,6 +537,43 @@ no install card and uses 44-high items where the design has a 36-high "How it wo
 pill, 48-high items and the pinned install card (36 tile, 32 pill). Left for its own
 shell commit rather than folded into a screen's redraw.
 
+
+
+### 11j. Invoices tour redrawn for laptop
+
+`laptop = xl && (tab === 'chat' || tab === 'clients' || tab === 'invoices')`. The mock
+is the design's split screen only (the overlay owns the shell). The design keys the
+master pane on its frame — `masterCol = W >= 1440 ? 440 : 392` — and the app's stage is
+1380, so **392**: the design's own value for any frame below 1440.
+
+| design | app | notes |
+| --- | --- | --- |
+| `grid-template-columns: masterCol minmax(0,1fr)` | `392px minmax(0,1fr)`, `scrIn .4s` | the split is the screen |
+| list pane `padding:24px 20px 0 24px`, `border-right:1px solid #efe4d2`, `gap:14` | same | title `Invoices` 700 24/1 in a 40-high row |
+| segment toggle 44 high, radius 22, `#f5eddf`, thumb `calc(50% - 4px)` at 4/50%, `left .5s cubic-bezier(.65,0,.35,1)` | same | `segToggle` 44 high (was 62) — the pair that was failing |
+| chips 36 high, radius 10, on `2px #d4af37` / `#f3e9c8`, count 24×22 radius 11 | same | summary column right-aligned, 13/1 |
+| month tag `6px 10px`, radius 8, `#f3e9c8`, 800 12/1 `.1em` | same | |
+| card `1fr auto`, `gap 4px 12px`, `padding 12px 14px`, radius 20, `#fbf3e5`/`#efe4d2`, selected `#f3e9c8`/`#d4af37` | same | name 700 17/1.2, badge 24 high radius 7, meta 13.5, amount 800 20/1 |
+| badge `send` 14px, `DUE NOV 14` 700 11/1 `.07em`; draft `#e5e2db`/`#474742` | same | card 1 carries `card1` + `dueBadge`, the draft `draftBadge` |
+| detail pane `padding:24px 40px`, centred | same | invoice `max-width 720`, estimate `760` with a `260` signature column |
+| invoice header 40 high: status chip 28, mono number, `recordPay` pill radius 999 with the amount chip 28 | same | `actions` 4 columns of 40-high tiles |
+| summary card `22px 24px`, radius 20, `grid 1fr auto`, amount 800 40 `#735c00`; due strip 44; line items `20px 24px` | same | |
+| estimate: chips 28 (approved `#c9f2d4`/`#0f6d31`, converted `#e5e2db`), total 800 38, `convertBtn` 48 radius 999, 3 tiles 40 | same | `sigCard` 18 padding, 110-high signature box, Caveat 46 `rotate(-4deg)` |
+| toast `width:380px`, radius 20, `#343027` | same | `cardIn .5s`, `justify-self:end` |
+
+**Gate:** `tour-invoices-1440` passes. Its segment-toggle pair is height-only (`h`)
+with the reason recorded in `diff.config.json`: the design's own frame at that viewport
+is 1440 → `masterCol` 440 → toggle 395, while the app stage is 1380 → 392 → toggle 347.
+The height is the value the redraw fixed (62 → 44).
+
+**Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; the ring
+lands on the spotlighted anchor plus the solver's 6px pad in every scene — `segToggle`
+(−5.98, −5.97, 11.98, 11.98), `dueBadge`, `actions`, `estChip` (12.25 at the pop's
+sub-frame); console clean. Phone branch byte-identical to main: stage hashes at
+1279×800 (`16500/197870486`, `15729/1070800453`, `17078/1281331705`, `17314/460299112`)
+and 390×844 (`16282/1071098487`, `15466/-135986958`, `16824/-1201072258`,
+`17065/-414645745`) equal the control build.
+
 ## 12. `feat/laptop-books-settings` — the Books Recaps card and the Settings split
 
 Branch `feat/laptop-books-settings`, off `main` (`6a5722b`). Two commits: the
