@@ -223,7 +223,9 @@ export function MockChrome({
   return (
     <>
       {!laptop && <StatusBar />}
-      <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} top={laptop ? 0 : 47} />
+      {/* Laptop: the shell's 72px page header is the only header (the design's
+          chat screen has the title and the icon pair inside its 720 column). */}
+      {!laptop && <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} />}
       {children}
       {!laptop && <MockTabs tabNow={tabNow} />}
     </>
@@ -303,21 +305,75 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
         })}
       </aside>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div
-          style={{
-            height: 72,
-            flex: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '0 32px',
-            borderBottom: '1px solid #EFE4D2',
-            font: '700 24px/1 var(--font-montserrat)',
-            color: '#1E1A14',
-          }}
-        >
-          {label}
-        </div>
+        {/* Chat's header is the design's: a 720 row inside the content area, title
+            left, the new-chat / previous-chats pair right. Other tabs keep the
+            full-width header they have today. */}
+        {tab === 'chat' ? (
+          <div style={{ height: 72, flex: 'none', display: 'flex', justifyContent: 'center' }}>
+            <div
+              style={{
+                width: 720,
+                flex: 'none',
+                height: 72,
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid #F0E7D8',
+                font: '700 24px/1 var(--font-montserrat)',
+                color: '#1E1A14',
+              }}
+            >
+              <span>{label}</span>
+              <div data-spot="hdrIcons" style={{ display: 'flex', gap: 4, borderRadius: 14 }}>
+                <span
+                  data-spot="newChat"
+                  title="New chat"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 12,
+                    color: '#4D4635',
+                  }}
+                >
+                  <Icon name="edit_square" size={24} />
+                </span>
+                <span
+                  data-spot="history"
+                  title="Previous chats"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 12,
+                    color: '#4D4635',
+                  }}
+                >
+                  <Icon name="history" size={24} />
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              height: 72,
+              flex: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '0 32px',
+              borderBottom: '1px solid #EFE4D2',
+              font: '700 24px/1 var(--font-montserrat)',
+              color: '#1E1A14',
+            }}
+          >
+            {label}
+          </div>
+        )}
         <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>{children}</div>
       </div>
     </div>
