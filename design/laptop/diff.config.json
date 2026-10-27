@@ -1012,6 +1012,123 @@
           ],
           "animations": false,
           "why": "Same offset as the card; the scrim cutout measured 0px from the composer's own rect."
+        },
+        {
+          "name": "next button (mid-tour)",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "[data-hl] button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Position inside the card is compared by inset instead (see MAPPING 11d): the pill is a child of the card, so page coordinates inherit the card's slot. Size: 91x36 at rest in both; the app's sampled box is up to 3px wider/taller when nextPulse's transform:scale is mid-loop (94-95 x 36-37), and 92 vs 91 at rest is our self-hosted Montserrat instance against the export's Google-font one."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-last-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "next button (last scene)",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "[data-hl] button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "The last scene's label shortens to \"Got it\" and the pill is content-sized: 79x36 in the export, 80x36 in the app (same Montserrat 1px, pulse-free layout size). This is what stops a gate on a fixed 91 width from passing while the label logic breaks."
         }
       ],
       "maxPixelDiffPct": null

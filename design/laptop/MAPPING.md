@@ -334,3 +334,28 @@ only the tutorial's veil floats there. The card's rect is unchanged
 | --- | --- | --- |
 | `page header row` | `w`, `h` | Design 73 vs app 72: the export's 1px hairline is outside its 72px box, the app's is inside a border-box row. x/y verified by measurement (`504,0` on both). |
 | `header icons`, `new chat icon`, `history icon` | `w`, `h` only | Same reason as 11: the export's canvas is inset 44/248, so absolute page coordinates never compare; sizes match exactly and the stage-local offsets above were verified by measurement. |
+
+### 11d. Cluster Next pill (13b commit 6)
+
+The laptop cluster's Next is the design's small pill inside the callout card's
+footer row, not the full-frame gold bar. The bar (1349×58 at 1440) stays the
+phone/iPad device; laptop drops out of that condition and renders the pill in the
+card instead, so the cluster is the card alone (its measured height already holds
+the pill) — `fullCh` no longer adds `GAP + NEXT_H` in laptop mode.
+
+| Design element | Design (measured) | App (measured) | Notes |
+| --- | --- | --- | --- |
+| Next pill | 91×36 | **92×36** at rest | radius `999px`, `800 14.5px/1` Montserrat, `#D4AF37` on `#1F1B13`, `padding:0 18px`; the 1px is our self-hosted Montserrat instance against the export's Google-font one |
+| Next pill, last scene | 79×36 ("Got it") | **79×36** | content-sized: the label shortens, so a fixed 91 width is wrong |
+| inset in card | 18 from right, 16 from bottom | **17–18**, **16** | the card's `padding:16px 18px` puts it there |
+| pill animations | none on the export's static mock | `nextIn 600ms 1`, `nextPulse 1800ms inf` | the animation is the app's, untouched; it is why a sampled rect reads 94–95×36–37 |
+
+Card height grows by the footer row: 128→180, 158→210 at the two-line scene. The
+design's card is 159 because its label row (12) and title (27) are the export's
+metrics where the ported card keeps the phone's (28/30) — a pre-existing difference
+that only moves the card's own height; the gate pairs the card by `w`.
+
+Clearance to the spotlight ring, box distance per scene (card vs ring): **459px**
+worst (scene 5), 516–549 elsewhere, 517 at scene 1 — the cluster never touches a
+cutout. Click-through on laptop: 1/6 → 6/6, each press advancing one scene, and the
+last scene's "Got it" closes the tour exactly as on phone.
