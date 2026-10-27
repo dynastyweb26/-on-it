@@ -300,3 +300,37 @@ scrim), in the design and the app alike.
 | Pair | Check | Why |
 | --- | --- | --- |
 | `save expense pill`, `ready chip`, `share buttons`, `copy link`, `revise tile` | `w`, `h` only | Same reason as 11: the export's canvas is inset 44/248 and 40px taller than the stage, so absolute x/y never compare; sizes match within 2px and the column-relative offsets above were verified by measurement. |
+
+### 11c. Chat page header (13b commit 5)
+
+The laptop chat screen no longer draws the phone's mock header. It was overlapping
+the top **36px** of the message column (the ready card was clipped by it); the
+design's chat screen has no such bar, so the title and the two icons move into the
+shell's 72px page row, inside the 720 column.
+
+| Design element | Canvas-local (measured) | App (stage-local) | Notes |
+| --- | --- | --- | --- |
+| page header row | `504,0` 720×73 | `504,0` 720×72 | `border-bottom:1px solid #F0E7D8`; the export counts the hairline outside its 72 |
+| title "Chat" | at the row's left | same | `700 24px/1` Montserrat, `#1E1A14` |
+| `hdrIcons` | `1140,16` 84×40 | `1140,16` 84×40 | `display:flex`, `gap:4`; its right edge is the column's right edge (1224) |
+| `newChat` | `1140,16` 40×40 | `1140,16` 40×40 | radius 12, `edit_square` 24 |
+| `history` | `1184,16` 40×40 | `1184,16` 40×40 | radius 12, `history` 24 |
+
+Unlike 11/11b these x/y **do** match absolutely once the export's 44px page margin
+is removed, so the only relaxation is the 1px hairline height (design 73, app 72).
+
+Spotlight beats in the Chat tour's last scene (`data.ts`: `0 hdrIcons`, `1.0
+newChat`, `3.4 history`): cutout vs anchor sampled every 120ms tracked
+`hdrIcons` ≈240ms, `newChat` ≈1080ms, `history` ≈3240ms — the same order and beats
+as phone, worst delta **0.2px**.
+
+Overlap proof (scene 4, ready card's top edge, `elementsFromPoint`): at the card's
+top-left +20px and at its centre the phone header's `history` span / icon row used
+to be the top mock element; now nothing in the mock region sits above the card and
+only the tutorial's veil floats there. The card's rect is unchanged
+(`720×356 @ 504,112` both before and after), so the header was purely overlapping.
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `page header row` | `w`, `h` | Design 73 vs app 72: the export's 1px hairline is outside its 72px box, the app's is inside a border-box row. x/y verified by measurement (`504,0` on both). |
+| `header icons`, `new chat icon`, `history icon` | `w`, `h` only | Same reason as 11: the export's canvas is inset 44/248, so absolute page coordinates never compare; sizes match exactly and the stage-local offsets above were verified by measurement. |

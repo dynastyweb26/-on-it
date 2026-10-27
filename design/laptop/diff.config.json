@@ -1214,6 +1214,145 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-laptop-header-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 4000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "page header row",
+          "design": "div:has(> [data-spot=\"hdrIcons\"])",
+          "app": "div:has(> [data-spot=\"hdrIcons\"])",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: 720 wide on both, the design's 73 against the app's 72 is its 1px hairline counted outside the box (the app's is inside, border-box). y and x match absolutely once the export's 44px page margin is removed (-44,-248): 504,0 on both."
+        },
+        {
+          "name": "header icons",
+          "design": "[data-spot=\"hdrIcons\"]",
+          "app": "[data-spot=\"hdrIcons\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 84x40 on both, and x 1140 / y 16 (canvas-local) match exactly — the icon pair's right edge is the 720 column's right edge."
+        },
+        {
+          "name": "new chat icon",
+          "design": "[data-spot=\"newChat\"]",
+          "app": "[data-spot=\"newChat\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 40x40 on both at canvas-local 1140,16."
+        },
+        {
+          "name": "history icon",
+          "design": "[data-spot=\"history\"]",
+          "app": "[data-spot=\"history\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 40x40 on both at canvas-local 1184,16, i.e. the design's 4px gap."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-invoices-1440",
       "viewport": {
         "width": 1440,
