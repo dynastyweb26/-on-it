@@ -14,8 +14,8 @@ type Rect = { x: number; y: number; w: number; h: number; r: number };
 // The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
 const STAGE_W = 390;
 // The laptop stage (design/laptop/tutorial.html: a 1380x860 frame holding the
-// 288 sidebar, the 1152 content area and its 72px page header). Dormant until
-// ?laptop=1 turns it on; the phone stage above is untouched.
+// 288 sidebar, the 1152 content area and its 72px page header). It is the stage
+// from the app's xl breakpoint (1280) up; below that the phone stage is untouched.
 const LAPTOP_W = 1380;
 const LAPTOP_H = 860;
 const PROTO_H = 844;
@@ -49,12 +49,23 @@ export default function TutorialOverlay({
   const [stageH, setStageH] = useState(PROTO_H);
   // True on iPad/laptop widths: the stage is a framed phone on an opaque backdrop.
   const [wide, setWide] = useState(false);
-  // Dormant laptop stage: off unless the URL asks for it. The matchMedia flip is
-  // a later commit, so nothing a phone, iPad or laptop visitor sees changes yet.
-  const [laptop, setLaptop] = useState(false);
+  // The app's xl width (>= 1280), which is where the laptop stage lives. It starts
+  // false so the server and the first client render agree (no hydration mismatch)
+  // and follows the query with a listener afterwards. There is no URL override: a
+  // phone can never be forced into the laptop stage.
+  const [xl, setXl] = useState(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('laptop') === '1') setLaptop(true);
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const on = () => setXl(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
   }, []);
+  // Laptop stage: Chat only for now — its mock is the one redrawn for the design's
+  // 288 / 1152 / 72 shell. REMOVE THE TOUR CONDITION FOR EACH TOUR once its mock is
+  // redrawn for laptop (Invoices, Clients, Books, Settings), i.e. plain `xl`. The
+  // rest keep the framed-phone stage at every width until then.
+  const laptop = xl && tab === 'chat';
   const frameW = laptop ? LAPTOP_W : STAGE_W;
   const frameH = laptop ? LAPTOP_H : stageH;
   const frameRef = useRef({ w: frameW, h: frameH });
@@ -459,7 +470,9 @@ export default function TutorialOverlay({
     }
     return { slot, y: slot === 'top' ? TOP : botY, overlap: slot === 'top' ? oT : oB };
   };
-  const fullCh = fullHRef.current + GAP + NEXT_H;
+  // Laptop: the design's Next is a 91x36 pill inside the card's footer row, so the
+  // cluster is the card alone (its measured height already holds the pill).
+  const fullCh = fullHRef.current + (laptop ? 0 : GAP + NEXT_H);
   let place = choose(fullCh);
   // The compact cluster is a phone device: the design's laptop card is always the
   // full one (its 159px two-line card), so only the phone falls back.
@@ -516,8 +529,8 @@ export default function TutorialOverlay({
         >
           {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
               bottom; the extra top strip (the fake status bar) is clipped away.
-              Dormant laptop stage (?laptop=1): the same mock sits inside the
-              design's 288 / 1152 / 72 shell until a later commit re-places it. */}
+              Laptop stage (>= 1280): the same mock sits inside the design's
+              288 / 1152 / 72 shell. */}
           {laptop ? (
             <LaptopShell tab={tab}>
               <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
@@ -598,7 +611,9 @@ export default function TutorialOverlay({
           </div>
         )}
 
-        {(finished || wide) && !compact && (
+        {/* Laptop renders Next inside the callout card (see the card's footer row), so
+            the full-width bar stays a phone/iPad device. */}
+        {(finished || wide) && !compact && !laptop && (
           <button
             type="button"
             onClick={goNext}
@@ -817,6 +832,32 @@ export default function TutorialOverlay({
                 {state.hlSub}
               </div>
             </>
+          )}
+          {/* Laptop (design gallery): the card's footer row, Next at its right end —
+              36 tall, radius 999, 18 from the card's sides via the card's padding.
+              Same label logic and click as the phone's bar, same nextPulse. */}
+          {laptop && (
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label={isLast ? 'Got it, finish tutorial' : 'Next scene'}
+                aria-keyshortcuts="ArrowRight Enter"
+                className={`${styles.unbutton} ${styles.aNext} ${styles.focusGold}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: 36,
+                  padding: '0 18px',
+                  borderRadius: 999,
+                  background: '#D4AF37',
+                  font: '800 14.5px/1 var(--font-montserrat)',
+                  color: '#1F1B13',
+                }}
+              >
+                {isLast ? 'Got it' : 'Next →'}
+              </button>
+            </div>
           )}
         </div>
         </div>

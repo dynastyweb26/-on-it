@@ -334,3 +334,169 @@ only the tutorial's veil floats there. The card's rect is unchanged
 | --- | --- | --- |
 | `page header row` | `w`, `h` | Design 73 vs app 72: the export's 1px hairline is outside its 72px box, the app's is inside a border-box row. x/y verified by measurement (`504,0` on both). |
 | `header icons`, `new chat icon`, `history icon` | `w`, `h` only | Same reason as 11: the export's canvas is inset 44/248, so absolute page coordinates never compare; sizes match exactly and the stage-local offsets above were verified by measurement. |
+
+### 11d. Cluster Next pill (13b commit 6)
+
+The laptop cluster's Next is the design's small pill inside the callout card's
+footer row, not the full-frame gold bar. The bar (1349×58 at 1440) stays the
+phone/iPad device; laptop drops out of that condition and renders the pill in the
+card instead, so the cluster is the card alone (its measured height already holds
+the pill) — `fullCh` no longer adds `GAP + NEXT_H` in laptop mode.
+
+| Design element | Design (measured) | App (measured) | Notes |
+| --- | --- | --- | --- |
+| Next pill | 91×36 | **92×36** at rest | radius `999px`, `800 14.5px/1` Montserrat, `#D4AF37` on `#1F1B13`, `padding:0 18px`; the 1px is our self-hosted Montserrat instance against the export's Google-font one |
+| Next pill, last scene | 79×36 ("Got it") | **79×36** | content-sized: the label shortens, so a fixed 91 width is wrong |
+| inset in card | 18 from right, 16 from bottom | **17–18**, **16** | the card's `padding:16px 18px` puts it there |
+| pill animations | none on the export's static mock | `nextIn 600ms 1`, `nextPulse 1800ms inf` | the animation is the app's, untouched; it is why a sampled rect reads 94–95×36–37 |
+
+Card height grows by the footer row: 128→180, 158→210 at the two-line scene. The
+design's card is 159 because its label row (12) and title (27) are the export's
+metrics where the ported card keeps the phone's (28/30) — a pre-existing difference
+that only moves the card's own height; the gate pairs the card by `w`.
+
+Clearance to the spotlight ring, box distance per scene (card vs ring): **459px**
+worst (scene 5), 516–549 elsewhere, 517 at scene 1 — the cluster never touches a
+cutout. Click-through on laptop: 1/6 → 6/6, each press advancing one scene, and the
+last scene's "Got it" closes the tour exactly as on phone.
+
+### 11e. Composer camera tile (13b commit 7)
+
+| Design element | Design (canvas-local) | App (stage-local) | Notes |
+| --- | --- | --- | --- |
+| `camera` | 36×36 | **36×36** | radius 18 (design `18px`); was 32×32 with a 22px glyph, now a 20px `photo_camera` |
+| inset in composer | 5 from its right, 0 off its centre | **5**, **0** | the composer's `padding: 0 4px 0 16px` plus its 1.5px border puts it there |
+| row | plus 44×44, composer 612×44, send 44×44 | **same** | plus x 504, composer x 558, send x 1180, camera x **1129** — the design's 1173 minus its 44px page margin |
+
+The tile's background stays the app's existing `#F2E5BC` rather than the export's
+`#F0E3B8`: section 0 forbids adding hex values, and the two are 2/255 apart.
+
+`data.ts` spotlights `camera` at beat 0 of the "Snap a receipt" scene (tap at 0.9).
+Scrim cutout vs the tile, sampled every 100ms through the beat: **0px** at 0ms and
+100ms, i.e. it tracks the rect exactly, at the same beat as phone.
+
+Keyboard, read-only (no code changed for it): Tab from the dialog root reaches
+`Skip`, then the pill (2 stops) — no dead stop. The pill paints the gold
+`:focus-visible` ring (`solid 2px #E6C65A`, offset 3, radius 999), Enter advances
+1/6 → 2/6, Shift+Tab returns to it, and Space advances 2/6 → 3/6.
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `camera tile` | `w`, `h` only | Same canvas-inset reason as 11; sizes match exactly and x matches once the 44px margin is removed. |
+
+### 11f. `suggest` panel — why it is not 277 and why it is not paired (13b commit 8)
+
+No product change: the panel already matches the design. The single cause of the
+"277" figure is **the entry animation**. Both players animate the panel in with the
+same 350ms `cardIn` (`tutorial_cardIn` in the app) scale; a rect sampled inside that
+window reads `283 × ~0.979 = 277` (and `50 → 49`). Transform-free layout metrics,
+taken on both players at the beat:
+
+| | design | app |
+| --- | --- | --- |
+| `offsetWidth × offsetHeight` | **283 × 50** | **283 × 50** |
+| `offsetLeft` / `offsetTop` in its column | **250 / 117** | **250 / 117** |
+| computed `width` | `257px` **content-box** + `padding 8/12` + `1px` border = 283 | `283px` **border-box** |
+| parent | 301 × 158 (content-box, `padding 8`, `1px` border) | 301 × 158 (border-box) |
+| grandparent / card | 526 grid, card 560 (`max-width:560`, `padding 16`, `1px`, `grid gap 10`) | identical |
+
+The 283 is **not** content-driven in either player. In the export it is a fixed
+`width: 257px` content box (a longer label would wrap); in the app the panel
+stretches to its column's content box (`301 − 16 − 2 = 283`), so a longer label
+would widen the wrap instead of the panel. Nothing else reads the export's 257px,
+and the mock's labels are fixed strings, so a hard `width: 283` would be a no-op.
+The tile's `cardIn` is the app's existing animation and must not be removed.
+
+**Why there is no diff-gate pair.** The panel exists only inside a 0.6s window of
+its scene, and `design:diff` runs the design's steps, then the app's (~10s), then
+evaluates every pair: by then the design has moved past the beat. Measured windows
+at the gate's own step timings — design **7.13–7.69s**, app **7.06–7.71s** — overlap
+at rest only from 7.46s, which is exactly the window the tool spends on the app's
+steps. A pair here fails as "element not found" (confirmed three runs), so it is
+deliberately absent rather than relaxed; the geometry above was measured directly
+and the card it sits in is already paired (`chat invoice card`, 560 wide).
+
+Phone is untouched by this commit; its `suggest` subtree on the Clients tour still
+hashes to `743` chars / `1874099837` (measured with the clock running — under
+reduced motion the scene is frozen at its end state, where the panel is already
+gone).
+
+### 11g. The laptop stage's breakpoint (13b commit 9)
+
+The stage now switches on `matchMedia('(min-width: 1280px)')` — the app's own `xl:`
+width — instead of a `?laptop=1` query string. State starts `false` and is set in an
+effect with a `change` listener and cleanup, so the server and the first client
+render agree; the override is gone, so a phone cannot be forced into the laptop
+stage.
+
+Phone path, same width before (`02d2d63`) and after, reduced-motion stage hash:
+
+| width | before (scene 0 / scene 5) | after | verdict |
+| --- | --- | --- | --- |
+| 768×1024 | `831524219` / `433782501` | identical | phone |
+| 1024×768 | `1357553029` / `844963231` | identical | phone |
+| 1279×800 | `-639995581` / `-1537219573` | identical | phone — one pixel below the flip |
+| 1280×800 | `-999882025` / `-1913354104` | — | laptop (the 9:41 bar and the phone tab bar are gone; 16427 chars → 10765) |
+| 1366×1024 | — | same as 1280 | laptop, as expected for iPad Pro landscape size |
+
+The stage's own size at those widths: 1279 gives the 390-wide phone frame at scale
+1.1026, 1280 fits the 1380 frame at **0.9275** (`availW / 1380`), 1366 at 0.9899 and
+1440 at 1. With the scale removed, the scrim cutout tracks its spotlight anchor to
+**0.2px** at 1280 and 1366 and **0.0px** at 1440 and 1279; `document.scrollWidth`
+never exceeds the viewport; the console is clean at every width. Because the laptop
+frame scales below 1440, raw rect comparison against the export (which does not
+scale its canvas) fails at 1280 by exactly the scale — `560 → 519`, `339 → 313`,
+`612 → 568` — so the laptop cases stay gated at 1440, where the scale is 1.
+
+The six laptop cases no longer pass `?laptop=1`; they use `/chat`, so they exercise
+the real visitor path. `tour-chat-1279` is new: it pins the phone path one pixel
+below the flip (its callout pair and motion check pass, and the path identity itself
+is the hash table above). `tour-chat-1440` and `tour-chat-1280` were the old phone
+cases; at 1440 they now exercise the laptop stage and all of their pairs pass,
+while at 1280 the composer pair reads `568` against the export's `612` for the
+scale reason above.
+
+Resize mid-tour, both directions (1440→1000→1440 and 1000→1440→1000), sampled
+through a live spotlight: the scene is kept (`1/6` → `1/6` → `1/6`), the ring is
+live in all 12 samples, its settled cutout is **0–0.9px**, there is no overflow at
+any step and no console output. During the resize itself the cutout is briefly far
+off, which is the ring's own 0.55s move, not a lost spotlight. No hydration warning
+at 1440 or 390 on `/chat` and `/dashboard`.
+
+Still failing, unchanged by this commit: `tour-invoices-1440` (segment toggle),
+`tour-clients-1440` (search), `tour-books-1440` (net card) and `tour-settings-1440`
+(`paymentRow` absent). All four failed before the flip as well — they are the mocks
+that are still the phone's shape, i.e. the redraw work that follows this commit.
+
+### 11h. The laptop stage is Chat only (13b commit 10)
+
+`laptop = xl && tab === 'chat'`. `MockScreen` hands the flag to `ChatMock` alone; the
+other four mocks take no such prop, and at ≥1280 that left them a phone render
+stretched across the 1152 content area under the shell (`Invoices` measured its own
+9:41 bar 1092 wide at (288,72), `search` 990 against the design's 300, `net` 1060×103
+against 573×180). They now use the framed-phone branch at every width.
+
+Stage hash, reduced motion, scene 0 / scene 1, `02d2d63` (pre-flip) → `e5958c7`, all
+16 identical:
+
+| tour | 1440×900 | 1279×800 |
+| --- | --- | --- |
+| Invoices | `16500/-103744134`, `15729/-201631843` | identical |
+| Clients | `13397/1715042087`, `14000/-1135267660` | identical |
+| Books | `18985/-1183429492`, `19670/1492082124` | identical |
+| Settings | `16065/88154484`, `12903/1288920218` | identical |
+
+Chat is unchanged against `15bc3fa` at both widths (`19845/-1699713544`,
+`20570/-947010285` at 1440; `21665/-1227789146`, `22404/-1152182433` at 1279), and the
+phone path is unchanged at 768 / 1024 / 1279. Switching Chat → Invoices → Chat gives
+1380 (shell, no 9:41 bar) → 430 (no shell, 9:41 present) → 1380 again with a clean
+console, and 1440→1000→1440 keeps the scene on both Chat and Invoices with a 0.2px
+settled cutout.
+
+The four tour cases (`tour-invoices-1440`, `tour-clients-1440`, `tour-books-1440`,
+`tour-settings-1440`) are back on the phone path: their known failing pairs report the
+pre-flip phone values again (`segment toggle` h 62, `search` 318, `net` 395×114,
+`paymentRow` absent). They stay red until those mocks are redrawn.
+
+**Removal condition:** delete `&& tab === 'chat'` per tour as its mock lands, leaving
+plain `xl` (the guard's comment carries this).

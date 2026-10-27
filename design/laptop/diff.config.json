@@ -928,6 +928,56 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-1279",
+      "viewport": {
+        "width": 1279,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false,
+          "motionTimesMs": [
+            0,
+            500,
+            1500
+          ],
+          "why": "Pins the phone path one pixel below the laptop flip. Only the callout card is paired: the composer and Next pairs of the 1280 case are phone-versus-laptop-design differences by construction, and the path identity here is asserted by the stage DOM hash (MAPPING 11g), which is byte-identical to a 390-wide phone."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-chat-laptop-1440",
       "viewport": {
         "width": 1440,
@@ -942,7 +992,7 @@
         ]
       },
       "app": {
-        "path": "/chat?laptop=1",
+        "path": "/chat",
         "steps": [
           {
             "wait": 2000
@@ -1012,6 +1062,123 @@
           ],
           "animations": false,
           "why": "Same offset as the card; the scrim cutout measured 0px from the composer's own rect."
+        },
+        {
+          "name": "next button (mid-tour)",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "[data-hl] button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Position inside the card is compared by inset instead (see MAPPING 11d): the pill is a child of the card, so page coordinates inherit the card's slot. Size: 91x36 at rest in both; the app's sampled box is up to 3px wider/taller when nextPulse's transform:scale is mid-loop (94-95 x 36-37), and 92 vs 91 at rest is our self-hosted Montserrat instance against the export's Google-font one."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-last-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "next button (last scene)",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "[data-hl] button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "The last scene's label shortens to \"Got it\" and the pill is content-sized: 79x36 in the export, 80x36 in the app (same Montserrat 1px, pulse-free layout size). This is what stops a gate on a fixed 91 width from passing while the label logic breaks."
         }
       ],
       "maxPixelDiffPct": null
@@ -1043,7 +1210,7 @@
         ]
       },
       "app": {
-        "path": "/chat?laptop=1",
+        "path": "/chat",
         "steps": [
           {
             "wait": 2000
@@ -1125,7 +1292,7 @@
         ]
       },
       "app": {
-        "path": "/chat?laptop=1",
+        "path": "/chat",
         "steps": [
           {
             "wait": 2000
@@ -1258,7 +1425,7 @@
         ]
       },
       "app": {
-        "path": "/chat?laptop=1",
+        "path": "/chat",
         "steps": [
           {
             "wait": 2000
@@ -1348,6 +1515,76 @@
           ],
           "animations": false,
           "why": "Size only; 40x40 on both at canvas-local 1184,16, i.e. the design's 4px gap."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-camera-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "camera tile",
+          "design": "[data-spot=\"camera\"]",
+          "app": "[data-spot=\"camera\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only, for the same canvas-inset reason as 11; 36x36 on both, and x is identical (1129) once the export's 44px page margin is removed, 5 inside the composer's right edge and 0 off its vertical centre."
         }
       ],
       "maxPixelDiffPct": null
