@@ -430,6 +430,407 @@ function LaptopInvoiceCard({ state, isEst }: { state: SceneState; isEst: boolean
   );
 }
 
+/** The laptop expense sheet (design `expCard`): 520 wide at the column's left,
+ *  date beside the amount, 40px category tiles and the save pill sharing its
+ *  row with "Change something". Phone keeps the stacked sheet below. */
+function LaptopExpenseCard({ state }: { state: SceneState }) {
+  const { st } = state;
+  const savePill = {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    font: '700 16px/1 var(--font-inter)',
+  };
+  return (
+    <div
+      className={styles.aCardIn6}
+      style={{
+        width: '100%',
+        maxWidth: 520,
+        boxSizing: 'border-box',
+        padding: 18,
+        background: '#FBF3E5',
+        border: '1.5px solid #EFE4D2',
+        borderRadius: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ font: '800 13px/1 var(--font-montserrat)', letterSpacing: '.16em', color: '#735C00' }}>EXPENSE</div>
+          <div style={{ marginTop: 6, font: '400 14px/1 var(--font-inter)', color: '#4D4635' }}>From your receipt</div>
+        </div>
+        <span style={{ display: 'flex', color: '#1F1B13' }}>
+          <Icon name="close" size={22} />
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ font: '800 44px/1 var(--font-montserrat)', fontVariantNumeric: 'tabular-nums' }}>{state.expAmt}</div>
+        <span
+          style={{
+            height: 38,
+            padding: '0 14px',
+            borderRadius: 999,
+            background: '#fff',
+            border: '1.5px solid #D0C5AF',
+            display: 'flex',
+            alignItems: 'center',
+            font: '600 14px/1 var(--font-inter)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Oct 25, 2026
+        </span>
+      </div>
+
+      <div
+        style={{
+          paddingBottom: 7,
+          borderBottom: '1.5px dashed #D0C5AF',
+          font: '400 17px/1 var(--font-inter)',
+          color: '#7F7663',
+        }}
+      >
+        <span style={{ color: '#1F1B13', fontWeight: 500 }}>at</span> Fuel Stop
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
+        {['Food', 'Fuel', 'Supplies', 'Tools'].map((cat) => {
+          const fuel = cat === 'Fuel' && st.fuel;
+          return (
+            <span
+              key={cat}
+              className={fuel ? styles.aPop4 : undefined}
+              style={{
+                height: 40,
+                borderRadius: 12,
+                border: fuel ? '2px solid #D4AF37' : '1.5px solid #7F7663',
+                boxSizing: 'border-box',
+                background: fuel ? '#F3E9C8' : '#fff',
+                boxShadow: fuel ? '0 0 0 2px #FFF8F0,0 0 0 4px #D4AF37' : undefined,
+                display: 'grid',
+                placeItems: 'center',
+                font: `${fuel ? 700 : 600} 14px/1 var(--font-inter)`,
+              }}
+            >
+              {cat}
+            </span>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          height: 44,
+          borderRadius: 12,
+          background: '#F5EDDF',
+          border: '1px solid #EFE4D2',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '0 14px',
+          font: '400 15px/1 var(--font-inter)',
+          color: '#7F7663',
+        }}
+      >
+        <span style={{ display: 'flex' }}>
+          <Icon name="edit" size={19} />
+        </span>
+        Add what you bought (optional)
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {st.saved ? (
+          <div
+            data-spot="saveExpense"
+            className={styles.aPop4}
+            style={{ ...savePill, background: '#343027', color: '#FFF8F0' }}
+          >
+            <span style={{ display: 'flex', color: '#E9C349' }}>
+              <Icon name="check" size={22} />
+            </span>
+            Saved to Books
+          </div>
+        ) : (
+          <div data-spot="saveExpense" style={{ ...savePill, background: '#D4AF37' }}>
+            <span style={{ display: 'flex' }}>
+              <Icon name="check_circle" size={22} />
+            </span>
+            Save expense
+          </div>
+        )}
+        <span
+          style={{
+            font: '500 15px/1 var(--font-inter)',
+            textDecoration: 'underline',
+            textUnderlineOffset: 4,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Change something
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The laptop "ready to share" card (design `readyCard`): 720 wide, the estimate
+ *  on the left and the share block in its own column on the right. Phone keeps
+ *  the single-column card below. */
+function LaptopReadyCard({ state }: { state: SceneState }) {
+  const { st } = state;
+  return (
+    <div
+      className={styles.aCardIn55}
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: 20,
+        background: '#FBF3E5',
+        border: '1.5px solid #EFE4D2',
+        borderRadius: 20,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)',
+        gap: 20,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            font: '800 14px/1 var(--font-montserrat)',
+            letterSpacing: '.06em',
+            color: '#735C00',
+          }}
+        >
+          <span style={{ display: 'flex' }}>
+            <Icon name="description" size={20} />
+          </span>
+          ESTIMATE FOR BRANDON
+        </div>
+        <span
+          data-spot="readyChip"
+          style={{
+            alignSelf: 'flex-start',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            height: 30,
+            padding: '0 12px 0 10px',
+            borderRadius: 8,
+            background: '#EFE7DA',
+            font: '600 14px/1 var(--font-inter)',
+          }}
+        >
+          <span style={{ display: 'flex' }}>
+            <Icon name="lock" size={17} filled />
+          </span>
+          Ready to share
+        </span>
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #EFE4D2',
+            borderRadius: 14,
+            padding: '12px 14px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}
+        >
+          <div>
+            <div style={{ font: '500 16px/1.2 var(--font-inter)' }}>
+              <Mono size={16} weight={500} lineHeight={1.2} color="#7F7663">
+                <span style={{ marginRight: 8 }}>1.</span>
+              </Mono>
+              Fence Repair
+            </div>
+            <div style={{ margin: '4px 0 0 24px', font: '400 14px/1 var(--font-inter)', color: '#4D4635' }}>
+              1 job × $400.00
+            </div>
+          </div>
+          <div style={{ font: '800 16px/1.2 var(--font-montserrat)' }}>$400.00</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635' }}>Deposit required</span>
+            <span
+              style={{
+                height: 36,
+                padding: '0 10px',
+                borderRadius: 12,
+                background: '#fff',
+                border: '1px solid #EFE4D2',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                font: '500 14px/1 var(--font-inter)',
+                color: '#4D4635',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              None
+              <span style={{ display: 'flex' }}>
+                <Icon name="unfold_more" size={17} />
+              </span>
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635' }}>Tax</span>
+            <span
+              style={{
+                height: 36,
+                padding: '0 12px',
+                borderRadius: 12,
+                background: '#fff',
+                border: '1px solid #EFE4D2',
+                font: '600 13.5px/36px var(--font-inter)',
+                color: '#735C00',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              + Add tax
+            </span>
+          </div>
+        </div>
+        <div>
+          <div style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635', marginBottom: 6 }}>Notes</div>
+          <div
+            style={{
+              padding: '9px 12px',
+              borderRadius: 12,
+              background: '#fff',
+              border: '1px solid #EFE4D2',
+              font: '400 14px/1.4 var(--font-inter)',
+              color: '#7F7663',
+            }}
+          >
+            Deposit due before materials are ordered.
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            paddingTop: 10,
+            borderTop: '1px solid #EFE4D2',
+          }}
+        >
+          <span style={{ font: '700 13px/1 var(--font-inter)', letterSpacing: '.1em', color: '#4D4635' }}>
+            ESTIMATE TOTAL
+          </span>
+          <span style={{ font: '800 34px/1 var(--font-montserrat)' }}>$400.00</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          paddingLeft: 20,
+          borderLeft: '1px solid #EFE4D2',
+        }}
+      >
+        <div style={{ font: '400 15px/1.35 var(--font-inter)' }}>Copy or share the link with Brandon.</div>
+        <div
+          style={{
+            padding: '9px 12px',
+            borderRadius: 12,
+            background: '#fff',
+            border: '1px solid #EFE4D2',
+            font: '500 13px/1.3 var(--font-plex-mono), monospace',
+            color: '#4D4635',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          https://onit.app/e/sample-estimate
+        </div>
+        <div data-spot="shareBtns" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderRadius: 14 }}>
+          <div
+            data-spot="copyLink"
+            style={{
+              height: 44,
+              borderRadius: 999,
+              background: '#fff',
+              border: '1.5px solid #D0C5AF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              font: '700 15px/1 var(--font-inter)',
+              color: '#735C00',
+            }}
+          >
+            {st.copied ? (
+              <span className={styles.aPop35} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="check" size={20} />
+                Copied
+              </span>
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="link" size={20} />
+                Copy link
+              </span>
+            )}
+          </div>
+          <div
+            style={{
+              height: 44,
+              borderRadius: 999,
+              background: '#fff',
+              border: '1.5px solid #D0C5AF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              font: '700 15px/1 var(--font-inter)',
+              color: '#735C00',
+            }}
+          >
+            <span style={{ display: 'flex' }}>
+              <Icon name="share" size={20} />
+            </span>
+            Share
+          </div>
+        </div>
+        <div data-spot="revise" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, borderRadius: 18 }}>
+          <div
+            style={{
+              height: 48,
+              borderRadius: 999,
+              background: '#D4AF37',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              font: '700 16px/1 var(--font-inter)',
+            }}
+          >
+            <span style={{ display: 'flex' }}>
+              <Icon name="edit" size={20} />
+            </span>
+            Revise
+          </div>
+          <div style={{ font: '400 13px/1.4 var(--font-inter)', color: '#4D4635' }}>
+            Makes a new estimate you can edit. This one and its link stay as they are.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatMock({
   state,
   chatMax,
@@ -1030,7 +1431,10 @@ export default function ChatMock({
                 </div>
                 ))}
 
-              {st.exp && (
+              {st.exp &&
+                (laptop ? (
+                  <LaptopExpenseCard state={state} />
+                ) : (
                 <div
                   className={styles.aCardIn6}
                   style={{
@@ -1193,9 +1597,12 @@ export default function ChatMock({
                     Change something
                   </div>
                 </div>
-              )}
+                ))}
 
-              {st.ready && (
+              {st.ready &&
+                (laptop ? (
+                  <LaptopReadyCard state={state} />
+                ) : (
                 <div
                   className={styles.aCardIn55}
                   style={{
@@ -1421,7 +1828,7 @@ export default function ChatMock({
                     </div>
                   </div>
                 </div>
-              )}
+                ))}
             </div>
           </div>
 
