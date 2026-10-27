@@ -1910,20 +1910,22 @@ export default function ChatMock({
                 <span style={{ display: 'flex', color: '#2F2A24' }}>
                   <Icon name="image" size={24} />
                 </span>
+                {/* Design: a 36 tile (radius 18) with a 20px glyph, centred in the
+                    44 row and 4 off the composer's right edge through its padding. */}
                 <span
                   data-spot="camera"
                   style={{
                     flex: 'none',
-                    width: laptop ? 32 : 40,
-                    height: laptop ? 32 : 40,
-                    borderRadius: laptop ? 16 : 20,
+                    width: laptop ? 36 : 40,
+                    height: laptop ? 36 : 40,
+                    borderRadius: laptop ? 18 : 20,
                     background: '#F2E5BC',
                     display: 'grid',
                     placeItems: 'center',
                     color: '#1E1A14',
                   }}
                 >
-                  <Icon name="photo_camera" size={22} />
+                  <Icon name="photo_camera" size={laptop ? 20 : 22} />
                 </span>
               </div>
               <span
