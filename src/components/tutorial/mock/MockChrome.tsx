@@ -232,9 +232,8 @@ export function MockChrome({
   );
 }
 
-/** Dormant laptop stage (design tutorial frame): 288 sidebar + 1152 content with
- *  the 72px page header. Only rendered when the tour is opened with ?laptop=1;
- *  the phone frame above is what every visitor still gets. */
+/** Laptop stage (design tutorial frame): 288 sidebar + 1152 content with the 72px
+ *  page header. Rendered at >= 1280; below that the phone frame above is used. */
 export function LaptopShell({ tab, children }: { tab: TutorialTab; children: ReactNode }) {
   const label = TABS.find((t) => t.key === tab)?.label ?? '';
   return (

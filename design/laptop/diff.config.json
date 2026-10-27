@@ -928,6 +928,56 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-1279",
+      "viewport": {
+        "width": 1279,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false,
+          "motionTimesMs": [
+            0,
+            500,
+            1500
+          ],
+          "why": "Pins the phone path one pixel below the laptop flip. Only the callout card is paired: the composer and Next pairs of the 1280 case are phone-versus-laptop-design differences by construction, and the path identity here is asserted by the stage DOM hash (MAPPING 11g), which is byte-identical to a 390-wide phone."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-chat-laptop-1440",
       "viewport": {
         "width": 1440,

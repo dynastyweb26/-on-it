@@ -14,8 +14,8 @@ type Rect = { x: number; y: number; w: number; h: number; r: number };
 // The stage is 390 wide; its height flexes with the viewport (844 on the prototype's phone).
 const STAGE_W = 390;
 // The laptop stage (design/laptop/tutorial.html: a 1380x860 frame holding the
-// 288 sidebar, the 1152 content area and its 72px page header). Dormant until
-// ?laptop=1 turns it on; the phone stage above is untouched.
+// 288 sidebar, the 1152 content area and its 72px page header). It is the stage
+// from the app's xl breakpoint (1280) up; below that the phone stage is untouched.
 const LAPTOP_W = 1380;
 const LAPTOP_H = 860;
 const PROTO_H = 844;
@@ -49,11 +49,17 @@ export default function TutorialOverlay({
   const [stageH, setStageH] = useState(PROTO_H);
   // True on iPad/laptop widths: the stage is a framed phone on an opaque backdrop.
   const [wide, setWide] = useState(false);
-  // Dormant laptop stage: off unless the URL asks for it. The matchMedia flip is
-  // a later commit, so nothing a phone, iPad or laptop visitor sees changes yet.
+  // Laptop stage: on at >= 1280, the same width the app's xl: rules switch on. It
+  // starts false so the server and the first client render agree (no hydration
+  // mismatch) and follows the query with a listener afterwards. There is no URL
+  // override: a phone can never be forced into the laptop stage.
   const [laptop, setLaptop] = useState(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('laptop') === '1') setLaptop(true);
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const on = () => setLaptop(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
   }, []);
   const frameW = laptop ? LAPTOP_W : STAGE_W;
   const frameH = laptop ? LAPTOP_H : stageH;
@@ -518,8 +524,8 @@ export default function TutorialOverlay({
         >
           {/* The mocks lay out as a stage sbH taller than the viewport, pinned to the
               bottom; the extra top strip (the fake status bar) is clipped away.
-              Dormant laptop stage (?laptop=1): the same mock sits inside the
-              design's 288 / 1152 / 72 shell until a later commit re-places it. */}
+              Laptop stage (>= 1280): the same mock sits inside the design's
+              288 / 1152 / 72 shell. */}
           {laptop ? (
             <LaptopShell tab={tab}>
               <div style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>

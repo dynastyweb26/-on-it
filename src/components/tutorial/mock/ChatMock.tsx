@@ -840,7 +840,7 @@ export default function ChatMock({
   state: SceneState;
   chatMax: number;
   nudge?: number;
-  /** Dormant laptop stage (?laptop=1): the composer group is the design's 612x44
+  /** Laptop stage (>= 1280): the composer group is the design's 612x44
    *  inside the 720 column. Absent everywhere else, so the phone is untouched. */
   laptop?: boolean;
 }) {
