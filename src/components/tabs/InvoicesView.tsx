@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
 import InvoicesSkeleton from '@/components/InvoicesSkeleton';
@@ -87,18 +87,36 @@ export default function Invoices({ active = true, selectedId = null }: { active?
   // selected document renders in the right pane. Below xl nothing changes: a
   // row is still a link to the full detail route.
   const [selected, setSelected] = useState<string | null>(selectedId);
-  useEffect(() => { setSelected(selectedId); }, [selectedId]);
+  const pathname = usePathname();
+  // At xl the URL is the source of truth for the right pane. The shell keeps the
+  // deck (and this list) mounted on /invoices/<id> — a row click is a route
+  // change, not a remount — so the pathname is what moves when a row is picked,
+  // what Back clears, and what a deep link or a reload restores. Below xl the
+  // nested route renders the full-page detail, so the prop is the only input.
+  useEffect(() => {
+    if (!window.matchMedia('(min-width: 1280px)').matches) { setSelected(selectedId); return; }
+    const m = /^\/invoices\/([^/]+)$/.exec(pathname);
+    setSelected(m ? m[1] : null);
+  }, [pathname, selectedId]);
+  const supabase = createClient();
+  const router = useRouter();
   // Only a real laptop click takes over the row; touch and narrow widths keep
   // the plain link so the detail route (and its Back button) behave as today.
   function openRow(e: MouseEvent<HTMLAnchorElement>, rowId: string) {
     if (!window.matchMedia('(min-width: 1280px)').matches) return;
     e.preventDefault();
-    setSelected(rowId);
-    // Replace, not push: the list must not remount, and Back returns to the tab.
-    try { window.history.replaceState(null, '', `/invoices/${rowId}${window.location.search}`); } catch { /* ignore */ }
+    // Through the router, not a bare history.replaceState. Next patches
+    // replaceState to re-render the shell for the new pathname, so a raw URL
+    // change made the shell swap to the nested route while the router still
+    // rendered this list: the deck (and the selection this handler used to set)
+    // unmounted, the detail pane fell back to the empty placeholder, and a Back
+    // button appeared. Going through the router lands on /invoices/<id>, which
+    // the shell renders as this same tab: the list stays mounted and the URL
+    // selects the row. A push (like a row tap on a phone), not a replace, so
+    // Back and Forward step through the documents you opened and back to the
+    // list.
+    router.push(`/invoices/${rowId}${window.location.search}`, { scroll: false });
   }
-  const supabase = createClient();
-  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>(lastFilter);
