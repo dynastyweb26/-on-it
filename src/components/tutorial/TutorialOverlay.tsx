@@ -49,18 +49,23 @@ export default function TutorialOverlay({
   const [stageH, setStageH] = useState(PROTO_H);
   // True on iPad/laptop widths: the stage is a framed phone on an opaque backdrop.
   const [wide, setWide] = useState(false);
-  // Laptop stage: on at >= 1280, the same width the app's xl: rules switch on. It
-  // starts false so the server and the first client render agree (no hydration
-  // mismatch) and follows the query with a listener afterwards. There is no URL
-  // override: a phone can never be forced into the laptop stage.
-  const [laptop, setLaptop] = useState(false);
+  // The app's xl width (>= 1280), which is where the laptop stage lives. It starts
+  // false so the server and the first client render agree (no hydration mismatch)
+  // and follows the query with a listener afterwards. There is no URL override: a
+  // phone can never be forced into the laptop stage.
+  const [xl, setXl] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1280px)');
-    const on = () => setLaptop(mq.matches);
+    const on = () => setXl(mq.matches);
     on();
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
+  // Laptop stage: Chat only for now — its mock is the one redrawn for the design's
+  // 288 / 1152 / 72 shell. REMOVE THE TOUR CONDITION FOR EACH TOUR once its mock is
+  // redrawn for laptop (Invoices, Clients, Books, Settings), i.e. plain `xl`. The
+  // rest keep the framed-phone stage at every width until then.
+  const laptop = xl && tab === 'chat';
   const frameW = laptop ? LAPTOP_W : STAGE_W;
   const frameH = laptop ? LAPTOP_H : stageH;
   const frameRef = useRef({ w: frameW, h: frameH });
