@@ -420,3 +420,50 @@ Phone is untouched by this commit; its `suggest` subtree on the Clients tour sti
 hashes to `743` chars / `1874099837` (measured with the clock running — under
 reduced motion the scene is frozen at its end state, where the panel is already
 gone).
+
+### 11g. The laptop stage's breakpoint (13b commit 9)
+
+The stage now switches on `matchMedia('(min-width: 1280px)')` — the app's own `xl:`
+width — instead of a `?laptop=1` query string. State starts `false` and is set in an
+effect with a `change` listener and cleanup, so the server and the first client
+render agree; the override is gone, so a phone cannot be forced into the laptop
+stage.
+
+Phone path, same width before (`02d2d63`) and after, reduced-motion stage hash:
+
+| width | before (scene 0 / scene 5) | after | verdict |
+| --- | --- | --- | --- |
+| 768×1024 | `831524219` / `433782501` | identical | phone |
+| 1024×768 | `1357553029` / `844963231` | identical | phone |
+| 1279×800 | `-639995581` / `-1537219573` | identical | phone — one pixel below the flip |
+| 1280×800 | `-999882025` / `-1913354104` | — | laptop (the 9:41 bar and the phone tab bar are gone; 16427 chars → 10765) |
+| 1366×1024 | — | same as 1280 | laptop, as expected for iPad Pro landscape size |
+
+The stage's own size at those widths: 1279 gives the 390-wide phone frame at scale
+1.1026, 1280 fits the 1380 frame at **0.9275** (`availW / 1380`), 1366 at 0.9899 and
+1440 at 1. With the scale removed, the scrim cutout tracks its spotlight anchor to
+**0.2px** at 1280 and 1366 and **0.0px** at 1440 and 1279; `document.scrollWidth`
+never exceeds the viewport; the console is clean at every width. Because the laptop
+frame scales below 1440, raw rect comparison against the export (which does not
+scale its canvas) fails at 1280 by exactly the scale — `560 → 519`, `339 → 313`,
+`612 → 568` — so the laptop cases stay gated at 1440, where the scale is 1.
+
+The six laptop cases no longer pass `?laptop=1`; they use `/chat`, so they exercise
+the real visitor path. `tour-chat-1279` is new: it pins the phone path one pixel
+below the flip (its callout pair and motion check pass, and the path identity itself
+is the hash table above). `tour-chat-1440` and `tour-chat-1280` were the old phone
+cases; at 1440 they now exercise the laptop stage and all of their pairs pass,
+while at 1280 the composer pair reads `568` against the export's `612` for the
+scale reason above.
+
+Resize mid-tour, both directions (1440→1000→1440 and 1000→1440→1000), sampled
+through a live spotlight: the scene is kept (`1/6` → `1/6` → `1/6`), the ring is
+live in all 12 samples, its settled cutout is **0–0.9px**, there is no overflow at
+any step and no console output. During the resize itself the cutout is briefly far
+off, which is the ring's own 0.55s move, not a lost spotlight. No hydration warning
+at 1440 or 390 on `/chat` and `/dashboard`.
+
+Still failing, unchanged by this commit: `tour-invoices-1440` (segment toggle),
+`tour-clients-1440` (search), `tour-books-1440` (net card) and `tour-settings-1440`
+(`paymentRow` absent). All four failed before the flip as well — they are the mocks
+that are still the phone's shape, i.e. the redraw work that follows this commit.
