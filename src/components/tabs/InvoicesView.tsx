@@ -105,6 +105,13 @@ export default function Invoices({ active = true, selectedId = null }: { active?
   function openRow(e: MouseEvent<HTMLAnchorElement>, rowId: string) {
     if (!window.matchMedia('(min-width: 1280px)').matches) return;
     e.preventDefault();
+    // Select first, navigate second. The pane keys off `selected`, so this
+    // starts the detail's fetch on the tap instead of after the route
+    // navigation resolves — the row's RSC payload has to come back before
+    // usePathname moves (85ms warm, ~600ms for a row that was never
+    // prefetched), and the pane used to sit on the previous document that
+    // whole time. The pathname effect then lands on the same id.
+    setSelected(rowId);
     // Through the router, not a bare history.replaceState. Next patches
     // replaceState to re-render the shell for the new pathname, so a raw URL
     // change made the shell swap to the nested route while the router still
