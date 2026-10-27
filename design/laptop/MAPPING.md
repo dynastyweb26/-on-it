@@ -383,3 +383,40 @@ Keyboard, read-only (no code changed for it): Tab from the dialog root reaches
 | Pair | Check | Why |
 | --- | --- | --- |
 | `camera tile` | `w`, `h` only | Same canvas-inset reason as 11; sizes match exactly and x matches once the 44px margin is removed. |
+
+### 11f. `suggest` panel — why it is not 277 and why it is not paired (13b commit 8)
+
+No product change: the panel already matches the design. The single cause of the
+"277" figure is **the entry animation**. Both players animate the panel in with the
+same 350ms `cardIn` (`tutorial_cardIn` in the app) scale; a rect sampled inside that
+window reads `283 × ~0.979 = 277` (and `50 → 49`). Transform-free layout metrics,
+taken on both players at the beat:
+
+| | design | app |
+| --- | --- | --- |
+| `offsetWidth × offsetHeight` | **283 × 50** | **283 × 50** |
+| `offsetLeft` / `offsetTop` in its column | **250 / 117** | **250 / 117** |
+| computed `width` | `257px` **content-box** + `padding 8/12` + `1px` border = 283 | `283px` **border-box** |
+| parent | 301 × 158 (content-box, `padding 8`, `1px` border) | 301 × 158 (border-box) |
+| grandparent / card | 526 grid, card 560 (`max-width:560`, `padding 16`, `1px`, `grid gap 10`) | identical |
+
+The 283 is **not** content-driven in either player. In the export it is a fixed
+`width: 257px` content box (a longer label would wrap); in the app the panel
+stretches to its column's content box (`301 − 16 − 2 = 283`), so a longer label
+would widen the wrap instead of the panel. Nothing else reads the export's 257px,
+and the mock's labels are fixed strings, so a hard `width: 283` would be a no-op.
+The tile's `cardIn` is the app's existing animation and must not be removed.
+
+**Why there is no diff-gate pair.** The panel exists only inside a 0.6s window of
+its scene, and `design:diff` runs the design's steps, then the app's (~10s), then
+evaluates every pair: by then the design has moved past the beat. Measured windows
+at the gate's own step timings — design **7.13–7.69s**, app **7.06–7.71s** — overlap
+at rest only from 7.46s, which is exactly the window the tool spends on the app's
+steps. A pair here fails as "element not found" (confirmed three runs), so it is
+deliberately absent rather than relaxed; the geometry above was measured directly
+and the card it sits in is already paired (`chat invoice card`, 560 wide).
+
+Phone is untouched by this commit; its `suggest` subtree on the Clients tour still
+hashes to `743` chars / `1874099837` (measured with the clock running — under
+reduced motion the scene is frozen at its end state, where the panel is already
+gone).
