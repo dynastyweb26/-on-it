@@ -459,7 +459,9 @@ export default function TutorialOverlay({
     }
     return { slot, y: slot === 'top' ? TOP : botY, overlap: slot === 'top' ? oT : oB };
   };
-  const fullCh = fullHRef.current + GAP + NEXT_H;
+  // Laptop: the design's Next is a 91x36 pill inside the card's footer row, so the
+  // cluster is the card alone (its measured height already holds the pill).
+  const fullCh = fullHRef.current + (laptop ? 0 : GAP + NEXT_H);
   let place = choose(fullCh);
   // The compact cluster is a phone device: the design's laptop card is always the
   // full one (its 159px two-line card), so only the phone falls back.
@@ -598,7 +600,9 @@ export default function TutorialOverlay({
           </div>
         )}
 
-        {(finished || wide) && !compact && (
+        {/* Laptop renders Next inside the callout card (see the card's footer row), so
+            the full-width bar stays a phone/iPad device. */}
+        {(finished || wide) && !compact && !laptop && (
           <button
             type="button"
             onClick={goNext}
@@ -817,6 +821,32 @@ export default function TutorialOverlay({
                 {state.hlSub}
               </div>
             </>
+          )}
+          {/* Laptop (design gallery): the card's footer row, Next at its right end —
+              36 tall, radius 999, 18 from the card's sides via the card's padding.
+              Same label logic and click as the phone's bar, same nextPulse. */}
+          {laptop && (
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label={isLast ? 'Got it, finish tutorial' : 'Next scene'}
+                aria-keyshortcuts="ArrowRight Enter"
+                className={`${styles.unbutton} ${styles.aNext} ${styles.focusGold}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: 36,
+                  padding: '0 18px',
+                  borderRadius: 999,
+                  background: '#D4AF37',
+                  font: '800 14.5px/1 var(--font-montserrat)',
+                  color: '#1F1B13',
+                }}
+              >
+                {isLast ? 'Got it' : 'Next →'}
+              </button>
+            </div>
           )}
         </div>
         </div>
