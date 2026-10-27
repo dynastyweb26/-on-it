@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { planInvoiceSend, type SendableInvoice } from '@/lib/invoice-send';
 import { readProfileTerms } from '@/lib/terms';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { isUuid } from '@/lib/estimates/owner';
 
 export const runtime = 'nodejs';
 
@@ -17,12 +19,20 @@ const SNAPSHOT_COLS =
   'invoice_template, brand_colors, background_color, business_name, logo_url, website_url, slogan, cashapp_tag, paypal_me, venmo_username';
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  if (!isUuid(params.id)) {
+    return NextResponse.json({ error: 'invoice not found' }, { status: 404 });
+  }
+
+  if (!(await rateLimit('invoice_send', rateIdentifier(req, user.id)))) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
 
   const admin = adminClient();
   const id = params.id;
