@@ -928,6 +928,95 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-laptop-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chat invoice card",
+          "design": "[data-spot=\"invCard\"]",
+          "app": "[data-spot=\"invCard\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: the export lays its canvas out at 44/248 inside the mock page, and the stage is 1380x860 against the design's 1440x900 canvas, so absolute x/y are offset on both axes. x is identical once the 44px page margin is removed (504) and y is identical measured from the stage's bottom edge (card bottom 100 above it in both)."
+        },
+        {
+          "name": "card toggle",
+          "design": "[data-spot=\"toggle\"]",
+          "app": "[data-spot=\"toggle\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; measured x 660 and h 28 match exactly."
+        },
+        {
+          "name": "line price",
+          "design": "[data-spot=\"tplPrice\"]",
+          "app": "[data-spot=\"tplPrice\"]",
+          "check": [
+            "h"
+          ],
+          "animations": false,
+          "why": "Height only: the pill is content-sized and the two players are sampled at different beats (the export has typed $400.00 = 88px by the time the app case finishes its 9s wait, whose scene 0 is still on the empty $Price = 76px). Both are 34 high, and with the same text both measure 88 (checked on the Clients tour's Save your jobs beat)."
+        },
+        {
+          "name": "card footer",
+          "design": "[data-spot=\"invFoot\"]",
+          "app": "[data-spot=\"invFoot\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; measured x 521 matches exactly."
+        },
+        {
+          "name": "spotlight target (composer)",
+          "design": "[data-spot=\"composer\"]",
+          "app": "[data-spot=\"composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; the scrim cutout measured 0px from the composer's own rect."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-invoices-1440",
       "viewport": {
         "width": 1440,

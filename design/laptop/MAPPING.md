@@ -231,3 +231,43 @@ tall, so 800 - 2×20 is exactly enough); step 3 scrolls inside the card. Below
 | --- | --- | --- |
 | `card` | `w`, `h` only | The export draws the card inside a mock browser frame with a 44px margin, so its absolute x/y are the frame's, not a viewport-centred overlay's. Size is the transferable part. |
 | `reason pill` | `h` only | The pill is content-sized. The design's 249px is its own trigger copy ("You've used your 3 free invoices"); the app's `REASON` strings differ per variant and the copy must not change. |
+
+## 11. Laptop tutorial stage — chat card group (13b)
+
+Measured from `design/laptop/tutorial.html` (Chat tour, scene 1) with Playwright,
+and from the branch preview at `?laptop=1` at 1440×900.
+
+**Two coordinate systems, both fine.** The export draws its app canvas 1440×900
+inset `(44, 248)` inside the mock page; the app's stage is 1380×860 at `(30, 20)`.
+So the content area is 1152 wide in the design and 1092 in the stage, and every
+absolute number differs by those insets and by the 30px the stage loses on each
+side. What the design actually specifies — positions **relative to the 720
+column** — matches exactly, so that is how the table reads.
+
+| Design element | Canvas-local (measured) | App (column-local) | Notes |
+| --- | --- | --- | --- |
+| chat column | 504..1224 | 504..1224 on screen | 720 wide, centred in the content area |
+| `invCard` | `504,460` 560×339 | `504,443` 560×337 | `width:100%; max-width:560`, padding 16, radius 20, gap 10; 2px shorter (sub-pixel borders) |
+| `toggle` | card +156, +20 → 140×28 | card +156, +20 → 140×28 | estimate variant 130×28 at +165 |
+| `tplPrice` | card +366, +118 | card +366, +118 | 34 high; content-sized (76 empty / 88 filled in both) |
+| `invFoot` | card +17, +274 → 526×48 | card +17, +274 → 526×48 | min-height 48, 44px gold-to-dark button |
+| `suggest` | panel content 283×49 | 277×49 | inside the item panel; only rendered on the Clients tour's "Save your jobs" beat |
+| `composer` | column +54 → 612×44 | column +54 → 612×44 | row is 720×80 with a 1px `#F0E7D8` top border and 10px gaps |
+| `plus` / `send` | column +0 / +676, 44×44 | column +0 / +676, 44×44 | the row's 44+10+612+10+44 = 720 |
+
+Card body, ported element-for-element: 34px header (32px tag radius 8 `#F3E9C8`,
+toggle `700 14`/`7px 4px`, 32px close `#EFE7DA`), body grid
+`minmax(0,1fr) minmax(0,1.4fr)` gap 10 (44px name row, white panel radius 14
+padding 8 with a 40px job row and the 34px qty × price row), a wrapping chip row
+(36/38 high, radius 999), a 1px `#EFE4D2` divider and the 48px footer.
+
+Animations are the design's own classes, unchanged: `cardIn .55s` (`aCardIn55`),
+`pop .45s` (`aPop45`), `pop .4s` (`aPop4`), `cardIn .35s` (`aCardIn35`, new) and
+`pop .4s, glow 1s .35s 2` on the filled price (`aPrice`).
+
+### Gate relaxations, with reasons (chat card)
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `chat invoice card`, `card toggle`, `card footer` | `w`, `h` only | Absolute x/y cannot compare: the export's canvas is inset 44/248 in its page and is 1440×900 against the stage's 1380×860, so every box is offset on both axes. Sizes and column-relative offsets were verified directly (table above). |
+| `line price` | `h` only | Content-sized pill, and the two players are sampled at different beats: the export has typed `$400.00` (88px) by the time the app case's 9s wait ends, while the app's scene 0 is still on the empty `$Price` (76px). Same text measures 88 on both sides. |
