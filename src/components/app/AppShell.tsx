@@ -25,6 +25,7 @@ import { reducedMotion } from '@/lib/list-motion';
 import { NAV_GUARD_MS, pillCentreAt, pillStretch } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
 import { TABS, exactTabIndex, tabIndexOf } from '@/lib/tabs';
+import { sectionFromPath } from '@/app/(app)/settings/sections';
 
 // Mobile header row, shared by every tab: 65px total = 64px content + the
 // 1px border, so swiping can't change the height. md keeps the old auto row.
@@ -129,7 +130,15 @@ export default function AppShell({
     return () => mq.removeEventListener('change', sync);
   }, []);
   const openDocument = wideInvoices && /^\/invoices\/[^/]+$/.test(path);
-  const exactTab = openDocument ? TABS.findIndex((t) => t.href === '/invoices') : exactTabIndex(path);
+  // The same rule for Settings: at xl /settings/<section> is the SETTINGS TAB,
+  // so the deck — and the list pane inside it — stays mounted while the right
+  // pane follows the route. Only a section the route accepts counts; a deeper
+  // route (/settings/payouts/<method>, /settings/plan/cancel) and an unknown
+  // segment stay nested, exactly as before.
+  const openSettingsSection = wideInvoices && sectionFromPath(path) !== null;
+  const exactTab = openDocument ? TABS.findIndex((t) => t.href === '/invoices')
+    : openSettingsSection ? TABS.findIndex((t) => t.href === '/settings')
+    : exactTabIndex(path);
   // Tab motion (MOTION-SPEC §10). Moving between two tabs slides the new screen
   // in from the side you're heading (class cleared after it plays), and the gold
   // pill glides to the new tab instead of jumping. Secondary routes (index -1)
@@ -502,9 +511,10 @@ export default function AppShell({
     gesture.current = null; // iOS took the gesture (e.g. native scroll)
   }
 
-  // An open document at xl is a tab, so it gets the tab's header (none at md+),
-  // not the nested route's Back button.
-  const parentRoute = openDocument ? null : getParentRoute(path);
+  // An open document or Settings section at xl is a tab, so it gets the tab's
+  // header (none at md+), not the nested route's Back button: the design's split
+  // carries its own pane, and a Back arrow over it would step out of the split.
+  const parentRoute = (openDocument || openSettingsSection) ? null : getParentRoute(path);
 
   return (
     // data-app-shell: locks document scroll while the shell is mounted (globals.css).

@@ -20,13 +20,21 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
 const VALUE_TONE = { muted: 'text-on-surface-variant', default: 'text-on-background', error: 'text-error' } as const;
 export type SettingsValueTone = keyof typeof VALUE_TONE;
 
-export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, tint = 'muted', 'data-coach': dataCoach, 'data-payouts-set': payoutsSet }: {
+export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, onNavigate, active = false, tint = 'muted', 'data-coach': dataCoach, 'data-payouts-set': payoutsSet }: {
   icon?: IconName;
   /** Custom tile content (e.g. a brand mark) in place of the Material icon; same tile. */
   tile?: React.ReactNode;
   title: string; value?: string | null;
   valueTone?: SettingsValueTone;
   href?: string; onClick?: () => void;
+  /**
+   * Link rows only: the laptop split's click handler. It selects the row in the
+   * right pane and routes; below xl SettingsView never passes one, so the link
+   * navigates exactly as it did.
+   */
+  onNavigate?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  /** Laptop split only: this section is the one in the right pane (design rowBizBg #f3e9c8). */
+  active?: boolean;
   /** 'gold' = the soft-gold tile the frames give saved lists; 'muted' otherwise. */
   tint?: 'gold' | 'muted';
   'data-coach'?: string;
@@ -43,9 +51,13 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
       <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
     </>
   );
-  const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container xl:h-12 xl:hover:bg-surface-container-low';
+  // The selected fill is added only when a row is actually selected, which the
+  // split only ever does at xl: below 1280 the rendered DOM is untouched.
+  const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container xl:h-12 xl:hover:bg-surface-container-low'
+    + (active ? ' xl:bg-sent-container' : '');
   return href
-    ? <Link href={href} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</Link>
+    ? <Link href={href} data-coach={dataCoach} data-payouts-set={payoutsSet} onClick={onNavigate}
+        aria-current={active ? 'true' : undefined} className={cls}>{body}</Link>
     : <button type="button" onClick={onClick} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</button>;
 }
 
