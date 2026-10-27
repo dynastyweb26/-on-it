@@ -374,9 +374,287 @@ function ProductSheet({ state }: { state: SceneState }) {
   );
 }
 
-export default function ClientsMock({ state }: { state: SceneState }) {
+// ─── Laptop (xl) ────────────────────────────────────────────────────────────
+// The design's 1380×860 laptop frame: a 288 sidebar and the Clients screen in
+// the 1152 content area — a 40px title row (title, 340×40 pill tabs, 300×40
+// search, 40 add), the list card with its letter header and A–Z rail, and the
+// product sheet as a 512 centred dialog. Values are the export's
+// (design/laptop/tutorial.html, LAPTOP-SPEC §3, MAPPING §8); the phone branch
+// above is untouched.
+
+function LaptopClients({ state }: { state: SceneState }) {
+  const { st, sT, shN, shP } = state;
+  const onPS = Boolean(st.ps);
+  // 340 wide, 4 padding each side, columns 1fr / 1.5fr.
+  const inner = 340 - 8;
+  const clientsW = inner / 2.5;
+  const psW = inner - clientsW;
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <div
+        className={styles.aScrIn}
+        style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', padding: '24px 32px 0', boxSizing: 'border-box' }}
+      >
+        <div style={{ position: 'relative', width: '100%', maxWidth: 896, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Title row: title · pill tabs · search · add */}
+          <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ font: '700 24px/1 var(--font-montserrat)' }}>Clients</span>
+            <div
+              style={{
+                position: 'relative', width: 340, height: 40, borderRadius: 20,
+                background: '#f5eddf', display: 'grid', gridTemplateColumns: '1fr 1.5fr',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute', top: 4, bottom: 4,
+                  left: onPS ? 4 + clientsW : 4, width: onPS ? psW : clientsW,
+                  borderRadius: 16, background: '#d4af37',
+                  transition: 'left .5s cubic-bezier(.65,0,.35,1),width .5s cubic-bezier(.65,0,.35,1)',
+                }}
+              />
+              <span style={{ position: 'relative', display: 'grid', placeItems: 'center', font: '600 14px/1 var(--font-inter)' }}>
+                Clients
+              </span>
+              <span
+                data-spot="psTab"
+                style={{
+                  position: 'relative', display: 'grid', placeItems: 'center',
+                  font: '600 14px/1 var(--font-inter)', borderRadius: 16,
+                }}
+              >
+                Products &amp; Services
+              </span>
+            </div>
+            {!onPS && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div
+                  data-spot="search"
+                  style={{
+                    width: 300, height: 40, borderRadius: 20, background: '#fff',
+                    border: '1.5px solid #d0c5af', display: 'flex', alignItems: 'center',
+                    gap: 8, padding: '0 14px', boxSizing: 'border-box',
+                    font: '400 15px/1 var(--font-inter)',
+                  }}
+                >
+                  <span style={{ display: 'flex', color: '#4d4635' }}>
+                    <Icon name="search" size={20} />
+                  </span>
+                  {sT.s ? (
+                    <span>
+                      {sT.s}
+                      <Cursor />
+                    </span>
+                  ) : (
+                    <span style={{ color: '#4d4635' }}>Search 1 client</span>
+                  )}
+                </div>
+                <span
+                  style={{ width: 40, height: 40, borderRadius: 20, background: '#d4af37', display: 'grid', placeItems: 'center', color: '#1f1b13' }}
+                >
+                  <Icon name="add" size={24} />
+                </span>
+              </div>
+            )}
+          </div>
+
+          {!onPS && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 22px', gap: 12, alignItems: 'start' }}>
+              <div style={{ borderRadius: 20, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    display: 'grid', gridTemplateColumns: '48px minmax(0,1fr) 200px 24px', gap: 14,
+                    padding: '10px 18px', background: '#fbf3e5',
+                    font: '700 11.5px/1 var(--font-inter)', letterSpacing: '.1em', color: '#735c00',
+                  }}
+                >
+                  B
+                </div>
+                <div
+                  data-spot="clientRow"
+                  className={styles.rowHover}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '44px minmax(0,1fr) auto 24px', gap: 14,
+                    alignItems: 'center', padding: '10px 18px', borderTop: '1px solid #f0e7d8',
+                    borderRadius: 14,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 40, height: 40, borderRadius: 20, background: '#f0e3b8',
+                      display: 'grid', placeItems: 'center', font: '700 16px/1 var(--font-inter)', color: '#554300',
+                    }}
+                  >
+                    B
+                  </span>
+                  <span style={{ font: '700 16px/1.2 var(--font-inter)' }}>Brandon</span>
+                  <span
+                    data-spot="estOut"
+                    style={{ padding: '3px 6px', borderRadius: 8, font: '400 14.5px/1.2 var(--font-inter)', color: '#4d4635' }}
+                  >
+                    2 estimates out
+                  </span>
+                  <span style={{ display: 'flex', color: '#4d4635' }}>
+                    <Icon name="chevron_right" size={20} />
+                  </span>
+                </div>
+              </div>
+              <div
+                data-spot="scrubber"
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  font: '700 10.5px/14px var(--font-inter)', color: '#7f7663',
+                  borderRadius: 11, padding: '4px 0', alignSelf: 'start',
+                }}
+              >
+                {SCRUB.map((letter) => (
+                  <span
+                    key={letter}
+                    data-spot={letter === 'A' ? 'scrubA' : letter === 'B' ? 'scrubB' : undefined}
+                    style={letter === 'B' ? { color: '#735c00' } : undefined}
+                  >
+                    {letter}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {onPS && !st.psSaved && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12, padding: '72px 0 0' }}>
+              <span style={{ width: 80, height: 80, borderRadius: 20, background: '#f0e3b8', display: 'grid', placeItems: 'center', color: '#2f2a24' }}>
+                <Icon name="handyman" size={38} />
+              </span>
+              <div style={{ font: '700 22px/1.2 var(--font-montserrat)' }}>Nothing saved yet</div>
+              <div style={{ maxWidth: 400, font: '400 16px/1.5 var(--font-inter)', color: '#4d4635', textWrap: 'pretty' }}>
+                Add the jobs you do most, with a price if you have one. Picking one in an invoice fills in the price.
+              </div>
+              <div
+                data-spot="addPS"
+                style={{
+                  marginTop: 8, height: 48, padding: '0 24px', borderRadius: 999,
+                  background: '#d4af37', display: 'flex', alignItems: 'center', gap: 8,
+                  font: '700 16px/1 var(--font-inter)',
+                }}
+              >
+                <Icon name="add" size={22} />
+                Add product or service
+              </div>
+            </div>
+          )}
+
+          {onPS && st.psSaved && (
+            <div style={{ borderRadius: 20, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden' }}>
+              <div
+                data-spot="psItem"
+                className={styles.aCardIn}
+                style={{
+                  display: 'grid', gridTemplateColumns: '40px minmax(0,1fr) auto', gap: 14,
+                  alignItems: 'center', padding: '12px 18px',
+                }}
+              >
+                <span style={{ width: 40, height: 40, borderRadius: 12, background: '#f0e3b8', display: 'grid', placeItems: 'center', color: '#2f2a24' }}>
+                  <Icon name="handyman" size={20} />
+                </span>
+                <div>
+                  <div style={{ font: '700 16px/1.2 var(--font-inter)' }}>Bedroom Painting</div>
+                  <div style={{ font: '400 13.5px/1.3 var(--font-inter)', color: '#4d4635' }}>per job</div>
+                </div>
+                <span style={{ font: '800 17px/1 var(--font-montserrat)' }}>$400.00</span>
+              </div>
+            </div>
+          )}
+
+          {st.bubble && (
+            <span
+              className={styles.aPop35}
+              style={{
+                position: 'absolute', right: 48, top: 96, width: 56, height: 56, borderRadius: 28,
+                background: '#343027', color: '#fff8f0', display: 'grid', placeItems: 'center',
+                font: '800 26px/1 var(--font-montserrat)',
+              }}
+            >
+              B
+            </span>
+          )}
+        </div>
+      </div>
+
+      {st.sheet && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 25, display: 'grid', placeItems: 'center' }}>
+          <div className={styles.aFade3} style={{ position: 'absolute', inset: 0, background: 'rgba(31,27,19,.38)' }} />
+          <div
+            role="dialog"
+            className={styles.aDlgIn}
+            style={{
+              position: 'relative', width: 512, padding: 24, borderRadius: 20, background: '#fff8f0',
+              display: 'flex', flexDirection: 'column', gap: 14,
+              boxShadow: '0 30px 70px -20px rgba(52,48,39,.45)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ flex: 1, font: '700 22px/1.2 var(--font-montserrat)' }}>New product or service</div>
+              <span style={{ width: 36, height: 36, borderRadius: 18, background: '#efe7da', display: 'grid', placeItems: 'center', color: '#2f2a24' }}>
+                <Icon name="close" size={20} />
+              </span>
+            </div>
+            <div
+              style={{
+                height: 48, borderRadius: 12, background: '#f5eddf',
+                border: '1px solid rgba(212,175,55,.2)', display: 'flex', alignItems: 'center',
+                gap: 10, padding: '0 14px', font: '400 16px/1 var(--font-inter)',
+              }}
+            >
+              <span style={{ display: 'flex', color: '#4d4635' }}>
+                <Icon name="handyman" size={20} />
+              </span>
+              <span>
+                {shN.s}
+                <Cursor opacity={!shP.s && shN.cur ? 1 : 0} />
+              </span>
+            </div>
+            <div
+              style={{
+                height: 48, borderRadius: 12, background: '#f5eddf',
+                border: '1px solid rgba(212,175,55,.2)', display: 'flex', alignItems: 'center',
+                gap: 4, padding: '0 14px', font: '400 16px/1 var(--font-inter)',
+              }}
+            >
+              <span style={{ color: '#4d4635' }}>$</span>
+              <span>
+                {shP.s}
+                <Cursor opacity={shP.s ? 1 : 0} />
+              </span>
+            </div>
+            <div
+              data-spot="sheetSave"
+              style={{
+                alignSelf: 'flex-end', height: 44, padding: '0 28px', borderRadius: 999,
+                background: '#d4af37', display: 'flex', alignItems: 'center',
+                font: '700 16px/1 var(--font-inter)',
+              }}
+            >
+              Save
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ClientsMock({ state, laptop = false }: { state: SceneState; laptop?: boolean }) {
   const { st } = state;
   const onPS = Boolean(st.ps);
+  if (laptop) {
+    // The overlay already wraps the mock in LaptopShell (288 sidebar, 1152 content),
+    // so this screen is only the content area's contents.
+    return (
+      <div aria-hidden className={styles.mockProtoScope}>
+        <LaptopClients state={state} />
+      </div>
+    );
+  }
   return (
     <div aria-hidden className={styles.mockProtoScope}>
       <MockChrome hdrChat={false} hdrBack={false} tabNow="clients">

@@ -501,6 +501,42 @@ pre-flip phone values again (`segment toggle` h 62, `search` 318, `net` 395×114
 **Removal condition:** delete `&& tab === 'chat'` per tour as its mock lands, leaving
 plain `xl` (the guard's comment carries this).
 
+
+### 11i. Clients tour redrawn for laptop
+
+`laptop = xl && (tab === 'chat' || tab === 'clients')`; `MockScreen` passes the flag
+to `ClientsMock` as well. The overlay already wraps every laptop mock in the shared
+`LaptopShell` (288 sidebar, content area), so the mock is the screen only — it must not
+nest a second shell. The shell draws its 72px page bar for the Chat screen alone
+(`LaptopShell` now derives `header = tab === 'chat'`) because the design gives every
+other screen its title inside the content:
+
+| design | app | notes |
+| --- | --- | --- |
+| content column, 24 top / 32 side | `maxWidth 896`, `padding '24px 32px 0'` | centred in the 1092 content area: x 386 in the 1380 frame |
+| title row 40 high | title 24/1 Montserrat + 340×40 tabs + 300×40 search + 40 add | one line, `gap 16` |
+| pill tabs 340×40, thumb 40%/60% - 4 | `width: 340`, thumb `left/width` toggled, `.5s cubic-bezier(.65,0,.35,1)` | `psTab` keeps its anchor |
+| search 300×40, radius 20, 1.5 `#d0c5af` | same | `tour-clients-1440` pair, 300×40 exactly |
+| list card radius 20, `#fff`, `1px #efe4d2` | same | group header `B` 700 11.5/1, `.1em`, `#735c00` |
+| row `44px 1fr auto 24px`, padding `10px 18px` | same | avatar 40, name 700 16, meta 400 14.5, chevron 20 |
+| A–Z rail in the card's grid column (`22px`) | same | 700 10.5/14, `#7f7663`, B highlighted `#735c00` |
+| product sheet | `512` + 24 padding = 560 centred dialog, `dlgIn .4s` (new `.aDlgIn`) | the design's own box is 560 too (content-box); scrim `rgba(31,27,19,.38)`, save pill 94×44 |
+| client row hover | `.rowHover:hover { background: #fbf3e5 }` | the design's `style-hover` |
+
+Measured on the built preview at 1440: stage 1380×860 scale 1, **one** `aside` at
+(0,0) 288×860, row 896×40 with title at x 386, tabs 340×40 (`psTab` 204×40), search
+300×40, add 40×40, grid 896, card 862, row 860×61, rail 22. The spotlight cutout is the
+anchor plus the solver's 6px pad — search `-6.02,-6,12,12`, row `-6,-6,12,12` — i.e.
+the ring tracks the target in scenes 1 and 2. `tour-clients-1440` passes both pairs;
+console clean. Phone branch byte-identical to main: stage hashes at 1279×800
+(`13397/-1876094599`, `14000/579718540`, `19550/-1773175401`) and 390×844
+(`12978/1613968337`, `13782/-2046475908`, `19298/-1127085408`) equal the control build.
+
+Still the chat-era chrome in the shared shell, for every laptop tour: the sidebar has
+no install card and uses 44-high items where the design has a 36-high "How it works"
+pill, 48-high items and the pinned install card (36 tile, 32 pill). Left for its own
+shell commit rather than folded into a screen's redraw.
+
 ## 12. `feat/laptop-books-settings` — the Books Recaps card and the Settings split
 
 Branch `feat/laptop-books-settings`, off `main` (`6a5722b`). Two commits: the
