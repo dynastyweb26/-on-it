@@ -105,6 +105,13 @@ export default function Invoices({ active = true, selectedId = null }: { active?
   function openRow(e: MouseEvent<HTMLAnchorElement>, rowId: string) {
     if (!window.matchMedia('(min-width: 1280px)').matches) return;
     e.preventDefault();
+    // Select first, navigate second. The pane keys off `selected`, so this
+    // starts the detail's fetch on the tap instead of after the route
+    // navigation resolves — the row's RSC payload has to come back before
+    // usePathname moves (85ms warm, ~600ms for a row that was never
+    // prefetched), and the pane used to sit on the previous document that
+    // whole time. The pathname effect then lands on the same id.
+    setSelected(rowId);
     // Through the router, not a bare history.replaceState. Next patches
     // replaceState to re-render the shell for the new pathname, so a raw URL
     // change made the shell swap to the nested route while the router still
@@ -320,7 +327,13 @@ export default function Invoices({ active = true, selectedId = null }: { active?
       )}
     </PageContainer>
       }
-      detail={selected ? <InvoiceDetailScreen id={selected} embedded /> : undefined}
+      // Keyed by the selected document: the detail body mirrors the row it was
+      // given into state (EstimateDetail seeds useState(estimate) and never
+      // re-syncs), so without a fresh instance a second estimate kept rendering
+      // the first one. The key also stops the previous document's payments,
+      // attachments and converted-to link from showing under the newly selected
+      // one while its own fetch is in flight. The list pane is untouched by it.
+      detail={selected ? <InvoiceDetailScreen key={selected} id={selected} embedded /> : undefined}
       emptyDetail={
         // The design has no empty-detail copy (its sample data always has a
         // selection), so this is an icon-only placeholder: no new strings.
