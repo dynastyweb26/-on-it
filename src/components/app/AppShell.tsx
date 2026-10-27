@@ -112,7 +112,24 @@ export default function AppShell({
   // is known on the server's first paint instead of flashing "Coming soon".
   const path = usePathname();
   const router = useRouter();
-  const exactTab = exactTabIndex(path);
+  // Laptop (xl+): an open invoice or estimate is the INVOICES TAB, not a nested
+  // route. The nested branch below swaps <main> from the deck to the route, so
+  // every row click unmounted the deck: the list remounted (its scroll and its
+  // fetch lost) and a Back button appeared over the split. Treating
+  // /invoices/<id> as the tab keeps the deck — and the list pane — mounted, and
+  // the URL stays the source of truth for what the right pane shows (the
+  // InvoicesView effect reads it). Below 1280 nothing changes: the nested route
+  // still renders the full-page detail with its Back button.
+  const [wideInvoices, setWideInvoices] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWideInvoices(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const openDocument = wideInvoices && /^\/invoices\/[^/]+$/.test(path);
+  const exactTab = openDocument ? TABS.findIndex((t) => t.href === '/invoices') : exactTabIndex(path);
   // Tab motion (MOTION-SPEC §10). Moving between two tabs slides the new screen
   // in from the side you're heading (class cleared after it plays), and the gold
   // pill glides to the new tab instead of jumping. Secondary routes (index -1)
@@ -485,7 +502,9 @@ export default function AppShell({
     gesture.current = null; // iOS took the gesture (e.g. native scroll)
   }
 
-  const parentRoute = getParentRoute(path);
+  // An open document at xl is a tab, so it gets the tab's header (none at md+),
+  // not the nested route's Back button.
+  const parentRoute = openDocument ? null : getParentRoute(path);
 
   return (
     // data-app-shell: locks document scroll while the shell is mounted (globals.css).
