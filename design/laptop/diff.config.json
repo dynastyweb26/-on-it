@@ -1017,6 +1017,203 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-laptop-expense-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 4500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 4500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "save expense pill",
+          "design": "[data-spot=\"saveExpense\"]",
+          "app": "[data-spot=\"saveExpense\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: the stage is 1380x860 against the design's 1440x900 canvas and its content area is 60 narrower, so x/y never compare absolute; the pill is 331x48 at the card's left gutter on both, 20 above the composer row's content edge."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-share-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 6000
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 6000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "ready chip",
+          "design": "[data-spot=\"readyChip\"]",
+          "app": "[data-spot=\"readyChip\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only (stage vs canvas offsets, as above); measured 147x30 in the design and 146x30 in the app, 21 from the card's left edge on both."
+        },
+        {
+          "name": "share buttons",
+          "design": "[data-spot=\"shareBtns\"]",
+          "app": "[data-spot=\"shareBtns\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 271 wide in the design's right column and 271 in the app's, 21 inside the card's right edge on both."
+        },
+        {
+          "name": "copy link",
+          "design": "[data-spot=\"copyLink\"]",
+          "app": "[data-spot=\"copyLink\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 132x46 in the design, 131x44 in the app (Tailwind preflight's border-box against the export's content-box)."
+        },
+        {
+          "name": "revise tile",
+          "design": "[data-spot=\"revise\"]",
+          "app": "[data-spot=\"revise\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 271x92 on both, pinned to the bottom of the right column."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-invoices-1440",
       "viewport": {
         "width": 1440,

@@ -271,3 +271,32 @@ Animations are the design's own classes, unchanged: `cardIn .55s` (`aCardIn55`),
 | --- | --- | --- |
 | `chat invoice card`, `card toggle`, `card footer` | `w`, `h` only | Absolute x/y cannot compare: the export's canvas is inset 44/248 in its page and is 1440×900 against the stage's 1380×860, so every box is offset on both axes. Sizes and column-relative offsets were verified directly (table above). |
 | `line price` | `h` only | Content-sized pill, and the two players are sampled at different beats: the export has typed `$400.00` (88px) by the time the app case's 9s wait ends, while the app's scene 0 is still on the empty `$Price` (76px). Same text measures 88 on both sides. |
+
+### 11b. Expense sheet and ready-to-share card (13b commit 4)
+
+Same two coordinate systems as above (canvas-local vs stage-local): x is compared
+**relative to the 720 column**, y from the stage's top edge, and for
+bottom-anchored boxes the distance to the composer row's content edge (both cards
+end 20px above it).
+
+| Design element | Canvas-local (measured) | App (measured) | Notes |
+| --- | --- | --- | --- |
+| expense card | `504,451` 520×348 | 520 wide at the column's left | `max-width:520`, padding 18, radius 20, gap 14 |
+| `saveExpense` | `523,732` 331×48 | `523,713` 331×48 | row is `482` wide with "Change something" beside it; pill 19 above the card's bottom edge on both |
+| ready card | `504,93` 720×358 | 720 wide at the column's left | grid `1.25fr / 1fr`, gap 20, padding 20, radius 20 |
+| `readyChip` | `525,146` 147×30 | `527,169` 146×30 | 21 from the card's left edge (23 in the app, border rounding); radius 8, height 30 |
+| items / deposit / notes / total | 366 wide, 63 / 38 / 60 / 45 | 366 wide | left column, gap 12 |
+| right column | `911,114` 292×316 | 292 wide | `padding-left:20`, 1px left border |
+| `shareBtns` | `932,212` 271×46 | `931,233` 271×44 | 131/132 wide halves with an 8px gap |
+| `copyLink` | `932,212` 132×46 | `931,233` 131×44 | 44 high in the app because preflight is border-box, 46 in the export's content-box |
+| `revise` | `932,338` 271×92 | `931,356` 271×92 | `margin-top:auto`, so it pins to the bottom of the right column |
+
+Spotlight (scrim cutout) vs anchor, sampled every 120ms through both scenes:
+`saveExpense` ≈4.1s, `readyChip` ≈0.7s, `shareBtns` ≈2.5s, `revise` ≈4.4s — the
+same order and beats on phone, worst cutout-vs-anchor delta **0.3px** (laptop) and
+1.2px (phone, its 1.1× stage scale). `copyLink` is a tap target only (ripple, no
+scrim), in the design and the app alike.
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `save expense pill`, `ready chip`, `share buttons`, `copy link`, `revise tile` | `w`, `h` only | Same reason as 11: the export's canvas is inset 44/248 and 40px taller than the stage, so absolute x/y never compare; sizes match within 2px and the column-relative offsets above were verified by measurement. |
