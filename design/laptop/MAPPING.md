@@ -566,7 +566,7 @@ with the reason recorded in `diff.config.json`: the design's own frame at that v
 is 1440 → `masterCol` 440 → toggle 395, while the app stage is 1380 → 392 → toggle 347.
 The height is the value the redraw fixed (62 → 44).
 
-### 13. Books tour redrawn for laptop
+### 11k. Books tour redrawn for laptop
 
 `laptop = xl && (chat | clients | invoices | books)`. The mock is the design's screen:
 a 1088 column centred in the content area, 24 top / 32 side padding.
@@ -585,6 +585,39 @@ a 1088 column centred in the content area, 24 top / 32 side padding.
 **Gate:** `tour-books-1440` passes. Its net-card pair is height-only with the reason in
 `diff.config.json` (the design's 1088 column on its own 1440 frame gives a 573 cell;
 the app's 1380 stage gives 541; both 180 high, against 114 before the redraw).
+
+### 11l. Settings tour redrawn for laptop
+
+`laptop = xl` — with all five mocks redrawn the per-tour condition is gone. The mock is
+the design's master/detail: a 392px list pane (the design keys it on its frame, 440 at
+≥1440 / 392 below, and the app stage is 1380) and the open pane on the right. The
+design's own `setPane` falls back to Business Info when the screen is the list, so the
+right pane always shows something.
+
+| design | app | notes |
+| --- | --- | --- |
+| list pane `padding:24px 20px 0 24px`, `border-right:1px solid #efe4d2` | same | title `Settings` 700 24/1 in a 40-high row |
+| group label `margin:20px 0 8px 4px`, 700 12/1 `.12em` `#4d4635` | `top` 20 / 18 / 18 for the three groups | YOUR BUSINESS, MONEY, ACCOUNT |
+| card radius 18, `#fff`, `1px #efe4d2`, rows 48 high, `0 14px`, `1px solid #f0e7d8` between | same | tile 32 radius 9 (`#f0e3b8` for Clients / Products & Services, else `#f5eddf`), label 400 15.5/1, value 400 14/1 `#4d4635`, chevron 18 |
+| open row `background:#f3e9c8` | `selBg(screen)` | Business profile → biz, Records → brand, `paymentRow` → pay |
+| right pane `padding:24px 40px`, centred | same | pay/biz `max-width 640`, brand `680` |
+| pay: title 40, sub 15/1.45, method rows 52 radius 18 `cardIn .45s .1s/.18s`, apps grid `1fr 1fr` radius 18 `cardIn .45s .26s` | same | tiles 32 radius 9 with the letter marks (Z `#6d1ed4`, `$` on `#00c244`, P `#003087`, V `#008cff`) |
+| biz: card `margin-top:16`, `padding:20`, radius 20, `#fbf3e5`, `grid 1fr 1fr`, `gap 10`; caption `BUSINESS`; fields 48 radius 12 `#f5eddf` / `rgba(212,175,55,.2)`; terms 96 high + `n/3000` | same | `bizTop` spans both columns, name full width |
+| brand: logo card `18px 20px` radius 20 with the 60 tile and Replace / Remove (40 high, `1.5px #7f7663`); style card with `templates` `repeat(4,minmax(0,1fr))`; `colors` card `14px 16px` radius 16 with 28-high swatches | same | selected template `#f3e9c8` + `2px #d4af37`, `transition:all .35s`; the laptop pane has no `brandScroll` transform (the design has none there) |
+| `notif` pane | **not ported** | no scene in `data.ts` reaches it; the phone mock already leaves it out |
+
+**Gate:** `tour-settings-1440` passes. Its payment-options pair is height-only with the
+reason in `diff.config.json` (the same frame-width difference as invoices and books:
+design row 393, app 345; both 48 high, and before the redraw the element was absent
+from the phone-in-shell render entirely).
+
+**Verified on the built preview at 1440:** the ring lands on each scene's anchors plus
+the solver's 6px pad once the target's own animation settles — scene 1 `payCard` then
+`payApps` (exact at 6.2s; the 3.7s sample catches both the ring's 0.55s move and the
+card's `cardIn`), scene 2 `bizPhone` → `bizEmail` → `bizTerms`, scene 3 `templates` then
+`colors`. Console clean. Phone branch byte-identical to main: 1279×800
+(`16065/1270046662`, `12903/-1654956230`, `17185/-1369185313`) and 390×844
+(`15851/1968169546`, `12677/1652434254`, `16971/-1874614839`).
 
 **Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; every
 spotlight beat lands on its anchor plus the solver's 6px pad — scene 1 `owed` then

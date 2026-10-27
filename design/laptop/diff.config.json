@@ -1833,10 +1833,10 @@
           "design": "[data-spot=\"paymentRow\"]",
           "app": "[data-spot=\"paymentRow\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only, same root cause as tour-invoices-1440: the design keys the Settings list pane on its frame (masterCol 440 at >=1440, 392 below), so on its own 1440 frame the row is 393 wide while the app stage is 1380x860 (accepted in 11a) and the row is 345. Both are 48 high. Before the redraw the element was absent from the phone-in-shell render entirely."
         }
       ],
       "maxPixelDiffPct": null

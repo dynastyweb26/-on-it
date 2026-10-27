@@ -681,9 +681,417 @@ function Swatch({ color, role, name }: { color: string; role: string; name: stri
   );
 }
 
-export default function SettingsMock({ state }: { state: SceneState }) {
+// ─── Laptop (xl) ────────────────────────────────────────────────────────────
+// The design's laptop Settings screen: a `masterCol` list pane (the design keys it
+// on its frame — 440 at >=1440, else 392; the app's stage is 1380, so 392) and the
+// open pane on the right. The design's own `setPane` falls back to Business Info
+// when the screen is the list, so the right pane always has something in it. The
+// tour's four panes are pay / biz / brand (its `notif` pane has no scene in
+// data.ts, so it is not ported — same as the phone mock). Values are the export's
+// (design/laptop/tutorial.html, MAPPING §14).
+const selBg = (on: boolean) => (on ? '#f3e9c8' : 'transparent');
+
+function LaptopGroupLabel({ children, top = 20 }: { children: React.ReactNode; top?: number }) {
+  return (
+    <div
+      style={{
+        margin: `${top}px 0 8px 4px`,
+        font: '700 12px/1 var(--font-montserrat)',
+        letterSpacing: '.12em',
+        color: '#4d4635',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function LaptopSettingsRow({
+  icon,
+  label,
+  value,
+  spot,
+  last,
+  bg,
+  tile = '#f5eddf',
+  chevron = false,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  spot?: string;
+  last?: boolean;
+  bg?: string;
+  tile?: string;
+  chevron?: boolean;
+}) {
+  return (
+    <div
+      data-spot={spot}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, height: 48, padding: '0 14px',
+        borderBottom: last ? undefined : '1px solid #f0e7d8', background: bg,
+      }}
+    >
+      <span
+        style={{ width: 32, height: 32, borderRadius: 9, background: tile, display: 'grid', placeItems: 'center' }}
+      >
+        <Icon name={icon} size={18} />
+      </span>
+      <span style={{ flex: 1, font: '400 15.5px/1 var(--font-inter)' }}>{label}</span>
+      <span style={{ font: '400 14px/1 var(--font-inter)', color: '#4d4635' }}>{value}</span>
+      {chevron && (
+        <span style={{ color: '#4d4635', display: 'flex' }}>
+          <Icon name="chevron_right" size={18} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MasterSettings({ state }: { state: SceneState }) {
+  const screen = state.st.screen;
+  return (
+    <div style={{ borderRight: '1px solid #efe4d2', padding: '24px 20px 0 24px', overflow: 'hidden' }}>
+      <div style={{ height: 40, display: 'flex', alignItems: 'center', font: '700 24px/1 var(--font-montserrat)' }}>
+        Settings
+      </div>
+      <LaptopGroupLabel>YOUR BUSINESS</LaptopGroupLabel>
+      <div style={{ borderRadius: 18, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden' }}>
+        <LaptopSettingsRow icon="group" label="Clients" value="1" tile="#f0e3b8" />
+        <LaptopSettingsRow icon="handyman" label="Products &amp; Services" value="1" tile="#f0e3b8" />
+        <LaptopSettingsRow
+          icon="storefront"
+          label="Business profile"
+          value=""
+          chevron
+          bg={selBg(screen === 'biz')}
+        />
+        <LaptopSettingsRow icon="folder" label="Records" value="Vault" last bg={selBg(screen === 'brand')} />
+      </div>
+      <LaptopGroupLabel top={18}>MONEY</LaptopGroupLabel>
+      <div style={{ borderRadius: 18, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden' }}>
+        <LaptopSettingsRow icon="autorenew" label="Recurring expenses" value="In Books" tile="#f5eddf" />
+        <LaptopSettingsRow
+          icon="account_balance"
+          label="Payment options"
+          value="Set up"
+          chevron
+          last
+          spot="paymentRow"
+          bg={selBg(screen === 'pay')}
+        />
+      </div>
+      <LaptopGroupLabel top={18}>ACCOUNT</LaptopGroupLabel>
+      <div style={{ borderRadius: 18, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden' }}>
+        <LaptopSettingsRow icon="workspace_premium" label="Plan" value="Founder" tile="#f5eddf" />
+        <LaptopSettingsRow
+          icon="notifications"
+          label="Notifications"
+          value="Off"
+          chevron
+          spot="notifRow"
+        />
+        <LaptopSettingsRow icon="help" label="How On It works" value="" chevron last />
+      </div>
+    </div>
+  );
+}
+
+function PaneTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ height: 40, display: 'flex', alignItems: 'center', font: '700 24px/1 var(--font-montserrat)' }}>
+      {children}
+    </div>
+  );
+}
+
+function LaptopPayPane() {
+  const tile = (bg: string, content: React.ReactNode) => (
+    <span
+      style={{ width: 32, height: 32, borderRadius: 9, background: bg, display: 'grid', placeItems: 'center' }}
+    >
+      {content}
+    </span>
+  );
+  const method = (spot: string, icon: IconName, label: string, value: string, anim: string) => (
+    <div
+      data-spot={spot}
+      className={anim}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, height: 52, padding: '0 14px',
+        borderRadius: 18, background: '#fff', border: '1px solid #efe4d2',
+      }}
+    >
+      {tile('#f5eddf', <Icon name={icon} size={18} />)}
+      <span style={{ flex: 1, font: '400 15.5px/1 var(--font-inter)' }}>{label}</span>
+      <span style={{ font: '400 14px/1 var(--font-inter)', color: '#4d4635' }}>{value}</span>
+      <span style={{ display: 'flex' }}>
+        <Icon name="chevron_right" size={18} />
+      </span>
+    </div>
+  );
+  const app = (letter: string, color: string, label: string, boxed = false, last?: boolean, bottom = true) => (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, height: 52, padding: '0 14px',
+        borderBottom: last ? undefined : '1px solid #f0e7d8',
+        borderRight: bottom ? '1px solid #f0e7d8' : undefined,
+      }}
+    >
+      <span
+        style={{
+          width: 32, height: 32, borderRadius: 9,
+          background: boxed ? color : '#f5eddf', display: 'grid', placeItems: 'center',
+          font: '800 16px/1 var(--font-montserrat)', color: boxed ? '#fff' : color,
+        }}
+      >
+        {letter}
+      </span>
+      <span style={{ flex: 1, font: '400 15.5px/1 var(--font-inter)' }}>{label}</span>
+      <span style={{ font: '400 14px/1 var(--font-inter)', color: '#4d4635' }}>Not set</span>
+    </div>
+  );
+  return (
+    <div className={styles.aSlideIn} style={{ width: '100%', maxWidth: 640 }}>
+      <PaneTitle>Payment options</PaneTitle>
+      <div style={{ marginTop: 8, font: '400 15px/1.45 var(--font-inter)', color: '#4d4635' }}>
+        Choose how clients can pay you. Everything you set here shows on your pay page.
+      </div>
+      <LaptopGroupLabel>GET PAID ONLINE</LaptopGroupLabel>
+      {method('payCard', 'credit_card', 'Card & digital wallets', 'Not connected', styles.aPayCard)}
+      <LaptopGroupLabel top={18}>BANK</LaptopGroupLabel>
+      {method('payBank', 'account_balance', 'Bank transfer', 'Not set', styles.aPayBank)}
+      <LaptopGroupLabel top={18}>PAYMENT APPS</LaptopGroupLabel>
+      <div
+        data-spot="payApps"
+        className={styles.aPayApps}
+        style={{
+          borderRadius: 18, background: '#fff', border: '1px solid #efe4d2', overflow: 'hidden',
+          display: 'grid', gridTemplateColumns: '1fr 1fr',
+        }}
+      >
+        {app('Z', '#6d1ed4', 'Zelle', false, false, true)}
+        {app('$', '#00c244', 'Cash App', true, false, false)}
+        {app('P', '#003087', 'PayPal', false, true, true)}
+        {app('V', '#008cff', 'Venmo', false, true, false)}
+      </div>
+    </div>
+  );
+}
+
+function LaptopBizPane({ state }: { state: SceneState }) {
+  const { ph, em, tm } = state;
+  const fieldStyle: React.CSSProperties = {
+    height: 48, borderRadius: 12, background: '#f5eddf', border: '1px solid rgba(212,175,55,.2)',
+    display: 'flex', alignItems: 'center', padding: '0 14px', font: '400 16px/1 var(--font-inter)',
+  };
+  const field = (spot: string, typed: string, placeholder: string, cur: boolean) => (
+    <div data-spot={spot} style={fieldStyle}>
+      {typed ? (
+        <span>
+          {typed}
+          {cur && <Cursor />}
+        </span>
+      ) : (
+        <span style={{ color: '#7f7663' }}>{placeholder}</span>
+      )}
+    </div>
+  );
+  return (
+    <div className={styles.aSlideIn} style={{ width: '100%', maxWidth: 640 }}>
+      <PaneTitle>Business Info</PaneTitle>
+      <div
+        style={{
+          marginTop: 16, padding: 20, borderRadius: 20, background: '#fbf3e5',
+          border: '1.5px solid #efe4d2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
+        }}
+      >
+        <div
+          style={{
+            gridColumn: '1/-1', font: '700 13px/1 var(--font-inter)', letterSpacing: '.1em',
+            color: '#4d4635', marginBottom: 4,
+          }}
+        >
+          BUSINESS
+        </div>
+        <div data-spot="bizTop" style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, borderRadius: 12 }}>
+          <div style={{ ...fieldStyle, gridColumn: '1/-1' }}>Sample Painting Co.</div>
+          <div style={fieldStyle}>example.com</div>
+          <div style={fieldStyle}>Quality work, on time.</div>
+        </div>
+        {field('bizPhone', ph.s, 'Business phone', ph.cur)}
+        {field('bizEmail', em.s, 'Business email', em.cur)}
+        <div data-spot="bizTerms" style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 6, borderRadius: 12 }}>
+          <div
+            style={{
+              height: 96, borderRadius: 12, background: '#f5eddf', border: '1px solid rgba(212,175,55,.2)',
+              padding: '12px 14px', boxSizing: 'border-box', font: '400 16px/1.45 var(--font-inter)',
+            }}
+          >
+            {tm.s ? (
+              <span>
+                {tm.s}
+                {tm.cur && <Cursor />}
+              </span>
+            ) : (
+              <span style={{ color: '#7f7663' }}>
+                Terms and conditions (printed on every estimate and invoice)
+              </span>
+            )}
+          </div>
+          <div style={{ textAlign: 'right', font: '400 13px/1 var(--font-inter)', color: '#4d4635' }}>
+            {tm.s.length}/3000
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LaptopBrandPane({ state }: { state: SceneState }) {
+  const { st, styleName } = state;
+  const friendly = st.style === 'friendly';
+  const card: React.CSSProperties = {
+    padding: '18px 20px', borderRadius: 20, background: '#fbf3e5', border: '1.5px solid #efe4d2',
+  };
+  const template = (title: string, sub: string, selected: boolean, spot?: string) => (
+    <div
+      data-spot={spot}
+      style={{
+        padding: '10px 12px', borderRadius: 14,
+        background: selected ? '#f3e9c8' : '#fff',
+        border: `2px solid ${selected ? '#d4af37' : '#efe4d2'}`,
+        transition: 'all .35s',
+      }}
+    >
+      <div style={{ font: '700 15px/1.2 var(--font-inter)' }}>{title}</div>
+      <div style={{ font: '400 12.5px/1.3 var(--font-inter)', color: '#4d4635' }}>{sub}</div>
+    </div>
+  );
+  const swatch = (color: string, role: string, name: string) => (
+    <div>
+      <div style={{ height: 28, borderRadius: 8, background: color }} />
+      <div style={{ marginTop: 6, font: '400 12.5px/1 var(--font-inter)', color: '#4d4635' }}>{role}</div>
+      <div style={{ marginTop: 3, font: '700 14px/1 var(--font-inter)' }}>{name}</div>
+    </div>
+  );
+  return (
+    <div
+      className={styles.aSlideIn}
+      style={{ width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 14 }}
+    >
+      <PaneTitle>Brand Design</PaneTitle>
+      <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div data-spot="logo" style={{ display: 'flex', alignItems: 'center', gap: 14, borderRadius: 14, flex: 1 }}>
+          <span
+            style={{
+              flex: 'none', width: 60, height: 60, borderRadius: 14,
+              background: 'repeating-linear-gradient(135deg,#efe7da 0 6px,#f5eddf 6px 12px)',
+              border: '1px solid #d0c5af', display: 'grid', placeItems: 'center',
+              font: `600 10px/1 ${MONO}`, letterSpacing: '.08em', color: '#4d4635',
+            }}
+          >
+            LOGO
+          </span>
+          <div>
+            <div style={{ font: '600 13px/1 var(--font-inter)', letterSpacing: '.1em', color: '#4d4635' }}>
+              LOGO
+            </div>
+            <div style={{ marginTop: 6, font: '400 15px/1.3 var(--font-inter)', color: '#4d4635' }}>
+              Shown on your invoices.
+            </div>
+          </div>
+        </div>
+        {(['upload', 'delete'] as const).map((icon) => (
+          <span
+            key={icon}
+            style={{
+              height: 40, padding: '0 14px', borderRadius: 12, background: '#fff',
+              border: '1.5px solid #7f7663', display: 'flex', alignItems: 'center', gap: 6,
+              font: '700 14px/1 var(--font-inter)',
+            }}
+          >
+            <Icon name={icon} size={18} />
+            {icon === 'upload' ? 'Replace' : 'Remove'}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ font: '600 13px/1 var(--font-inter)', letterSpacing: '.1em', color: '#4d4635' }}>
+            INVOICE STYLE
+          </span>
+          <span style={{ font: '400 14px/1 var(--font-inter)', color: '#4d4635' }}>{styleName}</span>
+        </div>
+        <div
+          data-spot="templates"
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, borderRadius: 16 }}
+        >
+          {template('Classic', 'Serif, timeless', !friendly)}
+          {template('Ledger', 'Mono figures', false)}
+          {template('Industrial', 'Bold, blocky', false)}
+          {template('Friendly', 'Rounded, warm', friendly, 'tplFriendly')}
+        </div>
+        <div
+          data-spot="colors"
+          style={{ padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1px solid #efe4d2' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ font: '600 13px/1 var(--font-inter)', letterSpacing: '.1em', color: '#4d4635' }}>
+              COLORS
+            </span>
+            <span style={{ font: '600 14px/1 var(--font-inter)', color: '#0f6d31' }}>3 of 3 picked</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 12 }}>
+            {swatch('#2b2925', 'Background', 'Charcoal')}
+            {swatch('#5b6b7a', 'Accent', 'Slate')}
+            {swatch('#c9c3b8', 'Secondary', 'Stone')}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LaptopSettings({ state }: { state: SceneState }) {
+  const screen = state.st.screen;
+  const pane = screen === 'pay' || screen === 'brand' ? screen : 'biz';
+  return (
+    <div
+      className={styles.aScrIn}
+      style={{
+        position: 'absolute', inset: 0, display: 'grid',
+        gridTemplateColumns: '392px minmax(0,1fr)',
+      }}
+    >
+      <MasterSettings state={state} />
+      <div
+        style={{
+          position: 'relative', overflow: 'hidden', padding: '24px 40px',
+          display: 'flex', justifyContent: 'center',
+        }}
+      >
+        {pane === 'pay' && <LaptopPayPane />}
+        {pane === 'biz' && <LaptopBizPane state={state} />}
+        {pane === 'brand' && <LaptopBrandPane state={state} />}
+      </div>
+    </div>
+  );
+}
+
+export default function SettingsMock({ state, laptop = false }: { state: SceneState; laptop?: boolean }) {
   const screen = state.st.screen;
   const back = screen === 'pay' || screen === 'biz' || screen === 'brand';
+  if (laptop) {
+    // The overlay already wraps the mock in LaptopShell (288 sidebar, content area).
+    return (
+      <div aria-hidden className={styles.mockProtoScope}>
+        <LaptopSettings state={state} />
+      </div>
+    );
+  }
   return (
     <div aria-hidden className={styles.mockProtoScope}>
       <MockChrome hdrChat={false} hdrBack={back} tabNow="settings">
