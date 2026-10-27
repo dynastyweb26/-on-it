@@ -467,3 +467,36 @@ Still failing, unchanged by this commit: `tour-invoices-1440` (segment toggle),
 `tour-clients-1440` (search), `tour-books-1440` (net card) and `tour-settings-1440`
 (`paymentRow` absent). All four failed before the flip as well — they are the mocks
 that are still the phone's shape, i.e. the redraw work that follows this commit.
+
+### 11h. The laptop stage is Chat only (13b commit 10)
+
+`laptop = xl && tab === 'chat'`. `MockScreen` hands the flag to `ChatMock` alone; the
+other four mocks take no such prop, and at ≥1280 that left them a phone render
+stretched across the 1152 content area under the shell (`Invoices` measured its own
+9:41 bar 1092 wide at (288,72), `search` 990 against the design's 300, `net` 1060×103
+against 573×180). They now use the framed-phone branch at every width.
+
+Stage hash, reduced motion, scene 0 / scene 1, `02d2d63` (pre-flip) → `e5958c7`, all
+16 identical:
+
+| tour | 1440×900 | 1279×800 |
+| --- | --- | --- |
+| Invoices | `16500/-103744134`, `15729/-201631843` | identical |
+| Clients | `13397/1715042087`, `14000/-1135267660` | identical |
+| Books | `18985/-1183429492`, `19670/1492082124` | identical |
+| Settings | `16065/88154484`, `12903/1288920218` | identical |
+
+Chat is unchanged against `15bc3fa` at both widths (`19845/-1699713544`,
+`20570/-947010285` at 1440; `21665/-1227789146`, `22404/-1152182433` at 1279), and the
+phone path is unchanged at 768 / 1024 / 1279. Switching Chat → Invoices → Chat gives
+1380 (shell, no 9:41 bar) → 430 (no shell, 9:41 present) → 1380 again with a clean
+console, and 1440→1000→1440 keeps the scene on both Chat and Invoices with a 0.2px
+settled cutout.
+
+The four tour cases (`tour-invoices-1440`, `tour-clients-1440`, `tour-books-1440`,
+`tour-settings-1440`) are back on the phone path: their known failing pairs report the
+pre-flip phone values again (`segment toggle` h 62, `search` 318, `net` 395×114,
+`paymentRow` absent). They stay red until those mocks are redrawn.
+
+**Removal condition:** delete `&& tab === 'chat'` per tour as its mock lands, leaving
+plain `xl` (the guard's comment carries this).
