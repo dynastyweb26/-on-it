@@ -1470,6 +1470,76 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "tour-chat-laptop-camera-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('[data-hl] button[aria-keyshortcuts=\\\"ArrowRight Enter\\\"]')?.click()"
+          },
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "camera tile",
+          "design": "[data-spot=\"camera\"]",
+          "app": "[data-spot=\"camera\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only, for the same canvas-inset reason as 11; 36x36 on both, and x is identical (1129) once the export's 44px page margin is removed, 5 inside the composer's right edge and 0 off its vertical centre."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "tour-invoices-1440",
       "viewport": {
         "width": 1440,

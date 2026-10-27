@@ -359,3 +359,27 @@ Clearance to the spotlight ring, box distance per scene (card vs ring): **459px*
 worst (scene 5), 516–549 elsewhere, 517 at scene 1 — the cluster never touches a
 cutout. Click-through on laptop: 1/6 → 6/6, each press advancing one scene, and the
 last scene's "Got it" closes the tour exactly as on phone.
+
+### 11e. Composer camera tile (13b commit 7)
+
+| Design element | Design (canvas-local) | App (stage-local) | Notes |
+| --- | --- | --- | --- |
+| `camera` | 36×36 | **36×36** | radius 18 (design `18px`); was 32×32 with a 22px glyph, now a 20px `photo_camera` |
+| inset in composer | 5 from its right, 0 off its centre | **5**, **0** | the composer's `padding: 0 4px 0 16px` plus its 1.5px border puts it there |
+| row | plus 44×44, composer 612×44, send 44×44 | **same** | plus x 504, composer x 558, send x 1180, camera x **1129** — the design's 1173 minus its 44px page margin |
+
+The tile's background stays the app's existing `#F2E5BC` rather than the export's
+`#F0E3B8`: section 0 forbids adding hex values, and the two are 2/255 apart.
+
+`data.ts` spotlights `camera` at beat 0 of the "Snap a receipt" scene (tap at 0.9).
+Scrim cutout vs the tile, sampled every 100ms through the beat: **0px** at 0ms and
+100ms, i.e. it tracks the rect exactly, at the same beat as phone.
+
+Keyboard, read-only (no code changed for it): Tab from the dialog root reaches
+`Skip`, then the pill (2 stops) — no dead stop. The pill paints the gold
+`:focus-visible` ring (`solid 2px #E6C65A`, offset 3, radius 999), Enter advances
+1/6 → 2/6, Shift+Tab returns to it, and Space advances 2/6 → 3/6.
+
+| Pair | Check | Why |
+| --- | --- | --- |
+| `camera tile` | `w`, `h` only | Same canvas-inset reason as 11; sizes match exactly and x matches once the 44px margin is removed. |
