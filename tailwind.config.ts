@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import containerQueries from '@tailwindcss/container-queries';
 
 // ═══ On It — Warm Premium tokens (Design Standard v1.0) ═══
 // Source of truth: ON-IT-DESIGN-STANDARD.md + design/tailwind.config.snippet.js.
@@ -73,6 +74,8 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  // Container queries (@container, @xl:, @4xl:): grids size by the room their
+  // page actually gets (viewport minus the sidebar/rail), not by the viewport.
+  plugins: [containerQueries],
 };
 export default config;

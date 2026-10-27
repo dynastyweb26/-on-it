@@ -23,10 +23,10 @@ export default function ReplaceTemplateSheet({ title, onKeep, onStartNew, keepLa
   }, [onKeep]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[72] flex items-end justify-center" data-no-tab-swipe="true">
+    <div className="fixed inset-0 z-[72] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={onKeep} />
       <div role="alertdialog" aria-modal="true" aria-labelledby="replace-template-title" style={sheetStyle}
-        className="onit-sheet-in relative w-full max-w-lg rounded-t-card bg-background shadow-card-raised">
+        className="onit-sheet-in relative w-full max-w-lg rounded-t-card md:rounded-card bg-background shadow-card-raised">
         <div data-sheet-handle="" className="cursor-grab select-none pb-1" {...handleProps}>
           <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />
         </div>

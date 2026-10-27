@@ -10,3 +10,7 @@ next-env.d.ts
 __pycache__/
 .mcp.json
 shots/
+.design-diff/
+# Live Supabase session cookies for the design-diff gate's test-seller profile.
+# Never committed: they are credentials for a real account.
+auth/

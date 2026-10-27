@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
@@ -16,6 +17,13 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
+import SplitView from '@/components/layout/SplitView';
+
+// The invoice/estimate detail body is the heavy half of this screen (PDF and
+// share builders); at xl it only appears once a row is selected, so it loads
+// on demand instead of with the list.
+const InvoiceDetailScreen = dynamic(() => import('@/components/invoice-detail/InvoiceDetailScreen'), { ssr: false });
 
 interface Row {
   id: string; kind: string; invoice_number: number; client_name: string;
@@ -74,7 +82,21 @@ const FILTERED_EMPTY: Record<Filter, EmptyCopy> = {
 // when they come back instead of resetting to Invoices / Open.
 let lastFilter: Filter = 'open';
 
-export default function Invoices({ active = true }: { active?: boolean }) {
+export default function Invoices({ active = true, selectedId = null }: { active?: boolean; selectedId?: string | null }) {
+  // Laptop split (design "Invoices"): the list stays mounted on the left and the
+  // selected document renders in the right pane. Below xl nothing changes: a
+  // row is still a link to the full detail route.
+  const [selected, setSelected] = useState<string | null>(selectedId);
+  useEffect(() => { setSelected(selectedId); }, [selectedId]);
+  // Only a real laptop click takes over the row; touch and narrow widths keep
+  // the plain link so the detail route (and its Back button) behave as today.
+  function openRow(e: MouseEvent<HTMLAnchorElement>, rowId: string) {
+    if (!window.matchMedia('(min-width: 1280px)').matches) return;
+    e.preventDefault();
+    setSelected(rowId);
+    // Replace, not push: the list must not remount, and Back returns to the tab.
+    try { window.history.replaceState(null, '', `/invoices/${rowId}${window.location.search}`); } catch { /* ignore */ }
+  }
   const supabase = createClient();
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
@@ -201,15 +223,17 @@ export default function Invoices({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:px-8">
+    <SplitView
+      list={
+    <PageContainer size="wide" className="pb-8 pt-4 xl:max-w-none xl:px-0 xl:pb-0 xl:pt-0">
       {/* Top segment: invoices or quotes. The filter value decides it. */}
       <PillTabs label="Invoices or estimates" options={SIDES} value={SIDE_OF[filter]}
-        onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} />
+        onChange={(s) => chooseFilter(DEFAULT_FILTER[s])} className="xl:h-11 xl:rounded-[22px]" />
       {/* Filter tabs (release frames 4a): outlined; the selected one gold. */}
       <div role="tablist" aria-label="Filter" data-coach="invoices-filter" className="mt-4 flex gap-2 overflow-x-auto pb-1">
         {FILTERS[SIDE_OF[filter]].map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f}
-            className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95
+            className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-[15px] text-[15px] font-semibold text-on-background transition-colors active:scale-95 xl:h-9 xl:min-h-9 xl:rounded-[10px] xl:px-3
               ${filter === f ? 'border-2 border-primary-container bg-sent-container' : 'border-[1.5px] border-outline-variant bg-surface-container-lowest'}`}
             onClick={() => chooseFilter(f)}>
             {FILTER_LABEL[f]}
@@ -234,7 +258,7 @@ export default function Invoices({ active = true }: { active?: boolean }) {
           {groups.map((g, gi) => (
             <div key={g.key}>
               <DateDivider label={g.label} flush={gi === 0} />
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <div className="@container"><div className="grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-3">
                 {g.items.map((r) => {
                   const tag = tagFor(r, isConvertedQuote(r));
                   // On Open, a part-paid invoice shows what it still owes
@@ -244,9 +268,11 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                     // Holding a row must not raise the browser's link menu (Open /
                     // Copy link / Open in new tab) in the installed app; a tap still navigates.
                     <Link key={r.id} href={`/invoices/${r.id}`} draggable={false}
+                      aria-current={selected === r.id ? 'true' : undefined}
+                      onClick={(e) => openRow(e, r.id)}
                       style={{ WebkitTouchCallout: 'none' }}
                       onContextMenu={(e) => e.preventDefault()}
-                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98]">
+                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98] xl:px-3.5 xl:py-3 xl:border-[1.5px] xl:aria-[current=true]:border-primary-container xl:aria-[current=true]:bg-sent-container xl:hover:bg-surface-container-high">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
                         <span className="text-[13.5px] text-on-surface-variant">
@@ -269,11 +295,23 @@ export default function Invoices({ active = true }: { active?: boolean }) {
                     </Link>
                   );
                 })}
-              </div>
+              </div></div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
+      }
+      detail={selected ? <InvoiceDetailScreen id={selected} embedded /> : undefined}
+      emptyDetail={
+        // The design has no empty-detail copy (its sample data always has a
+        // selection), so this is an icon-only placeholder: no new strings.
+        <div aria-hidden className="xl:mt-24 grid place-items-center">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-surface-container text-outline-variant">
+            <Icon name="description" size={30} />
+          </span>
+        </div>
+      }
+    />
   );
 }

@@ -445,7 +445,7 @@ export default function EstimateAttachments({
       />
 
       {sheetOpen && editable && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[78] flex items-end justify-center" data-no-tab-swipe="true">
+        <div className="fixed inset-0 z-[78] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true">
           <div
             className="onit-composer-scrim absolute inset-0 bg-on-background/40"
             style={scrimStyle}
@@ -456,7 +456,7 @@ export default function EstimateAttachments({
             aria-modal="true"
             aria-label="Add attachment"
             style={sheetStyle as CSSProperties}
-            className="onit-sheet-in relative w-full max-w-lg rounded-t-card bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
+            className="onit-sheet-in relative w-full max-w-lg rounded-t-card md:rounded-card bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
           >
             <div data-sheet-handle="" className="cursor-grab select-none" {...handleProps}>
               <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />

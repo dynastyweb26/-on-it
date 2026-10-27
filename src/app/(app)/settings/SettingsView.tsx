@@ -20,6 +20,7 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import type { SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -581,7 +582,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
   const is = (s: SettingsSection) => section === s;
   return (
-    <div className="mx-auto max-w-4xl space-y-4 px-4 py-4 overflow-x-hidden md:px-6">
+    <PageContainer size="narrow" className={`space-y-4 overflow-x-hidden py-4${is('main') ? ' xl:mx-0 xl:h-full xl:w-[440px] xl:max-w-none xl:overflow-visible xl:border-r xl:border-outline-variant/35 xl:px-0 xl:pb-8 xl:pl-6 xl:pr-5 xl:pt-6' : ''}`}>
       {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('business-info') ? 'Business Info' : is('business-brand') ? 'Brand Design' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
       {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
       {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
@@ -722,9 +723,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         // host read dynamically so the link survives the custom-domain move
         const inviteUrl = `${window.location.origin}/i/${p.referral_code}`;
         return (
-          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setInviteOpen(false)}>
+          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={() => setInviteOpen(false)}>
           <div role="dialog" aria-label="Invite a contractor"
-            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            className="mx-auto w-full max-w-lg space-y-3 rounded-t-card md:rounded-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Invite a contractor</h2>
@@ -1070,6 +1071,6 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
       {is('main') && (
       <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -3752,7 +3752,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   ) : null;
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col">
+    // xl: the design's 720px column; the composer is a child of it, so the two
+    // share left and right edges exactly (gate: design 720, app 720).
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col xl:max-w-[720px]">
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -4122,7 +4124,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         </div>
       ) : (
-        <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5${plusMenu ? ' z-[46]' : ''}`}>
+        <div data-coach="chat-composer" className={`relative border-t border-outline-variant/40 bg-background px-3 py-2.5 xl:border-surface-container-high xl:px-0 xl:py-[18px]${plusMenu ? ' z-[46]' : ''}`}>
           {/* The save prompt floats just above the composer, no scrim (2·13). */}
           {promptShown && !plusMenu && (
             <div className="absolute inset-x-3 bottom-full z-30 mb-2">
@@ -4249,12 +4251,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       )}
 
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-on-background/40" onClick={() => setShowHistory(false)}>
+        <div className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={() => setShowHistory(false)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Recent conversations"
-            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
+            className="max-h-[70dvh] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card md:rounded-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-3 font-display text-lg font-bold">Recent conversations</h2>

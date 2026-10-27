@@ -9,8 +9,8 @@ import type { IconName } from '@/components/icon-names';
 export function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="px-1 pb-1 pt-2.5 text-xs font-bold uppercase tracking-[.07em] text-on-surface-variant">{title}</h2>
-      <div className="overflow-hidden rounded-2xl border border-outline-variant/70 bg-surface-container-lowest">{children}</div>
+      <h2 className="px-1 pb-1 pt-2.5 text-xs font-bold uppercase tracking-[.07em] text-on-surface-variant xl:pb-2 xl:pl-1 xl:pt-[18px] xl:text-[12px] xl:tracking-[.12em]">{title}</h2>
+      <div className="overflow-hidden rounded-2xl border border-outline-variant/70 bg-surface-container-lowest xl:rounded-[18px]">{children}</div>
     </section>
   );
 }
@@ -43,7 +43,7 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
       <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
     </>
   );
-  const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container';
+  const cls = 'flex h-[54px] w-full items-center gap-3 border-b border-outline-variant/40 px-3.5 text-left last:border-b-0 transition-colors active:bg-surface-container xl:h-12 xl:hover:bg-surface-container-low';
   return href
     ? <Link href={href} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</Link>
     : <button type="button" onClick={onClick} data-coach={dataCoach} data-payouts-set={payoutsSet} className={cls}>{body}</button>;
@@ -51,5 +51,6 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
 
 /** Big screen title ("Settings", "Business profile", …). */
 export function SettingsTitle({ children }: { children: React.ReactNode }) {
-  return <h1 className="px-1 pb-1 font-display text-[30px] font-extrabold leading-tight text-on-background">{children}</h1>;
+  // Matches PageHeader's laptop row: 24px title on a 40px line.
+  return <h1 className="px-1 pb-1 font-display text-[30px] font-extrabold leading-tight text-on-background xl:px-1 xl:h-10 xl:pb-0 xl:text-2xl xl:font-bold xl:leading-none">{children}</h1>;
 }

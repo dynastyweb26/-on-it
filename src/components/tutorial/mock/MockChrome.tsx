@@ -55,13 +55,13 @@ export function StatusBar() {
   );
 }
 
-export function MockHeader({ hdrChat, hdrBack }: { hdrChat: boolean; hdrBack: boolean }) {
+export function MockHeader({ hdrChat, hdrBack, top = 47 }: { hdrChat: boolean; hdrBack: boolean; top?: number }) {
   return (
     <div
       aria-hidden
       style={{
         position: 'absolute',
-        top: 47,
+        top,
         left: 0,
         right: 0,
         height: 56,
@@ -210,18 +210,172 @@ export function MockChrome({
   hdrBack,
   tabNow,
   children,
+  laptop,
 }: {
   hdrChat: boolean;
   hdrBack: boolean;
   tabNow: TutorialTab;
   children: ReactNode;
+  /** Dormant laptop stage: no 9:41 bar and no phone tab bar, and the header moves
+   *  up to the frame's top edge. Undefined on every phone/iPad render. */
+  laptop?: boolean;
 }) {
   return (
     <>
-      <StatusBar />
-      <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} />
+      {!laptop && <StatusBar />}
+      {/* Laptop: the shell's 72px page header is the only header (the design's
+          chat screen has the title and the icon pair inside its 720 column). */}
+      {!laptop && <MockHeader hdrChat={hdrChat} hdrBack={hdrBack} />}
       {children}
-      <MockTabs tabNow={tabNow} />
+      {!laptop && <MockTabs tabNow={tabNow} />}
     </>
+  );
+}
+
+/** Dormant laptop stage (design tutorial frame): 288 sidebar + 1152 content with
+ *  the 72px page header. Only rendered when the tour is opened with ?laptop=1;
+ *  the phone frame above is what every visitor still gets. */
+export function LaptopShell({ tab, children }: { tab: TutorialTab; children: ReactNode }) {
+  const label = TABS.find((t) => t.key === tab)?.label ?? '';
+  return (
+    <div aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', background: '#FDF7EE' }}>
+      <aside
+        style={{
+          width: 288,
+          flex: 'none',
+          borderRight: '1px solid #EFE4D2',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '0 4px 18px',
+            font: '800 26px/1 var(--font-montserrat)',
+            letterSpacing: '-.01em',
+            color: '#1E1A14',
+          }}
+        >
+          On It<span style={{ color: '#B8960F' }}>.</span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: 40,
+            padding: '0 14px',
+            marginBottom: 14,
+            borderRadius: 999,
+            background: '#D4AF37',
+            color: '#1E1A14',
+            font: '700 14px/1 var(--font-inter)',
+          }}
+        >
+          How it works
+          <Icon name="expand_more" size={20} />
+        </div>
+        {TABS.map((t) => {
+          const active = t.key === tab;
+          return (
+            <div
+              key={t.key}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                height: 44,
+                padding: '0 14px',
+                borderRadius: 14,
+                background: active ? '#D4AF37' : 'transparent',
+                color: '#1E1A14',
+                font: '600 17px/1 var(--font-inter)',
+              }}
+            >
+              <Icon name={t.icon} size={22} />
+              {t.label}
+            </div>
+          );
+        })}
+      </aside>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* Chat's header is the design's: a 720 row inside the content area, title
+            left, the new-chat / previous-chats pair right. Other tabs keep the
+            full-width header they have today. */}
+        {tab === 'chat' ? (
+          <div style={{ height: 72, flex: 'none', display: 'flex', justifyContent: 'center' }}>
+            <div
+              style={{
+                width: 720,
+                flex: 'none',
+                height: 72,
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid #F0E7D8',
+                font: '700 24px/1 var(--font-montserrat)',
+                color: '#1E1A14',
+              }}
+            >
+              <span>{label}</span>
+              <div data-spot="hdrIcons" style={{ display: 'flex', gap: 4, borderRadius: 14 }}>
+                <span
+                  data-spot="newChat"
+                  title="New chat"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 12,
+                    color: '#4D4635',
+                  }}
+                >
+                  <Icon name="edit_square" size={24} />
+                </span>
+                <span
+                  data-spot="history"
+                  title="Previous chats"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    display: 'grid',
+                    placeItems: 'center',
+                    borderRadius: 12,
+                    color: '#4D4635',
+                  }}
+                >
+                  <Icon name="history" size={24} />
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              height: 72,
+              flex: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '0 32px',
+              borderBottom: '1px solid #EFE4D2',
+              font: '700 24px/1 var(--font-montserrat)',
+              color: '#1E1A14',
+            }}
+          >
+            {label}
+          </div>
+        )}
+        <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>{children}</div>
+      </div>
+    </div>
   );
 }

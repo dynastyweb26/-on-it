@@ -28,10 +28,10 @@ export default function TaxSheet({ value, onDone, onClose }: {
   const rate = Number.isFinite(n) && n > 0 && n <= TAX_MAX ? n : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[72] flex items-end justify-center" data-no-tab-swipe="true" data-kb-fit="">
+    <div className="fixed inset-0 z-[72] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true" data-kb-fit="">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-label="Tax" style={sheetStyle}
-        className="onit-sheet-in relative flex w-full max-w-lg flex-col rounded-t-card bg-background shadow-card-raised">
+        className="onit-sheet-in relative flex w-full max-w-lg flex-col rounded-t-card md:rounded-card bg-background shadow-card-raised">
         <div data-sheet-handle="" className="shrink-0 cursor-grab select-none" {...handleProps}>
           <span aria-hidden className="mx-auto mt-2 block h-1 w-10 rounded-full bg-outline-variant" />
           <div className="relative flex h-12 items-center justify-center px-4">

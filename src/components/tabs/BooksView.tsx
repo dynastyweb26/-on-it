@@ -18,6 +18,7 @@ import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { getSharedUser } from '@/lib/auth-client';
+import PageContainer from '@/components/PageContainer';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -194,17 +195,26 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     ? 'No invoices yet'
     : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 pb-8 pt-6 md:px-8">
+    <PageContainer size="wide" className="space-y-4 pb-8 pt-6 xl:flex xl:flex-wrap xl:items-start xl:gap-5 xl:space-y-0 xl:pt-6">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the two metric tiles + Spent row, Add expense, the
           list card and Income & Expenses (§L Q4 keeps today's label). */}
-      <RecapsCard />
+      {/* xl: the design puts Recaps at the END of the page, beside the list
+          card. DOM order stays phone's (Recaps first) and `xl:order-5` moves it
+          into the cards line — flex order, so nothing below xl changes. */}
+      <div className="xl:order-5 xl:w-[calc((100%-1.25rem)*0.386)]">
+        <RecapsCard />
+      </div>
       {/* A recurring charge On It couldn't log (3·6, L3). */}
-      <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
       {loading ? (
         <BooksTotalsSkeleton />
       ) : (
-        <div className="grid grid-cols-1 gap-3 lg:gap-5 lg:grid-cols-3">
+        <div className="@container space-y-4 xl:order-3 xl:w-full">
+        <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
+        {/* xl: the design's row 1 — Net card on the left, Still owed +
+            Collected over Spent on the right. The @4xl container grid keeps the
+            tablet layout it had, untouched. */}
+        <div className="grid grid-cols-1 gap-3 @4xl:gap-5 @4xl:grid-cols-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:gap-4">
           {/* Net hero — design 1b: number first, then "Net · all time · N
               invoices" on one line. Cream, never colored (a negative reads
               "−$…"); opens the Books summary at All time, whose "Kept" is the
@@ -213,10 +223,10 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
             href="/summary?period=all"
             aria-label={`Net, all time: ${signedMoney(net)}. Open Books summary`}
             data-coach="books-net"
-            className={`lg:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110${intro ? ' onit-rise' : ''}`}
+            className={`@4xl:col-span-1 [container-type:inline-size] flex items-center justify-between gap-3 rounded-[22px] bg-inverse-surface p-5 md:p-8 shadow-card-raised transition-transform active:scale-[0.98] active:brightness-110 xl:items-end xl:p-7 xl:min-h-[180px] xl:rounded-card${intro ? ' onit-rise' : ''}`}
           >
             <div className="flex min-w-0 flex-col gap-1.5">
-              <div className={`whitespace-nowrap font-display text-[clamp(30px,13cqi,40px)] font-extrabold leading-[1.05] tracking-[-0.03em] tabular-nums ${isZero ? 'text-inverse-on-surface/50' : 'text-inverse-on-surface'}`}>
+              <div className={`whitespace-nowrap font-display text-[clamp(30px,13cqi,40px)] xl:text-[48px] font-extrabold leading-[1.05] tracking-[-0.03em] tabular-nums ${isZero ? 'text-inverse-on-surface/50' : 'text-inverse-on-surface'}`}>
                 <MoneyText text={signedMoney(net)} />
               </div>
               <div className="text-label-lg font-semibold text-inverse-on-surface/70">
@@ -228,13 +238,14 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           {/* Design 1b: Owed and Collected are half-width tiles, Spent is a
               full-width row. Amounts keep their cents (the accessible label
               carries the same full figure); nothing is truncated. */}
-          <div data-coach="books-stats" className="lg:col-span-2 flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2.5 md:gap-4">
+          <div data-coach="books-stats" className="@4xl:col-span-2 flex flex-col gap-2 xl:col-span-1 xl:gap-3">
+            <div className="grid grid-cols-2 gap-2.5 md:gap-4 xl:gap-3 xl:grid-rows-1">
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
               <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
             </div>
             <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} />
           </div>
+        </div>
         </div>
       )}
 
@@ -242,11 +253,16 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           300 / 350 / 400ms). Mounted with the totals, like the metrics, so the
           entrance never starts on buttons already on screen. */}
       {!loading && (
-        <div className="space-y-6">
-          <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center">
+        // `xl:contents` lets the header row and the list card become children of
+        // the page column at xl (so the title + pills can sit first) while the
+        // 24px rhythm below xl stays exactly as it was.
+        <div className="space-y-6 xl:contents">
+          <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row justify-center xl:order-1 xl:mx-0 xl:h-10 xl:w-full xl:max-w-none xl:items-center xl:justify-between xl:gap-2.5">
+            <h1 className="hidden whitespace-nowrap font-display text-2xl font-bold leading-none text-on-background xl:block">Books</h1>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center xl:ml-auto xl:flex-row xl:gap-2.5">
             <button
               data-coach="books-add-expense"
-              className={`btn-primary flex-1${intro ? ' onit-rise' : ''}`}
+              className={`btn-primary flex-1 xl:order-2 xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:px-[18px] xl:text-[15px] xl:font-bold xl:min-h-0${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '300ms' } : undefined}
               onClick={() => setShowForm(true)}
             >
@@ -254,16 +270,17 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
             </button>
             <Link
               href="/summary"
-              className={`btn-outline flex-1 text-primary justify-center${intro ? ' onit-rise' : ''}`}
+              className={`btn-outline flex-1 text-primary justify-center xl:order-1 xl:h-10 xl:flex-none xl:gap-2 xl:rounded-button xl:border-[1.5px] xl:border-outline-variant xl:bg-surface-container xl:px-4 xl:text-[15px] xl:font-semibold xl:min-h-0${intro ? ' onit-rise' : ''}`}
               style={intro ? { animationDelay: '400ms' } : undefined}
             >
-              <Icon name="description" size={18} /> Income &amp; Expenses
+              <Icon name="description" size={20} /> Income &amp; Expenses
             </Link>
+            </div>
           </div>
           {/* List card: Expenses + Recurring (merge 3 · 3·3) at bottom. */}
-          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest${intro ? ' onit-rise' : ''}`}
+          <div className={`overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-lowest xl:order-4 xl:w-[calc((100%-1.25rem)*0.614)] xl:rounded-[18px]${intro ? ' onit-rise' : ''}`}
             style={intro ? { animationDelay: '350ms' } : undefined}>
-            <Link href="/expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
+            <Link href="/expenses" data-coach="books-view-expenses" className="flex h-16 items-center gap-3 px-3.5 transition-colors active:bg-surface-container">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-surface-container-high">
                 <Icon name="receipt_long" size={21} />
               </span>
@@ -292,7 +309,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           onSaved={() => { setHiddenSkips(hideSkip(skipKey(manualFrom))); setManualFrom(null); void loadStats(); }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -308,7 +325,7 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] ${owed ? 'border-primary-container/40' : 'border-outline-variant/60'} bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] xl:rounded-card xl:p-4 ${owed ? 'border-primary-container/40' : 'border-outline-variant/60'} bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
       <div className="flex min-w-0 items-center gap-1.5">
@@ -318,7 +335,7 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
         <span className="flex-1" />
         <Icon name="chevron_right" size={18} className={`shrink-0 ${owed ? 'text-primary/50' : 'text-outline'}`} />
       </div>
-      <div className={`whitespace-nowrap font-display text-[clamp(17px,15cqi,26px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-on-background tabular-nums${dim ? ' opacity-40' : ''}`}>
+      <div className={`whitespace-nowrap font-display text-[clamp(17px,15cqi,26px)] xl:text-[26px] font-extrabold leading-[1.1] tracking-[-0.03em] text-on-background tabular-nums${dim ? ' opacity-40' : ''}`}>
         <MoneyText text={money(value)} centsClassName="text-[0.62em] text-on-surface-variant/70" />
       </div>
     </Link>
@@ -336,7 +353,7 @@ function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, fla
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
       <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}

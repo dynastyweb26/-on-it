@@ -1,0 +1,1794 @@
+{
+  "tolerancePx": 10,
+  "cases": [
+    {
+      "name": "clients-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/clients",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "how it works pill",
+          "design": "[data-spot=\"howBtn\"]",
+          "app": "aside button[aria-haspopup=\"menu\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "client search field",
+          "design": "[data-spot=\"search\"]",
+          "app": "label:has(> input[type=\"search\"])",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "add client button",
+          "design": "[data-coach=\"clients-add\"]",
+          "app": "[data-coach=\"clients-add\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "clients list card",
+          "design": "[data-coach=\"clients-list\"]",
+          "app": "[data-coach=\"clients-list\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "clients-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/clients",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "how it works pill",
+          "design": "[data-spot=\"howBtn\"]",
+          "app": "aside button[aria-haspopup=\"menu\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "invoices-list-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/invoices",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "invoices/estimates toggle",
+          "design": "[data-spot=\"segToggle\"]",
+          "app": "[role=\"tablist\"][aria-label=\"Invoices or estimates\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "filter chips row",
+          "design": "[data-coach=\"invoices-filter\"]",
+          "app": "[data-coach=\"invoices-filter\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "invoice list",
+          "design": "[data-coach=\"invoices-list\"]",
+          "app": "[data-coach=\"invoices-list\"]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "invoices-list-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/invoices",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "books-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 900
+          }
+        ]
+      },
+      "app": {
+        "path": "/dashboard",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "net card",
+          "design": "[data-coach=\"books-net\"]",
+          "app": "[data-coach=\"books-net\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "owed/collected/spent grid",
+          "design": "[data-coach=\"books-stats\"]",
+          "app": "[data-coach=\"books-stats\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "add expense button",
+          "design": "[data-coach=\"books-add-expense\"]",
+          "app": "[data-coach=\"books-add-expense\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "view expenses row",
+          "design": "[data-spot=\"viewExpenses\"]",
+          "app": "[data-coach=\"books-view-expenses\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "books-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 900
+          }
+        ]
+      },
+      "app": {
+        "path": "/dashboard",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "add expense button",
+          "design": "[data-coach=\"books-add-expense\"]",
+          "app": "[data-coach=\"books-add-expense\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chat-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "header action icons",
+          "design": "[data-spot=\"hdrIcons\"]",
+          "app": "header div:has(> button[aria-label=\"New chat\"])",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "message column",
+          "design": "[data-coach=\"chat-messages\"]",
+          "app": "[data-coach=\"chat-messages\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "composer",
+          "design": "[data-coach=\"chat-composer\"]",
+          "app": "[data-coach=\"chat-composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chat-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 700
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "header action icons",
+          "design": "[data-spot=\"hdrIcons\"]",
+          "app": "header div:has(> button[aria-label=\"New chat\"])",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "message column",
+          "design": "[data-coach=\"chat-messages\"]",
+          "app": "[data-coach=\"chat-messages\"]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        },
+        {
+          "name": "composer",
+          "design": "[data-coach=\"chat-composer\"]",
+          "app": "[data-coach=\"chat-composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 900
+          }
+        ]
+      },
+      "app": {
+        "path": "/settings",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "business profile row",
+          "design": "[data-coach=\"settings-profile\"]",
+          "app": "[data-coach=\"settings-profile\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "payment options row",
+          "design": "[data-coach=\"settings-payouts\"]",
+          "app": "[data-coach=\"settings-payouts\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "how it works row",
+          "design": "[data-coach=\"settings-replay\"]",
+          "app": "[data-coach=\"settings-replay\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)"
+          },
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 900
+          }
+        ]
+      },
+      "app": {
+        "path": "/settings",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "sidebar nav",
+          "design": "nav[data-coach=\"side-nav\"]",
+          "app": "[data-coach=\"side-nav\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "business profile row",
+          "design": "[data-coach=\"settings-profile\"]",
+          "app": "[data-coach=\"settings-profile\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "payment options row",
+          "design": "[data-coach=\"settings-payouts\"]",
+          "app": "[data-coach=\"settings-payouts\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "how it works row",
+          "design": "[data-coach=\"settings-replay\"]",
+          "app": "[data-coach=\"settings-replay\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "settings-payouts-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 400
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)"
+          },
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 1400
+          }
+        ]
+      },
+      "app": {
+        "path": "/settings",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "payment options row",
+          "design": "[data-coach=\"settings-payouts\"]",
+          "app": "[data-coach=\"settings-payouts\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false,
+          "motionTimesMs": [
+            0,
+            500,
+            1500
+          ]
+        },
+        {
+          "name": "spotlight target (composer)",
+          "design": "[data-spot=\"composer\"]",
+          "app": "[data-spot=\"composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "next button",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "button[aria-label=\"Next scene\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false,
+          "motionTimesMs": [
+            0,
+            500,
+            1500
+          ]
+        },
+        {
+          "name": "spotlight target (composer)",
+          "design": "[data-spot=\"composer\"]",
+          "app": "[data-spot=\"composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        },
+        {
+          "name": "next button",
+          "design": "button[aria-keyshortcuts=\"ArrowRight Enter\"]",
+          "app": "button[aria-label=\"Next scene\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chat invoice card",
+          "design": "[data-spot=\"invCard\"]",
+          "app": "[data-spot=\"invCard\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: the export lays its canvas out at 44/248 inside the mock page, and the stage is 1380x860 against the design's 1440x900 canvas, so absolute x/y are offset on both axes. x is identical once the 44px page margin is removed (504) and y is identical measured from the stage's bottom edge (card bottom 100 above it in both)."
+        },
+        {
+          "name": "card toggle",
+          "design": "[data-spot=\"toggle\"]",
+          "app": "[data-spot=\"toggle\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; measured x 660 and h 28 match exactly."
+        },
+        {
+          "name": "line price",
+          "design": "[data-spot=\"tplPrice\"]",
+          "app": "[data-spot=\"tplPrice\"]",
+          "check": [
+            "h"
+          ],
+          "animations": false,
+          "why": "Height only: the pill is content-sized and the two players are sampled at different beats (the export has typed $400.00 = 88px by the time the app case finishes its 9s wait, whose scene 0 is still on the empty $Price = 76px). Both are 34 high, and with the same text both measure 88 (checked on the Clients tour's Save your jobs beat)."
+        },
+        {
+          "name": "card footer",
+          "design": "[data-spot=\"invFoot\"]",
+          "app": "[data-spot=\"invFoot\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; measured x 521 matches exactly."
+        },
+        {
+          "name": "spotlight target (composer)",
+          "design": "[data-spot=\"composer\"]",
+          "app": "[data-spot=\"composer\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Same offset as the card; the scrim cutout measured 0px from the composer's own rect."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-expense-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 4500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 600
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 4500
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "save expense pill",
+          "design": "[data-spot=\"saveExpense\"]",
+          "app": "[data-spot=\"saveExpense\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: the stage is 1380x860 against the design's 1440x900 canvas and its content area is 60 narrower, so x/y never compare absolute; the pill is 331x48 at the card's left gutter on both, 20 above the composer row's content edge."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-share-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 6000
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 6000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "ready chip",
+          "design": "[data-spot=\"readyChip\"]",
+          "app": "[data-spot=\"readyChip\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only (stage vs canvas offsets, as above); measured 147x30 in the design and 146x30 in the app, 21 from the card's left edge on both."
+        },
+        {
+          "name": "share buttons",
+          "design": "[data-spot=\"shareBtns\"]",
+          "app": "[data-spot=\"shareBtns\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 271 wide in the design's right column and 271 in the app's, 21 inside the card's right edge on both."
+        },
+        {
+          "name": "copy link",
+          "design": "[data-spot=\"copyLink\"]",
+          "app": "[data-spot=\"copyLink\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 132x46 in the design, 131x44 in the app (Tailwind preflight's border-box against the export's content-box)."
+        },
+        {
+          "name": "revise tile",
+          "design": "[data-spot=\"revise\"]",
+          "app": "[data-spot=\"revise\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 271x92 on both, pinned to the bottom of the right column."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-chat-laptop-header-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "wait": 1200
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 700
+          },
+          {
+            "key": "ArrowRight"
+          },
+          {
+            "wait": 2500
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat?laptop=1",
+        "steps": [
+          {
+            "wait": 2000
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Chat\")"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 500
+          },
+          {
+            "eval": "document.querySelector('button[aria-label=\"Next scene\"]')?.click()"
+          },
+          {
+            "wait": 4000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "page header row",
+          "design": "div:has(> [data-spot=\"hdrIcons\"])",
+          "app": "div:has(> [data-spot=\"hdrIcons\"])",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only: 720 wide on both, the design's 73 against the app's 72 is its 1px hairline counted outside the box (the app's is inside, border-box). y and x match absolutely once the export's 44px page margin is removed (-44,-248): 504,0 on both."
+        },
+        {
+          "name": "header icons",
+          "design": "[data-spot=\"hdrIcons\"]",
+          "app": "[data-spot=\"hdrIcons\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 84x40 on both, and x 1140 / y 16 (canvas-local) match exactly — the icon pair's right edge is the 720 column's right edge."
+        },
+        {
+          "name": "new chat icon",
+          "design": "[data-spot=\"newChat\"]",
+          "app": "[data-spot=\"newChat\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 40x40 on both at canvas-local 1140,16."
+        },
+        {
+          "name": "history icon",
+          "design": "[data-spot=\"history\"]",
+          "app": "[data-spot=\"history\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false,
+          "why": "Size only; 40x40 on both at canvas-local 1184,16, i.e. the design's 4px gap."
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-invoices-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(2)"
+          },
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2200
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Invoices\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        },
+        {
+          "name": "spotlight target (segment toggle)",
+          "design": "[data-spot=\"segToggle\"]",
+          "app": "[data-spot=\"segToggle\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-clients-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(1)"
+          },
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2200
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Clients\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        },
+        {
+          "name": "spotlight target (search)",
+          "design": "[data-spot=\"search\"]",
+          "app": "[data-spot=\"search\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-books-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(4)"
+          },
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2600
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Books\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        },
+        {
+          "name": "spotlight target (net card)",
+          "design": "[data-spot=\"net\"]",
+          "app": "[data-spot=\"net\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "tour-settings-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/tutorial.html",
+        "steps": [
+          {
+            "key": "Escape"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "click": "nav[data-coach=\"side-nav\"] button:nth-child(5)"
+          },
+          {
+            "wait": 1600
+          }
+        ]
+      },
+      "app": {
+        "path": "/chat",
+        "steps": [
+          {
+            "wait": 2200
+          },
+          {
+            "click": "aside button[aria-haspopup=\"menu\"]"
+          },
+          {
+            "click": "[role=\"menuitem\"]:has-text(\"Settings\")"
+          },
+          {
+            "wait": 9000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "callout card",
+          "design": "[data-hl=\"1\"]",
+          "app": "div[data-hl]",
+          "check": [
+            "w"
+          ],
+          "animations": false
+        },
+        {
+          "name": "spotlight target (payment options)",
+          "design": "[data-spot=\"paymentRow\"]",
+          "app": "[data-spot=\"paymentRow\"]",
+          "check": [
+            "w",
+            "h"
+          ],
+          "animations": false
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "paywall-1440",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "design": {
+        "file": "design/laptop/paywall.html",
+        "steps": [
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/recaps?paywall=reports",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "card",
+          "design": "[role=dialog]",
+          "app": "[role=\"dialog\"] > div",
+          "check": [
+            "w",
+            "h"
+          ],
+          "why": "size only: the design draws the card inside its 44px-margin mock browser frame, so absolute x/y do not transfer to a viewport-centred overlay"
+        },
+        {
+          "name": "card header",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(1)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "close",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > button:nth-child(1)",
+          "app": "[aria-label=\"Not now\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "logo",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > img:nth-child(2)",
+          "app": "img[alt=\"On It\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "reason pill",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] p.whitespace-nowrap",
+          "check": [
+            "h"
+          ],
+          "why": "height only: the pill is sized by its own copy (design 249px for \"You have used your 3 free invoices\"); the app keeps its own reason strings"
+        },
+        {
+          "name": "footer",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(3)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "cta",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > button:nth-child(1)",
+          "app": "[role=\"dialog\"] button.bg-primary-container",
+          "check": [
+            "w",
+            "h"
+          ]
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "paywall-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "design": {
+        "file": "design/laptop/paywall.html",
+        "steps": [
+          {
+            "wait": 1500
+          }
+        ]
+      },
+      "app": {
+        "path": "/recaps?paywall=reports",
+        "steps": [
+          {
+            "eval": "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Skip');if(b)b.click();})()"
+          },
+          {
+            "wait": 3000
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "card",
+          "design": "[role=dialog]",
+          "app": "[role=\"dialog\"] > div",
+          "check": [
+            "w",
+            "h"
+          ],
+          "why": "size only: the design draws the card inside its 44px-margin mock browser frame, so absolute x/y do not transfer to a viewport-centred overlay"
+        },
+        {
+          "name": "card header",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(1)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "close",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > button:nth-child(1)",
+          "app": "[aria-label=\"Not now\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "logo",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > img:nth-child(2)",
+          "app": "img[alt=\"On It\"]",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "reason pill",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
+          "app": "[role=\"dialog\"] p.whitespace-nowrap",
+          "check": [
+            "h"
+          ],
+          "why": "height only: the pill is sized by its own copy (design 249px for \"You have used your 3 free invoices\"); the app keeps its own reason strings"
+        },
+        {
+          "name": "footer",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3)",
+          "app": "[role=\"dialog\"] > div > div:nth-child(3)",
+          "check": [
+            "w",
+            "h"
+          ]
+        },
+        {
+          "name": "cta",
+          "design": "[role=dialog] > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > button:nth-child(1)",
+          "app": "[role=\"dialog\"] button.bg-primary-container",
+          "check": [
+            "w",
+            "h"
+          ]
+        }
+      ],
+      "maxPixelDiffPct": null
+    }
+  ]
+}

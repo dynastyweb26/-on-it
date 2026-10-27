@@ -48,29 +48,822 @@ function Mono({
   );
 }
 
+/** The laptop chat card (design/laptop/tutorial.html `invCard`): 560 wide at the
+ *  left of the 720 column, the design's 2-column body (name | item panel), a
+ *  wrapping chip row and a 48px footer. Ported element-for-element from the
+ *  design; the phone keeps the stacked card below. */
+function LaptopInvoiceCard({ state, isEst }: { state: SceneState; isEst: boolean }) {
+  const { st, nT, jT, pT, nameFilled, jobFilled, priceFilled, footFilled } = state;
+  const chip = {
+    height: 36,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '0 12px',
+    borderRadius: 999,
+    font: '700 14px/1 var(--font-inter)',
+    color: '#735C00',
+    background: '#fff',
+    border: '1px solid #EFE4D2',
+    whiteSpace: 'nowrap' as const,
+  };
+  const ghostChip = {
+    ...chip,
+    border: '1.5px dashed #D0C5AF',
+    boxSizing: 'border-box' as const,
+    font: '400 14px/1 var(--font-inter)',
+    color: '#4D4635',
+  };
+  return (
+    <div
+      data-spot="invCard"
+      className={styles.aCardIn55}
+      style={{
+        width: '100%',
+        maxWidth: 560,
+        boxSizing: 'border-box',
+        padding: 16,
+        background: '#FBF3E5',
+        border: '1.5px solid #EFE4D2',
+        borderRadius: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 34 }}>
+        <div className={styles.aPop45} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 32,
+              padding: '0 12px 0 9px',
+              borderRadius: 8,
+              background: '#F3E9C8',
+              font: '600 14px/1 var(--font-inter)',
+              color: '#554300',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Icon name={isEst ? 'request_quote' : 'description'} size={19} />
+            {isEst ? 'New estimate' : 'New invoice'}
+          </span>
+          <span
+            data-spot="toggle"
+            style={{
+              font: '700 14px/1 var(--font-inter)',
+              color: '#735C00',
+              padding: '7px 4px',
+              borderRadius: 8,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isEst ? 'Make it an invoice' : 'Make it an estimate'}
+          </span>
+        </div>
+        <span
+          style={{
+            marginLeft: 'auto',
+            flex: 'none',
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            background: '#EFE7DA',
+            display: 'grid',
+            placeItems: 'center',
+            color: '#2F2A24',
+          }}
+        >
+          <Icon name="close" size={19} />
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr)', gap: 10, alignItems: 'start' }}>
+        <div>
+          {nameFilled ? (
+            <div
+              className={styles.aPop4}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                height: 44,
+                padding: '0 12px',
+                borderRadius: 12,
+                background: '#343027',
+              }}
+            >
+              <span style={{ display: 'flex', color: '#E9C349' }}>
+                <Icon name="person" size={22} filled />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ font: '700 15px/1.2 var(--font-montserrat)', color: '#FFF8F0' }}>Brandon</div>
+                <div style={{ font: '400 11.5px/1.2 var(--font-inter)', color: '#D0C5AF', whiteSpace: 'nowrap' }}>
+                  No address or phone on file
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                height: 44,
+                padding: '0 12px',
+                border: '1.5px dashed #D0C5AF',
+                borderRadius: 12,
+                boxSizing: 'border-box',
+                font: '400 15px/1 var(--font-inter)',
+                color: '#4D4635',
+              }}
+            >
+              <span style={{ display: 'flex' }}>
+                <Icon name="person" size={20} />
+              </span>
+              {nT.s.length > 0 ? (
+                <span style={{ color: '#1F1B13' }}>
+                  {nT.s}
+                  <Cursor />
+                </span>
+              ) : (
+                <span>Name</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #EFE4D2',
+            borderRadius: 14,
+            padding: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          {jobFilled ? (
+            <div
+              className={styles.aPop4}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                height: 40,
+                padding: '0 12px',
+                borderRadius: 10,
+                background: '#343027',
+              }}
+            >
+              <span style={{ display: 'flex', color: '#E9C349' }}>
+                <Icon name="handyman" size={20} />
+              </span>
+              <span style={{ font: '700 15px/1 var(--font-montserrat)', color: '#FFF8F0', whiteSpace: 'nowrap' }}>
+                {st.job || 'Bedroom Painting'}
+              </span>
+              <span style={{ font: '400 14px/1 var(--font-inter)', color: '#D0C5AF' }}>· job</span>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                height: 40,
+                padding: '0 12px',
+                border: '1.5px dashed #D0C5AF',
+                borderRadius: 10,
+                boxSizing: 'border-box',
+                font: '400 15px/1 var(--font-inter)',
+                color: '#4D4635',
+              }}
+            >
+              <span style={{ display: 'flex' }}>
+                <Icon name="handyman" size={20} />
+              </span>
+              {jT.s.length > 0 ? (
+                <span style={{ color: '#1F1B13' }}>
+                  {jT.s}
+                  <Cursor />
+                </span>
+              ) : (
+                <span>Product/Service</span>
+              )}
+            </div>
+          )}
+
+          {st.suggest && (
+            <div
+              data-spot="suggest"
+              className={styles.aCardIn35}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                borderRadius: 10,
+                background: '#FBF3E5',
+                border: '1px solid #EFE4D2',
+              }}
+            >
+              <span style={{ display: 'flex', color: '#735C00' }}>
+                <BookmarkIcon size={19} />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ font: '600 14px/1.2 var(--font-inter)' }}>Bedroom Painting</div>
+                <div style={{ font: '400 12px/1.3 var(--font-inter)', color: '#4D4635' }}>Saved service</div>
+              </div>
+              <span style={{ font: '700 14px/1 var(--font-montserrat)' }}>$400.00</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 10, background: '#F5EDDF' }}>
+              <span style={{ width: 24, textAlign: 'center', color: '#7F7663', display: 'flex', justifyContent: 'center' }}>
+                <Icon name="remove" size={18} />
+              </span>
+              <span
+                style={{
+                  width: 30,
+                  height: 28,
+                  borderRadius: 8,
+                  background: '#fff',
+                  display: 'grid',
+                  placeItems: 'center',
+                  font: '500 14px/1 var(--font-inter)',
+                  color: '#7F7663',
+                }}
+              >
+                1
+              </span>
+              <span style={{ width: 24, textAlign: 'center', color: '#2F2A24', display: 'flex', justifyContent: 'center' }}>
+                <Icon name="add" size={18} />
+              </span>
+            </div>
+            <span style={{ color: '#7F7663' }}>×</span>
+            {priceFilled ? (
+              <span
+                data-spot="tplPrice"
+                className={styles.aPrice}
+                style={{
+                  display: 'block',
+                  height: 34,
+                  padding: '0 12px',
+                  borderRadius: 10,
+                  background: '#343027',
+                  color: '#FFF8F0',
+                  font: '700 15px/34px var(--font-montserrat)',
+                }}
+              >
+                $400.00
+              </span>
+            ) : (
+              <span
+                data-spot="tplPrice"
+                style={{
+                  height: 34,
+                  padding: '0 12px',
+                  border: '1.5px dashed #D0C5AF',
+                  borderRadius: 10,
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  font: '400 15px/1 var(--font-inter)',
+                  color: '#4D4635',
+                }}
+              >
+                $
+                {pT.s.length > 0 ? (
+                  <span style={{ color: '#1F1B13' }}>
+                    {pT.s}
+                    <Cursor />
+                  </span>
+                ) : (
+                  <span>Price</span>
+                )}
+              </span>
+            )}
+            <span style={{ marginLeft: 'auto', font: '700 15px/1 var(--font-montserrat)', color: state.lineColor }}>
+              {state.lineTotal}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <span style={chip}>
+          <Icon name="add" size={19} />
+          Add item
+        </span>
+        <span style={chip}>
+          <Icon name="add" size={19} />
+          Add attachment
+        </span>
+        <span style={ghostChip}>
+          <Icon name="add" size={19} />
+          Add tax
+        </span>
+        <span style={ghostChip}>
+          <Icon name="sticky_note_2" size={19} />
+          Extra info<span style={{ color: '#7F7663' }}>· dates, notes, deposit</span>
+        </span>
+      </div>
+
+      <div style={{ height: 1, background: '#EFE4D2' }} />
+
+      <div data-spot="invFoot" style={{ borderRadius: 14 }}>
+        {footFilled ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+              <span style={{ font: '400 13.5px/1 var(--font-inter)', color: '#4D4635' }}>
+                Subtotal {state.totalStr}
+              </span>
+              <span style={{ font: '400 14px/1 var(--font-inter)', color: '#4D4635' }}>Total</span>
+              <span style={{ font: '800 26px/1 var(--font-montserrat)', fontVariantNumeric: 'tabular-nums' }}>
+                {state.totalStr}
+              </span>
+            </div>
+            <span
+              className={styles.aPop4}
+              style={{
+                flex: 'none',
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: '#1F1B13',
+                color: '#FFF8F0',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <Icon name="north_east" size={22} />
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48 }}>
+            <span style={{ font: '400 14px/1.3 var(--font-inter)', color: '#4D4635' }}>
+              Add a client and an item to send
+            </span>
+            <span
+              style={{
+                flex: 'none',
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: '#EFE7DA',
+                color: '#7F7663',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <Icon name="north_east" size={22} />
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The laptop expense sheet (design `expCard`): 520 wide at the column's left,
+ *  date beside the amount, 40px category tiles and the save pill sharing its
+ *  row with "Change something". Phone keeps the stacked sheet below. */
+function LaptopExpenseCard({ state }: { state: SceneState }) {
+  const { st } = state;
+  const savePill = {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    font: '700 16px/1 var(--font-inter)',
+  };
+  return (
+    <div
+      className={styles.aCardIn6}
+      style={{
+        width: '100%',
+        maxWidth: 520,
+        boxSizing: 'border-box',
+        padding: 18,
+        background: '#FBF3E5',
+        border: '1.5px solid #EFE4D2',
+        borderRadius: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ font: '800 13px/1 var(--font-montserrat)', letterSpacing: '.16em', color: '#735C00' }}>EXPENSE</div>
+          <div style={{ marginTop: 6, font: '400 14px/1 var(--font-inter)', color: '#4D4635' }}>From your receipt</div>
+        </div>
+        <span style={{ display: 'flex', color: '#1F1B13' }}>
+          <Icon name="close" size={22} />
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ font: '800 44px/1 var(--font-montserrat)', fontVariantNumeric: 'tabular-nums' }}>{state.expAmt}</div>
+        <span
+          style={{
+            height: 38,
+            padding: '0 14px',
+            borderRadius: 999,
+            background: '#fff',
+            border: '1.5px solid #D0C5AF',
+            display: 'flex',
+            alignItems: 'center',
+            font: '600 14px/1 var(--font-inter)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Oct 25, 2026
+        </span>
+      </div>
+
+      <div
+        style={{
+          paddingBottom: 7,
+          borderBottom: '1.5px dashed #D0C5AF',
+          font: '400 17px/1 var(--font-inter)',
+          color: '#7F7663',
+        }}
+      >
+        <span style={{ color: '#1F1B13', fontWeight: 500 }}>at</span> Fuel Stop
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
+        {['Food', 'Fuel', 'Supplies', 'Tools'].map((cat) => {
+          const fuel = cat === 'Fuel' && st.fuel;
+          return (
+            <span
+              key={cat}
+              className={fuel ? styles.aPop4 : undefined}
+              style={{
+                height: 40,
+                borderRadius: 12,
+                border: fuel ? '2px solid #D4AF37' : '1.5px solid #7F7663',
+                boxSizing: 'border-box',
+                background: fuel ? '#F3E9C8' : '#fff',
+                boxShadow: fuel ? '0 0 0 2px #FFF8F0,0 0 0 4px #D4AF37' : undefined,
+                display: 'grid',
+                placeItems: 'center',
+                font: `${fuel ? 700 : 600} 14px/1 var(--font-inter)`,
+              }}
+            >
+              {cat}
+            </span>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          height: 44,
+          borderRadius: 12,
+          background: '#F5EDDF',
+          border: '1px solid #EFE4D2',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '0 14px',
+          font: '400 15px/1 var(--font-inter)',
+          color: '#7F7663',
+        }}
+      >
+        <span style={{ display: 'flex' }}>
+          <Icon name="edit" size={19} />
+        </span>
+        Add what you bought (optional)
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {st.saved ? (
+          <div
+            data-spot="saveExpense"
+            className={styles.aPop4}
+            style={{ ...savePill, background: '#343027', color: '#FFF8F0' }}
+          >
+            <span style={{ display: 'flex', color: '#E9C349' }}>
+              <Icon name="check" size={22} />
+            </span>
+            Saved to Books
+          </div>
+        ) : (
+          <div data-spot="saveExpense" style={{ ...savePill, background: '#D4AF37' }}>
+            <span style={{ display: 'flex' }}>
+              <Icon name="check_circle" size={22} />
+            </span>
+            Save expense
+          </div>
+        )}
+        <span
+          style={{
+            font: '500 15px/1 var(--font-inter)',
+            textDecoration: 'underline',
+            textUnderlineOffset: 4,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Change something
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The laptop "ready to share" card (design `readyCard`): 720 wide, the estimate
+ *  on the left and the share block in its own column on the right. Phone keeps
+ *  the single-column card below. */
+function LaptopReadyCard({ state }: { state: SceneState }) {
+  const { st } = state;
+  return (
+    <div
+      className={styles.aCardIn55}
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: 20,
+        background: '#FBF3E5',
+        border: '1.5px solid #EFE4D2',
+        borderRadius: 20,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)',
+        gap: 20,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            font: '800 14px/1 var(--font-montserrat)',
+            letterSpacing: '.06em',
+            color: '#735C00',
+          }}
+        >
+          <span style={{ display: 'flex' }}>
+            <Icon name="description" size={20} />
+          </span>
+          ESTIMATE FOR BRANDON
+        </div>
+        <span
+          data-spot="readyChip"
+          style={{
+            alignSelf: 'flex-start',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            height: 30,
+            padding: '0 12px 0 10px',
+            borderRadius: 8,
+            background: '#EFE7DA',
+            font: '600 14px/1 var(--font-inter)',
+          }}
+        >
+          <span style={{ display: 'flex' }}>
+            <Icon name="lock" size={17} filled />
+          </span>
+          Ready to share
+        </span>
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #EFE4D2',
+            borderRadius: 14,
+            padding: '12px 14px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}
+        >
+          <div>
+            <div style={{ font: '500 16px/1.2 var(--font-inter)' }}>
+              <Mono size={16} weight={500} lineHeight={1.2} color="#7F7663">
+                <span style={{ marginRight: 8 }}>1.</span>
+              </Mono>
+              Fence Repair
+            </div>
+            <div style={{ margin: '4px 0 0 24px', font: '400 14px/1 var(--font-inter)', color: '#4D4635' }}>
+              1 job × $400.00
+            </div>
+          </div>
+          <div style={{ font: '800 16px/1.2 var(--font-montserrat)' }}>$400.00</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635' }}>Deposit required</span>
+            <span
+              style={{
+                height: 36,
+                padding: '0 10px',
+                borderRadius: 12,
+                background: '#fff',
+                border: '1px solid #EFE4D2',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                font: '500 14px/1 var(--font-inter)',
+                color: '#4D4635',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              None
+              <span style={{ display: 'flex' }}>
+                <Icon name="unfold_more" size={17} />
+              </span>
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635' }}>Tax</span>
+            <span
+              style={{
+                height: 36,
+                padding: '0 12px',
+                borderRadius: 12,
+                background: '#fff',
+                border: '1px solid #EFE4D2',
+                font: '600 13.5px/36px var(--font-inter)',
+                color: '#735C00',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              + Add tax
+            </span>
+          </div>
+        </div>
+        <div>
+          <div style={{ font: '600 14px/1 var(--font-inter)', color: '#4D4635', marginBottom: 6 }}>Notes</div>
+          <div
+            style={{
+              padding: '9px 12px',
+              borderRadius: 12,
+              background: '#fff',
+              border: '1px solid #EFE4D2',
+              font: '400 14px/1.4 var(--font-inter)',
+              color: '#7F7663',
+            }}
+          >
+            Deposit due before materials are ordered.
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            paddingTop: 10,
+            borderTop: '1px solid #EFE4D2',
+          }}
+        >
+          <span style={{ font: '700 13px/1 var(--font-inter)', letterSpacing: '.1em', color: '#4D4635' }}>
+            ESTIMATE TOTAL
+          </span>
+          <span style={{ font: '800 34px/1 var(--font-montserrat)' }}>$400.00</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          paddingLeft: 20,
+          borderLeft: '1px solid #EFE4D2',
+        }}
+      >
+        <div style={{ font: '400 15px/1.35 var(--font-inter)' }}>Copy or share the link with Brandon.</div>
+        <div
+          style={{
+            padding: '9px 12px',
+            borderRadius: 12,
+            background: '#fff',
+            border: '1px solid #EFE4D2',
+            font: '500 13px/1.3 var(--font-plex-mono), monospace',
+            color: '#4D4635',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          https://onit.app/e/sample-estimate
+        </div>
+        <div data-spot="shareBtns" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, borderRadius: 14 }}>
+          <div
+            data-spot="copyLink"
+            style={{
+              height: 44,
+              borderRadius: 999,
+              background: '#fff',
+              border: '1.5px solid #D0C5AF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              font: '700 15px/1 var(--font-inter)',
+              color: '#735C00',
+            }}
+          >
+            {st.copied ? (
+              <span className={styles.aPop35} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="check" size={20} />
+                Copied
+              </span>
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="link" size={20} />
+                Copy link
+              </span>
+            )}
+          </div>
+          <div
+            style={{
+              height: 44,
+              borderRadius: 999,
+              background: '#fff',
+              border: '1.5px solid #D0C5AF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              font: '700 15px/1 var(--font-inter)',
+              color: '#735C00',
+            }}
+          >
+            <span style={{ display: 'flex' }}>
+              <Icon name="share" size={20} />
+            </span>
+            Share
+          </div>
+        </div>
+        <div data-spot="revise" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, borderRadius: 18 }}>
+          <div
+            style={{
+              height: 48,
+              borderRadius: 999,
+              background: '#D4AF37',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              font: '700 16px/1 var(--font-inter)',
+            }}
+          >
+            <span style={{ display: 'flex' }}>
+              <Icon name="edit" size={20} />
+            </span>
+            Revise
+          </div>
+          <div style={{ font: '400 13px/1.4 var(--font-inter)', color: '#4D4635' }}>
+            Makes a new estimate you can edit. This one and its link stay as they are.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatMock({
   state,
   chatMax,
   nudge = 0,
+  laptop,
 }: {
   state: SceneState;
   chatMax: number;
   nudge?: number;
+  /** Dormant laptop stage (?laptop=1): the composer group is the design's 612x44
+   *  inside the 720 column. Absent everywhere else, so the phone is untouched. */
+  laptop?: boolean;
 }) {
   const { st, nT, jT, pT, comp, nameFilled, jobFilled, priceFilled, footFilled } = state;
   if (st.screen !== 'chat') return null;
 
   const isEst = Boolean(st.estCard);
   const showCard = Boolean(st.tpl);
-  const chatBottom = state.composerOn ? 72 : 0;
+  const chatBottom = state.composerOn ? (laptop ? 80 : 72) : 0;
   const chatShift = st.ready && st.scrollEnd ? -chatMax : 0;
 
   return (
     <div aria-hidden>
-      <MockChrome hdrChat hdrBack={false} tabNow="chat">
+      <MockChrome hdrChat hdrBack={false} tabNow="chat" laptop={laptop}>
         <div
           className={styles.aScrIn}
-          style={{ position: 'absolute', top: 103, left: 0, right: 0, bottom: 84 }}
+          style={{
+            position: 'absolute',
+            top: laptop ? 0 : 103,
+            left: 0,
+            right: 0,
+            bottom: laptop ? 0 : 84,
+          }}
         >
           <div
             data-chat-area
@@ -91,10 +884,13 @@ export default function ChatMock({
               data-tut-base={chatShift}
               style={{
                 flex: 'none',
+                // Laptop: the design's 720 column, centred in the content area.
+                width: laptop ? 720 : undefined,
+                margin: laptop ? '0 auto' : undefined,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 14,
-                padding: '16px 0',
+                padding: laptop ? '20px 0' : '16px 0',
                 transform: `translateY(${chatShift + nudge}px)`,
                 transition: 'transform 1s cubic-bezier(.65,0,.35,1)',
               }}
@@ -196,7 +992,10 @@ export default function ChatMock({
                 </div>
               )}
 
-              {showCard && (
+              {showCard &&
+                (laptop ? (
+                  <LaptopInvoiceCard state={state} isEst={isEst} />
+                ) : (
                 <div
                   data-spot="invCard"
                   className={styles.aCardIn55}
@@ -630,9 +1429,12 @@ export default function ChatMock({
                     )}
                   </div>
                 </div>
-              )}
+                ))}
 
-              {st.exp && (
+              {st.exp &&
+                (laptop ? (
+                  <LaptopExpenseCard state={state} />
+                ) : (
                 <div
                   className={styles.aCardIn6}
                   style={{
@@ -795,9 +1597,12 @@ export default function ChatMock({
                     Change something
                   </div>
                 </div>
-              )}
+                ))}
 
-              {st.ready && (
+              {st.ready &&
+                (laptop ? (
+                  <LaptopReadyCard state={state} />
+                ) : (
                 <div
                   className={styles.aCardIn55}
                   style={{
@@ -1023,7 +1828,7 @@ export default function ChatMock({
                     </div>
                   </div>
                 </div>
-              )}
+                ))}
             </div>
           </div>
 
@@ -1031,16 +1836,20 @@ export default function ChatMock({
             <div
               style={{
                 position: 'absolute',
+                // Laptop: this render already sits inside the 1152 content area,
+                // so centring the 44 + 8 + 612 + 8 + 44 row here puts the composer
+                // at the design's x, 44 tall.
                 left: 0,
                 right: 0,
                 bottom: 0,
-                height: 72,
-                borderTop: '1px solid #E8DFD0',
-                background: '#FDF7EE',
+                height: laptop ? 80 : 72,
+                borderTop: laptop ? '1px solid #F0E7D8' : '1px solid #E8DFD0',
+                background: laptop ? 'transparent' : '#FDF7EE',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 9,
-                padding: '0 12px',
+                justifyContent: laptop ? 'center' : 'flex-start',
+                gap: laptop ? 10 : 9,
+                padding: laptop ? 0 : '0 12px',
                 boxSizing: 'border-box',
               }}
             >
@@ -1048,24 +1857,25 @@ export default function ChatMock({
                 data-spot="plus"
                 style={{
                   flex: 'none',
-                  width: 50,
-                  height: 50,
-                  borderRadius: 25,
+                  width: laptop ? 44 : 50,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: '#F2E5BC',
                   display: 'grid',
                   placeItems: 'center',
                   color: '#1E1A14',
                 }}
               >
-                <Icon name="add" size={30} />
+                <Icon name="add" size={laptop ? 26 : 30} />
               </span>
               <div
                 data-spot="composer"
                 style={{
-                  flex: 1,
+                  flex: laptop ? 'none' : 1,
+                  width: laptop ? 612 : undefined,
                   minWidth: 0,
-                  height: 50,
-                  borderRadius: 25,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: '#fff',
                   border: '1.5px solid #CFC5B3',
                   display: 'flex',
@@ -1104,9 +1914,9 @@ export default function ChatMock({
                   data-spot="camera"
                   style={{
                     flex: 'none',
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: laptop ? 32 : 40,
+                    height: laptop ? 32 : 40,
+                    borderRadius: laptop ? 16 : 20,
                     background: '#F2E5BC',
                     display: 'grid',
                     placeItems: 'center',
@@ -1120,9 +1930,9 @@ export default function ChatMock({
                 data-spot="send"
                 style={{
                   flex: 'none',
-                  width: 50,
-                  height: 50,
-                  borderRadius: 25,
+                  width: laptop ? 44 : 50,
+                  height: laptop ? 44 : 50,
+                  borderRadius: laptop ? 22 : 25,
                   background: state.sendBg,
                   color: state.sendFg,
                   display: 'grid',

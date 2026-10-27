@@ -734,14 +734,14 @@ export default function EstimateDetail({
       {paywallFor && <PaywallModal variant={paywallFor} returnTo="invoices" onClose={() => setPaywallFor(null)} />}
 
       {previewOpen && preview && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[80] flex items-end justify-center" data-no-tab-swipe="true">
+        <div className="fixed inset-0 z-[80] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true">
           <div className="absolute inset-0 bg-on-background/40" onClick={() => setPreviewOpen(false)} />
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Client preview"
             style={{ maxHeight: '88dvh' } as CSSProperties}
-            className="onit-sheet-in relative w-full max-w-lg overflow-y-auto rounded-t-card bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
+            className="onit-sheet-in relative w-full max-w-lg overflow-y-auto rounded-t-card md:rounded-card bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-card-raised"
           >
             <div className="flex items-start gap-3 pb-1 pt-3">
               <div className="min-w-0 flex-1">

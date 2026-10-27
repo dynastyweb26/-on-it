@@ -6,6 +6,13 @@ PUNCH-LIST.md is the current, code-verified status of known work (Done / Partial
 Open / Unverified, with file+commit evidence). Trust it over ONIT-SPEC.md, which
 is stale; keep it current as items land.
 
+Laptop UI round (branch `feat/laptop-ui`): `design/laptop/LAPTOP-SPEC.md` is the
+measured source of truth (extracted from `design/laptop/tutorial.html`, the owner's
+export). `design/laptop/MAPPING.md` maps every design selector to the app component
+and classes; `design/laptop/diff.config.json` drives `scripts/design-diff.mjs` against
+the Vercel preview. Laptop = viewport >= 1280 (`xl:`) only; everything below 1280
+stays as it is on this branch. Paywall laptop design HTML is still missing.
+
 Rules:
 - Audit-first: understand existing code before proposing a fix.
 - Confirm the Vercel project name and current git branch before pushing or deploying anything.

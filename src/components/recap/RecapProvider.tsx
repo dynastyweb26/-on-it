@@ -209,12 +209,12 @@ function RecapPrompt({ row, onWatch, onLater }: { row: RecapRow; onWatch: () => 
     return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
   }, [onLater]);
   return (
-    <div className="fixed inset-0 z-[75] flex items-end justify-center bg-on-background/45" onClick={onLater}>
+    <div className="fixed inset-0 z-[75] flex items-end md:items-center md:p-6 justify-center bg-on-background/45" onClick={onLater}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="recap-prompt-title"
-        className="onit-sheet-in w-full max-w-lg rounded-t-card bg-background px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 shadow-card-raised"
+        className="onit-sheet-in w-full max-w-lg rounded-t-card md:rounded-card bg-background px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 shadow-card-raised"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center text-center">

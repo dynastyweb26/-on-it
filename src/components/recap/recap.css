@@ -32,6 +32,25 @@
 }
 .rc-story * { box-sizing: border-box; }
 
+/* Laptop: a phone-sized stage, centred over an ink backdrop.
+   The story used to fill the viewport, so on a laptop the Money Out receipt row
+   (flex: 1 between the ring and the right edge) stretched the tickets across
+   the whole width instead of stacking them. Capping the stage fixes that
+   geometry and keeps every other slide at the size it was drawn for; the
+   transition measures root.clientWidth, so it follows the stage too. */
+@media (min-width: 1280px) {
+  .rc-story {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 430px;
+    height: min(932px, calc(100dvh - 48px));
+    border-radius: 28px;
+    box-shadow: 0 0 0 100vmax var(--onit-ink), 0 30px 80px rgba(0, 0, 0, .45);
+  }
+}
+
 .rc-layer { position: absolute; inset: 0; }
 .rc-slide { position: absolute; inset: 0; overflow: hidden; background: var(--onit-cream); }
 .rc-slide[data-theme='light'] {

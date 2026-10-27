@@ -329,7 +329,16 @@ export default function PaywallDemo({ slides }: {
   const Slide = SLIDES[slides[idx]];
   return (
     <section aria-roledescription="carousel" aria-label="What On It does" className="w-full">
-      <div key={slides[idx]} role="group" aria-roledescription="slide" aria-label={`${idx + 1} of ${n}: ${SLIDE_LABEL[slides[idx]]}`}>
+      {/* Laptop (design "copy on the left, the live demo on the right"): the slide's
+          own column (headline, then its panel) becomes one 412 + 56 + 460 row. The
+          slide sets its layout inline, so the switch is important at xl only. */}
+      <div
+        key={slides[idx]}
+        role="group"
+        aria-roledescription="slide"
+        aria-label={`${idx + 1} of ${n}: ${SLIDE_LABEL[slides[idx]]}`}
+        className="xl:[&>div]:!grid xl:[&>div]:!grid-cols-[412px_460px] xl:[&>div]:!items-center xl:[&>div]:!gap-14"
+      >
         <Slide />
       </div>
       <div className="flex items-center justify-center gap-0.5 pt-[14px]" aria-label="Reel">

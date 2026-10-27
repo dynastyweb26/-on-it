@@ -20,13 +20,14 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
 }) {
   return (
     <div className="flex items-center gap-3">
-      <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4">
+      {/* xl: the design's 300×40 search field (row total 352 with the 40px +). */}
+      <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-4 xl:h-10 xl:gap-2 xl:rounded-[20px] xl:border-[1.5px] xl:border-outline-variant xl:px-3.5">
         <Icon name="search" size={20} className="shrink-0 text-on-surface-variant" />
         <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label}
-          className="min-w-0 flex-1 bg-transparent text-body-lg text-on-background outline-none placeholder:text-on-surface-variant" />
+          className="min-w-0 flex-1 bg-transparent text-body-lg text-on-background outline-none placeholder:text-on-surface-variant xl:text-[15px]" />
       </label>
       <button type="button" aria-label={addLabel} onClick={onAdd} data-coach="clients-add"
-        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card transition active:scale-90">
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-container text-on-background shadow-card transition active:scale-90 xl:h-10 xl:w-10">
         <Icon name="add" size={26} />
       </button>
     </div>
@@ -34,13 +35,15 @@ export function SearchBar({ value, onChange, placeholder, label, onAdd, addLabel
 }
 
 /** A–Z sticky headers plus the scrub rail (hidden while searching). */
-export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query = '' }: {
+export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query = '', coach }: {
   groups: { letter: string; rows: T[] }[];
   idPrefix: string;
   showRail: boolean;
   renderRow: (row: T) => ReactNode;
   /** The search text: each change reflows the list (fade + 6 px settle). */
   query?: string;
+  /** data-coach id for the card itself (the tour spotlights the list card). */
+  coach?: string;
 }) {
   const present = new Set(groups.map((g) => g.letter));
   const railRef = useRef<HTMLDivElement>(null);
@@ -76,11 +79,11 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
     }
   }
   return (
-    <div ref={listRef} className="relative mt-2 pr-5">
+    <div ref={listRef} data-coach={coach} className="relative mt-2 pr-5 xl:mt-5 xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
       {groups.map((g) => (
         <section key={g.letter} aria-label={g.letter}>
           <h2 id={`${idPrefix}-letter-${g.letter}`}
-            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10]">
+            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10] xl:bg-surface-container-low xl:px-[18px] xl:py-2.5 xl:text-[11.5px] xl:tracking-[.1em] xl:text-primary">
             <span className="inline-block origin-left">{g.letter}</span>
           </h2>
           {g.rows.map(renderRow)}
@@ -94,7 +97,7 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
             onPointerDown={(e) => { (e.target as Element).releasePointerCapture?.(e.pointerId); lastJump.current = ''; jumpAt(e.clientY); }}
             onPointerMove={(e) => { if (e.buttons) jumpAt(e.clientY); }}>
             {RAIL_LETTERS.map((l) => (
-              <span key={l} className={`w-5 text-center text-[10.5px] font-bold leading-[15px] ${present.has(l) ? 'text-[#8C6D10]' : 'text-[#D6CCB8]'}`}>{l}</span>
+              <span key={l} className={`w-5 text-center text-[10.5px] font-bold leading-[15px] xl:leading-[14px] ${present.has(l) ? 'text-[#8C6D10]' : 'text-[#D6CCB8]'}`}>{l}</span>
             ))}
           </div>
         </div>
@@ -103,8 +106,12 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
   );
 }
 
-/** A list row: tap opens, long-press opens the menu. Nested routes opt into swipe. */
-export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, children }: {
+/** A list row: tap opens, long-press opens the menu. Nested routes opt into swipe.
+ *  From xl the row is the design's laptop row (LAPTOP-SPEC "Clients"): 18px
+ *  side padding, a 14px corner, a hairline on top, a hover wash and a visible
+ *  focus ring, plus a right-aligned meta column (`meta`) that is only rendered
+ *  on laptop — phones keep the exact row they have today. */
+export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, meta, children }: {
   onOpen: () => void;
   /** Both are required to opt into SwipeableRow; tab-root rows omit them. */
   onEdit?: () => void;
@@ -113,16 +120,19 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, chi
   /** 'new': slides into its slot and glows; 'expand': re-opens after Undo. */
   motion?: 'new' | 'expand' | null;
   id?: string;
+  /** xl only: the right-aligned meta cell (e.g. "2 estimates out"). */
+  meta?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const press = useLongPress(() => { if (ref.current) onLongPress(ref.current.getBoundingClientRect()); });
   const row = (
     <button ref={ref} type="button"
-      className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container${motion === 'new' ? ' onit-new-entry' : ''}`}
+      className={`flex min-h-[64px] w-full items-center gap-3 border-b border-outline-variant/50 py-2.5 text-left active:bg-surface-container xl:min-h-[62px] xl:gap-3.5 xl:rounded-[14px] xl:border-b-0 xl:border-t xl:border-outline-variant/50 xl:px-[18px] xl:hover:bg-surface-container-low xl:focus-visible:outline-none xl:focus-visible:ring-2 xl:focus-visible:ring-primary-container xl:focus-visible:ring-offset-2${motion === 'new' ? ' onit-new-entry' : ''}`}
       {...press.handlers}
       onClick={() => { if (press.consumeClick()) return; onOpen(); }}>
       {children}
+      {meta ? <span className="hidden shrink-0 pl-3 text-right text-[14.5px] text-on-surface-variant xl:block">{meta}</span> : null}
     </button>
   );
   return (
