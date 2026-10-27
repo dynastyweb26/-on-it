@@ -1770,10 +1770,10 @@
           "design": "[data-spot=\"net\"]",
           "app": "[data-spot=\"net\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only, same root cause as tour-invoices-1440: the design column is max-width 1088 with 32px side padding, so on its own 1440 frame the cell is 573 wide, while the app stage is 1380x860 (accepted in 11a) so the cell is 541. Both are 180 high (min-height), which is what the redraw fixed (was 114)."
         }
       ],
       "maxPixelDiffPct": null

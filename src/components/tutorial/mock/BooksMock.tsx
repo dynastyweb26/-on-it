@@ -9,8 +9,263 @@ const dot = (color: string) => (
   <span style={{ width: 9, height: 9, borderRadius: 5, background: color }} />
 );
 
-export default function BooksMock({ state, nudge = 0 }: { state: SceneState; nudge?: number }) {
+// The laptop screen's dots are the design's 8x8 (radius 4), not the phone's 9x9.
+const laptopDot = (color: string) => (
+  <span style={{ width: 8, height: 8, borderRadius: 4, background: color }} />
+);
+
+// ─── Laptop (xl) ────────────────────────────────────────────────────────────
+// The design's laptop Books screen: a 1088 column (its own max-width, so it is
+// the content area minus the 32px side padding on a 1380 stage), the Net card
+// beside the tiles, then the expenses list beside the Recaps card. Values are the
+// export's (design/laptop/tutorial.html, MAPPING §13).
+function LaptopBooks({ state }: { state: SceneState }) {
   const { st, netI, netD, owedI, owedD, collI, collD, spentI, spentD } = state;
+  return (
+    <div
+      className={styles.aScrIn}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '24px 32px 0',
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 1088, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ font: '700 24px/1 var(--font-montserrat)', marginRight: 'auto' }}>Books</span>
+          <span
+            style={{
+              height: 40, padding: '0 16px', borderRadius: 999, background: '#f5eddf',
+              border: '1.5px solid #d0c5af', boxSizing: 'border-box', display: 'flex',
+              alignItems: 'center', gap: 8, font: '600 15px/1 var(--font-inter)',
+            }}
+          >
+            <Icon name="description" size={20} />
+            Income &amp; Expenses
+          </span>
+          <span
+            data-spot="addExpense"
+            style={{
+              height: 40, padding: '0 18px', borderRadius: 999, background: '#d4af37',
+              display: 'flex', alignItems: 'center', gap: 8, font: '700 15px/1 var(--font-inter)',
+            }}
+          >
+            <Icon name="add" size={22} />
+            Add expense
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,1fr)', gap: 16 }}>
+          <div
+            data-spot="net"
+            style={{
+              position: 'relative', padding: '26px 28px', borderRadius: 20, background: '#343027',
+              color: '#fff8f0', display: 'flex', flexDirection: 'column',
+              justifyContent: 'flex-end', minHeight: 180, boxSizing: 'border-box',
+            }}
+          >
+            <div style={{ font: '600 13px/1 var(--font-inter)', letterSpacing: '.05em', color: '#e9c349' }}>
+              NET · ALL TIME
+            </div>
+            <div
+              style={{
+                marginTop: 12, font: '800 48px/1 var(--font-montserrat)', letterSpacing: '-.01em',
+                fontVariantNumeric: 'tabular-nums', color: '#e9c349',
+              }}
+            >
+              {netI}
+              <span style={{ fontSize: 26 }}>{netD}</span>
+            </div>
+            <div style={{ marginTop: 10, font: '400 14px/1 var(--font-inter)', color: '#d0c5af' }}>
+              12 invoices
+            </div>
+            <span style={{ position: 'absolute', right: 22, top: 22, color: '#d0c5af', display: 'flex' }}>
+              <Icon name="chevron_right" size={24} />
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr auto', gap: 12 }}>
+            <div
+              data-spot="owed"
+              style={{ padding: '16px 18px', borderRadius: 20, background: '#fff', border: '1.5px solid #f3e9c8' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 14px/1 var(--font-inter)' }}>
+                {laptopDot('#d4af37')}
+                Still owed
+                <span style={{ marginLeft: 'auto', color: '#7f7663', display: 'flex' }}>
+                  <Icon name="chevron_right" size={18} />
+                </span>
+              </div>
+              <div
+                style={{
+                  marginTop: 16, font: '800 28px/1 var(--font-montserrat)', fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {owedI}
+                <span style={{ fontSize: 16, color: '#4d4635' }}>{owedD}</span>
+              </div>
+            </div>
+            <div
+              data-spot="coll"
+              style={{ padding: '16px 18px', borderRadius: 20, background: '#fff', border: '1.5px solid #efe4d2' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 14px/1 var(--font-inter)' }}>
+                {laptopDot('#0f6d31')}
+                Collected
+                <span style={{ marginLeft: 'auto', color: '#7f7663', display: 'flex' }}>
+                  <Icon name="chevron_right" size={18} />
+                </span>
+              </div>
+              <div
+                style={{
+                  marginTop: 16, font: '800 28px/1 var(--font-montserrat)', fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {collI}
+                <span style={{ fontSize: 16, color: '#4d4635' }}>{collD}</span>
+              </div>
+            </div>
+            <div
+              data-spot="spent"
+              style={{
+                gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 10, height: 52,
+                padding: '0 18px', borderRadius: 20, background: '#fff', border: '1.5px solid #efe4d2',
+              }}
+            >
+              {laptopDot('#7f7663')}
+              <span style={{ font: '600 15px/1 var(--font-inter)' }}>Spent</span>
+              <span
+                style={{
+                  marginLeft: 'auto', font: '800 20px/1 var(--font-montserrat)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {spentI}
+                <span style={{ fontSize: 13, color: '#4d4635' }}>{spentD}</span>
+              </span>
+              <span style={{ color: '#4d4635', display: 'flex' }}>
+                <Icon name="chevron_right" size={20} />
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
+          <div style={{ borderRadius: 20, background: '#fff', border: '1.5px solid #efe4d2', overflow: 'hidden' }}>
+            <div
+              data-spot="viewExpenses"
+              className={styles.rowHover}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14, height: 64, padding: '0 18px',
+                borderBottom: '1px solid #f0e7d8',
+              }}
+            >
+              <span
+                style={{
+                  width: 40, height: 40, borderRadius: 12, background: '#f5eddf',
+                  display: 'grid', placeItems: 'center',
+                }}
+              >
+                <Icon name="receipt_long" size={22} />
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '600 16px/1.2 var(--font-inter)' }}>View expenses</div>
+                <div style={{ font: '400 13.5px/1.3 var(--font-inter)', color: '#4d4635' }}>
+                  Newest first, by week
+                </div>
+              </div>
+              <span style={{ font: '500 15px/1 var(--font-inter)' }}>18</span>
+              <span style={{ color: '#4d4635', display: 'flex' }}>
+                <Icon name="chevron_right" size={20} />
+              </span>
+            </div>
+            <div
+              data-spot="recurring"
+              className={styles.rowHover}
+              style={{ display: 'flex', alignItems: 'center', gap: 14, height: 64, padding: '0 18px' }}
+            >
+              <span
+                style={{
+                  width: 40, height: 40, borderRadius: 12, background: '#f0e3b8',
+                  display: 'grid', placeItems: 'center',
+                }}
+              >
+                <Icon name="autorenew" size={22} />
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ font: '600 16px/1.2 var(--font-inter)' }}>Recurring expenses</div>
+                <div style={{ font: '400 13.5px/1.3 var(--font-inter)', color: '#4d4635' }}>
+                  1 charge · next Nov 25
+                </div>
+              </div>
+              <span style={{ font: '700 15px/1 var(--font-inter)' }}>
+                $40.00
+                <span style={{ fontWeight: 400, fontSize: 13, color: '#4d4635' }}>/mo</span>
+              </span>
+              <span style={{ color: '#4d4635', display: 'flex' }}>
+                <Icon name="chevron_right" size={20} />
+              </span>
+            </div>
+          </div>
+
+          <div
+            data-spot="recaps"
+            style={{
+              padding: 18, borderRadius: 20, background: '#fff', border: '1.5px solid #efe4d2',
+              display: 'flex', flexDirection: 'column', gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span
+                className={st.sparkle ? styles.aTwinkle : undefined}
+                style={{ color: '#735c00', display: 'flex' }}
+              >
+                <Icon name="auto_awesome" size={24} />
+              </span>
+              <span style={{ font: '600 17px/1 var(--font-inter)' }}>Recaps</span>
+              <span style={{ marginLeft: 'auto', color: '#4d4635', display: 'flex' }}>
+                <Icon name="chevron_right" size={20} />
+              </span>
+            </div>
+            <span
+              data-spot="watchAgain"
+              style={{
+                alignSelf: 'flex-start', height: 36, padding: '0 14px 0 10px', borderRadius: 999,
+                background: '#f5eddf', display: 'flex', alignItems: 'center', gap: 4,
+                font: '600 14px/1 var(--font-inter)',
+              }}
+            >
+              <Icon name="play_arrow" size={22} filled />
+              Watch again
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function BooksMock({
+  state,
+  nudge = 0,
+  laptop = false,
+}: {
+  state: SceneState;
+  nudge?: number;
+  laptop?: boolean;
+}) {
+  const { st, netI, netD, owedI, owedD, collI, collD, spentI, spentD } = state;
+  if (laptop) {
+    // The overlay already wraps the mock in LaptopShell (288 sidebar, content area).
+    return (
+      <div aria-hidden className={styles.mockProtoScope}>
+        <LaptopBooks state={state} />
+      </div>
+    );
+  }
   return (
     <div aria-hidden className={styles.mockProtoScope}>
       <MockChrome hdrChat={false} hdrBack={false} tabNow="books">

@@ -22,7 +22,7 @@ export function MockScreen({
   if (state.screen === 'chat') return <ChatMock state={state} chatMax={chatMax} nudge={nudge} laptop={laptop} />;
   if (state.tabNow === 'invoices') return <InvoicesMock state={state} laptop={laptop} />;
   if (state.tabNow === 'clients') return <ClientsMock state={state} laptop={laptop} />;
-  if (state.tabNow === 'books') return <BooksMock state={state} nudge={nudge} />;
+  if (state.tabNow === 'books') return <BooksMock state={state} nudge={nudge} laptop={laptop} />;
   if (state.tabNow === 'settings') return <SettingsMock state={state} />;
   return null;
 }

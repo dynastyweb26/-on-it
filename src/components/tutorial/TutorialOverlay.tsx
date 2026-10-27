@@ -61,11 +61,12 @@ export default function TutorialOverlay({
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
-  // Laptop stage: Chat, Clients and Invoices for now — the mocks redrawn for the
+  // Laptop stage: every tour except Settings for now — the mocks redrawn for the
   // design's 288 sidebar and content area. REMOVE THE TOUR CONDITION FOR EACH TOUR
-  // once its mock is redrawn for laptop (Books, Settings), i.e. plain `xl`. The rest
-  // keep the framed-phone stage at every width until then.
-  const laptop = xl && (tab === 'chat' || tab === 'clients' || tab === 'invoices');
+  // once its mock is redrawn for laptop (Settings), i.e. plain `xl`. The rest keep
+  // the framed-phone stage at every width until then.
+  const laptop =
+    xl && (tab === 'chat' || tab === 'clients' || tab === 'invoices' || tab === 'books');
   const frameW = laptop ? LAPTOP_W : STAGE_W;
   const frameH = laptop ? LAPTOP_H : stageH;
   const frameRef = useRef({ w: frameW, h: frameH });

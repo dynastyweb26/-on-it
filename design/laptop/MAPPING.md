@@ -566,6 +566,36 @@ with the reason recorded in `diff.config.json`: the design's own frame at that v
 is 1440 → `masterCol` 440 → toggle 395, while the app stage is 1380 → 392 → toggle 347.
 The height is the value the redraw fixed (62 → 44).
 
+### 13. Books tour redrawn for laptop
+
+`laptop = xl && (chat | clients | invoices | books)`. The mock is the design's screen:
+a 1088 column centred in the content area, 24 top / 32 side padding.
+
+| design | app | notes |
+| --- | --- | --- |
+| `max-width:1088`, `gap:20` | same | on a 1380 stage the available width is 1092−64 = 1028, so the column is 1028 |
+| title row 40 high: `Books` 700 24/1 + Income & Expenses pill (40, radius 999, `#f5eddf`, `1.5px #d0c5af`, 20 icon) + `addExpense` (40, `0 18px`, `#d4af37`, 22 add) | same | `books-add-expense` anchor kept as `data-spot="addExpense"` |
+| row 2 `grid 1.15fr 1fr`, `gap 16` | same | |
+| `net` card `26px 28px`, radius 20, `#343027`, `justify-content:flex-end`, `min-height:180`; eyebrow `NET · ALL TIME` 600 13 `.05em` `#e9c349`; amount 800 48/1 `#e9c349` with the cents at 26; `12 invoices` 400 14 `#d0c5af`; chevron 24 at 22/22 | same | the card the pair measures |
+| tiles `grid 1fr 1fr` rows `1fr auto` `gap 12`; owed `#f3e9c8` border + 8px `#d4af37` dot, coll `#efe4d2` + `#0f6d31` dot, labels 600 14/1, amounts 800 28/1 (suffix 16 `#4d4635`), chevrons 18 `#7f7663` | same | laptop dots are the design's 8×8; the phone's 9×9 helper is untouched |
+| `spent` row `grid-column:1/-1`, 52 high, `0 18px`, dot `#7f7663`, label 600 15/1, amount 800 20/1 (suffix 13), chevron 20 | same | |
+| row 3 `grid 1.6fr 1fr`, `gap 16`, `align-items:start` | same | list rows 64 high, `0 18px`, tile 40 radius 12 (`#f5eddf` receipt_long / `#f0e3b8` autorenew), title 600 16/1.2, sub 400 13.5/1.3, hover `#fbf3e5` |
+| `recaps` `padding:18`, radius 20, `gap:14`; sparkle 24 `#735c00` with `twinkle .8s ease-in-out 3`; `Recaps` 600 17/1; `watchAgain` 36 high, `0 14px 0 10px`, radius 999, `#f5eddf`, `play_arrow` 22 filled | same | |
+
+**Gate:** `tour-books-1440` passes. Its net-card pair is height-only with the reason in
+`diff.config.json` (the design's 1088 column on its own 1440 frame gives a 573 cell;
+the app's 1380 stage gives 541; both 180 high, against 114 before the redraw).
+
+**Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; every
+spotlight beat lands on its anchor plus the solver's 6px pad — scene 1 `owed` then
+`coll`, scene 2 `addExpense` then `viewExpenses`, scene 3 `recaps`, scene 4 `recurring`;
+console clean. Phone branch byte-identical to main at both widths: 1279×800
+(`18987/1210955473`, `19672/-1531758682`, `19831/569571338`, `19955/-1966909349`) and
+390×844 (`18752/-2118051052`, `19441/-2144511940`, `19598/-1614089105`,
+`19739/-1587138708`). A first pass shared the phone's 9px dot helper and moved the phone
+by 6 characters in every scene; the helper is now separate (`laptopDot`) and the hashes
+above are the fixed build.
+
 **Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; the ring
 lands on the spotlighted anchor plus the solver's 6px pad in every scene — `segToggle`
 (−5.98, −5.97, 11.98, 11.98), `dueBadge`, `actions`, `estChip` (12.25 at the pop's
