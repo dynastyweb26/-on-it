@@ -320,7 +320,13 @@ export default function Invoices({ active = true, selectedId = null }: { active?
       )}
     </PageContainer>
       }
-      detail={selected ? <InvoiceDetailScreen id={selected} embedded /> : undefined}
+      // Keyed by the selected document: the detail body mirrors the row it was
+      // given into state (EstimateDetail seeds useState(estimate) and never
+      // re-syncs), so without a fresh instance a second estimate kept rendering
+      // the first one. The key also stops the previous document's payments,
+      // attachments and converted-to link from showing under the newly selected
+      // one while its own fetch is in flight. The list pane is untouched by it.
+      detail={selected ? <InvoiceDetailScreen key={selected} id={selected} embedded /> : undefined}
       emptyDetail={
         // The design has no empty-detail copy (its sample data always has a
         // selection), so this is an icon-only placeholder: no new strings.
