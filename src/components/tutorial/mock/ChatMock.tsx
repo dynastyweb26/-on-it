@@ -843,7 +843,7 @@ function LaptopReadyCard({ state }: { state: SceneState }) {
             Revise
           </div>
           <div style={{ font: '400 13px/1.4 var(--font-inter)', color: '#4D4635' }}>
-            Makes a new estimate you can edit. This one and its link stay as they are.
+            Makes a new estimate you can edit. This one and its link stay as they are.<span style={{ display: 'block', marginTop: 6, color: '#7F7663' }}>1 of 3 free estimates used</span>
           </div>
         </div>
       </div>
@@ -1624,6 +1624,15 @@ export default function ChatMock({
                 (laptop ? (
                   <LaptopReadyCard state={state} />
                 ) : (
+                <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 12px 10px' }}>
+                  <div style={{ maxWidth: '78%', padding: '10px 14px', borderRadius: 18, background: '#F2E5BC', font: '400 15px/1.35 var(--font-inter)', color: '#1E1A14' }}>
+                    estimate for brandon $400 for fence repair
+                  </div>
+                </div>
+                <div style={{ margin: '0 12px 10px', font: '400 15px/1.4 var(--font-inter)', color: '#2F2A24' }}>
+                  On it — here&apos;s the estimate for Brandon.
+                </div>
                 <div
                   className={styles.aCardIn55}
                   style={{
@@ -1845,10 +1854,11 @@ export default function ChatMock({
                         padding: '0 6px 2px',
                       }}
                     >
-                      Makes a new estimate you can edit. This one and its link stay as they are.
+                      Makes a new estimate you can edit. This one and its link stay as they are.<span style={{ display: 'block', marginTop: 6, color: '#7F7663' }}>1 of 3 free estimates used</span>
                     </div>
                   </div>
                 </div>
+                                </>
                 ))}
             </div>
           </div>
