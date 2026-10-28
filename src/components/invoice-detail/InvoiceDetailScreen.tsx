@@ -793,7 +793,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   }
 
   return (
-    <div className={`px-4 py-4${showPayBar ? ' pb-28' : ''}${embedded ? ' xl:px-0 xl:pt-0' : ''}`}>
+    <div className={`px-4 py-4 md:px-6${showPayBar ? ' pb-28' : ''}${embedded ? ' xl:px-0 xl:pt-0' : ''}`}>
       <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
         {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 

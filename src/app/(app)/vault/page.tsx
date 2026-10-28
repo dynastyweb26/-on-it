@@ -51,7 +51,7 @@ export default function Vault() {
   const filtered = docs.filter((d) => d.title.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 py-4 md:px-6">
       <input className="input mb-3" placeholder="Search your documents…"
         value={q} onChange={(e) => setQ(e.target.value)} />
       {filtered.length === 0 && (
