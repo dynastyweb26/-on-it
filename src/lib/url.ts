@@ -10,8 +10,20 @@
 //   - anything else (bare domain, www.) → prefixed with https://
 const DANGEROUS_PROTOCOLS_RE = /^(?:javascript|data|vbscript|file|blob):/i;
 
+// Normalize raw URL / handle input before validation. NFKC folds compatibility
+// characters (e.g. fullwidth "ｊａｖａｓｃｒｉｐｔ:"), and removing format and
+// control characters stops them being used to split or hide a scheme.
+function cleanUrlInput(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return raw
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .trim();
+}
+
 export function websiteHref(value: string | null | undefined): string | null {
-  const v = value?.trim();
+  const v = cleanUrlInput(value);
   if (!v) return null;
   // Security guard: reject unsafe pseudo-protocols to prevent URI scheme abuse and XSS.
   if (DANGEROUS_PROTOCOLS_RE.test(v)) return null;
@@ -21,16 +33,16 @@ export function websiteHref(value: string | null | undefined): string | null {
 // Payment deep link normalization. Sanitizes user-supplied handles using
 // domain/symbol stripping and encodeURIComponent to prevent URL injection.
 export function cashAppUrl(tag: string): string {
-  const clean = tag.trim().replace(/^(?:https?:\/\/)?(?:www\.)?cash\.app\//i, '').replace(/^[$@]+/, '').replace(/\/+$/, '');
+  const clean = cleanUrlInput(tag).replace(/^(?:https?:\/\/)?(?:www\.)?cash\.app\//i, '').replace(/^[$@]+/, '').replace(/\/+$/, '');
   return `https://cash.app/$${encodeURIComponent(clean)}`;
 }
 
 export function payPalUrl(handle: string): string {
-  const clean = handle.trim().replace(/^(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '').replace(/\/+$/, '');
+  const clean = cleanUrlInput(handle).replace(/^(?:https?:\/\/)?(?:www\.)?paypal\.me\//i, '').replace(/^[@/]+/, '').replace(/\/+$/, '');
   return `https://paypal.me/${encodeURIComponent(clean)}`;
 }
 
 export function venmoUrl(handle: string): string {
-  const clean = handle.trim().replace(/^(?:https?:\/\/)?(?:www\.)?venmo\.com\/(?:u\/)?/i, '').replace(/^[@/]+/, '').replace(/\/+$/, '');
+  const clean = cleanUrlInput(handle).replace(/^(?:https?:\/\/)?(?:www\.)?venmo\.com\/(?:u\/)?/i, '').replace(/^[@/]+/, '').replace(/\/+$/, '');
   return `https://venmo.com/u/${encodeURIComponent(clean)}`;
 }
