@@ -1,8 +1,8 @@
 # Terms of Service
 
-**Last updated: October 25, 2026**
+**Last updated: October 28, 2026**
 
-These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"), for your use of On It, including the app at onit.dynastyweb.co and any version of On It you install on your phone or computer. By creating an account or using On It, you agree to these terms and to our Privacy Policy (https://onit.dynastyweb.co/privacy). If you do not agree, do not use On It.
+These terms are the agreement between you and Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"), for your use of On It, including the app at onit.dynastyweb.co and any version of On It you install on your phone or computer. By creating an account or using On It, you agree to these terms, to our Privacy Policy (https://onit.dynastyweb.co/privacy), and to the licence terms in our End User License Agreement (https://onit.dynastyweb.co/eula). If you do not agree, do not use On It.
 
 ---
 
@@ -59,6 +59,10 @@ Before you cancel, we may offer you an optional discount or a pause. We limit th
 **Codes and invites.** We may offer founder codes, promo codes, invite links, or referral rewards. They have no cash value, cannot be sold or transferred, are limited to the terms shown when offered, and may be limited in number. We may end a code or remove access granted by one if it was obtained or used in violation of these terms.
 
 **Apps from app stores.** If you subscribe through the Apple App Store or Google Play, that store handles your billing, renewals, cancellations, and refunds under its own terms, and you manage your subscription in your store account.
+
+- **Apple in-app purchase.** A subscription bought in the On It iOS app is an Apple in-app purchase, billed by Apple and not by us. Apple charges your Apple Account when you confirm the purchase and again at the start of each renewal period, at the price Apple shows you before you confirm. **We never see or receive your card details.** We receive the product you bought, a transaction identifier, and whether the subscription is active, and that is what the app uses to decide your access. The purchase is also governed by Apple's Media Services Terms and Conditions, and your licence to use the app is governed by our EULA (https://onit.dynastyweb.co/eula).
+- **Restore Purchases.** The paywall has a Restore Purchases button. Sign in with the Apple Account you bought with and tap it to bring an existing subscription back onto this device and this account. If nothing comes back, that Apple Account has no active subscription for On It, or it was bought with a different one.
+- **Cancelling and refunds through a store.** Cancel from your store account: on iPhone or iPad, Settings, your name, Subscriptions. Apple decides refund requests for Apple purchases, and its decision applies to that purchase. Deleting the app or your On It account does not cancel an App Store subscription.
 
 ---
 

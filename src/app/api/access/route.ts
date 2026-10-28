@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasAccess, type AccessTiming } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { trialEligible } from '@/lib/trial';
+import { subscriptionsEnabled } from '@/lib/subscriptions';
 
 const MEASURE = process.env.VERCEL_ENV === 'preview';
 let warm = false; // per function instance: false on its first request
@@ -46,5 +47,12 @@ export async function GET(req: NextRequest) {
     timing.total = Math.round(performance.now() - t0);
     console.log('access-timing', JSON.stringify({ cold, ...timing }));
   }
-  return NextResponse.json({ ...access, trialEligible: trialEligible(profile) });
+  // subscriptionsEnabled: is Stripe subscription checkout open in this
+  // deployment? The paywall, Settings' Plan row and the upgrade nudges read it
+  // here instead of a browser-side env read (the value is not NEXT_PUBLIC).
+  return NextResponse.json({
+    ...access,
+    trialEligible: trialEligible(profile),
+    subscriptionsEnabled: subscriptionsEnabled(),
+  });
 }

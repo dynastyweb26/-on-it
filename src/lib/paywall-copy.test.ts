@@ -32,6 +32,14 @@ test('the trial step appears only on a wall that can give a trial', () => {
   // While the check is in flight the promise stays; the CTA is disabled.
   assert.deepEqual(stepsFor('recurring', 'checking'), ['showcase', 'trial', 'plan']);
 
+  // Subscriptions off (STRIPE_SUBSCRIPTIONS_ENABLED): nobody can start a trial,
+  // so the trial step is not shown on any wall, in any state.
+  for (const variant of VARIANTS) {
+    for (const state of ['checking', 'trial', 'paid-today'] as const) {
+      assert.deepEqual(stepsFor(variant, state, false), ['showcase', 'plan'], `${variant}/${state} off`);
+    }
+  }
+
   for (const variant of VARIANTS) {
     for (const state of ['checking', 'trial', 'paid-today'] as const) {
       const steps = stepsFor(variant, state);

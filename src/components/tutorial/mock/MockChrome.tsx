@@ -242,11 +242,10 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
   return (
     <div aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', background: '#FDF7EE' }}>
       {/* The sidebar is the REAL one's chrome, measured off the app at 1440
-          (AppShell's aside + InstallBanner's sidebar card): 288 wide, 28/20/20
-          padding, a 36-high gold "How it works" pill beside the wordmark,
-          48-high nav items with 4 between them, and the compact install card
-          pinned to the bottom. Decoration only — the whole shell is aria-hidden
-          and nothing in it is interactive. */}
+          (AppShell's aside): 288 wide, 28/20/20 padding, a 36-high gold "How it
+          works" pill beside the wordmark, 48-high nav items with 4 between
+          them. Decoration only — the whole shell is aria-hidden and nothing in
+          it is interactive. */}
       <aside
         style={{
           width: 288,
@@ -312,51 +311,6 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
               </div>
             );
           })}
-        </div>
-        {/* Pinned to the bottom, like the app's mt-auto wrapper. */}
-        <div style={{ marginTop: 'auto', paddingTop: 24 }}>
-          <div
-            style={{
-              borderRadius: 20,
-              border: '1px solid rgba(208,197,175,.35)',
-              background: '#FFFFFF',
-              padding: 14,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <span style={{ marginTop: 2, flex: 'none', color: '#735C00', display: 'flex' }}>
-                <Icon name="install_mobile" size={24} />
-              </span>
-              <p
-                style={{
-                  margin: 0,
-                  minWidth: 0,
-                  flex: 1,
-                  font: '400 13px/1.35 var(--font-inter)',
-                  color: '#1F1B13',
-                }}
-              >
-                Install On It for faster access.
-              </p>
-            </div>
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: 32,
-                  padding: '0 12px',
-                  borderRadius: 9999,
-                  background: '#D4AF37',
-                  color: '#1F1B13',
-                  font: '600 13px/1 var(--font-inter)',
-                }}
-              >
-                Install
-              </span>
-            </div>
-          </div>
         </div>
       </aside>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>

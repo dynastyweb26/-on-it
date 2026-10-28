@@ -32,6 +32,7 @@ import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
 import FitToHeight from '@/components/paywall/FitToHeight';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
+import { RESTORE_UNAVAILABLE, restorePurchases } from '@/lib/subscription/restore';
 import { trialDates } from '@/lib/trial';
 import {
   REASON,
@@ -77,11 +78,21 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // is known. An unreachable check falls back to the returning-customer copy
   // (never promise a trial that might not come).
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
+  // Is Stripe subscription checkout open in this deployment
+  // (STRIPE_SUBSCRIPTIONS_ENABLED, lib/subscriptions)? Unknown until the same
+  // /api/access answer lands; `false` replaces the gold CTA with one honest line
+  // so the wall never offers a button that can only fail. `true` (and unknown,
+  // which checkout answers with the same message inline) keeps today's wall.
+  const [subsOn, setSubsOn] = useState<boolean | null>(null);
   useEffect(() => {
     let active = true;
     fetch('/api/access')
       .then((r) => (r.ok ? r.json() : null))
-      .then((a) => { if (active) setTrialEligible(a?.trialEligible === true); })
+      .then((a) => {
+        if (!active) return;
+        setTrialEligible(a?.trialEligible === true);
+        if (typeof a?.subscriptionsEnabled === 'boolean') setSubsOn(a.subscriptionsEnabled);
+      })
       .catch(() => { if (active) setTrialEligible(false); });
     return () => { active = false; };
   }, []);
@@ -93,7 +104,11 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const state = paywallState(trialEligible);
   // Fixed for the visit, like the timeline's: the disclosure names the same end date.
   const [freeUntil] = useState(() => trialDates().end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
-  const steps = stepsFor(variant, state);
+  // Subscriptions off (STRIPE_SUBSCRIPTIONS_ENABLED) = nobody can start one, so
+  // the trial step and every trial/price promise on the plan step go with the
+  // CTA: no replacement copy, no dead button (subscribable below).
+  const subscribable = subsOn !== false;
+  const steps = stepsFor(variant, state, subscribable);
   const [step, setStep] = useState(0);
   // A step can disappear when the check answers (trial → plan): clamp, never
   // render a step that isn't in this wall's list.
@@ -170,6 +185,15 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     // started: the browser is on its way to the payment sheet; stay busy.
   }
 
+  // Restore Purchases. UI only for now: lib/subscription/restore.ts is the stub
+  // the native IAP phase fills in, so the wall never claims to have restored
+  // something it cannot see. It reports through the same inline notice slot the
+  // purchase errors use.
+  async function restore() {
+    const outcome = await restorePurchases();
+    setNotice(outcome === 'restored' ? 'Purchase restored.' : RESTORE_UNAVAILABLE);
+  }
+
   const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background xl:max-w-[400px]';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
@@ -242,6 +266,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           >
             <PlanStep
               state={state}
+              subscribable={subscribable}
               showCode={showCode}
               onToggleCode={toggleCode}
               onEscapeCode={() => setShowCode(false)}
@@ -272,40 +297,61 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
 
           {current === 'plan' ? (
             <>
-              <button
-                type="button"
-                className={footerButton}
-                style={footerShadow}
-                disabled={busy || state === 'checking'}
-                onClick={buy}
-              >
-                {busy ? 'One sec…' : (
-                  <>
-                    <span>{ctaLabel(state)}</span>
-                    <Icon name="arrow_forward" size={20} />
-                  </>
-                )}
-              </button>
+              {/* Subscriptions switched off for this deployment: nothing in
+                  place of the CTA — no notice, no disclosure, no button — while
+                  the wall keeps what's included, the code row and every other
+                  way in (a code, a referral). The footer is a gap-only column,
+                  so a skipped block leaves no hole. */}
+              {subsOn !== false && (
+                <>
+                  <button
+                    type="button"
+                    className={footerButton}
+                    style={footerShadow}
+                    disabled={busy || state === 'checking'}
+                    onClick={buy}
+                  >
+                    {busy ? 'One sec…' : (
+                      <>
+                        <span>{ctaLabel(state)}</span>
+                        <Icon name="arrow_forward" size={20} />
+                      </>
+                    )}
+                  </button>
 
-              {state === 'trial' && (
-                <p className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em] text-on-background">
-                  <Icon name="verified" size={16} className="shrink-0 text-primary" />
-                  Nothing charged today
-                </p>
+                  {state === 'trial' && (
+                    <p className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em] text-on-background">
+                      <Icon name="verified" size={16} className="shrink-0 text-primary" />
+                      Nothing charged today
+                    </p>
+                  )}
+
+                  {/* Subscription disclosure — readable (not fine print), visible
+                      before the payment sheet. Material terms follow the state:
+                      first-time customers are told when the free period ends,
+                      everyone else that the plan starts today (lib/paywall-copy). */}
+                  <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-[#4d4635] [text-wrap:pretty]">
+                    {disclosure(state, freeUntil)}
+                  </p>
+                </>
               )}
 
-              {/* Subscription disclosure — readable (not fine print), visible
-                  before the payment sheet. Material terms follow the state:
-                  first-time customers are told when the free period ends,
-                  everyone else that the plan starts today (lib/paywall-copy). */}
-              <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-[#4d4635] [text-wrap:pretty]">
-                {disclosure(state, freeUntil)}
-              </p>
-
-              <p className="flex items-center gap-2 text-[12.5px] font-medium leading-none text-[#4d4635]">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px] font-medium leading-none text-[#4d4635]">
                 <a href="/terms" className="text-on-background underline underline-offset-[3px]">Terms</a>
                 <span aria-hidden>·</span>
                 <a href="/privacy" className="text-on-background underline underline-offset-[3px]">Privacy</a>
+                <span aria-hidden>·</span>
+                <a href="/eula" className="text-on-background underline underline-offset-[3px]">EULA</a>
+                <span aria-hidden>·</span>
+                {/* Required wherever a subscription can be bought (App Store
+                    rule). Restores nothing until store billing exists. */}
+                <button
+                  type="button"
+                  onClick={() => void restore()}
+                  className="text-on-background underline underline-offset-[3px] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Restore Purchases
+                </button>
               </p>
             </>
           ) : (

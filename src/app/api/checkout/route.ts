@@ -4,12 +4,19 @@
 // (lib/trial.ts).
 // User request (session client, NOT admin). Dormant without Stripe env: returns
 // 503 with a clear message the paywall modal displays inline — never crashes.
+//
+// Also dormant while STRIPE_SUBSCRIPTIONS_ENABLED is off (default): the purchase
+// is moving to Apple IAP, so this route starts nothing and reports the same
+// friendly message. It is the ONLY thing the switch gates — existing
+// subscriptions (cancel, resume, billing portal), the webhook, the trial-reminder
+// cron, founder codes and referral grants all keep working.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { TRIAL_DAYS, trialEligible } from '@/lib/trial';
+import { SUBSCRIPTIONS_OFF_MESSAGE, subscriptionsEnabled } from '@/lib/subscriptions';
 
 // The price is server-side. The only input is where to come back to: the
 // screen that showed the wall (chat keeps the blocked invoice card in local
@@ -19,6 +26,15 @@ const RETURN_PATHS = { chat: '/chat', summary: '/summary', books: '/dashboard', 
 const CheckoutBody = z.object({ returnTo: z.enum(['chat', 'summary', 'books', 'invoices', 'recurring', 'settings']).optional() }).nullish();
 
 export async function POST(req: NextRequest) {
+  // Switched off before anything else: no auth read, no Stripe call. The paywall
+  // and Settings carry the same message instead of a dead end.
+  if (!subscriptionsEnabled()) {
+    return NextResponse.json(
+      { error: 'subscriptions_unavailable', message: SUBSCRIPTIONS_OFF_MESSAGE },
+      { status: 503 }
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

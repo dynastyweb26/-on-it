@@ -53,8 +53,16 @@ const AUTH_TIMEOUT_MS = 8000;
 // grouped rows, /settings/<section> one sub-screen. Every screen loads the same
 // profile and keeps the same save paths; only what renders differs.
 // method: on /settings/payouts/<method>, which payout method's detail view.
-export default function SettingsView({ connectEnabled, section = 'main', method, active = true }: {
-  connectEnabled: boolean; section?: SettingsSection; method?: PayoutMethod; active?: boolean;
+export default function SettingsView({ connectEnabled, subscriptionsEnabled, section = 'main', method, active = true }: {
+  connectEnabled: boolean;
+  /** Is Stripe subscription checkout open in this deployment (lib/subscriptions)?
+   *  Server-read by every mount (the settings wrappers, (app)/layout for the
+   *  deck's Settings tab), so the Plan row renders its real state on first
+   *  paint. False hides the upgrade CTA for the one line that says where
+   *  subscribing lives now — never a button that can only fail. Required on
+   *  purpose: a new mount must decide, never inherit a guess. */
+  subscriptionsEnabled: boolean;
+  section?: SettingsSection; method?: PayoutMethod; active?: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -144,6 +152,10 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
   // so it's known from the first render. Anything but true renders the
   // disabled "Coming soon" card.
   const connectOn = connectEnabled === true;
+  // Subscription checkout open in this deployment? Anything but true drops the
+  // upgrade disclosure and CTA entirely — no replacement line (default true so
+  // an unnamed mount keeps today's screen).
+  const subsOn = subscriptionsEnabled !== false;
   // Account deletion: a two-step, typed-confirmation flow kept well away from
   // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -931,23 +943,29 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
                 </div>
               )}
               <p className="text-sm text-on-surface-variant">Go unlimited — invoices, estimates, expenses and reminders.</p>
-              {/* Subscription disclosure — plain, body-size, visible before the Stripe
-                  redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
-                  first-time customers only (lib/trial.ts), otherwise billed today. */}
-              <p className="text-sm text-on-surface-variant">
-                {/* The paywall's disclosure, with "in Settings" → "below". */}
-                {trialEligible(p)
-                  ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
-                  : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
-              </p>
-              <button className="btn-primary w-full" disabled={billingBusy}
-                onClick={() => billingAction('/api/checkout')}>
-                {billingBusy ? 'Opening…' : trialEligible(p) ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
-              </button>
+              {subsOn && (
+                <>
+                  {/* Subscription disclosure — plain, body-size, visible before the Stripe
+                      redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
+                      first-time customers only (lib/trial.ts), otherwise billed today. */}
+                  <p className="text-sm text-on-surface-variant">
+                    {/* The paywall's disclosure, with "in Settings" → "below". */}
+                    {trialEligible(p)
+                      ? `Free until ${fmtDate(trialDates().end.toISOString())}. Then $9.99/month, renews monthly until you cancel. Cancel anytime below.`
+                      : '$9.99/month, renews monthly until you cancel. Cancel anytime below.'}
+                  </p>
+                  <button className="btn-primary w-full" disabled={billingBusy}
+                    onClick={() => billingAction('/api/checkout')}>
+                    {billingBusy ? 'Opening…' : trialEligible(p) ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
+                  </button>
+                </>
+              )}
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>
                 {' · '}
                 <a href="/privacy" className="underline">Privacy</a>
+                {' · '}
+                <a href="/eula" className="underline">EULA</a>
               </p>
             </>
           )}
@@ -1029,8 +1047,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         )}
         {!pushOn && pushAvail === 'needs-install' && (
           <p className="text-sm text-on-surface-variant">
-            Add On It to your Home Screen to turn these on.{' '}
-            <a href="/install" className="text-primary underline">Show me how</a>
+            Notifications on iPhone and iPad need On It added to the Home Screen: tap Share in
+            Safari, then Add to Home Screen, and open On It from there.
           </p>
         )}
         {!pushOn && pushAvail === 'denied' && (
@@ -1079,6 +1097,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
           <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
           <SettingsRow icon="description" title="Terms" href="/terms" />
           <SettingsRow icon="lock" title="Privacy" href="/privacy" />
+          <SettingsRow icon="description" title="EULA" href="/eula" />
         </SettingsGroup>
       )}
 

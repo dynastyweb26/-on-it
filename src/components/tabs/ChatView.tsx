@@ -635,7 +635,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [finished, setFinished] = useState(false); // invoice sent — stop persisting this convo
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
   // or 'install' (iPhone Safari tab: Home Screen hint). See showRemindersCard.
-  const [reminderPrompt, setReminderPrompt] = useState<{ kind: 'ask' | 'install'; client: string; onlinePay: boolean } | null>(null);
+  const [reminderPrompt, setReminderPrompt] = useState<{ client: string; onlinePay: boolean } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
@@ -2007,7 +2007,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
             const usageKind = rd0.kind === 'quote' ? 'estimate' : 'invoice';
             void fetchUsageSnapshot().then((snap) => {
               const text = usageLine(usageKind, snap);
-              const nudge = usageNudgeFor(usageKind, snap);
+              // No purchase path in this deployment (STRIPE_SUBSCRIPTIONS_ENABLED
+              // off) → the "See plans" nudge would be a nag with nowhere to go.
+              const nudge = snap?.subscriptionsEnabled === false ? null : usageNudgeFor(usageKind, snap);
               const uid = profile?.id;
               const due = nudge && uid && promptDue(nudge, uid) ? nudge : null;
               if (due && uid) markSeen(uid, due.key);
@@ -2426,8 +2428,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
     if (!profile || !draft || docKind(draft) !== 'invoice') return false;
     try {
       if (localStorage.getItem(ALERTS_PROMPTED_KEY)) return false;
+      // 'needs-install' too: an iPhone/iPad in a Safari tab gets web push only
+      // from a Home Screen install, and nothing in the app guides that any more,
+      // so there is no card to offer there.
       const avail = pushAvailability();
-      if (avail === 'unsupported' || avail === 'denied') return false;
+      if (avail !== 'ready') return false;
       if (avail === 'ready' && (await getPushSubscription())) return false; // already on
       return true;
     } catch { return false; /* never block the send flow */ }
@@ -2435,7 +2440,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   function showRemindersCard(clientName: string) {
     setReminderPrompt({
-      kind: pushAvailability() === 'needs-install' ? 'install' : 'ask',
       client: clientName,
       // With no online-pay path there is no card payment to notify about, so the
       // ask (and its confirmation) is only the 2-day unpaid nudge.
@@ -4025,7 +4029,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {reminderPrompt?.kind === 'ask' && (
+        {reminderPrompt && (
           <div className="card border-primary-container/50">
             <p className="text-body-md">
               {reminderPrompt.onlinePay
@@ -4038,20 +4042,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </button>
           </div>
         )}
-        {reminderPrompt?.kind === 'install' && (
-          // iPhone in a Safari tab: web push only exists for a Home Screen
-          // install, so point there instead of offering a switch that can't work.
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">Add On It to your Home Screen to get payment alerts.</p>
-            <button className="btn-primary mt-3 w-full" onClick={() => { dismissReminders(); router.push('/install'); }}>
-              Show me how
-            </button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
-              Not now
-            </button>
-          </div>
-        )}
-
         {termsPrompt && (
           <div className="flex justify-start">
             <ChatNudgeCard
