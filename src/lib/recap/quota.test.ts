@@ -36,20 +36,26 @@ test('slots are assigned in order and stop at the cap', () => {
 });
 
 test('the third free recap is born locked, the first two play', () => {
-  assert.equal(recapUnlocked(free(1)), true);
-  assert.equal(recapUnlocked(free(2)), true);
-  assert.equal(recapUnlocked(free(null)), false);
-  assert.equal(recapUnlocked(free(3 as number)), false, 'out of range is not a slot');
+  assert.equal(recapUnlocked(free(1), true), true);
+  assert.equal(recapUnlocked(free(2), true), true);
+  assert.equal(recapUnlocked(free(null), true), false);
+  assert.equal(recapUnlocked(free(3 as number), true), false, 'out of range is not a slot');
 });
 
 test('paid-built rows always play, including after a downgrade', () => {
-  assert.equal(recapUnlocked(paid()), true);
-  assert.equal(recapUnlocked(paid(null)), true);
-  assert.equal(recapUnlocked({ kind: 'month', free_plan: null, free_slot: null }), true, 'pre-rule rows play');
+  assert.equal(recapUnlocked(paid(), true), true);
+  assert.equal(recapUnlocked(paid(null), true), true);
+  assert.equal(recapUnlocked({ kind: 'month', free_plan: null, free_slot: null }, true), true, 'pre-rule rows play');
   // A downgraded owner has paid rows + the two free ones; everything plays.
   const rows = [paid(), paid(), free(1), free(2)];
-  assert.ok(rows.every(recapUnlocked));
+  assert.ok(rows.every((r) => recapUnlocked(r, true)));
   assert.equal(freeRecapsLeft(rows), 0);
+});
+
+test('upgrading unlocks every row, locked ones included', () => {
+  for (const r of [free(1), free(2), free(null), paid(), { kind: 'month' as const }]) {
+    assert.equal(recapUnlocked(r, false), true, 'a paid owner plays everything');
+  }
 });
 
 test('slots are validated, not trusted', () => {

@@ -396,7 +396,7 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
         const pick = pushPick(r.rows);
         // Never push a recap the owner cannot open: a free row past the cap is
         // built locked, and its dedupe key would silence the real one.
-        const canOpen = (b: Built) => recapUnlocked({ kind: b.period.kind, free_plan: o.freePlan, free_slot: b.freeSlot });
+        const canOpen = (b: Built) => recapUnlocked({ kind: b.period.kind, free_plan: o.freePlan, free_slot: b.freeSlot }, o.freePlan);
         if (pick && canOpen(pick) && o.push && reachable.has(o.id)) {
           const delivered = await notify(o.id, recapEvent(pick));
           if (delivered > 0) summary.pushed++;

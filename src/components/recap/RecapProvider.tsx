@@ -54,7 +54,7 @@ type RecapCtx = {
   access: RecapAccess;
   /** Free (or canceled) plan: only the two slotted weekly recaps play. */
   freePlan: boolean;
-  /** Paid-built rows always play; a free-plan row needs one of the two slots. */
+  /** Paid: every recap. Free: paid-built rows and the two slotted weeklies. */
   canPlay: (row: Pick<RecapRow, 'kind' | 'free_plan' | 'free_slot'>) => boolean;
   /** Latest recaps, newest first. */
   rows: RecapRow[];
@@ -139,11 +139,11 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
           const { data } = await supabase.from('recaps').select(RECAP_FULL_COLS).eq('id', wanted).maybeSingle();
           row = data ? normalizeRow(data as Record<string, unknown>) : null;
         }
-        if (row && (!announces(row) || !recapUnlocked(row))) row = null;
+        if (row && (!announces(row) || !recapUnlocked(row, freePlan))) row = null;
       }
       if (!row) {
         // Only a recap this owner can actually open is worth a prompt.
-        row = promptPick(rows.filter(recapUnlocked), today());
+        row = promptPick(rows.filter((r) => recapUnlocked(r, freePlan)), today());
         if (row) {
           // One sheet, not a stack: older recaps waiting for theirs are retired
           // with this one (still unwatched, so the Books dot stays).
@@ -158,7 +158,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
       stripRecapParam();
       if (row) setPrompt(row);
     })().catch(() => { /* no sheet this time */ });
-  }, [access, suppressed, rows]);
+  }, [access, suppressed, rows, freePlan]);
 
   // ── Play ──
   const markWatched = useCallback((row: RecapRow) => {
@@ -173,14 +173,14 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     primeRecapAudio();          // synchronously, inside the caller's tap
     setPrompt(null);
     // Locked rows never play, whatever called this (the UI opens the wall).
-    const plays = (r: RecapRow) => playable(r) && recapUnlocked(r);
+    const plays = (r: RecapRow) => playable(r) && recapUnlocked(r, freePlan);
     const show = (r: RecapRow) => { if (plays(r)) { markWatched(r); setStory(r); } };
     const have = plays(row) ? row : rows.find((r) => r.id === row.id && plays(r));
     if (have) { show(have); return; }
     // A history row (listed without its payload): fetch it, then play.
     void createClient().from('recaps').select(RECAP_FULL_COLS).eq('id', row.id).maybeSingle()
       .then(({ data }) => { if (data) show(normalizeRow(data as Record<string, unknown>)); });
-  }, [rows, markWatched]);
+  }, [rows, markWatched, freePlan]);
 
   function later() {
     const row = prompt;
@@ -200,7 +200,10 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     else router.push('/chat?new=1');
   }, [router, pathname]);
 
-  const canPlay = useCallback((r: Pick<RecapRow, 'kind' | 'free_plan' | 'free_slot'>) => recapUnlocked(r), []);
+  const canPlay = useCallback(
+    (r: Pick<RecapRow, 'kind' | 'free_plan' | 'free_slot'>) => recapUnlocked(r, freePlan),
+    [freePlan],
+  );
 
   const value = useMemo<RecapCtx>(() => ({
     access,
@@ -208,7 +211,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     canPlay,
     rows,
     // A locked recap never pulses the Books tab either.
-    unwatched: access === 'open' && hasUnwatched(rows.filter(recapUnlocked), today()),
+    unwatched: access === 'open' && hasUnwatched(rows.filter((r) => recapUnlocked(r, freePlan)), today()),
     watched,
     open,
   }), [access, freePlan, canPlay, rows, watched, open]);

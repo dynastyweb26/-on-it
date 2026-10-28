@@ -33,10 +33,14 @@ export const isEntitledSlot = (slot: number | null | undefined): boolean =>
   typeof slot === 'number' && Number.isInteger(slot) && slot >= 1 && slot <= FREE_RECAPS;
 
 /**
- * Can this recap be played? Rows built while paid are always playable ("your
- * history stays"). Rows built on the free plan need one of the two slots.
+ * Can this recap be played? A paid owner plays everything. On the free plan,
+ * rows built while paid are still playable ("your history stays") and a
+ * free-plan row needs one of the two slots. The owner's plan, not the row's,
+ * decides first: upgrading unlocks the rows that were born locked, and nothing
+ * has to be rewritten when the tier changes.
  */
-export function recapUnlocked(row: RecapQuotaRow): boolean {
+export function recapUnlocked(row: RecapQuotaRow, freePlan: boolean): boolean {
+  if (!freePlan) return true;
   if (!row.free_plan) return true;
   return isEntitledSlot(row.free_slot);
 }
