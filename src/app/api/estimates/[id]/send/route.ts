@@ -10,6 +10,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { planEstimateSend, type EstimateSendableInvoice } from '@/lib/estimates/send';
 import { SendBodySchema } from '@/lib/estimates/schemas';
 import { hasConverted, isUuid } from '@/lib/estimates/owner';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { readProfileTerms } from '@/lib/terms';
 
 export const runtime = 'nodejs';
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return refuse(401, 'unauthorized');
   if (!isUuid(params.id)) return refuse(404, 'not_found');
+  if (!(await rateLimit('estimate_send', rateIdentifier(req, user.id)))) {
+    return refuse(429, 'rate_limited');
+  }
 
   const body = SendBodySchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return refuse(400, 'invalid_date');

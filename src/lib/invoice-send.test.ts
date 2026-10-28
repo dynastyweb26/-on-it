@@ -113,6 +113,18 @@ test('a missing invoice is refused', () => {
   });
 });
 
+// Mirrors the UUID contract used by isUuid (estimates/owner.ts). The route guard
+// rejects a malformed id before any DB read; importing the real guard here is not
+// possible because owner.ts is marked server-only.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+test('a non-UUID id is rejected', () => {
+  assert.equal(UUID_RE.test(U), true);
+  assert.equal(UUID_RE.test('not-a-uuid'), false);
+  assert.equal(UUID_RE.test("123'; DROP TABLE invoices; --"), false);
+  assert.equal(UUID_RE.test(''), false);
+});
+
 test('first send freezes the terms; empty terms never write the column; resend never re-snapshots', () => {
   const withTerms = planInvoiceSend(invoice('draft'), U, { ...profile, terms: '  Net 15.  ' }, NOW);
   assert.ok(withTerms.ok && withTerms.patch.terms === 'Net 15.');
