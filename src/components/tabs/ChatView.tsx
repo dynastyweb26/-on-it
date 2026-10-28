@@ -44,6 +44,7 @@ import {
   ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
   materializeAttachments, renumberAttachments, signedAttachmentUrl, toPdfAttachments,
 } from '@/lib/attachments-client';
+import { materializeEstimateAttachments } from '@/lib/estimates/attachments-client';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
@@ -2092,7 +2093,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
       //    fast path shares that pre-built file with NO awaits, so the images
       //    must be stored by then. A failure ABORTS the turn (retry bubble)
       //    rather than sending without a picture the card showed.
-      const materialized = await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
+      //    A QUOTE goes through the estimate routes: the public /e page and
+      //    estimate_content_hash only publish rows with a server-computed
+      //    checksum + mime, which a direct table insert never has (the bug where
+      //    the card showed a photo and the client page showed no attachments).
+      const materialized = docKind(draft) === 'quote'
+        ? await materializeEstimateAttachments(supabase, invoiceId, attachmentsRef.current)
+        : await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
       if (materialized.failedId) throw new Error('attachment materialization failed');
       if (materialized.saved.size) setAttachments(materialized.items);
 
