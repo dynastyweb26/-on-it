@@ -241,15 +241,21 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
   const header = tab === 'chat';
   return (
     <div aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', background: '#FDF7EE' }}>
+      {/* The sidebar is the REAL one's chrome, measured off the app at 1440
+          (AppShell's aside + InstallBanner's sidebar card): 288 wide, 28/20/20
+          padding, a 36-high gold "How it works" pill beside the wordmark,
+          48-high nav items with 4 between them, and the compact install card
+          pinned to the bottom. Decoration only — the whole shell is aria-hidden
+          and nothing in it is interactive. */}
       <aside
         style={{
           width: 288,
           flex: 'none',
-          borderRight: '1px solid #EFE4D2',
-          padding: '24px 16px 16px',
+          borderRight: '1px solid rgba(208,197,175,.35)',
+          background: '#FBF3E5',
+          padding: '28px 20px 20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 4,
           boxSizing: 'border-box',
         }}
       >
@@ -257,54 +263,101 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '0 4px 18px',
+            justifyContent: 'space-between',
+            padding: '4px 4px 28px',
             font: '800 26px/1 var(--font-montserrat)',
             letterSpacing: '-.01em',
-            color: '#1E1A14',
+            color: '#1F1B13',
           }}
         >
-          On It<span style={{ color: '#B8960F' }}>.</span>
+          <span>On It<span style={{ color: '#735C00' }}>.</span></span>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 36,
+              padding: '0 14px',
+              borderRadius: 9999,
+              background: '#D4AF37',
+              color: '#1F1B13',
+              font: '600 13.5px/1 var(--font-inter)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            How it works
+            <Icon name="expand_more" size={18} />
+          </span>
         </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            height: 40,
-            padding: '0 14px',
-            marginBottom: 14,
-            borderRadius: 999,
-            background: '#D4AF37',
-            color: '#1E1A14',
-            font: '700 14px/1 var(--font-inter)',
-          }}
-        >
-          How it works
-          <Icon name="expand_more" size={20} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {TABS.map((t) => {
+            const active = t.key === tab;
+            return (
+              <div
+                key={t.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  height: 48,
+                  padding: '0 16px',
+                  borderRadius: 16,
+                  background: active ? '#D4AF37' : 'transparent',
+                  color: active ? '#1F1B13' : '#4D4635',
+                  font: `${active ? 700 : 600} 16px/1 var(--font-inter)`,
+                }}
+              >
+                <Icon name={t.icon} size={24} filled={active} />
+                {t.label}
+              </div>
+            );
+          })}
         </div>
-        {TABS.map((t) => {
-          const active = t.key === tab;
-          return (
-            <div
-              key={t.key}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                height: 44,
-                padding: '0 14px',
-                borderRadius: 14,
-                background: active ? '#D4AF37' : 'transparent',
-                color: '#1E1A14',
-                font: '600 17px/1 var(--font-inter)',
-              }}
-            >
-              <Icon name={t.icon} size={22} />
-              {t.label}
+        {/* Pinned to the bottom, like the app's mt-auto wrapper. */}
+        <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+          <div
+            style={{
+              borderRadius: 20,
+              border: '1px solid rgba(208,197,175,.35)',
+              background: '#FFFFFF',
+              padding: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <span style={{ marginTop: 2, flex: 'none', color: '#735C00', display: 'flex' }}>
+                <Icon name="install_mobile" size={24} />
+              </span>
+              <p
+                style={{
+                  margin: 0,
+                  minWidth: 0,
+                  flex: 1,
+                  font: '400 13px/1.35 var(--font-inter)',
+                  color: '#1F1B13',
+                }}
+              >
+                Install On It for faster access.
+              </p>
             </div>
-          );
-        })}
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 32,
+                  padding: '0 12px',
+                  borderRadius: 9999,
+                  background: '#D4AF37',
+                  color: '#1F1B13',
+                  font: '600 13px/1 var(--font-inter)',
+                }}
+              >
+                Install
+              </span>
+            </div>
+          </div>
+        </div>
       </aside>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Chat's header is the design's: a 720 row inside the content area, title
