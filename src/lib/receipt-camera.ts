@@ -25,6 +25,11 @@ export const MAX_CAPTURE_EDGE = 2400;
  *  own target size, so this is headroom, not the final quality. */
 export const CAPTURE_QUALITY = 0.92;
 
+/** How long the opening spinner may sit before the sheet admits the camera
+ *  never answered (a permission prompt nobody sees, a WebView with no
+ *  delegate). The screen must never be a black rectangle. */
+export const OPEN_TIMEOUT_MS = 12_000;
+
 /**
  * Can this page call getUserMedia at all — before any prompt?
  *
@@ -59,6 +64,19 @@ export function blockerFromError(err: unknown): CameraBlocker {
 export interface CameraFailureCopy {
   title: string;
   body: string;
+}
+
+/**
+ * Failures that fall straight through to the photo picker with no screen.
+ *
+ * Only before the camera ever played: "not supported here" and "no camera"
+ * have no useful explanation, while a camera that worked once and then failed
+ * is news the user should see. A refusal ('denied') is never silent — that is
+ * the one case where Settings guidance actually helps.
+ */
+export function isSilentFallback(failure: CameraFailure, everLive: boolean): boolean {
+  if (everLive) return false;
+  return failure === 'unsupported' || failure === 'insecure' || failure === 'unavailable';
 }
 
 /** The words on the failure screen. Every state has some, so the sheet can

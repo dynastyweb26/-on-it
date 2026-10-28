@@ -20,12 +20,14 @@ import OnItSpinner from '@/components/OnItSpinner';
 import {
   CAPTURE_QUALITY,
   MAX_CAPTURE_EDGE,
+  OPEN_TIMEOUT_MS,
   blockerFromError,
   cameraEnvironment,
   cameraFailureCopy,
   canFlip,
   fitWithin,
   flipLabel,
+  isSilentFallback,
   nextFacing,
   receiptFileName,
   videoConstraints,
@@ -57,6 +59,16 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   // getUserMedia, a toBlob, an enumerateDevices) checks it and does nothing, so
   // a stream can never be attached — or left running — after close.
   const closedRef = useRef(false);
+  // True once a stream has actually played. From then on a failure is news the
+  // user should see, never a silent jump to the photo sheet.
+  const everLiveRef = useRef(false);
+  // Latest values for callbacks that outlive a render (the visibility
+  // listener, a track's `ended` handler). Reading state directly there would
+  // capture a stale mode and flip the review back to the viewfinder.
+  const modeRef = useRef<Mode>('opening');
+  const facingRef = useRef<Facing>('environment');
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { facingRef.current = facing; }, [facing]);
 
   const stopStream = useCallback(() => {
     const stream = streamRef.current;
@@ -86,26 +98,53 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
     } catch { /* unknown count → no flip button */ }
   }, []);
 
-  const startStream = useCallback(async (want: Facing) => {
+  const close = useCallback(() => {
+    closedRef.current = true;
+    stopStream();
+    onClose();
+  }, [onClose, stopStream]);
+
+  const pickLibrary = useCallback(() => {
+    closedRef.current = true;
+    stopStream();
+    onPickFromLibrary();
+  }, [onPickFromLibrary, stopStream]);
+
+  const startStream = useCallback(async (want: Facing, quiet = false): Promise<void> => {
     const support = cameraEnvironment({
       isSecureContext: window.isSecureContext,
       hasMediaDevices: !!navigator.mediaDevices,
       hasGetUserMedia: typeof navigator.mediaDevices?.getUserMedia === 'function',
     });
     if (support !== 'ok') {
+      // No camera API, or an http:// page: there is nothing to explain that
+      // helps, so fall through to the photo picker without a detour.
+      if (isSilentFallback(support, everLiveRef.current)) { pickLibrary(); return; }
       setFailure(support);
       setMode('blocked');
       return;
     }
 
     stopStream();
-    setMode('opening');
+    if (!quiet) setMode('opening');
+    // A permission prompt nobody answers (a WebView with no delegate, a sheet
+    // dismissed by the OS) must not leave a spinner on a black screen.
+    const watchdog = setTimeout(() => {
+      if (closedRef.current || modeRef.current !== 'opening') return;
+      setFailure('unavailable');
+      setMode('blocked');
+    }, OPEN_TIMEOUT_MS);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia(videoConstraints(want));
-      if (closedRef.current) {
+      clearTimeout(watchdog);
+      // Closed, or the watchdog already moved the screen on: release what
+      // arrived instead of lighting the camera behind a fallback.
+      if (closedRef.current || modeRef.current === 'blocked') {
         for (const track of stream.getTracks()) track.stop();
         return;
       }
+      everLiveRef.current = true;
       streamRef.current = stream;
       const video = videoRef.current;
       if (video) {
@@ -113,14 +152,31 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
         try { await video.play(); } catch { /* autoplay refused: the frame stays blank */ }
       }
       if (closedRef.current) { stopStream(); return; }
-      setMode('live');
+      // A photo already on screen keeps it: a quiet re-acquire must never swap
+      // the review for the viewfinder.
+      if (modeRef.current !== 'review') setMode('live');
+      for (const track of stream.getVideoTracks()) {
+        track.onended = () => {
+          // The device revoked the track (another app took the camera, the
+          // phone locked). Ask again; if that fails, the failure state replaces
+          // a frozen frame.
+          if (closedRef.current || streamRef.current !== stream) return;
+          void startStream(facingRef.current, modeRef.current === 'review');
+        };
+      }
       void syncFlippable();
     } catch (err) {
+      clearTimeout(watchdog);
       if (closedRef.current) return;
-      setFailure(blockerFromError(err));
+      const failure = blockerFromError(err);
+      // Before the camera ever worked, "no camera / busy" is not a lesson worth
+      // a screen — the picker is right there. A refusal always gets the
+      // Settings screen, and a camera that played once is news worth showing.
+      if (isSilentFallback(failure, everLiveRef.current)) { pickLibrary(); return; }
+      setFailure(everLiveRef.current ? 'lost' : failure);
       setMode('blocked');
     }
-  }, [stopStream, syncFlippable]);
+  }, [pickLibrary, stopStream, syncFlippable]);
 
   // One effect owns the stream's lifetime: acquire on mount, stop on unmount.
   useEffect(() => {
@@ -135,17 +191,19 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only
   }, []);
 
-  const close = useCallback(() => {
-    closedRef.current = true;
-    stopStream();
-    onClose();
-  }, [onClose, stopStream]);
-
-  const pickLibrary = useCallback(() => {
-    closedRef.current = true;
-    stopStream();
-    onPickFromLibrary();
-  }, [onPickFromLibrary, stopStream]);
+  // Coming back to the page: hide released the camera, and the OS may have
+  // taken the track while it was away. Always ask again — quietly when a photo
+  // is already on screen — so the sheet never returns to a dead frame.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (closedRef.current) return;
+      if (document.visibilityState === 'hidden') { stopStream(); return; }
+      if (modeRef.current === 'blocked') return;
+      void startStream(facingRef.current, modeRef.current === 'review');
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [startStream, stopStream]);
 
   const retry = useCallback(() => {
     setFailure('unavailable');

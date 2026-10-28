@@ -6,6 +6,7 @@ import {
   cameraFailureCopy,
   canFlip,
   fitWithin,
+  isSilentFallback,
   flipLabel,
   nextFacing,
   receiptFileName,
@@ -46,6 +47,23 @@ test('cameraFailureCopy: every failure explains itself', () => {
     assert.ok(copy.body.length > 0, failure);
   }
   assert.match(cameraFailureCopy('denied').body, /Settings/);
+});
+
+test('isSilentFallback: no camera, insecure and unsupported go straight to the picker', () => {
+  for (const failure of ['unsupported', 'insecure', 'unavailable'] as const) {
+    assert.equal(isSilentFallback(failure, false), true, failure);
+  }
+});
+
+test('isSilentFallback: a refusal always gets the screen', () => {
+  assert.equal(isSilentFallback('denied', false), false);
+  assert.equal(isSilentFallback('denied', true), false);
+});
+
+test('isSilentFallback: once the camera worked, nothing is silent', () => {
+  for (const failure of ['unsupported', 'insecure', 'unavailable', 'lost'] as const) {
+    assert.equal(isSilentFallback(failure, true), false, failure);
+  }
 });
 
 test('videoConstraints: rear by default, no audio, facing is only an ideal', () => {
