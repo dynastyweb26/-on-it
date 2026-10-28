@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import OnItSpinner from '@/components/OnItSpinner';
+import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import {
   CAPTURE_QUALITY,
   MAX_CAPTURE_EDGE,
@@ -64,6 +65,13 @@ const SHEET_INSET = {
  *  white receipt; the outline alone disappears. */
 const PILL = 'min-h-touch rounded-button px-6 text-body-md font-semibold transition active:scale-[0.97]';
 
+/** Motion: the sheet rises, the loader hands over to the live frame, the sheet
+ *  drops back down. Transform and opacity only (MOTION-SPEC.md); the global
+ *  reduce block in globals.css leaves every one of them at its still state. */
+const OPEN_MS = 250;
+const CLOSE_MS = 200;
+const LOADER_FADE_MS = 150;
+
 export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   onClose: () => void;
   /** The captured photo, ready for the existing receipt pipeline. */
@@ -79,9 +87,20 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   // The more-menu: gallery and flip live in it so the sheet keeps one control
   // row. It is a menu, not a mode — the stream never notices it opens.
   const [menuOpen, setMenuOpen] = useState(false);
+  // Motion state. The stream never waits for any of it: it starts on mount, and
+  // the sheet is already sliding up around the spinning loader when the first
+  // frames arrive.
+  const reduced = usePrefersReducedMotion();
+  const [closing, setClosing] = useState(false);
+  const [loaderMounted, setLoaderMounted] = useState(true);
+  // A second tap on the shutter while a frame is still being encoded would
+  // capture twice. The ref is the guard; state alone lags a fast double tap.
+  const capturingRef = useRef(false);
+  const [capturing, setCapturing] = useState(false);
 
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const shotUrlRef = useRef<string | null>(null);
@@ -130,11 +149,18 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
     } catch { /* unknown count → no flip button */ }
   }, []);
 
+  // The camera goes dark on the tap (no light left on while the sheet drops
+  // away); only the sheet's exit is deferred. The failure screen has no sheet
+  // to animate, so it closes at once.
   const close = useCallback(() => {
+    if (closedRef.current) return;
     closedRef.current = true;
     stopStream();
-    onClose();
-  }, [onClose, stopStream]);
+    setMenuOpen(false);
+    if (reduced || mode === 'blocked') { onClose(); return; }
+    setClosing(true);
+    closeTimerRef.current = setTimeout(onClose, CLOSE_MS);
+  }, [mode, onClose, reduced, stopStream]);
 
   const pickLibrary = useCallback(() => {
     closedRef.current = true;
@@ -210,6 +236,20 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
     }
   }, [pickLibrary, stopStream, syncFlippable]);
 
+  // The loader is mounted from the first frame (already turning when the sheet
+  // arrives) and unmounted once its fade to the live picture is done. It only
+  // ever covers the sheet's own dark surface, never the dimmed chat.
+  const loading = mode === 'opening';
+  useEffect(() => {
+    if (loading) { setLoaderMounted(true); return; }
+    const timer = setTimeout(() => setLoaderMounted(false), reduced ? 0 : LOADER_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [loading, reduced]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+  }, []);
+
   // No page scroll while the sheet is up; the chat behind stays put.
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -250,35 +290,45 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   }, [facing, startStream]);
 
   const capture = useCallback(async () => {
+    // One photo per intent: a second tap while this frame is still being
+    // encoded (toBlob is async) is ignored, not queued.
+    if (capturingRef.current) return;
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight || mode !== 'live') return;
-    // What the user sees is what gets captured: the video is drawn with
-    // object-cover, so the element box is the visible window and the sensor
-    // frame is cropped to match it. A box of 0 (mid-layout) falls back to the
-    // whole frame rather than producing nothing.
-    const box = video.getBoundingClientRect();
-    const boxWidth = box.width > 0 ? box.width : video.videoWidth;
-    const boxHeight = box.height > 0 ? box.height : video.videoHeight;
-    const crop = coverCrop(video.videoWidth, video.videoHeight, boxWidth, boxHeight, MAX_CAPTURE_EDGE);
-    if (!crop.dw || !crop.dh) return;
+    capturingRef.current = true;
+    setCapturing(true);
+    try {
+      // What the user sees is what gets captured: the video is drawn with
+      // object-cover, so the element box is the visible window and the sensor
+      // frame is cropped to match it. A box of 0 (mid-layout) falls back to the
+      // whole frame rather than producing nothing.
+      const box = video.getBoundingClientRect();
+      const boxWidth = box.width > 0 ? box.width : video.videoWidth;
+      const boxHeight = box.height > 0 ? box.height : video.videoHeight;
+      const crop = coverCrop(video.videoWidth, video.videoHeight, boxWidth, boxHeight, MAX_CAPTURE_EDGE);
+      if (!crop.dw || !crop.dh) return;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = crop.dw;
-    canvas.height = crop.dh;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.dw, crop.dh);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', CAPTURE_QUALITY));
-    // Free the pixels before the review state renders.
-    canvas.width = 0;
-    canvas.height = 0;
-    if (!blob || closedRef.current) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = crop.dw;
+      canvas.height = crop.dh;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.dw, crop.dh);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', CAPTURE_QUALITY));
+      // Free the pixels before the review state renders.
+      canvas.width = 0;
+      canvas.height = 0;
+      if (!blob || closedRef.current) return;
 
-    const file = new File([blob], receiptFileName(), { type: 'image/jpeg', lastModified: Date.now() });
-    const url = URL.createObjectURL(blob);
-    shotUrlRef.current = url;
-    setShot({ file, url });
-    setMode('review');
+      const file = new File([blob], receiptFileName(), { type: 'image/jpeg', lastModified: Date.now() });
+      const url = URL.createObjectURL(blob);
+      shotUrlRef.current = url;
+      setShot({ file, url });
+      setMode('review');
+    } finally {
+      capturingRef.current = false;
+      setCapturing(false);
+    }
   }, [mode]);
 
   const retake = useCallback(() => {
@@ -388,7 +438,12 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
           the bottom safe area. */}
       <div
         className="absolute inset-x-0 bottom-0 overflow-hidden rounded-t-[40px] bg-inverse-surface"
-        style={{ height: SHEET_HEIGHT }}
+        style={{
+          height: SHEET_HEIGHT,
+          animation: closing
+            ? `onit-sheet-out ${CLOSE_MS}ms ease-out both`
+            : `onit-sheet-in ${OPEN_MS}ms ease-out both`,
+        }}
       >
         <video
           ref={videoRef}
@@ -402,10 +457,16 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
           // eslint-disable-next-line @next/next/no-img-element -- a blob URL from this capture, not a static asset
           <img src={shot.url} alt="The receipt photo you just took" className="absolute inset-0 h-full w-full object-cover" />
         )}
-        {mode === 'opening' && (
-          <div className="absolute inset-0 grid place-items-center" role="status" aria-live="polite">
+        {loaderMounted && (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-hidden={loading ? undefined : true}
+            className={`pointer-events-none absolute inset-0 grid place-items-center transition-opacity ease-out ${loading ? 'opacity-100' : 'opacity-0'}`}
+            style={{ transitionDuration: `${LOADER_FADE_MS}ms` }}
+          >
             <OnItSpinner size={32} className="text-primary-fixed" />
-            <span className="sr-only">Starting the camera…</span>
+            {loading && <span className="sr-only">Starting the camera…</span>}
           </div>
         )}
         {menuOpen && (
@@ -454,7 +515,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
               type="button"
               aria-label="Take the photo"
               onClick={() => void capture()}
-              disabled={mode !== 'live'}
+              disabled={mode !== 'live' || capturing}
               className="grid h-[76px] w-[76px] justify-self-center place-items-center rounded-full border-2 border-white transition active:scale-95 disabled:opacity-40"
             >
               <span className="h-[62px] w-[62px] rounded-full bg-white" />
