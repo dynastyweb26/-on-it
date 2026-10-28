@@ -50,6 +50,12 @@ test('cameraFailureCopy: every failure explains itself', () => {
   assert.match(cameraFailureCopy('denied').body, /Settings/);
 });
 
+test('cameraFailureCopy: the flow can say what is being photographed', () => {
+  assert.match(cameraFailureCopy('unavailable').body, /pick the receipt from your photos/);
+  assert.match(cameraFailureCopy('unavailable', 'it').body, /pick it from your photos/);
+  assert.match(cameraFailureCopy('lost', 'the photo').body, /pick the photo from your photos/);
+});
+
 test('isSilentFallback: no camera, insecure and unsupported go straight to the picker', () => {
   for (const failure of ['unsupported', 'insecure', 'unavailable'] as const) {
     assert.equal(isSilentFallback(failure, false), true, failure);

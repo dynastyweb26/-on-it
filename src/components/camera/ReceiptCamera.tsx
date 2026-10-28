@@ -20,9 +20,11 @@
    visible rectangle (coverCrop → sx/sy/sw/sh): the photo is the picture the
    user framed, never a letterboxed or widened version of it.
 
-   The photo it produces is a plain JPEG File. It goes straight into the receipt
-   pipeline ChatView already has (prepareReceipt → dedup → parse → expense), so
-   nothing downstream knows or cares that the camera was in-app. */
+   The photo it produces is a plain JPEG File. It goes straight into the pipeline
+   of whichever flow opened it (the receipt one in ChatView: prepareReceipt →
+   dedup → parse → expense; the estimate one: prepareEstimateFile), so nothing
+   downstream knows or cares that the camera was in-app. The receipt wording is
+   the default `copy`; a flow with other words passes its own. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -72,13 +74,37 @@ const OPEN_MS = 250;
 const CLOSE_MS = 200;
 const LOADER_FADE_MS = 150;
 
-export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
+/** Everything the sheet says that mentions what is being photographed. The
+ *  receipt flow (ChatView) uses these defaults; estimates pass their own so the
+ *  screen never talks about receipts over an estimate. */
+export interface CameraCopy {
+  /** Accessible name of the whole screen. */
+  sheet: string;
+  /** The gallery control's accessible name. */
+  gallery: string;
+  /** Description of the frozen photo in review. */
+  photoAlt: string;
+  /** What the failure screen calls the thing being photographed. */
+  subject: string;
+}
+
+const DEFAULT_COPY: CameraCopy = {
+  sheet: 'Photograph a receipt',
+  gallery: 'Choose a receipt from photos instead',
+  photoAlt: 'The receipt photo you just took',
+  subject: 'the receipt',
+};
+
+export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, copy }: {
   onClose: () => void;
   /** The captured photo, ready for the existing receipt pipeline. */
   onPhoto: (file: File) => void;
   /** Fallback: the composer's own gallery picker. */
   onPickFromLibrary: () => void;
+  /** The receipt wording, or the flow's own. Defaults to a receipt. */
+  copy?: Partial<CameraCopy>;
 }) {
+  const text: CameraCopy = { ...DEFAULT_COPY, ...copy };
   const [mode, setMode] = useState<Mode>('opening');
   const [failure, setFailure] = useState<CameraFailure>('unavailable');
   const [facing, setFacing] = useState<Facing>('environment');
@@ -382,7 +408,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
 
   if (typeof document === 'undefined') return null;
 
-  const copy = cameraFailureCopy(failure);
+  const words = cameraFailureCopy(failure, text.subject);
 
   if (mode === 'blocked') {
     return createPortal(
@@ -403,8 +429,8 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
       >
         <div className="w-full max-w-sm text-center">
           <Icon name="visibility_off" size={40} className="mx-auto text-primary" />
-          <h2 className="mt-4 text-headline-mobile">{copy.title}</h2>
-          <p className="mt-2 text-body-md text-on-surface-variant">{copy.body}</p>
+          <h2 className="mt-4 text-headline-mobile">{words.title}</h2>
+          <p className="mt-2 text-body-md text-on-surface-variant">{words.body}</p>
           <button type="button" className="btn-primary mt-6 w-full" onClick={pickLibrary}>
             <Icon name="photo_library" size={20} /> Choose from photos
           </button>
@@ -425,7 +451,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
       ref={sheetRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Photograph a receipt"
+      aria-label={text.sheet}
       onKeyDown={onKeyDown}
       className="fixed inset-0 z-[70] text-inverse-on-surface"
     >
@@ -455,7 +481,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
         />
         {shot && (
           // eslint-disable-next-line @next/next/no-img-element -- a blob URL from this capture, not a static asset
-          <img src={shot.url} alt="The receipt photo you just took" className="absolute inset-0 h-full w-full object-cover" />
+          <img src={shot.url} alt={text.photoAlt} className="absolute inset-0 h-full w-full object-cover" />
         )}
         {loaderMounted && (
           <div
@@ -526,7 +552,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
                 <div className="absolute bottom-full right-0 z-20 mb-3 flex flex-col items-center gap-3">
                   <button
                     type="button"
-                    aria-label="Choose a receipt from photos instead"
+                    aria-label={text.gallery}
                     onClick={pickLibrary}
                     className={CIRCLE}
                   >

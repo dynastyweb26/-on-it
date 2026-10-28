@@ -80,8 +80,10 @@ export function isSilentFallback(failure: CameraFailure, everLive: boolean): boo
 }
 
 /** The words on the failure screen. Every state has some, so the sheet can
- *  never sit there as a black rectangle. */
-export function cameraFailureCopy(failure: CameraFailure): CameraFailureCopy {
+ *  never sit there as a black rectangle. `subject` is what the flow calls the
+ *  thing being photographed ("the receipt" by default), so an estimate can say
+ *  "pick it from your photos" instead. */
+export function cameraFailureCopy(failure: CameraFailure, subject = 'the receipt'): CameraFailureCopy {
   switch (failure) {
     case 'denied':
       return {
@@ -96,17 +98,17 @@ export function cameraFailureCopy(failure: CameraFailure): CameraFailureCopy {
     case 'unsupported':
       return {
         title: 'This browser can’t use the camera',
-        body: 'You can still pick the receipt from your photos.',
+        body: `You can still pick ${subject} from your photos.`,
       };
     case 'lost':
       return {
         title: 'The camera stopped',
-        body: 'Another app may have taken it, or the screen locked. Try again, or pick the receipt from your photos.',
+        body: `Another app may have taken it, or the screen locked. Try again, or pick ${subject} from your photos.`,
       };
     case 'unavailable':
       return {
         title: 'No camera available',
-        body: 'No camera answered, or another app is using it. You can pick the receipt from your photos instead.',
+        body: `No camera answered, or another app is using it. You can pick ${subject} from your photos instead.`,
       };
   }
 }
