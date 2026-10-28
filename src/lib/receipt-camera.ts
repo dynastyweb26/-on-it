@@ -171,8 +171,9 @@ const EMPTY_CROP: CoverCrop = { sx: 0, sy: 0, sw: 0, sh: 0, dw: 0, dh: 0 };
 /**
  * The rectangle to draw so the photo matches what the viewfinder showed.
  *
- * The screen draws the video with `object-cover`, so the frame is scaled until
- * it covers the element box and the overflow is hidden — evenly on both sides.
+ * The screen draws the video with `object-cover` inside the bottom sheet, so
+ * the frame is scaled until it covers that box and the overflow is hidden —
+ * evenly on both sides.
  * Cropping the same rectangle in (sx, sy, sw, sh) means the picture handed to
  * the receipt pipeline is exactly the picture the user framed: no letterbox
  * appears in the photo that wasn't on screen, and nothing visible is cut off.

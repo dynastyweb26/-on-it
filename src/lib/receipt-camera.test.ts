@@ -141,6 +141,34 @@ test('coverCrop: no frame or no box yet means no capture', () => {
   assert.deepEqual(coverCrop(-1, 1080, 400, 700, 2400), none);
 });
 
+// The camera is a bottom sheet 70% of the viewport tall, so the box the video
+// covers is short and wide on a phone in portrait and very short in landscape.
+// These are the two boxes the capture actually sees (390×844 and 844×390).
+test('coverCrop: the 70dvh sheet on a portrait phone crops a landscape sensor frame', () => {
+  const sheet = { width: 390, height: 844 * 0.7 }; // 390 × 590.8, edge to edge
+  const crop = coverCrop(1920, 1080, sheet.width, sheet.height, 2400);
+  // A landscape frame is taller than the sheet needs: the sides go, all of the
+  // sensor's height stays, and nothing is shifted off-centre.
+  assert.ok(Math.abs(crop.sh - 1080) < 1e-6, 'keeps the full frame height');
+  assert.ok(Math.abs(crop.sy) < 1e-6, 'no vertical offset');
+  const scale = Math.max(sheet.width / 1920, sheet.height / 1080);
+  assert.ok(Math.abs(crop.sw - sheet.width / scale) < 1e-6, 'sides cropped only');
+  assert.ok(Math.abs(crop.sx + crop.sw / 2 - 1920 / 2) < 1e-6, 'centred');
+  // What gets stored has the sheet's shape: it is the picture on screen.
+  assert.ok(Math.abs(crop.dw / crop.dh - sheet.width / sheet.height) < 0.002);
+});
+
+test('coverCrop: the short landscape sheet keeps a band of the frame, edge to edge', () => {
+  const sheet = { width: 844, height: 390 * 0.7 }; // 844 × 273
+  const crop = coverCrop(1920, 1080, sheet.width, sheet.height, 2400);
+  // Now the sheet is wider than the frame's shape, so the width fills exactly
+  // and the visible band is the middle of the sensor frame.
+  assert.ok(Math.abs(crop.sw - 1920) < 1e-6, 'keeps the full frame width');
+  assert.ok(Math.abs(crop.sx) < 1e-6, 'no horizontal offset');
+  assert.ok(Math.abs(crop.sy + crop.sh / 2 - 1080 / 2) < 1e-6, 'centred vertically');
+  assert.ok(Math.abs(crop.dw / crop.dh - sheet.width / sheet.height) < 0.002);
+});
+
 test('receiptFileName: a jpeg name', () => {
   assert.equal(receiptFileName(1700000000000), 'receipt-1700000000000.jpg');
 });

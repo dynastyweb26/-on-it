@@ -3,10 +3,12 @@
    A full-screen viewfinder for photographing a receipt, built on getUserMedia
    so it ships through Vercel with no native rebuild.
 
-   Layout: a dark backdrop with one large sheet (40px top shoulders) holding the
-   live video edge to edge, and a single row of controls beneath it — close on
-   the left, shutter in the middle, a "more" circle on the right that unfolds
-   gallery and (only with a second camera) flip above itself.
+   Layout: a bottom sheet 70% of the viewport tall, with 40px top shoulders,
+   holding the live video edge to edge. The chat stays visible above it under a
+   flat, unclickable scrim — tapping the dimmed app does nothing, so the sheet
+   can never be closed by accident. Close, shutter and "more" float over the
+   picture at the sheet's bottom edge (the "more" circle unfolds gallery and,
+   only with a second camera, flip above itself).
 
    The sheet mounts already open (ChatView renders it only while the camera is
    wanted) and unmounting is the close path — which is why the stream lives in
@@ -48,6 +50,19 @@ type Mode = 'opening' | 'live' | 'review' | 'blocked';
 
 /** One shape for every secondary control: 48px, dark translucent, ≥ 44 target. */
 const CIRCLE = 'grid h-12 w-12 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-90';
+
+/** The sheet, in viewport units: the app's top 30% stays visible behind it. */
+const SHEET_HEIGHT = '70dvh';
+/** Bottom padding for the controls: the safe area is padding here, so the
+ *  sheet's own surface still runs all the way to the screen edge. */
+const SHEET_INSET = {
+  paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+  paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+  paddingRight: 'max(1rem, env(safe-area-inset-right))',
+} as const;
+/** A pill over the frozen photo needs its own dark fill to stay legible on a
+ *  white receipt; the outline alone disappears. */
+const PILL = 'min-h-touch rounded-button px-6 text-body-md font-semibold transition active:scale-[0.97]';
 
 export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   onClose: () => void;
@@ -194,6 +209,13 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
       setMode('blocked');
     }
   }, [pickLibrary, stopStream, syncFlippable]);
+
+  // No page scroll while the sheet is up; the chat behind stays put.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   // One effect owns the stream's lifetime: acquire on mount, stop on unmount.
   useEffect(() => {
@@ -355,17 +377,19 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
       aria-modal="true"
       aria-label="Photograph a receipt"
       onKeyDown={onKeyDown}
-      className="fixed inset-0 z-[70] flex flex-col bg-on-background text-inverse-on-surface"
-      style={{
-        height: '100dvh',
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        paddingLeft: 'env(safe-area-inset-left)',
-        paddingRight: 'env(safe-area-inset-right)',
-      }}
+      className="fixed inset-0 z-[70] text-inverse-on-surface"
     >
-      {/* The sheet: live video edge to edge, 40px shoulders over the backdrop. */}
-      <div className="relative mt-2 min-h-0 flex-1 overflow-hidden rounded-t-[40px] bg-inverse-surface">
+      {/* Flat scrim over the app. It has no handler on purpose: it swallows
+          every tap (nothing behind reacts, the sheet never closes by
+          accident) but never does anything itself. */}
+      <div aria-hidden className="absolute inset-0 bg-black/50" />
+
+      {/* The sheet: live video edge to edge, 40px shoulders, full bleed through
+          the bottom safe area. */}
+      <div
+        className="absolute inset-x-0 bottom-0 overflow-hidden rounded-t-[40px] bg-inverse-surface"
+        style={{ height: SHEET_HEIGHT }}
+      >
         <video
           ref={videoRef}
           playsInline
@@ -393,28 +417,28 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
             className="absolute inset-0 z-10 cursor-default"
           />
         )}
-      </div>
 
-      <div className="relative z-20 shrink-0 px-4 pb-2 pt-5">
-        {mode === 'review' ? (
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={retake}
-              className="min-h-touch rounded-button border border-white/30 px-6 text-body-md font-semibold text-inverse-on-surface transition active:scale-[0.97]"
-            >
-              Retake
-            </button>
-            <button
-              type="button"
-              onClick={usePhoto}
-              className="min-h-touch rounded-button bg-inverse-on-surface px-7 text-body-md font-semibold text-on-background transition active:scale-[0.97]"
-            >
-              Use photo
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 items-center">
+        {/* Controls float over the picture, at the sheet's bottom edge. */}
+        <div className="absolute inset-x-0 bottom-0 z-20" style={SHEET_INSET}>
+          {mode === 'review' ? (
+            <div className="flex items-end justify-between gap-3">
+              <button
+                type="button"
+                onClick={retake}
+                className={`${PILL} border border-white/40 bg-black/45 text-white`}
+              >
+                Retake
+              </button>
+              <button
+                type="button"
+                onClick={usePhoto}
+                className={`${PILL} bg-inverse-on-surface px-7 text-on-background`}
+              >
+                Use photo
+              </button>
+            </div>
+          ) : (
+          <div className="grid grid-cols-3 items-end">
             <button
               ref={closeRef}
               type="button"
@@ -470,7 +494,8 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
               </button>
             </div>
           </div>
-        )}
+          )}
+        </div>
       </div>
     </div>,
     document.body,
