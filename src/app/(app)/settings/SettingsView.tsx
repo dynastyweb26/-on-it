@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import SettingsSkeleton from '@/components/SettingsSkeleton';
 import { createClient } from '@/lib/supabase/client';
@@ -17,10 +17,11 @@ import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import type { PayoutMethod } from '@/lib/payout-status';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
-import type { SettingsSection } from './sections';
+import { sectionFromPath, type SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import PageContainer from '@/components/PageContainer';
+import SplitView from '@/components/layout/SplitView';
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -57,6 +58,41 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 }) {
   const supabase = createClient();
   const router = useRouter();
+  // ── Laptop master/detail (design §7) ─────────────────────────────
+  // At xl the grouped list is the left pane and the selected row's page is the
+  // right pane, driven by the route — the same shape the Invoices split uses.
+  // Resolved on the client: the server and the first client render are today's
+  // single column, so there is no hydration mismatch. Below xl nothing changes:
+  // the `section` prop is the whole story.
+  const pathname = usePathname();
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  // The section the route names (null on /settings and on a deeper route). Set
+  // on the click so the pane follows the tap immediately, then confirmed by the
+  // pathname — the pane must not wait for the navigation's payload.
+  const routeSec = sectionFromPath(pathname);
+  const [picked, setPicked] = useState<SettingsSection | null>(routeSec);
+  useEffect(() => { setPicked(routeSec); }, [routeSec]);
+  // The split is the Settings screen itself and its one-level section routes.
+  // A deeper route — /settings/payouts/<method> — is its own screen at every
+  // width, so it keeps its own page and its Back button.
+  const split = wide && (section === 'main' || routeSec !== null);
+  const sec: SettingsSection = split ? (picked ?? 'main') : section;
+  // A configured row click at xl opens the section in the right pane. Push, not
+  // replace, so Back and Forward step through the sections you opened. Below xl
+  // SettingsRow is never given this, so the link navigates as it always did.
+  function openSection(e: React.MouseEvent<HTMLAnchorElement>, s: SettingsSection) {
+    if (!split) return;
+    e.preventDefault();
+    setPicked(s);
+    router.push(`/settings/${s}`, { scroll: false });
+  }
   const [p, setP] = useState<any>(null);
   // Signed-in account email, read from the same getSharedUser() call this page
   // already makes. Display only — never written to the profiles row.
@@ -118,7 +154,9 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
   const [clientCount, setClientCount] = useState<number | null>(null);
   const [productCount, setProductCount] = useState<number | null>(null);
   useEffect(() => {
-    if (!active || section !== 'main') return;
+    // At xl the list is on screen whatever section the route names, so its two
+    // counts load on any laptop Settings load.
+    if (!active || !(sec === 'main' || split)) return;
     supabase.from('clients').select('id', { count: 'exact', head: true })
       .not('saved_at', 'is', null).is('deleted_at', null)
       .then(({ count }) => setClientCount(count ?? null), () => undefined);
@@ -127,7 +165,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
       .not('saved_at', 'is', null).is('deleted_at', null)
       .then(({ count }) => setProductCount(count ?? null), () => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, active]);
+  }, [sec, active, split]);
 
   useEffect(() => {
     if (!active) return; // hidden deck panels never redirect or fetch auth
@@ -145,13 +183,13 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     const connectParam = new URLSearchParams(window.location.search).get('connect');
     // Checkout's success URL for Settings is /settings?upgraded=1: show the
     // Plan sub-screen (it re-reads access on load).
-    if (section === 'main' && !connectParam && new URLSearchParams(window.location.search).get('upgraded') === '1') {
+    if (sec === 'main' && !connectParam && new URLSearchParams(window.location.search).get('upgraded') === '1') {
       settled = true; clearTimeout(stuckTimer);
       noteUpgradeReturn(); // starts the unlock poll; it outlives this redirect
       router.replace('/settings/plan');
       return () => { alive = false; };
     }
-    if (section === 'main' && connectParam) {
+    if (sec === 'main' && connectParam) {
       settled = true; clearTimeout(stuckTimer);
       router.replace(`${PAYOUTS_INDEX}/stripe?connect=${encodeURIComponent(connectParam)}`);
       return () => { alive = false; };
@@ -190,33 +228,22 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
         // Zelle's mask comes from its own route; start it alongside the profile
         // read so the payouts statuses land together. Only the screens that show it.
-        const zelleReq = section === 'main' || section === 'payouts'
+        const zelleReq = sec === 'main' || sec === 'payouts' || split
           ? fetch('/api/zelle').then((r) => (r.ok ? r.json() : null)).catch(() => null)
           : null;
-        // Plan screen: the free limits (constant SQL functions, the same ones
-        // the paywall reads) load in parallel with the profile, so the
-        // canceling line renders complete on first paint instead of growing
-        // a "(3 invoices and 5 expenses)" clause later.
-        const limitsReq = section === 'plan'
-          ? Promise.all([supabase.rpc('free_invoice_limit'), supabase.rpc('free_expense_limit')]).catch(() => null)
-          : null;
+        // Plan screen: the free limits are their own effect (below), keyed on
+        // the section, so the laptop split loads them when Plan is opened rather
+        // than only when the route landed there.
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (!alive) return;
         // Signed in but no profile yet → finish onboarding (matches chat's pattern).
         if (!data) { settle(); setRedirecting(true); router.replace('/onboarding'); return; }
-        if (limitsReq) {
-          const l = await limitsReq;
-          if (!alive) return;
-          // A limit worth showing; anything this large is "uncapped" (lib/access displayLimit).
-          const shown = (n: unknown) => (typeof n === 'number' && n < 1000 ? n : null);
-          if (l) setPlanLimits({ invoices: shown(l[0].data), expenses: shown(l[1].data) });
-        }
         settle();
         setAuthStuck(false); // late resolve after a timeout: recover and render
         setP(data);
         // A payout detail view saved and came back here (?saved=1): the usual
         // "Saved" banner, then drop the param so a reload doesn't repeat it.
-        if (section === 'payouts' && !method && new URLSearchParams(window.location.search).get('saved') === '1') {
+        if (sec === 'payouts' && !method && new URLSearchParams(window.location.search).get('saved') === '1') {
           setSaved(true);
           setTimeout(() => setSaved(false), 1500);
           router.replace(PAYOUTS_INDEX);
@@ -230,7 +257,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         // dropped from the URL first so a reload can't loop the redirect.
         // All of it is skipped unless the server says Connect is on here.
         if (connectParam) router.replace(`${PAYOUTS_INDEX}/stripe`);
-        if (connectOn && (section === 'main' || section === 'payouts')) {
+        if (connectOn && (sec === 'main' || sec === 'payouts')) {
           if (connectParam === 'refresh') {
             void startConnect();
           } else if (data.stripe_account_id && (connectParam === 'return' || !data.stripe_charges_enabled)) {
@@ -260,6 +287,25 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     return () => { alive = false; clearTimeout(stuckTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
+
+  // Plan screen: the free limits (constant SQL functions, the same ones the
+  // paywall reads). Its own effect so the laptop split loads them when Plan is
+  // opened, not only when the route landed there.
+  useEffect(() => {
+    if (!active || sec !== 'plan') return;
+    let alive = true;
+    Promise.all([supabase.rpc('free_invoice_limit'), supabase.rpc('free_expense_limit')]).then(
+      (l) => {
+        if (!alive) return;
+        // A limit worth showing; anything this large is "uncapped" (lib/access displayLimit).
+        const shown = (n: unknown) => (typeof n === 'number' && n < 1000 ? n : null);
+        setPlanLimits({ invoices: shown(l[0].data), expenses: shown(l[1].data) });
+      },
+      () => undefined,
+    );
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sec, active]);
 
   // Resolves false when the write failed (and was reverted). `silent` skips the
   // page-level Saved/error banners; the Invoice style card shows its own.
@@ -367,7 +413,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
   // cancel screen hands back after an offer (/settings/plan?done=discount|paused),
   // then drop the param so a refresh doesn't repeat it.
   useEffect(() => {
-    if (!active || section !== 'plan') return;
+    if (!active || sec !== 'plan') return;
     const done = new URLSearchParams(window.location.search).get('done');
     if (done === 'discount' || done === 'paused') {
       setPlanNotice(done);
@@ -377,7 +423,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
     void getSummary().then((s) => { if (alive) setPlanSummary(s); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, active]);
+  }, [sec, active]);
 
   // Resume a canceling or paused subscription, then re-read the profile,
   // access and summary so the Plan screen shows the server's state.
@@ -551,7 +597,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
 
   // Deep link from the "Add terms" tip: /settings/business-info#terms scrolls to the
   // field and focuses it once the profile has loaded.
-  const termsReady = !!p && section === 'business-info';
+  const termsReady = !!p && sec === 'business-info';
   useEffect(() => {
     if (!termsReady || window.location.hash !== '#terms') return;
     const el = document.getElementById('terms');
@@ -580,21 +626,34 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
   );
   if (!p) return <SettingsSkeleton />;
 
-  const is = (s: SettingsSection) => section === s;
-  return (
-    <PageContainer size="narrow" className={`space-y-4 overflow-x-hidden py-4${is('main') ? ' xl:mx-0 xl:h-full xl:w-[440px] xl:max-w-none xl:overflow-visible xl:border-r xl:border-outline-variant/35 xl:px-0 xl:pb-8 xl:pl-6 xl:pr-5 xl:pt-6' : ''}`}>
-      {!(is('payouts') && method) && <SettingsTitle>{is('business') ? 'Business profile' : is('business-info') ? 'Business Info' : is('business-brand') ? 'Brand Design' : is('payouts') ? 'Payment options' : is('plan') ? 'Plan' : is('notifications') ? 'Notifications' : is('help') ? 'Help & feedback' : is('login') ? 'Manage login' : 'Settings'}</SettingsTitle>}
-      {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
-      {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
+  const is = (s: SettingsSection) => sec === s;
+  // The grouped list is the left pane at xl even while a section is selected.
+  const showList = is('main') || split;
+  const title = (s: SettingsSection) => (s === 'business' ? 'Business profile' : s === 'business-info' ? 'Business Info' : s === 'business-brand' ? 'Brand Design' : s === 'payouts' ? 'Payment options' : s === 'plan' ? 'Plan' : s === 'notifications' ? 'Notifications' : s === 'help' ? 'Help & feedback' : s === 'login' ? 'Manage login' : 'Settings');
+  const banners = (<>
+    {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
+    {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
+  </>);
+  // A payout method's own route renders no title (unchanged).
+  const heading = (s: SettingsSection) => (!(s === 'payouts' && method) ? <SettingsTitle>{title(s)}</SettingsTitle> : null);
+
+  // The left pane: the grouped list, which is the design's master column. At xl
+  // the deck keeps it mounted across selections, so its scroll survives a row
+  // click.
+  const listPane = (
+    <>
+      {heading('main')}
+      {banners}
 
       {/* The grouped main screen (release frames 0c). Clients and Products &
           Services open the Clients tab (founder rule F3); Recurring expenses
           ("In Books") opens Books › Recurring (merge 3 · 3·3). */}
-      {is('main') && (<>
+      {showList && (<>
         <SettingsGroup title="Your business">
           <SettingsRow icon="group" tint="gold" title="Clients" value={clientCount ? String(clientCount) : null} href="/clients" />
           <SettingsRow icon="handyman" tint="gold" title="Products & Services" value={productCount ? String(productCount) : null} href="/clients?segment=products" />
-          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" data-coach="settings-profile" />
+          <SettingsRow icon="storefront" title="Business profile" href="/settings/business" data-coach="settings-profile"
+            active={is('business')} onNavigate={(e) => openSection(e, 'business')} />
           <SettingsRow icon="folder" title="Records" value="Vault" href="/vault" />
         </SettingsGroup>
         <SettingsGroup title="Money">
@@ -602,6 +661,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
           <SettingsRow icon="account_balance" title="Payment options" href="/settings/payouts"
             data-coach="settings-payouts"
             data-payouts-set={payoutsSet}
+            active={is('payouts')} onNavigate={(e) => openSection(e, 'payouts')}
             value={payoutsValue} />
         </SettingsGroup>
         <SettingsGroup title="Account">
@@ -611,6 +671,7 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
               nothing below it shifts. */}
           {(planTier === 'founder' || PAYWALL_ENABLED || planLive) && (
             <SettingsRow icon="workspace_premium" title="Plan" href="/settings/plan"
+              active={is('plan')} onNavigate={(e) => openSection(e, 'plan')}
               value={planTier === 'founder' ? 'Founder'
                 : planPaused ? 'Paused'
                 : planCanceling ? 'Ending'
@@ -619,15 +680,32 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
                 : planTier === 'active' ? 'Subscribed' : 'Free'} />
           )}
           <SettingsRow icon="notifications" title="Notifications" href="/settings/notifications"
+            active={is('notifications')} onNavigate={(e) => openSection(e, 'notifications')}
             value={pushOn === null ? null : pushOn ? 'On' : 'Off'} />
           {p.referral_code && <SettingsRow icon="person_add" title="Invite a contractor" onClick={() => setInviteOpen(true)} />}
-          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" data-coach="settings-replay" />
+          <SettingsRow icon="help" title="Help & feedback" href="/settings/help" data-coach="settings-replay"
+            active={is('help')} onNavigate={(e) => openSection(e, 'help')} />
           {/* Sign out + Delete account live on their own screen so they're
               never one stray tap away on the main Settings list. */}
           <SettingsRow icon="person" title="Manage login" href="/settings/login"
+            active={is('login')} onNavigate={(e) => openSection(e, 'login')}
             value={accountEmail} />
         </SettingsGroup>
       </>)}
+      {/* The version line closes the list pane, exactly where it sat on the page
+          below xl. */}
+      {showList && (
+      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
+      )}
+    </>
+  );
+  // The right pane: the selected section's page. Keyed by the section, so a
+  // selection change hands the pane a fresh instance (the Invoice style card
+  // seeds state from the profile) instead of the previous section's internals.
+  const detailPane = sec === 'main' ? null : (
+    <>
+      {heading(sec)}
+      {banners}
 
       {/* Business profile: a menu of two screens, same rows as Settings. */}
       {is('business') && (
@@ -1068,9 +1146,38 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
       </section>
       </>)}
 
-      {is('main') && (
-      <p className="pb-4 text-center text-xs text-on-surface-variant/60">On It · a Dynasty Web product · $9.99/month</p>
+    </>
+  );
+  // Laptop: the design's split — the list on the left, the section's page on the
+  // right. Both panes render the same markup the phone column renders, so every
+  // existing section screen is reused unchanged.
+  if (split) return (
+    <SplitView
+      list={
+        // No `overflow-x-hidden` here: on one axis hidden makes the other compute
+        // to auto, which turned this wrapper into its own scroll container — it
+        // then shrank to the pane and swallowed the overflow, so the pane never
+        // scrolled and the last rows sat below the fold.
+        <PageContainer size="narrow" className="space-y-4 py-4 xl:max-w-none xl:px-0 xl:pb-2 xl:pt-0">{listPane}</PageContainer>
+      }
+      detail={detailPane && (
+        <div key={sec}><PageContainer size="narrow" className="space-y-4 py-4 xl:max-w-none xl:px-0 xl:pb-8 xl:pt-0">{detailPane}</PageContainer></div>
       )}
+      emptyDetail={
+        // The design's frames always show a section, so there is no empty-detail
+        // copy to reuse here: an icon-only placeholder, no new strings (the same
+        // call the Invoices split made).
+        <div aria-hidden className="xl:mt-24 grid place-items-center">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-surface-container text-outline-variant">
+            <Icon name="settings" size={30} />
+          </span>
+        </div>
+      }
+    />
+  );
+  return (
+    <PageContainer size="narrow" className={`space-y-4 overflow-x-hidden py-4${is('main') ? ' xl:mx-0 xl:h-full xl:w-[440px] xl:max-w-none xl:overflow-visible xl:border-r xl:border-outline-variant/35 xl:px-0 xl:pb-8 xl:pl-6 xl:pr-5 xl:pt-6' : ''}`}>
+      {sec === 'main' ? listPane : detailPane}
     </PageContainer>
   );
 }

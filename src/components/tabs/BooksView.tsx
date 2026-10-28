@@ -194,15 +194,20 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   const invoiceLabel = stats.count === 0
     ? 'No invoices yet'
     : `${stats.count} ${stats.count === 1 ? 'invoice' : 'invoices'}`;
+  // `xl:items-stretch`: the Recaps card and the View expenses + Recurring card
+  // share a line at xl and the design draws them the same height (MAPPING §12b).
   return (
-    <PageContainer size="wide" className="space-y-4 pb-8 pt-6 xl:flex xl:flex-wrap xl:items-start xl:gap-5 xl:space-y-0 xl:pt-6">
+    <PageContainer size="wide" className="space-y-4 pb-8 pt-6 xl:flex xl:flex-wrap xl:items-stretch xl:gap-5 xl:space-y-0 xl:pt-6">
       {/* Release frames 5a: Recaps row on top (its dot matches the Books tab
           dot), then Net, the two metric tiles + Spent row, Add expense, the
           list card and Income & Expenses (§L Q4 keeps today's label). */}
       {/* xl: the design puts Recaps at the END of the page, beside the list
           card. DOM order stays phone's (Recaps first) and `xl:order-5` moves it
           into the cards line — flex order, so nothing below xl changes. */}
-      <div className="xl:order-5 xl:w-[calc((100%-1.25rem)*0.386)]">
+      {/* `xl:mt-6` matches the 24px space-y-6 margin the list card still carries
+          into the xl flex line, so the two cards on that line start together and
+          stretch to one height (MAPPING §12a). */}
+      <div className="xl:order-5 xl:mt-6 xl:w-[calc((100%-1.25rem)*0.386)]">
         <RecapsCard />
       </div>
       {/* A recurring charge On It couldn't log (3·6, L3). */}
