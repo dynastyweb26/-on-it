@@ -446,6 +446,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Contact echo: the reply names every captured contact field, and only
+    // those. The prompt asks for it; this guarantees it when the model drops
+    // one, appending just the missing values (never a field the user did not
+    // give). Runs after the money narration so it is never stripped.
+    if (result.intent === 'invoice' || result.intent === 'quote') {
+      const ack = missingContactAck(result.reply ?? '', {
+        phone: result.client_phone,
+        email: result.client_email,
+        address: result.client_address,
+      });
+      if (ack) result.reply = `${(result.reply ?? '').trim()} ${ack}.`.trim();
+    }
+
     // Duplicate detection: same client + same total in the last 48h
     let duplicateWarning: string | null = null;
     if (user && result.ready && result.intent !== 'expense') {
