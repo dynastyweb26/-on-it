@@ -7,7 +7,7 @@
 -- to store it. This adds the column (nullable, additive) and pins it exactly
 -- like client_phone:
 --   • lock_sent_invoice_fields freezes it once the row leaves draft, rebuilt
---     below from its latest body (20261020120000_color_roles_explicit.sql).
+--     below from its latest body (20261023100200_estimates_title_caption_contact.sql).
 --   • guard_locked_estimate_edits lets it stay editable on a sent-unsigned
 --     estimate and refuses the change once signed/converted, rebuilt from its
 --     latest body (20261023100200_estimates_title_caption_contact.sql).
@@ -31,29 +31,20 @@ comment on column public.invoices.client_email is
   'Billed party email, captured only when the owner states it. Snapshotted with client_address/client_phone; NULL prints nothing.';
 
 -- ── 1. Sent-invoice lock: pin the email with the rest of the billed party ──
+-- Source: the live body from 20261023100200_estimates_title_caption_contact.sql
+-- (the latest rebuild; 20261023100100 introduced the sent-quote window), with
+-- only the client_email pin added.
 create or replace function public.lock_sent_invoice_fields()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
-  -- Document money
-  NEW.subtotal       := OLD.subtotal;
-  NEW.tax_rate       := OLD.tax_rate;
-  NEW.tax_amount     := OLD.tax_amount;
-  NEW.total          := OLD.total;
-  -- Billed party (snapshot)
-  NEW.client_name    := OLD.client_name;
-  NEW.client_address := OLD.client_address;
-  NEW.client_phone   := OLD.client_phone;
-  NEW.client_email   := OLD.client_email;
-  -- Notes + deposit terms + due date
-  NEW.notes          := OLD.notes;
-  NEW.deposit_type   := OLD.deposit_type;
-  NEW.deposit_value  := OLD.deposit_value;
-  NEW.due_date       := OLD.due_date;
   -- First-sent stamp is immutable once set
-  NEW.first_sent_at  := OLD.first_sent_at;
-  -- Render snapshot — frozen record of what was actually sent
+  NEW.first_sent_at        := OLD.first_sent_at;
+  -- Render snapshot — frozen record of what was actually sent. The COLOR-FOR-
+  -- ROLES flag (20261020120000) belongs here: without it a re-render could
+  -- rescore an old invoice's colors.
   NEW.template             := OLD.template;
   NEW.brand_colors         := OLD.brand_colors;
   NEW.background_color     := OLD.background_color;
@@ -65,8 +56,42 @@ begin
   NEW.cashapp_tag          := OLD.cashapp_tag;
   NEW.paypal_me            := OLD.paypal_me;
   NEW.venmo_username       := OLD.venmo_username;
+
+  -- A sent, unsigned, unconverted quote keeps editable CONTENT. Everything
+  -- else — invoices, approved/converted quotes, drafts, paid/overdue/void —
+  -- falls through to today's pins.
+  if OLD.kind = 'quote'
+     and OLD.status = 'sent'
+     and OLD.approved_at is null
+     and not exists (
+       select 1 from public.invoices i
+        where i.converted_from = OLD.id
+          and i.deleted_at is null
+     )
+  then
+    return NEW;
+  end if;
+
+  -- Document money
+  NEW.subtotal       := OLD.subtotal;
+  NEW.tax_rate       := OLD.tax_rate;
+  NEW.tax_amount     := OLD.tax_amount;
+  NEW.total          := OLD.total;
+  -- Billed party (snapshot)
+  NEW.client_name    := OLD.client_name;
+  NEW.client_address := OLD.client_address;
+  NEW.client_phone   := OLD.client_phone;
+  NEW.client_email   := OLD.client_email;
+  -- Heading (content snapshot)
+  NEW.title          := OLD.title;
+  -- Notes + deposit terms + due date
+  NEW.notes          := OLD.notes;
+  NEW.deposit_type   := OLD.deposit_type;
+  NEW.deposit_value  := OLD.deposit_value;
+  NEW.due_date       := OLD.due_date;
   return NEW;
 end $$;
+
 
 -- ── 2. Estimate edit window: email behaves like the phone beside it ──
 create or replace function public.guard_locked_estimate_edits()
