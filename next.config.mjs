@@ -45,7 +45,14 @@ const nextConfig = {
         { key: 'X-Frame-Options', value: 'DENY' },
         { key: 'X-Content-Type-Options', value: 'nosniff' },
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-        { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), microphone=(self)' },
+        // camera=(self): the in-app receipt camera (components/camera/
+        // ReceiptCamera.tsx) calls getUserMedia on our own origin. An empty
+        // camera=() allowlist blocks it in every engine, own origin included,
+        // so the attribute must name 'self' for the same-origin screen to
+        // work. Nothing is granted to third parties: iframes still can't use
+        // the camera (the value is not *), and the screen is behind
+        // NEXT_PUBLIC_IN_APP_CAMERA until that is turned on.
+        { key: 'Permissions-Policy', value: 'camera=(self), geolocation=(), microphone=(self)' },
       ],
     },
   ],
