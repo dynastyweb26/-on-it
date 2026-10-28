@@ -967,6 +967,8 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
                 <a href="/terms" className="underline">Terms</a>
                 {' · '}
                 <a href="/privacy" className="underline">Privacy</a>
+                {' · '}
+                <a href="/eula" className="underline">EULA</a>
               </p>
             </>
           )}
@@ -1098,6 +1100,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
           <SettingsRow icon="mail" title="Contact us" value="brandon@dynastyweb.co" href="mailto:brandon@dynastyweb.co?subject=On%20It%20feedback" />
           <SettingsRow icon="description" title="Terms" href="/terms" />
           <SettingsRow icon="lock" title="Privacy" href="/privacy" />
+          <SettingsRow icon="description" title="EULA" href="/eula" />
         </SettingsGroup>
       )}
 

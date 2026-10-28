@@ -340,6 +340,8 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
                 <span aria-hidden>·</span>
                 <a href="/privacy" className="text-on-background underline underline-offset-[3px]">Privacy</a>
                 <span aria-hidden>·</span>
+                <a href="/eula" className="text-on-background underline underline-offset-[3px]">EULA</a>
+                <span aria-hidden>·</span>
                 {/* Required wherever a subscription can be bought (App Store
                     rule). Restores nothing until store billing exists. */}
                 <button

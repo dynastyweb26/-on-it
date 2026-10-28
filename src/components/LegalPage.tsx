@@ -1,4 +1,4 @@
-// Shared shell for the public legal pages (/terms, /privacy). Reachable without
+// Shared shell for the public legal pages (/terms, /privacy, /eula). Reachable without
 // a session — these routes live outside the (app) group and have no auth guard.
 // The document's own "# Title" and "**Last updated**" lines render at the top,
 // so the date is visible immediately.

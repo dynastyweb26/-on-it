@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 19, 2026**
+**Last updated: October 28, 2026**
 
 On It is an invoicing and bookkeeping app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"). This policy explains what information we collect, why we collect it, who we share it with, how long we keep it, and the choices you have.
 
@@ -82,6 +82,8 @@ If you paste job notes or a work order into the chat, that text is processed to 
 ### Your subscription
 
 If you subscribe, your card details are collected and stored by Stripe, our payment processor. **We never receive or store your card number.** We store a Stripe customer identifier, your subscription status, your trial and renewal dates, and whether we have sent your trial reminder. If you cancel, we also store the reason you pick, any detail you add, whether you accepted a discount or pause offer, and the dates involved. We send Stripe a general cancellation reason category as part of the cancellation.
+
+If you subscribe in the On It app on an iPhone or iPad, the purchase is an Apple in-app purchase instead. **Apple collects and stores your payment details and we never see them.** We receive the product you bought, Apple's transaction and original transaction identifiers, and whether the subscription is active, and we store those with your account so the app knows what you have paid for. The paywall's Restore Purchases button asks Apple for the purchases on that Apple Account and sends the result to our server, which decides the access; nothing else about your Apple Account reaches us.
 
 ### Codes and referrals
 
@@ -171,7 +173,15 @@ We keep this to what the app needs to work and stay secure.
 - **Push notifications.** If you allow notifications, we store your device's push subscription (a delivery address and encryption keys issued by your browser) and your browser type, so we can send notifications to the right device.
 - **Activity records.** We keep a log of changes to your profile and invoices for security, fraud investigation, and troubleshooting (see Section 9 for what happens to it when you delete your account).
 
-We do not collect your precise location. We do not use analytics, advertising, or cross-site tracking tools.
+We do not collect your precise location. We do not use advertising or cross-site tracking tools, we do not build advertising profiles, and we do not sell data.
+
+### Analytics and crash reporting
+
+So we can see which screens are slow or broken and which features people actually use, we use a small number of service providers for product analytics and crash reporting. **We are not naming those providers in this policy yet.** We will name them here before the app ships to the app stores, and this page is the place to check.
+
+What they receive is technical only: the app version, device model, operating system, the country a request comes from, a random installation identifier, which screens were opened, and the technical detail of a crash (the error and the code that failed). They do not receive your invoices, your customers' names, your payment details, your chat messages, your voice audio, or your receipt photos. None of it is used to advertise to you or to follow you across other apps or websites.
+
+Notifications are carried by your device's push service, or by a push delivery provider we use. Either way the notification content is encrypted, so the service carrying it cannot read what it says.
 
 ---
 
@@ -199,7 +209,14 @@ You can clear cookies and local storage in your browser settings at any time. If
 
 ### Device permissions
 
-On It asks for permission before using your **microphone** (for voice input) or sending **notifications**. Photos are only accessed when you choose them with your device's photo picker or camera. You can turn these permissions off in your device or browser settings at any time.
+On It asks before it uses anything on your device, and every permission is optional:
+
+- **Camera.** Used to photograph a receipt, or to take a picture you attach to an invoice or estimate. The camera opens only when you tap the camera button; the app has no access to it in the background.
+- **Microphone.** Used for voice input: you hold the microphone button, speak, and the audio is transcribed (Section 4). It is open only while you hold the button, and we do not record in the background.
+- **Photos.** On It uses your device's photo picker, so you choose the exact images it receives. It does not read your photo library. A receipt photo is sent for AI reading (Section 4), and images you attach to an invoice or estimate are stored privately with it.
+- **Notifications.** Used for the alerts listed in Section 7. On iPhone and iPad, notifications need On It added to your Home Screen.
+
+You can turn any of these off in your device or browser settings at any time. If you do, the feature that needs it stops working — voice input without the microphone, for example — and the rest of On It keeps working. Turning notifications off changes nothing about your invoices or payments.
 
 ---
 
@@ -238,6 +255,8 @@ We share information only with service providers that help us run On It, and onl
 | Zoho (our business mailbox) | Receives feedback emails and replies | What you wrote, your business name, your account email, and anything you put in a reply |
 | Upstash | Rate limiting | Account identifiers or IP addresses, briefly |
 | Your device's push service (for example Apple, Google, or Mozilla) | Delivers notifications you have allowed | Encrypted notification content, which the push service cannot read |
+| Apple App Store (iOS) | Bills an in-app subscription and answers Restore Purchases | The product bought, transaction identifiers, and whether the subscription is active — never your card details |
+| Analytics and crash-reporting providers | Product analytics and crash diagnostics (Section 5) | App version, device and operating system, a random installation identifier, screens opened, crash detail |
 
 We may also disclose information if the law requires it, to respond to valid legal process, or when needed to protect the rights, property, or safety of our users, the public, or us.
 
@@ -285,7 +304,8 @@ If you are a customer of a business that uses On It:
 - **See and edit** your business profile, invoices, expenses, saved clients, products, and recurring expenses
 - **Remove** your payment handles and bank details at any time
 - **Turn notifications on or off** in Settings or in your device settings
-- **Cancel your subscription** at any time through the billing portal in Settings
+- **Cancel your subscription** at any time through the billing portal in Settings, or in your Apple Account subscriptions if you subscribed in the iOS app
+- **Restore purchases** on the paywall, to bring an App Store subscription back onto this device
 - **Delete your account** (Settings, then Delete account)
 
 ### Privacy rights
