@@ -3,9 +3,10 @@
 // one 50 px row, with the red unread dot that matches the Books tab dot (it
 // pulses once). Below xl that row is unchanged.
 //   • RECAPS_LIVE off: "Coming soon" (not tappable);
-//   • free / canceled: "Unlock" → the paywall (reports variant);
-//   • paid, before the first recap: "Lands Monday" (not tappable);
-//   • paid with recaps: the row plays the latest one (sound unlocks inside this
+//   • free plan, past the two free weekly recaps: "Unlock" → the paywall (recaps
+//     variant). Inside the allowance the latest recap plays like a paid one's;
+//   • before the first recap: "Lands Monday" (not tappable);
+//   • with recaps: the row plays the latest one (sound unlocks inside this
 //     tap, via useRecaps().open), its title says what that does, and the
 //     chevron opens the history list (/recaps).
 //   • signed out or still loading: nothing.
@@ -55,7 +56,7 @@ function Lead({ dot, wide = false }: { dot: boolean; wide?: boolean }) {
 }
 
 export default function RecapsCard() {
-  const { access, rows, watched, open, unwatched } = useRecaps();
+  const { access, rows, watched, open, unwatched, canPlay } = useRecaps();
   const [paywall, setPaywall] = useState(false);
   // xl only (the design's laptop breakpoint). Read after mount: the phone row
   // renders first, so the effect is the earliest safe point to swap structure.
@@ -84,7 +85,11 @@ export default function RecapsCard() {
     );
   }
 
-  if (access === 'locked') {
+  const latest = rows[0];
+
+  // The two free weekly recaps play exactly like paid ones; the third and every
+  // later one is born locked, and the card sells the plan instead of playing.
+  if (latest && !canPlay(latest)) {
     return (
       <>
         {wide ? (
@@ -105,12 +110,10 @@ export default function RecapsCard() {
             <Icon name="chevron_right" size={20} className="text-outline" />
           </button>
         )}
-        {paywall && <PaywallModal variant="reports" returnTo="books" onClose={() => setPaywall(false)} />}
+        {paywall && <PaywallModal variant="recaps" returnTo="books" onClose={() => setPaywall(false)} />}
       </>
     );
   }
-
-  const latest = rows[0];
   if (!latest) {
     return wide ? (
       <div className={CARD}>

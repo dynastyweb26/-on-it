@@ -31,14 +31,23 @@
 // re-run a no-op.
 //
 // A "nothing at all" period (nothing in, out, owed or paid) still gets a
-// snapshot, so Books can show "Quiet week", but never a push (and the app
-// shows no prompt for it). Owners who have never created an invoice or an
+// snapshot for a paid owner, so Books can show "Quiet week", but never a push
+// (and the app shows no prompt for it). A free owner gets no snapshot for one:
+// there is no slot to spend and nothing to play, and a locked "Quiet week"
+// card would only be noise. Owners who have never created an invoice or an
 // expense get no snapshots at all.
 //
-// Recaps are a paid feature: with the paywall on, only owners on a paid tier
-// (PAID_TIERS — founder, trialing, active, past_due) get a snapshot or a push;
-// free and canceled owners are skipped before any numbers are read. With the
-// paywall off everyone with activity gets one. The push additionally
+// The free plan gets the first 2 WEEKLY recaps (lib/recap/quota: FREE_RECAPS);
+// everything after that is paid-only, and monthly recaps are paid-only from the
+// start — with the paywall on, a free or canceled owner is never given a month
+// period at all. The allowance is spent here, at build time, not when the story
+// is watched: nextFreeSlot() gives an announcing week slot 1, then 2, and null
+// after that, so the third one is born locked (free_plan true, free_slot null)
+// and the app shows the wall instead of a play button. A quiet week carries no
+// slot, so an empty period never spends one. Rows built while paid store
+// free_plan = false and always play, so a downgrade never locks history
+// someone already saw. With the paywall off every owner is treated as paid.
+// The push additionally
 // needs recap_push on and a device in THIS environment (checked first, so the
 // dedupe key is never claimed for an owner nobody can reach). With push off
 // the snapshot still shows in the app (Books card, history, Watch/Later sheet).
@@ -54,6 +63,7 @@ import { summarize, summarizeIncome, type ExpenseLite, type PaymentLite } from '
 import { isExpenseCategory } from '@/lib/expenses';
 import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
+import { nextFreeSlot, recapUnlocked } from '@/lib/recap/quota';
 import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
@@ -244,8 +254,12 @@ export async function loadRecapInput(
 }
 
 // ── Run ───────────────────────────────────────────────────────────────
-type Owner = { id: string; tz: string; push: boolean; periods: RecapPeriod[] };
-export type Built = { period: RecapPeriod; id: string; numbers: RecapNumbers; announce: boolean };
+type Owner = { id: string; tz: string; push: boolean; periods: RecapPeriod[]; freePlan: boolean };
+export type Built = {
+  period: RecapPeriod; id: string; numbers: RecapNumbers; announce: boolean;
+  /** The free recap this row owns (1..FREE_RECAPS), or null. */
+  freeSlot: number | null;
+};
 
 /** Has this owner ever created an invoice/quote or an expense (deleted or not)? */
 async function everActive(admin: Admin, userId: string): Promise<boolean> {
@@ -259,17 +273,40 @@ async function everActive(admin: Admin, userId: string): Promise<boolean> {
 
 export type OwnerRecaps = { inactive: boolean; built: number; existing: number; quiet: number; rows: Built[] };
 
+/** Free-slotted recaps this owner already has (the allowance spent so far). */
+async function freeSlotsUsed(admin: Admin, userId: string): Promise<number> {
+  const { count, error } = await admin.from('recaps')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .not('free_slot', 'is', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Build (insert-once) one owner's snapshots for `periods`. Shared by the
- *  daily run's per-owner work. Never pushes. */
-export async function buildOwnerRecaps(admin: Admin, userId: string, tz: string, periods: RecapPeriod[]): Promise<OwnerRecaps> {
+ *  daily run's per-owner work. Never pushes. `freePlan` decides whether these
+ *  rows spend the free allowance (lib/recap/quota). */
+export async function buildOwnerRecaps(
+  admin: Admin, userId: string, tz: string, periods: RecapPeriod[], freePlan = false,
+): Promise<OwnerRecaps> {
   const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
   if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
+  let used = freePlan ? await freeSlotsUsed(admin, userId) : 0;
   for (const period of periods) {
     const rows = await loadPeriodRows(admin, userId, period, tz);
     const numbers = rollUp(rows.expenses, rows.payments, period);
     const payload = buildRecapPayload(await loadRecapInput(admin, userId, period, tz, rows));
     const announce = recapAnnounces(payload);
-    if (!announce) out.quiet++;
+    if (!announce) {
+      out.quiet++;
+      // A quiet week never spends a free slot, and a free owner has nothing to
+      // play in it, so no row is written for them at all.
+      if (freePlan) continue;
+    }
+    // Assigned before the insert and only here: a recap is entitled or locked
+    // from the moment it exists, so no story can be cut off mid-play.
+    const slot = nextFreeSlot({ kind: period.kind, announce, freePlan, used });
+    if (slot) used++;
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.
     const { data, error } = await admin
@@ -278,20 +315,24 @@ export async function buildOwnerRecaps(admin: Admin, userId: string, tz: string,
         {
           user_id: userId, kind: period.kind, period_start: period.start, period_end: period.end,
           ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
+          free_plan: freePlan, free_slot: slot,
         },
         { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },
       )
       .select('id');
     if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
     let id = (data?.[0]?.id as string | undefined) ?? null;
+    let storedSlot = slot;
     if (id) out.built++;
     else {
       out.existing++;
-      const { data: row } = await admin.from('recaps').select('id')
+      const { data: row } = await admin.from('recaps').select('id, free_slot')
         .eq('user_id', userId).eq('kind', period.kind).eq('period_start', period.start).maybeSingle();
       id = (row?.id as string | undefined) ?? null;
+      // An earlier run already decided this row's slot; keep its answer.
+      storedSlot = (row?.free_slot as number | null | undefined) ?? null;
     }
-    if (id) out.rows.push({ period, id, numbers, announce });
+    if (id) out.rows.push({ period, id, numbers, announce, freeSlot: storedSlot });
   }
   return out;
 }
@@ -325,10 +366,12 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
 
   const owners: Owner[] = [];
   for (const p of profiles) {
-    if (PAYWALL_ENABLED && !isPaidTier(p.access_tier as string | null)) continue; // paid feature
+    const freePlan = PAYWALL_ENABLED && !isPaidTier(p.access_tier as string | null);
     const tz = resolveTimeZone(p.timezone as string | null);
-    const periods = periodsEndingBefore(localYmd(tz, now));
-    if (periods.length) owners.push({ id: p.id as string, tz, push: p.recap_push !== false, periods });
+    // Monthly recaps are paid-only: a free owner is never given a month period,
+    // so the allowance can only ever be spent on a week.
+    const periods = periodsEndingBefore(localYmd(tz, now)).filter((x) => !freePlan || x.kind === 'week');
+    if (periods.length) owners.push({ id: p.id as string, tz, push: p.recap_push !== false, periods, freePlan });
   }
   summary.candidates = owners.reduce((s, o) => s + o.periods.length, 0);
   if (!owners.length) return summary;
@@ -347,11 +390,14 @@ export async function runRecaps(now = new Date()): Promise<RecapRunSummary> {
     while (next < owners.length) {
       const o = owners[next++];
       try {
-        const r = await buildOwnerRecaps(admin, o.id, o.tz, o.periods);
+        const r = await buildOwnerRecaps(admin, o.id, o.tz, o.periods, o.freePlan);
         if (r.inactive) { summary.skipped_inactive += o.periods.length; continue; }
         summary.built += r.built; summary.existing += r.existing; summary.quiet += r.quiet;
         const pick = pushPick(r.rows);
-        if (pick && o.push && reachable.has(o.id)) {
+        // Never push a recap the owner cannot open: a free row past the cap is
+        // built locked, and its dedupe key would silence the real one.
+        const canOpen = (b: Built) => recapUnlocked({ kind: b.period.kind, free_plan: o.freePlan, free_slot: b.freeSlot }, o.freePlan);
+        if (pick && canOpen(pick) && o.push && reachable.has(o.id)) {
           const delivered = await notify(o.id, recapEvent(pick));
           if (delivered > 0) summary.pushed++;
         }

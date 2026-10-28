@@ -27,10 +27,12 @@ export function freePlanAfterLine(limits: FreeLimits | null | undefined): string
   return `after that you’re on ${freePlanLabel(limits)}.`;
 }
 
-/** What ends with the plan, matching what the paywall actually gates. */
+/** What ends with the plan, matching what the paywall actually gates. Recaps
+ *  are not all-or-nothing any more: the free plan keeps the first two weekly
+ *  ones (lib/recap/quota), so the line promises only what is lost. */
 export function endsWithPlanLine(recapsLive: boolean): string {
   return recapsLive
-    ? 'Your history stays. Unlimited invoices and expenses, PDF reports and recaps end with your plan.'
+    ? 'Your history stays. Unlimited invoices and expenses, PDF reports and recaps after your first two end with your plan.'
     : 'Your history stays. Unlimited invoices and expenses, and PDF reports, end with your plan.';
 }
 

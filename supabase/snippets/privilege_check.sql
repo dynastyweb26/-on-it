@@ -511,6 +511,31 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261002000001') then 'not applied yet'
       else coalesce((select pg_get_constraintdef(oid) from pg_constraint
         where conrelid = to_regclass('public.recaps') and conname = 'recaps_payload_chk'), 'missing') end
+  union all
+  select 'P7 recaps free quota columns',
+    case when not exists (select 1 from applied where version = '20261027000000') then null
+      else coalesce((select p.data_type = 'boolean' and p.is_nullable = 'NO' and p.column_default = 'false'
+          from information_schema.columns p
+          where p.table_schema = 'public' and p.table_name = 'recaps' and p.column_name = 'free_plan'), false)
+        and coalesce((select s.data_type = 'smallint' and s.is_nullable = 'YES'
+          from information_schema.columns s
+          where s.table_schema = 'public' and s.table_name = 'recaps' and s.column_name = 'free_slot'), false)
+        and coalesce((select pg_get_constraintdef(oid) ilike '%free_slot%' and pg_get_constraintdef(oid) ilike '%free_plan%'
+          from pg_constraint
+          where conrelid = to_regclass('public.recaps') and conname = 'recaps_free_slot_chk'), false)
+        and not has_column_privilege('anon', 'public.recaps', 'free_plan', 'UPDATE')
+        and not has_column_privilege('anon', 'public.recaps', 'free_slot', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.recaps', 'free_plan', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.recaps', 'free_slot', 'UPDATE') end,
+    'free_plan boolean not null default false; free_slot smallint nullable; recaps_free_slot_chk; no client UPDATE',
+    case when not exists (select 1 from applied where version = '20261027000000') then 'not applied yet'
+      else coalesce((select p.data_type || ' nullable=' || p.is_nullable || ' default=' || coalesce(p.column_default, 'none')
+          from information_schema.columns p
+          where p.table_schema = 'public' and p.table_name = 'recaps' and p.column_name = 'free_plan'), 'missing')
+        || ' | ' || coalesce((select s.data_type || ' nullable=' || s.is_nullable
+          from information_schema.columns s
+          where s.table_schema = 'public' and s.table_name = 'recaps' and s.column_name = 'free_slot'), 'missing')
+        || ' | upd=' || has_column_privilege('authenticated', 'public.recaps', 'free_slot', 'UPDATE') end
 
   -- Q. Saved clients (20261003000001). SKIP until pushed.
   union all

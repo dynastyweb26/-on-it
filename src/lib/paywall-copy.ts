@@ -19,8 +19,9 @@ import { TRIAL_DAYS } from '@/lib/trial';
 // Which wall: 'invoice' = the 4th invoice at Send, 'expense' = the 6th expense
 // before the camera/upload, 'estimate' = the 4th estimate, 'recurring' = a
 // recurring expense (paid only), 'reports' = an Income/Expense PDF export,
-// 'winback' = a canceled customer's nudge (no limit was hit).
-export type PaywallVariant = 'invoice' | 'expense' | 'estimate' | 'recurring' | 'reports' | 'winback';
+// 'recaps' = a recap past the free plan's two, 'winback' = a canceled
+// customer's nudge (no limit was hit).
+export type PaywallVariant = 'invoice' | 'expense' | 'estimate' | 'recurring' | 'reports' | 'recaps' | 'winback';
 
 // Why the wall opened: a quiet pill above the showcase, fixed while its demo
 // slides change. A soft prompt may replace it (the `reason` prop).
@@ -30,6 +31,7 @@ export const REASON: Record<PaywallVariant, string> = {
   estimate: 'You’ve used your 3 free estimates',
   recurring: 'Recurring expenses are part of On It',
   reports: 'Reports are part of On It Pro',
+  recaps: 'You’ve used your 2 free recaps',
   winback: 'Welcome back — pick up where you left off',
 };
 
@@ -130,7 +132,9 @@ export const PLAN_ROWS: readonly PlanRow[] = [
   { label: 'Online pay page', free: true, paid: true },
   { label: 'Recurring expenses', free: false, paid: true },
   { label: 'Income & expense reports (PDF)', free: false, paid: true },
-  { label: 'Weekly & monthly recaps', free: false, paid: true, recapsOnly: true },
+  // Two weekly recaps are the free plan's (lib/recap/quota: FREE_RECAPS);
+  // monthly recaps and everything past the two are paid-only.
+  { label: 'Weekly & monthly recaps', free: '2 weekly', paid: true, recapsOnly: true },
 ];
 
 /** The table's rows for this build: the recaps row rides the recaps switch. */

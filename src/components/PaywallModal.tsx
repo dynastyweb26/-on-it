@@ -54,6 +54,7 @@ const DEFAULT_RETURN: Record<PaywallVariant, CheckoutReturn> = {
   estimate: 'chat',
   recurring: 'recurring',
   reports: 'summary',
+  recaps: 'books',
   winback: 'chat',
 };
 

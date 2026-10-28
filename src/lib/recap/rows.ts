@@ -21,12 +21,16 @@ export type RecapRow = {
   created_at: string;
   payload?: RecapPayload | null;
   payload_version?: number | null;
+  /** Built while the owner was on the free plan (see lib/recap/quota). */
+  free_plan?: boolean | null;
+  /** The free recap this row owns: 1 or 2, else null. */
+  free_slot?: number | null;
   /** List rows (no payload): recapFlags' "nothing at all", from four payload fields. */
   nothing?: boolean;
 };
 
 /** Columns for lists (no payload: up to 16 KB each). */
-export const RECAP_LIST_COLS = 'id, kind, period_start, period_end, income, expenses, net, seen_at, prompted_at, created_at';
+export const RECAP_LIST_COLS = 'id, kind, period_start, period_end, income, expenses, net, seen_at, prompted_at, created_at, free_plan, free_slot';
 /** Columns for rows the story may open. */
 export const RECAP_FULL_COLS = `${RECAP_LIST_COLS}, payload, payload_version`;
 /** The history list: list columns + just the payload fields recapFlags'
@@ -44,6 +48,9 @@ export function normalizeRow(r: Record<string, unknown>): RecapRow {
     income: Number(r.income ?? 0),
     expenses: Number(r.expenses ?? 0),
     net: Number(r.net ?? 0),
+    // A truthy string would read as "paid-built", which grants access: coerce.
+    free_plan: r.free_plan === true,
+    free_slot: r.free_slot == null ? null : Number(r.free_slot),
   };
   if (p_in !== undefined) row.nothing = [p_in, p_out, p_owed, p_paid].every((v) => Number(v ?? 0) === 0);
   return row;
