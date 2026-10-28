@@ -9,6 +9,8 @@ import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem
 import { carryUnitDetail, type LineUnit } from '@/lib/line-units';
 import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-notes';
 import { isGenericClientName, resolveClientName } from '@/lib/client-name';
+import { normalizeClientEmail } from '@/lib/client-contact';
+import { missingContactAck } from '@/lib/contact-ack';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -172,6 +174,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
+
+    // An email is the one contact field with a shape: validate it once here so
+    // every writer stores the same thing. Unusable → null, never a 400.
+    result.client_email = normalizeClientEmail(result.client_email);
 
     // Pasted work cards (lib/pasted-notes): on the paste turn the card's priced
     // lines become the line items, list price billed, cost price nowhere; the
@@ -438,6 +444,19 @@ export async function POST(req: NextRequest) {
         // stripping emptied the reply, so we never emit an empty bubble.
         result.reply = stripped || moneySentence;
       }
+    }
+
+    // Contact echo: the reply names every captured contact field, and only
+    // those. The prompt asks for it; this guarantees it when the model drops
+    // one, appending just the missing values (never a field the user did not
+    // give). Runs after the money narration so it is never stripped.
+    if (result.intent === 'invoice' || result.intent === 'quote') {
+      const ack = missingContactAck(result.reply ?? '', {
+        phone: result.client_phone,
+        email: result.client_email,
+        address: result.client_address,
+      });
+      if (ack) result.reply = `${(result.reply ?? '').trim()} ${ack}.`.trim();
     }
 
     // Duplicate detection: same client + same total in the last 48h

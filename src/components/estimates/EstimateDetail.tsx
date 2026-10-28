@@ -60,6 +60,7 @@ export type EstimateDetailRow = {
   client_name: string | null;
   client_address: string | null;
   client_phone: string | null;
+  client_email: string | null;
   line_items: LineItemRow[] | null;
   subtotal: number | string | null;
   tax_rate: number | string | null;
@@ -295,6 +296,7 @@ export default function EstimateDetail({
         client_name: inv.client_name,
         client_address: inv.client_address ?? null,
         client_phone: inv.client_phone ?? null,
+        client_email: inv.client_email ?? null,
         line_items: inv.line_items,
         subtotal: inv.subtotal,
         tax_rate: inv.tax_rate,

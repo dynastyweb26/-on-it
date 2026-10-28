@@ -36,6 +36,9 @@ export interface InvoiceRenderData {
   clientName: string;
   clientAddress?: string | null;
   clientPhone?: string | null;
+  // Billed party email (invoices.client_email). Empty prints nothing; a long
+  // address wraps instead of running past the column.
+  clientEmail?: string | null;
   lineItems: LineItem[];
   subtotal: number;
   taxRate: number;
@@ -463,8 +466,19 @@ function DocTypeMark({ d, t, align = 'left', size = 22 }: {
 }
 
 const Contact = ({ d, style }: { d: InvoiceRenderData; style?: React.CSSProperties }) => {
-  const line = [d.businessPhone, d.businessEmail].map((v) => (v ?? '').trim()).filter(Boolean).join('  ·  ');
-  return line ? <div style={{ fontSize: 13, marginTop: 2, ...style }}>{line}</div> : null;
+  const phone = (d.businessPhone ?? '').trim();
+  const email = (d.businessEmail ?? '').trim();
+  if (!phone && !email) return null;
+  // Phone and email each get their own line. Sharing one line printed the phone
+  // correctly but pushed a long address past the masthead (and Ledger /
+  // Industrial give this block even less width). overflowWrap breaks a long
+  // address instead of overflowing; the phone text itself is unchanged.
+  return (
+    <div style={{ fontSize: 13, marginTop: 2, overflowWrap: 'anywhere', wordBreak: 'break-word', ...style }}>
+      {phone && <div>{phone}</div>}
+      {email && <div>{email}</div>}
+    </div>
+  );
 };
 
 const Website = ({ url, t, style }: { url?: string | null; t: BrandTheme; style?: React.CSSProperties }) => {
@@ -521,6 +535,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
           {d.clientPhone && <div>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <Meta d={d} t={t} />
       </div>
@@ -617,6 +632,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{d.clientName}</div>
       {d.clientAddress && <div style={{ fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
       {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
+      {d.clientEmail && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
 
       <div style={{ background: t.accent, color: onColor(t.accent), padding: '20px 24px', marginTop: 22 }}>
         <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
@@ -798,6 +814,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <span style={{ fontWeight: 800, fontSize: 19 }}>{d.clientName}</span>
           {d.clientAddress && <div style={{ opacity: 0.8 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ opacity: 0.8 }}>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ opacity: 0.8, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <ItemsTable d={d} t={t} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 28 }}>
@@ -875,6 +892,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div style={{ fontSize: 13 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <div style={{ ...card, width: 220 }}>
           <Meta d={d} t={t} />

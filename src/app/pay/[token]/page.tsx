@@ -14,6 +14,7 @@ import PayView, { type PayModel } from './PayView';
 import { publicBank, pageBank, type PublicBankRow } from '@/lib/pay-bank';
 import { payFigures } from './figures';
 import { cleanTerms } from '@/lib/terms';
+import { publicDocMetadata } from '@/lib/public-page-metadata';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public, unauthenticated pay page: /pay/[token].
@@ -39,11 +40,33 @@ import { cleanTerms } from '@/lib/terms';
 // ─────────────────────────────────────────────────────────────────────────
 
 export const dynamic = 'force-dynamic'; // per-request: headers + live invoice data
-export const metadata: Metadata = {
-  title: 'Pay your invoice — On It',
-  // Bearer-token links must never be indexed.
-  robots: { index: false, follow: false },
-};
+
+// The unfurl card for a shared pay link: dynamic business name, the one static
+// On It thumbnail and the On It favicon (publicDocMetadata, shared with /e).
+// Only the name and kind are read here — no amounts, no contact data.
+export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
+  let business: string | null = null;
+  let kind: string | null = null;
+  if (TOKEN_RE.test(params.token)) {
+    try {
+      const { data } = await adminClient().rpc('get_public_invoice', {
+        p_token: params.token,
+        p_key: process.env.ZELLE_ENC_KEY ?? '',
+      });
+      const row = ((data as { business_name: string | null; kind: string | null }[] | null) ?? [])[0] ?? null;
+      business = row?.business_name?.trim() || null;
+      kind = row?.kind ?? null;
+    } catch { /* fall back to the generic card */ }
+  }
+  const noun = kind === 'quote' ? 'Estimate' : 'Invoice';
+  return publicDocMetadata({
+    title: business ? `${noun} from ${business}` : `Your ${noun.toLowerCase()} — On It`,
+    description:
+      kind === 'quote'
+        ? 'Review your estimate and approve it online.'
+        : 'Review your invoice and pay online.',
+  });
+}
 
 // public_token is base64url from gen_random_bytes(16) → 22 chars, capped at 32
 // by the column check. Validate the shape before spending an RPC call, and treat

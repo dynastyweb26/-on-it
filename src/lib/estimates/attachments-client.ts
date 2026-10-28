@@ -9,6 +9,7 @@
 // (2000px longest edge, JPEG ≤ 1.2 MB) before upload; PDFs go as-is. The server
 // re-checks the real bytes and size, so this is convenience, not enforcement.
 import type { createClient } from '@/lib/supabase/client';
+import type { EditorAttachment } from '@/components/AttachmentsEditor';
 import { prepareAttachment } from '@/lib/attachment';
 import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES, MAX_CAPTION_CHARS } from './limits';
 import { isDeliverableAttachment } from './deliverable';
@@ -158,25 +159,30 @@ export async function prepareEstimateFile(file: File): Promise<PreparedUpload> {
   }
 }
 
-/** Upload one file through presign → signed PUT (with real progress) → confirm. */
-export async function uploadEstimateAttachment({
+/** One blob through the server-verified path: presign → signed PUT (with real
+ *  progress) → confirm. Only the confirm route writes the row, and it writes the
+ *  server-computed mime / size / sha256 the public page and the content hash
+ *  require — so this is the ONLY way a quote's attachment may be stored. */
+export async function uploadEstimateBlob({
   estimateId,
-  file,
+  blob,
+  mimeType,
   onProgress,
 }: {
   estimateId: string;
-  file: PreparedUpload;
+  blob: Blob;
+  mimeType: OwnerAttachment['mimeType'];
   onProgress?: (pct: number) => void;
-}): Promise<OwnerAttachment> {
+}): Promise<{ id: string; path: string; mimeType: OwnerAttachment['mimeType']; sizeBytes: number }> {
   const presignRes = await fetch(`/api/estimates/${estimateId}/attachments/presign`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mime_type: file.mimeType, size_bytes: file.blob.size }),
+    body: JSON.stringify({ mime_type: mimeType, size_bytes: blob.size }),
   });
   if (!presignRes.ok) throw new Error(await errorCode(presignRes));
   const presign = (await presignRes.json()) as { path: string; token: string; signedUrl: string };
 
-  await putToSignedUrl(presign.signedUrl, file.blob, onProgress);
+  await putToSignedUrl(presign.signedUrl, blob, onProgress);
 
   const confirmRes = await fetch(`/api/estimates/${estimateId}/attachments/confirm`, {
     method: 'POST',
@@ -193,9 +199,100 @@ export async function uploadEstimateAttachment({
     path: presign.path,
     mimeType: body.attachment.mimeType,
     sizeBytes: body.attachment.sizeBytes,
+  };
+}
+
+/** Upload one picked file through presign → signed PUT (with real progress) → confirm. */
+export async function uploadEstimateAttachment({
+  estimateId,
+  file,
+  onProgress,
+}: {
+  estimateId: string;
+  file: PreparedUpload;
+  onProgress?: (pct: number) => void;
+}): Promise<OwnerAttachment> {
+  const saved = await uploadEstimateBlob({
+    estimateId,
+    blob: file.blob,
+    mimeType: file.mimeType,
+    onProgress,
+  });
+
+  return {
+    id: saved.id,
+    path: saved.path,
+    mimeType: saved.mimeType,
+    sizeBytes: saved.sizeBytes,
     caption: null,
     previewUrl: file.previewUrl,
   };
+}
+
+/** Mime for a blob read back out of storage, from its declared type first and
+ *  its file extension second (a download carries the upload's content type). */
+function blobMime(blob: Blob): OwnerAttachment['mimeType'] {
+  const type = (blob.type || '').toLowerCase();
+  if (type === 'application/pdf') return 'application/pdf';
+  if (type === 'image/png') return 'image/png';
+  return 'image/jpeg';
+}
+
+export type EstimateMaterializeResult = {
+  /** `items` with every successfully-saved entry now pointing at its quote. */
+  items: EditorAttachment[];
+  saved: Map<string, { storagePath: string; rowId: string }>;
+  /** The id of the first entry that could NOT be saved (the send aborts). */
+  failedId?: string;
+};
+
+/** Store a quote draft's pending attachments (a freshly-picked blob, or a
+ *  seed-time copy of another document's object) through the VERIFIED estimate
+ *  routes. The generic attachments-client path inserts a bare row with no
+ *  mime_type / size_bytes / checksum, which the PDF can still print but the
+ *  public /e page (and estimate_content_hash) must refuse — so a quote built in
+ *  Chat showed its pictures on the card and none on the client page. Order is
+ *  the list order; the server assigns each row's position. Stops at the first
+ *  failure so the caller aborts the send instead of shipping an incomplete
+ *  estimate. */
+export async function materializeEstimateAttachments(
+  supabase: Db,
+  estimateId: string,
+  items: readonly EditorAttachment[],
+): Promise<EstimateMaterializeResult> {
+  const saved = new Map<string, { storagePath: string; rowId: string }>();
+  const pending = items.filter((a) => !a.storagePath && (a.blob || a.copyFromPath));
+  if (!pending.length) return { items: [...items], saved };
+
+  const done = new Map<string, EditorAttachment>();
+  const partial = () => items.map((a) => done.get(a.id) ?? a);
+
+  for (const a of pending) {
+    let blob: Blob | null = a.blob ?? null;
+    if (!blob && a.copyFromPath) {
+      const { data } = await supabase.storage.from(ATTACHMENT_BUCKET).download(a.copyFromPath);
+      blob = data ?? null;
+    }
+    if (!blob) return { items: partial(), saved, failedId: a.id };
+
+    let uploaded: Awaited<ReturnType<typeof uploadEstimateBlob>>;
+    try {
+      uploaded = await uploadEstimateBlob({ estimateId, blob, mimeType: blobMime(blob) });
+    } catch {
+      return { items: partial(), saved, failedId: a.id };
+    }
+
+    saved.set(a.id, { storagePath: uploaded.path, rowId: uploaded.id });
+    done.set(a.id, {
+      ...a,
+      blob: undefined,
+      copyFromPath: undefined,
+      storagePath: uploaded.path,
+      rowId: uploaded.id,
+    });
+  }
+
+  return { items: partial(), saved };
 }
 
 /** The signed upload endpoint takes the same multipart shape storage-js sends,
