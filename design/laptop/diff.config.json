@@ -1644,10 +1644,10 @@
           "design": "[data-spot=\"segToggle\"]",
           "app": "[data-spot=\"segToggle\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only. The design keys the list pane on its frame width (masterCol 440 at >=1440, 392 below) and its own frame at this viewport is 1440, so the design toggle is 395 wide; the app stage is 1380x860 (accepted in 11a), which is the design's <1440 case, so the app pane is 392 and the toggle 347. Both are 44 high, which is the value that was wrong before the redraw (62)."
         }
       ],
       "maxPixelDiffPct": null
@@ -1770,10 +1770,10 @@
           "design": "[data-spot=\"net\"]",
           "app": "[data-spot=\"net\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only, same root cause as tour-invoices-1440: the design column is max-width 1088 with 32px side padding, so on its own 1440 frame the cell is 573 wide, while the app stage is 1380x860 (accepted in 11a) so the cell is 541. Both are 180 high (min-height), which is what the redraw fixed (was 114)."
         }
       ],
       "maxPixelDiffPct": null
@@ -1833,10 +1833,10 @@
           "design": "[data-spot=\"paymentRow\"]",
           "app": "[data-spot=\"paymentRow\"]",
           "check": [
-            "w",
             "h"
           ],
-          "animations": false
+          "animations": false,
+          "why": "Height only, same root cause as tour-invoices-1440: the design keys the Settings list pane on its frame (masterCol 440 at >=1440, 392 below), so on its own 1440 frame the row is 393 wide while the app stage is 1380x860 (accepted in 11a) and the row is 345. Both are 48 high. Before the redraw the element was absent from the phone-in-shell render entirely."
         }
       ],
       "maxPixelDiffPct": null

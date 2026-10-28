@@ -236,6 +236,9 @@ export function MockChrome({
  *  page header. Rendered at >= 1280; below that the phone frame above is used. */
 export function LaptopShell({ tab, children }: { tab: TutorialTab; children: ReactNode }) {
   const label = TABS.find((t) => t.key === tab)?.label ?? '';
+  // The design puts a 72px page bar (title + the new-chat / history pair) on the
+  // Chat screen only; every other screen draws its own title inside the content.
+  const header = tab === 'chat';
   return (
     <div aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', background: '#FDF7EE' }}>
       <aside
@@ -305,9 +308,8 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
       </aside>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Chat's header is the design's: a 720 row inside the content area, title
-            left, the new-chat / previous-chats pair right. Other tabs keep the
-            full-width header they have today. */}
-        {tab === 'chat' ? (
+            left, the new-chat / previous-chats pair right. */}
+        {header ? (
           <div style={{ height: 72, flex: 'none', display: 'flex', justifyContent: 'center' }}>
             <div
               style={{
@@ -356,23 +358,7 @@ export function LaptopShell({ tab, children }: { tab: TutorialTab; children: Rea
               </div>
             </div>
           </div>
-        ) : (
-          <div
-            style={{
-              height: 72,
-              flex: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '0 32px',
-              borderBottom: '1px solid #EFE4D2',
-              font: '700 24px/1 var(--font-montserrat)',
-              color: '#1E1A14',
-            }}
-          >
-            {label}
-          </div>
-        )}
+        ) : null}
         <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>{children}</div>
       </div>
     </div>

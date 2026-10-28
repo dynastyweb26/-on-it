@@ -181,6 +181,15 @@
 .aSheet {
   animation: sheetUp 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+/* Laptop tutorial: the client row's hover state (design style-hover). */
+.rowHover:hover {
+  background: #fbf3e5;
+}
+
+/* Laptop tutorial: the product sheet is a centred dialog (design dlgIn .4s). */
+.aDlgIn {
+  animation: dlgIn 0.4s both;
+}
 .aPrice {
   animation:
     pop 0.4s both,
@@ -355,6 +364,17 @@
   from {
     opacity: 0;
     transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dlgIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;

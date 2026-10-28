@@ -501,6 +501,142 @@ pre-flip phone values again (`segment toggle` h 62, `search` 318, `net` 395×114
 **Removal condition:** delete `&& tab === 'chat'` per tour as its mock lands, leaving
 plain `xl` (the guard's comment carries this).
 
+
+### 11i. Clients tour redrawn for laptop
+
+`laptop = xl && (tab === 'chat' || tab === 'clients')`; `MockScreen` passes the flag
+to `ClientsMock` as well. The overlay already wraps every laptop mock in the shared
+`LaptopShell` (288 sidebar, content area), so the mock is the screen only — it must not
+nest a second shell. The shell draws its 72px page bar for the Chat screen alone
+(`LaptopShell` now derives `header = tab === 'chat'`) because the design gives every
+other screen its title inside the content:
+
+| design | app | notes |
+| --- | --- | --- |
+| content column, 24 top / 32 side | `maxWidth 896`, `padding '24px 32px 0'` | centred in the 1092 content area: x 386 in the 1380 frame |
+| title row 40 high | title 24/1 Montserrat + 340×40 tabs + 300×40 search + 40 add | one line, `gap 16` |
+| pill tabs 340×40, thumb 40%/60% - 4 | `width: 340`, thumb `left/width` toggled, `.5s cubic-bezier(.65,0,.35,1)` | `psTab` keeps its anchor |
+| search 300×40, radius 20, 1.5 `#d0c5af` | same | `tour-clients-1440` pair, 300×40 exactly |
+| list card radius 20, `#fff`, `1px #efe4d2` | same | group header `B` 700 11.5/1, `.1em`, `#735c00` |
+| row `44px 1fr auto 24px`, padding `10px 18px` | same | avatar 40, name 700 16, meta 400 14.5, chevron 20 |
+| A–Z rail in the card's grid column (`22px`) | same | 700 10.5/14, `#7f7663`, B highlighted `#735c00` |
+| product sheet | `512` + 24 padding = 560 centred dialog, `dlgIn .4s` (new `.aDlgIn`) | the design's own box is 560 too (content-box); scrim `rgba(31,27,19,.38)`, save pill 94×44 |
+| client row hover | `.rowHover:hover { background: #fbf3e5 }` | the design's `style-hover` |
+
+Measured on the built preview at 1440: stage 1380×860 scale 1, **one** `aside` at
+(0,0) 288×860, row 896×40 with title at x 386, tabs 340×40 (`psTab` 204×40), search
+300×40, add 40×40, grid 896, card 862, row 860×61, rail 22. The spotlight cutout is the
+anchor plus the solver's 6px pad — search `-6.02,-6,12,12`, row `-6,-6,12,12` — i.e.
+the ring tracks the target in scenes 1 and 2. `tour-clients-1440` passes both pairs;
+console clean. Phone branch byte-identical to main: stage hashes at 1279×800
+(`13397/-1876094599`, `14000/579718540`, `19550/-1773175401`) and 390×844
+(`12978/1613968337`, `13782/-2046475908`, `19298/-1127085408`) equal the control build.
+
+Still the chat-era chrome in the shared shell, for every laptop tour: the sidebar has
+no install card and uses 44-high items where the design has a 36-high "How it works"
+pill, 48-high items and the pinned install card (36 tile, 32 pill). Left for its own
+shell commit rather than folded into a screen's redraw.
+
+
+
+### 11j. Invoices tour redrawn for laptop
+
+`laptop = xl && (tab === 'chat' || tab === 'clients' || tab === 'invoices')`. The mock
+is the design's split screen only (the overlay owns the shell). The design keys the
+master pane on its frame — `masterCol = W >= 1440 ? 440 : 392` — and the app's stage is
+1380, so **392**: the design's own value for any frame below 1440.
+
+| design | app | notes |
+| --- | --- | --- |
+| `grid-template-columns: masterCol minmax(0,1fr)` | `392px minmax(0,1fr)`, `scrIn .4s` | the split is the screen |
+| list pane `padding:24px 20px 0 24px`, `border-right:1px solid #efe4d2`, `gap:14` | same | title `Invoices` 700 24/1 in a 40-high row |
+| segment toggle 44 high, radius 22, `#f5eddf`, thumb `calc(50% - 4px)` at 4/50%, `left .5s cubic-bezier(.65,0,.35,1)` | same | `segToggle` 44 high (was 62) — the pair that was failing |
+| chips 36 high, radius 10, on `2px #d4af37` / `#f3e9c8`, count 24×22 radius 11 | same | summary column right-aligned, 13/1 |
+| month tag `6px 10px`, radius 8, `#f3e9c8`, 800 12/1 `.1em` | same | |
+| card `1fr auto`, `gap 4px 12px`, `padding 12px 14px`, radius 20, `#fbf3e5`/`#efe4d2`, selected `#f3e9c8`/`#d4af37` | same | name 700 17/1.2, badge 24 high radius 7, meta 13.5, amount 800 20/1 |
+| badge `send` 14px, `DUE NOV 14` 700 11/1 `.07em`; draft `#e5e2db`/`#474742` | same | card 1 carries `card1` + `dueBadge`, the draft `draftBadge` |
+| detail pane `padding:24px 40px`, centred | same | invoice `max-width 720`, estimate `760` with a `260` signature column |
+| invoice header 40 high: status chip 28, mono number, `recordPay` pill radius 999 with the amount chip 28 | same | `actions` 4 columns of 40-high tiles |
+| summary card `22px 24px`, radius 20, `grid 1fr auto`, amount 800 40 `#735c00`; due strip 44; line items `20px 24px` | same | |
+| estimate: chips 28 (approved `#c9f2d4`/`#0f6d31`, converted `#e5e2db`), total 800 38, `convertBtn` 48 radius 999, 3 tiles 40 | same | `sigCard` 18 padding, 110-high signature box, Caveat 46 `rotate(-4deg)` |
+| toast `width:380px`, radius 20, `#343027` | same | `cardIn .5s`, `justify-self:end` |
+
+**Gate:** `tour-invoices-1440` passes. Its segment-toggle pair is height-only (`h`)
+with the reason recorded in `diff.config.json`: the design's own frame at that viewport
+is 1440 → `masterCol` 440 → toggle 395, while the app stage is 1380 → 392 → toggle 347.
+The height is the value the redraw fixed (62 → 44).
+
+### 11k. Books tour redrawn for laptop
+
+`laptop = xl && (chat | clients | invoices | books)`. The mock is the design's screen:
+a 1088 column centred in the content area, 24 top / 32 side padding.
+
+| design | app | notes |
+| --- | --- | --- |
+| `max-width:1088`, `gap:20` | same | on a 1380 stage the available width is 1092−64 = 1028, so the column is 1028 |
+| title row 40 high: `Books` 700 24/1 + Income & Expenses pill (40, radius 999, `#f5eddf`, `1.5px #d0c5af`, 20 icon) + `addExpense` (40, `0 18px`, `#d4af37`, 22 add) | same | `books-add-expense` anchor kept as `data-spot="addExpense"` |
+| row 2 `grid 1.15fr 1fr`, `gap 16` | same | |
+| `net` card `26px 28px`, radius 20, `#343027`, `justify-content:flex-end`, `min-height:180`; eyebrow `NET · ALL TIME` 600 13 `.05em` `#e9c349`; amount 800 48/1 `#e9c349` with the cents at 26; `12 invoices` 400 14 `#d0c5af`; chevron 24 at 22/22 | same | the card the pair measures |
+| tiles `grid 1fr 1fr` rows `1fr auto` `gap 12`; owed `#f3e9c8` border + 8px `#d4af37` dot, coll `#efe4d2` + `#0f6d31` dot, labels 600 14/1, amounts 800 28/1 (suffix 16 `#4d4635`), chevrons 18 `#7f7663` | same | laptop dots are the design's 8×8; the phone's 9×9 helper is untouched |
+| `spent` row `grid-column:1/-1`, 52 high, `0 18px`, dot `#7f7663`, label 600 15/1, amount 800 20/1 (suffix 13), chevron 20 | same | |
+| row 3 `grid 1.6fr 1fr`, `gap 16`, `align-items:start` | same | list rows 64 high, `0 18px`, tile 40 radius 12 (`#f5eddf` receipt_long / `#f0e3b8` autorenew), title 600 16/1.2, sub 400 13.5/1.3, hover `#fbf3e5` |
+| `recaps` `padding:18`, radius 20, `gap:14`; sparkle 24 `#735c00` with `twinkle .8s ease-in-out 3`; `Recaps` 600 17/1; `watchAgain` 36 high, `0 14px 0 10px`, radius 999, `#f5eddf`, `play_arrow` 22 filled | same | |
+
+**Gate:** `tour-books-1440` passes. Its net-card pair is height-only with the reason in
+`diff.config.json` (the design's 1088 column on its own 1440 frame gives a 573 cell;
+the app's 1380 stage gives 541; both 180 high, against 114 before the redraw).
+
+### 11l. Settings tour redrawn for laptop
+
+`laptop = xl` — with all five mocks redrawn the per-tour condition is gone. The mock is
+the design's master/detail: a 392px list pane (the design keys it on its frame, 440 at
+≥1440 / 392 below, and the app stage is 1380) and the open pane on the right. The
+design's own `setPane` falls back to Business Info when the screen is the list, so the
+right pane always shows something.
+
+| design | app | notes |
+| --- | --- | --- |
+| list pane `padding:24px 20px 0 24px`, `border-right:1px solid #efe4d2` | same | title `Settings` 700 24/1 in a 40-high row |
+| group label `margin:20px 0 8px 4px`, 700 12/1 `.12em` `#4d4635` | `top` 20 / 18 / 18 for the three groups | YOUR BUSINESS, MONEY, ACCOUNT |
+| card radius 18, `#fff`, `1px #efe4d2`, rows 48 high, `0 14px`, `1px solid #f0e7d8` between | same | tile 32 radius 9 (`#f0e3b8` for Clients / Products & Services, else `#f5eddf`), label 400 15.5/1, value 400 14/1 `#4d4635`, chevron 18 |
+| open row `background:#f3e9c8` | `selBg(screen)` | Business profile → biz, Records → brand, `paymentRow` → pay |
+| right pane `padding:24px 40px`, centred | same | pay/biz `max-width 640`, brand `680` |
+| pay: title 40, sub 15/1.45, method rows 52 radius 18 `cardIn .45s .1s/.18s`, apps grid `1fr 1fr` radius 18 `cardIn .45s .26s` | same | tiles 32 radius 9 with the letter marks (Z `#6d1ed4`, `$` on `#00c244`, P `#003087`, V `#008cff`) |
+| biz: card `margin-top:16`, `padding:20`, radius 20, `#fbf3e5`, `grid 1fr 1fr`, `gap 10`; caption `BUSINESS`; fields 48 radius 12 `#f5eddf` / `rgba(212,175,55,.2)`; terms 96 high + `n/3000` | same | `bizTop` spans both columns, name full width |
+| brand: logo card `18px 20px` radius 20 with the 60 tile and Replace / Remove (40 high, `1.5px #7f7663`); style card with `templates` `repeat(4,minmax(0,1fr))`; `colors` card `14px 16px` radius 16 with 28-high swatches | same | selected template `#f3e9c8` + `2px #d4af37`, `transition:all .35s`; the laptop pane has no `brandScroll` transform (the design has none there) |
+| `notif` pane | **not ported** | no scene in `data.ts` reaches it; the phone mock already leaves it out |
+
+**Gate:** `tour-settings-1440` passes. Its payment-options pair is height-only with the
+reason in `diff.config.json` (the same frame-width difference as invoices and books:
+design row 393, app 345; both 48 high, and before the redraw the element was absent
+from the phone-in-shell render entirely).
+
+**Verified on the built preview at 1440:** the ring lands on each scene's anchors plus
+the solver's 6px pad once the target's own animation settles — scene 1 `payCard` then
+`payApps` (exact at 6.2s; the 3.7s sample catches both the ring's 0.55s move and the
+card's `cardIn`), scene 2 `bizPhone` → `bizEmail` → `bizTerms`, scene 3 `templates` then
+`colors`. Console clean. Phone branch byte-identical to main: 1279×800
+(`16065/1270046662`, `12903/-1654956230`, `17185/-1369185313`) and 390×844
+(`15851/1968169546`, `12677/1652434254`, `16971/-1874614839`).
+
+**Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; every
+spotlight beat lands on its anchor plus the solver's 6px pad — scene 1 `owed` then
+`coll`, scene 2 `addExpense` then `viewExpenses`, scene 3 `recaps`, scene 4 `recurring`;
+console clean. Phone branch byte-identical to main at both widths: 1279×800
+(`18987/1210955473`, `19672/-1531758682`, `19831/569571338`, `19955/-1966909349`) and
+390×844 (`18752/-2118051052`, `19441/-2144511940`, `19598/-1614089105`,
+`19739/-1587138708`). A first pass shared the phone's 9px dot helper and moved the phone
+by 6 characters in every scene; the helper is now separate (`laptopDot`) and the hashes
+above are the fixed build.
+
+**Verified on the built preview at 1440:** stage 1380×860 scale 1, one `aside`; the ring
+lands on the spotlighted anchor plus the solver's 6px pad in every scene — `segToggle`
+(−5.98, −5.97, 11.98, 11.98), `dueBadge`, `actions`, `estChip` (12.25 at the pop's
+sub-frame); console clean. Phone branch byte-identical to main: stage hashes at
+1279×800 (`16500/197870486`, `15729/1070800453`, `17078/1281331705`, `17314/460299112`)
+and 390×844 (`16282/1071098487`, `15466/-135986958`, `16824/-1201072258`,
+`17065/-414645745`) equal the control build.
+
 ## 12. `feat/laptop-books-settings` — the Books Recaps card and the Settings split
 
 Branch `feat/laptop-books-settings`, off `main` (`6a5722b`). Two commits: the
