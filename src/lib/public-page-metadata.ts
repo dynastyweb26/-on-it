@@ -23,6 +23,17 @@ export const OG_IMAGE = {
 /** Metadata for a public document page. `metadataBase` comes from the request
  *  host, so og:image / twitter:image resolve to an absolute URL (a relative one
  *  is ignored by the unfurlers) on every deployment, preview included. */
+/** Same icon set as the root layout (src/app/layout.tsx): a public document
+ *  page supplies its own metadata, and without this the tab fell back to the
+ *  browser grey globe. */
+export const PUBLIC_ICONS: Metadata["icons"] = {
+  icon: [
+    { url: "/icons/favicon.ico", sizes: "16x16 32x32 48x48" },
+    { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
+  ],
+  apple: "/icons/apple-icon-180.png",
+};
+
 export async function publicDocMetadata({
   title,
   description,
@@ -39,6 +50,7 @@ export async function publicDocMetadata({
     description,
     // Bearer-token links must never be indexed.
     robots: { index: false, follow: false },
+    icons: PUBLIC_ICONS,
     openGraph: {
       title,
       description,
