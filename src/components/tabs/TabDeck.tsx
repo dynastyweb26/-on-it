@@ -53,12 +53,14 @@ type PillEnd = (target: number | null, durationMs: number) => void;
 export default function TabDeck({
   activeIndex,
   connectEnabled,
+  subscriptionsEnabled,
   onPillStart,
   onPillMove,
   onPillEnd,
 }: {
   activeIndex: number;
   connectEnabled: boolean;
+  subscriptionsEnabled: boolean;
   onPillStart: PillStart;
   onPillMove: PillMove;
   onPillEnd: PillEnd;
@@ -659,7 +661,13 @@ export default function TabDeck({
                 {i === 1 && <InvoicesView active={i === currentIndex} />}
                 {i === 2 && <ChatView active={i === currentIndex} />}
                 {i === 3 && <BooksView active={i === currentIndex} />}
-                {i === 4 && <SettingsTab connectEnabled={connectEnabled} active={i === currentIndex} />}
+                {i === 4 && (
+                  <SettingsTab
+                    connectEnabled={connectEnabled}
+                    subscriptionsEnabled={subscriptionsEnabled}
+                    active={i === currentIndex}
+                  />
+                )}
               </TabScroller>
             ) : (
               <div className="h-full w-full bg-background" />

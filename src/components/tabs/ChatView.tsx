@@ -2007,7 +2007,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
             const usageKind = rd0.kind === 'quote' ? 'estimate' : 'invoice';
             void fetchUsageSnapshot().then((snap) => {
               const text = usageLine(usageKind, snap);
-              const nudge = usageNudgeFor(usageKind, snap);
+              // No purchase path in this deployment (STRIPE_SUBSCRIPTIONS_ENABLED
+              // off) → the "See plans" nudge would be a nag with nowhere to go.
+              const nudge = snap?.subscriptionsEnabled === false ? null : usageNudgeFor(usageKind, snap);
               const uid = profile?.id;
               const due = nudge && uid && promptDue(nudge, uid) ? nudge : null;
               if (due && uid) markSeen(uid, due.key);

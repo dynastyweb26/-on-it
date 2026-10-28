@@ -212,8 +212,9 @@ export default function EstimateDetail({
     let cancelled = false;
     fetch('/api/access', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((a: { tier?: string | null } | null) => {
-        if (cancelled || !a || isPaidTier(a.tier)) return;
+      .then((a: { tier?: string | null; subscriptionsEnabled?: boolean } | null) => {
+        // Paid, unreachable, or no purchase path in this deployment: nothing to say.
+        if (cancelled || !a || isPaidTier(a.tier) || a.subscriptionsEnabled === false) return;
         markSeen(inv.user_id, prompt.key);
         setMoment(prompt);
       })

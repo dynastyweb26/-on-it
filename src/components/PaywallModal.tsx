@@ -32,6 +32,7 @@ import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
 import FitToHeight from '@/components/paywall/FitToHeight';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
+import { SUBSCRIPTIONS_OFF_MESSAGE } from '@/lib/subscriptions';
 import { trialDates } from '@/lib/trial';
 import {
   REASON,
@@ -77,11 +78,21 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // is known. An unreachable check falls back to the returning-customer copy
   // (never promise a trial that might not come).
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
+  // Is Stripe subscription checkout open in this deployment
+  // (STRIPE_SUBSCRIPTIONS_ENABLED, lib/subscriptions)? Unknown until the same
+  // /api/access answer lands; `false` replaces the gold CTA with one honest line
+  // so the wall never offers a button that can only fail. `true` (and unknown,
+  // which checkout answers with the same message inline) keeps today's wall.
+  const [subsOn, setSubsOn] = useState<boolean | null>(null);
   useEffect(() => {
     let active = true;
     fetch('/api/access')
       .then((r) => (r.ok ? r.json() : null))
-      .then((a) => { if (active) setTrialEligible(a?.trialEligible === true); })
+      .then((a) => {
+        if (!active) return;
+        setTrialEligible(a?.trialEligible === true);
+        if (typeof a?.subscriptionsEnabled === 'boolean') setSubsOn(a.subscriptionsEnabled);
+      })
       .catch(() => { if (active) setTrialEligible(false); });
     return () => { active = false; };
   }, []);
@@ -272,35 +283,47 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
 
           {current === 'plan' ? (
             <>
-              <button
-                type="button"
-                className={footerButton}
-                style={footerShadow}
-                disabled={busy || state === 'checking'}
-                onClick={buy}
-              >
-                {busy ? 'One sec…' : (
-                  <>
-                    <span>{ctaLabel(state)}</span>
-                    <Icon name="arrow_forward" size={20} />
-                  </>
-                )}
-              </button>
-
-              {state === 'trial' && (
-                <p className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em] text-on-background">
-                  <Icon name="verified" size={16} className="shrink-0 text-primary" />
-                  Nothing charged today
+              {/* Subscriptions switched off for this deployment: the wall still
+                  shows what's included and the code row, says plainly that there
+                  is nothing to buy here yet, and leaves every other way in (a
+                  code, a referral) working. */}
+              {subsOn === false ? (
+                <p className="max-w-[320px] rounded-input bg-surface-container p-3 text-center text-sm text-on-surface-variant [text-wrap:pretty]">
+                  {SUBSCRIPTIONS_OFF_MESSAGE}
                 </p>
-              )}
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={footerButton}
+                    style={footerShadow}
+                    disabled={busy || state === 'checking'}
+                    onClick={buy}
+                  >
+                    {busy ? 'One sec…' : (
+                      <>
+                        <span>{ctaLabel(state)}</span>
+                        <Icon name="arrow_forward" size={20} />
+                      </>
+                    )}
+                  </button>
 
-              {/* Subscription disclosure — readable (not fine print), visible
-                  before the payment sheet. Material terms follow the state:
-                  first-time customers are told when the free period ends,
-                  everyone else that the plan starts today (lib/paywall-copy). */}
-              <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-[#4d4635] [text-wrap:pretty]">
-                {disclosure(state, freeUntil)}
-              </p>
+                  {state === 'trial' && (
+                    <p className="flex items-center gap-1.5 whitespace-nowrap font-display text-[11px] font-bold uppercase leading-none tracking-[.14em] text-on-background">
+                      <Icon name="verified" size={16} className="shrink-0 text-primary" />
+                      Nothing charged today
+                    </p>
+                  )}
+
+                  {/* Subscription disclosure — readable (not fine print), visible
+                      before the payment sheet. Material terms follow the state:
+                      first-time customers are told when the free period ends,
+                      everyone else that the plan starts today (lib/paywall-copy). */}
+                  <p className="max-w-[320px] text-center text-[12.5px] leading-[1.45] text-[#4d4635] [text-wrap:pretty]">
+                    {disclosure(state, freeUntil)}
+                  </p>
+                </>
+              )}
 
               <p className="flex items-center gap-2 text-[12.5px] font-medium leading-none text-[#4d4635]">
                 <a href="/terms" className="text-on-background underline underline-offset-[3px]">Terms</a>

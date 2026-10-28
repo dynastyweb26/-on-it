@@ -13,6 +13,9 @@ export interface UsageSnapshot {
   expenseLimit?: number | null;
   estimateLimit?: number | null;
   trialEligible?: boolean;
+  /** Is subscription checkout open in this deployment? GET /api/access reports
+   *  lib/subscriptions; false means the upgrade nudges render nothing. */
+  subscriptionsEnabled?: boolean;
   /** hasAccess()'s tier, from the same GET /api/access payload. */
   tier?: string | null;
 }

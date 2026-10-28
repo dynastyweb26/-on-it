@@ -104,9 +104,14 @@ async function syncTimezone(supabase: ReturnType<typeof createClient>, userId: s
 export default function AppShell({
   children,
   connectEnabled = false,
+  subscriptionsEnabled = false,
 }: {
   children: React.ReactNode;
   connectEnabled?: boolean;
+  /** Is Stripe subscription checkout open in this deployment? Server-read by
+   *  (app)/layout.tsx; passed down so the Settings tab hides its upgrade CTA on
+   *  the first paint. Defaults to the env default (off). */
+  subscriptionsEnabled?: boolean;
 }) {
   // The deck will pass this to the Settings tab; the split exists so the value
   // is known on the server's first paint instead of flashing "Coming soon".
@@ -659,6 +664,7 @@ export default function AppShell({
             <TabDeck
               activeIndex={exactTab}
               connectEnabled={connectEnabled}
+              subscriptionsEnabled={subscriptionsEnabled}
               onPillStart={beginPill}
               onPillMove={movePill}
               onPillEnd={endPill}

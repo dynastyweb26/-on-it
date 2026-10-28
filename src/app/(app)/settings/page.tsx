@@ -6,6 +6,7 @@
 // value is false. Deployment-level only; no user data is read here (auth and
 // the profile stay in SettingsView, client-side, as before).
 import { connectEnabled } from '@/lib/stripe/connect';
+import { subscriptionsEnabled } from '@/lib/subscriptions';
 import SettingsView from './SettingsView';
 
 // Read the env at request time, never frozen into a build-time prerender.
@@ -13,5 +14,5 @@ export const dynamic = 'force-dynamic';
 
 export default function SettingsPage() {
   const enabled = connectEnabled() && Boolean(process.env.STRIPE_SECRET_KEY?.trim());
-  return <SettingsView connectEnabled={enabled} />;
+  return <SettingsView connectEnabled={enabled} subscriptionsEnabled={subscriptionsEnabled()} />;
 }

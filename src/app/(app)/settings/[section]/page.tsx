@@ -3,6 +3,7 @@
 // time), rendering one section of SettingsView.
 import { notFound } from 'next/navigation';
 import { connectEnabled } from '@/lib/stripe/connect';
+import { subscriptionsEnabled } from '@/lib/subscriptions';
 import SettingsView from '../SettingsView';
 import { SETTINGS_SECTIONS, type SettingsSection } from '../sections';
 
@@ -12,5 +13,5 @@ export default function SettingsSectionPage({ params }: { params: { section: str
   const section = params.section as SettingsSection;
   if (section === 'main' || !SETTINGS_SECTIONS.includes(section)) notFound();
   const enabled = connectEnabled() && Boolean(process.env.STRIPE_SECRET_KEY?.trim());
-  return <SettingsView connectEnabled={enabled} section={section} />;
+  return <SettingsView connectEnabled={enabled} subscriptionsEnabled={subscriptionsEnabled()} section={section} />;
 }

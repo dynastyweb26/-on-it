@@ -16,6 +16,7 @@ import { hasAccess } from '@/lib/access';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { firstPaymentPrompt, hasBeenPaid, winbackPrompt, type SoftPrompt } from '@/lib/soft-prompts';
+import { subscriptionsEnabled } from '@/lib/subscriptions';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -27,8 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'rate limited' }, { status: 429 });
   }
 
-  // Paywall off: nothing here is about upgrading.
-  if (!PAYWALL_ENABLED) return NextResponse.json({ prompts: [] }, NO_STORE);
+  // Paywall off, or subscription purchases off in this deployment: nothing here
+  // is about upgrading, and a prompt whose only button leads nowhere is a nag.
+  if (!PAYWALL_ENABLED || !subscriptionsEnabled()) return NextResponse.json({ prompts: [] }, NO_STORE);
 
   const access = await hasAccess(user.id);
   const prompts: SoftPrompt[] = [];
