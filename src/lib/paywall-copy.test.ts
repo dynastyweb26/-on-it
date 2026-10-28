@@ -131,7 +131,7 @@ test('the plan table matches the caps the database enforces', () => {
   assert.equal(row('Income & expense reports (PDF)').free, false);
   assert.equal(row('Income & expense reports (PDF)').paid, true);
   // The free plan owns the first two weekly recaps (lib/recap/quota).
-  assert.equal(row('Weekly & monthly recaps').free, '2 free');
+  assert.equal(row('Weekly & monthly recaps').free, '2 weekly');
   assert.equal(row('Weekly & monthly recaps').paid, true);
 });
 

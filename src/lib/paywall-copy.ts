@@ -134,7 +134,7 @@ export const PLAN_ROWS: readonly PlanRow[] = [
   { label: 'Income & expense reports (PDF)', free: false, paid: true },
   // Two weekly recaps are the free plan's (lib/recap/quota: FREE_RECAPS);
   // monthly recaps and everything past the two are paid-only.
-  { label: 'Weekly & monthly recaps', free: '2 free', paid: true, recapsOnly: true },
+  { label: 'Weekly & monthly recaps', free: '2 weekly', paid: true, recapsOnly: true },
 ];
 
 /** The table's rows for this build: the recaps row rides the recaps switch. */
