@@ -587,6 +587,26 @@ function LaptopExpenseCard({ state }: { state: SceneState }) {
 function LaptopReadyCard({ state }: { state: SceneState }) {
   const { st } = state;
   return (
+    <>
+    {/* The real chat shows the spoken request and On It's reply above the
+        locked card; the design export starts at the card. */}
+    <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 12px 10px' }}>
+      <div
+        style={{
+          maxWidth: '78%',
+          padding: '10px 14px',
+          borderRadius: 18,
+          background: '#F2E5BC',
+          font: '400 15px/1.35 var(--font-inter)',
+          color: '#1E1A14',
+        }}
+      >
+        estimate for brandon $400 for fence repair
+      </div>
+    </div>
+    <div style={{ margin: '0 12px 10px', font: '400 15px/1.4 var(--font-inter)', color: '#2F2A24' }}>
+      On it — here&apos;s the estimate for Brandon.
+    </div>
     <div
       className={styles.aCardIn55}
       style={{
@@ -596,9 +616,9 @@ function LaptopReadyCard({ state }: { state: SceneState }) {
         background: '#FBF3E5',
         border: '1.5px solid #EFE4D2',
         borderRadius: 20,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)',
-        gap: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -714,7 +734,7 @@ function LaptopReadyCard({ state }: { state: SceneState }) {
               color: '#7F7663',
             }}
           >
-            Deposit due before materials are ordered.
+            Deposit due before materials are ordered. 3-5 day lead time.
           </div>
         </div>
         <div
@@ -828,6 +848,7 @@ function LaptopReadyCard({ state }: { state: SceneState }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -1729,7 +1750,7 @@ export default function ChatMock({
                         color: '#A39B8D',
                       }}
                     >
-                      Deposit due before materials are ordered.
+                      Deposit due before materials are ordered. 3-5 day lead time.
                     </div>
                   </div>
                   <div style={{ height: 1, background: '#E6DCCB' }} />
