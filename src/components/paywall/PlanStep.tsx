@@ -2,18 +2,27 @@
 // Step 3 · What's included — the founder/invite code row, the plan card, then
 // Free vs On It side by side, true rows only (each matches what the code
 // enforces: free_invoice_limit() / free_estimate_limit() / free_expense_limit(),
-// recurring expenses paid-only, PDF exports paid-only). Layout is
-// design-reference/paywall-mockup.html's step 3; the testimonial and the
-// reminder switch are not here (see TrialStep for why).
+// recurring expenses paid-only, PDF exports paid-only). The rows and their caps
+// live in lib/paywall-copy (one source, unit-tested); the recaps row rides
+// lib/recaps-live. One tier only: there is no second price and no plan picker.
 //
-// The rows and their caps live in lib/paywall-copy (one source, unit-tested);
-// the recaps row rides lib/recaps-live. One tier only: there is no second
-// price and no plan picker here.
-import type { ReactNode, RefObject } from 'react';
+// Laptop (>= 1280, design/laptop/paywall.html page 3): two columns — the
+// testimonial, the trial-reminder row, the code card and the plan row down the
+// left; "What's included" over the table on the right. Below 1280 the markup is
+// today's single column, unchanged: the extra row is rendered only when the
+// width resolves wide on the client, so the phone DOM has no extra node.
+//
+// The reminder row has no switch to flip: the reminder email is a cron
+// (/api/trial-reminders) that goes out TRIAL_REMINDER_DAYS before the end, and
+// there is no per-customer setting behind it. The row states the date it will
+// arrive — trialDates(), the same function the trial step, /api/checkout and the
+// cron work from — and its switch is a static ON mark, not a control.
+import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
 import { STEP_TITLE, planRows, type PaywallState, type PlanCell } from '@/lib/paywall-copy';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
+import { trialDates } from '@/lib/trial';
 
 // Cyril's testimonial, word for word from design-reference/paywall-mockup.html.
 // A real customer quote needs their written OK, so it renders only where
@@ -22,6 +31,7 @@ const SHOW_TESTIMONIAL = process.env.NEXT_PUBLIC_SHOW_TESTIMONIAL === 'true';
 
 const CARD = 'rounded-2xl border border-[#efe4d2] bg-white';
 const HEAD = 'px-1.5 py-3 text-center font-display text-[10.5px] leading-none tracking-[.12em]';
+const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 function CellValue({ v, paid }: { v: PlanCell; paid: boolean }): ReactNode {
   if (v === true) {
@@ -47,15 +57,30 @@ export default function PlanStep({
 }) {
   const rows = planRows(RECAPS_LIVE);
   const returning = state === 'paid-today';
+  // The laptop layout is a client-resolved width, the same call the Books
+  // Recaps card makes: the server and the first render are today's column, so
+  // nothing is added to the phone DOM. The wall is mounted after a tap, never
+  // during SSR, so there is no hydration mismatch to avoid here either.
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  // Fixed for the visit, like the timeline's: the date must not shift under the
+  // reader between this page and the step they came from.
+  const [{ remind }] = useState(() => trialDates());
 
   return (
     <div
-      className="flex flex-col gap-3 px-4 pb-[18px] pt-1"
+      className="flex flex-col gap-3 px-4 pb-[18px] pt-1 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] xl:items-start xl:gap-x-8 xl:gap-y-3 xl:px-14 xl:pb-6 xl:pt-1"
       style={{ animation: 'oi-slide .4s cubic-bezier(.2,.8,.2,1) both' }}
     >
       {SHOW_TESTIMONIAL && (
         <figure
-          className="m-0 rounded-2xl border border-[#efe4d2] bg-white px-[18px] pb-4 pt-[18px]"
+          className="m-0 rounded-2xl border border-[#efe4d2] bg-white px-[18px] pb-4 pt-[18px] xl:col-start-1"
           style={{ animation: 'oi-up .45s cubic-bezier(.2,.8,.2,1) .05s both' }}
         >
           <div className="flex"><Icon name="format_quote" size={30} filled className="text-primary" /></div>
@@ -79,10 +104,33 @@ export default function PlanStep({
         </figure>
       )}
 
+      {/* Laptop only (design's page 3): when the reminder goes out. No trial to
+          remind about for a returning customer, so it is not rendered then. */}
+      {wide && !returning && (
+        <div
+          className="flex items-center gap-3 rounded-2xl border border-[#efe4d2] bg-white px-3.5 py-[13px] xl:col-start-1"
+          style={{ animation: 'oi-up .4s cubic-bezier(.2,.8,.2,1) .12s both' }}
+        >
+          {/* The design draws `notifications_active`; the app's icon set has
+              `notifications` (the same one the trial step's reminder uses) and
+              icons are not extended in this round. */}
+          <Icon name="notifications" size={22} className="shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold leading-[1.25]">Trial reminder</span>
+            <span className="block text-[12.5px] leading-[1.35] text-[#4d4635]">
+              We’ll email you {short(remind)} before it ends
+            </span>
+          </span>
+          <span aria-hidden className="flex h-[26px] w-11 shrink-0 items-center justify-end rounded-full bg-on-background p-[3px]">
+            <span className="h-5 w-5 rounded-full bg-primary-container" />
+          </span>
+        </div>
+      )}
+
       {/* Access code: a real system (access_grants + /api/redeem), collapsed
           until asked for. Redeemed → free access is on; close so they can
           retry what was blocked. */}
-      <div ref={codeCardRef} className={`${CARD} overflow-hidden`}>
+      <div ref={codeCardRef} className={`${CARD} overflow-hidden xl:col-start-1`}>
         <button
           type="button"
           aria-expanded={showCode}
@@ -113,7 +161,7 @@ export default function PlanStep({
 
       {/* The one plan. A returning customer pays from today, so the card says
           so rather than naming a trial they don't have. */}
-      <div className="flex items-center gap-2.5 rounded-2xl border-[1.5px] border-on-background bg-white px-4 py-[15px]">
+      <div className="flex items-center gap-2.5 rounded-2xl border-[1.5px] border-on-background bg-white px-4 py-[15px] xl:col-start-1">
         <span aria-hidden className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 border-on-background">
           <span className="h-[10px] w-[10px] rounded-full bg-on-background" />
         </span>
@@ -128,13 +176,13 @@ export default function PlanStep({
       <h2
         id="paywall-step-title"
         tabIndex={-1}
-        className="mt-2.5 font-display text-[20px] font-extrabold leading-[1.2] tracking-[-0.01em] outline-none"
+        className="mt-2.5 font-display text-[20px] font-extrabold leading-[1.2] tracking-[-0.01em] outline-none xl:col-start-2 xl:row-start-1 xl:mt-0"
       >
         {STEP_TITLE.plan}
       </h2>
 
       <table
-        className={`${CARD} w-full table-fixed border-separate border-spacing-0 overflow-hidden text-[13.5px] leading-[1.3]`}
+        className={`${CARD} w-full table-fixed border-separate border-spacing-0 overflow-hidden text-[13.5px] leading-[1.3] xl:col-start-2 xl:row-start-2 xl:row-span-4`}
         style={{ animation: 'oi-up .45s cubic-bezier(.2,.8,.2,1) .3s both' }}
       >
         <caption className="sr-only">What’s included with Free and On It</caption>
