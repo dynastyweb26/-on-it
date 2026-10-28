@@ -4233,7 +4233,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                   <button
                     aria-label="Upload receipt from gallery"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
                     disabled={phase !== null}
                     onClick={() => galleryRef.current?.click()}
                   >
@@ -4242,7 +4242,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <button
                     aria-label="Take a receipt photo"
                     data-coach="chat-camera"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
                     disabled={phase !== null}
                     onClick={() => cameraRef.current?.click()}
                   >
