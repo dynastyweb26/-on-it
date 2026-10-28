@@ -463,8 +463,19 @@ function DocTypeMark({ d, t, align = 'left', size = 22 }: {
 }
 
 const Contact = ({ d, style }: { d: InvoiceRenderData; style?: React.CSSProperties }) => {
-  const line = [d.businessPhone, d.businessEmail].map((v) => (v ?? '').trim()).filter(Boolean).join('  ·  ');
-  return line ? <div style={{ fontSize: 13, marginTop: 2, ...style }}>{line}</div> : null;
+  const phone = (d.businessPhone ?? '').trim();
+  const email = (d.businessEmail ?? '').trim();
+  if (!phone && !email) return null;
+  // Phone and email each get their own line. Sharing one line printed the phone
+  // correctly but pushed a long address past the masthead (and Ledger /
+  // Industrial give this block even less width). overflowWrap breaks a long
+  // address instead of overflowing; the phone text itself is unchanged.
+  return (
+    <div style={{ fontSize: 13, marginTop: 2, overflowWrap: 'anywhere', wordBreak: 'break-word', ...style }}>
+      {phone && <div>{phone}</div>}
+      {email && <div>{email}</div>}
+    </div>
+  );
 };
 
 const Website = ({ url, t, style }: { url?: string | null; t: BrandTheme; style?: React.CSSProperties }) => {
