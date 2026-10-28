@@ -12,11 +12,11 @@
 // today's single column, unchanged: the extra row is rendered only when the
 // width resolves wide on the client, so the phone DOM has no extra node.
 //
-// The reminder row has no switch to flip: the reminder email is a cron
-// (/api/trial-reminders) that goes out TRIAL_REMINDER_DAYS before the end, and
-// there is no per-customer setting behind it. The row states the date it will
-// arrive — trialDates(), the same function the trial step, /api/checkout and the
-// cron work from — and its switch is a static ON mark, not a control.
+// The reminder row is a static info line, not a control: the reminder email is
+// a cron (/api/trial-reminders) that goes out TRIAL_REMINDER_DAYS before the
+// end, and there is no per-customer setting behind it, so the design's switch
+// is not drawn. The line states the date it will arrive — trialDates(), the same
+// function the trial step, /api/checkout and the cron work from.
 import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
@@ -120,9 +120,6 @@ export default function PlanStep({
             <span className="block text-[12.5px] leading-[1.35] text-[#4d4635]">
               We’ll email you {short(remind)} before it ends
             </span>
-          </span>
-          <span aria-hidden className="flex h-[26px] w-11 shrink-0 items-center justify-end rounded-full bg-on-background p-[3px]">
-            <span className="h-5 w-5 rounded-full bg-primary-container" />
           </span>
         </div>
       )}
