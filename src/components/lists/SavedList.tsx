@@ -79,11 +79,15 @@ export function AlphaSections<T>({ groups, idPrefix, showRail, renderRow, query 
     }
   }
   return (
-    <div ref={listRef} data-coach={coach} className="relative mt-2 pr-5 xl:mt-5 xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
+    // `--letter-h` is the sticky header's own height (base: pt-3 12 + 20 line +
+    // pb-1 4 = 36; xl: py-2.5 10+10 + the 11.5px line ≈ 37). Rows and headers
+    // both carry it as a scroll margin, so a jump, a scroll-after-save or a
+    // restored tab position can never park a row under the pinned header.
+    <div ref={listRef} data-coach={coach} className="relative mt-2 pr-5 [--letter-h:36px] xl:mt-5 xl:[--letter-h:37px] xl:overflow-hidden xl:rounded-card xl:border xl:border-outline-variant/40 xl:bg-surface-container-lowest">
       {groups.map((g) => (
         <section key={g.letter} aria-label={g.letter}>
           <h2 id={`${idPrefix}-letter-${g.letter}`}
-            className="sticky top-0 z-[1] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10] xl:bg-surface-container-low xl:px-[18px] xl:py-2.5 xl:text-[11.5px] xl:tracking-[.1em] xl:text-primary">
+            className="sticky top-0 z-[1] scroll-mt-[var(--letter-h)] bg-background pb-1 pt-3 text-label-lg font-bold text-[#8C6D10] xl:bg-surface-container-low xl:px-[18px] xl:py-2.5 xl:text-[11.5px] xl:tracking-[.1em] xl:text-primary">
             <span className="inline-block origin-left">{g.letter}</span>
           </h2>
           {g.rows.map(renderRow)}
@@ -136,7 +140,9 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, met
     </button>
   );
   return (
-    <div id={id} className={motion === 'expand' ? 'onit-row-expand' : undefined}>
+    // scroll-mt: any programmatic scroll (A–Z jump, post-save, tab restore)
+    // stops the row below the sticky letter header instead of under it.
+    <div id={id} className={`scroll-mt-[var(--letter-h,0px)]${motion === 'expand' ? ' onit-row-expand' : ''}`}>
       {onEdit && onDelete
         ? <SwipeableRow flat onEdit={onEdit} onDelete={onDelete}>{row}</SwipeableRow>
         : row}
