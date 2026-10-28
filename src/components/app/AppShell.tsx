@@ -585,43 +585,46 @@ export default function AppShell({
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
         {(parentRoute || path.startsWith('/chat')) ? (
-          // xl: the design's 72px chat header — wordmark on the left with its
-          // two actions immediately beside it, a hairline under it. Achieved by
-          // left-aligning the same two clusters; nothing moves below xl.
-          <header className={`${HEADER_CLASS} xl:justify-start xl:gap-3.5 xl:border-b xl:border-surface-container-high xl:px-8 xl:py-0 xl:h-[72px]`}>
-            <div className="flex items-center gap-2">
-              {parentRoute && <BackButton parentHref={parentRoute} />}
-              <span className="font-display text-xl font-extrabold md:hidden xl:inline xl:text-[25px] xl:tracking-[-0.01em]">
-                On It<span className="text-primary">.</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-2 xl:gap-1">
-              {path.startsWith('/chat') && (
-                <>
-                  <button
-                    aria-label="New chat"
-                    className={HEADER_ICON_CLASS}
-                    onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+          // xl: the design's 72px chat header. Its contents sit in the chat
+          // column's own 720px wrapper, so the action cluster's right edge is
+          // the column's right edge. From md up the wordmark lives in the
+          // sidebar alone; below md this header is the only one, so it keeps it.
+          <header className={`${HEADER_CLASS} xl:border-b xl:border-surface-container-high xl:px-8 xl:py-0 xl:h-[72px]`}>
+            <div className="mx-auto flex w-full max-w-[720px] items-center justify-between">
+              <div className="flex items-center gap-2">
+                {parentRoute && <BackButton parentHref={parentRoute} />}
+                <span className="font-display text-xl font-extrabold md:hidden">
+                  On It<span className="text-primary">.</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 xl:gap-1">
+                {path.startsWith('/chat') && (
+                  <>
+                    <button
+                      aria-label="New chat"
+                      className={HEADER_ICON_CLASS}
+                      onClick={() => window.dispatchEvent(new Event('onit-new-chat'))}
+                    >
+                      <Icon name="edit_square" size={24} />
+                    </button>
+                    <button
+                      aria-label="Recent conversations"
+                      className={HEADER_ICON_CLASS}
+                      onClick={() => window.dispatchEvent(new Event('onit-history'))}
+                    >
+                      <Icon name="history" size={24} />
+                    </button>
+                  </>
+                )}
+                <div className="md:hidden">
+                  <TourPicker
+                    onPick={playTutorial}
+                    onButtonPress={endThrob}
+                    buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
                   >
-                    <Icon name="edit_square" size={24} />
-                  </button>
-                  <button
-                    aria-label="Recent conversations"
-                    className={HEADER_ICON_CLASS}
-                    onClick={() => window.dispatchEvent(new Event('onit-history'))}
-                  >
-                    <Icon name="history" size={24} />
-                  </button>
-                </>
-              )}
-              <div className="md:hidden">
-                <TourPicker
-                  onPick={playTutorial}
-                  onButtonPress={endThrob}
-                  buttonClassName={`inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-button bg-primary-container px-4 text-label-lg font-semibold text-on-background transition active:scale-95${throbClass}`}
-                >
-                  How On It works
-                </TourPicker>
+                    How On It works
+                  </TourPicker>
+                </div>
               </div>
             </div>
           </header>
