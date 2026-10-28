@@ -10,6 +10,7 @@ import { rateLimit } from '@/lib/ratelimit';
 import EstimateView from '@/components/estimate/EstimateView';
 import { Notice, UnavailableNotice } from '@/components/estimate/Notice';
 import type { PublicEstimateResult } from '@/lib/estimates/types';
+import { publicDocMetadata } from '@/lib/public-page-metadata';
 import { estimateFontClassName } from './fonts';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -27,28 +28,21 @@ import { estimateFontClassName } from './fonts';
 export const dynamic = 'force-dynamic'; // per-request: headers, session, live data
 
 // The link IS the delivery (no PDF is attached), so the preview a messaging app
-// unfurls from it is the thumbnail the client sees: title + the sibling
-// opengraph-image. Neither carries amounts or line items. Bearer-token links must
-// never be indexed (same rule as /pay).
+// unfurls from it is the thumbnail the client sees: dynamic title + description
+// and the one static On It image (publicDocMetadata, shared with /pay). Nothing
+// in the card carries amounts or line items. Bearer-token links must never be
+// indexed (same rule as /pay).
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   let business: string | null = null;
   try {
     const result = await loadPublicEstimate(params.token);
     if (result.state !== 'unavailable') business = result.business.name?.trim() || null;
   } catch { /* fall back to the generic title */ }
-  const h = await headers();
-  const host = h.get('x-forwarded-host') ?? h.get('host');
-  const proto = h.get('x-forwarded-proto') ?? 'https';
   const title = business ? `Estimate from ${business}` : 'Your estimate — On It';
-  const description = 'Review your estimate and approve it online.';
-  return {
-    ...(host ? { metadataBase: new URL(`${proto}://${host}`) } : {}),
+  return publicDocMetadata({
     title,
-    description,
-    robots: { index: false, follow: false },
-    openGraph: { title, description, type: 'website' },
-    twitter: { card: 'summary_large_image', title, description },
-  };
+    description: 'Review your estimate and approve it online.',
+  });
 }
 
 export default async function EstimatePage({
