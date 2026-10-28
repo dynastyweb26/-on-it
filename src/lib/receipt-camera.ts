@@ -153,6 +153,56 @@ export function fitWithin(width: number, height: number, maxEdge: number): { wid
   };
 }
 
+/** The part of the sensor frame the user can actually see, plus the size to
+ *  draw it at. */
+export interface CoverCrop {
+  /** Source rectangle inside the video frame, in intrinsic sensor pixels. */
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+  /** Canvas size the rectangle is drawn at (after the maxEdge cap). */
+  dw: number;
+  dh: number;
+}
+
+const EMPTY_CROP: CoverCrop = { sx: 0, sy: 0, sw: 0, sh: 0, dw: 0, dh: 0 };
+
+/**
+ * The rectangle to draw so the photo matches what the viewfinder showed.
+ *
+ * The screen draws the video with `object-cover`, so the frame is scaled until
+ * it covers the element box and the overflow is hidden — evenly on both sides.
+ * Cropping the same rectangle in (sx, sy, sw, sh) means the picture handed to
+ * the receipt pipeline is exactly the picture the user framed: no letterbox
+ * appears in the photo that wasn't on screen, and nothing visible is cut off.
+ *
+ * With no box yet (0 × 0, a hidden element) the answer is EMPTY_CROP and the
+ * caller must not capture — better no photo than an unasked-for one.
+ */
+export function coverCrop(
+  frameWidth: number,
+  frameHeight: number,
+  boxWidth: number,
+  boxHeight: number,
+  maxEdge: number,
+): CoverCrop {
+  const usable = [frameWidth, frameHeight, boxWidth, boxHeight].every((n) => Number.isFinite(n) && n > 0);
+  if (!usable) return EMPTY_CROP;
+  const scale = Math.max(boxWidth / frameWidth, boxHeight / frameHeight);
+  const sw = Math.min(frameWidth, boxWidth / scale);
+  const sh = Math.min(frameHeight, boxHeight / scale);
+  const out = fitWithin(sw, sh, maxEdge);
+  return {
+    sx: (frameWidth - sw) / 2,
+    sy: (frameHeight - sh) / 2,
+    sw,
+    sh,
+    dw: out.width,
+    dh: out.height,
+  };
+}
+
 /** A JPEG File name for the capture. The upload path is the content hash, so
  *  this name is only ever seen by prepareReceipt(). */
 export function receiptFileName(now: number = Date.now()): string {

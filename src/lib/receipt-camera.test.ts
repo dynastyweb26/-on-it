@@ -5,6 +5,7 @@ import {
   blockerFromError,
   cameraFailureCopy,
   canFlip,
+  coverCrop,
   fitWithin,
   isSilentFallback,
   flipLabel,
@@ -96,6 +97,48 @@ test('fitWithin: no stream yet (0) draws nothing, never a 1px canvas', () => {
   assert.deepEqual(fitWithin(0, 0, 2400), { width: 0, height: 0 });
   assert.deepEqual(fitWithin(-4, 10, 2400), { width: 0, height: 0 });
   assert.deepEqual(fitWithin(Number.NaN, 10, 2400), { width: 0, height: 0 });
+});
+
+test('coverCrop: a box with the frame\'s aspect keeps the whole frame', () => {
+  assert.deepEqual(coverCrop(1920, 1080, 960, 540, 2400), {
+    sx: 0, sy: 0, sw: 1920, sh: 1080, dw: 1920, dh: 1080,
+  });
+});
+
+test('coverCrop: a landscape frame in a portrait box crops the sides, not the top', () => {
+  const crop = coverCrop(1920, 1080, 400, 700, 2400);
+  assert.equal(crop.sy, 0);
+  assert.equal(crop.sh, 1080);
+  assert.equal(crop.sx, 651.4285714285714);
+  assert.equal(crop.sw, 617.1428571428571);
+  assert.equal(crop.dw, 617);
+  assert.equal(crop.dh, 1080);
+  // What is stored has the shape of what was on screen, give or take rounding.
+  assert.ok(Math.abs(crop.dw / crop.dh - 400 / 700) < 0.002);
+});
+
+test('coverCrop: a portrait frame in a landscape box crops top and bottom', () => {
+  const crop = coverCrop(1080, 1920, 800, 400, 2400);
+  assert.equal(crop.sx, 0);
+  assert.equal(crop.sw, 1080);
+  assert.equal(crop.sy, 690);
+  assert.equal(crop.sh, 540);
+  assert.deepEqual([crop.dw, crop.dh], [1080, 540]);
+});
+
+test('coverCrop: the crop is capped at maxEdge so a 4K sensor does not fill a canvas', () => {
+  const crop = coverCrop(4000, 3000, 1000, 1000, 2400);
+  assert.deepEqual([crop.sx, crop.sy], [500, 0]);
+  assert.deepEqual([crop.sw, crop.sh], [3000, 3000]);
+  assert.deepEqual([crop.dw, crop.dh], [2400, 2400]);
+});
+
+test('coverCrop: no frame or no box yet means no capture', () => {
+  const none = { sx: 0, sy: 0, sw: 0, sh: 0, dw: 0, dh: 0 };
+  assert.deepEqual(coverCrop(0, 0, 400, 700, 2400), none);
+  assert.deepEqual(coverCrop(1920, 1080, 0, 0, 2400), none);
+  assert.deepEqual(coverCrop(1920, 1080, 400, Number.NaN, 2400), none);
+  assert.deepEqual(coverCrop(-1, 1080, 400, 700, 2400), none);
 });
 
 test('receiptFileName: a jpeg name', () => {

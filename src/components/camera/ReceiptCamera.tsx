@@ -3,11 +3,20 @@
    A full-screen viewfinder for photographing a receipt, built on getUserMedia
    so it ships through Vercel with no native rebuild.
 
+   Layout: a dark backdrop with one large sheet (40px top shoulders) holding the
+   live video edge to edge, and a single row of controls beneath it — close on
+   the left, shutter in the middle, a "more" circle on the right that unfolds
+   gallery and (only with a second camera) flip above itself.
+
    The sheet mounts already open (ChatView renders it only while the camera is
    wanted) and unmounting is the close path — which is why the stream lives in
-   a ref owned by one effect: every exit (X, Use photo, gallery, unmount, route
-   change) runs the same cleanup and stops every track, so no camera light is
-   left on.
+   a ref owned by one effect: every exit (close, Use photo, gallery, unmount,
+   route change) runs the same cleanup and stops every track, so no camera
+   light is left on.
+
+   The screen draws the video with object-cover, so the capture crops to the
+   visible rectangle (coverCrop → sx/sy/sw/sh): the photo is the picture the
+   user framed, never a letterboxed or widened version of it.
 
    The photo it produces is a plain JPEG File. It goes straight into the receipt
    pipeline ChatView already has (prepareReceipt → dedup → parse → expense), so
@@ -25,7 +34,7 @@ import {
   cameraEnvironment,
   cameraFailureCopy,
   canFlip,
-  fitWithin,
+  coverCrop,
   flipLabel,
   isSilentFallback,
   nextFacing,
@@ -36,6 +45,9 @@ import {
 } from '@/lib/receipt-camera';
 
 type Mode = 'opening' | 'live' | 'review' | 'blocked';
+
+/** One shape for every secondary control: 48px, dark translucent, ≥ 44 target. */
+const CIRCLE = 'grid h-12 w-12 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-90';
 
 export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   onClose: () => void;
@@ -49,6 +61,9 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   const [facing, setFacing] = useState<Facing>('environment');
   const [shot, setShot] = useState<{ file: File; url: string } | null>(null);
   const [flippable, setFlippable] = useState(false);
+  // The more-menu: gallery and flip live in it so the sheet keeps one control
+  // row. It is a menu, not a mode — the stream never notices it opens.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -69,6 +84,8 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   const facingRef = useRef<Facing>('environment');
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { facingRef.current = facing; }, [facing]);
+  // A style-only menu must never outlive the screen it belongs to.
+  useEffect(() => { setMenuOpen(false); }, [mode]);
 
   const stopStream = useCallback(() => {
     const stream = streamRef.current;
@@ -213,15 +230,22 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
   const capture = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight || mode !== 'live') return;
-    const { width, height } = fitWithin(video.videoWidth, video.videoHeight, MAX_CAPTURE_EDGE);
-    if (!width || !height) return;
+    // What the user sees is what gets captured: the video is drawn with
+    // object-cover, so the element box is the visible window and the sensor
+    // frame is cropped to match it. A box of 0 (mid-layout) falls back to the
+    // whole frame rather than producing nothing.
+    const box = video.getBoundingClientRect();
+    const boxWidth = box.width > 0 ? box.width : video.videoWidth;
+    const boxHeight = box.height > 0 ? box.height : video.videoHeight;
+    const crop = coverCrop(video.videoWidth, video.videoHeight, boxWidth, boxHeight, MAX_CAPTURE_EDGE);
+    if (!crop.dw || !crop.dh) return;
 
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = crop.dw;
+    canvas.height = crop.dh;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0, width, height);
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.dw, crop.dh);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', CAPTURE_QUALITY));
     // Free the pixels before the review state renders.
     canvas.width = 0;
@@ -261,7 +285,14 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
 
   // Escape closes; Tab stays inside the sheet (it covers the whole app).
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      // The open menu is the closer thing to Escape's meaning; the camera is
+      // one more Escape away.
+      if (menuOpen) { setMenuOpen(false); return; }
+      close();
+      return;
+    }
     if (e.key !== 'Tab') return;
     const focusable = sheetRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])');
     if (!focusable || focusable.length === 0) return;
@@ -269,7 +300,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
     const last = focusable[focusable.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }, [close]);
+  }, [close, menuOpen]);
 
   // Focus starts on Close so a keyboard or screen reader user is inside the
   // dialog, and never on the shutter (an accidental Enter shouldn't shoot).
@@ -333,37 +364,19 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
         paddingRight: 'env(safe-area-inset-right)',
       }}
     >
-      <div className="flex shrink-0 items-center justify-between px-3 pt-2">
-        <button
-          ref={closeRef}
-          type="button"
-          aria-label="Close camera"
-          onClick={close}
-          className="grid h-11 w-11 place-items-center rounded-full bg-inverse-surface/80 text-inverse-on-surface transition active:scale-90"
-        >
-          <Icon name="close" size={22} />
-        </button>
-        <span className="text-label-lg font-semibold text-inverse-on-surface/80">Receipt</span>
-        <span aria-hidden className="h-11 w-11" />
-      </div>
-
-      <div className="relative min-h-0 flex-1">
+      {/* The sheet: live video edge to edge, 40px shoulders over the backdrop. */}
+      <div className="relative mt-2 min-h-0 flex-1 overflow-hidden rounded-t-[40px] bg-inverse-surface">
         <video
           ref={videoRef}
           playsInline
           muted
           autoPlay
           aria-hidden
-          className={`h-full w-full object-contain ${mode === 'live' ? '' : 'opacity-0'}`}
+          className={`absolute inset-0 h-full w-full object-cover ${mode === 'live' ? '' : 'opacity-0'}`}
         />
         {shot && (
           // eslint-disable-next-line @next/next/no-img-element -- a blob URL from this capture, not a static asset
-          <img src={shot.url} alt="The receipt photo you just took" className="absolute inset-0 h-full w-full object-contain" />
-        )}
-        {mode === 'live' && (
-          // Framing guide only: the capture is the whole sensor frame, so this
-          // never crops what the read gets.
-          <div aria-hidden className="pointer-events-none absolute inset-x-5 inset-y-8 rounded-[24px] border border-inverse-on-surface/25" />
+          <img src={shot.url} alt="The receipt photo you just took" className="absolute inset-0 h-full w-full object-cover" />
         )}
         {mode === 'opening' && (
           <div className="absolute inset-0 grid place-items-center" role="status" aria-live="polite">
@@ -371,58 +384,90 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary }: {
             <span className="sr-only">Starting the camera…</span>
           </div>
         )}
+        {menuOpen && (
+          // Tapping the picture is "outside" the menu: it collapses the stack.
+          <button
+            type="button"
+            aria-label="Close camera options"
+            onClick={() => setMenuOpen(false)}
+            className="absolute inset-0 z-10 cursor-default"
+          />
+        )}
       </div>
 
-      <div className="shrink-0 px-4 pb-3 pt-2">
+      <div className="relative z-20 shrink-0 px-4 pb-2 pt-5">
         {mode === 'review' ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={retake}
-              className="min-h-touch flex-1 rounded-button border border-inverse-on-surface/40 px-6 text-body-md font-semibold text-inverse-on-surface transition active:scale-[0.97]"
+              className="min-h-touch rounded-button border border-white/30 px-6 text-body-md font-semibold text-inverse-on-surface transition active:scale-[0.97]"
             >
               Retake
             </button>
             <button
               type="button"
               onClick={usePhoto}
-              className="min-h-touch flex-1 rounded-button bg-background px-6 text-body-md font-semibold text-on-background transition active:scale-[0.97]"
+              className="min-h-touch rounded-button bg-inverse-on-surface px-7 text-body-md font-semibold text-on-background transition active:scale-[0.97]"
             >
               Use photo
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <div className="justify-self-start">
-              <button
-                type="button"
-                aria-label="Choose a receipt from photos instead"
-                onClick={pickLibrary}
-                className="grid h-11 w-11 place-items-center rounded-full bg-inverse-surface/80 text-inverse-on-surface transition active:scale-90"
-              >
-                <Icon name="photo_library" size={22} />
-              </button>
-            </div>
+          <div className="grid grid-cols-3 items-center">
+            <button
+              ref={closeRef}
+              type="button"
+              aria-label="Close camera"
+              onClick={close}
+              className={`justify-self-start ${CIRCLE}`}
+            >
+              {/* No chevron_left in the font subset: the right chevron turned is one. */}
+              <Icon name="chevron_right" size={24} className="rotate-180" />
+            </button>
+
             <button
               type="button"
               aria-label="Take the photo"
               onClick={() => void capture()}
               disabled={mode !== 'live'}
-              className="grid h-[76px] w-[76px] place-items-center rounded-full border-4 border-inverse-on-surface/70 transition active:scale-95 disabled:opacity-40"
+              className="grid h-[76px] w-[76px] justify-self-center place-items-center rounded-full border-2 border-white transition active:scale-95 disabled:opacity-40"
             >
-              <span className="h-[60px] w-[60px] rounded-full bg-background" />
+              <span className="h-[62px] w-[62px] rounded-full bg-white" />
             </button>
-            <div className="justify-self-end">
-              {flippable && (
-                <button
-                  type="button"
-                  aria-label={flipLabel(facing)}
-                  onClick={flip}
-                  className="grid h-11 w-11 place-items-center rounded-full bg-inverse-surface/80 text-inverse-on-surface transition active:scale-90"
-                >
-                  <Icon name="autorenew" size={22} />
-                </button>
+
+            <div className="relative justify-self-end">
+              {menuOpen && (
+                <div className="absolute bottom-full right-0 z-20 mb-3 flex flex-col items-center gap-3">
+                  <button
+                    type="button"
+                    aria-label="Choose a receipt from photos instead"
+                    onClick={pickLibrary}
+                    className={CIRCLE}
+                  >
+                    <Icon name="photo_library" size={22} />
+                  </button>
+                  {flippable && (
+                    <button
+                      type="button"
+                      aria-label={flipLabel(facing)}
+                      onClick={() => { setMenuOpen(false); flip(); }}
+                      className={CIRCLE}
+                    >
+                      <Icon name="autorenew" size={22} />
+                    </button>
+                  )}
+                </div>
               )}
+              <button
+                type="button"
+                aria-label="More camera options"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+                className={CIRCLE}
+              >
+                <Icon name="more_horiz" size={22} />
+              </button>
             </div>
           </div>
         )}
