@@ -538,7 +538,7 @@ export default function AppShell({
             align="left"
             onPick={playTutorial}
             onButtonPress={endThrob}
-            buttonClassName={`inline-flex h-10 w-10 items-center justify-center rounded-button bg-primary-container text-on-background transition active:scale-95 lg:h-11 lg:w-auto lg:px-3 lg:text-xs lg:font-semibold xl:gap-1.5 xl:px-3.5 xl:text-[13.5px]${throbClass}`}
+            buttonClassName={`inline-flex h-11 w-11 items-center justify-center rounded-button bg-primary-container text-on-background transition active:scale-95 lg:h-11 lg:w-auto lg:px-3 lg:text-xs lg:font-semibold xl:gap-1.5 xl:px-3.5 xl:text-[13.5px]${throbClass}`}
           >
             <Icon name="help" size={22} className="lg:hidden" />
             <span className="sr-only lg:not-sr-only">How it works</span>
