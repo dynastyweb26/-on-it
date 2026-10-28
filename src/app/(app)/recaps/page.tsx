@@ -27,7 +27,7 @@ const MAX_ROWS = 200;   // ~4 years of weeks + months
 
 export default function RecapsPage() {
   const router = useRouter();
-  const { access, watched, open, canPlay } = useRecaps();
+  const { access, watched, open, canPlay, freePlan } = useRecaps();
   const [rows, setRows] = useState<RecapRow[] | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [paywall, setPaywall] = useState(false);
@@ -96,7 +96,11 @@ export default function RecapsPage() {
       ) : rows.length === 0 ? (
         <div className="card flex items-center gap-3">
           <RecapMark ring={false} />
-          <span className="text-sm text-on-surface-variant">Your first recap lands Monday morning.</span>
+          <span className="text-sm text-on-surface-variant">
+            {freePlan
+              ? 'Your first two recaps are free — the first lands Monday morning.'
+              : 'Your first recap lands Monday morning.'}
+          </span>
         </div>
       ) : (
         <ul className="space-y-3">
