@@ -84,11 +84,11 @@ export default function RecurringPage() {
     />
   );
 
-  if (rows === null) return <div className="px-4 pt-2">{header}<ListSkeleton /></div>;
+  if (rows === null) return <div className="px-4 pt-2 md:px-6">{header}<ListSkeleton /></div>;
 
   if (rows.length === 0 && !removed) {
     return (
-      <div className="px-4 pt-2">
+      <div className="px-4 pt-2 md:px-6">
         {header}
         {failed && <p role="status" className="mt-2 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">Couldn’t load recurring expenses. Check your connection and try again.</p>}
         <div className="onit-rise mt-20 px-4 text-center">
@@ -126,7 +126,7 @@ export default function RecurringPage() {
   };
 
   return (
-    <div className="px-4 pb-6 pt-2">
+    <div className="px-4 pb-6 pt-2 md:px-6">
       {header}
       <div className="rounded-card bg-inverse-surface px-5 py-4 text-inverse-on-surface">
         <div className="font-display text-[34px] font-extrabold leading-tight tabular-nums">{money(monthlyTotal(rows))}</div>

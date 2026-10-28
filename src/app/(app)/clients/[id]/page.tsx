@@ -68,7 +68,7 @@ export default function ClientDetail() {
 
   if (client === undefined) {
     return (
-      <div className="space-y-4 px-4 py-4" aria-busy="true">
+      <div className="space-y-4 px-4 py-4 md:px-6" aria-busy="true">
         <div className="h-16 w-2/3 animate-pulse rounded-card bg-surface-container" />
         <div className="h-20 animate-pulse rounded-card bg-surface-container" />
         <div className="h-24 animate-pulse rounded-card bg-surface-container" />
@@ -105,7 +105,7 @@ export default function ClientDetail() {
   }
 
   return (
-    <div className="relative px-4 pb-6 pt-4">
+    <div className="relative px-4 pb-6 pt-4 md:px-6">
       <Link href={editHref()} className="absolute right-3 top-2 flex min-h-touch items-center px-1 text-[17px] font-semibold text-primary">Edit</Link>
 
       <div className="flex items-center gap-4 pr-12">

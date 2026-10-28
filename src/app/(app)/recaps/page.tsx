@@ -87,7 +87,7 @@ export default function RecapsPage() {
   }
 
   return (
-    <div className="space-y-3 px-4 py-4">
+    <div className="space-y-3 px-4 py-4 md:px-6">
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Recaps</h1>
       {rows === null ? (
         <div className="space-y-3" aria-hidden>
