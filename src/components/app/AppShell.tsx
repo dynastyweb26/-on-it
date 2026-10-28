@@ -585,12 +585,15 @@ export default function AppShell({
 
       <div className="flex flex-1 flex-col min-w-0 h-full">
         {(parentRoute || path.startsWith('/chat')) ? (
-          // xl: the design's 72px chat header. Its contents sit in the chat
-          // column's own 720px wrapper, so the action cluster's right edge is
-          // the column's right edge. From md up the wordmark lives in the
-          // sidebar alone; below md this header is the only one, so it keeps it.
-          <header className={`${HEADER_CLASS} xl:border-b xl:border-surface-container-high xl:px-8 xl:py-0 xl:h-[72px]`}>
-            <div className="mx-auto flex w-full max-w-[720px] items-center justify-between">
+          // xl: the design's 72px chat header. On /chat its contents sit in the
+          // chat column's own 720px wrapper, so the action cluster's right edge
+          // is the column's right edge. A nested route (a client, a document, a
+          // Settings sub-screen) has no chat column: its row stays full width at
+          // the page's own padding, so the Back arrow's left edge is the
+          // content's left edge. From md up the wordmark lives in the sidebar
+          // alone; below md this header is the only one, so it keeps it.
+          <header className={`${HEADER_CLASS}${path.startsWith('/chat') ? ' xl:px-8' : ''} xl:border-b xl:border-surface-container-high xl:py-0 xl:h-[72px]`}>
+            <div className={`flex w-full items-center justify-between${path.startsWith('/chat') ? ' mx-auto max-w-[720px]' : ''}`}>
               <div className="flex items-center gap-2">
                 {parentRoute && <BackButton parentHref={parentRoute} />}
                 <span className="font-display text-xl font-extrabold md:hidden">
