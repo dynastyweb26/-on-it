@@ -36,6 +36,9 @@ export interface InvoiceRenderData {
   clientName: string;
   clientAddress?: string | null;
   clientPhone?: string | null;
+  // Billed party email (invoices.client_email). Empty prints nothing; a long
+  // address wraps instead of running past the column.
+  clientEmail?: string | null;
   lineItems: LineItem[];
   subtotal: number;
   taxRate: number;
@@ -532,6 +535,7 @@ function Classic({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div>{d.clientAddress}</div>}
           {d.clientPhone && <div>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <Meta d={d} t={t} />
       </div>
@@ -628,6 +632,7 @@ function Ledger({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
       <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{d.clientName}</div>
       {d.clientAddress && <div style={{ fontSize: 13, marginTop: 4 }}>{d.clientAddress}</div>}
       {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
+      {d.clientEmail && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
 
       <div style={{ background: t.accent, color: onColor(t.accent), padding: '20px 24px', marginTop: 22 }}>
         <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>
@@ -809,6 +814,7 @@ function Industrial({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <span style={{ fontWeight: 800, fontSize: 19 }}>{d.clientName}</span>
           {d.clientAddress && <div style={{ opacity: 0.8 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ opacity: 0.8 }}>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ opacity: 0.8, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <ItemsTable d={d} t={t} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 28 }}>
@@ -886,6 +892,7 @@ function Friendly({ d, t }: { d: InvoiceRenderData; t: BrandTheme }) {
           <div style={{ fontWeight: 700, fontSize: 18 }}>{d.clientName}</div>
           {d.clientAddress && <div style={{ fontSize: 13 }}>{d.clientAddress}</div>}
           {d.clientPhone && <div style={{ fontSize: 13 }}>{d.clientPhone}</div>}
+          {d.clientEmail && <div style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{d.clientEmail}</div>}
         </div>
         <div style={{ ...card, width: 220 }}>
           <Meta d={d} t={t} />

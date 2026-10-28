@@ -29,6 +29,9 @@ export interface ExtractResult {
   // is what surfaces them when they're missing.
   client_address: string | null;
   client_phone: string | null;
+  // Validated by normalizeClientEmail() in the route: an unusable address is
+  // null, never an error, and is never invented.
+  client_email: string | null;
   line_items: LineItem[];
   tax_rate: number | null;
   due_date: string | null;          // ISO date or null
@@ -81,7 +84,8 @@ Rules:
 - due_date: fill it ONLY if the user volunteers one ("due in 2 weeks" → compute from today). Otherwise leave it null — the app sets a due date automatically. NEVER ask the user for a due date and never include due_date in "missing".
 - notes: capture any note, policy, lead time, or special instruction volunteered by the user. Do NOT put a deposit amount here — a deposit is a structured field (see the deposit rule below), not a note. A note that only sets a payment condition tied to the deposit is fine as English ("a note that materials are ordered once the deposit clears"), but the deposit figure itself belongs in deposit_type/deposit_value. Leave notes null when not mentioned this message (the app keeps any note already on the draft). Set notes to an empty string "" ONLY when the user explicitly removes the note ("drop the note", "no note"). Never invent note text. Extracting a note MUST NEVER alter document intent.
 - deposit: when the user explicitly asks for a deposit, down payment, money up front, or a retainer, set it as structured fields — NEVER as a line item and NEVER as note text. deposit_type is "percentage" for a percent ("40% deposit", "40 percent down" → deposit_type "percentage", deposit_value 40) or "fixed" for a dollar amount ("500 down", "half up front on a stated total is a fixed dollar figure", "$500 deposit" → deposit_type "fixed", deposit_value 500). Use exactly the spelling "percentage" (never "percent"). Set deposit_type "none" and deposit_value null ONLY when the user explicitly declines or removes a deposit ("no deposit", "actually no deposit", "remove the deposit"). When the user does not mention a deposit at all this message, set deposit_type null and deposit_value null — do NOT restate a deposit already on the draft; the app keeps it. "half up front" means deposit_type "percentage", deposit_value 50. Never invent a deposit the user didn't state.
-- client_address and client_phone: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field.
+- client_address, client_phone and client_email: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199", "her email is deffeu@gmail.com"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field. A client_email must look like a real address (one @, a dotted domain, no spaces); if what the user said does not form one, leave it null rather than guessing.
+- Contact echo in the reply: when the client's phone, email or address is known (said this turn or already on the draft), name every one of those three in ONE short clause right after the client's name — "Car wash for Brandon (945-344-4550, deffeu@gmail.com), 2407 Neff Lane, Forney, TX." Include a field ONLY when it is known, and never mention or ask about one that is not. This clause never carries a price.
 
 PASTED WORK CARDS — when the user pastes service notes (several lines: a job line, "found the following", a numbered list of findings, tech/manager names, part numbers, prices):
 - Copy item names and descriptions EXACTLY as written, part numbers included ("Hatco thermostat", "P# 02-16-039"). Do not rephrase, expand abbreviations, fix capitalization, or clean up wording.
@@ -123,7 +127,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"each|hour|sq ft|job"}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"private_notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"client_email":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"each|hour|sq ft|job"}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"private_notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -171,6 +175,7 @@ function clarifyFallback(): ExtractResult {
     client_name: null,
     client_address: null,
     client_phone: null,
+    client_email: null,
     line_items: [],
     tax_rate: null,
     due_date: null,

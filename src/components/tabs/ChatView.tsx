@@ -194,6 +194,7 @@ function draftFromRow(row: {
   client_name?: string | null;
   client_address?: string | null;
   client_phone?: string | null;
+  client_email?: string | null;
   line_items?: unknown;
   tax_rate?: number | null;
   due_date?: string | null;
@@ -208,6 +209,7 @@ function draftFromRow(row: {
     client_name: row.client_name ?? null,
     client_address: row.client_address ?? null,
     client_phone: row.client_phone ?? null,
+    client_email: row.client_email ?? null,
     line_items: Array.isArray(row.line_items) ? row.line_items : [],
     tax_rate: row.tax_rate ?? null,
     due_date: row.due_date ?? null,
@@ -1252,6 +1254,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // the user spoke this turn or a value carried through the draft.
         const aiAddress = data.client_address ?? null;
         const aiPhone = data.client_phone ?? null;
+        const aiEmail = data.client_email ?? null;
+        // No stored client email is merged here (clients.email is not wired):
+        // keep one already on the draft when this turn did not state it.
+        data.client_email = aiEmail ?? draft?.client_email ?? null;
         // Returning client? Pull the address/phone we already have on file so a
         // repeat customer never re-enters them — and the confirmation gate sees
         // them as present. Anything the user stated THIS turn wins over the
@@ -1468,6 +1474,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       clientName: draft.client_name ?? 'Client',
       clientAddress: draft.client_address ?? null,
       clientPhone: draft.client_phone ?? null,
+      clientEmail: draft.client_email ?? null,
       lineItems: items,
       subtotal, taxRate, taxAmount,
       total,
@@ -1686,7 +1693,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return JSON.stringify({
       kind: docKind(d),
       no: pendingInvoiceRef.current?.no ?? null,
-      client: [r.client_name ?? null, r.client_address ?? null, r.client_phone ?? null],
+      client: [r.client_name ?? null, r.client_address ?? null, r.client_phone ?? null, r.client_email ?? null],
       items: r.line_items ?? null,
       tax: r.tax_rate ?? null,
       depType: r.deposit_type ?? null,
@@ -1884,6 +1891,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // must not rewrite what this invoice actually went out with.
         client_address: rd0.clientAddress ?? null,
         client_phone: rd0.clientPhone ?? null,
+        client_email: rd0.clientEmail ?? null,
         line_items: lineItemsForSave,
         subtotal: rd0.subtotal,
         tax_rate: rd0.taxRate,
@@ -3235,7 +3243,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       try {
         const { data: row } = await supabase
           .from('invoices')
-          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, line_items, tax_rate, notes, private_notes, due_date, deposit_type, deposit_value')
+          .select('id, invoice_number, status, amount_paid, kind, client_name, client_address, client_phone, client_email, line_items, tax_rate, notes, private_notes, due_date, deposit_type, deposit_value')
           .eq('finalize_key', entry.id)
           .is('deleted_at', null)
           .maybeSingle();

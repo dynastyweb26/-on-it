@@ -62,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         client_name: quote.client_name ?? null,
         client_address: quote.client_address ?? null,
         client_phone: quote.client_phone ?? null,
+        client_email: quote.client_email ?? null,
         line_items: quote.line_items ?? [],
         subtotal: quote.subtotal ?? 0,
         tax_rate: quote.tax_rate ?? 0,
