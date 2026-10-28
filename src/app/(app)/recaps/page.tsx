@@ -3,8 +3,9 @@
 // Books "See all": every weekly and monthly recap, newest first. Tapping a row
 // plays it (useRecaps().open — sound unlocks inside the tap). Each row keeps
 // the old recap sheet's Income / Expenses PDF buttons for its period (paid-
-// only). Free / canceled owners see their rows locked: any tap opens the
-// paywall (reports variant). Nothing here while RECAPS_LIVE is off.
+// only). The free plan owns the first two weekly recaps (lib/recap/quota): those
+// rows play, everything after them is locked and any tap opens the paywall
+// (recaps variant). Nothing here while RECAPS_LIVE is off.
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -26,7 +27,7 @@ const MAX_ROWS = 200;   // ~4 years of weeks + months
 
 export default function RecapsPage() {
   const router = useRouter();
-  const { access, watched, open } = useRecaps();
+  const { access, watched, open, canPlay } = useRecaps();
   const [rows, setRows] = useState<RecapRow[] | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [paywall, setPaywall] = useState(false);
@@ -46,7 +47,7 @@ export default function RecapsPage() {
   }, []);
 
   useEffect(() => {
-    if (access !== 'open' && access !== 'locked') return;
+    if (access !== 'open') return;
     const supabase = createClient();
     let live = true;
     (async () => {
@@ -61,8 +62,6 @@ export default function RecapsPage() {
     })().catch(() => { if (live) setRows([]); });
     return () => { live = false; };
   }, [access]);
-
-  const locked = access === 'locked';
 
   async function build(detail: SummaryPdfDetail) {
     const job = pdf;
@@ -97,14 +96,13 @@ export default function RecapsPage() {
       ) : rows.length === 0 ? (
         <div className="card flex items-center gap-3">
           <RecapMark ring={false} />
-          <span className="text-sm text-on-surface-variant">
-            {locked ? 'Weekly and monthly recaps are part of On It.' : 'Your first recap lands Monday morning.'}
-          </span>
+          <span className="text-sm text-on-surface-variant">Your first recap lands Monday morning.</span>
         </div>
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => {
             const seen = !!r.seen_at || watched.has(r.id);
+            const locked = !canPlay(r);
             const busy = (k: SummaryPdfKind) => building === `${r.id}:${k}`;
             return (
               <li key={r.id} className="card space-y-3">

@@ -16,9 +16,12 @@
 //     last 14 days, lib/recap/rows hasUnwatched);
 //   • (f) routes the story's buttons: "View invoices" → the unpaid list,
 //     "Make an invoice" → a fresh chat.
-// Paid-only: free / canceled owners get access 'locked' (Books shows the
-// locked card, commit 14e) and nothing is loaded or offered. Everything is
-// inert while RECAPS_LIVE is off.
+// The free plan is not shut out any more: it gets the first 2 weekly recaps
+// (lib/recap/quota) and everything after that is locked, per row, with the
+// "You've used your 2 free recaps" wall on tap. So `access` is only about
+// whether recaps exist for this owner ('off' / 'loading' / 'open'); the plan
+// decides which rows can be played. Everything is inert while RECAPS_LIVE is
+// off.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
@@ -27,6 +30,7 @@ import RecapMark from '@/components/recap/RecapMark';
 import type { RecapAction } from '@/components/recap/clock';
 import { createClient } from '@/lib/supabase/client';
 import { PAYWALL_ENABLED, isPaidTier } from '@/lib/paywall';
+import { recapUnlocked } from '@/lib/recap/quota';
 import { subscribeAccess } from '@/lib/upgrade-return';
 import { RECAPS_LIVE } from '@/lib/recaps-live';
 import { primeRecapAudio } from '@/lib/recap/audio';
@@ -43,11 +47,15 @@ const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr:
 const LATEST = 8;   // rows kept here (with payload): Books card, dot, prompt
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** 'off' = RECAPS_LIVE off or signed out · 'locked' = free / canceled. */
-export type RecapAccess = 'off' | 'loading' | 'locked' | 'open';
+/** 'off' = RECAPS_LIVE off or signed out. */
+export type RecapAccess = 'off' | 'loading' | 'open';
 
 type RecapCtx = {
   access: RecapAccess;
+  /** Free (or canceled) plan: only the two slotted weekly recaps play. */
+  freePlan: boolean;
+  /** Paid-built rows always play; a free-plan row needs one of the two slots. */
+  canPlay: (row: Pick<RecapRow, 'kind' | 'free_plan' | 'free_slot'>) => boolean;
   /** Latest recaps, newest first. */
   rows: RecapRow[];
   /** Books tab dot. */
@@ -58,7 +66,9 @@ type RecapCtx = {
   open: (row: RecapRow) => void;
 };
 
-const Ctx = createContext<RecapCtx>({ access: 'off', rows: [], unwatched: false, watched: new Set(), open: () => {} });
+const Ctx = createContext<RecapCtx>({
+  access: 'off', freePlan: false, canPlay: () => false, rows: [], unwatched: false, watched: new Set(), open: () => {},
+});
 export const useRecaps = () => useContext(Ctx);
 
 const today = () => {
@@ -78,6 +88,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const router = useRouter();
   const pathname = usePathname();
   const [access, setAccess] = useState<RecapAccess>(RECAPS_LIVE ? 'loading' : 'off');
+  const [freePlan, setFreePlan] = useState(false);
   const [rows, setRows] = useState<RecapRow[]>([]);
   const [watched, setWatched] = useState<ReadonlySet<string>>(() => new Set());
   const [prompt, setPrompt] = useState<RecapRow | null>(null);
@@ -86,7 +97,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
 
   // ── Load ──
   // Runs on mount, and again when the unlock poll sees the tier turn paid
-  // (lib/upgrade-return.ts), so a just-paid user leaves 'locked' with no refresh.
+  // (lib/upgrade-return.ts), so a just-paid user unlocks every row with no refresh.
   useEffect(() => {
     if (!RECAPS_LIVE) return;
     const supabase = createClient();
@@ -94,13 +105,17 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     const load = () => (async () => {
       const { data: { user } } = await getSharedUser();
       if (!user) { if (live) setAccess('off'); return; }
+      let free = false;
       if (PAYWALL_ENABLED) {
         const { data: prof } = await supabase.from('profiles').select('access_tier').eq('id', user.id).maybeSingle();
-        if (!isPaidTier((prof?.access_tier as string | null) ?? null)) { if (live) setAccess('locked'); return; }
+        free = !isPaidTier((prof?.access_tier as string | null) ?? null);
       }
+      // Free owners load their rows like everyone else: the first two weekly
+      // recaps are theirs to play, and the rest are shown locked.
       const { data } = await supabase.from('recaps').select(RECAP_FULL_COLS)
         .order('period_end', { ascending: false }).limit(LATEST);
       if (!live) return;
+      setFreePlan(free);
       setRows(sortRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRow)));
       setAccess('open');
     })().catch(() => { if (live) setAccess('off'); });   // best-effort: no recaps this time
@@ -124,10 +139,11 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
           const { data } = await supabase.from('recaps').select(RECAP_FULL_COLS).eq('id', wanted).maybeSingle();
           row = data ? normalizeRow(data as Record<string, unknown>) : null;
         }
-        if (row && !announces(row)) row = null;
+        if (row && (!announces(row) || !recapUnlocked(row))) row = null;
       }
       if (!row) {
-        row = promptPick(rows, today());
+        // Only a recap this owner can actually open is worth a prompt.
+        row = promptPick(rows.filter(recapUnlocked), today());
         if (row) {
           // One sheet, not a stack: older recaps waiting for theirs are retired
           // with this one (still unwatched, so the Books dot stays).
@@ -156,8 +172,10 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const open = useCallback((row: RecapRow) => {
     primeRecapAudio();          // synchronously, inside the caller's tap
     setPrompt(null);
-    const show = (r: RecapRow) => { if (playable(r)) { markWatched(r); setStory(r); } };
-    const have = playable(row) ? row : rows.find((r) => r.id === row.id && playable(r));
+    // Locked rows never play, whatever called this (the UI opens the wall).
+    const plays = (r: RecapRow) => playable(r) && recapUnlocked(r);
+    const show = (r: RecapRow) => { if (plays(r)) { markWatched(r); setStory(r); } };
+    const have = plays(row) ? row : rows.find((r) => r.id === row.id && plays(r));
     if (have) { show(have); return; }
     // A history row (listed without its payload): fetch it, then play.
     void createClient().from('recaps').select(RECAP_FULL_COLS).eq('id', row.id).maybeSingle()
@@ -182,13 +200,18 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     else router.push('/chat?new=1');
   }, [router, pathname]);
 
+  const canPlay = useCallback((r: Pick<RecapRow, 'kind' | 'free_plan' | 'free_slot'>) => recapUnlocked(r), []);
+
   const value = useMemo<RecapCtx>(() => ({
     access,
+    freePlan,
+    canPlay,
     rows,
-    unwatched: access === 'open' && hasUnwatched(rows, today()),
+    // A locked recap never pulses the Books tab either.
+    unwatched: access === 'open' && hasUnwatched(rows.filter(recapUnlocked), today()),
     watched,
     open,
-  }), [access, rows, watched, open]);
+  }), [access, freePlan, canPlay, rows, watched, open]);
 
   return (
     <Ctx.Provider value={value}>
