@@ -579,7 +579,7 @@ export default function AppShell({
         </nav>
 
         <div className="mt-auto pt-6">
-          <InstallBanner variant="sidebar" />
+          <InstallBanner />
         </div>
       </aside>
 
@@ -679,10 +679,6 @@ export default function AppShell({
         {/* The one soft upgrade banner due on this app open (lib/soft-prompts.ts).
             A flex sibling, so it never covers the screen or the composer. */}
         <SoftPromptBanner />
-
-        <div className="md:hidden">
-          <InstallBanner />
-        </div>
 
         {/* Bottom tab bar for Mobile viewports */}
         <nav ref={navRef} data-kb-hide="" data-coach="tab-bar" className="glass-nav relative flex justify-around border-t border-outline-variant/40 px-1 pb-[calc(env(safe-area-inset-bottom)_+_4px)] pt-[7px] md:hidden">
