@@ -33,6 +33,7 @@ import PlanStep from '@/components/paywall/PlanStep';
 import FitToHeight from '@/components/paywall/FitToHeight';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import { SUBSCRIPTIONS_OFF_MESSAGE } from '@/lib/subscriptions';
+import { RESTORE_UNAVAILABLE, restorePurchases } from '@/lib/subscription/restore';
 import { trialDates } from '@/lib/trial';
 import {
   REASON,
@@ -181,6 +182,15 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     // started: the browser is on its way to the payment sheet; stay busy.
   }
 
+  // Restore Purchases. UI only for now: lib/subscription/restore.ts is the stub
+  // the native IAP phase fills in, so the wall never claims to have restored
+  // something it cannot see. It reports through the same inline notice slot the
+  // purchase errors use.
+  async function restore() {
+    const outcome = await restorePurchases();
+    setNotice(outcome === 'restored' ? 'Purchase restored.' : RESTORE_UNAVAILABLE);
+  }
+
   const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background xl:max-w-[400px]';
   const footerShadow = { boxShadow: '0 8px 20px rgba(212,175,55,.32)' };
 
@@ -325,10 +335,20 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
                 </>
               )}
 
-              <p className="flex items-center gap-2 text-[12.5px] font-medium leading-none text-[#4d4635]">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12.5px] font-medium leading-none text-[#4d4635]">
                 <a href="/terms" className="text-on-background underline underline-offset-[3px]">Terms</a>
                 <span aria-hidden>·</span>
                 <a href="/privacy" className="text-on-background underline underline-offset-[3px]">Privacy</a>
+                <span aria-hidden>·</span>
+                {/* Required wherever a subscription can be bought (App Store
+                    rule). Restores nothing until store billing exists. */}
+                <button
+                  type="button"
+                  onClick={() => void restore()}
+                  className="text-on-background underline underline-offset-[3px] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Restore Purchases
+                </button>
               </p>
             </>
           ) : (
