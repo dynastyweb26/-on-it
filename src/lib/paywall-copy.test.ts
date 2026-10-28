@@ -16,7 +16,7 @@ import {
   type PaywallVariant,
 } from './paywall-copy';
 
-const VARIANTS: PaywallVariant[] = ['invoice', 'expense', 'estimate', 'recurring', 'reports', 'winback'];
+const VARIANTS: PaywallVariant[] = ['invoice', 'expense', 'estimate', 'recurring', 'reports', 'recaps', 'winback'];
 
 test('the state follows the access answer and never guesses a trial', () => {
   assert.equal(paywallState(null), 'checking');
@@ -81,6 +81,7 @@ test('every wall has its own reason pill', () => {
   assert.deepEqual(Object.keys(REASON).sort(), [...VARIANTS].sort());
   assert.equal(REASON.expense, 'You’ve used your 5 free expenses');
   assert.equal(REASON.reports, 'Reports are part of On It Pro');
+  assert.equal(REASON.recaps, 'You’ve used your 2 free recaps');
   assert.equal(REASON.winback, 'Welcome back — pick up where you left off');
   for (const variant of VARIANTS) assert.ok(REASON[variant].trim().length > 0, variant);
 });
@@ -129,7 +130,8 @@ test('the plan table matches the caps the database enforces', () => {
   assert.equal(row('Recurring expenses').paid, true);
   assert.equal(row('Income & expense reports (PDF)').free, false);
   assert.equal(row('Income & expense reports (PDF)').paid, true);
-  assert.equal(row('Weekly & monthly recaps').free, false);
+  // The free plan owns the first two weekly recaps (lib/recap/quota).
+  assert.equal(row('Weekly & monthly recaps').free, '2 free');
   assert.equal(row('Weekly & monthly recaps').paid, true);
 });
 

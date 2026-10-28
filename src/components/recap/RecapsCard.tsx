@@ -110,7 +110,7 @@ export default function RecapsCard() {
             <Icon name="chevron_right" size={20} className="text-outline" />
           </button>
         )}
-        {paywall && <PaywallModal variant="reports" returnTo="books" onClose={() => setPaywall(false)} />}
+        {paywall && <PaywallModal variant="recaps" returnTo="books" onClose={() => setPaywall(false)} />}
       </>
     );
   }

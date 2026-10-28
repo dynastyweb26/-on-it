@@ -140,7 +140,7 @@ export default function RecapsPage() {
         </ul>
       )}
       <PdfChoiceSheet kind={pdf?.kind ?? null} onPick={build} onClose={() => setPdf(null)} />
-      {paywall && <PaywallModal variant="reports" returnTo="books" onClose={() => setPaywall(false)} />}
+      {paywall && <PaywallModal variant="recaps" returnTo="books" onClose={() => setPaywall(false)} />}
     </div>
   );
 }
