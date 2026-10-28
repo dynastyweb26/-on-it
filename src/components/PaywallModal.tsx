@@ -32,7 +32,6 @@ import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
 import FitToHeight from '@/components/paywall/FitToHeight';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
-import { SUBSCRIPTIONS_OFF_MESSAGE } from '@/lib/subscriptions';
 import { RESTORE_UNAVAILABLE, restorePurchases } from '@/lib/subscription/restore';
 import { trialDates } from '@/lib/trial';
 import {
@@ -293,15 +292,12 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
 
           {current === 'plan' ? (
             <>
-              {/* Subscriptions switched off for this deployment: the wall still
-                  shows what's included and the code row, says plainly that there
-                  is nothing to buy here yet, and leaves every other way in (a
-                  code, a referral) working. */}
-              {subsOn === false ? (
-                <p className="max-w-[320px] rounded-input bg-surface-container p-3 text-center text-sm text-on-surface-variant [text-wrap:pretty]">
-                  {SUBSCRIPTIONS_OFF_MESSAGE}
-                </p>
-              ) : (
+              {/* Subscriptions switched off for this deployment: nothing in
+                  place of the CTA — no notice, no disclosure, no button — while
+                  the wall keeps what's included, the code row and every other
+                  way in (a code, a referral). The footer is a gap-only column,
+                  so a skipped block leaves no hole. */}
+              {subsOn !== false && (
                 <>
                   <button
                     type="button"

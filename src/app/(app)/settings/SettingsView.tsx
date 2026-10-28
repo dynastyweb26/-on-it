@@ -9,7 +9,6 @@ import { freePlanSummary } from '@/lib/usage';
 import { getPushSubscription, subscribeToPush, unsubscribeFromPush, pushAvailability, type PushAvailability } from '@/lib/push';
 import { clearChatStorage, clearAllChatStorage } from '@/lib/chat-storage';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
-import { SUBSCRIPTIONS_OFF_MESSAGE } from '@/lib/subscriptions';
 import CodeEntry from '@/components/CodeEntry';
 import { trialDates, trialEligible } from '@/lib/trial';
 import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actions';
@@ -153,9 +152,9 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   // so it's known from the first render. Anything but true renders the
   // disabled "Coming soon" card.
   const connectOn = connectEnabled === true;
-  // Subscription checkout open in this deployment? Anything but true renders the
-  // "coming to the app" line in place of the upgrade CTA (default true so an
-  // unnamed mount keeps today's screen).
+  // Subscription checkout open in this deployment? Anything but true drops the
+  // upgrade disclosure and CTA entirely — no replacement line (default true so
+  // an unnamed mount keeps today's screen).
   const subsOn = subscriptionsEnabled !== false;
   // Account deletion: a two-step, typed-confirmation flow kept well away from
   // Sign out. Fires POST /api/delete-account only when the input reads DELETE.
@@ -944,7 +943,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
                 </div>
               )}
               <p className="text-sm text-on-surface-variant">Go unlimited — invoices, estimates, expenses and reminders.</p>
-              {subsOn ? (
+              {subsOn && (
                 <>
                   {/* Subscription disclosure — plain, body-size, visible before the Stripe
                       redirect. Material terms match /api/checkout: a TRIAL_DAYS trial for
@@ -960,8 +959,6 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
                     {billingBusy ? 'Opening…' : trialEligible(p) ? 'Start 14-day free trial' : 'Subscribe — $9.99/month'}
                   </button>
                 </>
-              ) : (
-                <p className="text-sm text-on-surface-variant">{SUBSCRIPTIONS_OFF_MESSAGE}</p>
               )}
               <p className="text-sm text-on-surface-variant">
                 <a href="/terms" className="underline">Terms</a>

@@ -11,6 +11,9 @@
 // NEXT_PUBLIC, so a browser bundle would read it as undefined (and therefore
 // "off"). Client surfaces learn the switch from GET /api/access instead, which
 // reports the same function's answer.
+// The 503 body of POST /api/checkout only. No screen renders this: with the
+// switch off the paywall and Settings' Plan card show no CTA and no notice, so
+// there is nothing for a customer to read here.
 export const SUBSCRIPTIONS_OFF_MESSAGE =
   'Subscriptions aren’t available here yet — they’re coming to the On It app. Nothing to pay today.';
 
