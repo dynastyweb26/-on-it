@@ -7,6 +7,7 @@
    (the circle is then the mic/stop button until the session ends).  */
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
@@ -64,6 +65,14 @@ import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expe
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
+import { IN_APP_CAMERA } from '@/lib/feature-flags';
+
+// The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
+// lazily: a flag-off build never asks for its chunk, so the composer keeps
+// today's OS photo input and nothing extra is downloaded.
+const ReceiptCameraScreen = IN_APP_CAMERA
+  ? dynamic(() => import('@/components/camera/ReceiptCamera'), { ssr: false })
+  : null;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -543,6 +552,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Receipt capture (MOTION-SPEC §8): a white shutter flash when a photo comes
   // back. Keyed so every capture replays it; 0 = never shown.
   const [shutterKey, setShutterKey] = useState(0);
+  // The in-app camera sheet (flag on only). Mounted means open; closing
+  // unmounts it, and that unmount is what stops the stream.
+  const [cameraOpen, setCameraOpen] = useState(false);
   // The receipt bubble captured in THIS session that should play its flight
   // (MOTION-SPEC §8). Never set for restored messages, so they render static.
   const liveReceiptRef = useRef<{ id: string; flashPeak: Promise<void> } | null>(null);
@@ -2526,7 +2538,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Reset immediately so picking the SAME file twice still fires onChange.
     e.target.value = '';
     if (!file) return;
+    await handleReceiptFile(file);
+  }
 
+  /** The composer camera button: the in-app screen when the flag is on, the OS
+   *  camera input (unchanged behaviour) when it is off. */
+  function openCamera() {
+    if (!IN_APP_CAMERA) { cameraRef.current?.click(); return; }
+    setCameraOpen(true);
+  }
+
+  // The one receipt-photo path, shared by the two file inputs and the in-app
+  // camera. A captured frame is just a File, so everything below — prepare,
+  // dedup, parse, upload, expense row — is exactly the flow that already ships.
+  async function handleReceiptFile(file: File) {
     if (phase) return; // a turn is already in flight
     discardExpense();
     // Own the phase for the whole pick→prepare→dedup→read flow in ONE outer
@@ -4244,7 +4269,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     data-coach="chat-camera"
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft text-on-background transition active:scale-90 disabled:opacity-40"
                     disabled={phase !== null}
-                    onClick={() => cameraRef.current?.click()}
+                    onClick={openCamera}
                   >
                     <Icon name="photo_camera" size={20} />
                   </button>
@@ -4305,6 +4330,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
             <InvoiceTemplate template={profile.invoice_template} data={renderData} theme={theme} />
           </div>
         </div>
+      )}
+
+      {/* In-app camera (NEXT_PUBLIC_IN_APP_CAMERA). Use photo feeds the same
+          receipt pipeline as the file inputs; the gallery button inside the
+          screen is the composer's own picker. */}
+      {ReceiptCameraScreen && cameraOpen && (
+        <ReceiptCameraScreen
+          onClose={() => setCameraOpen(false)}
+          onPhoto={(file) => { setCameraOpen(false); void handleReceiptFile(file); }}
+          onPickFromLibrary={() => { setCameraOpen(false); galleryRef.current?.click(); }}
+        />
       )}
 
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
