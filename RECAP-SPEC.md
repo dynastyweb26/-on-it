@@ -77,11 +77,41 @@ decode, gunzip where `compressed: true`. The JS files are:
   weeks** (`monthColumns()`, decided 2026-10-03; `monthWeeks()` removed), so
   both slides agree.
 
+## 0d. Free plan: the first 2 weekly recaps (2026-10-27)
+
+Rules in `src/lib/recap/quota.ts` (unit-tested); the cron that writes them is
+`src/lib/notify/recaps.ts`.
+
+- **Allowance:** the free plan gets the first **2 weekly** recaps. Monthly
+  recaps are paid-only from the start: the cron never builds a month for a free
+  owner, so a month can never spend a slot.
+- **Spent at build, not at watch:** `nextFreeSlot()` runs once, in the cron,
+  when the snapshot is inserted — slot 1, then 2, then null. So a recap is
+  either born entitled or born locked, and nobody is cut off mid-story. Watching
+  does not consume anything.
+- **No activity, no slot:** a quiet period (`recapAnnounces` false) never takes
+  a slot, and for a free owner it is not stored at all (nothing to play, and a
+  locked "Quiet week" card would be noise).
+- **Paid history stays:** rows are stamped `free_plan` (built on the free plan)
+  and `free_slot` (1, 2 or null) by migration `20261027000000`. A row built
+  while paid has `free_plan = false` and always plays, so a downgrade never
+  locks a recap someone already saw.
+- **Reader:** a free owner loads their rows like anyone else; `recapUnlocked()`
+  gates playback, the Watch/Later prompt, the Books dot and every `open()` call.
+  A locked recap shows a lock and opens the wall with the `recaps` variant
+  ("You've used your 2 free recaps").
+- **Paywall:** the `Weekly & monthly recaps` row reads **2 free** in the FREE
+  column (one shared `PLAN_ROWS`, so phone and laptop cards agree).
+- **Known gap (not fixed here):** the cron runs at 15:00 UTC, but "local
+  Monday" is checked against `profiles.timezone`. For owners at about UTC+9 or
+  further east that instant is already Tuesday locally, so their week never
+  closes. Logged in `PUNCH-LIST.md`.
+
 ## 0c. In-app access (On It build, commit 14, 2026-10-03)
 
 `RecapProvider` (`src/components/recap/`), mounted once by the (app) layout;
-rules in `src/lib/recap/rows.ts` (unit-tested). Paid-only; inert while
-`RECAPS_LIVE` is off.
+rules in `src/lib/recap/rows.ts` (unit-tested). Inert while `RECAPS_LIVE` is
+off. (Paid-only until 0d landed; the free plan now owns two weekly recaps.)
 
 - **Watch / Later sheet (a):** once per app open, never over the walkthrough
   or the reference, never auto-plays. Offers the newest recap whose period
@@ -100,8 +130,9 @@ rules in `src/lib/recap/rows.ts` (unit-tested). Paid-only; inert while
   (`income.total`, `spend.total`, `owed.count`, `paid.count`), not whole payloads.
 - **Books tab dot (d):** while any announcing recap from the last 14 days is
   unwatched (gold on the bar, ink on the active tab's pill).
-- **Locked (e):** free / canceled owners see a locked "Weekly recaps" card on
-  Books (and locked history rows); any tap opens the paywall, reports variant.
+- **Locked (e):** a free owner past the two free weekly recaps sees a locked
+  "Recaps" card on Books (and locked history rows); any tap opens the paywall,
+  `recaps` variant. See 0d.
 - **Buttons (f):** "View invoices" → `/invoices?filter=unpaid`; "Make an
   invoice" → `/chat?new=1` (a fresh conversation; the live one goes to history).
 - **Sound:** every entry point plays through `open(row)`, which calls
