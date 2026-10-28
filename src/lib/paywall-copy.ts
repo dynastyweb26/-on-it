@@ -62,9 +62,13 @@ export const STEP_TITLE: Record<PaywallStepId, string> = {
  * to eligibility so the two rules can't drift. While the check is in flight
  * the trial step stays (it is the promise; the CTA is disabled meanwhile) and
  * falls away if the answer turns out to be 'paid-today'.
+ *
+ * `subscribable` is STRIPE_SUBSCRIPTIONS_ENABLED as /api/access reports it. When
+ * it is off nobody can start a trial, so the trial step — the wall's longest
+ * trial promise — is not shown at all: showcase → plan.
  */
-export function stepsFor(variant: PaywallVariant, state: PaywallState): PaywallStepId[] {
-  const trial = state !== 'paid-today' && variant !== 'winback';
+export function stepsFor(variant: PaywallVariant, state: PaywallState, subscribable = true): PaywallStepId[] {
+  const trial = subscribable && state !== 'paid-today' && variant !== 'winback';
   return trial ? ['showcase', 'trial', 'plan'] : ['showcase', 'plan'];
 }
 

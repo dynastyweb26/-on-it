@@ -45,9 +45,14 @@ function CellValue({ v, paid }: { v: PlanCell; paid: boolean }): ReactNode {
 }
 
 export default function PlanStep({
-  state, showCode, onToggleCode, onRedeemed, onEscapeCode, codeCardRef,
+  state, subscribable, showCode, onToggleCode, onRedeemed, onEscapeCode, codeCardRef,
 }: {
   state: PaywallState;
+  /** Can anyone buy here (STRIPE_SUBSCRIPTIONS_ENABLED)? Off, the trial
+   *  promises go: no trial reminder row and no trial/price card, so the page
+   *  never offers a trial nobody can start. The table, the testimonial and the
+   *  code row stay. */
+  subscribable: boolean;
   showCode: boolean;
   onToggleCode: () => void;
   onRedeemed: () => void;
@@ -103,7 +108,7 @@ export default function PlanStep({
 
       {/* Laptop only (design's page 3): when the reminder goes out. No trial to
           remind about for a returning customer, so it is not rendered then. */}
-      {wide && !returning && (
+      {wide && subscribable && !returning && (
         <div
           className="flex items-center gap-3 rounded-2xl border border-[#efe4d2] bg-white px-3.5 py-[13px] xl:col-start-1"
           style={{ animation: 'oi-up .4s cubic-bezier(.2,.8,.2,1) .12s both' }}
@@ -154,7 +159,9 @@ export default function PlanStep({
       </div>
 
       {/* The one plan. A returning customer pays from today, so the card says
-          so rather than naming a trial they don't have. */}
+          so rather than naming a trial they don't have. Subscriptions off: no
+          card at all (no price, no trial) — the code row above still works. */}
+      {subscribable && (
       <div className="flex items-center gap-2.5 rounded-2xl border-[1.5px] border-on-background bg-white px-4 py-[15px] xl:col-start-1">
         <span aria-hidden className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 border-on-background">
           <span className="h-[10px] w-[10px] rounded-full bg-on-background" />
@@ -166,6 +173,7 @@ export default function PlanStep({
           {returning ? 'starts today · ' : 'then '}<b className="font-bold text-on-background">$9.99</b> / month
         </span>
       </div>
+      )}
 
       <h2
         id="paywall-step-title"

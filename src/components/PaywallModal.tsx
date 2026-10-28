@@ -104,7 +104,11 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const state = paywallState(trialEligible);
   // Fixed for the visit, like the timeline's: the disclosure names the same end date.
   const [freeUntil] = useState(() => trialDates().end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
-  const steps = stepsFor(variant, state);
+  // Subscriptions off (STRIPE_SUBSCRIPTIONS_ENABLED) = nobody can start one, so
+  // the trial step and every trial/price promise on the plan step go with the
+  // CTA: no replacement copy, no dead button (subscribable below).
+  const subscribable = subsOn !== false;
+  const steps = stepsFor(variant, state, subscribable);
   const [step, setStep] = useState(0);
   // A step can disappear when the check answers (trial → plan): clamp, never
   // render a step that isn't in this wall's list.
@@ -262,6 +266,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
           >
             <PlanStep
               state={state}
+              subscribable={subscribable}
               showCode={showCode}
               onToggleCode={toggleCode}
               onEscapeCode={() => setShowCode(false)}
