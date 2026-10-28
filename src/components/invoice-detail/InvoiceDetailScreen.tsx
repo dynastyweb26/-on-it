@@ -285,7 +285,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     businessPhone: profile.business_phone ?? null, // live, like Zelle
     businessEmail: profile.business_email ?? null,
     clientName: inv.client_name, clientAddress: inv.client_address ?? null,
-    clientPhone: inv.client_phone ?? null, lineItems: inv.line_items,
+    clientPhone: inv.client_phone ?? null, clientEmail: inv.client_email ?? null,
+    lineItems: inv.line_items,
     subtotal: Number(inv.subtotal), taxRate: Number(inv.tax_rate),
     taxAmount: Number(inv.tax_amount), total: Number(inv.total),
     depositType: (inv.deposit_type ?? 'none') as DepositType,
