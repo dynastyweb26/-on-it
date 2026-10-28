@@ -8,7 +8,9 @@
 // positions are server-assigned and gaps are harmless.
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
+import { IN_APP_CAMERA } from '@/lib/feature-flags';
 import { createClient } from '@/lib/supabase/client';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 import {
@@ -31,6 +33,13 @@ import {
   type OwnerAttachment,
   type PreparedUpload,
 } from '@/lib/estimates/attachments-client';
+
+// The same in-app camera the receipt flow uses, behind NEXT_PUBLIC_IN_APP_CAMERA
+// and loaded lazily: with the flag off this screen keeps today's `capture=`
+// input and the camera chunk is never requested.
+const ReceiptCameraScreen = IN_APP_CAMERA
+  ? dynamic(() => import('@/components/camera/ReceiptCamera'), { ssr: false })
+  : null;
 
 type UploadStatus = 'preparing' | 'uploading' | 'failed';
 
@@ -89,6 +98,9 @@ export default function EstimateAttachments({
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // The in-app camera (flag on only). Mounted means open; closing unmounts it,
+  // and that unmount is what stops the stream.
+  const [cameraOpen, setCameraOpen] = useState(false);
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(() => setSheetOpen(false));
 
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -168,7 +180,9 @@ export default function EstimateAttachments({
     }
   }, [estimateId, patchUpload]);
 
-  function pick(files: FileList | null) {
+  // The one attachment path: the pickers below and the in-app camera both land
+  // here, so a captured frame is prepared/uploaded exactly like a picked file.
+  function pick(files: FileList | File[] | null) {
     if (!files?.length) return;
     setError(null);
     const chosen = Array.from(files).slice(0, room);
@@ -237,7 +251,11 @@ export default function EstimateAttachments({
 
   function openSheet(source: 'camera' | 'library' | 'files') {
     setSheetOpen(false);
-    if (source === 'camera') cameraRef.current?.click();
+    if (source === 'camera') {
+      // Flag on: the in-app sheet. Off: the OS camera input, unchanged.
+      if (IN_APP_CAMERA) { setCameraOpen(true); return; }
+      cameraRef.current?.click();
+    }
     if (source === 'library') libraryRef.current?.click();
     if (source === 'files') filesRef.current?.click();
   }
@@ -443,6 +461,23 @@ export default function EstimateAttachments({
         aria-label="Choose PDF files"
         onChange={(e) => { pick(e.target.files); e.target.value = ''; }}
       />
+
+      {/* In-app camera (NEXT_PUBLIC_IN_APP_CAMERA). Use photo goes through
+          pick(), the same handler the two inputs below call; the gallery button
+          is this flow's own photo library input. */}
+      {ReceiptCameraScreen && cameraOpen && (
+        <ReceiptCameraScreen
+          copy={{
+            sheet: 'Photograph an attachment',
+            gallery: 'Choose a photo from your library',
+            photoAlt: 'The attachment photo you just took',
+            subject: 'it',
+          }}
+          onClose={() => setCameraOpen(false)}
+          onPhoto={(file) => { setCameraOpen(false); pick([file]); }}
+          onPickFromLibrary={() => { setCameraOpen(false); libraryRef.current?.click(); }}
+        />
+      )}
 
       {sheetOpen && editable && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[78] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true">
