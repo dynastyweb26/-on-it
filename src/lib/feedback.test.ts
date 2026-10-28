@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  FeedbackBody, cleanMessage, feedbackEmail, shouldAskForFeedback, afterShown, afterDismiss,
+  FeedbackBody, cleanMessage, cleanLine, feedbackEmail, shouldAskForFeedback, afterShown, afterDismiss,
   parsePromptState, EMPTY_PROMPT_STATE, type PromptContext,
 } from './feedback';
 
@@ -40,6 +40,11 @@ test('body: source must be known; screen and version are single-line and bounded
 
 test('cleanMessage keeps newlines and tabs, drops other control characters', () => {
   assert.equal(cleanMessage('a\r\nb\u0000\tc\u0007 '), 'a\nb\tc');
+});
+
+test('cleanMessage and cleanLine normalize Unicode NFKC and strip format control characters', () => {
+  assert.equal(cleanMessage('hello\u200Bworld\uFEFF'), 'helloworld');
+  assert.equal(cleanLine('hello\u200Bworld\uFEFF', 50), 'helloworld');
 });
 
 test('email: subject has no newlines, html escapes the message, reply-to line present', () => {
