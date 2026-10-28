@@ -25,9 +25,8 @@ import { RECAPS_LIVE } from '@/lib/recaps-live';
 import { trialDates } from '@/lib/trial';
 
 // Cyril's testimonial, word for word from design-reference/paywall-mockup.html.
-// A real customer quote needs their written OK, so it renders only where
-// NEXT_PUBLIC_SHOW_TESTIMONIAL is "true" (Vercel Preview; unset in Production).
-const SHOW_TESTIMONIAL = process.env.NEXT_PUBLIC_SHOW_TESTIMONIAL === 'true';
+// It renders on every paywall from step 3, at every width: the customer gave his
+// written OK, so there is no launch switch behind it.
 
 const CARD = 'rounded-2xl border border-[#efe4d2] bg-white';
 const HEAD = 'px-1.5 py-3 text-center font-display text-[10.5px] leading-none tracking-[.12em]';
@@ -78,31 +77,29 @@ export default function PlanStep({
       className="flex flex-col gap-3 px-4 pb-[18px] pt-1 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] xl:items-start xl:gap-x-8 xl:gap-y-3 xl:px-14 xl:pb-6 xl:pt-1"
       style={{ animation: 'oi-slide .4s cubic-bezier(.2,.8,.2,1) both' }}
     >
-      {SHOW_TESTIMONIAL && (
-        <figure
-          className="m-0 rounded-2xl border border-[#efe4d2] bg-white px-[18px] pb-4 pt-[18px] xl:col-start-1"
-          style={{ animation: 'oi-up .45s cubic-bezier(.2,.8,.2,1) .05s both' }}
-        >
-          <div className="flex"><Icon name="format_quote" size={30} filled className="text-primary" /></div>
-          <blockquote className="m-0 mt-1 text-[16.5px] font-medium leading-[1.45] [text-wrap:pretty]">
-            This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.
-          </blockquote>
-          <figcaption className="mt-3.5 flex items-center gap-2.5 border-t border-[#f0e7d8] pt-3.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brands/cyril-handyman-door.jpg"
-              alt="Cyril Handyman & Door logo"
-              width={40}
-              height={40}
-              className="block h-10 w-10 rounded-[10px] bg-on-background object-cover"
-            />
-            <div>
-              <div className="text-sm font-semibold leading-[1.2]">Cyril</div>
-              <div className="text-[12.5px] leading-[1.3] text-[#4d4635]">Cyril Handyman &amp; Door LLC</div>
-            </div>
-          </figcaption>
-        </figure>
-      )}
+      <figure
+        className="m-0 rounded-2xl border border-[#efe4d2] bg-white px-[18px] pb-4 pt-[18px] xl:col-start-1"
+        style={{ animation: 'oi-up .45s cubic-bezier(.2,.8,.2,1) .05s both' }}
+      >
+        <div className="flex"><Icon name="format_quote" size={30} filled className="text-primary" /></div>
+        <blockquote className="m-0 mt-1 text-[16.5px] font-medium leading-[1.45] [text-wrap:pretty]">
+          This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.
+        </blockquote>
+        <figcaption className="mt-3.5 flex items-center gap-2.5 border-t border-[#f0e7d8] pt-3.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brands/cyril-handyman-door.jpg"
+            alt="Cyril Handyman & Door logo"
+            width={40}
+            height={40}
+            className="block h-10 w-10 rounded-[10px] bg-on-background object-cover"
+          />
+          <div>
+            <div className="text-sm font-semibold leading-[1.2]">Cyril</div>
+            <div className="text-[12.5px] leading-[1.3] text-[#4d4635]">Cyril Handyman &amp; Door LLC</div>
+          </div>
+        </figcaption>
+      </figure>
 
       {/* Laptop only (design's page 3): when the reminder goes out. No trial to
           remind about for a returning customer, so it is not rendered then. */}

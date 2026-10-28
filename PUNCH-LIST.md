@@ -949,7 +949,9 @@ tests and build pass. The trial day-11 banner was dropped before merge._
 | Expenses usage nudge (2 of 5) | **Open — possible later add** | #1 covers invoices and estimates per the brief; the same counters and card would serve expenses (2 of 5) if wanted. |
 | Failed estimate duplicate burns a free slot | **Open — minor** | Still open (row above the v3 section): a failed duplicate soft-deletes the new quote, and soft-deleted quotes count toward the free estimate cap. |
 
-Testimonial built, flag off in prod until Cyril’s written OK.
+Testimonial (Cyril’s quote, paywall step 3) **Shipped unconditionally** (`a2979e8`+):
+the `NEXT_PUBLIC_SHOW_TESTIMONIAL` gate is gone from `src/components/paywall/PlanStep.tsx`,
+so the card renders on phone and laptop. There is no env var left to set or unset.
 
 ## Open — logged 2026-10-26 (tablet / iPad layout pass)
 
