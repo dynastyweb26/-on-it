@@ -23,9 +23,12 @@
 //     not JPG/PNG/PDF (HEIC included), whose object is over the 10 MB cap, or
 //     whose storage_path is not under the row's own `${user_id}/${invoice_id}/`
 //     folder (such a row can never be published even with a checksum).
+//   • Always skips a row whose parent estimate is deleted or revoked: nothing can
+//     publish it, so verifying it would only rewrite stored data.
 //   • A signed (approved) estimate is flagged: attaching a file after signing
-//     changes estimate_content_hash, which the signature recorded. The row is
-//     still repaired — the page needs it — but the warning says so.
+//     changes estimate_content_hash, which the signature recorded. By default
+//     the row is still repaired — the page needs it — and the warning says so.
+//     `--skip-signed` skips those rows instead ("skipped: signed").
 //
 // Env (never printed):
 //   SUPABASE_SERVICE_ROLE_KEY   required — service role, bypasses RLS
@@ -35,12 +38,15 @@
 // Run (the app's TS modules resolve through the project's test loader):
 //   node --import ./scripts/test-register.mjs scripts/backfill-quote-attachment-checksums.mjs
 //   node --import ./scripts/test-register.mjs scripts/backfill-quote-attachment-checksums.mjs --apply
+//   # only unsigned estimates (leaves every signed estimate's audit trail intact):
+//   node --import ./scripts/test-register.mjs scripts/backfill-quote-attachment-checksums.mjs --skip-signed
 //
 // Example dry-run output:
-//   [dry-run] quote attachment rows with no checksum: 2
-//     ✓ E-0042  1f0c…9a  image/jpeg   240118 bytes  sha256 9d2f…c41e  (5f1b…08)
+//   [dry-run] quote attachment rows with no checksum: 3
+//     ✓ E-0042  1f0c…9a  image/jpeg   240118 bytes  sha256 9d2f…c41e
 //     ✗ E-0037  b7a1…44  skipped: unsupported_type (bytes are not JPG/PNG/PDF)
-//   [dry-run] would update 1, skipped 1. Nothing written — re-run with --apply.
+//     ✗ E-0031  4c02…17  skipped: signed
+//   [dry-run] would update 1, skipped 2. Nothing written — re-run with --apply.
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { validateAttachmentBytes } from '@/lib/estimates/file-type';
@@ -52,6 +58,7 @@ const INVOICE_NUMBER = (n) => `E-${String(Number.isFinite(n) ? n : 0).padStart(4
 const short = (s, n = 8) => (s ? `${s.slice(0, n)}…${s.slice(-4)}` : '—');
 
 const apply = process.argv.includes('--apply');
+const skipSigned = process.argv.includes('--skip-signed');
 const help = process.argv.includes('--help') || process.argv.includes('-h');
 
 if (help) {
@@ -62,6 +69,12 @@ if (help) {
       'Usage:',
       '  node --import ./scripts/test-register.mjs scripts/backfill-quote-attachment-checksums.mjs           # dry run',
       '  node --import ./scripts/test-register.mjs scripts/backfill-quote-attachment-checksums.mjs --apply   # write',
+      '',
+      'Flags:',
+      '  --apply        write the planned values (default: print them and write nothing)',
+      '  --skip-signed  skip rows whose estimate was signed (approved) instead of repairing them',
+      '',
+      'Rows whose parent estimate is deleted or revoked are always skipped.',
       '',
       'Env: SUPABASE_SERVICE_ROLE_KEY (required), SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL.',
     ].join('\n'),
@@ -156,6 +169,20 @@ try {
     const parent = parents.get(row.invoice_id);
     const label = INVOICE_NUMBER(parent?.invoice_number);
 
+    // A deleted/revoked estimate can never be published, so verifying its rows
+    // would only rewrite stored data.
+    if (parent?.deleted_at || parent?.revoked_at) {
+      skipped++;
+      console.log(`  ✗ ${label}  ${short(row.id)}  skipped: parent deleted/revoked`);
+      continue;
+    }
+    // --skip-signed leaves a signed estimate's audit trail exactly as it is.
+    if (skipSigned && parent?.approved_at) {
+      skipped++;
+      console.log(`  ✗ ${label}  ${short(row.id)}  skipped: signed`);
+      continue;
+    }
+
     let plan;
     try {
       plan = await planFor(row);
@@ -171,10 +198,9 @@ try {
 
     planned++;
     const signedNote = parent?.approved_at ? '  ⚠ signed estimate — content hash will change' : '';
-    const deadNote = parent?.deleted_at || parent?.revoked_at ? '  ⚠ parent deleted/revoked' : '';
     console.log(
       `  ✓ ${label}  ${short(row.id)}  ${plan.mime.padEnd(15)} ${String(plan.sizeBytes).padStart(8)} bytes  ` +
-        `sha256 ${short(plan.checksum)}${signedNote}${deadNote}`,
+        `sha256 ${short(plan.checksum)}${signedNote}`,
     );
     if (signedNote) signedTouched++;
 
