@@ -2,7 +2,7 @@
 // The app-open soft upgrade banner (lib/soft-prompts.ts): one slim strip in the
 // (app) shell, at most ONE prompt at a time, in the server's priority order.
 //
-// A flex sibling directly above the tab bar (like InstallBanner), so it never
+// A flex sibling directly above the tab bar, so it never
 // covers content, the chat composer or a send/save action; it hides while the
 // keyboard is open and is always dismissible. Its frequency cap is per user on
 // this device (localStorage), so a 14-day or once cap survives a reload, and
@@ -61,7 +61,7 @@ export default function SoftPromptBanner() {
           </div>
 
           {/* Gold FILL with dark text (never white on gold), pill — the same
-              strip action InstallBanner uses. */}
+              strip action the shell uses. */}
           <button
             type="button"
             onClick={act}

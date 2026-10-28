@@ -10,7 +10,6 @@ import TutorialHost from '@/components/tutorial/TutorialHost';
 import { consumeSignInCookie, markSignInThrob, stopThrob, throbRemaining } from '@/components/tutorial/throb';
 import Icon from '@/components/Icon';
 import BackButton from '@/components/BackButton';
-import InstallBanner from '@/components/InstallBanner';
 import SoftPromptBanner from '@/components/SoftPromptBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
@@ -577,10 +576,6 @@ export default function AppShell({
             );
           })}
         </nav>
-
-        <div className="mt-auto pt-6">
-          <InstallBanner />
-        </div>
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0 h-full">

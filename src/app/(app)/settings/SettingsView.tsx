@@ -1029,8 +1029,8 @@ export default function SettingsView({ connectEnabled, section = 'main', method,
         )}
         {!pushOn && pushAvail === 'needs-install' && (
           <p className="text-sm text-on-surface-variant">
-            Add On It to your Home Screen to turn these on.{' '}
-            <a href="/install" className="text-primary underline">Show me how</a>
+            Notifications on iPhone and iPad need On It added to the Home Screen: tap Share in
+            Safari, then Add to Home Screen, and open On It from there.
           </p>
         )}
         {!pushOn && pushAvail === 'denied' && (

@@ -9,7 +9,9 @@
 /** What this device can do about push right now (synchronous, no prompt):
  *   ready         — push works here; asking is allowed
  *   needs-install — iPhone/iPad in a Safari tab: web push exists only for a
- *                   Home Screen install (iOS 16.4+)
+ *                   Home Screen install (iOS 16.4+). Nothing in the app walks
+ *                   anyone through installing any more, so this only ever
+ *                   silences the ask and explains itself in Settings.
  *   denied        — the user blocked notifications for On It
  *   unsupported   — this browser has no web push at all */
 export type PushAvailability = 'ready' | 'needs-install' | 'denied' | 'unsupported';
