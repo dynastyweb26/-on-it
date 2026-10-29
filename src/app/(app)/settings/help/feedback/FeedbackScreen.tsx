@@ -8,6 +8,7 @@ import Link from 'next/link';
 import Icon from '@/components/Icon';
 import { FEEDBACK_MAX, FEEDBACK_MIN, FEEDBACK_TAGS, TAG_LABEL, type FeedbackSource, type FeedbackTag } from '@/lib/feedback';
 import { sendFeedback } from '@/lib/feedback-actions';
+import { userMessage } from '@/lib/errors';
 
 const TAG_HINT: Record<FeedbackTag, string> = {
   idea: 'Something you wish it did',
@@ -43,7 +44,7 @@ export default function FeedbackScreen() {
     });
     setBusy(false);
     if (r.ok) setDone(true);
-    else setError(r.message);
+    else setError(userMessage(r.message));
   }
 
   if (done) {
