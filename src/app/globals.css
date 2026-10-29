@@ -510,6 +510,19 @@ html[data-splash=""] .onit-splash {
   31.58% { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .2, 1); }
   100%   { opacity: 0; }
 }
+/* The camera overlay's controls (components/camera/ReceiptCamera.tsx) float on
+   the live picture: no UA focus outline and no tap highlight, so a tap never
+   leaves a square ring around a round button. The keyboard indicator is
+   :focus-visible only — a box-shadow ring, which follows each button's
+   border-radius (a UA outline never did), dark inside and gold outside so it
+   reads on a white receipt and on a dark frame alike. */
+.onit-camera-control {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.onit-camera-control:focus-visible {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 0 0 4px #d4af37;
+}
 /* Save: the expense card folds away (onit-card-exit) and the compact logged
    card arrives as if it collapsed out of it — down from slightly larger. */
 @keyframes onit-logged-in { from { opacity: 0; transform: translateY(-10px) scale(1.04); } }

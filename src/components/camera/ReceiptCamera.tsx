@@ -52,7 +52,7 @@ import {
 type Mode = 'opening' | 'live' | 'review' | 'blocked';
 
 /** One shape for every secondary control: 48px, dark translucent, ≥ 44 target. */
-const CIRCLE = 'grid h-12 w-12 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-90';
+const CIRCLE = 'onit-camera-control grid h-12 w-12 place-items-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-90';
 
 /** The sheet, in viewport units: the app's top 30% stays visible behind it. */
 const SHEET_HEIGHT = '70dvh';
@@ -65,7 +65,7 @@ const SHEET_INSET = {
 } as const;
 /** A pill over the frozen photo needs its own dark fill to stay legible on a
  *  white receipt; the outline alone disappears. */
-const PILL = 'min-h-touch rounded-button px-6 text-body-md font-semibold transition active:scale-[0.97]';
+const PILL = 'onit-camera-control min-h-touch rounded-button px-6 text-body-md font-semibold transition active:scale-[0.97]';
 
 /** Motion: the sheet rises, the loader hands over to the live frame, the sheet
  *  drops back down. Transform and opacity only (MOTION-SPEC.md); the global
@@ -396,14 +396,18 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, cop
     if (!focusable || focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    // The container itself holds the opening focus, so Shift+Tab from it is a
+    // wrap too, not an escape out of the dialog.
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === sheetRef.current)) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }, [close, menuOpen]);
 
-  // Focus starts on Close so a keyboard or screen reader user is inside the
-  // dialog, and never on the shutter (an accidental Enter shouldn't shoot).
+  // Focus starts on the sheet itself — inside the dialog for a keyboard or
+  // screen reader user, but not on Close: lighting the back button up as the
+  // sheet opens read as a pressed control, and an Enter there would close the
+  // camera the user just opened. The next Tab lands on the first control.
   useEffect(() => {
-    closeRef.current?.focus();
+    sheetRef.current?.focus({ preventScroll: true });
   }, []);
 
   if (typeof document === 'undefined') return null;
@@ -453,7 +457,8 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, cop
       aria-modal="true"
       aria-label={text.sheet}
       onKeyDown={onKeyDown}
-      className="fixed inset-0 z-[70] text-inverse-on-surface"
+      tabIndex={-1}
+      className="fixed inset-0 z-[70] text-inverse-on-surface outline-none"
     >
       {/* Flat scrim over the app. It has no handler on purpose: it swallows
           every tap (nothing behind reacts, the sheet never closes by
@@ -542,7 +547,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, cop
               aria-label="Take the photo"
               onClick={() => void capture()}
               disabled={mode !== 'live' || capturing}
-              className="grid h-[76px] w-[76px] justify-self-center place-items-center rounded-full border-2 border-white transition active:scale-95 disabled:opacity-40"
+              className="onit-camera-control grid h-[76px] w-[76px] justify-self-center place-items-center rounded-full border-2 border-white transition active:scale-95 disabled:opacity-40"
             >
               <span className="h-[62px] w-[62px] rounded-full bg-white" />
             </button>
