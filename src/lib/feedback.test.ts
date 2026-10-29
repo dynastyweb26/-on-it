@@ -38,8 +38,13 @@ test('body: source must be known; screen and version are single-line and bounded
   assert.equal(r.appVersion?.length, 40);
 });
 
-test('cleanMessage keeps newlines and tabs, drops other control characters', () => {
-  assert.equal(cleanMessage('a\r\nb\u0000\tc\u0007 '), 'a\nb\tc');
+test('cleanMessage keeps newlines and tabs, drops other control characters, normalizes NFKC and strips format control characters', () => {
+  // \u200B is zero-width space (\p{Cf}), Ｆｕｌｌｗｉｄｔｈ is NFKC normalized
+  assert.equal(cleanMessage('a\r\nb\u0000\tc\u0007\u200B Ｆｕｌｌ'), 'a\nb\tc Full');
+});
+
+test('cleanLine normalizes NFKC and strips format control characters', () => {
+  assert.equal(cleanLine(' /chat\u200B\n Bｃｃ: evil ', 60), '/chat Bcc: evil');
 });
 
 test('email: subject has no newlines, html escapes the message, reply-to line present', () => {
