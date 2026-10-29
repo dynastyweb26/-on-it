@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  FeedbackBody, cleanMessage, feedbackEmail, shouldAskForFeedback, afterShown, afterDismiss,
+  FeedbackBody, cleanLine, cleanMessage, feedbackEmail, shouldAskForFeedback, afterShown, afterDismiss,
   parsePromptState, EMPTY_PROMPT_STATE, type PromptContext,
 } from './feedback';
 
@@ -38,9 +38,25 @@ test('body: source must be known; screen and version are single-line and bounded
   assert.equal(r.appVersion?.length, 40);
 });
 
-test('cleanMessage keeps newlines and tabs, drops other control characters, normalizes NFKC and strips format control characters', () => {
-  // \u200B is zero-width space (\p{Cf}), Ｆｕｌｌｗｉｄｔｈ is NFKC normalized
-  assert.equal(cleanMessage('a\r\nb\u0000\tc\u0007\u200B Ｆｕｌｌ'), 'a\nb\tc Full');
+test('cleanMessage keeps newlines and tabs, drops control characters and stray format characters, and does not normalize', () => {
+  // \u200B is a zero-width space (\p{Cf}); Ｆｕｌｌｗｉｄｔｈ is left exactly as typed.
+  assert.equal(cleanMessage('a\r\nb\u0000\tc\u0007\u200B Ｆｕｌｌ'), 'a\nb\tc Ｆｕｌｌ');
+});
+
+test('cleanMessage keeps the joiners and direction marks emoji and RTL text need', () => {
+  const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}';
+  assert.equal(cleanMessage(family), family); // ZWJ sequence stays one emoji
+  assert.equal(cleanMessage('a\u200Bb'), 'ab'); // ZWSP still goes
+  assert.equal(cleanMessage('\u200Eع\u200Fر\u200Cب'), '\u200Eع\u200Fر\u200Cب'); // LRM/RLM/ZWNJ kept
+});
+
+test('cleanMessage: a message of only zero-width spaces is empty and fails the length check', () => {
+  assert.equal(cleanMessage('\u200B\u200B\u200B\u200B\u200B'), '');
+  assert.equal(FeedbackBody.safeParse({ ...ok, message: '\u200B'.repeat(20) }).success, false);
+});
+
+test('cleanMessage leaves math and punctuation unnormalized', () => {
+  assert.equal(cleanMessage('x² … ½'), 'x² … ½');
 });
 
 test('cleanLine normalizes NFKC and strips format control characters', () => {
