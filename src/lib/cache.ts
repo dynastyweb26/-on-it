@@ -55,6 +55,15 @@ export function resetCacheStorage(): void {
 }
 
 /**
+ * The browser storage this app writes display-only data to (the display cache
+ * here, form drafts in lib/drafts). Tests inject it with
+ * configureCacheStorage() so both share one fake.
+ */
+export function webStorage(): CacheStorage | null {
+  return store();
+}
+
+/**
  * How long each kind stays usable. Money moves, so totals and anything that
  * carries payment status are short; plain list metadata can live longer.
  * Nothing here is authoritative: every screen refreshes behind the cached copy.
