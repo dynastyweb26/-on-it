@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { clientStatus, groupByLetter, initials, matchesQuery, normalizeSummary, type ClientSummary } from '@/lib/clients';
 import { unsaveClient, type ClientContactFields } from '@/lib/client-delete';
 import { takeNewEntry } from '@/lib/list-motion';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 
 type Removed = {
   row: ClientSummary;
@@ -58,13 +59,23 @@ export default function ClientsList({ active = true, tabs }: { active?: boolean;
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!session) { router.replace('/login'); return; }
-      const { data } = await supabase.rpc('client_summaries');
+      // Cached copy first (#3), then the live summaries replace it behind.
+      const cached = readCache<ClientSummary[]>(session.user.id, 'clients');
       if (cancelled) return;
+      if (cached) setRows(cached);
+      const { data, error } = await supabase.rpc('client_summaries');
+      if (cancelled) return;
+      if (error) {
+        // Keep the cached list; a failed refresh is not an empty account.
+        console.error('clients read failed', error);
+        return;
+      }
       const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeSummary).filter((c) => c.saved);
       setRows(list);
+      writeCache(session.user.id, 'clients', list, CACHE_TTL.lists);
       const id = takeNewEntry('clients');
       if (id && list.some((c) => c.id === id)) setFresh({ id, motion: 'new' });
-    })().catch(() => { if (!cancelled) setRows([]); });
+    })().catch((e) => { console.error('clients load failed', e); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
