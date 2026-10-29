@@ -222,11 +222,13 @@ html[data-kb] [data-kb-lift] { translate: 0 calc(-1 * var(--kb-overlap, 0px)); }
 }
 .voice-listening { animation: onit-pulse 1.6s ease-out infinite; }
 
-/* ---- Glass surfaces (exactly two allowed: bottom nav + voice overlay) ---- */
+/* ---- Bottom nav surface. Opaque on purpose. The bar sits in flow below the
+   tab's scroller, so there is nothing moving behind it to blur — but any
+   backdrop-filter still claims its own compositing layer and gets re-sampled
+   every scroll frame, and it was the only blurred surface on Invoices. A
+   blurred neighbour of a 200-row scroller is the classic iOS blanking case. ---- */
 .glass-nav {
-  background: rgba(255, 248, 240, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #fff8f0;
 }
 /* ---- Material Symbols defaults (§4: wght 400 FILL 0; active nav FILL 1) ---- */
 /* Self-hosted subset via next/font/local (layout.tsx). No generic fallback
