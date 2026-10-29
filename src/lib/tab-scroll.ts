@@ -20,12 +20,29 @@ export interface ScrollBox {
 export const TAB_SCROLL_MAX_MS = 4000;
 
 const positions = new Map<string, number>();
+/** The list each tab is actually showing (Invoices: 'open' | 'paid' | …). */
+const renderedFilters = new Map<number, string>();
+
+/**
+ * Tell the memory which list a tab is rendering. The panel calls this on every
+ * filter change, so the key follows what is on screen rather than what the URL
+ * happens to say — the Back arrow comes home to '/invoices' with no ?filter=.
+ */
+export function registerTabFilter(index: number, filter: string): void {
+  renderedFilters.set(index, filter);
+}
 
 /**
  * Key for one tab's scroll position. The filter is part of it, so returning to
  * Open after leaving from Paid does not land at Paid's offset.
+ *
+ * The rendered filter wins over the query string. If the URL lost the query (a
+ * push back to the parent route, a converted estimate), the offset is still
+ * filed under the list the reader was actually looking at.
  */
 export function tabScrollKey(index: number, search: string): string {
+  const registered = renderedFilters.get(index);
+  if (registered !== undefined) return `${index}:${registered}`;
   let filter = '';
   try {
     filter = new URLSearchParams(search).get('filter') ?? '';
@@ -48,9 +65,10 @@ export function saveScroll(key: string, top: number): void {
   if (Number.isFinite(top)) positions.set(key, top);
 }
 
-/** Forget every saved position (tests, and a full sign-out). */
+/** Forget every saved position and registered filter (tests, full sign-out). */
 export function clearSavedScroll(): void {
   positions.clear();
+  renderedFilters.clear();
 }
 
 export function maxScroll(el: ScrollBox): number {

@@ -8,6 +8,7 @@ import {
   clearSavedScroll,
   maxScroll,
   readSavedScroll,
+  registerTabFilter,
   restoreScrollTop,
   routeScrollKey,
   saveScroll,
@@ -104,6 +105,15 @@ test('positions are per tab and per filter, and survive a remount', () => {
   assert.equal(readSavedScroll(tabScrollKey(1, '?filter=pending')), 0, 'a filter never visited starts at the top');
   assert.equal(readSavedScroll(tabScrollKey(2, '?filter=open')), 0, 'another tab is a different bucket');
   assert.equal(readSavedScroll(routeScrollKey('/expenses')), 0);
+});
+
+test('the rendered filter outranks a query string that lost it', () => {
+  clearSavedScroll();
+  registerTabFilter(1, 'pending');
+  assert.equal(tabScrollKey(1, ''), '1:pending', 'Back arrow returns to /invoices with no query');
+  assert.equal(tabScrollKey(1, '?filter=open'), '1:pending', 'the list on screen wins');
+  clearSavedScroll(); // forgets the registered filter too
+  assert.equal(tabScrollKey(1, '?filter=open'), '1:open');
 });
 
 test('a malformed query string never throws and keys stably', () => {

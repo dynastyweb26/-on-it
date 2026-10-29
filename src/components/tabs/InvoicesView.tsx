@@ -18,6 +18,8 @@ import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
+import { registerTabFilter } from '@/lib/tab-scroll';
+import { tabIndexOf } from '@/lib/tabs';
 import PageContainer from '@/components/PageContainer';
 import SplitView from '@/components/layout/SplitView';
 
@@ -129,6 +131,11 @@ export default function Invoices({ active = true, selectedId = null }: { active?
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>(lastFilter);
   useEffect(() => { lastFilter = filter; }, [filter]);
+  // The deck's scroll memory is keyed by the list actually on screen. The Back
+  // arrow comes home to '/invoices' with the query dropped, so keying off the
+  // URL alone filed a deep Estimates offset under a bucket the return never
+  // named — the list restored 0 and jumped to the top.
+  useEffect(() => { registerTabFilter(tabIndexOf('/invoices'), filter); }, [filter]);
   const [travel, setTravel] = useState<'left' | 'right' | null>(null);
   // Newest (default) / A–Z by client within each month, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
