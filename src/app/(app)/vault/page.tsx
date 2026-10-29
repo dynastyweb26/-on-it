@@ -10,6 +10,7 @@ import VaultSkeleton from '@/components/VaultSkeleton';
 import { createClient } from '@/lib/supabase/client';
 import { getSharedUser } from '@/lib/auth-client';
 import { userMessage } from '@/lib/errors';
+import { useDelayedShow } from '@/lib/use-delayed-show';
 
 type VaultDoc = {
   id: string;
@@ -59,6 +60,8 @@ export default function Vault() {
   }, [supabase, router]);
 
   useEffect(() => { void load(); }, [load]);
+  // 300ms before the skeleton: a fast read never flashes one (#2).
+  const showSkeleton = useDelayedShow(docs === null);
 
   async function open(path: string) {
     if (opening) return;
@@ -77,8 +80,8 @@ export default function Vault() {
   // Loading: never the empty copy while the read is in flight.
   if (docs === null) {
     return (
-      <div className="px-4 py-4 md:px-6">
-        <VaultSkeleton />
+      <div className="px-4 py-4 md:px-6" aria-busy="true">
+        {showSkeleton ? <VaultSkeleton /> : null}
       </div>
     );
   }

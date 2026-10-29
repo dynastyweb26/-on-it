@@ -24,6 +24,8 @@ import { shareInvoice } from '@/lib/pdf/generate';
 import { DISCLAIMER } from '@/lib/pdf/summary-template';
 import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 import { getSharedUser } from '@/lib/auth-client';
+import SummarySkeleton from '@/components/SummarySkeleton';
+import { useDelayedShow } from '@/lib/use-delayed-show';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
 // place (no nested scroll area).
@@ -245,6 +247,9 @@ export default function TaxSummary() {
   }
 
   const loading = expenses === null || payments === null || owed === null || selected === null;
+  // A skeleton that flashes for 80ms is worse than a beat of empty: show it
+  // only once the wait is real (#2).
+  const showSkeleton = useDelayedShow(loading);
 
   // #income (the Books Collected tile): the section only exists once data has
   // loaded, after the router's own hash handling has run, so scroll to it here,
@@ -288,7 +293,7 @@ export default function TaxSummary() {
       )}
 
       {loading ? (
-        <p className="mt-16 text-center text-on-surface-variant">Adding it up…</p>
+        showSkeleton ? <SummarySkeleton /> : null
       ) : !hasData ? (
         // Empty state — an invitation, never a $0 table.
         <div className="mt-14 text-center">
