@@ -4,7 +4,7 @@
 // exact { amount, method, paid_at } the page's recordPayment already inserted.
 // The custom keypad means the OS keyboard never covers the form; the only native
 // input is the hidden date picker on "Other day".
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import BrandMark from '@/components/BrandMark';
@@ -13,6 +13,7 @@ import { useSheetDrag } from '@/lib/use-sheet-drag';
 import { KEYS, pressKey, type Key } from '@/lib/keypad';
 import { money } from '@/lib/financials';
 import { userMessage } from '@/lib/errors';
+import { newPaymentKey } from '@/lib/payment-idempotency';
 import {
   PAYMENT_METHODS, buildRecordPayment, localDateString, methodLabel, payAmountValue,
   paymentExceedsBalance, yesterdayString,
@@ -43,16 +44,22 @@ const shortDay = (ymd: string) => {
 };
 
 export default function RecordPaymentSheet({
-  clientName, balance, depositRemaining, onClose, onSave,
+  invoiceId, clientName, balance, depositRemaining, onClose, onSave,
 }: {
+  /** The invoice this payment belongs to — names the idempotency key. */
+  invoiceId: string;
   clientName: string;
   /** The full amount still owed against the total. */
   balance: number;
   /** The deposit still due; 0 when the invoice has none. */
   depositRemaining: number;
   onClose: () => void;
-  /** Same save path as the page's recordPayment; resolves false on failure. */
-  onSave: (input: RecordPaymentInput) => Promise<boolean>;
+  /**
+   * Same save path as the page's recordPayment; resolves false on failure.
+   * `idempotencyKey` is minted by `save()` at the first tap and reused by every
+   * retry of this submission.
+   */
+  onSave: (input: RecordPaymentInput, idempotencyKey: string) => Promise<boolean>;
 }) {
   const [mode, setMode] = useState<PayMode>('full');
   const [amountText, setAmountText] = useState('');
@@ -61,6 +68,12 @@ export default function RecordPaymentSheet({
   const [pickedDate, setPickedDate] = useState(() => localDateString(new Date()));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  // A ref, not `saving`: two taps in the same frame both read the pre-render
+  // closure, and would each submit. The ref flips synchronously.
+  const submittingRef = useRef(false);
+  // One key per submission: minted on the first tap, reused by every retry
+  // while this sheet is open, so a lost response can never double-record.
+  const keyRef = useRef<string | null>(null);
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
 
   useEffect(() => {
@@ -99,17 +112,24 @@ export default function RecordPaymentSheet({
         : valid ? `Save ${money(amount)}` : 'Enter an amount';
 
   async function save() {
-    if (!valid || saving) return;
+    if (!valid || submittingRef.current) return;
+    submittingRef.current = true;
     setSaving(true);
     setSaveError('');
-    const ok = await onSave(buildRecordPayment({
-      mode, amountText, balance, depositRemaining, method, dateMode, pickedDate, now: new Date(),
-    }));
-    // A success unmounts the sheet from the parent; only a failure stays open.
-    if (!ok) {
+    const idempotencyKey = keyRef.current ?? (keyRef.current = newPaymentKey(invoiceId));
+    try {
+      const ok = await onSave(buildRecordPayment({
+        mode, amountText, balance, depositRemaining, method, dateMode, pickedDate, now: new Date(),
+      }), idempotencyKey);
+      // A success unmounts the sheet from the parent; only a failure stays open.
+      if (!ok) {
+        // Message only — nothing is queued. Offline reads as no connection.
+        setSaveError(userMessage(null));
+      }
+    } finally {
+      // Re-enable on failure; a success has already closed the sheet.
+      submittingRef.current = false;
       setSaving(false);
-      // Message only — nothing is queued. Offline reads as no connection.
-      setSaveError(userMessage(null));
     }
   }
 

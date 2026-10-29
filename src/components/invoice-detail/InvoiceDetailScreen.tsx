@@ -34,6 +34,7 @@ import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
 import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
 import type { RecordPaymentInput } from '@/lib/record-payment';
+import { recordPaymentOnce, type PaymentLedgerIO, type PaymentLedgerRow } from '@/lib/payment-idempotency';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -130,6 +131,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // Record-payment sheet (a ledger insert via recordPayment, never a direct
   // amount_paid write). The sheet owns its method / date / amount selections.
   const [paySheetOpen, setPaySheetOpen] = useState(false);
+  // Synchronous guard on the ledger write: a second submission in the same
+  // frame cannot see the first one's state update, but it does see this ref.
+  const paymentSaveRef = useRef(false);
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   // One-shot "paid" moment (M4, replaces MOTION-SPEC §6's gold sweep): only
@@ -445,35 +449,70 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // Record a payment as a row in the invoice_payments ledger. The DB trigger
   // recomputes invoices.amount_paid from the ledger — we never write amount_paid
   // directly — so we refetch the invoice afterward to pick up the new total.
-  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput): Promise<boolean> {
-    if (!(amount > 0)) return false;
-    const dueBefore = totals.dueNow;
-    const { data: { user } } = await getSharedUser();
-    if (!user) return false;
-    const { error } = await supabase.from('invoice_payments').insert({
-      invoice_id: id,
-      user_id: user.id,
-      amount,
-      method,
-      paid_at: paidAt,
-    });
-    if (error) {
-      console.error('record payment failed', error);
-      return false;
+  //
+  // Once per submission: the sheet mints one idempotency key at the first tap
+  // and hands the SAME key to every retry. The insert ignores a repeat (partial
+  // unique index on user_id + key) and the row is read back, so a response lost
+  // in flight can never record the money twice.
+  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput, idempotencyKey: string): Promise<boolean> {
+    // Synchronous ref guard: `saving` in the sheet lags a render behind.
+    if (!(amount > 0) || paymentSaveRef.current) return false;
+    paymentSaveRef.current = true;
+    try {
+      const dueBefore = totals.dueNow;
+      const { data: { user } } = await getSharedUser();
+      if (!user) return false;
+      const ledger: PaymentLedgerIO = {
+        insertOnce: async (row) => {
+          // ignore-duplicates → ON CONFLICT (user_id, idempotency_key) DO NOTHING
+          const { error } = await supabase.from('invoice_payments').upsert(row, {
+            onConflict: 'user_id,idempotency_key',
+            ignoreDuplicates: true,
+          });
+          return { error };
+        },
+        findByKey: async (userId, key) => {
+          const { data, error } = await supabase
+            .from('invoice_payments')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('idempotency_key', key)
+            .maybeSingle();
+          if (error) {
+            console.error('payment read-back failed', error);
+            return null;
+          }
+          return (data as PaymentLedgerRow | null) ?? null;
+        },
+      };
+      const saved = await recordPaymentOnce(ledger, {
+        invoice_id: id,
+        user_id: user.id,
+        amount,
+        method,
+        paid_at: paidAt,
+        idempotency_key: idempotencyKey,
+      });
+      if (!saved.ok) {
+        console.error('record payment failed', saved.error);
+        return false;
+      }
+      // Celebrate when the balance hits zero, not on status: the ledger trigger
+      // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
+      // full keeps its status but is still fully paid.
+      const fullyPaid = (row: any) => Number(row?.total) > 0 && Number(row?.amount_paid ?? 0) >= Number(row?.total);
+      const wasFullyPaid = fullyPaid(inv);
+      const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+      if (updated) {
+        setInv(updated);
+        if (!wasFullyPaid && fullyPaid(updated)) celebratePaid(dueBefore);
+      }
+      setPaySheetOpen(false);
+      void fetchPayments();
+      return true;
+    } finally {
+      paymentSaveRef.current = false;
     }
-    // Celebrate when the balance hits zero, not on status: the ledger trigger
-    // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
-    // full keeps its status but is still fully paid.
-    const fullyPaid = (row: any) => Number(row?.total) > 0 && Number(row?.amount_paid ?? 0) >= Number(row?.total);
-    const wasFullyPaid = fullyPaid(inv);
-    const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
-    if (updated) {
-      setInv(updated);
-      if (!wasFullyPaid && fullyPaid(updated)) celebratePaid(dueBefore);
-    }
-    setPaySheetOpen(false);
-    void fetchPayments();
-    return true;
   }
 
   async function fetchPayments() {
@@ -1134,6 +1173,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       )}
       {paySheetOpen && (
         <RecordPaymentSheet
+          invoiceId={id}
           clientName={inv.client_name}
           balance={totals.balanceRemaining}
           depositRemaining={Math.max(0, totals.depositAmount - amountPaid)}
