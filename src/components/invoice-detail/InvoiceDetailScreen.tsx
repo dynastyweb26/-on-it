@@ -1,5 +1,5 @@
 'use client';
-import { userMessage } from '@/lib/errors';
+import { classifyError, userMessage } from '@/lib/errors';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -34,7 +34,13 @@ import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
 import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
 import type { RecordPaymentInput } from '@/lib/record-payment';
-import { recordPaymentOnce, type PaymentLedgerIO, type PaymentLedgerRow } from '@/lib/payment-idempotency';
+import { recordPaymentOnce } from '@/lib/payment-idempotency';
+import { ledgerFrom } from '@/lib/payment-ledger-client';
+import {
+  enqueuePayment, paymentQueueStore, queuedFor, syncPaymentQueue,
+  type QueuedPayment, type SendResult,
+} from '@/lib/payment-queue';
+import PendingPaymentNotice from '@/components/invoice-detail/PendingPaymentNotice';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -134,6 +140,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // Synchronous guard on the ledger write: a second submission in the same
   // frame cannot see the first one's state update, but it does see this ref.
   const paymentSaveRef = useRef(false);
+  // Payments typed offline (or whose response was lost) wait here. The invoice
+  // keeps its balance until the server confirms the row.
+  const [queue, setQueue] = useState<QueuedPayment[]>([]);
   // The invoice_payments ledger rows for this invoice (payment history).
   const [payments, setPayments] = useState<any[]>([]);
   // One-shot "paid" moment (M4, replaces MOTION-SPEC §6's gold sweep): only
@@ -446,6 +455,77 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
+  async function refreshQueue() {
+    const store = paymentQueueStore();
+    if (!store) { setQueue([]); return; }
+    const { data: { user: owner } } = await getSharedUser();
+    if (!owner) { setQueue([]); return; }
+    setQueue((await queuedFor(store, owner.id)).filter((e) => e.invoiceId === id));
+  }
+
+  // The queued retry writes through the SAME keyed insert as the online path.
+  async function sendQueued(entry: QueuedPayment): Promise<SendResult> {
+    const res = await recordPaymentOnce(ledgerFrom(supabase), {
+      invoice_id: entry.invoiceId,
+      user_id: entry.userId,
+      amount: entry.amount,
+      method: entry.method,
+      paid_at: entry.paidAt,
+      idempotency_key: entry.key,
+    });
+    if (res.ok) return { ok: true };
+    if (classifyError(res.error) === 'offline') return { ok: false, kind: 'network' };
+    return { ok: false, kind: 'rejected', reason: userMessage(res.error) };
+  }
+
+  async function runQueueSync() {
+    const store = paymentQueueStore();
+    if (!store || typeof navigator === 'undefined' || !navigator.onLine) { await refreshQueue(); return; }
+    const { data: { user: owner } } = await getSharedUser();
+    if (!owner) { await refreshQueue(); return; }
+    const out = await syncPaymentQueue({ store, userId: owner.id, send: sendQueued });
+    if (out.sent > 0) {
+      const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+      if (updated) setInv(updated);
+      void fetchPayments();
+    }
+    await refreshQueue();
+  }
+
+  // On open and whenever the connection returns: send what is waiting, oldest
+  // first. Nothing is sent while offline or signed out.
+  useEffect(() => {
+    void runQueueSync();
+    const onOnline = () => void runQueueSync();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function retryQueued() {
+    const store = paymentQueueStore();
+    if (!store) return;
+    for (const e of queue.filter((x) => x.status === 'attention')) {
+      await store.put({ ...e, status: 'pending', reason: undefined });
+    }
+    await refreshQueue();
+    await runQueueSync();
+  }
+
+  async function discardQueued(entry: QueuedPayment) {
+    // Explicit discard is the only way an entry leaves without being sent.
+    await paymentQueueStore()?.remove(entry.key);
+    await refreshQueue();
+  }
+
+  async function editQueued(entry: QueuedPayment) {
+    // Edit = start over with the sheet prefilled by the normal flow: drop the
+    // queued copy (it was refused) and open Record payment again.
+    await paymentQueueStore()?.remove(entry.key);
+    await refreshQueue();
+    setPaySheetOpen(true);
+  }
+
   // Record a payment as a row in the invoice_payments ledger. The DB trigger
   // recomputes invoices.amount_paid from the ledger — we never write amount_paid
   // directly — so we refetch the invoice afterward to pick up the new total.
@@ -462,30 +542,16 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       const dueBefore = totals.dueNow;
       const { data: { user } } = await getSharedUser();
       if (!user) return false;
-      const ledger: PaymentLedgerIO = {
-        insertOnce: async (row) => {
-          // ignore-duplicates → ON CONFLICT (user_id, idempotency_key) DO NOTHING
-          const { error } = await supabase.from('invoice_payments').upsert(row, {
-            onConflict: 'user_id,idempotency_key',
-            ignoreDuplicates: true,
-          });
-          return { error };
-        },
-        findByKey: async (userId, key) => {
-          const { data, error } = await supabase
-            .from('invoice_payments')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('idempotency_key', key)
-            .maybeSingle();
-          if (error) {
-            console.error('payment read-back failed', error);
-            return null;
-          }
-          return (data as PaymentLedgerRow | null) ?? null;
-        },
-      };
-      const saved = await recordPaymentOnce(ledger, {
+      // Known offline: queue it (same key) instead of failing the tap.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const store = paymentQueueStore();
+        const outcome = store
+          ? await enqueuePayment(store, { key: idempotencyKey, invoiceId: id, userId: user.id, amount, method, paidAt })
+          : 'capped';
+        if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return true; }
+        return false;
+      }
+      const saved = await recordPaymentOnce(ledgerFrom(supabase), {
         invoice_id: id,
         user_id: user.id,
         amount,
@@ -494,6 +560,15 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         idempotency_key: idempotencyKey,
       });
       if (!saved.ok) {
+        // The connection died mid-request: this is money, so keep it rather than
+        // lose the tap. Same idempotency key, so the retry can't double-record.
+        if (classifyError(saved.error) === 'offline') {
+          const store = paymentQueueStore();
+          const outcome = store
+            ? await enqueuePayment(store, { key: idempotencyKey, invoiceId: id, userId: user.id, amount, method, paidAt })
+            : 'capped';
+          if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return true; }
+        }
         console.error('record payment failed', saved.error);
         return false;
       }
@@ -1168,6 +1243,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       />
       {/* Record payment — the sticky bar sits above the real tab bar while a
           balance remains; the sheet owns the selection and calls recordPayment. */}
+      {queue.length > 0 && (
+        <PendingPaymentNotice entries={queue} />
+      )}
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
       )}
