@@ -539,6 +539,17 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-dot-ring { from { transform: scale(1); opacity: .6; } to { transform: scale(3); opacity: 0; } }
 .onit-dot-pulse::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: inherit; animation: onit-dot-ring 600ms var(--ease-emphasized) 300ms both; }
 
+/* Invoices / estimates list rows (components/tabs/InvoicesView.tsx): skip
+   layout and paint for rows outside the viewport. The query returns up to 200
+   rows — roughly 20k px of cards, taller than the backing store iOS will keep
+   painted — so a fast flick blanked to a rectangle. The intrinsic size is a
+   phone row's real height (py-3.5 plus three lines of text), so the scrollbar
+   and the scroll position do not jump when a row scrolls in. */
+.onit-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 104px;
+}
+
 /* Invoices filter switch: the list crossfades with a 12px shift toward the
    direction of travel (--motion-fast). */
 @keyframes onit-list-from-right { from { opacity: 0; transform: translateX(12px); } }
