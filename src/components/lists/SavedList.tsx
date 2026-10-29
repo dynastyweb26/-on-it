@@ -142,7 +142,7 @@ export function ListRow({ onOpen, onEdit, onDelete, onLongPress, motion, id, met
   return (
     // scroll-mt: any programmatic scroll (A–Z jump, post-save, tab restore)
     // stops the row below the sticky letter header instead of under it.
-    <div id={id} className={`scroll-mt-[var(--letter-h,0px)]${motion === 'expand' ? ' onit-row-expand' : ''}`}>
+    <div id={id} className={`scroll-mt-[var(--letter-h,0px)] onit-row-cv${motion === 'expand' ? ' onit-row-expand' : ''}`}>
       {onEdit && onDelete
         ? <SwipeableRow flat onEdit={onEdit} onDelete={onDelete}>{row}</SwipeableRow>
         : row}
