@@ -15,6 +15,7 @@ import Icon from '@/components/Icon';
 import { createClient } from '@/lib/supabase/client';
 import { usageNote } from '@/lib/clients';
 import { markNewEntry } from '@/lib/list-motion';
+import { useFormDraft } from '@/lib/use-form-draft';
 
 export type ClientFields = { name: string; phone: string; email: string; address: string; notes: string };
 type Field = keyof ClientFields;
@@ -45,6 +46,13 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
   const [error, setError] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const refs = useRef<Partial<Record<Field, HTMLInputElement | HTMLTextAreaElement | null>>>({});
+  // #11: a half-typed client survives Cancel / Back / closing the tab. Keyed per
+  // user and per record, cleared on save, dropped on sign-out.
+  const draft = useFormDraft<ClientFields>({
+    scope: `client:${mode === 'edit' ? id ?? 'edit' : 'new'}`,
+    value: v,
+    onRestore: (saved) => setV({ ...EMPTY, ...saved }),
+  });
 
   useEffect(() => {
     const f = (focus ?? (mode === 'new' && !start.current.name ? 'name' : null)) as Field | null;
@@ -108,6 +116,7 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
   }
   // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
   function saved(next: () => void) {
+    draft.clear();
     setBusy(false);
     setDone(true);
     setTimeout(next, SAVED_MS);
