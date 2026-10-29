@@ -74,6 +74,32 @@ const PLACEHOLDER_THEME = buildTheme(['#9a9a9a', '#c4c4c4'], '#FFFFFF');
 // answer, so a network error or a 5xx can't silently throw the code away.
 const GRANT_COOKIE = 'onit_grant';
 
+// ── Onboarding resume (#11) ─────────────────────────────────────────────────
+// A reload used to restart at step 1 and lose the answers. The whole setup is
+// kept on this device while it is being filled in, cleared the moment the
+// profile is saved. Device-level (not per user) because onboarding can run
+// before the first session write; it holds only what the user typed here.
+const ONBOARDING_KEY = 'onit-onboarding:v1';
+type OnboardingSaved = {
+  step: number; business: string; trade: string; teamSize: string; website: string; slogan: string;
+  colors: string[]; background: string | null; template: TemplateKey;
+};
+
+function readOnboardingDraft(): Partial<OnboardingSaved> | null {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_KEY);
+    return raw ? (JSON.parse(raw) as Partial<OnboardingSaved>) : null;
+  } catch { return null; }
+}
+
+function writeOnboardingDraft(v: OnboardingSaved): void {
+  try { localStorage.setItem(ONBOARDING_KEY, JSON.stringify(v)); } catch { /* quota or blocked */ }
+}
+
+function clearOnboardingDraft(): void {
+  try { localStorage.removeItem(ONBOARDING_KEY); } catch { /* ignore */ }
+}
+
 function readGrantCookie(): string | null {
   const raw = document.cookie.split('; ')
     .find((c) => c.startsWith(`${GRANT_COOKIE}=`))?.slice(GRANT_COOKIE.length + 1);
@@ -157,6 +183,28 @@ export default function Onboarding() {
   const [colors, setColors] = useState<string[]>([]);
   const [background, setBackground] = useState<string | null>(null);
   const [template, setTemplate] = useState<TemplateKey>('classic');
+  // Resume where they left off; `hydrated` keeps the first render (still the
+  // defaults) from overwriting the saved answers before they are restored.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const saved = readOnboardingDraft();
+    if (saved) {
+      if (typeof saved.step === 'number' && saved.step >= 1 && saved.step <= 5) setStep(saved.step);
+      if (typeof saved.business === 'string') setBusiness(saved.business);
+      if (typeof saved.trade === 'string') setTrade(saved.trade);
+      if (typeof saved.teamSize === 'string') setTeamSize(saved.teamSize);
+      if (typeof saved.website === 'string') setWebsite(saved.website);
+      if (typeof saved.slogan === 'string') setSlogan(saved.slogan);
+      if (Array.isArray(saved.colors)) setColors(saved.colors);
+      if (typeof saved.background === 'string' || saved.background === null) setBackground(saved.background ?? null);
+      if (saved.template) setTemplate(saved.template);
+    }
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    writeOnboardingDraft({ step, business, trade, teamSize, website, slogan, colors, background, template });
+  }, [hydrated, step, business, trade, teamSize, website, slogan, colors, background, template]);
 
   const theme = useMemo(
     () => (background ? buildTheme(colors, background) : null),
@@ -286,6 +334,8 @@ export default function Onboarding() {
     });
     setBusy(false);
     if (dbErr) { setError(userMessage(dbErr)); return; }
+    // The profile is saved: the resume copy has done its job.
+    clearOnboardingDraft();
     const grantToken = readGrantCookie();
     if (grantToken && (await redeemGrant(grantToken)) === 'unknown') {
       // Couldn't confirm the code. Keep the cookie and let the user retry —
