@@ -13,6 +13,11 @@ html {
   -webkit-tap-highlight-color: transparent;
   background-color: #fff8f0;
   color-scheme: light;
+  /* An app, not a document: no double-tap-to-zoom wait before a tap acts.
+     Pinch-zoom stays available, and anything that declares its own
+     touch-action (signature pads, sheets, the tab deck) still wins by
+     intersection. */
+  touch-action: manipulation;
 }
 body { @apply bg-background text-on-background font-body antialiased; }
 
@@ -29,6 +34,20 @@ html:has([data-app-shell]) body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* Tab deck (components/tabs/TabDeck.tsx). The browser may pan vertically here
+   and nothing else: horizontal travel belongs to the deck's own gesture, which
+   can then lock and preventDefault before the browser claims the axis. With the
+   old `auto`, a slightly diagonal swipe was taken as a scroll and Safari
+   cancelled the touch, so only near-perfect horizontal swipes worked.
+   pinch-zoom stays allowed, so the deck is still zoomable, and
+   overscroll-behavior-x stops a horizontal pan chaining to the document.
+   Horizontal scrollers inside a panel (Invoices filters, category chips) are
+   opted back in next to their own markup. */
+[data-tab-deck] {
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior-x: none;
 }
 
 /* On-screen keyboard (lib/keyboard.ts sets html[data-kb] and the --kb / --vvh
@@ -486,6 +505,15 @@ html[data-splash=""] .onit-splash {
 .onit-card-enter .onit-li-rows > :nth-child(8) { animation-delay: 670ms; }
 .onit-card-enter .onit-li-rows > :nth-child(n + 9) {
   animation: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
+/* Long list rows (invoices, clients, products): same trick as the chat card
+   rows above — a row's contents paint only when it comes near the viewport.
+   `contain-intrinsic-size: auto` remembers each row's real height once it has
+   been laid out, so the scrollbar never jumps. */
+.onit-row-cv {
   content-visibility: auto;
   contain-intrinsic-size: auto 88px;
 }

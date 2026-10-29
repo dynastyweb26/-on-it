@@ -293,11 +293,19 @@ and the pill's resting geometry are unchanged.
 
 **Gesture (`src/components/tabs/TabDeck.tsx`, `src/lib/swipe.ts`)**
 - Axis decided once after 10px (`AXIS_SLOP_PX`), horizontal when
-  `|dx| >= 2.0 * |dy|`, then sticky for the gesture. Vertical wins scrolling.
-- The lock calls non-passive `preventDefault` on `touchmove`; surfaces keep
-  `touch-action: auto` (never `pan-y`). `swipeBlockedAt` stops at text inputs,
-  `data-no-tab-swipe`, horizontal scrollers, fixed sheets, and the page's own
-  `data-tab-scroll-owner` wrapper.
+  `|dx| >= 1.2 * |dy|` (~±40° from horizontal), then sticky for the gesture.
+  Vertical wins scrolling whenever it is the larger axis.
+- The lock calls non-passive `preventDefault` on `touchmove`. The deck declares
+  `touch-action: pan-y pinch-zoom` plus `overscroll-behavior-x: none`
+  (`globals.css`, `[data-tab-deck]`), so the browser may pan vertically and
+  zoom but never pan horizontally: it cannot claim the horizontal axis before
+  the lock runs. **Changed 2026-10-29.** §17 originally required
+  `touch-action: auto` and "never `pan-y`". With `auto`, a slightly diagonal
+  swipe was taken by the browser as a scroll and iOS Safari cancelled the
+  touch, so only near-perfect horizontal swipes ever reached the deck.
+  `pinch-zoom` is kept so the deck stays zoomable. `swipeBlockedAt` stops at
+  text inputs, `data-no-tab-swipe`, horizontal scrollers, fixed sheets, and the
+  page's own `data-tab-scroll-owner` wrapper.
 - The lock point is the drag origin (`dragFromLock`), so a fast first move
   cannot pop the track and reversing across the origin cannot jump.
 - Active panel plus the drag-direction neighbour mount on lock; mounted panels
@@ -306,9 +314,11 @@ and the pill's resting geometry are unchanged.
   or rewriting the URL.
 
 **Commit and settle**
-- Commit when `|offset| > 0.20 * W`, or a flick: net travel >= 60px, recent
-  speed >= 1.0 px/ms over the last ~100ms, direction matching the drag. `W` is
-  the deck width.
+- Commit when `|offset| > 0.15 * W` (~59px on a 390px deck), or a flick: net
+  travel >= 32px, recent speed >= 0.5 px/ms (~500 px/s) over the last ~100ms,
+  direction matching the drag. `W` is the deck width. **Retuned 2026-10-29**
+  (was `0.20 * W` and 60px at 1.0 px/ms, a flick speed most swipes never
+  reached, so in practice only the long drag committed).
 - Committed settle: **340ms `cubic-bezier(0.22,1,0.36,1)`**. Flick: **260ms**.
   Spring back: **280ms `cubic-bezier(0.25,1,0.5,1)`**. Tab taps use the same
   340ms committed settle. One navigation per gesture; `NAV_GUARD_MS` (3000ms)

@@ -13,6 +13,7 @@ import {
   applyEdgeResistance,
   classifyAxis,
   dragFromLock,
+  isEdgeBackZone,
   pageDim,
   settleDuration,
   tabCommitDirection,
@@ -437,6 +438,9 @@ export default function TabDeck({
       }
       if (swipeBlockedAt(e.target)) return;
       const t = e.touches[0];
+      // The left screen edge belongs to iOS's back gesture; a tab drag started
+      // there fights the system and can swallow the swipe entirely.
+      if (isEdgeBackZone(t.clientX)) return;
       // Two cold neighbours would otherwise mount on the lock, inside
       // touchmove. Prewarm handles the normal case; this is the fallback.
       for (const i of [baseIndexRef.current - 1, baseIndexRef.current + 1]) {
