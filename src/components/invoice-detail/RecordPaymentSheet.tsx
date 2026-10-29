@@ -12,6 +12,7 @@ import type { IconName } from '@/components/icon-names';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 import { KEYS, pressKey, type Key } from '@/lib/keypad';
 import { money } from '@/lib/financials';
+import { userMessage } from '@/lib/errors';
 import {
   PAYMENT_METHODS, buildRecordPayment, localDateString, methodLabel, payAmountValue,
   paymentExceedsBalance, yesterdayString,
@@ -59,6 +60,7 @@ export default function RecordPaymentSheet({
   const [dateMode, setDateMode] = useState<PayDateMode>('today');
   const [pickedDate, setPickedDate] = useState(() => localDateString(new Date()));
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
 
   useEffect(() => {
@@ -99,11 +101,16 @@ export default function RecordPaymentSheet({
   async function save() {
     if (!valid || saving) return;
     setSaving(true);
+    setSaveError('');
     const ok = await onSave(buildRecordPayment({
       mode, amountText, balance, depositRemaining, method, dateMode, pickedDate, now: new Date(),
     }));
     // A success unmounts the sheet from the parent; only a failure stays open.
-    if (!ok) setSaving(false);
+    if (!ok) {
+      setSaving(false);
+      // Message only — nothing is queued. Offline reads as no connection.
+      setSaveError(userMessage(null));
+    }
   }
 
   const dateTiles: { key: PayDateMode; top: string; sub: string }[] = [
@@ -265,6 +272,9 @@ export default function RecordPaymentSheet({
           </div>
         </div>
 
+        {saveError && (
+          <p role="alert" className="mt-3 text-center text-[13px] font-semibold text-error">{saveError}</p>
+        )}
         <button
           type="button"
           onClick={() => void save()}
