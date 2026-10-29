@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/EmptyState';
 import { money } from '@/lib/financials';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import {
   RECURRING_COLS, RECURRING_PATH, dayTag, localToday, monthlyTotal, nextLine, normalizeRecurring, recurringSubtitle,
   skipNotice, upcoming, type Recurring,
@@ -36,10 +37,20 @@ export default function RecurringPage() {
     setRows(null);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace('/login'); return; }
+    // Cached copy first (#3), then the live read replaces it behind.
+    const cached = readCache<Recurring[]>(session.user.id, 'recurring');
+    if (cached) setRows(cached);
     const { data, error } = await supabase.from('recurring_expenses').select(RECURRING_COLS)
       .is('deleted_at', null).limit(500);
-    if (error) { setFailed(true); setRows([]); return; }
-    setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRecurring));
+    if (error) {
+      // Error state only when there is nothing cached to show. A failed refresh
+      // must never replace a good list with "couldn't load".
+      if (!cached) { setFailed(true); setRows([]); }
+      return;
+    }
+    const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeRecurring);
+    setRows(list);
+    writeCache(session.user.id, 'recurring', list, CACHE_TTL.lists);
   }, [supabase, router]);
 
   useEffect(() => {
