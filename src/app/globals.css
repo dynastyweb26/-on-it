@@ -461,6 +461,15 @@ html[data-splash=""] .onit-splash {
   contain-intrinsic-size: auto 88px;
 }
 
+/* Long list rows (invoices, clients, products): same trick as the chat card
+   rows above — a row's contents paint only when it comes near the viewport.
+   `contain-intrinsic-size: auto` remembers each row's real height once it has
+   been laid out, so the scrollbar never jumps. */
+.onit-row-cv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 88px;
+}
+
 /* Lock on send (§4): the padlock drops in and settles after the chip. */
 @keyframes onit-lock-drop { from { transform: translateY(-6px) rotate(-18deg); } }
 .onit-lock-drop { display: inline-block; animation: onit-lock-drop 360ms var(--ease-spring) 80ms both; }
