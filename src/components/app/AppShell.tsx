@@ -124,6 +124,10 @@ export default function AppShell({
   const mainRef = useRef<HTMLDivElement>(null);
   const restoringRoute = useRef(false);
   useIsoLayoutEffect(() => {
+    // The deck owns scroll on its own tab roots (TabScroller). This <main> is
+    // the overflow-hidden deck host there, not a scroller, so it must not write
+    // a position or reset one.
+    if (exactTabIndex(path) >= 0) return;
     const el = mainRef.current;
     if (!el) return;
     const target = readSavedScroll(routeScrollKey(path));
@@ -705,7 +709,8 @@ export default function AppShell({
             data-tab-scroll-owner=""
             className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
             onScroll={() => {
-              if (!restoringRoute.current) saveScroll(routeScrollKey(path), mainRef.current?.scrollTop ?? 0);
+              if (restoringRoute.current || exactTabIndex(path) >= 0) return;
+              saveScroll(routeScrollKey(path), mainRef.current?.scrollTop ?? 0);
             }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
