@@ -189,6 +189,22 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const attachmentsRef = useRef<EditorAttachment[]>([]);
   useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
 
+  // On open and whenever the connection returns: send what is waiting, oldest
+  // first. Nothing is sent while offline or signed out.
+  //
+  // This MUST stay above the skeleton / estimate early returns below: a hook
+  // registered only on the data render changes the hook count between the two
+  // passes, and React throws "Rendered more hooks than during the previous
+  // render". That took down every invoice while every estimate (which returns
+  // from the earlier block) was fine.
+  useEffect(() => {
+    void runQueueSync();
+    const onOnline = () => void runQueueSync();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   useEffect(() => {
     (async () => {
       // Signed-out guard — redirect UX only; RLS is the real boundary. Same
@@ -491,16 +507,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     }
     await refreshQueue();
   }
-
-  // On open and whenever the connection returns: send what is waiting, oldest
-  // first. Nothing is sent while offline or signed out.
-  useEffect(() => {
-    void runQueueSync();
-    const onOnline = () => void runQueueSync();
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
 
   async function retryQueued() {
     const store = paymentQueueStore();
