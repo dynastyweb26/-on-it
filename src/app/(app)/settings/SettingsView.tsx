@@ -321,28 +321,55 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
 
   // Resolves false when the write failed (and was reverted). `silent` skips the
   // page-level Saved/error banners; the Invoice style card shows its own.
+  // Per-field write chain. Two saves for the same field never overlap, and a
+  // failure only rolls back if no newer save for that field has landed — so a
+  // slow request can't undo an edit the user made after it.
+  const saveVersions = useRef(new Map<string, number>());
+  const saveChains = useRef(new Map<string, Promise<boolean>>());
+
   async function save(patch: Record<string, unknown>, opts?: { silent?: boolean }): Promise<boolean> {
-    const prev = p;                         // snapshot for rollback on failure
-    setP({ ...p, ...patch });               // optimistic
-    const { error } = await supabase.from('profiles').update(patch).eq('id', prev.id);
-    if (error) {
-      // Keep the evidence: which columns were sent and Supabase's code/message
-      // (e.g. 42501 permission denied). No values — they can be personal data.
-      console.error('settings save failed', JSON.stringify({
-        columns: Object.keys(patch), code: error.code, message: error.message, details: error.details, hint: error.hint,
-      }));
-      setP(prev);                           // revert — the write did not land
-      if (!opts?.silent) {
-        setSaveFailed(true);
-        setTimeout(() => setSaveFailed(false), 2500);
+    const profileId = p?.id;
+    if (!profileId) return false;
+    const fields = Object.keys(patch);
+    const key = [...fields].sort().join(',');
+    const previous = Object.fromEntries(fields.map((f) => [f, (p as Record<string, unknown>)[f]]));
+    const version = (saveVersions.current.get(key) ?? 0) + 1;
+    saveVersions.current.set(key, version);
+    setP((cur: Record<string, unknown>) => ({ ...cur, ...patch }));   // optimistic
+
+    const run = async (): Promise<boolean> => {
+      const { error } = await supabase.from('profiles').update(patch).eq('id', profileId);
+      if (error) {
+        // Keep the evidence: which columns were sent and Supabase's code/message
+        // (e.g. 42501 permission denied). No values — they can be personal data.
+        console.error('settings save failed', JSON.stringify({
+          columns: fields, code: error.code, message: error.message, details: error.details, hint: error.hint,
+        }));
+        // Revert only this field, and only while it is still the newest write.
+        if (saveVersions.current.get(key) === version) {
+          setP((cur: Record<string, unknown>) => ({ ...cur, ...previous }));
+        }
+        if (!opts?.silent) {
+          setSaveFailed(true);
+          setTimeout(() => setSaveFailed(false), 2500);
+        }
+        return false;
       }
-      return false;
+      if (!opts?.silent) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      }
+      return true;
+    };
+
+    const prior = saveChains.current.get(key);
+    const next = prior ? prior.then(run, run) : run();
+    saveChains.current.set(key, next);
+    try {
+      return await next;
+    } finally {
+      if (saveChains.current.get(key) === next) saveChains.current.delete(key);
     }
-    if (!opts?.silent) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    }
-    return true;
   }
 
   // ── Logo manager: upload / replace / remove ─────────────────
