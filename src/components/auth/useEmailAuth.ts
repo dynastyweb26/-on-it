@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { createClient, createEmailAuthClient } from '@/lib/supabase/client';
 import { markSignInThrob } from '@/components/tutorial/throb';
+import { userMessage } from '@/lib/errors';
 
 // Client-side throttle on the resend button. Supabase SMTP is 30/hr project-wide;
 // this just stops one user spamming the button.
@@ -141,7 +142,7 @@ export function useEmailAuth(options: { initialMode?: AuthMode } = {}) {
         switchToSignIn();
         return;
       }
-      setError(error.message);
+      setError(userMessage(error));
       // Unconfirmed email → offer to resend the confirmation.
       if (error.code === 'email_not_confirmed' || /not confirmed|confirm/i.test(error.message)) {
         setShowResend(true);
