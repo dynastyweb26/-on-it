@@ -9,6 +9,7 @@ import Icon from '@/components/Icon';
 import { FEEDBACK_MAX, FEEDBACK_MIN, FEEDBACK_TAGS, TAG_LABEL, type FeedbackSource, type FeedbackTag } from '@/lib/feedback';
 import { sendFeedback } from '@/lib/feedback-actions';
 import { userMessage } from '@/lib/errors';
+import { useFormDraft } from '@/lib/use-form-draft';
 
 const TAG_HINT: Record<FeedbackTag, string> = {
   idea: 'Something you wish it did',
@@ -23,6 +24,16 @@ export default function FeedbackScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // #11: a long piece of writing survives leaving the screen, cleared on send.
+  const draft = useFormDraft<{ tag: string; message: string; rating: number }>({
+    scope: 'feedback',
+    value: { tag: tag ?? '', message, rating: rating ?? 0 },
+    onRestore: (saved) => {
+      if (saved.tag) setTag(saved.tag as FeedbackTag);
+      if (typeof saved.message === 'string') setMessage(saved.message.slice(0, FEEDBACK_MAX));
+      if (typeof saved.rating === 'number' && saved.rating > 0) setRating(saved.rating);
+    },
+  });
 
   const trimmed = message.trim();
   const ready = tag !== null && trimmed.length >= FEEDBACK_MIN && !busy;
@@ -43,7 +54,7 @@ export default function FeedbackScreen() {
       screen: from && from.startsWith('/') ? from : undefined,
     });
     setBusy(false);
-    if (r.ok) setDone(true);
+    if (r.ok) { draft.clear(); setDone(true); }
     else setError(userMessage(r.message));
   }
 
