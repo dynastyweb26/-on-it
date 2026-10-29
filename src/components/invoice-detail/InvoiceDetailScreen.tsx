@@ -622,6 +622,16 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       deposit_type,
       deposit_value
     );
+    // Optimistic, with rollback: a failed write must put the old deposit AND the
+    // old totals back, or the screen shows a deposit the database never stored
+    // and the document, its PDF and the pay page stop agreeing.
+    const prev = {
+      deposit_type: inv.deposit_type,
+      deposit_value: inv.deposit_value,
+      subtotal: inv.subtotal,
+      tax_amount: inv.tax_amount,
+      total: inv.total,
+    };
     setInv({
       ...inv,
       deposit_type,
@@ -630,7 +640,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       tax_amount: totals.taxAmount,
       total: totals.total,
     });
-    await supabase.from('invoices')
+    const { error } = await supabase.from('invoices')
       .update({
         deposit_type,
         deposit_value,
@@ -639,6 +649,12 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         total: totals.total,
       })
       .eq('id', id);
+    if (error) {
+      setInv((p: any) => ({ ...p, ...prev }));
+      setShareError("Couldn’t save the deposit — check your connection and try again.");
+    } else {
+      setShareError(null);
+    }
   }
 
   async function applyLineItems(newItems: LineItemRow[]) {
