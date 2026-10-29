@@ -24,6 +24,7 @@ import { shareInvoice } from '@/lib/pdf/generate';
 import { DISCLAIMER } from '@/lib/pdf/summary-template';
 import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/lib/pdf/build-summary';
 import { getSharedUser } from '@/lib/auth-client';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import SummarySkeleton from '@/components/SummarySkeleton';
 import { useDelayedShow } from '@/lib/use-delayed-show';
 
@@ -120,6 +121,18 @@ export default function TaxSummary() {
   // are excluded on both.
   useEffect(() => {
     (async () => {
+      // Cached figures first (#3): the page paints from the last visit, then the
+      // live read replaces them behind it. Short expiry — these are balances.
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id ?? null;
+      type SummaryCache = { expenses: ExpenseLite[]; payments: PaymentLite[]; owed: InvoiceLite[]; selected: Period };
+      const cached = uid ? readCache<SummaryCache>(uid, 'summary') : null;
+      if (cached) {
+        setExpenses(cached.expenses);
+        setPayments(cached.payments);
+        setOwed(cached.owed);
+        setSelected(cached.selected);
+      }
       const [exp, pay, owe] = await Promise.all([
         supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
@@ -132,6 +145,18 @@ export default function TaxSummary() {
           .eq('kind', 'invoice')
           .in('status', ['sent', 'overdue']),
       ]);
+      if (exp.error || pay.error || owe.error) {
+        console.error('summary read failed', exp.error ?? pay.error ?? owe.error);
+        // Nothing cached: show the empty view instead of hanging on the
+        // skeleton. With a cached copy, leave it on screen.
+        if (!cached) {
+          setExpenses([]);
+          setPayments([]);
+          setOwed([]);
+          setSelected(allPeriod([]));
+        }
+        return;
+      }
       const eRows = (exp.data ?? []) as ExpenseLite[];
       // Supabase embeds a to-one relation as an object (older shapes: an array);
       // handle both so client_name resolves either way.
@@ -162,9 +187,11 @@ export default function TaxSummary() {
       // (the Books Net / Collected tiles) opens at All time, where Kept and
       // Brought in equal the all-time figures the tiles show.
       const wantAll = new URLSearchParams(window.location.search).get('period') === 'all';
-      setSelected(wantAll
+      const chosen = wantAll
         ? allPeriod(recordDates)
-        : availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates));
+        : availablePeriods('year', recordDates)[0] ?? allPeriod(recordDates);
+      setSelected(chosen);
+      if (uid) writeCache(uid, 'summary', { expenses: eRows, payments: pRows, owed: oRows, selected: chosen }, CACHE_TTL.money);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
