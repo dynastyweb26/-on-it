@@ -552,10 +552,12 @@ html[data-splash=""] .onit-splash {
   contain-intrinsic-size: auto 104px;
 }
 
-/* Invoices filter switch: the list crossfades with a 12px shift toward the
-   direction of travel (--motion-fast). */
-@keyframes onit-list-from-right { from { opacity: 0; transform: translateX(12px); } }
-@keyframes onit-list-from-left { from { opacity: 0; transform: translateX(-12px); } }
+/* Invoices filter switch: a short opacity-only fade. No translateX: the
+   animated element is the whole list container (up to 200 rows), and a
+   transformed container has to become one oversized composited layer, which
+   iOS clips to a rectangle. The direction of travel is no longer drawn. */
+@keyframes onit-list-from-right { from { opacity: 0; } }
+@keyframes onit-list-from-left { from { opacity: 0; } }
 .onit-list-from-right { animation: onit-list-from-right var(--motion-fast) var(--ease-standard) both; }
 .onit-list-from-left { animation: onit-list-from-left var(--motion-fast) var(--ease-standard) both; }
 
