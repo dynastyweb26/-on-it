@@ -37,7 +37,7 @@ import type { RecordPaymentInput } from '@/lib/record-payment';
 import { recordPaymentOnce } from '@/lib/payment-idempotency';
 import { ledgerFrom } from '@/lib/payment-ledger-client';
 import {
-  enqueuePayment, paymentQueueStore, queuedFor, syncPaymentQueue,
+  enqueuePayment, loadQueuedForInvoice, paymentQueueStore, syncPaymentQueue,
   type QueuedPayment, type SendResult,
 } from '@/lib/payment-queue';
 import PendingPaymentNotice from '@/components/invoice-detail/PendingPaymentNotice';
@@ -471,12 +471,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     await supabase.from('invoices').update({ due_date: due }).eq('id', id);
   }
 
+  // The banner is optional; the invoice is not. A queue that is blocked, full,
+  // corrupt or stalled must leave the invoice open with no banner — never throw
+  // into the render, and never wipe a good banner because a read raced it.
   async function refreshQueue() {
-    const store = paymentQueueStore();
-    if (!store) { setQueue([]); return; }
-    const { data: { user: owner } } = await getSharedUser();
-    if (!owner) { setQueue([]); return; }
-    setQueue((await queuedFor(store, owner.id)).filter((e) => e.invoiceId === id));
+    try {
+      const store = paymentQueueStore();
+      if (!store) { setQueue([]); return; }
+      const { data: { user: owner } } = await getSharedUser();
+      if (!owner) return;
+      const res = await loadQueuedForInvoice(store, owner.id, id);
+      if (res.ok) setQueue(res.entries);
+      // Not ok: keep what is on screen; the next open or sync retries.
+    } catch (e) {
+      console.error('[invoice] queued payments unavailable', e);
+    }
   }
 
   // The queued retry writes through the SAME keyed insert as the online path.
@@ -495,17 +504,23 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   }
 
   async function runQueueSync() {
-    const store = paymentQueueStore();
-    if (!store || typeof navigator === 'undefined' || !navigator.onLine) { await refreshQueue(); return; }
-    const { data: { user: owner } } = await getSharedUser();
-    if (!owner) { await refreshQueue(); return; }
-    const out = await syncPaymentQueue({ store, userId: owner.id, send: sendQueued });
-    if (out.sent > 0) {
-      const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
-      if (updated) setInv(updated);
-      void fetchPayments();
+    try {
+      const store = paymentQueueStore();
+      if (!store || typeof navigator === 'undefined' || !navigator.onLine) { await refreshQueue(); return; }
+      const { data: { user: owner } } = await getSharedUser();
+      if (!owner) { await refreshQueue(); return; }
+      const out = await syncPaymentQueue({ store, userId: owner.id, send: sendQueued });
+      if (out.sent > 0) {
+        const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+        if (updated) setInv(updated);
+        void fetchPayments();
+      }
+      await refreshQueue();
+    } catch (e) {
+      // Storage failing is not the invoice failing: log it, show no banner.
+      console.error('[invoice] queue sync failed', e);
+      await refreshQueue();
     }
-    await refreshQueue();
   }
 
   async function retryQueued() {

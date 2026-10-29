@@ -150,10 +150,27 @@ export async function syncPaymentQueue({
 const DB_NAME = 'onit-payments';
 const DB_VERSION = 1;
 const STORE = 'payment-queue';
+/** A blocked or corrupt IndexedDB can hang `open` forever; never wait longer. */
+const OPEN_TIMEOUT_MS = 3000;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    let settled = false;
+    const fail = (e: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(e);
+    };
+    const timer = setTimeout(() => fail(new Error('indexedDB open timed out')), OPEN_TIMEOUT_MS);
+    let req: IDBOpenDBRequest;
+    try {
+      req = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (e) {
+      // Safari private mode and blocked storage throw here, not on a callback.
+      fail(e);
+      return;
+    }
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
@@ -161,8 +178,15 @@ function openDb(): Promise<IDBDatabase> {
         s.createIndex('userId', 'userId', { unique: false });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      if (settled) { req.result.close(); return; }
+      settled = true;
+      clearTimeout(timer);
+      resolve(req.result);
+    };
+    req.onerror = () => fail(req.error);
+    // Another tab holds an older version open: give up rather than hang.
+    req.onblocked = () => fail(new Error('indexedDB blocked by another tab'));
   });
 }
 
@@ -189,11 +213,54 @@ export function createIdbQueueStore(): QueueStore | null {
   };
 }
 
-/** One IndexedDB store per tab (null where IndexedDB does not exist). */
+/** One IndexedDB store per tab (null where IndexedDB does not exist or is blocked). */
 let idbStore: QueueStore | null | undefined;
 export function paymentQueueStore(): QueueStore | null {
-  if (idbStore === undefined) idbStore = createIdbQueueStore();
+  if (idbStore === undefined) {
+    try {
+      idbStore = createIdbQueueStore();
+    } catch (e) {
+      // Denied storage must read as "nothing queued", never as a crash.
+      console.error('[payment-queue] storage unavailable', e);
+      idbStore = null;
+    }
+  }
   return idbStore;
+}
+
+/** Tests only: forget the memoised store so a stubbed IndexedDB is picked up. */
+export function __resetPaymentQueueStore(): void {
+  idbStore = undefined;
+}
+
+export type QueueRead = { ok: true; entries: QueuedPayment[] } | { ok: false };
+
+/**
+ * One invoice's queued payments, for the pending banner. Answers even when the
+ * store throws or never settles: `{ ok: false }` means "show no banner" (or
+ * keep the one already on screen), never "fail the screen".
+ */
+export async function loadQueuedForInvoice(
+  store: QueueStore,
+  userId: string,
+  invoiceId: string,
+  timeoutMs = 1500,
+): Promise<QueueRead> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const entries = await Promise.race([
+      queuedFor(store, userId),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('queue read timed out')), timeoutMs);
+      }),
+    ]);
+    return { ok: true, entries: entries.filter((e) => e.invoiceId === invoiceId) };
+  } catch (e) {
+    console.error('[payment-queue] read failed', e);
+    return { ok: false };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** In-memory store: tests, and a graceful no-op where IndexedDB is missing. */
