@@ -166,24 +166,33 @@ html[data-kb] [data-kb-lift] { translate: 0 calc(-1 * var(--kb-overlap, 0px)); }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* ---- Skeleton shimmer ---- */
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+/* ---- Skeleton shimmer ----
+   The sweep is a `transform` on a pseudo-element band, not a background-position
+   animation: background-position repaints the whole block on the main thread on
+   every frame, and there are five or more blocks on a loading list. A transform
+   is composited, so the shimmer costs no layout or paint work. */
+@keyframes skeleton-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 .animate-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #efe5d5;
+}
+.animate-skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     90deg,
-    #efe5d5 0%,
+    transparent 0%,
     #dfd3bf 50%,
-    #efe5d5 100%
+    transparent 100%
   );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.8s infinite ease-in-out;
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.8s infinite ease-in-out;
+  will-change: transform;
 }
 
 /* ---- Voice FAB pulse ---- */
@@ -695,6 +704,7 @@ html[data-splash=""] .onit-splash {
     animation: none !important;
     background: #efe5d5 !important;
   }
+  .animate-skeleton-shimmer::after { animation: none !important; }
   * { animation: none !important; transition: none !important; }
   /* The receipt shutter is a white full-screen layer that relies on its
      animation to fade out. With animations off it would sit opaque over the
