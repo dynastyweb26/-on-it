@@ -24,6 +24,7 @@ import { reducedMotion } from '@/lib/list-motion';
 import { NAV_GUARD_MS, isEdgeBackZone, pillCentreAt, pillStretch } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
 import { TABS, exactTabIndex, tabIndexOf } from '@/lib/tabs';
+import { readSavedScroll, restoreScrollTop, routeScrollKey, saveScroll } from '@/lib/tab-scroll';
 import { sectionFromPath } from '@/app/(app)/settings/sections';
 
 // Mobile header row, shared by every tab: 65px total = 64px content + the
@@ -116,6 +117,31 @@ export default function AppShell({
   // The deck will pass this to the Settings tab; the split exists so the value
   // is known on the server's first paint instead of flashing "Coming soon".
   const path = usePathname();
+  // Nested routes (expenses, a document, a settings sub-screen) scroll in this
+  // shell's <main>, not in a deck panel, so they need their own memory: come
+  // back from a form or a document and the list is where it was. Keyed by
+  // pathname, and restored before paint so there is no visible jump.
+  const mainRef = useRef<HTMLDivElement>(null);
+  const restoringRoute = useRef(false);
+  useIsoLayoutEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const target = readSavedScroll(routeScrollKey(path));
+    if (target <= 0) {
+      // A route never visited starts at the top (a detail screen must not open
+      // half-scrolled because a list once sat there).
+      el.scrollTop = 0;
+      return;
+    }
+    restoringRoute.current = true;
+    return restoreScrollTop(el, target, {
+      now: () => performance.now(),
+      raf: (cb) => requestAnimationFrame(cb),
+      cancel: (id) => cancelAnimationFrame(id),
+      cancelled: () => !restoringRoute.current,
+      onDone: () => { restoringRoute.current = false; },
+    });
+  }, [path]);
   const router = useRouter();
   // Laptop (xl+): an open invoice or estimate is the INVOICES TAB, not a nested
   // route. The nested branch below swaps <main> from the deck to the route, so
@@ -675,8 +701,12 @@ export default function AppShell({
           </main>
         ) : (
           <main
+            ref={mainRef}
             data-tab-scroll-owner=""
             className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
+            onScroll={() => {
+              if (!restoringRoute.current) saveScroll(routeScrollKey(path), mainRef.current?.scrollTop ?? 0);
+            }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
