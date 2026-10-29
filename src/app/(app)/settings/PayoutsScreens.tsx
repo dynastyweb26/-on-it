@@ -270,9 +270,14 @@ function ZelleDetail({ zelleMasked, onZelleChange }: PayoutDetailProps) {
   return (
     <DetailLayout method="zelle" badge={zelleMasked ? CONFIGURED : null}>
       <section className="card space-y-3">
+        {/* One field, two kinds of value. A fixed tel keypad has no @, which
+            would strand anyone entering an email address; the email keypad is
+            QWERTY with @ and . and still types a phone number. */}
         <input className="input" aria-label="Zelle phone or email"
           placeholder={zelleMasked ? `Zelle: ${zelleMasked}` : 'Phone or email'}
-          value={input} onChange={(e) => setInput(e.target.value)} />
+          value={input} onChange={(e) => setInput(e.target.value)}
+          type="text" inputMode="email" autoComplete="off"
+          autoCapitalize="none" autoCorrect="off" spellCheck={false} />
         <div className="flex gap-2">
           <button className="btn-primary flex-1 px-4 py-2 text-sm" disabled={busy || !input.trim()} onClick={() => void post(input)}>
             {busy ? 'Saving…' : 'Save'}
@@ -328,6 +333,7 @@ function HandleDetail({ method, p, save }: PayoutDetailProps & { method: HandleM
           {...(method === 'cashapp'
             ? {}
             : { autoComplete: 'off', 'data-1p-ignore': true, 'data-lpignore': 'true' })}
+          autoCapitalize="none" autoCorrect="off" spellCheck={false}
           value={value}
           onChange={(e) => { setValue(e.target.value); setError(''); }}
           onBlur={(e) => setValue(normalize(e.target.value))} />
