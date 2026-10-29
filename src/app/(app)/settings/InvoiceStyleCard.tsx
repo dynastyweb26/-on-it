@@ -134,7 +134,7 @@ function StickySaveBar({
       className="fixed z-[70] md:hidden"
       style={{ left: box.left, right: box.right, bottom: box.bottom }}
     >
-      <div className="border-t border-outline-variant/40 bg-background/95 px-4 pb-2.5 pt-2.5 backdrop-blur">
+      <div className="border-t border-outline-variant/40 bg-background px-4 pb-2.5 pt-2.5">
         {error && (
           <div
             role="alert"
