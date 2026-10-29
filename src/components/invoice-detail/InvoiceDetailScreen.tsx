@@ -1,4 +1,5 @@
 'use client';
+import { userMessage } from '@/lib/errors';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -534,7 +535,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       const r = await pending;
       if (r.status === 'cancelled') return;
       if (r.status === 'failed') {
-        setShareError(`The share sheet didn't open (${r.name}). Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        setShareError(`${userMessage({ name: r.name })} Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
         return;
       }
       if (r.status === 'unsupported') downloadFile(file);
