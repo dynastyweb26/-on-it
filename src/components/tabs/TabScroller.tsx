@@ -1,15 +1,17 @@
 'use client';
 // A deck tab's scroll container that remembers where it was. The deck unmounts
 // when a nested route (an invoice, a Settings sub-screen) is open, so without
-// this, coming back mounts a fresh panel at the top. The position lives at
-// module level (survives client navigation, resets on a full reload) and is
-// restored once the content is tall enough to scroll there; tabs that load
-// their list after mount get a short retry window.
+// this, coming back mounts a fresh panel at the top.
+//
+// The position lives in lib/tab-scroll, keyed per tab AND per filter, and the
+// restore keeps waiting while the list is still short — on return the first
+// paint is a skeleton or a few cached rows, and the rest can land late.
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  readSavedScroll, restoreScrollTop, saveScroll, tabScrollKey,
+} from '@/lib/tab-scroll';
 
-const positions = new Map<number, number>();
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-const RESTORE_MS = 1500;
 
 export default function TabScroller({ index, className, children }: {
   index: number;
@@ -17,26 +19,28 @@ export default function TabScroller({ index, className, children }: {
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const restoring = useRef(true);
+  // True while a restore is driving scrollTop; saves are ignored then so a
+  // clamped value never overwrites the real position.
+  const restoring = useRef(false);
+
+  const keyNow = () =>
+    tabScrollKey(index, typeof window === 'undefined' ? '' : window.location.search);
 
   useIsoLayoutEffect(() => {
     const el = ref.current;
-    const target = positions.get(index) ?? 0;
-    if (!el || target <= 0) { restoring.current = false; return; }
-    const start = performance.now();
-    let raf = 0;
-    const tick = () => {
-      el.scrollTop = target;
-      // Done once it landed (within a pixel) or the window ran out; a user
-      // scroll during the window also ends it (see onScroll).
-      if (!restoring.current || Math.abs(el.scrollTop - target) < 2 || performance.now() - start > RESTORE_MS) {
-        restoring.current = false;
-        return;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(raf);
+    if (!el) return;
+    const target = readSavedScroll(keyNow());
+    if (target <= 0) return;
+    restoring.current = true;
+    const cancel = restoreScrollTop(el, target, {
+      now: () => performance.now(),
+      raf: (cb) => requestAnimationFrame(cb),
+      cancel: (id) => cancelAnimationFrame(id),
+      cancelled: () => !restoring.current,
+      onDone: () => { restoring.current = false; },
+    });
+    return cancel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
   return (
@@ -45,9 +49,7 @@ export default function TabScroller({ index, className, children }: {
       data-tab-scroll-owner=""
       className={className}
       onScroll={(e) => {
-        // Writes from the restore loop must not overwrite the saved position
-        // with a clamped value; once restoring ends, every scroll is saved.
-        if (!restoring.current) positions.set(index, e.currentTarget.scrollTop);
+        if (!restoring.current) saveScroll(keyNow(), e.currentTarget.scrollTop);
       }}
       onTouchStart={() => { restoring.current = false; }}
       onWheel={() => { restoring.current = false; }}
