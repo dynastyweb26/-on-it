@@ -1244,7 +1244,12 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       {/* Record payment — the sticky bar sits above the real tab bar while a
           balance remains; the sheet owns the selection and calls recordPayment. */}
       {queue.length > 0 && (
-        <PendingPaymentNotice entries={queue} />
+        <PendingPaymentNotice
+          entries={queue}
+          onRetry={() => void retryQueued()}
+          onEdit={(e) => void editQueued(e)}
+          onDiscard={(e) => void discardQueued(e)}
+        />
       )}
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
