@@ -23,6 +23,7 @@ import { EXPENSES_SORT_KEY, readExpenseGrouping, readListSort, sortWithinGroups,
 import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 import { getSharedUser } from '@/lib/auth-client';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -104,9 +105,17 @@ export default function Books() {
   const shimmerTaken = useRef<Set<string> | null>(null);
 
   const load = useCallback(async () => {
+    // The cache key needs the owner; getSession() is a local read, no network.
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id ?? null;
+    // Cached copy first (#3). Receipt URLs are never cached — they expire —
+    // so a cached row paints with its thumbnail missing until the live read
+    // re-signs it.
+    const cached = uid ? readCache<ExpenseRow[]>(uid, 'expenses') : null;
+    if (cached) { setRows(cached); setLoading(false); }
     // spent_on is the user-facing date; created_at breaks ties so two expenses
     // logged on the same day keep a stable, genuinely-newest-first order.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('expenses')
       .select('id, amount, category, vendor, description, spent_on, receipt_url, recurring_id, created_at')
       .is('deleted_at', null)
@@ -114,9 +123,18 @@ export default function Books() {
       .order('created_at', { ascending: false })
       .limit(200);
 
+    if (error) {
+      // A failed refresh keeps the cached rows rather than emptying the list.
+      console.error('expenses read failed', error);
+      setLoading(false);
+      return;
+    }
     const list = (data ?? []) as ExpenseRow[];
     setRows(list);
     setLoading(false);
+    if (uid) {
+      writeCache(uid, 'expenses', list.map((r) => ({ ...r, receipt_url: null })), CACHE_TTL.lists);
+    }
     // Taken once per visit (a reload after add / delete keeps the same set).
     if (!shimmerTaken.current) shimmerTaken.current = takeUnseen(list.filter((r) => freshAutoLog(r)).map((r) => r.id));
     setShimmer(shimmerTaken.current);
