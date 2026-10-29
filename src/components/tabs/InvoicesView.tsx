@@ -288,7 +288,11 @@ export default function Invoices({ active = true, selectedId = null }: { active?
         <span className="text-[12.5px] font-medium text-on-surface-variant">{loading ? '' : summary}</span>
         <SortCaption value={sort} onChange={chooseSort} azLabel="A–Z by client" label="Sort invoices" compact />
       </div>
-      {loading ? (
+      {/* The skeleton is for a list with nothing on screen yet. A refresh behind
+          a cached list must swap rows in place: replacing them with a skeleton
+          collapses the scroll height, which is what threw the reader back to
+          the top on the way back from a document. */}
+      {loading && rows.length === 0 ? (
         <div className="mt-4"><InvoicesSkeleton /></div>
       ) : (
         <div key={filter} data-coach="invoices-list" className={travel ? `onit-list-from-${travel}` : undefined}>
