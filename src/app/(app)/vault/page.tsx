@@ -26,6 +26,9 @@ export default function Vault() {
   const [docs, setDocs] = useState<VaultDoc[] | null>(null);
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
+  // A row fires a signed-URL request; while it is in flight every row is
+  // disabled so a second tap cannot start a second request.
+  const [opening, setOpening] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -58,8 +61,17 @@ export default function Vault() {
   useEffect(() => { void load(); }, [load]);
 
   async function open(path: string) {
-    const { data } = await supabase.storage.from('vault').createSignedUrl(path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    if (opening) return;
+    setOpening(path);
+    try {
+      const { data } = await supabase.storage.from('vault').createSignedUrl(path, 300);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    } catch (e) {
+      console.error('vault open failed', e);
+      setError(userMessage(e));
+    } finally {
+      setOpening(null);
+    }
   }
 
   // Loading: never the empty copy while the read is in flight.
@@ -108,7 +120,9 @@ export default function Vault() {
           )}
           <div className="space-y-2">
             {filtered.map((d) => (
-              <button key={d.id} className="card flex min-h-16 w-full items-center gap-3 text-left transition-colors active:bg-surface-container" onClick={() => void open(d.storage_path)}>
+              <button key={d.id} className="card pressable flex min-h-16 w-full items-center gap-3 text-left"
+                disabled={opening !== null} aria-busy={opening === d.id || undefined}
+                onClick={() => void open(d.storage_path)}>
                 <Icon name="description" size={22} className="shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{d.title}</div>

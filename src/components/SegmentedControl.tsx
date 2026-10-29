@@ -20,7 +20,7 @@ export default function SegmentedControl<T extends string>({ options, value, onC
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={o.value === value}
           onClick={() => { if (o.value !== value) { try { navigator.vibrate?.(5); } catch { /* unsupported */ } onChange(o.value); } }}
-          className={`relative z-[1] min-w-[64px] rounded-lg px-3 text-sm transition-colors
+          className={`pressable relative z-[1] min-w-[64px] rounded-lg px-3 text-sm
             ${o.value === value ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>
           {o.label}
         </button>

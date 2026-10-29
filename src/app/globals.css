@@ -82,6 +82,40 @@ html[data-kb] [data-kb-lift] { translate: 0 calc(-1 * var(--kb-overlap, 0px)); }
 .card {
   @apply bg-surface-container-low rounded-card border border-outline-variant/30 p-4 shadow-card;
 }
+/* ---- Pressed / disabled, defined once (UX audit #4) ----
+   Every tappable row or segment uses `.pressable` instead of its own
+   `active:` classes, so press feedback cannot drift between screens.
+
+   The feedback is a background tint (::after) plus an opacity change, never a
+   transform: rows used to scale on press, which fought the list's scroll
+   compositing. 160ms is --motion-fast; reduce-motion makes the state change
+   instant while keeping it visible. Disabled is defined here too, so anything
+   that fires a request dims the same way everywhere. */
+.pressable {
+  position: relative;
+  transition: background-color var(--motion-fast) var(--ease-standard),
+              opacity var(--motion-fast) var(--ease-standard);
+}
+.pressable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.pressable:active:not(:disabled):not([aria-disabled='true'])::after { opacity: .08; }
+.pressable:disabled,
+.pressable[aria-disabled='true'] { opacity: .5; }
+.pressable:disabled::after,
+.pressable[aria-disabled='true']::after { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pressable,
+  .pressable::after { transition: none; }
+}
+
 /* Interactive chips: 8px radius (§5), 56px touch floor (§1), label type. */
 .chip {
   @apply inline-flex min-h-touch items-center justify-center gap-1.5 rounded-chip border border-outline

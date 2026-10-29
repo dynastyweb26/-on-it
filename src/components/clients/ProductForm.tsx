@@ -137,7 +137,7 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
       <div role="radiogroup" aria-label="Unit" className="mt-1.5 grid grid-cols-4 rounded-[14px] bg-surface-container p-1">
         {UNITS.map((u) => (
           <button key={u} type="button" role="radio" aria-checked={unit === u} onClick={() => setUnit(u)}
-            className={`h-10 rounded-[10px] text-[15px] transition-colors active:scale-95
+            className={`pressable h-10 rounded-[10px] text-[15px]
               ${unit === u ? 'bg-surface-container-lowest font-bold text-on-background shadow-card' : 'text-on-surface-variant'}`}>
             {u}
           </button>
