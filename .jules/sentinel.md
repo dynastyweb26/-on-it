@@ -8,6 +8,9 @@
 **Learning:** Character-stripping functions must always run Unicode NFKC normalization (`normalize('NFKC')`), strip format control characters (`\p{Cf}`), and replace control characters prior to regex stripping.
 **Prevention:** Always normalize Unicode compatibility forms via NFKC and strip format control characters at the top of field sanitizers before filtering targeted characters or length-truncating.
 
+## 2026-10-29 - Weekly Security Scan (No New Findings)
+Checked all 42 API routes, Supabase RLS policies, RPC security, webhook signature validations, rate limiting, and public token endpoints. No new unhandled gaps or security vulnerabilities were identified.
+
 ## 2026-07-06 - Input Validation on Empty-Body Routes
 **Vulnerability:** Adding schema validation to endpoints with empty request bodies without real constraints can create superficial "security theater".
 **Learning:** Checking Zod `z.object({}).nullish()` with `.catch(() => ({}))` permits any payload (including invalid JSON or arbitrary objects) and does not increase security.
