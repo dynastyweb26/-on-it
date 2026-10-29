@@ -16,6 +16,7 @@ import { money } from '@/lib/financials';
 import { clientNameKey } from '@/lib/client-name';
 import { markNewEntry } from '@/lib/list-motion';
 import { UNITS, parsePrice, usedLine, type Product, type Unit } from '@/lib/products';
+import { useFormDraft } from '@/lib/use-form-draft';
 
 const LIST = '/clients?segment=products';
 const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
@@ -46,6 +47,18 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // #11: the item being typed survives leaving the form. Prices here are the
+  // catalog price, not a payment, so nothing sensitive is stored.
+  const draft = useFormDraft<{ name: string; price: string; unit: string; detail: string }>({
+    scope: `product:${mode === 'edit' ? product?.id ?? 'edit' : 'new'}`,
+    value: { name, price, unit, detail },
+    onRestore: (saved) => {
+      if (typeof saved.name === 'string') setName(saved.name);
+      if (typeof saved.price === 'string') setPrice(saved.price);
+      if (saved.unit) setUnit(saved.unit as Unit);
+      if (typeof saved.detail === 'string') setDetail(saved.detail);
+    },
+  });
   // Keep a save error in view (inside a sheet the keyboard can cover it).
   useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [error]);
 
@@ -91,6 +104,7 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
       return;
     }
     if (mode === 'new') markNewEntry('products', clientNameKey(fields.name));
+    draft.clear();
     // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
     setDone(true);
     setTimeout(() => { if (onSaved) onSaved(fields); else router.replace(LIST); }, SAVED_MS);
