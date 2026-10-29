@@ -1,4 +1,5 @@
 'use client';
+import { userMessage } from '@/lib/errors';
 import { useEffect, useState } from 'react';
 import Icon from '@/components/Icon';
 import PasswordInput from '@/components/PasswordInput';
@@ -36,7 +37,7 @@ export default function AuthSheet({ entry, auth, onClose }: {
     const { error } = await createClient().auth.signInWithOAuth({
       provider, options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
-    if (error) { setProviderError(error.message); setProviderBusy(null); }
+    if (error) { setProviderError(userMessage(error)); setProviderBusy(null); }
   }
 
   const title = step === 'providers'
