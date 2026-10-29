@@ -18,6 +18,7 @@ import { hideSkip, readHiddenSkips } from '@/lib/skip-hidden';
 import { EXPENSES_SORT_KEY, expensesListCaption, readExpenseGrouping, readListSort } from '@/lib/list-sort';
 import { createClient } from '@/lib/supabase/client';
 import { getSharedUser } from '@/lib/auth-client';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
 
 const money = (n: number) =>
@@ -132,7 +133,15 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   }, [active]);
 
   async function loadStats() {
-    const [{ data: invs }, { data: pays }, { data: exps }] = await Promise.all([
+    // The owner is the cache key. getSharedUser() is memoised by
+    // lib/auth-client, so this costs no extra request on this screen.
+    const { data: { user: owner } } = await getSharedUser();
+    if (!owner) return;
+    const [
+      { data: invs, error: invErr },
+      { data: pays, error: payErr },
+      { data: exps, error: expErr },
+    ] = await Promise.all([
       supabase.from('invoices').select('total, status, amount_paid, kind').eq('kind', 'invoice').is('deleted_at', null),
       // The SAME ledger query as the Books summary's income, so the Collected
       // tile equals the all-time "Brought in" / income list it opens.
@@ -152,9 +161,18 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     const outstanding = rows
       .filter((i) => ['sent', 'overdue'].includes(i.status))
       .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
+    if (invErr || payErr || expErr) {
+      // A failed refresh leaves the figures on screen (cached or last-good)
+      // instead of replacing them with $0.00, which reads as an empty account.
+      console.error('books totals read failed', invErr ?? payErr ?? expErr);
+      return;
+    }
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({ collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length });
+    const next = { collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length };
+    setStats(next);
     showStats({ net: collected - spent, collected, outstanding, spent });
+    // Balances: short expiry, always refreshed behind the cached copy.
+    writeCache(owner.id, 'books-stats', next, CACHE_TTL.money);
   }
 
   useEffect(() => {
@@ -171,6 +189,13 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
       const { data: { user } } = await getSharedUser();
       if (cancelled) return;
       if (!user) { router.replace('/login'); return; }
+      // Cached figures paint instantly (#3) — no count-up over stale data.
+      const cached = readCache<typeof stats>(user.id, 'books-stats');
+      if (!cancelled && cached) {
+        setStats(cached);
+        setShown({ net: cached.collected - cached.spent, collected: cached.collected, outstanding: cached.outstanding, spent: cached.spent });
+        setLoading(false);
+      }
       try {
         await Promise.race([
           loadStats(),
