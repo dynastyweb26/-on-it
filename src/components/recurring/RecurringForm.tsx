@@ -19,6 +19,7 @@ import {
   CADENCE_LABEL, RECURRING_PATH, VENDOR_MAX, anchorFor, firstDueFrom, localToday, longDay, parseAmount,
   type Cadence, type Recurring,
 } from '@/lib/recurring';
+import { useFormDraft } from '@/lib/use-form-draft';
 
 const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
 
@@ -45,6 +46,22 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
+  // #11: a half-typed recurring expense survives leaving the form. No payment
+  // fields exist on this form; the amount is a scheduled expense, not a charge.
+  const draft = useFormDraft<{
+    vendor: string; amount: string; category: string; cadence: string; next_on: string; auto_log: boolean;
+  }>({
+    scope: `recurring:${mode === 'edit' ? item?.id ?? 'edit' : 'new'}`,
+    value: { vendor, amount, category, cadence, next_on: nextOn, auto_log: autoLog },
+    onRestore: (saved) => {
+      if (typeof saved.vendor === 'string') setVendor(saved.vendor);
+      if (typeof saved.amount === 'string') setAmount(saved.amount);
+      if (saved.category) setCategory(saved.category as ExpenseCategory);
+      if (saved.cadence) setCadence(saved.cadence as Cadence);
+      if (typeof saved.next_on === 'string') setNextOn(saved.next_on);
+      if (typeof saved.auto_log === 'boolean') setAutoLog(saved.auto_log);
+    },
+  });
 
   const parsed = parseAmount(amount);
   const s = start.current;
@@ -85,6 +102,7 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
         : 'Couldn’t save — check your connection and try again.');
       return;
     }
+    draft.clear();
     setDone(true);
     setTimeout(() => router.replace(RECURRING_PATH), SAVED_MS);
   }
