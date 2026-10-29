@@ -33,6 +33,18 @@ export const PAGE_DIM = 0.12;
 export const SETTLE_MIN_MS = 220;
 export const SETTLE_MAX_MS = 340;
 
+/**
+ * Width (px) of the system back-swipe strip along the left edge (iOS Safari).
+ * A tab swipe that begins inside it belongs to the OS: the browser takes the
+ * gesture before a full drag reaches the page, and fighting it traps the user.
+ */
+export const EDGE_GUARD_PX = 20;
+
+/** True when a touch at `clientX` starts in the system back-swipe strip. */
+export function isEdgeBackZone(clientX: number, guard = EDGE_GUARD_PX): boolean {
+  return Number.isFinite(clientX) && clientX < guard;
+}
+
 export type GestureAxis = 'pending' | 'horizontal' | 'vertical';
 
 /**

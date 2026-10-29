@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   AXIS_SLOP_PX,
   EDGE_BAND_FACTOR,
+  EDGE_GUARD_PX,
   HORIZONTAL_RATIO,
   PAGE_DIM,
   PILL_STRETCH,
@@ -12,6 +13,7 @@ import {
   applyEdgeResistance,
   classifyAxis,
   dragFromLock,
+  isEdgeBackZone,
   isFlick,
   pageDim,
   pillCentreAt,
@@ -63,6 +65,18 @@ test('tab gesture boundaries: 10px lock, 2.0 cone, 20% drag, 60px/1.0 flick', ()
   assert.equal(tabCommitDirection(-79, width, 0, 0), 1);
   assert.equal(tabCommitDirection(-60, width, -60, 60), 1);
   assert.equal(tabCommitDirection(-60, width, -60, 61), 0);
+});
+
+test('isEdgeBackZone: the system back-swipe strip is 20px', () => {
+  assert.equal(EDGE_GUARD_PX, 20);
+  assert.equal(isEdgeBackZone(0), true);
+  assert.equal(isEdgeBackZone(19.9), true);
+  assert.equal(isEdgeBackZone(-4), true);
+  assert.equal(isEdgeBackZone(20), false); // from the guard inward is ours
+  assert.equal(isEdgeBackZone(200), false);
+  assert.equal(isEdgeBackZone(Number.NaN), false);
+  assert.equal(isEdgeBackZone(30, 40), true); // explicit guard
+  assert.equal(isEdgeBackZone(40, 40), false);
 });
 
 test('isFlick: 60px at 1.0 px/ms for tab navigation', () => {

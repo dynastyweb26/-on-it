@@ -21,7 +21,7 @@ import { ENABLE_CAMERA_ANIMATION } from '@/lib/feature-flags';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import { reducedMotion } from '@/lib/list-motion';
-import { NAV_GUARD_MS, pillCentreAt, pillStretch } from '@/lib/swipe';
+import { NAV_GUARD_MS, isEdgeBackZone, pillCentreAt, pillStretch } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
 import { TABS, exactTabIndex, tabIndexOf } from '@/lib/tabs';
 import { sectionFromPath } from '@/app/(app)/settings/sections';
@@ -482,6 +482,8 @@ export default function AppShell({
     const from = tabIndexOf(window.location.pathname);
     if (from === -1 || swipeBlockedAt(e.target)) return;
     const t = e.touches[0];
+    // Same rule as the deck: the left edge is the system back gesture's.
+    if (isEdgeBackZone(t.clientX)) return;
     gesture.current = { id: t.identifier, x: t.clientX, y: t.clientY, from, vertical: false };
   }
   function onTouchMove(e: React.TouchEvent) {
