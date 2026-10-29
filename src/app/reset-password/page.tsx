@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import PasswordInput from '@/components/PasswordInput';
+import { userMessage } from '@/lib/errors';
 
 export default function ResetPassword() {
   const supabase = createClient();
@@ -33,7 +34,7 @@ export default function ResetPassword() {
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
-    if (error) { setError(error.message); return; }
+    if (error) { setError(userMessage(error)); return; }
     setPhase('done');
     // Route into the app — onboarding for a brand-new profile, otherwise chat.
     const { data: { user } } = await supabase.auth.getUser();
