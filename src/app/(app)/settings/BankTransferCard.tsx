@@ -1,4 +1,5 @@
 'use client';
+import { userMessage } from '@/lib/errors';
 // Bank transfer (US ACH / direct deposit) form for /settings/payouts/bank;
 // the detail layout supplies the header and "Configured" badge. Every
 // write goes through /api/bank (server-side validation + encryption); the
@@ -49,15 +50,15 @@ export default function BankTransferCard({ initial, onSaved, onDone }: {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof json.error === 'string' && json.error !== 'save failed' ? json.error : "Couldn't save. Try again.");
+        setError(userMessage({ status: res.status, message: typeof json.error === 'string' ? json.error : null }));
         return false;
       }
       const next: BankState = json.bank ?? initial;
       setBank(next);
       onSaved(next);
       return true;
-    } catch {
-      setError("Couldn't save. Check your connection and try again.");
+    } catch (err) {
+      setError(userMessage(err));
       return false;
     } finally {
       setBusy(false);
