@@ -13,6 +13,11 @@ html {
   -webkit-tap-highlight-color: transparent;
   background-color: #fff8f0;
   color-scheme: light;
+  /* An app, not a document: no double-tap-to-zoom wait before a tap acts.
+     Pinch-zoom stays available, and anything that declares its own
+     touch-action (signature pads, sheets, the tab deck) still wins by
+     intersection. */
+  touch-action: manipulation;
 }
 body { @apply bg-background text-on-background font-body antialiased; }
 
