@@ -529,6 +529,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [messages, setMessages] = useState<Msg[]>(() => [greeting()]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>(null);
+  // Synchronous double-send guard (state lags a render).
+  const sendRef = useRef(false);
   // Failure + retry motion (MOTION-SPEC §7). Messages that arrived by restore
   // (reload / history) never shake on mount; a live failure does. retryShake
   // counts finished retries per message: bumping it re-keys the bubble, so a
@@ -1136,7 +1138,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // double-tap can still slip one through (accepted). It fixes the reported
     // repeat-tap bug because it is set before ANY branch and, on redirect paths,
     // left set. Cleared in the one outer finally below (unless 'redirecting').
-    if (!trimmed || phase) return null;
+    if (!trimmed || phase || sendRef.current) return null;
+    sendRef.current = true;
     setPhase('thinking');
     // One turn_id per user message; finalize()/finishFinalize() read it from the
     // ref so all four trace points share it. Point 1: the user message — a
@@ -1440,6 +1443,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return null;
     }
     } finally {
+      sendRef.current = false;
       setPhase((p) => (p === 'redirecting' ? p : null));
     }
   }
