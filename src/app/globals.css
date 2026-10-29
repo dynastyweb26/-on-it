@@ -612,10 +612,12 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-dot-ring { from { transform: scale(1); opacity: .6; } to { transform: scale(3); opacity: 0; } }
 .onit-dot-pulse::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: inherit; animation: onit-dot-ring 600ms var(--ease-emphasized) 300ms both; }
 
-/* Invoices filter switch: the list crossfades with a 12px shift toward the
-   direction of travel (--motion-fast). */
-@keyframes onit-list-from-right { from { opacity: 0; transform: translateX(12px); } }
-@keyframes onit-list-from-left { from { opacity: 0; transform: translateX(-12px); } }
+/* Invoices filter switch: a short opacity-only fade. No translateX: the
+   animated element is the whole list container (up to 200 rows), and a
+   transformed container has to become one oversized composited layer, which
+   iOS clips to a rectangle. The direction of travel is no longer drawn. */
+@keyframes onit-list-from-right { from { opacity: 0; } }
+@keyframes onit-list-from-left { from { opacity: 0; } }
 .onit-list-from-right { animation: onit-list-from-right var(--motion-fast) var(--ease-standard) both; }
 .onit-list-from-left { animation: onit-list-from-left var(--motion-fast) var(--ease-standard) both; }
 
