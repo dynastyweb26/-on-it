@@ -319,6 +319,7 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                     // Holding a row must not raise the browser's link menu (Open /
                     // Copy link / Open in new tab) in the installed app; a tap still navigates.
                     <Link key={r.id} href={`/invoices/${r.id}`} draggable={false}
+                      data-scroll-anchor={r.id}
                       aria-current={selected === r.id ? 'true' : undefined}
                       onClick={(e) => openRow(e, r.id)}
                       style={{ WebkitTouchCallout: 'none' }}
