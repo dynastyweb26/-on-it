@@ -19,11 +19,19 @@ export const HORIZONTAL_RATIO = 1.2;
 /** A tab navigation that never lands stops blocking new swipes after this. */
 export const NAV_GUARD_MS = 3000;
 
-/** Fraction of the viewport a tab drag must cross before it commits. */
-export const TAB_COMMIT_FRACTION = 0.2;
+/**
+ * Fraction of the viewport a tab drag must cross before it commits. 0.15
+ * (~59px at 390px wide) is shorter than a deliberate drag but still far more
+ * than the drift of a tap; the flick path covers anything shorter.
+ */
+export const TAB_COMMIT_FRACTION = 0.15;
 
-/** A tab flick needs this much total travel and recent speed. */
-export const TAB_FLICK = { minDistance: 60, minVelocity: 1.0 } as const;
+/**
+ * A tab flick needs this much total travel and recent speed. 32px at 0.5 px/ms
+ * is a normal thumb flick (~500 px/s); the old 60px at 1.0 px/ms (~1000 px/s)
+ * was fast enough that most real swipes fell through to the distance rule.
+ */
+export const TAB_FLICK = { minDistance: 32, minVelocity: 0.5 } as const;
 
 /** How far the page can rubber-band past the first/last tab. */
 export const EDGE_BAND_FACTOR = 0.22;

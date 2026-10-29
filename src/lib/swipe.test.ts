@@ -56,29 +56,30 @@ test('classifyAxis: exported defaults match the audited thresholds', () => {
   assert.equal(HORIZONTAL_RATIO, 1.2);
 });
 
-test('tab gesture boundaries: 10px lock, 1.2 cone, 20% drag, 60px/1.0 flick', () => {
+test('tab gesture boundaries: 10px lock, 1.2 cone, 15% drag, 32px/0.5 flick', () => {
   assert.equal(classifyAxis(10, 0), 'horizontal');
   assert.equal(classifyAxis(9.999, 0), 'pending');
   assert.equal(classifyAxis(12, 10), 'horizontal');
   assert.equal(classifyAxis(11.999, 10), 'vertical');
 
-  const width = 390; // 20% = 78px
-  assert.equal(tabCommitDirection(-78, width, 0, 0), 0);
-  assert.equal(tabCommitDirection(-79, width, 0, 0), 1);
-  assert.equal(tabCommitDirection(-60, width, -60, 60), 1);
-  assert.equal(tabCommitDirection(-60, width, -60, 61), 0);
+  const width = 390; // 15% = 58.5px
+  assert.equal(tabCommitDirection(-58, width, 0, 0), 0);
+  assert.equal(tabCommitDirection(-59, width, 0, 0), 1);
+  // A normal thumb flick (500 px/s) commits well below the distance gate.
+  assert.equal(tabCommitDirection(-40, width, -32, 64), 1);
+  assert.equal(tabCommitDirection(-40, width, -32, 65), 0);
 });
 
-test('isFlick: 60px at 1.0 px/ms for tab navigation', () => {
-  const tab = { minDistance: 60, minVelocity: 1.0 };
-  assert.ok(isFlick(-60, 60, tab)); // exactly 1.0 px/ms
-  assert.ok(!isFlick(60, 61, tab)); // 0.984 px/ms
-  assert.ok(isFlick(-60, 59.999, tab)); // just over 1.0 px/ms
-  assert.ok(isFlick(120, 120, tab)); // exactly 1.0 px/ms
-  assert.ok(!isFlick(59, 1, tab)); // fast but below 60px
-  assert.ok(!isFlick(60, 1000, tab)); // far enough, far too slow
-  assert.ok(!isFlick(60, 0, tab));
-  assert.ok(!isFlick(60, -1, tab));
+test('isFlick: 32px at 0.5 px/ms for tab navigation', () => {
+  const tab = { minDistance: 32, minVelocity: 0.5 };
+  assert.ok(isFlick(-32, 64, tab)); // exactly 0.5 px/ms
+  assert.ok(!isFlick(32, 65, tab)); // 0.492 px/ms
+  assert.ok(isFlick(-32, 63.999, tab)); // just over 0.5 px/ms
+  assert.ok(isFlick(64, 126, tab)); // just over, longer travel
+  assert.ok(!isFlick(31, 1, tab)); // fast but below 32px
+  assert.ok(!isFlick(32, 1000, tab)); // far enough, far too slow
+  assert.ok(!isFlick(32, 0, tab));
+  assert.ok(!isFlick(32, -1, tab));
   assert.ok(!isFlick(Number.NaN, 10, tab));
 });
 
@@ -166,24 +167,24 @@ test('pillStretch: 1 at a tab centre, 1.32 halfway between', () => {
 
 test('tabCommitDirection: distance wins, then a matching flick', () => {
   assert.equal(tabCommitDirection(0, 400, 0, 0), 0);
-  assert.equal(tabCommitDirection(-81, 400, 0, 0), 1); // > 20% of 400
-  assert.equal(tabCommitDirection(81, 400, 0, 0), -1);
-  assert.equal(tabCommitDirection(-80, 400, 0, 0), 0); // exactly 20% does not
-  // A fast 60px flick commits even below the distance gate.
-  assert.equal(tabCommitDirection(-65, 500, -60, 60), 1);
+  assert.equal(tabCommitDirection(-61, 400, 0, 0), 1); // > 15% of 400
+  assert.equal(tabCommitDirection(61, 400, 0, 0), -1);
+  assert.equal(tabCommitDirection(-60, 400, 0, 0), 0); // exactly 15% does not
+  // A 32px flick at 0.5 px/ms commits even below the distance gate.
+  assert.equal(tabCommitDirection(-65, 500, -32, 64), 1);
   // Direction must match the drag.
-  assert.equal(tabCommitDirection(-65, 500, 60, 60), 0);
-  // Too slow (and under 20%).
+  assert.equal(tabCommitDirection(-65, 500, 32, 64), 0);
+  // Too slow (and under 15%).
   assert.equal(tabCommitDirection(-65, 500, -20, 90), 0);
-  // A short final flick can use the whole gesture's distance for the 60px gate
+  // A short final flick can use the whole gesture's distance for the 32px gate
   // while still measuring speed from the recent 100ms window.
-  assert.equal(tabCommitDirection(-65, 500, -20, 20, 60), 1);
-  assert.equal(tabCommitDirection(-65, 500, -20, 20, 59), 0);
+  assert.equal(tabCommitDirection(-65, 500, -20, 20, 32), 1);
+  assert.equal(tabCommitDirection(-65, 500, -20, 20, 31), 0);
   // Negative/zero widths and a zero release offset never navigate.
   assert.equal(tabCommitDirection(-200, 0, -200, 10, 200), 0);
   assert.equal(tabCommitDirection(0, 400, -200, 10, 200), 0);
-  assert.equal(TAB_FLICK.minDistance, 60);
-  assert.equal(TAB_FLICK.minVelocity, 1.0);
+  assert.equal(TAB_FLICK.minDistance, 32);
+  assert.equal(TAB_FLICK.minVelocity, 0.5);
 });
 
 test('pillCentreAt: interpolates measured centres and clamps', () => {
