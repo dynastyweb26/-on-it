@@ -31,6 +31,20 @@ html:has([data-app-shell]) body {
   overscroll-behavior: none;
 }
 
+/* Tab deck (components/tabs/TabDeck.tsx). The browser may pan vertically here
+   and nothing else: horizontal travel belongs to the deck's own gesture, which
+   can then lock and preventDefault before the browser claims the axis. With the
+   old `auto`, a slightly diagonal swipe was taken as a scroll and Safari
+   cancelled the touch, so only near-perfect horizontal swipes worked.
+   pinch-zoom stays allowed, so the deck is still zoomable, and
+   overscroll-behavior-x stops a horizontal pan chaining to the document.
+   Horizontal scrollers inside a panel (Invoices filters, category chips) are
+   opted back in next to their own markup. */
+[data-tab-deck] {
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior-x: none;
+}
+
 /* On-screen keyboard (lib/keyboard.ts sets html[data-kb] and the --kb / --vvh
    / --vv-top / --kb-overlap variables while it's open):
    - data-kb-fit: full-screen layers (app shell, paywall, sheets, dialogs) pin
