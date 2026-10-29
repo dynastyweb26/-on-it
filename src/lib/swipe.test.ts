@@ -31,13 +31,17 @@ test('classifyAxis: waits for the 10px slop', () => {
   assert.equal(classifyAxis(0, 10), 'vertical');
 });
 
-test('classifyAxis: horizontal only inside the 2.0 ratio cone', () => {
-  assert.equal(classifyAxis(20, 10), 'horizontal'); // exactly 2.0
-  assert.equal(classifyAxis(-20, 10), 'horizontal');
-  assert.equal(classifyAxis(-20, -10), 'horizontal');
-  assert.equal(classifyAxis(19.9, 10), 'vertical');
-  assert.equal(classifyAxis(100, 50), 'horizontal'); // 100 / 50 = 2.0
-  assert.equal(classifyAxis(100, 50.1), 'vertical');
+test('classifyAxis: horizontal only inside the 1.2 ratio cone', () => {
+  assert.equal(classifyAxis(12, 10), 'horizontal'); // exactly 1.2
+  assert.equal(classifyAxis(-12, 10), 'horizontal');
+  assert.equal(classifyAxis(-12, -10), 'horizontal');
+  assert.equal(classifyAxis(11.9, 10), 'vertical'); // just inside the cone
+  assert.equal(classifyAxis(20, 10), 'horizontal'); // a 30° swing now counts
+  assert.equal(classifyAxis(100, 50), 'horizontal');
+  // A real vertical scroll still wins the moment it is the larger axis.
+  assert.equal(classifyAxis(10, 10), 'vertical');
+  assert.equal(classifyAxis(10, 9), 'vertical');
+  assert.equal(classifyAxis(10, 8), 'horizontal'); // 10 / 8 = 1.25
 });
 
 test('classifyAxis: custom slop and ratio', () => {
@@ -49,14 +53,14 @@ test('classifyAxis: custom slop and ratio', () => {
 
 test('classifyAxis: exported defaults match the audited thresholds', () => {
   assert.equal(AXIS_SLOP_PX, 10);
-  assert.equal(HORIZONTAL_RATIO, 2.0);
+  assert.equal(HORIZONTAL_RATIO, 1.2);
 });
 
-test('tab gesture boundaries: 10px lock, 2.0 cone, 20% drag, 60px/1.0 flick', () => {
+test('tab gesture boundaries: 10px lock, 1.2 cone, 20% drag, 60px/1.0 flick', () => {
   assert.equal(classifyAxis(10, 0), 'horizontal');
   assert.equal(classifyAxis(9.999, 0), 'pending');
-  assert.equal(classifyAxis(20, 10), 'horizontal');
-  assert.equal(classifyAxis(19.999, 10), 'vertical');
+  assert.equal(classifyAxis(12, 10), 'horizontal');
+  assert.equal(classifyAxis(11.999, 10), 'vertical');
 
   const width = 390; // 20% = 78px
   assert.equal(tabCommitDirection(-78, width, 0, 0), 0);

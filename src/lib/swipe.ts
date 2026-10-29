@@ -8,8 +8,13 @@
 /** Total travel (px) before an axis is decided. */
 export const AXIS_SLOP_PX = 10;
 
-/** |dx| must be at least this many times |dy| to count as horizontal. */
-export const HORIZONTAL_RATIO = 2.0;
+/**
+ * |dx| must be at least this many times |dy| to count as horizontal.
+ * 1.2 is roughly a ±40° cone from horizontal: wide enough for a natural
+ * one-handed thumb arc, narrow enough that a real vertical scroll (|dy| >
+ * |dx|) still wins and is never hijacked.
+ */
+export const HORIZONTAL_RATIO = 1.2;
 
 /** A tab navigation that never lands stops blocking new swipes after this. */
 export const NAV_GUARD_MS = 3000;
