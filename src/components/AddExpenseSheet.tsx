@@ -11,6 +11,7 @@ import { recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
 import { EXPENSE_CATEGORIES, CATEGORY_LABEL, type ExpenseCategory } from '@/lib/expenses';
 import { getSharedUser } from '@/lib/auth-client';
+import { userMessage } from '@/lib/errors';
 
 /** A prefilled sheet (the Books paused-recurring banner's "Add it"). Everything stays editable. */
 export type ExpensePrefill = {
@@ -40,6 +41,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
   const [showNote, setShowNote] = useState(() => !!initial?.note);  // "Add a note" reveal, normal chips only
   const [spentOn, setSpentOn] = useState(() => initial?.spentOn ?? new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Field-level errors (replaces the old combined message)
   const [amountError, setAmountError] = useState('');
@@ -49,7 +51,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
   function resetForm() {
     setAmount(''); setCategory(''); setDetail(''); setShowNote(false);
     setSpentOn(new Date().toISOString().slice(0, 10));
-    setAmountError(''); setCategoryError(''); setDetailError('');
+    setAmountError(''); setCategoryError(''); setDetailError(''); setSaveError('');
   }
 
   function selectCategory(c: ExpenseCategory) {
@@ -82,6 +84,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
         : trimmedDetail ? `${label} — ${trimmedDetail}` : label;
 
     setSaving(true);
+    setSaveError('');
     try {
       const { data: { user } } = await getSharedUser();
       if (!user) { setAmountError('Sign in to log expenses.'); return; }
@@ -104,7 +107,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
         // Free expense cap (enforce_free_expense_limit): the wall, not the raw
         // DB message. The form stays filled so it saves after upgrading.
         if (error.hint === 'PAYWALL_LIMIT_EXPENSE') { setShowPaywall(true); return; }
-        setAmountError(error.message);
+        setSaveError(userMessage(error));
         return;
       }
       resetForm();
@@ -194,6 +197,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
                   type="date" className="input"
                   value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
                 />
+                {saveError && <p role="alert" className="mt-1 text-sm font-semibold text-error">{saveError}</p>}
                 <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
                   {saving ? 'Saving…' : 'Save expense'}
                 </button>
