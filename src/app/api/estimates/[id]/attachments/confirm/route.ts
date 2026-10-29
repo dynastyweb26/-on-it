@@ -21,6 +21,17 @@ export const runtime = 'nodejs';
 const refuse = (status: number, code: string) =>
   NextResponse.json({ error: code }, { status });
 
+// Storage keys are plain, flat segments ("<userId>/<invoiceId>/<uuid>.<ext>").
+// Reject anything a browser, proxy or storage backend could normalise
+// differently from Postgres' string comparison: empty segments, "."/".."
+// dot-segments, and backslashes. Same posture as assertInsideRoot() in
+// lib/delete-account-storage.ts, which rejects ".." before a remove(); this is
+// the file-key equivalent for a service-role download.
+function hasUnsafeKeySegments(path: string): boolean {
+  if (path.includes('\\')) return true;
+  return path.split('/').some((segment) => segment === '' || segment === '.' || segment === '..');
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -36,6 +47,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const path = body.data.path;
   const prefix = `${user.id}/${params.id}/`;
   if (!path.startsWith(prefix) || path.length <= prefix.length) {
+    return refuse(400, 'bad_path');
+  }
+  // A traversal-shaped key can still satisfy the prefix test
+  // ("<uid>/<id>/../../<other>/<file>"), so contain it explicitly before the
+  // service-role download.
+  if (hasUnsafeKeySegments(path)) {
     return refuse(400, 'bad_path');
   }
 
