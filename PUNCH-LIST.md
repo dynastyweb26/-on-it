@@ -974,3 +974,9 @@ _Found while checking `feat/paywall-mockup-v2` in DevTools (iPad Mini 768, iPad 
 | Books dashboard cards squash at iPad Pro width | **Open** | Net card shrinks to a narrow tile beside Still owed / Collected / Spent instead of staying a full-width hero. |
 | Screens leave large empty areas below content | **Open** | Books (and likely others) end ~40% down the page on iPad / Surface; no tablet-specific layout. |
 | Phone-first paywall steps had no tablet treatment | **Fixed on `feat/paywall-mockup-v2`** | `42dc6da` card at `md`+, `b651516` portal, `cb95e39` fit-to-height. Verify on a real iPad before merge. |
+
+## Invoice scroll perf (iOS PWA blanking) — logged 2026-10-29
+
+| Item | Status | Evidence |
+|---|---|---|
+| Invoices list blanked to a rectangle on fast scroll (iOS Safari PWA) | **Done — pending device test** | Four commits on `freebuff/51731cefd6b90275681ea9c9`: `91d644f` rows get `.onit-list-row` (`content-visibility: auto`, `contain-intrinsic-size: auto 104px`) on the shared row, so Estimates is covered too; `4c99e38` `.glass-nav` opaque, both `backdrop-filter` lines removed (the only blur on the screen); `5e45494` per-row `onit-fade-in` dropped and the row's `transition-transform active:scale` replaced with `active:bg-surface-container-high`; `f97c11f` filter-switch keyframes opacity-only, so no `translateX` layer over the whole list. Build passes (placeholder Supabase env); compiled CSS verified for all three CSS changes. **Not yet verified on an iOS device** — the workspace has no iOS Safari, so the fix is unconfirmed on hardware. |
