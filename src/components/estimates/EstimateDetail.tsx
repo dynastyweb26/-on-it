@@ -115,6 +115,9 @@ export default function EstimateDetail({
   const [inv, setInv] = useState(estimate);
   const [signature, setSignature] = useState<SignatureRow | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
+  // Synchronous guard: `busy` lags a render, so a same-frame second tap could
+  // otherwise convert the estimate twice.
+  const convertingRef = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -286,9 +289,14 @@ export default function EstimateDetail({
   }
 
   async function convertToInvoice() {
-    if (busy || state !== 'approved') return;
+    if (busy || convertingRef.current || state !== 'approved') return;
+    convertingRef.current = true;
     setBusy('convert');
     setActionError(null);
+    // Server-side idempotency reuses the invoice finalize_key (unique per user):
+    // a retry after a lost response returns the same invoice instead of minting
+    // a second numbered document.
+    const idempotencyKey = `convert-${inv.id}`;
     try {
       const { data: created, error } = await supabase.from('invoices').insert({
         user_id: inv.user_id,
@@ -307,11 +315,29 @@ export default function EstimateDetail({
         status: 'draft',
         converted_from: inv.id,
         due_date: defaultDueDate(),
+        finalize_key: idempotencyKey,
       }).select('id').single();
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
           setPaywallFor('invoice');
           return;
+        }
+        if (error.code === '23505') {
+          const { data: existing } = await supabase
+            .from('invoices')
+            .select('id, deleted_at')
+            .eq('user_id', inv.user_id)
+            .eq('finalize_key', idempotencyKey)
+            .maybeSingle();
+          if (existing?.id) {
+            // A prior attempt created it. Restore it if that attempt rolled back
+            // on an attachment failure, then land on the same invoice.
+            if (existing.deleted_at) {
+              await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
+            }
+            router.push(`/invoices/${existing.id}`);
+            return;
+          }
         }
         console.error('convert estimate failed', error);
         setActionError("Couldn't convert this estimate. Please try again.");
@@ -326,6 +352,7 @@ export default function EstimateDetail({
       }
       router.push(`/invoices/${created.id}`);
     } finally {
+      convertingRef.current = false;
       setBusy(null);
     }
   }
