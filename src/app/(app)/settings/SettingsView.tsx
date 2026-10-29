@@ -758,12 +758,14 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
       <section className="card space-y-3">
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
         <input className="input" aria-label="Business name" placeholder="Business name" value={p.business_name ?? ''}
+          autoComplete="organization" autoCapitalize="words"
           onChange={(e) => setP({ ...p, business_name: e.target.value })}
           onBlur={(e) => save({ business_name: e.target.value })} />
-        <input className="input" placeholder="Website"
+        <input className="input" placeholder="Website" type="url" inputMode="url" autoComplete="url"
+          autoCapitalize="none" autoCorrect="off" spellCheck={false}
           value={p.website_url ?? ''} onChange={(e) => setP({ ...p, website_url: e.target.value })}
           onBlur={(e) => save({ website_url: e.target.value || null })} />
-        <input className="input" placeholder="Slogan"
+        <input className="input" placeholder="Slogan" autoComplete="off"
           value={p.slogan ?? ''} onChange={(e) => setP({ ...p, slogan: e.target.value })}
           onBlur={(e) => save({ slogan: e.target.value || null })} />
         {/* Shown on the client estimate page, read live from the profile —

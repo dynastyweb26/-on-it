@@ -101,6 +101,8 @@ export default function ExpenseCard({
             className="min-h-touch min-w-0 flex-1 border-b border-dashed border-primary/40 bg-transparent text-body-lg font-semibold text-on-background outline-none placeholder:font-medium placeholder:text-on-surface-variant/60"
             placeholder="Vendor"
             maxLength={120}
+            autoComplete="off"
+            autoCapitalize="words"
             aria-label="Vendor"
             value={draft.vendor ?? ''}
             onChange={(e) => set('vendor', e.target.value || null)}

@@ -417,7 +417,7 @@ export default function Onboarding() {
             <label className="flex flex-col gap-1.5 text-[13px] font-semibold leading-[18px] text-on-surface-variant">
               Slogan (optional)
               <input className="input !min-h-12 !rounded-xl !bg-surface-container-low !text-base font-normal text-on-background" value={slogan}
-                onChange={(e) => setSlogan(e.target.value)} maxLength={60} />
+                onChange={(e) => setSlogan(e.target.value)} maxLength={60} autoComplete="off" />
             </label>
           </div>
         </section>
