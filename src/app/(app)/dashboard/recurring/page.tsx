@@ -7,7 +7,7 @@
 // All recurring A–Z: vendor, "Category · Monthly", amount, "Next Nov 2" /
 // "Paused", a skip notice when On It couldn't log a charge. Tap → edit; swipe
 // or long-press → Edit / Delete (soft, with Undo; logged expenses stay).
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import UndoToast from '@/components/UndoToast';
@@ -15,6 +15,7 @@ import { AlphaSections, ListRow, ListSkeleton, RowMenu } from '@/components/list
 import { groupByLetter } from '@/lib/clients';
 import { createClient } from '@/lib/supabase/client';
 import PageHeader from '@/components/layout/PageHeader';
+import EmptyState from '@/components/EmptyState';
 import { money } from '@/lib/financials';
 import {
   RECURRING_COLS, RECURRING_PATH, dayTag, localToday, monthlyTotal, nextLine, normalizeRecurring, recurringSubtitle,
@@ -30,17 +31,20 @@ export default function RecurringPage() {
   const [failed, setFailed] = useState(false);
   const today = localToday();
 
+  const load = useCallback(async () => {
+    setFailed(false);
+    setRows(null);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace('/login'); return; }
+    const { data, error } = await supabase.from('recurring_expenses').select(RECURRING_COLS)
+      .is('deleted_at', null).limit(500);
+    if (error) { setFailed(true); setRows([]); return; }
+    setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRecurring));
+  }, [supabase, router]);
+
   useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace('/login'); return; }
-      const { data, error } = await supabase.from('recurring_expenses').select(RECURRING_COLS)
-        .is('deleted_at', null).limit(500);
-      if (error) { setFailed(true); setRows([]); return; }
-      setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRecurring));
-    })().catch(() => { setFailed(true); setRows([]); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void load().catch(() => { setFailed(true); setRows([]); });
+  }, [load]);
 
   const groups = useMemo(() => groupByLetter(rows ?? [], (r) => r.vendor), [rows]);
   const soon = useMemo(() => upcoming(rows ?? [], today), [rows, today]);
@@ -86,24 +90,37 @@ export default function RecurringPage() {
 
   if (rows === null) return <div className="px-4 pt-2 md:px-6">{header}<ListSkeleton /></div>;
 
+  // A failed read is not an empty list: Retry, never the empty invitation.
+  if (failed && rows.length === 0) {
+    return (
+      <div className="px-4 pt-2 md:px-6">
+        {header}
+        <div className="mx-auto mt-16 max-w-sm px-4 text-center">
+          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-error-container text-error-on-container">
+            <Icon name="sync_problem" size={36} />
+          </span>
+          <h2 className="mt-5 font-display text-xl font-bold text-on-background">Couldn&apos;t load recurring expenses</h2>
+          <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">Check your connection and try again.</p>
+          <button type="button" className="btn-primary mx-auto mt-6 px-7" onClick={() => void load()}>
+            <Icon name="refresh" size={22} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (rows.length === 0 && !removed) {
     return (
       <div className="px-4 pt-2 md:px-6">
         {header}
-        {failed && <p role="status" className="mt-2 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">Couldn’t load recurring expenses. Check your connection and try again.</p>}
-        <div className="onit-rise mt-20 px-4 text-center">
-          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-primary-soft text-on-background">
-            <Icon name="autorenew" size={36} />
-          </span>
-          <h2 className="mt-5 font-display text-xl font-bold text-on-background">No recurring expenses</h2>
-          <p className="mx-auto mt-2 max-w-xs text-body-md text-on-surface-variant">
-            Add rent, insurance or software once. On It logs each one on its date, so you don’t have to.
-          </p>
-          <button type="button" className="btn-primary mx-auto mt-6 px-7" onClick={add}>
-            <Icon name="add" size={22} /> Add recurring expense
-          </button>
-          <p className="mx-auto mt-4 max-w-xs text-[13px] text-on-surface-variant">When a charge repeats, On It will offer to set it up.</p>
-        </div>
+        <EmptyState
+          icon="autorenew"
+          title="No recurring expenses yet."
+          message="Add rent, insurance or software once. On It logs each one on its date, so you don’t have to."
+          action="Add recurring"
+          onAction={add}
+        />
+        <p className="mx-auto mt-4 max-w-xs text-center text-[13px] text-on-surface-variant">When a charge repeats, On It will offer to set it up.</p>
       </div>
     );
   }
