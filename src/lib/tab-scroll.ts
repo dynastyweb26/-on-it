@@ -1,13 +1,17 @@
 // Scroll memory for the tab deck and the nested-route scroller.
 //
-// Two jobs, both pure so they can be tested without a browser:
-//   - positions live here, keyed per tab AND per list filter, and survive a
-//     remount (the deck unmounts when a nested route opens, so without this the
-//     return mounted a fresh panel at the top);
-//   - `restoreScrollTop` puts the list back once it is TALL ENOUGH to reach the
-//     offset. On return the first paint is a skeleton (or a short cached list),
-//     and the real rows can arrive seconds later; a one-shot assignment would
-//     clamp to 0 and stay there, which is the "jumps to the top" bug.
+// Three jobs, all pure so they can be tested without a browser:
+//   - positions live here, keyed per tab AND per list, and survive a remount
+//     (the deck unmounts when a nested route opens);
+//   - the position is anchored to a ROW (its id plus the offset from the
+//     viewport top), not just a pixel count, because a raw offset goes stale the
+//     moment the list's geometry differs — rows measure ~105px but the list's
+//     `contain-intrinsic-size` estimate is 88px, so a deep offset in a long list
+//     can exceed what the container can reach at all. The anchor is resolved
+//     against measured rows, so it survives that;
+//   - `restoreScrollTop` puts the list back once it can hold the position,
+//     stopping when it lands (twice, so a re-measure settles), when the user
+//     touches or wheels, or at the safety cap.
 
 /** The bit of a scrolling element these helpers need (a DOM node satisfies it). */
 export interface ScrollBox {
@@ -16,10 +20,24 @@ export interface ScrollBox {
   clientHeight: number;
 }
 
-/** How long a restore keeps waiting for content to grow. */
+/** A row in the list, measured from the top of the scroll content. */
+export interface RowRect {
+  id: string;
+  top: number;
+}
+
+/** The row at the top of the viewport, plus how far above it the reader was. */
+export interface ScrollAnchor {
+  id: string;
+  /** row.top − scrollTop at the moment it was saved (0 when row-aligned). */
+  delta: number;
+}
+
+/** How long a restore keeps trying while the list is still being measured. */
 export const TAB_SCROLL_MAX_MS = 4000;
 
 const positions = new Map<string, number>();
+const anchors = new Map<string, ScrollAnchor>();
 /** The list each tab is actually showing (Invoices: 'open' | 'paid' | …). */
 const renderedFilters = new Map<number, string>();
 
@@ -61,18 +79,47 @@ export function readSavedScroll(key: string): number {
   return positions.get(key) ?? 0;
 }
 
-export function saveScroll(key: string, top: number): void {
+export function readSavedAnchor(key: string): ScrollAnchor | null {
+  return anchors.get(key) ?? null;
+}
+
+export function saveScroll(key: string, top: number, anchor?: ScrollAnchor | null): void {
   if (Number.isFinite(top)) positions.set(key, top);
+  if (anchor) anchors.set(key, anchor);
+  else anchors.delete(key);
 }
 
 /** Forget every saved position and registered filter (tests, full sign-out). */
 export function clearSavedScroll(): void {
   positions.clear();
+  anchors.clear();
   renderedFilters.clear();
 }
 
 export function maxScroll(el: ScrollBox): number {
   return Math.max(0, el.scrollHeight - el.clientHeight);
+}
+
+/**
+ * The anchor for a viewport at `scrollTop`: the first row starting at or below
+ * the fold (or the last row, when the reader is past the end).
+ */
+export function anchorAt(rects: RowRect[], scrollTop: number): ScrollAnchor | null {
+  if (rects.length === 0) return null;
+  const below = rects.find((r) => r.top >= scrollTop - 1);
+  const row = below ?? rects[rects.length - 1];
+  return { id: row.id, delta: row.top - scrollTop };
+}
+
+/**
+ * Where that anchor sits now, from MEASURED rows. Null when the row is gone
+ * (deleted, filtered out, converted) — the caller then falls back to the raw
+ * offset rather than guessing.
+ */
+export function anchorOffset(rects: RowRect[], anchor: ScrollAnchor): number | null {
+  const row = rects.find((r) => r.id === anchor.id);
+  if (!row) return null;
+  return Math.max(0, row.top - anchor.delta);
 }
 
 export interface RestoreDeps {
@@ -87,15 +134,25 @@ export interface RestoreDeps {
 }
 
 /**
- * Put `el` back at `target`, waiting for the content to be tall enough.
- * Returns a cancel function. Nothing is clamped to 0 in the meantime, so a
- * short skeleton never reads as "we arrived".
+ * Put `el` back at the position `target` resolves to. The resolver is asked on
+ * every frame, so an anchor can be re-measured as rows paint; a number works
+ * too. Each frame writes the best position the container can hold RIGHT NOW:
+ * refusing an out-of-range target deadlocked, because rows only measure for
+ * real once they are near the fold, so the reachable maximum grows as the list
+ * paints. A clamp is never counted as arrival, so a short skeleton waits.
  */
-export function restoreScrollTop(el: ScrollBox, target: number, deps: RestoreDeps): () => void {
+export function restoreScrollTop(
+  el: ScrollBox,
+  target: number | (() => number),
+  deps: RestoreDeps,
+): () => void {
+  const resolve = typeof target === 'function' ? target : () => target;
   const maxMs = deps.maxMs ?? TAB_SCROLL_MAX_MS;
   const start = deps.now();
   let rafId = 0;
   let stopped = false;
+  let landedFrames = 0;
+  let previousWant = -1;
 
   const stop = () => {
     if (stopped) return;
@@ -107,10 +164,16 @@ export function restoreScrollTop(el: ScrollBox, target: number, deps: RestoreDep
   const tick = () => {
     if (stopped) return;
     if (deps.cancelled?.()) { stop(); return; }
-    // Only write once the list can actually reach the offset; writing early
-    // would clamp to 0 and, once content grew, look like a finished restore.
-    if (target <= maxScroll(el)) el.scrollTop = target;
-    if (Math.abs(el.scrollTop - target) < 2 || deps.now() - start > maxMs) { stop(); return; }
+    const want = resolve();
+    if (want > 0) el.scrollTop = Math.min(want, maxScroll(el));
+    // Arrival means the position matches AND the measurement has stopped
+    // moving: writing scrollTop paints rows, which re-measures the anchor and
+    // moves the target again. Stopping on the first match left a long list one
+    // correction short (2123 of 2310 in the Pending test).
+    if (Math.abs(el.scrollTop - want) < 2 && want === previousWant) landedFrames += 1;
+    else landedFrames = 0;
+    previousWant = want;
+    if (landedFrames >= 2 || deps.now() - start > maxMs) { stop(); return; }
     rafId = deps.raf(tick);
   };
 
