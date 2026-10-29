@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { tagFor } from '@/lib/doc-tags';
 import { getSharedUser } from '@/lib/auth-client';
+import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
 import SplitView from '@/components/layout/SplitView';
 
@@ -161,15 +162,29 @@ export default function Invoices({ active = true, selectedId = null }: { active?
       const { data: { user } } = await getSharedUser();
       if (cancelled) return;
       if (!user) { router.replace('/login'); return; }
-      const { data } = await supabase
+      // Cached copy first (#3): the list paints from the last visit, then the
+      // network answer replaces it behind. Short expiry — rows carry status and
+      // amount_paid, which move.
+      const cached = readCache<Row[]>(user.id, 'invoices');
+      if (cancelled) return;
+      if (cached) { setRows(cached); setLoading(false); }
+      const { data, error } = await supabase
         .from('invoices')
         .select('id, kind, invoice_number, client_name, total, status, created_at, due_date, converted_from, amount_paid, refunded_amount, viewed_at, approved_at, valid_until')
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200);
       if (cancelled) return;
-      setRows((data as Row[]) ?? []);
+      if (error) {
+        // A failed refresh keeps what is on screen — never an empty list.
+        console.error('invoices read failed', error);
+        setLoading(false);
+        return;
+      }
+      const list = (data as Row[]) ?? [];
+      setRows(list);
       setLoading(false);
+      writeCache(user.id, 'invoices', list, CACHE_TTL.invoices);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
