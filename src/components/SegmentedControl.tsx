@@ -12,7 +12,7 @@ export default function SegmentedControl<T extends string>({ options, value, onC
   const i = Math.max(0, options.findIndex((o) => o.value === value));
   return (
     <div role="radiogroup" aria-label={label}
-      className="relative inline-grid h-9 shrink-0 rounded-[10px] bg-surface-container-high p-0.5"
+      className="relative inline-grid h-11 shrink-0 rounded-[10px] bg-surface-container-high p-0.5"
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       <span aria-hidden
         className="absolute bottom-0.5 left-0.5 top-0.5 rounded-lg bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,.12)]"
