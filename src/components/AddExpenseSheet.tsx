@@ -47,6 +47,20 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
   const [amountError, setAmountError] = useState('');
   const [categoryError, setCategoryError] = useState('');
   const [detailError, setDetailError] = useState('');
+  // #11 (prompt, not draft): money-ish input is never written to disk, so
+  // leaving with something typed asks first instead of silently saving it.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  const dirty = saving ? false : Boolean(
+    amount.trim() || category || detail.trim()
+    || (initial ? spentOn !== initial.spentOn : false)
+  );
+
+  function requestClose() {
+    if (saving) return;
+    if (dirty) { setConfirmDiscard(true); return; }
+    onClose();
+  }
 
   function resetForm() {
     setAmount(''); setCategory(''); setDetail(''); setShowNote(false);
@@ -122,7 +136,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
     <>
           // data-kb-fit: pinned to the visible area while typing, so the sheet sits
           // on the keyboard; max-h tops out at that area (100%) and it scrolls.
-          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={onClose}>
+          <div data-kb-fit="" className="fixed inset-0 z-50 flex items-end md:items-center md:p-6 bg-on-background/40" onClick={requestClose}>
             <div
               className="max-h-[min(88dvh,100%)] w-full max-w-lg mx-auto overflow-y-auto rounded-t-card md:rounded-card bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] onit-sheet-in"
               onClick={(e) => e.stopPropagation()}
@@ -130,7 +144,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold">Add expense</h2>
                 <button aria-label="Close" className="grid h-touch w-touch place-items-center rounded-full text-on-surface-variant"
-                  onClick={onClose}>
+                  onClick={requestClose}>
                   <Icon name="close" size={24} />
                 </button>
               </div>
@@ -197,6 +211,16 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
                   type="date" className="input"
                   value={spentOn} onChange={(e) => setSpentOn(e.target.value)}
                 />
+                {confirmDiscard && (
+                  <div role="alertdialog" aria-label="Discard this expense?" className="rounded-input bg-surface-container-high px-3 py-2.5">
+                    <p className="text-sm font-semibold text-on-background">Discard this expense?</p>
+                    <p className="mt-0.5 text-[13px] text-on-surface-variant">What you typed won’t be kept.</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" className="btn-outline flex-1 px-3 py-2 text-sm" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
+                      <button type="button" className="flex-1 rounded-full border border-error/30 px-3 py-2 text-sm font-semibold text-error" onClick={onClose}>Discard</button>
+                    </div>
+                  </div>
+                )}
                 {saveError && <p role="alert" className="mt-1 text-sm font-semibold text-error">{saveError}</p>}
                 <button className="btn-primary w-full" disabled={saving} onClick={saveExpense}>
                   {saving ? 'Saving…' : 'Save expense'}
