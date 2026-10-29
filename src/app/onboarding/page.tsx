@@ -1,4 +1,5 @@
 'use client';
+import { userMessage } from '@/lib/errors';
 /* ═══ Onboarding — the brand moment ═══
    Steps: 1 business name + trade → 2 logo, team size, website, slogan
           (all optional) → 3 pick 2-3 colors → 4 pick background
@@ -284,7 +285,7 @@ export default function Onboarding() {
       invoice_template: template,
     });
     setBusy(false);
-    if (dbErr) { setError(dbErr.message); return; }
+    if (dbErr) { setError(userMessage(dbErr)); return; }
     const grantToken = readGrantCookie();
     if (grantToken && (await redeemGrant(grantToken)) === 'unknown') {
       // Couldn't confirm the code. Keep the cookie and let the user retry —
