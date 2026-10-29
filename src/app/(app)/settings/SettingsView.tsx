@@ -327,6 +327,39 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   const saveVersions = useRef(new Map<string, number>());
   const saveChains = useRef(new Map<string, Promise<boolean>>());
 
+  // #11 row 40: these fields persist on blur, so leaving with one still focused
+  // dropped the last edit. Every keystroke records the pending value here and
+  // leaving (pagehide, tab hidden, unmount / navigation) flushes it once.
+  const pendingEdits = useRef<Record<string, unknown>>({});
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const flushPending = () => {
+    const patch = pendingEdits.current;
+    pendingEdits.current = {};
+    if (Object.keys(patch).length) void saveRef.current(patch, { silent: true });
+  };
+  const touchEdit = (patch: Record<string, unknown>) => {
+    pendingEdits.current = { ...pendingEdits.current, ...patch };
+  };
+  const commitEdit = (column: string, value: unknown) => {
+    // The blur handler owns this column now; drop it from the pending set.
+    const rest = { ...pendingEdits.current };
+    delete rest[column];
+    pendingEdits.current = rest;
+    return save({ [column]: value });
+  };
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushPending(); };
+    window.addEventListener('pagehide', flushPending);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flushPending);
+      document.removeEventListener('visibilitychange', onHide);
+      flushPending();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function save(patch: Record<string, unknown>, opts?: { silent?: boolean }): Promise<boolean> {
     const profileId = p?.id;
     if (!profileId) return false;
@@ -759,27 +792,29 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
         <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Business</h2>
         <input className="input" aria-label="Business name" placeholder="Business name" value={p.business_name ?? ''}
           autoComplete="organization" autoCapitalize="words"
-          onChange={(e) => setP({ ...p, business_name: e.target.value })}
-          onBlur={(e) => save({ business_name: e.target.value })} />
+          onChange={(e) => { setP({ ...p, business_name: e.target.value }); touchEdit({ business_name: e.target.value }); }}
+          onBlur={(e) => void commitEdit('business_name', e.target.value)} />
         <input className="input" placeholder="Website" type="url" inputMode="url" autoComplete="url"
           autoCapitalize="none" autoCorrect="off" spellCheck={false}
-          value={p.website_url ?? ''} onChange={(e) => setP({ ...p, website_url: e.target.value })}
-          onBlur={(e) => save({ website_url: e.target.value || null })} />
+          value={p.website_url ?? ''}
+          onChange={(e) => { setP({ ...p, website_url: e.target.value }); touchEdit({ website_url: e.target.value }); }}
+          onBlur={(e) => void commitEdit('website_url', e.target.value || null)} />
         <input className="input" placeholder="Slogan" autoComplete="off"
-          value={p.slogan ?? ''} onChange={(e) => setP({ ...p, slogan: e.target.value })}
-          onBlur={(e) => save({ slogan: e.target.value || null })} />
+          value={p.slogan ?? ''}
+          onChange={(e) => { setP({ ...p, slogan: e.target.value }); touchEdit({ slogan: e.target.value }); }}
+          onBlur={(e) => void commitEdit('slogan', e.target.value || null)} />
         {/* Shown on the client estimate page, read live from the profile —
             never snapshotted, so a changed number reaches the client. */}
         <input className="input" type="tel" inputMode="tel" aria-label="Business phone"
           placeholder="Business phone" maxLength={30}
           value={p.business_phone ?? ''}
-          onChange={(e) => setP({ ...p, business_phone: e.target.value })}
-          onBlur={(e) => save({ business_phone: e.target.value.trim() || null })} />
+          onChange={(e) => { setP({ ...p, business_phone: e.target.value }); touchEdit({ business_phone: e.target.value }); }}
+          onBlur={(e) => void commitEdit('business_phone', e.target.value.trim() || null)} />
         <input className="input" type="email" inputMode="email" aria-label="Business email"
           placeholder="Business email" maxLength={254}
           value={p.business_email ?? ''}
-          onChange={(e) => setP({ ...p, business_email: e.target.value })}
-          onBlur={(e) => save({ business_email: e.target.value.trim() || null })} />
+          onChange={(e) => { setP({ ...p, business_email: e.target.value }); touchEdit({ business_email: e.target.value }); }}
+          onBlur={(e) => void commitEdit('business_email', e.target.value.trim() || null)} />
         {/* Printed at the bottom of every estimate and invoice. The text is
             copied onto a document when it is first sent, so editing it here
             never changes a document that already went out. */}
@@ -787,8 +822,8 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
           placeholder={'Terms and conditions (printed on every estimate and invoice)\nExample: 50% deposit due to schedule the work. Balance due on completion. Estimates valid for 30 days.'}
           maxLength={3000} rows={5}
           value={p.terms ?? ''}
-          onChange={(e) => setP({ ...p, terms: e.target.value })}
-          onBlur={(e) => save({ terms: e.target.value.trim() || null })} />
+          onChange={(e) => { setP({ ...p, terms: e.target.value }); touchEdit({ terms: e.target.value }); }}
+          onBlur={(e) => void commitEdit('terms', e.target.value.trim() || null)} />
         <p className="-mt-1 text-right text-xs text-on-surface-variant">{(p.terms ?? '').length}/3000</p>
       </section>
       </>)}
