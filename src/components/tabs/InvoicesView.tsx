@@ -312,7 +312,7 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                       onClick={(e) => openRow(e, r.id)}
                       style={{ WebkitTouchCallout: 'none' }}
                       onContextMenu={(e) => e.preventDefault()}
-                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-transform active:scale-[0.98] xl:px-3.5 xl:py-3 xl:border-[1.5px] xl:aria-[current=true]:border-primary-container xl:aria-[current=true]:bg-sent-container xl:hover:bg-surface-container-high onit-row-cv">
+                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-colors active:bg-surface-container-high xl:px-3.5 xl:py-3 xl:border-[1.5px] xl:aria-[current=true]:border-primary-container xl:aria-[current=true]:bg-sent-container xl:hover:bg-surface-container-high onit-row-cv">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
                         <span className="text-[13.5px] text-on-surface-variant">
@@ -324,8 +324,9 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                         {partPaid && <span className="text-[13px] text-on-surface-variant">due of {money(r.total)}</span>}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-3.5">
-                        {/* Keyed by state, so a sent → viewed change crossfades. */}
-                        <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] onit-fade-in ${tag.cls}`}>
+                        {/* Keyed by state: a sent → viewed change replaces the chip. No
+                            fade — one animation per row left 200 of them applied. */}
+                        <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] ${tag.cls}`}>
                           <Icon name={tag.icon} size={14} />{tag.text}
                         </span>
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
