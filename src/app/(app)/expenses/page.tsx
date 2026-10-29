@@ -16,6 +16,7 @@ import DateDivider from '@/components/DateDivider';
 import { SortCaption } from '@/components/SortToggle';
 import SegmentedControl from '@/components/SegmentedControl';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
+import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/layout/PageHeader';
 import { groupByPeriod } from '@/lib/date-groups';
 import { EXPENSES_SORT_KEY, readExpenseGrouping, readListSort, sortWithinGroups, writeExpenseGrouping, writeListSort, type ExpenseGrouping, type ListSort } from '@/lib/list-sort';
@@ -233,13 +234,13 @@ export default function Books() {
       ) : (
         <>
           {rows.length === 0 && (
-            <div className="mt-16 text-center">
-              <Icon name="receipt_long" size={40} className="text-primary" />
-              <p className="mt-2 text-body-md text-on-surface-variant">
-                Snap a receipt in Chat, or just say &ldquo;spent 45 on gas at Shell.&rdquo;
-                <br />I&apos;ll file it here.
-              </p>
-            </div>
+            <EmptyState
+              icon="receipt_long"
+              title="No expenses yet."
+              message="Snap a receipt to start."
+              action="Add expense"
+              onAction={() => setAdding(true)}
+            />
           )}
 
           {rows.length > 0 && (
