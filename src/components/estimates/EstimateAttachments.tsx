@@ -17,11 +17,12 @@ import {
   attachmentCountLabel,
   attachmentRoomLabel,
   attachmentSheetLabel,
-  attachmentSizeLabel,
   attachmentSlots,
   clipCaption,
   uploadProgressLabel,
 } from '@/lib/estimates/attachments-view';
+import AttachmentTile from '@/components/estimates/AttachmentTile';
+import PhotoViewer from '@/components/estimate/PhotoViewer';
 import {
   deleteEstimateAttachment,
   isImageAttachment,
@@ -55,7 +56,6 @@ type UploadItem = {
   error?: string;
 };
 
-const CAPTION_MAX = 60;
 const CAPTION_DEBOUNCE_MS = 700;
 
 function ProgressRing({ pct }: { pct: number }) {
@@ -98,6 +98,9 @@ export default function EstimateAttachments({
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // The photo the full-screen viewer is showing (null = closed). Viewing is not
+  // gated on `editable`: a locked estimate is read-only, not unreadable.
+  const [viewerId, setViewerId] = useState<string | null>(null);
   // The in-app camera (flag on only). Mounted means open; closing unmounts it,
   // and that unmount is what stops the stream.
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -139,6 +142,13 @@ export default function EstimateAttachments({
   }, [estimateId, userId]);
 
   const { room, atLimit } = attachmentSlots(items.length, uploads.length);
+
+  // Only photos with a signed URL reach the stage: one that failed to sign stays
+  // a tile instead of opening an empty viewer. Same rule as the public page.
+  const photos = items
+    .filter((item) => isImageAttachment(item) && item.previewUrl)
+    .map((item) => ({ id: item.id, url: item.previewUrl, caption: item.caption }));
+  const viewerIndex = viewerId ? photos.findIndex((photo) => photo.id === viewerId) : -1;
 
   const patchUpload = useCallback((id: string, patch: Partial<UploadItem>) => {
     setUploads((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
@@ -219,6 +229,7 @@ export default function EstimateAttachments({
       await deleteEstimateAttachment(estimateId, item.id);
       if (!alive.current) return;
       setItems((list) => list.filter((a) => a.id !== item.id));
+      if (viewerId === item.id) setViewerId(null);
     } catch (e) {
       if (!alive.current) return;
       setError(
@@ -284,50 +295,21 @@ export default function EstimateAttachments({
           className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1"
           aria-label="Estimate attachments"
         >
-          {items.map((item) => (
-            <div key={item.id} className="w-28 shrink-0 snap-start">
-              <div className="relative h-[84px] w-28 overflow-hidden rounded-[14px] border border-outline-variant/40 bg-surface-container-lowest">
-                {isImageAttachment(item) && item.previewUrl ? (
-                  // A short-lived signed URL; next/image adds nothing here.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.previewUrl} alt={item.caption || 'Estimate attachment'} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-2">
-                    <span className="rounded bg-[#9B3A23]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#9B3A23]">
-                      PDF
-                    </span>
-                    <span className="max-w-full truncate text-[10px] text-on-surface-variant">
-                      {attachmentSizeLabel(item.sizeBytes) || 'Document'}
-                    </span>
-                  </div>
-                )}
-                {editable && (
-                  <button
-                    type="button"
-                    onClick={() => void removeItem(item)}
-                    disabled={deletingId === item.id}
-                    aria-label={`Remove ${item.caption || 'attachment'}`}
-                    className="absolute -right-1 -top-1 grid h-11 w-11 place-items-center rounded-full disabled:opacity-50"
-                  >
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-inverse-surface/85 text-inverse-on-surface">
-                      <Icon name={deletingId === item.id ? 'hourglass_empty' : 'close'} size={15} />
-                    </span>
-                  </button>
-                )}
-              </div>
-              {editable ? (
-                <input
-                  value={captionDrafts[item.id] ?? ''}
-                  onChange={(e) => changeCaption(item, e.target.value)}
-                  maxLength={CAPTION_MAX}
-                  placeholder="Add caption"
-                  aria-label={`Caption for attachment ${items.indexOf(item) + 1}`}
-                  className="mt-1 w-full rounded-md border border-transparent bg-transparent px-0.5 py-1 text-[12px] text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:border-outline-variant/60"
-                />
-              ) : item.caption ? (
-                <p className="mt-1 truncate text-[12px] text-on-surface-variant">{item.caption}</p>
-              ) : null}
-            </div>
+          {items.map((item, index) => (
+            <AttachmentTile
+              key={item.id}
+              index={index + 1}
+              isImage={isImageAttachment(item)}
+              sizeBytes={item.sizeBytes}
+              previewUrl={item.previewUrl}
+              caption={item.caption}
+              editable={editable}
+              deleting={deletingId === item.id}
+              captionDraft={captionDrafts[item.id] ?? ''}
+              onOpen={() => setViewerId(item.id)}
+              onRemove={() => void removeItem(item)}
+              onCaptionChange={(value) => changeCaption(item, value)}
+            />
           ))}
 
           {uploads.map((u) => (
@@ -557,6 +539,17 @@ export default function EstimateAttachments({
           </div>
         </div>,
         document.body,
+      )}
+
+      {/* The shared full-screen viewer (public page + owner card). Rendered in
+          every state: approval blocks editing, never viewing. */}
+      {viewerIndex >= 0 && (
+        <PhotoViewer
+          photos={photos}
+          index={viewerIndex}
+          onClose={() => setViewerId(null)}
+          onIndex={(next) => setViewerId(photos[next]?.id ?? null)}
+        />
       )}
     </div>
   );
