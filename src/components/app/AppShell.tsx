@@ -598,6 +598,7 @@ export default function AppShell({
               <Link
                 key={href}
                 href={href}
+                data-bank-nav=""
                 aria-current={active ? 'page' : undefined}
                 aria-label={href === '/dashboard' && reviewCount > 0
                   ? `Books, ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} to review`
@@ -747,7 +748,7 @@ export default function AppShell({
             const active = path.startsWith(href);
             const centre = href === '/chat';
             return (
-              <Link key={href} href={href}
+              <Link key={href} href={href} data-bank-nav=""
                 aria-current={active ? 'page' : undefined}
                 aria-label={href === '/dashboard' && reviewCount > 0
                   ? `Books, ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} to review`

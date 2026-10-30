@@ -86,6 +86,21 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     return () => window.removeEventListener('onit:bank-review-open', onOpen);
   }, []);
 
+  // Tapping any nav tab, rail or sidebar item while the stack is open closes it
+  // with the slide-down (the stack plays it) and then navigates: the listener
+  // is capture-phase and never prevents the link's own navigation. Unresolved
+  // items stay in To review and the dots stay (CHANGES.md · item 6).
+  useEffect(() => {
+    if (!open) return;
+    const onNavPress = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest?.('[data-bank-nav], [data-tab-target]')) return;
+      window.dispatchEvent(new Event('onit:bank-stack-close'));
+    };
+    document.addEventListener('click', onNavPress, true);
+    return () => document.removeEventListener('click', onNavPress, true);
+  }, [open]);
+
   const openStack = useMemo(() => () => setOpen(true), []);
   // Closing with nothing left to review makes the ignored items final; closing
   // with cards still waiting keeps them restorable (the reducer checks).

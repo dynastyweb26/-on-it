@@ -159,6 +159,15 @@ export default function ReviewStack({
     later(reduce ? 0 : 360, onClose);
   }, [later, onClose, reduce]);
 
+  // A nav press closes the sheet with the slide-down (no card flight) and lets
+  // the tab navigation through. The provider dispatches this on a captured
+  // click, before Next handles the link (CHANGES.md · item 6).
+  useEffect(() => {
+    const onNavPress = () => requestClose();
+    window.addEventListener('onit:bank-stack-close', onNavPress);
+    return () => window.removeEventListener('onit:bank-stack-close', onNavPress);
+  }, [requestClose]);
+
   const caught = filter === 'review' && pending === 0 && state.items.length > 0;
 
   // All caught up dismisses itself after 1.9s, but only when the user just
