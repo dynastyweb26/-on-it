@@ -5,9 +5,9 @@
 // Books and the review sheet can never disagree. Nothing here talks to the
 // network or the database.
 //
-// The review sheet opens two ways: the app-open popup (once a day, on Books,
-// only when something is waiting — SPEC.txt's trigger) and the
-// `onit:bank-review-open` event the pinned row dispatches.
+// The review sheet opens three ways: the app-open popup (any tab, new items, or
+// leftovers once a day — CHANGES.md · item 10), the `onit:bank-review-open`
+// event the pinned row dispatches, and the Settings/Books entry points.
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState,
   type Dispatch, type SetStateAction,
@@ -15,9 +15,10 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  bankReducer, pendingCount, seedReviewState, todayIso, unaccountedCount,
+  bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso, unaccountedCount,
   type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
+import { exactTabIndex } from '@/lib/tabs';
 import {
   bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
   type BankConnection, type BankTier,
@@ -44,7 +45,10 @@ export function useBankTracking(): BankTrackingApi | null {
   return useContext(BankContext);
 }
 
+/** The day the popup last opened, so leftovers wait a day. */
 const OPENED_KEY = 'onit_bank_review_opened';
+/** Item ids already seen or dismissed: anything outside this set is new. */
+const SEEN_KEY = 'onit_bank_review_seen';
 
 export default function BankTrackingProvider({ enabled = false, children }: {
   enabled?: boolean;
@@ -57,7 +61,8 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   const pathname = usePathname();
   const pending = pendingCount(state);
   const unaccounted = unaccountedCount(state);
-  const autoOpened = useRef(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Preview fixtures: ?bankTier=free and ?bankState=reconnect|syncing|linked.
   // Read once, on the client, only where the flag is on.
@@ -66,19 +71,6 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     setTier(bankTierFromSearch(window.location.search));
     setBank(initialConnectionFromSearch(window.location.search));
   }, [enabled]);
-
-  // Once a day, on Books, and only when something is waiting.
-  useEffect(() => {
-    if (!enabled || autoOpened.current || pending === 0) return;
-    if (pathname !== '/dashboard') return;
-    autoOpened.current = true;
-    const today = todayIso();
-    try {
-      if (localStorage.getItem(OPENED_KEY) === today) return;
-      localStorage.setItem(OPENED_KEY, today);
-    } catch { /* private mode: open for this session anyway */ }
-    setOpen(true);
-  }, [enabled, pathname, pending]);
 
   // Every close is a dismissal: it forbids the auto popup until a new app open
   // or new items, and it finalizes ignored cards once To review is empty.
@@ -106,6 +98,14 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     openRef.current = false;
     setOpen(false);
     dismissed.current = true;
+    // Remember what was waiting when the owner walked away: those items are no
+    // longer "new", so only arrivals can raise the popup again.
+    try {
+      const seen = new Set<string>(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]);
+      for (const item of reviewQueue(stateRef.current)) seen.add(item.id);
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+      localStorage.setItem(OPENED_KEY, todayIso());
+    } catch { /* private mode: nothing to remember */ }
     dispatch({ type: 'finalizeIgnored' });
     if (!viaBack && pushed.current) {
       pushed.current = false;
@@ -129,6 +129,40 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // ── Auto popup (CHANGES.md · item 10) ──
+  // Any tab root, Chat included, opens the stack when To review holds items that
+  // are new since the last dismissal; leftover older items may open it once a
+  // day. It waits while a recording, a text entry or an open sheet/menu owns the
+  // screen, and a deep link or a builder route is not a tab root, so it opens
+  // once the owner is back on a tab. Free tier and flag-off never see it.
+  const autoSettled = useRef(false);
+  useEffect(() => {
+    if (!enabled || tier !== 'pro' || pending === 0 || autoSettled.current) return;
+    const attempt = () => {
+      if (autoSettled.current || dismissed.current) return;
+      if (exactTabIndex(pathname) < 0) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [aria-modal="true"]')) return;
+      if (document.body.dataset.onitRecording === '1') return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable)) return;
+
+      autoSettled.current = true;
+      const today = todayIso();
+      let seen: string[] = [];
+      let lastDay = '';
+      try {
+        seen = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[];
+        lastDay = localStorage.getItem(OPENED_KEY) ?? '';
+      } catch { /* private mode: treat everything as new */ }
+      const fresh = reviewQueue(stateRef.current).some((item) => !seen.includes(item.id));
+      if (!fresh && lastDay === today) return;
+      openStack();
+    };
+    attempt();
+    const timer = setInterval(attempt, 1200);
+    return () => clearInterval(timer);
+  }, [enabled, tier, pending, pathname, openStack]);
 
   // Tapping any nav tab, rail or sidebar item while the stack is open closes it
   // with the slide-down (the stack plays it) and then navigates: the listener
