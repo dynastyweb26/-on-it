@@ -27,6 +27,8 @@ export function collectProblems(page: Page): string[] {
     if (m.type() !== 'error') return;
     const t = m.text();
     if (/Failed to load resource/i.test(t)) return;
+    // Vercel's preview toolbar is injected on previews only and our CSP blocks it.
+    if (/vercel\.live/i.test(t)) return;
     problems.push(`console.error: ${t.slice(0, 200)}`);
   });
   page.on('response', (r) => {
