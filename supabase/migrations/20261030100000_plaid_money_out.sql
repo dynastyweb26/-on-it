@@ -206,8 +206,8 @@ $$;
 
 revoke execute on function public.set_plaid_access_token(uuid, text, text)
   from public, anon, authenticated;
-revoke execute on function public.get_plaid_access_token(uuid, text, text)
+revoke execute on function public.get_plaid_access_token(uuid, text)
   from public, anon, authenticated;
 
 grant execute on function public.set_plaid_access_token(uuid, text, text) to service_role;
-grant execute on function public.get_plaid_access_token(uuid, text, text) to service_role;
+grant execute on function public.get_plaid_access_token(uuid, text) to service_role;

@@ -1955,15 +1955,15 @@ results(id, ok, expected, actual) as (
     case when not exists (select 1 from applied where version = '20261030100000') then null
       else (select count(*) from pg_proc p
         where p.oid in (to_regprocedure('public.set_plaid_access_token(uuid, text, text)'),
-                        to_regprocedure('public.get_plaid_access_token(uuid, text, text)'))
+                        to_regprocedure('public.get_plaid_access_token(uuid, text)'))
           and p.prosecdef and 'search_path=public, extensions' = any(p.proconfig)) = 2
       and (select count(*) from (values ('public.set_plaid_access_token(uuid, text, text)'),
-                                        ('public.get_plaid_access_token(uuid, text, text)')) f(sig)
+                                        ('public.get_plaid_access_token(uuid, text)')) f(sig)
         cross join (values ('anon'), ('authenticated')) ro(r)
         where to_regprocedure(f.sig) is not null
           and not has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')) = 4
       and (select count(*) from (values ('public.set_plaid_access_token(uuid, text, text)'),
-                                        ('public.get_plaid_access_token(uuid, text, text)')) f(sig)
+                                        ('public.get_plaid_access_token(uuid, text)')) f(sig)
         where to_regprocedure(f.sig) is not null
           and has_function_privilege('service_role', to_regprocedure(f.sig), 'execute')) = 2 end,
     'token helpers: SECURITY DEFINER, search_path pinned; service_role EXECUTE only',
@@ -1972,7 +1972,7 @@ results(id, ok, expected, actual) as (
           || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
         from pg_proc p
         where p.oid in (to_regprocedure('public.set_plaid_access_token(uuid, text, text)'),
-                        to_regprocedure('public.get_plaid_access_token(uuid, text, text)'))), 'missing') end
+                        to_regprocedure('public.get_plaid_access_token(uuid, text)'))), 'missing') end
 
 )
 select id as check_id,
