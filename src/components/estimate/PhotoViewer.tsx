@@ -4,9 +4,18 @@
 // hidden at the ends, 40px swipe, caption below. Page scroll and the sticky bar
 // are disabled while it is open.
 import { useEffect, useRef } from 'react';
-import type { PublicAttachment } from '@/lib/estimates/types';
 import EstIcon from './EstIcon';
 import s from './estimate.module.css';
+
+/** What the viewer needs from a photo. Structural on purpose: the public page
+ *  passes `PublicAttachment[]` and the owner's estimate card passes its own
+ *  signed-URL items, so both share this one viewer instead of growing a second. */
+export type ViewerPhoto = {
+  id: string;
+  /** Signed URL; null when the object could not be signed (never staged). */
+  url: string | null;
+  caption?: string | null;
+};
 
 export default function PhotoViewer({
   photos,
@@ -14,7 +23,7 @@ export default function PhotoViewer({
   onClose,
   onIndex,
 }: {
-  photos: PublicAttachment[];
+  photos: ViewerPhoto[];
   index: number;
   onClose: () => void;
   onIndex: (next: number) => void;
