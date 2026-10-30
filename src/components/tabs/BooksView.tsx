@@ -21,7 +21,7 @@ import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
-import { unaccountedItems } from '@/lib/bank-tracking';
+import { reviewQueue, unaccountedItems } from '@/lib/bank-tracking';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -94,6 +94,9 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
       .reduce((sum, item) => sum + item.amount, 0)
     : 0;
   const notIncluded = bankState ? unaccountedItems(bankState).length : 0;
+  // CHANGES.md · item 9: a red dot on Spent while a bank expense still waits in
+  // To review. Derived from the same state as the nav dot, so it clears at 0.
+  const spentToReview = bankState ? reviewQueue(bankState).filter((item) => item.kind === 'expense').length : 0;
   const needsReconnect = bank?.bank.status === 'needsReconnect';
   const bankSpentRef = useRef(bankSpent);
   bankSpentRef.current = bankSpent;
@@ -323,7 +326,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
               <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
             </div>
-            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} />
+            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} alert={bankEnabled && spentToReview > 0} />
           </div>
         </div>
         {/* Totals footnote: what the bank has that these figures do not. */}
@@ -428,9 +431,11 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
   );
 }
 
-function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false }: {
+function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false, alert = false }: {
   href: string; value: number; label: string; dot: string; hint: string;
   intro?: boolean; order?: number; flash?: boolean; dim?: boolean;
+  /** CHANGES.md · item 9: at least one bank expense is still in To review. */
+  alert?: boolean;
 }) {
   // Design 1b: Spent is demoted to one full-width row, so even a six-figure
   // amount with cents has the whole row's width. `flash` still bumps the value
@@ -442,7 +447,7 @@ function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, fla
       className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0${intro ? ' onit-rise' : ''}${flash ? ' bank-gold-glow' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
+      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${alert ? 'bg-[var(--oi-alert)]' : dot}${intro ? ' onit-pop' : alert ? ' bank-dot-pop' : ''}`}
         style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
       <span className="whitespace-nowrap text-[14.5px] font-semibold text-on-surface-variant">{label}</span>
       <span className="flex-1" />
