@@ -15,10 +15,11 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso, unaccountedCount,
+  bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso, unaccountedCount,
   type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
 import { exactTabIndex } from '@/lib/tabs';
+import { useSignedIn } from '@/lib/use-auth-session';
 import {
   bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
   type BankConnection, type BankTier,
@@ -59,6 +60,13 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   const [bank, setBank] = useState<BankConnection>(() => emptyConnection());
   const [tier, setTier] = useState<BankTier>('pro');
   const pathname = usePathname();
+  // Signed out, the whole feature is inert (docs/design/CHANGES.md): `active` is
+  // the effective flag every consumer is handed, so the popup, the dots, the
+  // Settings badge and the Books footnote all go quiet behind the sign-in sheet.
+  const signedIn = useSignedIn();
+  const active = bankActive(enabled, signedIn);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const pending = pendingCount(state);
   const unaccounted = unaccountedCount(state);
   const stateRef = useRef(state);
@@ -67,14 +75,15 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   // Preview fixtures: ?bankTier=free and ?bankState=reconnect|syncing|linked.
   // Read once, on the client, only where the flag is on.
   useEffect(() => {
-    if (!enabled) return;
+    if (!active) return;
     setTier(bankTierFromSearch(window.location.search));
     setBank(initialConnectionFromSearch(window.location.search));
-  }, [enabled]);
+  }, [active]);
 
   // Every close is a dismissal: it forbids the auto popup until a new app open
   // or new items, and it finalizes ignored cards once To review is empty.
   const dismissed = useRef(false);
+  const autoSettled = useRef(false);
   const pushed = useRef(false);
   const fromPop = useRef(false);
   const openRef = useRef(false);
@@ -83,6 +92,7 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   // One history entry per opening, so the phone back gesture (and browser back)
   // closes the sheet like a tab press (CHANGES.md · item 7).
   const openStack = useCallback(() => {
+    if (!activeRef.current) return; // signed out: nothing may open
     setOpen(true);
     openRef.current = true;
     if (pushed.current) return;
@@ -113,6 +123,20 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     }
   }, []);
 
+  // Signing out takes the feature down: an open stack closes, and the popup
+  // cannot come back while there is no session. Signing in again may raise it,
+  // exactly like a fresh app open.
+  useEffect(() => {
+    if (active || !openRef.current) return;
+    closeStack();
+  }, [active, closeStack]);
+
+  useEffect(() => {
+    if (!active) return;
+    dismissed.current = false;
+    autoSettled.current = false;
+  }, [active]);
+
   useEffect(() => {
     const onOpen = () => openStack();
     window.addEventListener('onit:bank-review-open', onOpen);
@@ -136,9 +160,8 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   // day. It waits while a recording, a text entry or an open sheet/menu owns the
   // screen, and a deep link or a builder route is not a tab root, so it opens
   // once the owner is back on a tab. Free tier and flag-off never see it.
-  const autoSettled = useRef(false);
   useEffect(() => {
-    if (!enabled || tier !== 'pro' || pending === 0 || autoSettled.current) return;
+    if (!active || tier !== 'pro' || pending === 0 || autoSettled.current) return;
     const attempt = () => {
       if (autoSettled.current || dismissed.current) return;
       if (exactTabIndex(pathname) < 0) return;
@@ -162,7 +185,7 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     attempt();
     const timer = setInterval(attempt, 1200);
     return () => clearInterval(timer);
-  }, [enabled, tier, pending, pathname, openStack]);
+  }, [active, tier, pending, pathname, openStack]);
 
   // Tapping any nav tab, rail or sidebar item while the stack is open closes it
   // with the slide-down (the stack plays it) and then navigates: the listener
@@ -180,14 +203,14 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   }, [open]);
 
   const value = useMemo<BankTrackingApi>(
-    () => ({ enabled, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
-    [enabled, state, openStack, pending, unaccounted, bank, setBank, tier],
+    () => ({ enabled: active, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
+    [active, state, openStack, pending, unaccounted, bank, setBank, tier],
   );
 
   return (
     <BankContext.Provider value={value}>
       {children}
-      {enabled && open && (
+      {active && open && (
         <ReviewStack state={state} dispatch={dispatch} onClose={closeStack} />
       )}
     </BankContext.Provider>

@@ -62,3 +62,11 @@ Phase 1 is still mock-only. Nothing here writes to Supabase (the structural test
     a deep-linked sub-screen is in play — it waits until the screen is clear,
     then opens. Free users (`?bankTier=free`) and the flag-off build never see
     it.
+
+11. **Signed out, the whole feature is inert.** Nothing bank-related renders
+    until a Supabase session exists: no app-open popup, no nav/Books/Spent red
+    dots, no Settings row badge, no Books footnote or reconnect banner, and no
+    pinned row on Expenses. Signing out closes an open stack and keeps the popup
+    down; signing in again behaves like a fresh app open. Reading the session is
+    the only thing bank code touches — still no network call and no database
+    write, which the structural test enforces.

@@ -240,6 +240,16 @@ export const unaccountedCount = (state: BankReviewState): number => pendingCount
 
 export const booksDotVisible = (state: BankReviewState): boolean => unaccountedCount(state) > 0;
 
+/**
+ * The bank feature is dead until the flag is on *and* someone is signed in
+ * (docs/design/CHANGES.md, "Signed out"): no popup, no red dots, no Settings
+ * badge, no Books footnote or reconnect banner while the sign-in sheet covers
+ * the shell. Pure, so both halves of the rule are unit-tested.
+ */
+export function bankActive(flagOn: boolean, signedIn: boolean): boolean {
+  return flagOn && signedIn;
+}
+
 /** "3 of 7" — position in the stack, against the whole batch. */
 export const counterLabel = (position: number, total: number): string =>
   `${Math.max(1, position)} of ${Math.max(position, total)}`;

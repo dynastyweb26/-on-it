@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BANK_ITEMS, addedToast, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
+  BANK_ITEMS, addedToast, bankActive, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
   formatMoney, ignoredCount, ignoredQueue, nextQueueIndex, pendingCount, reviewQueue, rubberBand,
   seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
@@ -152,6 +152,13 @@ test('dates and money match the card copy', () => {
   assert.equal(options[2].label, 'Oct 30 · Today');
   // A charge that already is today's date is not offered twice.
   assert.equal(dateOptions('2026-10-30', '2026-10-30').length, 2);
+});
+
+test('the bank feature stays inert until someone is signed in', () => {
+  assert.equal(bankActive(true, true), true);
+  assert.equal(bankActive(true, false), false, 'flag on, no session');
+  assert.equal(bankActive(false, true), false, 'flag off, session');
+  assert.equal(bankActive(false, false), false, 'flag off, no session');
 });
 
 // ── The local-only guarantee ──
