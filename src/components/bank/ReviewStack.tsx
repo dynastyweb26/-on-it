@@ -194,8 +194,12 @@ export default function ReviewStack({
       on ? 'bg-surface-container-lowest text-on-background shadow-sm' : 'text-on-surface-variant'
     }`;
 
+  /** One step, never past either end. indexRef is the source of truth during a
+   *  gesture, so a fast swipe can't reuse a stale position and land back on the
+   *  same card (CHANGES.md · item 8). */
   const go = useCallback((dir: 1 | -1) => {
     const next = nextQueueIndex(queue.length, indexRef.current, dir);
+    if (next === indexRef.current) return;
     indexRef.current = next;
     setIndex(next);
   }, [queue.length]);
@@ -257,7 +261,12 @@ export default function ReviewStack({
     setDragging(false);
     const dx = dragRef.current;
     dragRef.current = 0;
-    if (Math.abs(dx) >= SWIPE_COMMIT_PX) go(dx < 0 ? 1 : -1);
+    // Past the first card a right swipe rubber bands and springs home instead
+    // of "committing" to the card already on top.
+    if (Math.abs(dx) >= SWIPE_COMMIT_PX) {
+      const dir: 1 | -1 = dx < 0 ? 1 : -1;
+      if (nextQueueIndex(queue.length, indexRef.current, dir) !== indexRef.current) go(dir);
+    }
     setDrag(0);
   }
 
@@ -322,14 +331,14 @@ export default function ReviewStack({
                 <span className="block font-display text-[18px] font-extrabold leading-[22px]">Ignored</span>
               ) : pending > 0 ? (
                 <>
-                  <span className="sr-only">Item {pos + 1} of {state.items.length}</span>
+                  <span className="sr-only">Item {pos + 1} of {queue.length}</span>
                   <span
                     aria-hidden
                     className={`block font-display text-[18px] font-extrabold leading-[22px] tabular-nums ${
                       tick === 'out' ? 'bank-tick-out' : tick === 'in' ? 'bank-tick-in' : ''
                     }`}
                   >
-                    {counterLabel(shownPos, state.items.length)}
+                    {counterLabel(shownPos, queue.length)}
                   </span>
                 </>
               ) : (
