@@ -7,6 +7,7 @@
 // stack (the route-level error.tsx only sees the error object).
 import { connectEnabled } from '@/lib/stripe/connect';
 import { subscriptionsEnabled } from '@/lib/subscriptions';
+import { bankTrackingForEnv } from '@/lib/feature-flags';
 import AppShell from '@/components/app/AppShell';
 import AppErrorBoundary from '@/components/AppErrorBoundary';
 
@@ -14,7 +15,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const enabled = connectEnabled() && Boolean(process.env.STRIPE_SECRET_KEY?.trim());
   return (
     <AppErrorBoundary>
-      <AppShell connectEnabled={enabled} subscriptionsEnabled={subscriptionsEnabled()}>
+      <AppShell
+        connectEnabled={enabled}
+        subscriptionsEnabled={subscriptionsEnabled()}
+        bankTracking={bankTrackingForEnv(process.env.VERCEL_ENV)}
+      >
         {children}
       </AppShell>
     </AppErrorBoundary>

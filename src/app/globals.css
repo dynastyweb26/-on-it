@@ -607,6 +607,11 @@ html[data-splash=""] .onit-splash {
 }
 @keyframes bank-dot-fade { to { opacity: 0; } }
 .bank-dot-fade { animation: bank-dot-fade var(--oi-dur-base) ease-out both; }
+
+/* Bank toast (R9): rises 16px in 260ms, holds 2.4s in the component, then
+   leaves. The copy never carries an amount. */
+@keyframes bank-toast-in { from { opacity: 0; transform: translateY(16px); } }
+.bank-toast-in { animation: bank-toast-in 260ms var(--oi-ease-out) both; }
 @keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
 @keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
 @keyframes onit-fade { from { opacity: 0; } }

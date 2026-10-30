@@ -14,6 +14,7 @@ import SoftPromptBanner from '@/components/SoftPromptBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
+import BankTrackingProvider from '@/components/bank/BankTrackingProvider';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
@@ -106,6 +107,7 @@ export default function AppShell({
   children,
   connectEnabled = false,
   subscriptionsEnabled = false,
+  bankTracking = false,
 }: {
   children: React.ReactNode;
   connectEnabled?: boolean;
@@ -113,6 +115,10 @@ export default function AppShell({
    *  (app)/layout.tsx; passed down so the Settings tab hides its upgrade CTA on
    *  the first paint. Defaults to the env default (off). */
   subscriptionsEnabled?: boolean;
+  /** Bank tracking (mock phase 1). Server-read by (app)/layout.tsx: on for
+   *  preview and local development, off in production. Defaults to off, so a
+   *  missing prop can never ship the screens. */
+  bankTracking?: boolean;
 }) {
   // The deck will pass this to the Settings tab; the split exists so the value
   // is known on the server's first paint instead of flashing "Coming soon".
@@ -558,6 +564,7 @@ export default function AppShell({
     // data-kb-fit: while the keyboard is open the shell is pinned to the visible
     // area (lib/keyboard.ts), so the chat composer sits right on the keyboard
     // and every tab's scroller ends where the keyboard starts.
+    <BankTrackingProvider enabled={bankTracking}>
     <div data-app-shell="" data-kb-fit="" className="flex h-dvh w-full flex-col md:flex-row">
       {/* Weekly / monthly recaps (Watch/Later sheet, story player, Books dot):
           the sheet waits while the walkthrough or the reference is open. */}
@@ -769,6 +776,7 @@ export default function AppShell({
       {/* Plays once when the unlock poll sees the paid tier arrive. */}
       <ProCelebration />
     </div>
+    </BankTrackingProvider>
   );
 }
 
