@@ -212,13 +212,11 @@ create trigger reopen_bank_transaction_on_expense_delete
 -- may set or change it; the owner keeps every other expense column.
 create or replace function public.guard_expense_plaid_transaction()
 returns trigger language plpgsql as $$
-declare
-  v_role text := coalesce(current_setting('request.jwt.claim.role', true), current_user);
 begin
   if (tg_op = 'INSERT' and new.plaid_transaction_id is not null)
      or (tg_op = 'UPDATE'
          and new.plaid_transaction_id is distinct from old.plaid_transaction_id) then
-    if v_role not in ('service_role', 'postgres') then
+    if current_user not in ('service_role', 'postgres') then
       raise exception 'expenses.plaid_transaction_id is written by the bank sync only'
         using errcode = 'insufficient_privilege';
     end if;
