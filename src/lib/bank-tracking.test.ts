@@ -10,9 +10,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BANK_ITEMS, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
+  BANK_ITEMS, addedToast, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
   formatMoney, hiddenCount, hiddenQueue, nextQueueIndex, pendingCount, reviewQueue,
-  rubberBand, seedReviewState, statusOf, swipeTransform, unaccountedCount,
+  rubberBand, seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
 
 test('fixture seeds a full copy: edits never touch the exported items', () => {
@@ -72,6 +72,34 @@ test('hiding keeps the item recoverable: unhide puts it back in the stack', () =
   assert.equal(queue.some((it) => it.id === 'co-1027'), true);
   assert.equal(queue[1].id, 'co-1027', 'returns to its fixture position');
   assert.equal(hiddenCount(state), 0);
+});
+
+test('unlink (reopen) sends a bank-verified item back to Unaccounted for', () => {
+  let state = seedReviewState();
+  state = bankReducer(state, { type: 'add', id: 'lo-1026' });
+  assert.equal(statusOf(state, 'lo-1026'), 'added');
+  assert.equal(unaccountedItems(state).some((it) => it.id === 'lo-1026'), false);
+  state = bankReducer(state, { type: 'reopen', id: 'lo-1026' });
+  assert.equal(statusOf(state, 'lo-1026'), 'open');
+  assert.equal(unaccountedItems(state).some((it) => it.id === 'lo-1026'), true);
+  assert.equal(booksDotVisible(state), true);
+});
+
+test('unaccounted amount sums only what the owner still has to deal with', () => {
+  let state = seedReviewState();
+  const total = state.items.reduce((sum, it) => sum + it.amount, 0);
+  assert.equal(unaccountedItems(state).length, state.items.length);
+  state = bankReducer(state, { type: 'hide', id: 'wm-1028' });
+  assert.equal(unaccountedItems(state).length, state.items.length, 'hidden still counts');
+  state = bankReducer(state, { type: 'add', id: 'co-1027' });
+  const expected = Math.round((total - 432.98) * 100) / 100;
+  const actual = Math.round(unaccountedItems(state).reduce((sum, it) => sum + it.amount, 0) * 100) / 100;
+  assert.equal(actual, expected);
+});
+
+test('the add toast names the day and never an amount', () => {
+  assert.equal(addedToast('2026-10-06'), 'Added to Oct 6, totals updated.');
+  assert.doesNotMatch(addedToast('2026-10-06'), /\$/);
 });
 
 test('counter reads "3 of 7" and the queue never wraps', () => {
@@ -141,11 +169,12 @@ test('no bank component can reach a database write', () => {
 });
 
 test('the bank screens are flagged, never always-on', () => {
-  // The shell only mounts the provider behind the flag prop, and the flag's
-  // default is false so a forgotten prop cannot ship the UI.
-  const shell = readFileSync(join(ROOT, 'src', 'components', 'app', 'AppShell.tsx'), 'utf8');
-  assert.match(shell, /bankTracking = false/);
-  assert.match(shell, /<BankTrackingProvider/);
+  // The shell mounts the provider behind the flag the server reads, and the
+  // provider's own default is false so a forgotten prop cannot ship the UI.
+  const layout = readFileSync(join(ROOT, 'src', 'app', '(app)', 'layout.tsx'), 'utf8');
+  assert.match(layout, /<BankTrackingProvider enabled=\{bankTrackingForEnv\(process\.env\.VERCEL_ENV\)\}>/);
+  const provider = readFileSync(join(ROOT, 'src', 'components', 'bank', 'BankTrackingProvider.tsx'), 'utf8');
+  assert.match(provider, /enabled = false/);
   // The tokens live in globals.css next to the app's own motion system.
   const css = readFileSync(BANK_GLOBALS, 'utf8');
   for (const token of ['--oi-alert', '--oi-money-in', '--oi-stack-peek-1', '--oi-fly', '--oi-snap', '--oi-pop', '--oi-highlight-new']) {

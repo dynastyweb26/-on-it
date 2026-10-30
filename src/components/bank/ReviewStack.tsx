@@ -22,7 +22,7 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  accountLabel, counterLabel, formatDay, formatMoney, hiddenQueue, nextQueueIndex,
+  accountLabel, addedToast, counterLabel, formatDay, formatMoney, hiddenQueue, nextQueueIndex,
   reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
@@ -191,7 +191,7 @@ export default function ReviewStack({
     // Add to record / Fix: cover in, then the card leaves upward.
     setLeaving({ item, mode: 'up', step: 'cover', cover: 'added' });
     dispatch({ type: 'add', id: item.id });
-    setToast(review ? review.toast : `Added to ${formatDay(item.date)}, totals updated.`);
+    setToast(review ? review.toast : addedToast(item.date));
     later(reduce ? 0 : 340, () => setLeaving((l) => (l ? { ...l, step: 'exit' } : l)));
     later(reduce ? 0 : 720, () => setLeaving(null));
   }, [top, leaving, queue.length, dispatch, later, reduce]);

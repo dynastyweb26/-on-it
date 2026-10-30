@@ -669,6 +669,31 @@ html[data-splash=""] .onit-splash {
 
 /* A confirmed choice (digest row): the check pops from scale(.6). */
 .bank-check-pop { animation: bank-badge-pop 220ms var(--oi-spring) both; }
+
+/* Pinned "Unaccounted for" row (SPEC · Expenses/Books motion table): opens by
+   height (grid-rows 0fr → 1fr), content from -14px; on first appearance only,
+   one soft red ring pulse, then nothing loops. */
+@keyframes bank-open { from { grid-template-rows: 0fr; } }
+.bank-open { display: grid; grid-template-rows: 1fr; animation: bank-open 360ms var(--oi-ease-out) both; }
+.bank-open > * { min-height: 0; }
+@keyframes bank-pulse-once {
+  0% { box-shadow: 0 0 0 0 rgba(200, 65, 46, 0); }
+  45% { box-shadow: 0 0 0 10px rgba(200, 65, 46, .16); }
+  100% { box-shadow: 0 0 0 10px rgba(200, 65, 46, 0); }
+}
+.bank-pulse-once { animation: bank-pulse-once 600ms var(--oi-ease-out) 380ms; }
+
+/* Spent counts up behind a brief gold glow. Kept/Net counts with no flash. */
+@keyframes bank-gold-glow {
+  0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+  35% { box-shadow: 0 0 0 6px rgba(212, 175, 55, .16), 0 0 22px rgba(212, 175, 55, .32); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+.bank-gold-glow { animation: bank-gold-glow var(--oi-dur-max) var(--oi-ease-out); }
+
+/* Reconnect banner / totals footnote: open by height, from -12px. */
+@keyframes bank-fade-in { from { opacity: 0; transform: translateY(-12px); } }
+.bank-fade-in { animation: bank-fade-in 320ms var(--oi-ease-out) both; }
 @keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
 @keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
 @keyframes onit-fade { from { opacity: 0; } }

@@ -24,6 +24,10 @@ import { createClient } from '@/lib/supabase/client';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
+import UnaccountedRow from '@/components/bank/UnaccountedRow';
+import BankRowDetail from '@/components/bank/BankRowDetail';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import { accountLabel, unaccountedItems } from '@/lib/bank-tracking';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -38,10 +42,15 @@ function localDate(iso: string): Date {
 /** An expense row: hold anywhere on it (the receipt thumbnail included) for the
  *  action menu. The release of a hold is swallowed so it never also opens the
  *  receipt; a plain tap on the thumbnail still does. */
-function HoldRow({ className, onHold, children }: { className: string; onHold: (rect: DOMRect) => void; children: React.ReactNode }) {
+function HoldRow({ className, onHold, onClick, children }: {
+  className: string;
+  onHold: (rect: DOMRect) => void;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
   const press = useLongPress((el) => onHold(el.getBoundingClientRect()));
   return (
-    <div className={`${className} select-none`} style={{ WebkitTouchCallout: 'none' }} {...press.handlers}
+    <div className={`${className} select-none`} style={{ WebkitTouchCallout: 'none' }} {...press.handlers} onClick={onClick}
       onClickCapture={(ev) => { if (press.consumeClick()) { ev.stopPropagation(); ev.preventDefault(); } }}>
       {children}
     </div>
@@ -59,6 +68,9 @@ interface ExpenseRow {
   /** Set when the recurring cron logged it (merge 3): ↻ on the row. */
   recurring_id: string | null;
   created_at: string | null;
+  /** Mock bank item the owner added from the review stack (Bank-verified). */
+  bankVerified?: boolean;
+  bankAccount?: string;
 }
 
 // "Logged automatically" shimmers once per row per device (3·6).
@@ -77,6 +89,8 @@ const SIGNED_URL_TTL = 3600;
 export default function Books() {
   const supabase = createClient();
   const router = useRouter();
+  // Bank tracking (mock phase 1). Null unless the shell's flag is on.
+  const bank = useBankTracking();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({}); // storage path → signed URL
   const [loading, setLoading] = useState(true);
@@ -85,6 +99,10 @@ export default function Books() {
   const [deleting, setDeleting] = useState(false);
   const [menu, setMenu] = useState<{ row: ExpenseRow; rect: DOMRect } | null>(null);
   const [undoTarget, setUndoTarget] = useState<ExpenseRow | null>(null);
+  // A Bank-verified row's detail sheet (Unlink).
+  const [bankDetail, setBankDetail] = useState<ExpenseRow | null>(null);
+  // Rows that just landed from the review stack glow once, then settle.
+  const [highlight, setHighlight] = useState<ReadonlySet<string>>(() => new Set());
   // Newest (default) / A–Z inside each week, remembered per device.
   const [sort, setSort] = useState<ListSort>('newest');
   useEffect(() => { setSort(readListSort(EXPENSES_SORT_KEY)); }, []);
@@ -172,11 +190,52 @@ export default function Books() {
   // tiebreak with the name tier so both lists order identically.
   const label = (e: ExpenseRow) => e.vendor || e.description || '';
   const categoryOf = (e: ExpenseRow) => (isExpenseCategory(e.category) ? CATEGORY_LABEL[e.category] : 'Other');
+
+  // Bank-verified rows: mock fixture items the owner added from the review
+  // stack. Display only — nothing is written, and Unlink sends one back.
+  const bankEnabled = Boolean(bank?.enabled);
+  const bankState = bank?.state;
+  const bankRows: ExpenseRow[] = bankEnabled && bankState
+    ? bankState.items
+      .filter((item) => item.kind === 'expense' && bankState.status[item.id] === 'added')
+      .map((item) => ({
+        id: `bank-${item.id}`,
+        amount: item.amount,
+        category: item.category,
+        vendor: item.merchant,
+        description: null,
+        spent_on: item.date,
+        receipt_url: null,
+        recurring_id: null,
+        created_at: null,
+        bankVerified: true,
+        bankAccount: accountLabel(item.accountId),
+      }))
+    : [];
+  const allRows = [...rows, ...bankRows];
+  // The pinned row: whatever is still unaccounted for (open + hidden).
+  const unaccounted = bankState ? unaccountedItems(bankState) : [];
+  const unaccountedAmount = unaccounted.reduce((sum, item) => sum + item.amount, 0);
+
+  // A bank row that lands while this page is open gets the one-time gold wash.
+  const seenAdded = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!bankEnabled || !bankState) return;
+    const added = new Set(bankState.items.filter((item) => bankState.status[item.id] === 'added').map((item) => item.id));
+    if (!seenAdded.current) { seenAdded.current = added; return; }
+    const fresh = [...added].filter((id) => !seenAdded.current?.has(id));
+    seenAdded.current = added;
+    if (!fresh.length) return;
+    setHighlight(new Set(fresh.map((id) => `bank-${id}`)));
+    const t = setTimeout(() => setHighlight(new Set()), 1400);
+    return () => clearTimeout(t);
+  }, [bankEnabled, bankState]);
+
   // Search: vendor, description or category, case-insensitive.
   const q = query.trim().toLowerCase();
   const visible = q
-    ? rows.filter((e) => [e.vendor, e.description, categoryOf(e)].some((v) => v?.toLowerCase().includes(q)))
-    : rows;
+    ? allRows.filter((e) => [e.vendor, e.description, categoryOf(e)].some((v) => v?.toLowerCase().includes(q)))
+    : allRows;
   const sorted = [...visible].sort((a, b) =>
     b.spent_on.localeCompare(a.spent_on) ||           // Tier 1: newest → oldest
     label(a).localeCompare(label(b)));                // Tier 2: vendor → description A→Z
@@ -247,11 +306,23 @@ export default function Books() {
           </div>
         }
       />
+      {/* The pinned row sits first in reading order after the page title.
+          Tapping it reopens the review stack; it disappears when nothing is
+          left, and the content below closes the gap. */}
+      {bankEnabled && unaccounted.length > 0 && (
+        <div className="mb-3">
+          <UnaccountedRow
+            count={unaccounted.length}
+            amount={unaccountedAmount}
+            onReview={() => window.dispatchEvent(new Event('onit:bank-review-open'))}
+          />
+        </div>
+      )}
       {loading ? (
         <ExpensesSkeleton />
       ) : (
         <>
-          {rows.length === 0 && (
+          {allRows.length === 0 && (
             <EmptyState
               icon="receipt_long"
               title="No expenses yet."
@@ -261,7 +332,7 @@ export default function Books() {
             />
           )}
 
-          {rows.length > 0 && (
+          {allRows.length > 0 && (
             <>
               <label className="flex h-11 items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5">
                 <Icon name="search" size={20} className="text-on-surface-variant/70" />
@@ -276,7 +347,7 @@ export default function Books() {
               </div>
             </>
           )}
-          {rows.length > 0 && visible.length === 0 && (
+          {allRows.length > 0 && visible.length === 0 && (
             <p className="mt-10 text-center text-on-surface-variant">No expenses match &ldquo;{query.trim()}&rdquo;</p>
           )}
           <div>
@@ -287,9 +358,10 @@ export default function Books() {
                   {g.items.map((e) => {
                     const thumb = e.receipt_url ? thumbs[e.receipt_url] : null;
                     const name = e.vendor || e.description || 'Expense';
-                    return (
-                      <HoldRow key={e.id} onHold={(rect) => setMenu({ row: e, rect })}
-                        className={`relative flex min-h-[58px] items-center gap-3 overflow-hidden border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2${shimmer.has(e.id) ? ' onit-autolog' : ''}`}>
+                    return (                        <HoldRow key={e.id}
+                          onHold={(rect) => { if (!e.bankVerified) setMenu({ row: e, rect }); }}
+                          onClick={e.bankVerified ? () => setBankDetail(e) : undefined}
+                          className={`relative flex min-h-[58px] items-center gap-3 overflow-hidden border-b border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2${shimmer.has(e.id) ? ' onit-autolog' : ''}${highlight.has(e.id) ? ' bank-highlight-new' : ''}`}>
                           {thumb ? (
                             <button
                               aria-label={`View the receipt from ${name}`}
@@ -308,6 +380,11 @@ export default function Books() {
                             <div className="flex min-w-0 items-center gap-1.5">
                               <span className="truncate text-[15.5px] font-semibold">{name}</span>
                               {e.recurring_id && <><Icon name="autorenew" size={15} className="shrink-0 text-[#B8941F]" /><span className="sr-only">, recurring</span></>}
+                              {e.bankVerified && (
+                                <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-[.06em] text-primary">
+                                  Bank-verified
+                                </span>
+                              )}
                             </div>
                             <div className="text-[12.5px] text-on-surface-variant">
                               {freshAutoLog(e) ? 'Logged automatically' : categoryOf(e)} · {localDate(e.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -356,6 +433,20 @@ export default function Books() {
           message="Expense deleted."
           onUndo={handleUndo}
           onDismiss={() => setUndoTarget(null)}
+        />
+      )}
+
+      {bankDetail && bank?.enabled && (
+        <BankRowDetail
+          merchant={bankDetail.vendor || bankDetail.description || 'Bank item'}
+          amount={Number(bankDetail.amount)}
+          date={bankDetail.spent_on}
+          account={bankDetail.bankAccount ?? 'Bank account'}
+          onClose={() => setBankDetail(null)}
+          onUnlink={() => {
+            bank.dispatch({ type: 'reopen', id: bankDetail.id.replace(/^bank-/, '') });
+            setBankDetail(null);
+          }}
         />
       )}
 

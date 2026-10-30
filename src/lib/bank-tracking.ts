@@ -167,6 +167,8 @@ export type BankAction =
   | { type: 'ignore'; id: string }
   | { type: 'hide'; id: string }
   | { type: 'unhide'; id: string }
+  /** Unlink on a bank-verified row: the item goes back to Unaccounted for. */
+  | { type: 'reopen'; id: string }
   | { type: 'edit'; id: string; patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>> }
   | { type: 'filter'; filter: BankFilter };
 
@@ -185,6 +187,7 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
     case 'hide':
       return { ...state, status: { ...state.status, [action.id]: STATUS_FOR[action.type] } };
     case 'unhide':
+    case 'reopen':
       return { ...state, status: { ...state.status, [action.id]: 'open' } };
     case 'edit':
       return {
@@ -210,6 +213,13 @@ export const hiddenQueue = (state: BankReviewState): BankItem[] =>
   state.items.filter((it) => statusOf(state, it.id) === 'hidden');
 
 export const pendingCount = (state: BankReviewState): number => reviewQueue(state).length;
+
+/** Whatever the owner still has to deal with: to review plus hidden. */
+export const unaccountedItems = (state: BankReviewState): BankItem[] =>
+  state.items.filter((it) => {
+    const status = statusOf(state, it.id);
+    return status === 'open' || status === 'hidden';
+  });
 export const hiddenCount = (state: BankReviewState): number => hiddenQueue(state).length;
 
 /**
@@ -267,6 +277,9 @@ export function shiftDay(iso: string, days: number): string {
 /** "Oct 28". */
 export const formatDay = (iso: string): string =>
   parseDay(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+/** The add confirmation. Copy rule: never carries an amount. */
+export const addedToast = (iso: string): string => `Added to ${formatDay(iso)}, totals updated.`;
 
 export const formatMoney = (n: number): string =>
   Number.isFinite(n)
