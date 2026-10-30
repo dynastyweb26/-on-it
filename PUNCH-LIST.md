@@ -978,3 +978,13 @@ _Found while checking `feat/paywall-mockup-v2` in DevTools (iPad Mini 768, iPad 
 | Books dashboard cards squash at iPad Pro width | **Open** | Net card shrinks to a narrow tile beside Still owed / Collected / Spent instead of staying a full-width hero. |
 | Screens leave large empty areas below content | **Open** | Books (and likely others) end ~40% down the page on iPad / Surface; no tablet-specific layout. |
 | Phone-first paywall steps had no tablet treatment | **Fixed on `feat/paywall-mockup-v2`** | `42dc6da` card at `md`+, `b651516` portal, `cb95e39` fit-to-height. Verify on a real iPad before merge. |
+
+## Open — logged 2026-10-30 (nested back swipe — branch `feat/nested-back-swipe`)
+
+_The drag-follow back swipe is built on `feat/nested-back-swipe` (MOTION-SPEC §18). It is not merged and not yet tested on a device. These three items are what it knowingly leaves undone._
+
+| Item | Status | Evidence |
+|---|---|---|
+| `/clients/products/*` has no parent route, so no Back arrow and no back swipe | **Open** | `getParentRoute` (`components/app/AppShell.tsx`) matches `/clients/<id>` only; `/clients/products/[pid]` and `/clients/products/new` fall through to `null`. The header renders its arrow only when that returns a route, and `SwipeBack` starts only when it does too. Both screens carry their own Cancel. |
+| The parent screen refetches on back — there is no list cache | **Open** | A nested screen unmounts the list under it, so going back remounts and re-queries it (`InvoicesView`, the Settings list, `ClientDetail`). The commit navigates after the outgoing page has left, so the parent's skeleton can land inside the entrance slide instead of behind it. An underlay or a cache would fix it; both were out of scope. |
+| The iOS edge swipe (`x < 20px`) is untested on device in the installed app | **Open** | `EDGE_GUARD_PX` leaves that strip to iOS, which animates its own container rather than this gesture, so the two can still look different. Needs a phone test in standalone mode, not Safari. |
