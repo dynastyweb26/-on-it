@@ -283,7 +283,9 @@ export default function ReviewCard({
           >
             {review.keepLabel}
           </button>
-        ) : (
+        ) : item.match ? (
+          /* Only a card with a Possible match can be "already recorded": the
+             strip is what the link would point at. CHANGES.md · item 3. */
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -300,6 +302,14 @@ export default function ReviewCard({
               Don&apos;t add
             </button>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onAction('ignore')}
+            className="min-h-[46px] rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
+          >
+            Don&apos;t add
+          </button>
         )}
       </div>
 
