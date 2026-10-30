@@ -12,7 +12,9 @@
     "splash:paths": "node scripts/build-splash-paths.mjs",
     "db:privcheck": "node scripts/privilege-check.mjs",
     "design:diff": "node scripts/design-diff.mjs",
-    "test": "node --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\""
+    "test": "node --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\"",
+    "copy:baseline": "node --import ./scripts/test-register.mjs scripts/ci/copy-baseline-cli.ts",
+    "test:guard": "node --import ./scripts/test-register.mjs scripts/ci/test-guard-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -35,7 +37,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.13",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@types/node": "22.20.2",
     "@types/react": "18.3.31",
@@ -45,6 +47,7 @@
     "postcss": "^8.4.49",
     "svgo": "3.3.5",
     "tailwindcss": "^3.4.15",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@electric-sql/pglite": "^0.5.13"
   }
 }

@@ -18,7 +18,13 @@ export async function resolve(specifier, context, next) {
   else if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {
     file = withExtension(path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier));
   }
-  return file ? next(pathToFileURL(file).href, context) : next(specifier, context);
+  if (file) return next(pathToFileURL(file).href, context);
+  // Next ships CommonJS subpath files; Node's ESM resolver needs the extension
+  // that the bundler adds for the app (`next/navigation` -> `next/navigation.js`).
+  if (/^next\/[a-z-]+(?:\/[a-z-]+)*$/.test(specifier) && !specifier.endsWith('.js')) {
+    try { return await next(specifier + '.js', context); } catch { /* fall through */ }
+  }
+  return next(specifier, context);
 }
 
 // .tsx: Node's type stripping doesn't do JSX, so transpile with the project's

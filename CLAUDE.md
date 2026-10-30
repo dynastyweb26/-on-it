@@ -106,3 +106,13 @@ Deploy workflow:
 - No migration from this feature reaches production until merged to main, then the normal flow above (dry run, full SQL shown, explicit yes, db push, privilege check).
 - Every new SECURITY DEFINER function / table / policy adds a row to scripts/privilege-check.mjs and supabase/snippets/privilege_check.sql.
 - For this feature, test on the Git-integration preview built from the branch push, because branch-scoped env vars apply only there. NEVER deploy this feature's branch with the `vercel` CLI: CLI deployments ignore branch-scoped env and connect to PRODUCTION Supabase. Before telling the founder to test, verify the preview's inlined Supabase URL contains the test ref aiijzulctfpzdfjqyggm and not bitfmmffnigxjjyxoxfr.
+
+## Regression rules (mandatory, added with the regression CI)
+1. On screen the word is "estimate". `quote` exists only as the stored value `invoices.kind = 'quote'`. Never print a stored kind; map it with `docNoun()` in `src/lib/documents.ts`. `src/lib/ci/copy-guard.test.ts` and `src/components/copy-render.test.ts` fail the build if "quote" copy appears.
+2. `tests/copy-baseline.json` is a ratchet: it may only go DOWN. Never raise it, never regenerate it to make a failure go away. After you remove old "quote" copy, run `npm run copy:baseline` and commit the lower numbers.
+3. Never delete, skip (`.skip`/`.only`/`.todo`/`xit`), or loosen a test or assertion to get green. If a test is wrong, fix the test with the reason in the commit message and tell the founder; the `test-guard` PR check blocks removals unless he adds the `tests-approved` label.
+4. Do not edit `.github/workflows/`, `scripts/ci/`, `src/lib/ci/` or `playwright.config.ts` as a side effect of another task. Changes there are their own PR, and the founder approves them.
+5. Every bug fix ships with a test that fails without the fix. Every new user-facing string goes through the shared helpers, not a copy-pasted literal.
+6. Before reporting a branch ready: `npx tsc --noEmit` and `npm test` pass. Say so with the counts, not "should work".
+7. Browser checks (`tests/e2e`, Playwright) run against a Vercel PREVIEW URL only, signed out. They never sign in and never write data: preview and production share ONE database. Authenticated specs need a separate test database and the founder's explicit go-ahead.
+8. Required checks on GitHub: `ci`, `test-guard`, `e2e/preview`. A red check is a stop, not a nudge to merge anyway.

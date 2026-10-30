@@ -1,0 +1,47 @@
+name: e2e
+# Runs when Vercel finishes a PREVIEW deployment. Never runs against production.
+on:
+  deployment_status
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  e2e:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment != 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ github.event.deployment_status.environment_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      SHA: ${{ github.event.deployment.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Browser checks against the preview
+        id: pw
+        run: npx playwright test
+      - name: Report result on the commit
+        if: always()
+        run: |
+          state=failure; desc="Browser checks failed"
+          if [ "${{ steps.pw.outcome }}" = "success" ]; then state=success; desc="Browser checks passed"; fi
+          gh api "repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$state" -f context="e2e/preview" -f description="$desc" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
