@@ -16,6 +16,7 @@ import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import BooksReviewDot from '@/components/bank/BooksReviewDot';
+import SwipeBack from '@/components/app/SwipeBack';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { goBackOr } from '@/lib/back-nav';
@@ -545,25 +546,11 @@ export default function AppShell({
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
     if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) <= SWIPE_RATIO * Math.abs(dy)) return;
-    // A rightward swipe on a nested route is the back gesture, not a tab change.
-    // /settings/<section> steps back one level to /settings — the route that
-    // nests it — instead of pushing the neighbouring tab and leaving Settings in
-    // a single swipe. Tab roots never reach this handler (the deck owns their
-    // gesture), so tab switching below is unchanged. A cold deep link has
-    // nothing behind it, so it falls back to the parent route the Back arrow
-    // would use (lib/back-nav.ts).
-    const parent = getParentRoute(window.location.pathname);
-    if (dx > 0 && parent) {
-      // The screen under the gesture must still be current.
-      if (tabIndexOf(window.location.pathname) !== g.from) return;
-      navigating.current = Date.now();
-      goBackOr(
-        () => router.push(parent),
-        typeof window === 'undefined' ? 0 : window.history.length,
-        () => router.back(),
-      );
-      return;
-    }
+    // A rightward drag on a nested route is the back gesture, and <SwipeBack>
+    // owns it end to end (drag-follow, commit, one level up). All that is left
+    // here is refusing to read it as a tab change — which is what this handler
+    // used to do, skipping the parent screen entirely.
+    if (dx > 0 && getParentRoute(window.location.pathname)) return;
     const next = g.from + (dx < 0 ? 1 : -1);
     if (next < 0 || next >= TABS.length) return; // no wrap-around past Clients or Settings
     // The tab under the gesture must still be current (nothing navigated mid-gesture).
@@ -574,6 +561,33 @@ export default function AppShell({
   function onTouchCancel() {
     gesture.current = null; // iOS took the gesture (e.g. native scroll)
   }
+
+  // A committed back swipe: the outgoing page has already left (SwipeBack), so
+  // the parent mounts at rest and slides in from the left at the release speed
+  // (MOTION-SPEC §18). 0 ms means Reduce Motion: no entrance, just the step up.
+  const [backEnter, setBackEnter] = useState(0);
+  const backEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (backEnterTimer.current) clearTimeout(backEnterTimer.current); }, []);
+  const startBackEnter = useCallback((ms: number) => {
+    if (backEnterTimer.current) clearTimeout(backEnterTimer.current);
+    if (!ms) { setBackEnter(0); return; }
+    setEnterDir(null); // one entrance at a time
+    setBackEnter(ms);
+    backEnterTimer.current = setTimeout(() => setBackEnter(0), ms + 60);
+  }, []);
+  // The target the Back arrow already uses (lib/back-nav.ts): the previous
+  // history entry, or the parent route on a cold deep link.
+  const backToParent = useCallback((enterMs: number) => {
+    const parent = getParentRoute(window.location.pathname);
+    if (!parent) return;
+    startBackEnter(enterMs);
+    navigating.current = Date.now();
+    goBackOr(
+      () => router.push(parent),
+      typeof window === 'undefined' ? 0 : window.history.length,
+      () => router.back(),
+    );
+  }, [router, startBackEnter]);
 
   // An open document or Settings section at xl is a tab, so it gets the tab's
   // header (none at md+), not the nested route's Back button: the design's split
@@ -724,7 +738,10 @@ export default function AppShell({
         <TutorialHost />
 
         {exactTab >= 0 ? (
-          <main className="min-h-0 flex-1 overflow-hidden">
+          <main
+            className={`min-h-0 flex-1 overflow-hidden${backEnter ? ' onit-enter-from-left' : ''}`}
+            style={backEnter ? { animationDuration: `${backEnter}ms` } : undefined}
+          >
             <TabDeck
               activeIndex={exactTab}
               connectEnabled={connectEnabled}
@@ -735,10 +752,11 @@ export default function AppShell({
             />
           </main>
         ) : (
-          <main
-            ref={mainRef}
-            data-tab-scroll-owner=""
-            className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}`}
+          <SwipeBack
+            parent={parentRoute}
+            mainRef={mainRef}
+            className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}${backEnter ? ' onit-enter-from-left' : ''}`}
+            style={backEnter ? { animationDuration: `${backEnter}ms` } : undefined}
             onScroll={() => {
               if (restoringRoute.current || exactTabIndex(path) >= 0) return;
               saveScroll(routeScrollKey(path), mainRef.current?.scrollTop ?? 0);
@@ -747,9 +765,10 @@ export default function AppShell({
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
             onTouchCancel={onTouchCancel}
+            onBack={backToParent}
           >
             {children}
-          </main>
+          </SwipeBack>
         )}
 
         {/* The one soft upgrade banner due on this app open (lib/soft-prompts.ts).
