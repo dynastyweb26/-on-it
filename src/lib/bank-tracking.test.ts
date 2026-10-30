@@ -14,6 +14,7 @@ import {
   formatMoney, ignoredCount, ignoredQueue, nextQueueIndex, pendingCount, reviewQueue, rubberBand,
   seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
+import { bankTrackingForEnv } from './feature-flags';
 
 test('fixture seeds a full copy: edits never touch the exported items', () => {
   const state = seedReviewState();
@@ -198,6 +199,11 @@ test('the bank screens are flagged, never always-on', () => {
   assert.match(layout, /<BankTrackingProvider enabled=\{bankTrackingForEnv\(process\.env\.VERCEL_ENV\)\}>/);
   const provider = readFileSync(join(ROOT, 'src', 'components', 'bank', 'BankTrackingProvider.tsx'), 'utf8');
   assert.match(provider, /enabled = false/);
+  // The flag itself fails closed: only a Vercel preview build shows the screens.
+  assert.equal(bankTrackingForEnv('preview'), true);
+  for (const env of ['production', 'development', undefined, '']) {
+    assert.equal(bankTrackingForEnv(env), false, `VERCEL_ENV=${String(env)} must stay dark`);
+  }
   // The tokens live in globals.css next to the app's own motion system.
   const css = readFileSync(BANK_GLOBALS, 'utf8');
   for (const token of ['--oi-alert', '--oi-money-in', '--oi-stack-peek-1', '--oi-fly', '--oi-snap', '--oi-pop', '--oi-highlight-new']) {
