@@ -331,6 +331,14 @@ export default function ReviewStack({
           <span aria-hidden className="h-11 w-11" />
         </div>
 
+        {/* CHANGES.md · item 5: the toast lives here, right under the counter,
+            in flow so it can never cover the card's action buttons. */}
+        {toast && (
+          <div className="mx-4 mb-2 shrink-0">
+            <BankToast message={toast} onDone={() => setToast(null)} />
+          </div>
+        )}
+
         {ignored.length > 0 && (
           <div role="group" aria-label="Bank activity filter" className="mx-4 mb-3 flex shrink-0 gap-1 rounded-[14px] bg-surface-container-high p-1">
             <button type="button" aria-pressed={filter === 'review'} onClick={() => dispatch({ type: 'filter', filter: 'review' })} className={segClass(filter === 'review')}>
@@ -499,12 +507,6 @@ export default function ReviewStack({
             <Icon name="arrow_forward" size={20} />
           </button>
         </div>
-
-        {toast && (
-          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-50">
-            <BankToast message={toast} onDone={() => setToast(null)} />
-          </div>
-        )}
 
         <p role="status" aria-live="polite" className="sr-only">{announce}</p>
       </div>
