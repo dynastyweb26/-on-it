@@ -80,10 +80,54 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     setOpen(true);
   }, [enabled, pathname, pending]);
 
+  // Every close is a dismissal: it forbids the auto popup until a new app open
+  // or new items, and it finalizes ignored cards once To review is empty.
+  const dismissed = useRef(false);
+  const pushed = useRef(false);
+  const fromPop = useRef(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
+  // One history entry per opening, so the phone back gesture (and browser back)
+  // closes the sheet like a tab press (CHANGES.md · item 7).
+  const openStack = useCallback(() => {
+    setOpen(true);
+    openRef.current = true;
+    if (pushed.current) return;
+    try {
+      window.history.pushState({ onitBankStack: true }, '');
+      pushed.current = true;
+    } catch { /* no history API: the X still closes it */ }
+  }, []);
+
+  const closeStack = useCallback(() => {
+    const viaBack = fromPop.current;
+    fromPop.current = false;
+    openRef.current = false;
+    setOpen(false);
+    dismissed.current = true;
+    dispatch({ type: 'finalizeIgnored' });
+    if (!viaBack && pushed.current) {
+      pushed.current = false;
+      try { window.history.back(); } catch { /* ignore */ }
+    }
+  }, []);
+
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => openStack();
     window.addEventListener('onit:bank-review-open', onOpen);
     return () => window.removeEventListener('onit:bank-review-open', onOpen);
+  }, [openStack]);
+
+  useEffect(() => {
+    const onPop = () => {
+      if (!openRef.current) return;
+      pushed.current = false; // the browser already removed our entry
+      fromPop.current = true;
+      window.dispatchEvent(new Event('onit:bank-stack-close'));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Tapping any nav tab, rail or sidebar item while the stack is open closes it
@@ -101,13 +145,6 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     return () => document.removeEventListener('click', onNavPress, true);
   }, [open]);
 
-  const openStack = useMemo(() => () => setOpen(true), []);
-  // Closing with nothing left to review makes the ignored items final; closing
-  // with cards still waiting keeps them restorable (the reducer checks).
-  const closeStack = useCallback(() => {
-    setOpen(false);
-    dispatch({ type: 'finalizeIgnored' });
-  }, []);
   const value = useMemo<BankTrackingApi>(
     () => ({ enabled, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
     [enabled, state, openStack, pending, unaccounted, bank, setBank, tier],
