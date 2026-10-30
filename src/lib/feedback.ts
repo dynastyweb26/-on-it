@@ -21,6 +21,8 @@ export const TAG_LABEL: Record<FeedbackTag, string> = {
  *  can't pass as "long enough". */
 export function cleanMessage(raw: string): string {
   return raw
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
     .replace(/\r\n?/g, '\n')
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
@@ -30,7 +32,13 @@ export function cleanMessage(raw: string): string {
 /** Single-line, bounded: for header-ish fields (screen, version, subject parts). */
 export function cleanLine(raw: string, max: number): string {
   // eslint-disable-next-line no-control-regex
-  return raw.replace(/[\u0000-\u001F\u007F]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return raw
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 export const FeedbackBody = z.object({
