@@ -26,6 +26,7 @@ import {
   BACK_HOLD_MAX_MS,
   backArrived,
   backAxis,
+  backBlockedAtLock,
   backCommits,
   backEnterMs,
   backOutMs,
@@ -33,7 +34,7 @@ import {
 } from '@/lib/back-gesture';
 import { COMMIT_EASE, SPRING_EASE } from '@/components/tabs/tab-motion';
 import { NAV_GUARD_MS, dragFromLock, settleDuration, type GestureAxis } from '@/lib/swipe';
-import { swipeBlockedAt } from '@/lib/swipe-dom';
+import { backTargetAt, suppressNextClick } from '@/lib/swipe-dom';
 import { reducedMotion } from '@/lib/list-motion';
 
 type Props = {
@@ -52,7 +53,7 @@ type Props = {
 
 export default function SwipeBack({ parent, pathname, mainRef, onBack, className = '', children, ...rest }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null);
-  const gesture = useRef<{ id: number; x: number; y: number; axis: GestureAxis; lockDx: number } | null>(null);
+  const gesture = useRef<{ id: number; x: number; y: number; target: EventTarget | null; axis: GestureAxis; lockDx: number } | null>(null);
   const samples = useRef<{ x: number; t: number }[]>([]);
   const offset = useRef(0);
   const anim = useRef<Animation | null>(null);
@@ -189,10 +190,11 @@ export default function SwipeBack({ parent, pathname, mainRef, onBack, className
         clientX: t.clientX,
         touches: e.touches.length,
         guardOpen: Date.now() - lastNav.current >= NAV_GUARD_MS,
-        blocked: swipeBlockedAt(e.target),
       });
       if (!allowed) return;
-      gesture.current = { id: t.identifier, x: t.clientX, y: t.clientY, axis: 'pending', lockDx: 0 };
+      // The target is remembered, not judged: a tap, a focus and a scroll must
+      // all still work here (backBlockedAtLock, at the axis lock).
+      gesture.current = { id: t.identifier, x: t.clientX, y: t.clientY, target: e.target, axis: 'pending', lockDx: 0 };
       samples.current = [{ x: t.clientX, t: performance.now() }];
     };
 
@@ -209,6 +211,11 @@ export default function SwipeBack({ parent, pathname, mainRef, onBack, className
         if (axis === 'pending') return;
         // Vertical is a scroll. Leftward is the shell's tab gesture.
         if (axis !== 'horizontal' || dx <= 0) { gesture.current = null; return; }
+        // Ours only if the element under the finger is not keeping the drag:
+        // a live text selection, a range, an opted-out row, a rail that can
+        // still scroll back. Nothing has been prevented yet, so declining here
+        // leaves the browser's own behaviour intact.
+        if (backBlockedAtLock(backTargetAt(g.target))) { gesture.current = null; return; }
         g.axis = 'horizontal';
         g.lockDx = dx;
         el.style.willChange = 'transform';
@@ -227,6 +234,9 @@ export default function SwipeBack({ parent, pathname, mainRef, onBack, className
       const g = gesture.current;
       gesture.current = null;
       if (!g || g.axis !== 'horizontal') return;
+      // A swipe that moved the page leaves a synthetic click behind on whatever
+      // the finger started on. A tap never gets here, so taps still click.
+      if (offset.current > 0) suppressNextClick();
       samples.current.push({ x: g.x + g.lockDx + offset.current, t: performance.now() });
       const { recentDx, dt, velocity } = release();
       const width = el.clientWidth || window.innerWidth;

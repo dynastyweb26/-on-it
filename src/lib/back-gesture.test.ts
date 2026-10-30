@@ -4,9 +4,11 @@ import {
   BACK_HOLD_MAX_MS,
   backArrived,
   backAxis,
+  backBlockedAtLock,
   backCommits,
   backEnterMs,
   backOutMs,
+  backScrollerHolds,
   canStartBackSwipe,
 } from './back-gesture';
 import { EDGE_GUARD_PX } from './swipe';
@@ -18,7 +20,6 @@ const start = {
   clientX: 160,
   touches: 1,
   guardOpen: true,
-  blocked: false,
 };
 
 test('a nested route with a parent may start a back swipe', () => {
@@ -40,10 +41,34 @@ test('the OS back strip is left alone, from the guard pixel outward', () => {
   assert.equal(canStartBackSwipe({ ...start, clientX: EDGE_GUARD_PX }), true);
 });
 
-test('multi-touch, a landing navigation and a blocked target all decline', () => {
+test('multi-touch and a landing navigation decline, but a target never decides', () => {
   assert.equal(canStartBackSwipe({ ...start, touches: 2 }), false);
   assert.equal(canStartBackSwipe({ ...start, guardOpen: false }), false);
-  assert.equal(canStartBackSwipe({ ...start, blocked: true }), false);
+  // The old `blocked` field is gone: what the touch landed on is judged at the
+  // axis lock, so a touch on a field or a button can still become a swipe.
+  assert.equal(Object.hasOwn(start, 'blocked'), false);
+});
+
+// The lock-time rules: what may be refused once the drag has gone sideways.
+const free = { textEntry: false, textSelection: false, ownGesture: false, scrollableChild: false };
+
+test('a text field does not block the swipe; a live selection in one does', () => {
+  assert.equal(backBlockedAtLock({ ...free, textEntry: true }), false);
+  assert.equal(backBlockedAtLock({ ...free, textEntry: true, textSelection: true }), true);
+  // A selection somewhere else on the page is not a reason to refuse.
+  assert.equal(backBlockedAtLock({ ...free, textSelection: true }), false);
+});
+
+test('a range input or an opted-out target always keeps the drag', () => {
+  assert.equal(backBlockedAtLock({ ...free, ownGesture: true }), true);
+  assert.equal(backBlockedAtLock({ ...free, textEntry: true, ownGesture: true }), true);
+});
+
+test('a horizontal scroller holds the swipe only while it can still scroll back', () => {
+  assert.equal(backBlockedAtLock({ ...free, scrollableChild: true }), true);
+  assert.equal(backBlockedAtLock(free), false);
+  assert.equal(backScrollerHolds(120), true); // mid-rail: its gesture
+  assert.equal(backScrollerHolds(0), false); // at the start edge: the page's
 });
 
 test('the axis locks once, on the shared 10px / 1.2 ratio', () => {

@@ -48,16 +48,19 @@ export type BackStartInput = {
   path: string;
   /** Where the touch started, in client pixels. */
   clientX: number;
+  // (the target is not part of this decision — see backBlockedAtLock)
   /** How many fingers are down; a back swipe is always one. */
   touches: number;
   /** False while a previous navigation is still landing (NAV_GUARD_MS). */
   guardOpen: boolean;
-  /** swipeBlockedAt(target): text entry, sheets, swipers, h-scrollers. */
-  blocked: boolean;
 };
 
 /**
  * Whether a touch that just started may become a back swipe.
+ *
+ * Nothing about the target is decided here: a tap, a focus and a scroll have to
+ * keep working on every element, so what the touch landed on only matters once
+ * it has travelled sideways (backBlockedAtLock).
  *
  * A tab root never can, whatever its parent looks like: the deck owns those
  * gestures, and two recognisers on one screen would fight. The left edge
@@ -69,8 +72,40 @@ export function canStartBackSwipe(input: BackStartInput): boolean {
   if (exactTabIndex(input.path) >= 0) return false;
   if (input.touches !== 1) return false;
   if (!input.guardOpen) return false;
-  if (input.blocked) return false;
   return !isEdgeBackZone(input.clientX);
+}
+
+/** What the element under the touch means, read by swipe-dom.backTargetAt. */
+export type BackTarget = {
+  /** The touch landed in a text field. Allowed: a sideways drag there does not
+   *  move the caret or select text. */
+  textEntry: boolean;
+  /** …but that field has a live selection, so the drag is a selection gesture. */
+  textSelection: boolean;
+  /** A range input, data-no-back-swipe / data-no-tab-swipe, or a fixed layer:
+   *  the drag belongs to that control, never to the page. */
+  ownGesture: boolean;
+  /** A horizontal scroller that can still scroll back in the drag direction. */
+  scrollableChild: boolean;
+};
+
+/**
+ * Whether a rightward drag that has reached its axis lock must be left to the
+ * element under the finger. Called once, at the lock — never at touchstart, so
+ * taps, focus, link presses and vertical scrolling are untouched.
+ */
+export function backBlockedAtLock(target: BackTarget): boolean {
+  if (target.ownGesture) return true;
+  if (target.textEntry && target.textSelection) return true;
+  return target.scrollableChild;
+}
+
+/**
+ * A rightward drag scrolls a horizontal rail back the way it came. At its start
+ * edge there is nothing left for the rail to take, so the swipe is the page's.
+ */
+export function backScrollerHolds(scrollLeft: number): boolean {
+  return scrollLeft > 0;
 }
 
 /** The axis a back drag has settled on, once it has travelled far enough. */
