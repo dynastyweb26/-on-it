@@ -18,6 +18,7 @@ import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import BooksReviewDot from '@/components/bank/BooksReviewDot';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
+import { goBackOr } from '@/lib/back-nav';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
 import { ENABLE_CAMERA_ANIMATION } from '@/lib/feature-flags';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
@@ -544,6 +545,25 @@ export default function AppShell({
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
     if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) <= SWIPE_RATIO * Math.abs(dy)) return;
+    // A rightward swipe on a nested route is the back gesture, not a tab change.
+    // /settings/<section> steps back one level to /settings — the route that
+    // nests it — instead of pushing the neighbouring tab and leaving Settings in
+    // a single swipe. Tab roots never reach this handler (the deck owns their
+    // gesture), so tab switching below is unchanged. A cold deep link has
+    // nothing behind it, so it falls back to the parent route the Back arrow
+    // would use (lib/back-nav.ts).
+    const parent = getParentRoute(window.location.pathname);
+    if (dx > 0 && parent) {
+      // The screen under the gesture must still be current.
+      if (tabIndexOf(window.location.pathname) !== g.from) return;
+      navigating.current = Date.now();
+      goBackOr(
+        () => router.push(parent),
+        typeof window === 'undefined' ? 0 : window.history.length,
+        () => router.back(),
+      );
+      return;
+    }
     const next = g.from + (dx < 0 ? 1 : -1);
     if (next < 0 || next >= TABS.length) return; // no wrap-around past Clients or Settings
     // The tab under the gesture must still be current (nothing navigated mid-gesture).
