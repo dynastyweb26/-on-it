@@ -111,7 +111,11 @@ function bankSources(): string[] {
   const components = readdirSync(dir)
     .filter((f) => /\.(tsx?|jsx?)$/.test(f) && !f.endsWith('.test.ts'))
     .map((f) => join(dir, f));
-  return [...components, join(ROOT, 'src', 'lib', 'bank-tracking.ts')];
+  return [
+    ...components,
+    join(ROOT, 'src', 'lib', 'bank-tracking.ts'),
+    join(ROOT, 'src', 'lib', 'bank-accounts.ts'),
+  ];
 }
 
 test('no bank component can reach a database write', () => {

@@ -1,18 +1,27 @@
 'use client';
-// Hosts the bank-tracking fixture state for the whole shell, so the review
-// sheet, the nav dot (a later step) and the Books/Expenses screens all read the
-// same copy. One provider, one reducer: nothing here talks to the network.
+// Hosts the bank-tracking fixture state for the whole shell: the review queue,
+// the bank connection, and the Pro-vs-free tier fixture. Everything the bank
+// screens read comes from here, so the Settings row, the subpage, the edge on
+// Books and the review sheet can never disagree. Nothing here talks to the
+// network or the database.
 //
-// The sheet opens two ways: the app-open popup (once a day, on Books, only when
-// there is something new — SPEC.txt's trigger) and the `onit:bank-review-open`
-// event the pinned row will dispatch.
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch } from 'react';
+// The review sheet opens two ways: the app-open popup (once a day, on Books,
+// only when something is waiting — SPEC.txt's trigger) and the
+// `onit:bank-review-open` event the pinned row dispatches.
+import {
+  createContext, useContext, useEffect, useMemo, useReducer, useRef, useState,
+  type Dispatch, type SetStateAction,
+} from 'react';
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
   bankReducer, hiddenCount, pendingCount, seedReviewState, todayIso, unaccountedCount,
   type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
+import {
+  bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
+  type BankConnection, type BankTier,
+} from '@/lib/bank-accounts';
 
 type BankTrackingApi = {
   enabled: boolean;
@@ -22,6 +31,11 @@ type BankTrackingApi = {
   pending: number;
   hidden: number;
   unaccounted: number;
+  /** The mock bank connection (pitch, choose accounts, linked, reconnect). */
+  bank: BankConnection;
+  setBank: Dispatch<SetStateAction<BankConnection>>;
+  /** Pro or free. ?bankTier=free flips it on a preview build only. */
+  tier: BankTier;
 };
 
 const BankContext = createContext<BankTrackingApi | null>(null);
@@ -39,11 +53,21 @@ export default function BankTrackingProvider({ enabled = false, children }: {
 }) {
   const [state, dispatch] = useReducer(bankReducer, undefined, () => seedReviewState());
   const [open, setOpen] = useState(false);
+  const [bank, setBank] = useState<BankConnection>(() => emptyConnection());
+  const [tier, setTier] = useState<BankTier>('pro');
   const pathname = usePathname();
   const pending = pendingCount(state);
   const hidden = hiddenCount(state);
   const unaccounted = unaccountedCount(state);
   const autoOpened = useRef(false);
+
+  // Preview fixtures: ?bankTier=free and ?bankState=reconnect|syncing|linked.
+  // Read once, on the client, only where the flag is on.
+  useEffect(() => {
+    if (!enabled) return;
+    setTier(bankTierFromSearch(window.location.search));
+    setBank(initialConnectionFromSearch(window.location.search));
+  }, [enabled]);
 
   // Once a day, on Books, and only when something is waiting.
   useEffect(() => {
@@ -66,8 +90,8 @@ export default function BankTrackingProvider({ enabled = false, children }: {
 
   const openStack = useMemo(() => () => setOpen(true), []);
   const value = useMemo<BankTrackingApi>(
-    () => ({ enabled, state, dispatch, openStack, pending, hidden, unaccounted }),
-    [enabled, state, openStack, pending, hidden, unaccounted],
+    () => ({ enabled, state, dispatch, openStack, pending, hidden, unaccounted, bank, setBank, tier }),
+    [enabled, state, openStack, pending, hidden, unaccounted, bank, tier],
   );
 
   return (
