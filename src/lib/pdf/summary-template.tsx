@@ -54,7 +54,7 @@ function keepLastWithNext(rows: ReactElement[]): ReactElement[] {
 const MUTED = '#555555';     // secondary lines (dates, disclaimer)
 
 const DISCLAIMER =
-  'This is a record of expenses you logged in On It, grouped by category. Confirm totals against your receipts and bank records.';
+  'This is a record of the income and expenses in your Books, grouped by category. Confirm totals against your receipts and bank records.';
 
 const PAGE: React.CSSProperties = {
   width: 794,
