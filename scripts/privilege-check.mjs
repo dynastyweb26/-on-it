@@ -139,7 +139,7 @@ for (const r of rows) {
 // stale copy of the SQL, or a query that dropped a section, must not pass.
 const REQUIRED = [
   'BA1', 'BA2', 'BA3', 'BA4', 'BA5', 'BA6',
-  'BB1', 'BB2', 'BB3', 'BB4', 'BB5', 'BB6', 'BB7',
+  'BB1', 'BB2', 'BB3', 'BB4', 'BB5', 'BB6', 'BB7', 'BB8', 'BB9', 'BB10',
 ];
 const missing = REQUIRED.filter((id) => !rows.some((r) => r.check_id.split(' ')[0] === id));
 for (const id of missing) console.log(`FAIL  ${id}  row missing from the privilege check output`);

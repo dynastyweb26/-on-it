@@ -269,3 +269,48 @@ revoke execute on function public.get_plaid_access_token(uuid, text)
 
 grant execute on function public.set_plaid_access_token(uuid, text, text) to service_role;
 grant execute on function public.get_plaid_access_token(uuid, text) to service_role;
+
+-- 7 ── create_plaid_item: the row and its token in one step ──────
+-- /item/public_token/exchange returns the access token and the item id
+-- together. Inserting both in one statement means there is never a placeholder
+-- row with an empty token, and the plaintext token never lands in the table, a
+-- log or a client payload.
+create or replace function public.create_plaid_item(
+  p_user uuid,
+  p_item_id text,
+  p_institution_id text,
+  p_institution_name text,
+  p_token text,
+  p_key text
+) returns uuid
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id uuid;
+begin
+  if p_user is null then
+    raise exception 'plaid: missing owner';
+  end if;
+  if p_item_id is null or char_length(p_item_id) = 0 then
+    raise exception 'plaid: missing item id';
+  end if;
+  if p_token is null or char_length(p_token) = 0 then
+    raise exception 'plaid: missing access token';
+  end if;
+  if p_key is null or char_length(p_key) = 0 then
+    raise exception 'plaid: missing encryption key';
+  end if;
+
+  insert into public.plaid_items
+    (user_id, plaid_item_id, institution_id, institution_name, access_token_enc)
+  values
+    (p_user, p_item_id, p_institution_id, p_institution_name,
+     pgp_sym_encrypt(p_token, p_key))
+  returning id into v_id;
+
+  return v_id;
+end $$;
+
+revoke execute on function public.create_plaid_item(uuid, text, text, text, text, text)
+  from public, anon, authenticated;
+grant execute on function public.create_plaid_item(uuid, text, text, text, text, text)
+  to service_role;

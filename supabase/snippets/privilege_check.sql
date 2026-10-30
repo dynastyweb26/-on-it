@@ -2013,6 +2013,21 @@ results(id, ok, expected, actual) as (
         where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
           and t.tgname = 'guard_expense_plaid_transaction'), 'trigger missing') end
 
+  union all
+  select 'BB10 create_plaid_item',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_proc p
+        where p.oid = to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)')
+          and p.prosecdef and 'search_path=public, extensions' = any(p.proconfig)) = 1
+        and not has_function_privilege('anon', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')
+        and not has_function_privilege('authenticated', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')
+        and has_function_privilege('service_role', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute') end,
+    'create_plaid_item: SECURITY DEFINER, search_path pinned, service_role EXECUTE only',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else 'anon=' || coalesce(has_function_privilege('anon', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
+        || ' auth=' || coalesce(has_function_privilege('authenticated', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
+        || ' service=' || coalesce(has_function_privilege('service_role', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
