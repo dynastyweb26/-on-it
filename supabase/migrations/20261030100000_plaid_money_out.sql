@@ -206,6 +206,34 @@ create trigger reopen_bank_transaction_on_expense_delete
   before delete on public.expenses
   for each row execute function public.reopen_bank_transaction_on_expense_delete();
 
+-- 5c ── expenses.plaid_transaction_id is server-written only ─────
+-- A client that could set this column could fake the "Bank verified" tag and
+-- route around the confirm endpoint. Only the service role (sync and confirm)
+-- may set or change it; the owner keeps every other expense column.
+create or replace function public.guard_expense_plaid_transaction()
+returns trigger language plpgsql as $$
+declare
+  v_role text := coalesce(current_setting('request.jwt.claim.role', true), current_user);
+begin
+  if (tg_op = 'INSERT' and new.plaid_transaction_id is not null)
+     or (tg_op = 'UPDATE'
+         and new.plaid_transaction_id is distinct from old.plaid_transaction_id) then
+    if v_role not in ('service_role', 'postgres') then
+      raise exception 'expenses.plaid_transaction_id is written by the bank sync only'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+  return new;
+end $$;
+
+revoke execute on function public.guard_expense_plaid_transaction()
+  from public, anon, authenticated;
+
+drop trigger if exists guard_expense_plaid_transaction on public.expenses;
+create trigger guard_expense_plaid_transaction
+  before insert or update on public.expenses
+  for each row execute function public.guard_expense_plaid_transaction();
+
 -- 6 ── Access-token helpers (service role only) ──────────────────
 -- The key is passed from the server exactly like set_zelle: it lives in the
 -- deployment's environment (PLAID_TOKEN_ENC_KEY), never in the database.

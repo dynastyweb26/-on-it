@@ -1992,6 +1992,27 @@ results(id, ok, expected, actual) as (
         where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
           and t.tgname = 'reopen_bank_transaction_on_expense_delete'), 'trigger missing') end
 
+  union all
+  select 'BB9 plaid transaction id guard',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'guard_expense_plaid_transaction'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 16) = 16) = 1
+        and coalesce((select strpos(p.prosrc, 'service_role') > 0
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_expense_plaid_transaction()')), false)
+        and not has_function_privilege('authenticated',
+          to_regprocedure('public.guard_expense_plaid_transaction()'), 'execute') end,
+    'expenses BEFORE INSERT OR UPDATE guard; service_role check in body; owner cannot call it',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select 'type=' || t.tgtype || ' definer_body=' || coalesce((select strpos(p.prosrc, 'service_role') > 0
+          from pg_proc p where p.oid = to_regprocedure('public.guard_expense_plaid_transaction()'))::text, 'missing')
+        from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'guard_expense_plaid_transaction'), 'trigger missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
