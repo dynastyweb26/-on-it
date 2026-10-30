@@ -444,6 +444,169 @@ html[data-splash=""] .onit-splash {
   --ease-emphasized: cubic-bezier(.65, 0, .35, 1);
   --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* success moments only */
 }
+
+/* ---- Bank tracking tokens (docs/design/SPEC.txt §7 · "7 · Tokens") ----
+   ONLY the tokens the app does not already have live here. The spec's bg, ink,
+   gold, gold-on-dark, type and surfaces are within a few RGB points of
+   tailwind.config.ts and the app's tokens win, so nothing is rethemed: the
+   bank screens use `background` / `on-background` / `primary` /
+   `inverse-primary` / `font-display` / `font-body` exactly like every other
+   screen. These vars are scoped to the bank surfaces (review stack, bank
+   accounts, the pinned row, the Books dot) — do not use them app-wide.
+   Motion naming: the paywall already owns @keyframes oi-up / oi-pop / oi-slide,
+   so bank classes are prefixed `bank-` and only the custom properties share
+   the --oi- prefix. */
+:root {
+  /* Red: unreviewed bank items (Books dot), the pinned row's urgency text and
+     icon, and overdue invoices later. Nothing else — reconnect is gold. */
+  --oi-alert: #c8412e;
+  /* Muted green: money-in fill and glow only, never text. Unused in phase 1. */
+  --oi-money-in: #6f9a78;
+  /* The review sheet's backdrop. */
+  --oi-scrim: rgba(30, 24, 14, .38);
+  /* A new row landing in a week group. */
+  --oi-highlight-new: #f6e9c6;
+  /* Bank-only shape: the review sheet (28) and its cards (24). */
+  --oi-radius-sheet: 28px;
+  --oi-radius-card: 24px;
+  /* Motion. Durations */
+  --oi-dur-tap: 120ms; --oi-dur-fast: 180ms; --oi-dur-base: 240ms;
+  --oi-dur-move: 340ms; --oi-dur-sheet: 420ms; --oi-dur-max: 600ms;
+  --oi-dur-hero: 1200ms; --oi-dur-highlight: 1000ms;
+  /* Motion. Easings */
+  --oi-ease-out: cubic-bezier(.2, .8, .2, 1);   /* arrivals */
+  --oi-ease-in: cubic-bezier(.4, 0, 1, 1);      /* exits */
+  --oi-ease-inout: cubic-bezier(.65, 0, .35, 1);/* between states, ring draws */
+  --oi-spring: cubic-bezier(.34, 1.28, .64, 1); /* card movement only */
+  --oi-snap: cubic-bezier(.3, 1.5, .5, 1);      /* toggle knob */
+  --oi-fly: cubic-bezier(.55, 0, .75, .35);     /* card + ring flight to a tab */
+  --oi-pop: cubic-bezier(.34, 1.56, .64, 1);    /* the red dot */
+  /* Motion. Named states */
+  --oi-stack-peek-1: translateY(14px) scale(.95);
+  --oi-stack-peek-2: translateY(28px) scale(.9);
+  --oi-stagger: 80ms;                           /* cards + link success */
+  --oi-dot-idle: 6000ms;                        /* dot halo cycle */
+}
+
+/* ---- Bank tracking motion (docs/design/SPEC.txt · motion tables) ----
+   One-shot primitives. The class is removed after it plays (or the element is
+   unmounted), so a re-render never replays it; the end state of every
+   animation is the normal, static layout. The global reduced-motion block at
+   the bottom of this file stops all of them, and a scoped block after it
+   turns the bank surfaces into the spec's 180ms opacity-only fade. */
+
+/* Review sheet: translateY 105% → 0, 420ms. The backdrop is the component's
+   own 300ms opacity transition (0 → .38). */
+@keyframes bank-sheet-up { from { transform: translateY(105%); } }
+.bank-sheet-up { animation: bank-sheet-up var(--oi-dur-sheet) var(--oi-ease-out) both; }
+@keyframes bank-sheet-down { to { transform: translateY(105%); } }
+.bank-sheet-down { animation: bank-sheet-down 360ms var(--oi-ease-in) both; }
+
+/* Cards deal in: 560ms each, 80ms apart, back to front so the top card lands
+   last. --deal-n is the card's slot counted from the back (2 = back-most,
+   0 = top), which makes the delay (2 - n) × 80ms. */
+@keyframes bank-deal { from { opacity: 0; transform: translateY(170px) scale(.96); } }
+.bank-deal {
+  animation: bank-deal 560ms var(--oi-spring) both;
+  animation-delay: calc((2 - var(--deal-n, 2)) * var(--oi-stagger));
+}
+
+/* Resting stack positions. */
+.bank-peek-1 { transform: var(--oi-stack-peek-1); }
+.bank-peek-2 { transform: var(--oi-stack-peek-2); }
+
+/* "3 of 7": the old value leaves upward in 120ms, the new one rises from
+   +8px in 180ms. */
+@keyframes bank-tick-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes bank-tick-in { from { opacity: 0; transform: translateY(8px); } }
+.bank-tick-out { animation: bank-tick-out var(--oi-dur-tap) ease-in both; }
+.bank-tick-in { animation: bank-tick-in var(--oi-dur-fast) ease-out both; }
+
+/* Add to record: a white cover fades over the card, the gold ring draws
+   (260ms), the check follows (+200ms). */
+@keyframes bank-cover-in { to { opacity: 1; } }
+.bank-cover { animation: bank-cover-in var(--oi-dur-move) var(--oi-ease-out) both; }
+@keyframes bank-ring-draw { from { stroke-dashoffset: var(--dash, 189); } }
+@keyframes bank-check-draw { from { stroke-dashoffset: var(--dash, 36); } }
+.bank-ring-draw { animation: bank-ring-draw 260ms var(--oi-ease-inout) 40ms both; }
+.bank-check-draw { animation: bank-check-draw 200ms var(--oi-ease-out) 200ms both; }
+@keyframes bank-card-out-up { to { opacity: 0; transform: translateY(-112%) scale(.9); } }
+.bank-card-out-up { animation: bank-card-out-up var(--oi-dur-move) var(--oi-ease-in) both; }
+
+/* Don't add / Keep: a soft fade to the left. */
+@keyframes bank-fade-left { to { opacity: 0; transform: translateX(-64px); } }
+.bank-fade-left { animation: bank-fade-left var(--oi-dur-base) var(--oi-ease-out) both; }
+
+/* Already recorded: the card collapses to an 84px band holding the "Linked to
+   …" row (280ms), holds (280ms), then slides right (320ms). */
+@keyframes bank-collapse-right {
+  0%     { clip-path: inset(0 0 round var(--oi-radius-card)); transform: translateX(0); opacity: 1;
+           animation-timing-function: var(--oi-ease-inout); }
+  31.82% { clip-path: inset(calc(50% - 42px) 0 round var(--oi-radius-card)); transform: translateX(0); opacity: 1;
+           animation-timing-function: linear; }
+  63.64% { clip-path: inset(calc(50% - 42px) 0 round var(--oi-radius-card)); transform: translateX(0); opacity: 1;
+           animation-timing-function: var(--oi-ease-in); }
+  100%   { clip-path: inset(calc(50% - 42px) 0 round var(--oi-radius-card)); transform: translateX(112%); opacity: 0; }
+}
+.bank-collapse-right { animation: bank-collapse-right 880ms var(--oi-ease-inout) both; }
+
+/* Card X: shrink to scale(.06) and fly to the Books nav item. The component
+   measures the distance and passes --fly-x / --fly-y (px). */
+@keyframes bank-fly {
+  to { opacity: 0; transform: translate3d(var(--fly-x, 0px), var(--fly-y, 0px), 0) scale(.06); }
+}
+.bank-fly { animation: bank-fly 480ms var(--oi-fly) both; }
+/* The gold splash ring rides the same path and lands on the tab. */
+@keyframes bank-ring-fly {
+  0%   { opacity: .9; transform: translate3d(0, 0, 0) scale(1); }
+  80%  { opacity: .5; }
+  100% { opacity: 0; transform: translate3d(var(--fly-x, 0px), var(--fly-y, 0px), 0) scale(.5); }
+}
+.bank-ring-fly { animation: bank-ring-fly 480ms var(--oi-fly) both; }
+/* Nav item: 1 → 1.18 → 1 (220ms), plus the 140ms landing pulse. */
+@keyframes bank-nav-bump { 50% { transform: scale(1.18); } }
+.bank-nav-bump { animation: bank-nav-bump 220ms var(--oi-ease-inout) both; }
+@keyframes bank-splash-pulse { to { opacity: 0; transform: scale(2.6); } }
+.bank-splash-pulse { animation: bank-splash-pulse 140ms var(--oi-ease-out) both; }
+
+/* Inline field reveal (amount / date / category): scaleY(.85) → 1. */
+@keyframes bank-expand { from { opacity: 0; transform: scaleY(.85); } }
+.bank-expand { transform-origin: 50% 0; animation: bank-expand 220ms var(--oi-ease-out) both; }
+
+/* All caught up: the 600ms ring draws, the 280ms check follows at +420ms. */
+.bank-caught-ring { animation: bank-ring-draw var(--oi-dur-max) var(--oi-ease-inout) both; }
+.bank-caught-check { animation: bank-check-draw 280ms var(--oi-ease-out) 420ms both; }
+
+/* A new expense row drops into its week: #f6e9c6 holds 320ms, then fades to
+   the row's own background over 1s. */
+@keyframes bank-highlight-new {
+  0%, 24.24% { background-color: var(--oi-highlight-new); }
+  100% { background-color: transparent; }
+}
+.bank-highlight-new { animation: bank-highlight-new calc(320ms + var(--oi-dur-highlight)) var(--oi-ease-out) both; }
+
+/* Books red dot: pop (320ms), then one halo in the first 540ms of every 6s. */
+@keyframes bank-dot-pop {
+  0% { opacity: 0; transform: scale(0); }
+  60% { opacity: 1; transform: scale(1.25); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.bank-dot-pop { animation: bank-dot-pop 320ms var(--oi-pop) both; }
+@keyframes bank-dot-halo {
+  0% { transform: scale(1); opacity: .5; }
+  9% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.bank-dot-halo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--oi-alert);
+  animation: bank-dot-halo var(--oi-dot-idle) var(--oi-ease-out) infinite;
+}
+@keyframes bank-dot-fade { to { opacity: 0; } }
+.bank-dot-fade { animation: bank-dot-fade var(--oi-dur-base) ease-out both; }
 @keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
 @keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
 @keyframes onit-fade { from { opacity: 0; } }
@@ -742,4 +905,19 @@ html[data-splash=""] .onit-splash {
      animation to fade out. With animations off it would sit opaque over the
      chat until the screen is left, so under reduced motion it never renders. */
   .onit-shutter { display: none !important; }
+}
+
+/* Bank surfaces under reduced motion (SPEC.txt): opacity only, 180ms ease-out —
+   no flight, no springs, no count-up; values swap under a fade. The global
+   block above already stops every keyframe (leaving each element at its
+   resting state); this re-enables the one transition the spec keeps, and only
+   inside a bank surface, so nothing else in the app changes. The count-ups are
+   JS (Books totals, the edit-amount field) and skip the tween themselves. */
+@media (prefers-reduced-motion: reduce) {
+  [data-bank-motion] .bank-fade {
+    transition-property: opacity !important;
+    transition-duration: var(--oi-dur-fast) !important;
+    transition-timing-function: var(--oi-ease-out) !important;
+  }
+  [data-bank-motion] .bank-dot-halo::after { animation: none !important; }
 }
