@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BANK_ITEMS, addedToast, bankActive, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
+  BANK_ITEMS, addedToast, bankActive, bankReducer, booksDotVisible, cardActions, counterLabel, dateOptions, formatDay,
   formatMoney, ignoredCount, ignoredQueue, nextQueueIndex, pendingCount, reviewQueue, rubberBand,
   seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
@@ -159,6 +159,16 @@ test('the bank feature stays inert until someone is signed in', () => {
   assert.equal(bankActive(true, false), false, 'flag on, no session');
   assert.equal(bankActive(false, true), false, 'flag off, session');
   assert.equal(bankActive(false, false), false, 'flag off, no session');
+});
+
+test('a card offers exactly two buttons', () => {
+  const matched = BANK_ITEMS.find((i) => i.match && !i.review);
+  const plain = BANK_ITEMS.find((i) => !i.match && !i.review);
+  const review = BANK_ITEMS.find((i) => i.review);
+  assert.ok(matched && plain && review, 'the fixtures cover all three shapes');
+  assert.deepEqual(cardActions(matched), ['add', 'already']);
+  assert.deepEqual(cardActions(plain), ['add', 'ignore']);
+  assert.deepEqual(cardActions(review), ['add', 'ignore'], 'review keeps its Fix / Keep pair');
 });
 
 // ── The local-only guarantee ──

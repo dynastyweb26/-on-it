@@ -22,9 +22,11 @@ Phase 1 is still mock-only. Nothing here writes to Supabase (the structural test
    the stack is closed with To review == 0, Ignored items become final and the
    Ignored tab disappears; closed with To review > 0, Ignored persists.
 
-3. **Already recorded is conditional.** The button only appears on cards that
-   carry a Possible match strip. A card with no match shows Add to record plus a
-   full-width secondary Don't add.
+3. **Two buttons, never three.** Both stack full-width, sized like today's
+   secondary button — no side-by-side grid. A card with a Possible match
+   strip shows Add to record + Already recorded; a card with no match shows
+   Add to record + Don't add. The needs-review variant keeps its fixLabel +
+   keepLabel pair unchanged.
 
 4. **No letter tile on expense cards.** The W / L / M tile is removed there; the
    merchant name is 28–30px and the card carries a little more vertical padding

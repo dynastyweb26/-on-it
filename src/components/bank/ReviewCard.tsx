@@ -14,9 +14,9 @@ import { useEffect, useRef, useState, type Ref } from 'react';
 import Icon from '@/components/Icon';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { reducedMotion } from '@/lib/list-motion';
-import { dateOptions, formatDay, formatMoney, type BankItem } from '@/lib/bank-tracking';
+import { cardActions, dateOptions, formatDay, formatMoney, type BankItem, type CardAction } from '@/lib/bank-tracking';
 
-export type CardAction = 'add' | 'already' | 'ignore';
+export type { CardAction };
 type EditField = 'amount' | 'date' | null;
 
 const AMOUNT_COUNT_MS = 320;
@@ -268,49 +268,27 @@ export default function ReviewCard({
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 p-[18px] pt-3">
-        <button
-          type="button"
-          onClick={() => onAction('add')}
-          className="min-h-[54px] rounded-full bg-primary-container font-display text-base font-bold text-on-background transition-transform active:scale-[0.97]"
-        >
-          {review ? review.fixLabel : 'Add to record'}
-        </button>
-        {review ? (
+        {/* Two buttons, never three, stacked full-width (CHANGES.md · item 3).
+            The pair comes from cardActions(item) so the rule lives in the model. */}
+        {cardActions(item).map((action) => (action === 'add' ? (
           <button
+            key="add"
             type="button"
-            onClick={() => onAction('ignore')}
-            className="min-h-[46px] rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
+            onClick={() => onAction('add')}
+            className="min-h-[54px] rounded-full bg-primary-container font-display text-base font-bold text-on-background transition-transform active:scale-[0.97]"
           >
-            {review.keepLabel}
+            {review ? review.fixLabel : 'Add to record'}
           </button>
-        ) : item.match ? (
-          /* Only a card with a Possible match can be "already recorded": the
-             strip is what the link would point at. CHANGES.md · item 3. */
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => onAction('already')}
-              className="min-h-[46px] rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
-            >
-              Already recorded
-            </button>
-            <button
-              type="button"
-              onClick={() => onAction('ignore')}
-              className="min-h-[46px] rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
-            >
-              Don&apos;t add
-            </button>
-          </div>
         ) : (
           <button
+            key={action}
             type="button"
-            onClick={() => onAction('ignore')}
-            className="min-h-[46px] rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
+            onClick={() => onAction(action)}
+            className="min-h-[46px] w-full rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
           >
-            Don&apos;t add
+            {action === 'already' ? 'Already recorded' : review ? review.keepLabel : "Don't add"}
           </button>
-        )}
+        )))}
       </div>
 
       {cover === 'added' && (

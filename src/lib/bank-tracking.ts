@@ -250,6 +250,20 @@ export function bankActive(flagOn: boolean, signedIn: boolean): boolean {
   return flagOn && signedIn;
 }
 
+/** The three things a card can be asked to do. */
+export type CardAction = 'add' | 'already' | 'ignore';
+
+/**
+ * A card's two buttons, never three (CHANGES.md · item 3). A card whose Possible
+ * match strip points at an expense already in the Books offers "Already
+ * recorded" instead of "Don't add"; the needs-review variant keeps its Fix /
+ * Keep pair. Pure, so the rule is unit-tested rather than buried in JSX.
+ */
+export function cardActions(item: Pick<BankItem, 'review' | 'match'>): CardAction[] {
+  if (item.review) return ['add', 'ignore'];
+  return item.match ? ['add', 'already'] : ['add', 'ignore'];
+}
+
 /** "3 of 7" — position in the stack, against the whole batch. */
 export const counterLabel = (position: number, total: number): string =>
   `${Math.max(1, position)} of ${Math.max(position, total)}`;
