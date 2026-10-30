@@ -502,6 +502,14 @@ html[data-splash=""] .onit-splash {
 @keyframes bank-sheet-down { to { transform: translateY(105%); } }
 .bank-sheet-down { animation: bank-sheet-down 360ms var(--oi-ease-in) both; }
 
+/* The one X (CHANGES.md · item 1): the whole sheet shrinks to scale(.12) and
+   flies to the visible Books nav item, which pulses when it lands. The
+   component measures the distance and passes --fly-x / --fly-y (px). */
+@keyframes bank-sheet-fly {
+  to { opacity: 0; transform: translate(var(--fly-x, 0px), var(--fly-y, 0px)) scale(.12); }
+}
+.bank-sheet-fly { animation: bank-sheet-fly 460ms var(--oi-ease-in) both; }
+
 /* Cards deal in: 560ms each, 80ms apart, back to front so the top card lands
    last. --deal-n is the card's slot counted from the back (2 = back-most,
    0 = top), which makes the delay (2 - n) × 80ms. */

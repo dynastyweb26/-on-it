@@ -3,9 +3,9 @@
 // and the pure reducer behind the review stack; there is no API and no Plaid.
 //
 // HARD RULE: nothing here — or in components/bank — may write to the database.
-// Add to record, Already recorded, Don't add, X and Unlink only move local
-// state, and bank-tracking.test.ts fails the build if a bank file so much as
-// imports the Supabase client or calls insert/update/upsert/delete/rpc.
+// Add to record, Already recorded, Don't add and Unlink only move local state,
+// and bank-tracking.test.ts fails the build if a bank file so much as imports
+// the Supabase client or calls insert/update/upsert/delete/rpc.
 import type { ExpenseCategory } from './expenses';
 
 export type BankAccount = {
@@ -66,15 +66,13 @@ export type BankItem = {
   review?: BankReview;
 };
 
-/** open = still to review, hidden = X'd for now, the rest are decided. */
-export type BankItemStatus = 'open' | 'added' | 'already' | 'hidden' | 'ignored';
-
-export type BankFilter = 'review' | 'hidden';
+/** open = still to review. Everything else is decided and leaves the stack.
+ *  Closing the sheet (X) never changes a status: unresolved items stay open. */
+export type BankItemStatus = 'open' | 'added' | 'already' | 'ignored';
 
 export type BankReviewState = {
   items: BankItem[];
   status: Record<string, BankItemStatus>;
-  filter: BankFilter;
 };
 
 // ═══ The fixture ═══
@@ -158,25 +156,20 @@ export const BANK_ITEMS: BankItem[] = [
 export const seedReviewState = (items: BankItem[] = BANK_ITEMS): BankReviewState => ({
   items: items.map((it) => ({ ...it })),
   status: {},
-  filter: 'review',
 });
 
 export type BankAction =
   | { type: 'add'; id: string }
   | { type: 'already'; id: string }
   | { type: 'ignore'; id: string }
-  | { type: 'hide'; id: string }
-  | { type: 'unhide'; id: string }
   /** Unlink on a bank-verified row: the item goes back to Unaccounted for. */
   | { type: 'reopen'; id: string }
-  | { type: 'edit'; id: string; patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>> }
-  | { type: 'filter'; filter: BankFilter };
+  | { type: 'edit'; id: string; patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>> };
 
-const STATUS_FOR: Record<'add' | 'already' | 'ignore' | 'hide', BankItemStatus> = {
+const STATUS_FOR: Record<'add' | 'already' | 'ignore', BankItemStatus> = {
   add: 'added',
   already: 'already',
   ignore: 'ignored',
-  hide: 'hidden',
 };
 
 export function bankReducer(state: BankReviewState, action: BankAction): BankReviewState {
@@ -184,9 +177,7 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
     case 'add':
     case 'already':
     case 'ignore':
-    case 'hide':
       return { ...state, status: { ...state.status, [action.id]: STATUS_FOR[action.type] } };
-    case 'unhide':
     case 'reopen':
       return { ...state, status: { ...state.status, [action.id]: 'open' } };
     case 'edit':
@@ -194,8 +185,6 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
         ...state,
         items: state.items.map((it) => (it.id === action.id ? { ...it, ...action.patch } : it)),
       };
-    case 'filter':
-      return { ...state, filter: action.filter };
     default:
       return state;
   }
@@ -204,31 +193,22 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
 export const statusOf = (state: BankReviewState, id: string): BankItemStatus =>
   state.status[id] ?? 'open';
 
-/** Cards still in the stack, in fixture order. */
+/** Cards still in the stack, in fixture order. Closing the sheet keeps them. */
 export const reviewQueue = (state: BankReviewState): BankItem[] =>
   state.items.filter((it) => statusOf(state, it.id) === 'open');
 
-/** Items sent away with X. They stay unaccounted for. */
-export const hiddenQueue = (state: BankReviewState): BankItem[] =>
-  state.items.filter((it) => statusOf(state, it.id) === 'hidden');
-
 export const pendingCount = (state: BankReviewState): number => reviewQueue(state).length;
 
-/** Whatever the owner still has to deal with: to review plus hidden. */
-export const unaccountedItems = (state: BankReviewState): BankItem[] =>
-  state.items.filter((it) => {
-    const status = statusOf(state, it.id);
-    return status === 'open' || status === 'hidden';
-  });
-export const hiddenCount = (state: BankReviewState): number => hiddenQueue(state).length;
+/** Whatever the owner still has to deal with. There is no hidden state any
+ *  more: X only closes the sheet, so unresolved items are simply still open. */
+export const unaccountedItems = (state: BankReviewState): BankItem[] => reviewQueue(state);
 
 /**
- * The red dot rule: unaccounted (still to review) + hidden > 0. Decided items
- * (added / already recorded / don't add) never count, and opening the stack
- * never clears it — only resolving or hiding everything does.
+ * The red dot rule: still to review > 0. Decided items (added / already
+ * recorded / don't add) never count, and opening the stack never clears it —
+ * only resolving everything does.
  */
-export const unaccountedCount = (state: BankReviewState): number =>
-  pendingCount(state) + hiddenCount(state);
+export const unaccountedCount = (state: BankReviewState): number => pendingCount(state);
 
 export const booksDotVisible = (state: BankReviewState): boolean => unaccountedCount(state) > 0;
 

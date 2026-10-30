@@ -3,14 +3,16 @@
 // A full-screen sheet on phones, a centred 440px dialog from 768px up, over a
 // scrim. One stack of cards: drag sideways to browse, act on the front card.
 //
-// Structural rules this file keeps (SPEC.txt):
+// Structural rules this file keeps (SPEC.txt, overridden where CHANGES.md says):
 //   · role="dialog" aria-modal, labelled by the counter; Escape closes and
 //     focus returns to whatever opened it.
-//   · Focus order: X → filter → top card … → card X; the peeks are inert.
+//   · Focus order: X → top card … (the peeks are inert).
 //   · "3 of 7" is aria-live and announces "Item 3 of 7".
 //   · Swipe is touch-only and rubber-banded at the ends; ← / → and the
 //     on-screen prev/next buttons (pointer devices) are the keyboard path.
-//   · X flies the card to whichever Books nav item is visible and pulses it.
+//   · ONE X, top-left. It shrinks the sheet and flies it to whichever Books nav
+//     item is visible, then pulses that item. Unresolved items stay open: there
+//     is no hidden state, so closing never loses a card.
 //   · Reduced motion: no flight, no springs, no count-up; each action is one
 //     fade and the card is simply gone.
 //
@@ -22,14 +24,14 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  accountLabel, addedToast, counterLabel, formatDay, formatMoney, hiddenQueue, nextQueueIndex,
-  reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
+  accountLabel, addedToast, counterLabel, nextQueueIndex, reviewQueue, rubberBand,
+  SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
 
 type Leaving = {
   item: BankItem;
-  mode: 'up' | 'left' | 'collapse' | 'fly';
+  mode: 'up' | 'left' | 'collapse';
   step: 'cover' | 'exit';
   cover: 'added' | 'linked' | null;
 };
@@ -51,11 +53,11 @@ export default function ReviewStack({
   onClose: () => void;
 }) {
   const queue = reviewQueue(state);
-  const hidden = hiddenQueue(state);
   const pending = queue.length;
-  const filter = state.filter;
   const [index, setIndex] = useState(0);
+  const indexRef = useRef(0);
   const pos = Math.min(index, Math.max(0, queue.length - 1));
+  indexRef.current = pos;
   const top = queue[pos] ?? null;
 
   const [drag, setDrag] = useState(0);
@@ -80,6 +82,7 @@ export default function ReviewStack({
   const gesture = useRef<{ id: number; x: number; y: number; active: boolean } | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishSoon = useRef(false);
+  const closingRef = useRef(false);
 
   const later = useCallback((ms: number, fn: () => void) => {
     const t = setTimeout(fn, ms);
@@ -119,27 +122,6 @@ export default function ReviewStack({
     return () => clearTimeout(t);
   }, [announce]);
 
-  const requestClose = useCallback(() => {
-    if (closing) return;
-    if (reduce) { onClose(); return; }
-    setClosing(true);
-    later(360, onClose);
-  }, [closing, later, onClose, reduce]);
-
-  const caught = filter === 'review' && pending === 0 && state.items.length > 0;
-
-  // All caught up dismisses itself after 1.9s, but only when the user just
-  // finished the batch — not when the sheet is opened with nothing to do.
-  useEffect(() => {
-    if (!caught || !finishSoon.current) return;
-    const t = setTimeout(requestClose, 1900);
-    return () => clearTimeout(t);
-  }, [caught, requestClose]);
-
-  const go = useCallback((dir: 1 | -1) => {
-    setIndex(nextQueueIndex(queue.length, pos, dir));
-  }, [queue.length, pos]);
-
   function pulseNav(target: HTMLElement) {
     target.classList.add('bank-nav-bump');
     const ring = document.createElement('span');
@@ -148,34 +130,59 @@ export default function ReviewStack({
     later(280, () => { target.classList.remove('bank-nav-bump'); ring.remove(); });
   }
 
+  /** The one X: shrink, fly to the visible Books nav item, pulse it, close.
+   *  Unresolved cards stay in To review — closing changes no status. */
+  const dismiss = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    const target = booksNavTarget();
+    const sheet = dialogRef.current?.getBoundingClientRect();
+    if (target && sheet) {
+      const t = target.getBoundingClientRect();
+      setFly({
+        x: t.left + t.width / 2 - (sheet.left + sheet.width / 2),
+        y: t.top + t.height / 2 - (sheet.top + sheet.height / 2),
+      });
+    }
+    setClosing(true);
+    if (target) later(reduce ? 0 : 300, () => pulseNav(target));
+    later(reduce ? 0 : 460, onClose);
+  }, [later, onClose, reduce]);
+
+  /** Escape and the scrim: plain slide down, no flight. */
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    later(reduce ? 0 : 360, onClose);
+  }, [later, onClose, reduce]);
+
+  const caught = pending === 0 && state.items.length > 0;
+
+  // All caught up dismisses itself after 1.9s, but only when the user just
+  // finished the batch — not when the sheet is opened with nothing to do.
+  useEffect(() => {
+    if (!caught || !finishSoon.current) return;
+    const t = setTimeout(dismiss, 1900);
+    return () => clearTimeout(t);
+  }, [caught, dismiss]);
+
+  const go = useCallback((dir: 1 | -1) => {
+    const next = nextQueueIndex(queue.length, indexRef.current, dir);
+    indexRef.current = next;
+    setIndex(next);
+  }, [queue.length]);
+
   const run = useCallback((action: CardAction) => {
     const item = top;
     if (!item || leaving) return;
     const review = item.review;
     if (queue.length === 1) finishSoon.current = true;
 
-    if (action === 'hide') {
-      const target = booksNavTarget();
-      const card = topCardRef.current?.getBoundingClientRect();
-      if (target && card) {
-        const t = target.getBoundingClientRect();
-        setFly({
-          x: t.left + t.width / 2 - (card.left + card.width / 2),
-          y: t.top + t.height / 2 - (card.top + card.height / 2),
-        });
-      }
-      setLeaving({ item, mode: 'fly', step: 'exit', cover: null });
-      dispatch({ type: 'hide', id: item.id });
-      setAnnounce('Hidden. In Books under Unaccounted for.');
-      later(reduce ? 0 : 460, () => { if (target) pulseNav(target); });
-      later(reduce ? 0 : 520, () => { setLeaving(null); setFly(null); });
-      later(60, () => headingRef.current?.focus());
-      return;
-    }
-
     if (action === 'ignore') {
       setLeaving({ item, mode: 'left', step: 'exit', cover: null });
       dispatch({ type: 'ignore', id: item.id });
+      setAnnounce("Don't add. Moved out of To review.");
       later(reduce ? 0 : 260, () => setLeaving(null));
       return;
     }
@@ -198,7 +205,7 @@ export default function ReviewStack({
 
   // ── Touch browse (touch only; pointer devices use ← / →) ──
   function onPointerDown(e: ReactPointerEvent) {
-    if (e.pointerType !== 'touch' || reduce || !top || leaving || filter !== 'review') return;
+    if (e.pointerType !== 'touch' || reduce || !top || leaving) return;
     gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false };
   }
   function onPointerMove(e: ReactPointerEvent) {
@@ -249,20 +256,6 @@ export default function ReviewStack({
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); lastEl.focus(); }
   }
 
-  function restoreHidden(item: BankItem) {
-    const reopened: BankReviewState = { ...state, status: { ...state.status, [item.id]: 'open' } };
-    const at = reviewQueue(reopened).findIndex((it) => it.id === item.id);
-    dispatch({ type: 'unhide', id: item.id });
-    dispatch({ type: 'filter', filter: 'review' });
-    setIndex(Math.max(0, at));
-    setAnnounce('Back in the stack.');
-  }
-
-  const segClass = (on: boolean) =>
-    `flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[10px] text-sm font-semibold transition-colors ${
-      on ? 'bg-surface-container-lowest text-on-background shadow-sm' : 'text-on-surface-variant'
-    }`;
-
   const sheet = (
     <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0">
       <div
@@ -278,8 +271,9 @@ export default function ReviewStack({
         aria-labelledby="bank-activity-counter"
         data-kb-fit=""
         onKeyDown={onKeyDown}
+        style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
         className={`relative flex h-full w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-auto md:max-h-[86vh] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
-          closing ? 'bank-sheet-down' : 'bank-sheet-up'
+          closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
         <div aria-hidden className={`mx-auto mt-2 h-[5px] w-[38px] shrink-0 rounded-full bg-surface-dim md:hidden ${closing ? 'opacity-0' : ''}`} />
@@ -289,7 +283,7 @@ export default function ReviewStack({
             ref={closeRef}
             type="button"
             aria-label="Close bank activity"
-            onClick={requestClose}
+            onClick={dismiss}
             className="grid h-11 w-11 place-items-center rounded-full bg-surface-container-high transition-transform active:scale-[0.9]"
           >
             <Icon name="close" size={22} />
@@ -297,7 +291,7 @@ export default function ReviewStack({
           <div className="flex flex-col items-center gap-0.5">
             <span className="text-[11px] font-bold uppercase tracking-[.16em] text-on-surface-variant">Bank activity</span>
             <div id="bank-activity-counter" aria-live="polite" aria-atomic="true" className="h-[22px] overflow-hidden">
-              {filter === 'review' && pending > 0 ? (
+              {pending > 0 ? (
                 <>
                   <span className="sr-only">Item {pos + 1} of {state.items.length}</span>
                   <span
@@ -310,71 +304,22 @@ export default function ReviewStack({
                   </span>
                 </>
               ) : (
-                <span className="block font-display text-[18px] font-extrabold leading-[22px]">
-                  {filter === 'hidden' ? 'Hidden' : 'Bank activity'}
-                </span>
+                <span className="block font-display text-[18px] font-extrabold leading-[22px]">Bank activity</span>
               )}
             </div>
           </div>
           <span aria-hidden className="h-11 w-11" />
         </div>
 
-        <div role="group" aria-label="Filter bank activity" className="mx-4 mb-3 flex shrink-0 gap-1 rounded-[14px] bg-surface-container-high p-1">
-          <button type="button" aria-pressed={filter === 'review'} onClick={() => dispatch({ type: 'filter', filter: 'review' })} className={segClass(filter === 'review')}>
-            To review
-            <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{pending}</span>
-          </button>
-          <button type="button" aria-pressed={filter === 'hidden'} onClick={() => dispatch({ type: 'filter', filter: 'hidden' })} className={segClass(filter === 'hidden')}>
-            Hidden
-            <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{hidden.length}</span>
-          </button>
-        </div>
-
         <div
-          className="relative mx-4 min-h-0 flex-1"
+          className="relative mx-4 mb-3 min-h-0 flex-1"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          {filter === 'hidden' ? (
-            hidden.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 px-8 pb-12 text-center">
-                <span aria-hidden className="grid h-16 w-16 place-items-center rounded-[22px] bg-surface-container-high">
-                  <Icon name="visibility_off" size={30} />
-                </span>
-                <div className="font-display text-xl font-extrabold">Nothing hidden</div>
-                <p className="text-[15px] leading-[1.45] text-on-surface-variant">
-                  Anything you hide waits here and stays in Books under Unaccounted for.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
-                {hidden.map((item) => (
-                  <div key={item.id} className="bank-fade flex items-center gap-3 border-b border-outline-variant/40 px-3.5 py-3 last:border-b-0">
-                    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-surface-container-high font-display text-base font-extrabold">
-                      {item.merchant.charAt(0).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-base font-semibold">{item.merchant}</div>
-                      <div className="truncate text-[13px] text-on-surface-variant">
-                        {formatDay(item.date)} · {accountLabel(item.accountId)}
-                      </div>
-                    </div>
-                    <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{formatMoney(item.amount)}</span>
-                    <button
-                      type="button"
-                      onClick={() => restoreHidden(item)}
-                      className="h-11 shrink-0 rounded-full border-[1.5px] border-outline-variant px-3.5 text-sm font-semibold transition-transform active:scale-[0.95]"
-                    >
-                      Review
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : pending === 0 ? (
+          {pending === 0 ? (
             caught ? (
               <div className="bank-fade flex h-full flex-col items-center justify-center gap-3.5 px-7 pb-16 text-center">
                 <svg width="120" height="120" viewBox="0 0 120 120" className="text-primary-container" aria-hidden>
@@ -386,9 +331,7 @@ export default function ReviewStack({
                 </svg>
                 <h3 className="font-display text-[26px] font-extrabold">All caught up</h3>
                 <p className="text-[15px] leading-[1.45] text-on-surface-variant">
-                  {hidden.length > 0
-                    ? 'Everything else is hidden. Hidden items stay in Books under Unaccounted for.'
-                    : 'Every bank item is accounted for.'}
+                  Every bank item is accounted for.
                 </p>
               </div>
             ) : (
@@ -459,12 +402,10 @@ export default function ReviewStack({
             <div className="pointer-events-none absolute inset-0 z-40" aria-hidden>
               <div
                 className={`absolute inset-0 ${
-                  leaving.mode === 'fly' ? 'bank-fly'
-                    : leaving.mode === 'left' ? 'bank-fade-left'
+                  leaving.mode === 'left' ? 'bank-fade-left'
                     : leaving.mode === 'collapse' ? 'bank-collapse-right'
                     : leaving.step === 'exit' ? 'bank-card-out-up' : ''
                 }`}
-                style={leaving.mode === 'fly' && fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
               >
                 <ReviewCard
                   item={leaving.item}
@@ -474,12 +415,6 @@ export default function ReviewStack({
                   onPatch={() => {}}
                 />
               </div>
-              {leaving.mode === 'fly' && (
-                <span
-                  className="bank-ring-fly absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-primary-container"
-                  style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-                />
-              )}
             </div>
           )}
         </div>
@@ -491,7 +426,7 @@ export default function ReviewStack({
             type="button"
             aria-label="Previous item"
             aria-keyshortcuts="ArrowLeft"
-            disabled={filter !== 'review' || pending === 0 || pos === 0}
+            disabled={pending === 0 || pos === 0}
             onClick={() => go(-1)}
             className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
           >
@@ -501,7 +436,7 @@ export default function ReviewStack({
             type="button"
             aria-label="Next item"
             aria-keyshortcuts="ArrowRight"
-            disabled={filter !== 'review' || pending === 0 || pos >= pending - 1}
+            disabled={pending === 0 || pos >= pending - 1}
             onClick={() => go(1)}
             className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
           >

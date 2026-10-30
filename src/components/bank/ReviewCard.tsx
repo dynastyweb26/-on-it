@@ -16,7 +16,7 @@ import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { reducedMotion } from '@/lib/list-motion';
 import { dateOptions, formatDay, formatMoney, type BankItem } from '@/lib/bank-tracking';
 
-export type CardAction = 'add' | 'already' | 'ignore' | 'hide';
+export type CardAction = 'add' | 'already' | 'ignore';
 type EditField = 'amount' | 'date' | null;
 
 const AMOUNT_COUNT_MS = 320;
@@ -57,7 +57,7 @@ export default function ReviewCard({
   account: string;
   /** The add/link confirmation painted over this card. */
   cover?: 'added' | 'linked' | null;
-  /** Focus target after a hide ("focus moves to the next card's heading"). */
+  /** Focus target after a card is resolved ("focus moves to the next card's heading"). */
   headingRef?: Ref<HTMLHeadingElement>;
   onAction: (action: CardAction) => void;
   onPatch: (patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>>) => void;
@@ -302,17 +302,6 @@ export default function ReviewCard({
           </div>
         )}
       </div>
-
-      {/* The card X is last in the DOM (accessibility table's focus order) and
-          pinned to the top-right corner. 44px target. */}
-      <button
-        type="button"
-        aria-label="Hide for now"
-        onClick={() => onAction('hide')}
-        className="absolute right-[14px] top-[14px] grid h-11 w-11 place-items-center rounded-full border border-outline-variant/70 bg-surface-container-lowest text-on-surface-variant transition-transform active:scale-[0.88]"
-      >
-        <Icon name="close" size={20} />
-      </button>
 
       {cover === 'added' && (
         <div className="bank-cover pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-surface-container-lowest" aria-hidden>

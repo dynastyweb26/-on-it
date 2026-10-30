@@ -15,7 +15,7 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  bankReducer, hiddenCount, pendingCount, seedReviewState, todayIso, unaccountedCount,
+  bankReducer, pendingCount, seedReviewState, todayIso, unaccountedCount,
   type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
 import {
@@ -29,7 +29,6 @@ type BankTrackingApi = {
   dispatch: Dispatch<BankAction>;
   openStack: () => void;
   pending: number;
-  hidden: number;
   unaccounted: number;
   /** The mock bank connection (pitch, choose accounts, linked, reconnect). */
   bank: BankConnection;
@@ -57,7 +56,6 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   const [tier, setTier] = useState<BankTier>('pro');
   const pathname = usePathname();
   const pending = pendingCount(state);
-  const hidden = hiddenCount(state);
   const unaccounted = unaccountedCount(state);
   const autoOpened = useRef(false);
 
@@ -90,8 +88,8 @@ export default function BankTrackingProvider({ enabled = false, children }: {
 
   const openStack = useMemo(() => () => setOpen(true), []);
   const value = useMemo<BankTrackingApi>(
-    () => ({ enabled, state, dispatch, openStack, pending, hidden, unaccounted, bank, setBank, tier }),
-    [enabled, state, openStack, pending, hidden, unaccounted, bank, tier],
+    () => ({ enabled, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
+    [enabled, state, openStack, pending, unaccounted, bank, setBank, tier],
   );
 
   return (

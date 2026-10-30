@@ -11,8 +11,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BANK_ITEMS, addedToast, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
-  formatMoney, hiddenCount, hiddenQueue, nextQueueIndex, pendingCount, reviewQueue,
-  rubberBand, seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
+  formatMoney, nextQueueIndex, pendingCount, reviewQueue, rubberBand, seedReviewState, statusOf,
+  swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
 
 test('fixture seeds a full copy: edits never touch the exported items', () => {
@@ -34,44 +34,28 @@ test('queue only holds open items, in fixture order', () => {
   assert.equal(reviewQueue(state).some((it) => it.id === 'wm-1028'), false);
 });
 
-test('hidden items leave the stack but stay unaccounted for', () => {
-  let state = seedReviewState();
-  const total = state.items.length;
-  state = bankReducer(state, { type: 'hide', id: 'wm-1028' });
-  assert.equal(pendingCount(state), total - 1);
-  assert.equal(hiddenCount(state), 1);
-  assert.equal(hiddenQueue(state)[0].id, 'wm-1028');
-  // The dot rule counts unaccounted + hidden, so hiding keeps it lit.
-  assert.equal(unaccountedCount(state), total);
+// CHANGES.md · item 1: the per-card X is gone, so there is no hidden state.
+// Closing the sheet keeps every unresolved item open and unaccounted for.
+test('closing the stack never decides an item: unresolved cards stay open', () => {
+  const state = seedReviewState();
+  assert.equal(unaccountedCount(state), BANK_ITEMS.length);
   assert.equal(booksDotVisible(state), true);
+  const statuses = new Set(Object.values(state.status));
+  assert.equal(statuses.has('hidden' as never), false);
+  assert.equal(reviewQueue(state).length, unaccountedItems(state).length);
 });
 
-test('reviewing everything clears the dot; opening or filtering never does', () => {
+test('reviewing everything clears the dot; opening never does', () => {
   let state = seedReviewState();
   const before = unaccountedCount(state);
-  state = bankReducer(state, { type: 'filter', filter: 'hidden' });
-  assert.equal(unaccountedCount(state), before, 'switching filter changes nothing');
-  state = bankReducer(state, { type: 'filter', filter: 'review' });
+  assert.equal(before, BANK_ITEMS.length, 'nothing hides from the counter');
 
-  // Every action that decides an item.
   state = bankReducer(state, { type: 'ignore', id: BANK_ITEMS[0].id });
   state = bankReducer(state, { type: 'already', id: BANK_ITEMS[1].id });
   assert.equal(booksDotVisible(state), true);
   for (const item of state.items) state = bankReducer(state, { type: 'add', id: item.id });
   assert.equal(pendingCount(state), 0);
-  assert.equal(hiddenCount(state), 0);
   assert.equal(booksDotVisible(state), false);
-});
-
-test('hiding keeps the item recoverable: unhide puts it back in the stack', () => {
-  let state = seedReviewState();
-  state = bankReducer(state, { type: 'hide', id: 'co-1027' });
-  assert.equal(reviewQueue(state).some((it) => it.id === 'co-1027'), false);
-  state = bankReducer(state, { type: 'unhide', id: 'co-1027' });
-  const queue = reviewQueue(state);
-  assert.equal(queue.some((it) => it.id === 'co-1027'), true);
-  assert.equal(queue[1].id, 'co-1027', 'returns to its fixture position');
-  assert.equal(hiddenCount(state), 0);
 });
 
 test('unlink (reopen) sends a bank-verified item back to Unaccounted for', () => {
@@ -89,8 +73,6 @@ test('unaccounted amount sums only what the owner still has to deal with', () =>
   let state = seedReviewState();
   const total = state.items.reduce((sum, it) => sum + it.amount, 0);
   assert.equal(unaccountedItems(state).length, state.items.length);
-  state = bankReducer(state, { type: 'hide', id: 'wm-1028' });
-  assert.equal(unaccountedItems(state).length, state.items.length, 'hidden still counts');
   state = bankReducer(state, { type: 'add', id: 'co-1027' });
   const expected = Math.round((total - 432.98) * 100) / 100;
   const actual = Math.round(unaccountedItems(state).reduce((sum, it) => sum + it.amount, 0) * 100) / 100;
