@@ -15,6 +15,9 @@ import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actio
 import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine, type FreeLimits } from '@/lib/subscription/copy';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
+import BankAccountsScreen from '@/components/bank/BankAccountsScreen';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import { bankRowTitle, bankRowValue } from '@/lib/bank-accounts';
 import type { PayoutMethod } from '@/lib/payout-status';
 import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import { sectionFromPath, type SettingsSection } from './sections';
@@ -66,6 +69,9 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
 }) {
   const supabase = createClient();
   const router = useRouter();
+  // Bank tracking (mock phase 1): null unless the shell's flag is on, so this
+  // screen is untouched in production.
+  const bankCtx = useBankTracking();
   // ── Laptop master/detail (design §7) ─────────────────────────────
   // At xl the grouped list is the left pane and the selected row's page is the
   // right pane, driven by the route — the same shape the Invoices split uses.
@@ -701,7 +707,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   const is = (s: SettingsSection) => sec === s;
   // The grouped list is the left pane at xl even while a section is selected.
   const showList = is('main') || split;
-  const title = (s: SettingsSection) => (s === 'business' ? 'Business profile' : s === 'business-info' ? 'Business Info' : s === 'business-brand' ? 'Brand Design' : s === 'payouts' ? 'Payment options' : s === 'plan' ? 'Plan' : s === 'notifications' ? 'Notifications' : s === 'help' ? 'Help & feedback' : s === 'login' ? 'Manage login' : 'Settings');
+  const title = (s: SettingsSection) => (s === 'bank' ? 'Bank accounts' : s === 'business' ? 'Business profile' : s === 'business-info' ? 'Business Info' : s === 'business-brand' ? 'Brand Design' : s === 'payouts' ? 'Payment options' : s === 'plan' ? 'Plan' : s === 'notifications' ? 'Notifications' : s === 'help' ? 'Help & feedback' : s === 'login' ? 'Manage login' : 'Settings');
   const banners = (<>
     {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
     {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
@@ -730,6 +736,19 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
         </SettingsGroup>
         <SettingsGroup title="Money">
           <SettingsRow icon="autorenew" title="Recurring expenses" value="In Books" href="/dashboard/recurring" />
+          {/* Bank tracking: "Connect bank" until linked, then "Bank accounts - N";
+              free users see the Pro lock. Hidden entirely when the flag is off. */}
+          {bankCtx?.enabled && (
+            <SettingsRow
+              icon="account_balance_wallet"
+              title={bankRowTitle(bankCtx.bank, bankCtx.tier)}
+              value={bankRowValue(bankCtx.bank, bankCtx.tier)}
+              locked={bankCtx.tier === 'free'}
+              href="/settings/bank"
+              active={is('bank')}
+              onNavigate={(e) => openSection(e, 'bank')}
+            />
+          )}
           <SettingsRow icon="account_balance" title="Payment options" href="/settings/payouts"
             data-coach="settings-payouts"
             data-payouts-set={payoutsSet}
@@ -786,6 +805,9 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
           <SettingsRow icon="image" title="Brand Design" href="/settings/business-brand" />
         </SettingsGroup>
       )}
+
+      {/* Bank accounts (mock, phase 1). */}
+      {is('bank') && <BankAccountsScreen />}
 
       {is('business-info') && (<>
       <section className="card space-y-3">

@@ -694,6 +694,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
+
+  // The bank popup holds off while the mic owns the screen (CHANGES.md · item
+  // 10): the shell cannot see this state, so it is mirrored onto the body.
+  useEffect(() => {
+    document.body.dataset.onitRecording = voiceSession ? '1' : '';
+    return () => { delete document.body.dataset.onitRecording; };
+  }, [voiceSession]);
   // Receipt capture: the compressed image waits here between "picked" and
   // "parsed", so the user can back out before anything is uploaded or read.
   const [receipt, setReceipt] = useState<PreparedReceipt | null>(null);

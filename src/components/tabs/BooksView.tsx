@@ -20,6 +20,8 @@ import { createClient } from '@/lib/supabase/client';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import { reviewQueue, unaccountedItems } from '@/lib/bank-tracking';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -57,6 +59,8 @@ const localToday = () => new Date().toLocaleDateString('en-CA');
 export default function Dashboard({ active = true }: { active?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
+  // Bank tracking (mock phase 1). Null unless the shell's flag is on.
+  const bank = useBankTracking();
   const [stats, setStats] = useState({ collected: 0, outstanding: 0, spent: 0, count: 0, expenseCount: 0 });
   // The "View expenses" subtitle names what that list will show (§L Q2).
   const [expensesCaption, setExpensesCaption] = useState('');
@@ -79,6 +83,23 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   const tweenRaf = useRef(0);
   const [intro, setIntro] = useState(false);
   const [spentFlash, setSpentFlash] = useState(0);
+  // ── Bank tracking (mock) ──
+  // Items added from the review stack move the SHOWN totals only: Spent counts
+  // up behind the gold glow and Net counts down with none. Nothing is written.
+  const bankEnabled = Boolean(bank?.enabled);
+  const bankState = bank?.state;
+  const bankSpent = bankState
+    ? bankState.items
+      .filter((item) => item.kind === 'expense' && bankState.status[item.id] === 'added')
+      .reduce((sum, item) => sum + item.amount, 0)
+    : 0;
+  const notIncluded = bankState ? unaccountedItems(bankState).length : 0;
+  // CHANGES.md · item 9: a red dot on Spent while a bank expense still waits in
+  // To review. Derived from the same state as the nav dot, so it clears at 0.
+  const spentToReview = bankState ? reviewQueue(bankState).filter((item) => item.kind === 'expense').length : 0;
+  const needsReconnect = bank?.bank.status === 'needsReconnect';
+  const bankSpentRef = useRef(bankSpent);
+  bankSpentRef.current = bankSpent;
   const introTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     cancelAnimationFrame(tweenRaf.current);
@@ -120,6 +141,23 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     };
     tweenRaf.current = requestAnimationFrame(step);
   }
+
+  // A bank item landing moves the shown totals through the same tween: Spent up
+  // with the gold glow, Net down with no flash. The database is never touched.
+  const prevBankSpent = useRef(bankSpent);
+  useEffect(() => {
+    if (bankSpent === prevBankSpent.current) return;
+    prevBankSpent.current = bankSpent;
+    setSpentFlash((n) => n + 1);
+    showStats({
+      net: stats.collected - (stats.spent + bankSpent),
+      collected: stats.collected,
+      outstanding: stats.outstanding,
+      spent: stats.spent + bankSpent,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankSpent, stats.collected, stats.outstanding, stats.spent]);
+
   const [showForm, setShowForm] = useState(false);
   // "Add it" on a paused-recurring banner (3·5): the sheet prefilled with that
   // charge; saving hides the notice on this device.
@@ -170,7 +208,8 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
     const next = { collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length };
     setStats(next);
-    showStats({ net: collected - spent, collected, outstanding, spent });
+    const spentWithBank = spent + bankSpentRef.current;
+    showStats({ net: collected - spentWithBank, collected, outstanding, spent: spentWithBank });
     // Balances: short expiry, always refreshed behind the cached copy.
     writeCache(owner.id, 'books-stats', next, CACHE_TTL.money);
   }
@@ -211,8 +250,9 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  const net = shown?.net ?? stats.collected - stats.spent;
-  const tile = shown ?? stats;
+  const displaySpent = stats.spent + bankSpent;
+  const net = shown?.net ?? stats.collected - displaySpent;
+  const tile = shown ?? { ...stats, net: stats.collected - displaySpent, spent: displaySpent };
   // Design 1b zero state: the true all-zero account, not just an empty invoice
   // list (expenses alone should still render at full strength).
   const isZero = stats.collected === 0 && stats.outstanding === 0 && stats.spent === 0;
@@ -241,6 +281,19 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
       ) : (
         <div className="@container space-y-4 xl:order-3 xl:w-full">
         <RecurringSkipBanner items={recurring} hidden={hiddenSkips} onAddManually={setManualFrom} />
+        {/* Bank login expired: opens down from the top, gold, never red. */}
+        {bankEnabled && needsReconnect && (
+          <div className="bank-fade-in flex items-center gap-3 rounded-[16px] border border-primary-container/40 bg-primary-soft/70 px-3.5 py-3">
+            <Icon name="sync" size={20} className="shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">Chase needs reconnecting</div>
+              <div className="text-[13px] text-on-surface-variant">Bank activity is paused until you reconnect.</div>
+            </div>
+            <Link href="/settings/bank" className="min-h-11 shrink-0 rounded-full border-[1.5px] border-primary-container px-3.5 text-sm font-semibold leading-[44px] text-primary">
+              Reconnect
+            </Link>
+          </div>
+        )}
         {/* xl: the design's row 1 — Net card on the left, Still owed +
             Collected over Spent on the right. The @4xl container grid keeps the
             tablet layout it had, untouched. */}
@@ -273,9 +326,15 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
               <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
             </div>
-            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} />
+            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} alert={bankEnabled && spentToReview > 0} />
           </div>
         </div>
+        {/* Totals footnote: what the bank has that these figures do not. */}
+        {bankEnabled && notIncluded > 0 && (
+          <p className="bank-fade-in px-1 text-[13px] text-on-surface-variant">
+            {notIncluded} bank {notIncluded === 1 ? 'item' : 'items'} not included.
+          </p>
+        )}
         </div>
       )}
 
@@ -372,9 +431,11 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
   );
 }
 
-function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false }: {
+function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false, alert = false }: {
   href: string; value: number; label: string; dot: string; hint: string;
   intro?: boolean; order?: number; flash?: boolean; dim?: boolean;
+  /** CHANGES.md · item 9: at least one bank expense is still in To review. */
+  alert?: boolean;
 }) {
   // Design 1b: Spent is demoted to one full-width row, so even a six-figure
   // amount with cents has the whole row's width. `flash` still bumps the value
@@ -383,10 +444,10 @@ function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, fla
     <Link
       href={href}
       aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0${intro ? ' onit-rise' : ''}`}
+      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0${intro ? ' onit-rise' : ''}${flash ? ' bank-gold-glow' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${dot}${intro ? ' onit-pop' : ''}`}
+      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${alert ? 'bg-[var(--oi-alert)]' : dot}${intro ? ' onit-pop' : alert ? ' bank-dot-pop' : ''}`}
         style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
       <span className="whitespace-nowrap text-[14.5px] font-semibold text-on-surface-variant">{label}</span>
       <span className="flex-1" />

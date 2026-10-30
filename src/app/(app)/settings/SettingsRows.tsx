@@ -20,12 +20,14 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
 const VALUE_TONE = { muted: 'text-on-surface-variant', default: 'text-on-background', error: 'text-error' } as const;
 export type SettingsValueTone = keyof typeof VALUE_TONE;
 
-export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', href, onClick, onNavigate, active = false, tint = 'muted', 'data-coach': dataCoach, 'data-payouts-set': payoutsSet }: {
+export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', locked = false, href, onClick, onNavigate, active = false, tint = 'muted', 'data-coach': dataCoach, 'data-payouts-set': payoutsSet }: {
   icon?: IconName;
   /** Custom tile content (e.g. a brand mark) in place of the Material icon; same tile. */
   tile?: React.ReactNode;
   title: string; value?: string | null;
   valueTone?: SettingsValueTone;
+  /** Pro-only row: a gold lock sits before the value (Bank accounts, free). */
+  locked?: boolean;
   href?: string; onClick?: () => void;
   /**
    * Link rows only: the laptop split's click handler. It selects the row in the
@@ -47,6 +49,7 @@ export function SettingsRow({ icon, tile, title, value, valueTone = 'muted', hre
         {tile ?? (icon && <Icon name={icon} size={19} />)}
       </span>
       <span className="shrink-0 text-base font-medium text-on-background">{title}</span>
+      {locked && <Icon name="lock" size={17} className="shrink-0 text-primary" />}
       <span className={`min-w-0 flex-1 truncate text-right text-[15px] ${VALUE_TONE[valueTone]}`}>{value}</span>
       <Icon name="chevron_right" size={20} className="shrink-0 text-outline" />
     </>

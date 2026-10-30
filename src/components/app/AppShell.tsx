@@ -14,6 +14,8 @@ import SoftPromptBanner from '@/components/SoftPromptBanner';
 import ProCelebration from '@/components/ProCelebration';
 import RecapProvider, { useRecaps } from '@/components/recap/RecapProvider';
 import TabDeck from '@/components/tabs/TabDeck';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import BooksReviewDot from '@/components/bank/BooksReviewDot';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
@@ -117,6 +119,11 @@ export default function AppShell({
   // The deck will pass this to the Settings tab; the split exists so the value
   // is known on the server's first paint instead of flashing "Coming soon".
   const path = usePathname();
+  // Bank tracking (mock phase 1). The provider is mounted by (app)/layout.tsx,
+  // so the nav can read the derived review count here; null when the flag is
+  // off, which keeps every bank element out of production.
+  const bank = useBankTracking();
+  const reviewCount = bank?.enabled ? bank.unaccounted : 0;
   // Nested routes (expenses, a document, a settings sub-screen) scroll in this
   // shell's <main>, not in a deck panel, so they need their own memory: come
   // back from a form or a document and the list is where it was. Keyed by
@@ -591,8 +598,11 @@ export default function AppShell({
               <Link
                 key={href}
                 href={href}
+                data-bank-nav=""
                 aria-current={active ? 'page' : undefined}
-                aria-label={label}
+                aria-label={href === '/dashboard' && reviewCount > 0
+                  ? `Books, ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} to review`
+                  : label}
                 title={label}
                 className={`relative flex items-center justify-center gap-3.5 rounded-2xl px-0 py-3.5 transition-colors lg:justify-start lg:px-4 xl:h-12 xl:gap-3.5 xl:py-0 ${
                   active
@@ -602,7 +612,8 @@ export default function AppShell({
               >
                 <div className="relative grid h-6 w-6 place-items-center">
                   <Icon name={icon} size={24} filled={active} />
-                  {href === '/dashboard' && <BooksDot variant="side" />}
+                  {href === '/dashboard' && <BooksReviewDot variant="side" />}
+                  {href === '/dashboard' && <BooksDot variant="side" suppressed={reviewCount > 0} />}
                 </div>
                 <span className="hidden text-base lg:inline">{label}</span>
                 {bump?.href === href && (
@@ -737,8 +748,11 @@ export default function AppShell({
             const active = path.startsWith(href);
             const centre = href === '/chat';
             return (
-              <Link key={href} href={href}
+              <Link key={href} href={href} data-bank-nav=""
                 aria-current={active ? 'page' : undefined}
+                aria-label={href === '/dashboard' && reviewCount > 0
+                  ? `Books, ${reviewCount} ${reviewCount === 1 ? 'item' : 'items'} to review`
+                  : undefined}
                 onClick={() => { if (!active) { try { navigator.vibrate?.(8); } catch { /* unsupported */ } } }}
                 className={`onit-tab group flex min-w-0 flex-1 flex-col items-center gap-1 pb-1 ${centre ? 'onit-tab-centre' : ''}`}>
                 <span ref={(el) => { tabLinkRefs.current[i] = el; }} data-tab-target={href}
@@ -755,7 +769,8 @@ export default function AppShell({
                       +1
                     </span>
                   )}
-                  {href === '/dashboard' && <BooksDot />}
+                  {href === '/dashboard' && <BooksReviewDot />}
+                  {href === '/dashboard' && <BooksDot suppressed={reviewCount > 0} />}
                 </span>
                 <span className={`text-[11.5px] leading-none tracking-[.01em] ${active ? 'font-bold text-on-background' : 'font-medium text-on-surface-variant'}`}>
                   {label}
@@ -774,9 +789,11 @@ export default function AppShell({
 
 /** (14d) Books tab dot: an unwatched recap from the last 14 days. Red with a
  *  cream ring, top-right of the Books pill (release frames 0a). */
-function BooksDot({ variant = 'tab' }: { variant?: 'tab' | 'side' }) {
+function BooksDot({ variant = 'tab', suppressed = false }: { variant?: 'tab' | 'side'; suppressed?: boolean }) {
   const { unwatched } = useRecaps();
-  if (!unwatched) return null;
+  // While the bank dot shows it owns the slot. The recap dot's own state is
+  // untouched, so it comes back by itself once the last bank item is resolved.
+  if (!unwatched || suppressed) return null;
   // The 9px dot was measured against the bottom tab's 58px pill. Inside the
   // sidebar/rail the icon box is 24px, so the same offsets put it off the icon;
   // `side` pins it to the icon's top-right corner instead.
