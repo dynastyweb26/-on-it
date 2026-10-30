@@ -1,0 +1,34 @@
+name: test-guard
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  test-guard:
+    name: test-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the guard from the BASE branch's code (a PR cannot edit its own judge)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -e
+          if ! git cat-file -e "$BASE_SHA:scripts/ci/test-guard-cli.ts" 2>/dev/null; then
+            echo "::notice::Base branch has no test-guard yet (bootstrap PR). Skipping."
+            exit 0
+          fi
+          rm -rf /tmp/guard && mkdir /tmp/guard
+          git archive "$BASE_SHA" scripts/ci scripts/test-register.mjs scripts/test-loader.mjs src/lib/ci | tar -x -C /tmp/guard
+          node --import /tmp/guard/scripts/test-register.mjs /tmp/guard/scripts/ci/test-guard-cli.ts
