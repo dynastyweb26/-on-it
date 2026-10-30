@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { backAxis, backCommits, backEnterMs, backOutMs, canStartBackSwipe } from './back-gesture';
+import {
+  BACK_HOLD_MAX_MS,
+  backArrived,
+  backAxis,
+  backCommits,
+  backEnterMs,
+  backOutMs,
+  canStartBackSwipe,
+} from './back-gesture';
 import { EDGE_GUARD_PX } from './swipe';
 
 // A normal nested screen: /settings/business, one level under /settings.
@@ -66,6 +74,17 @@ test('the outgoing page settles inside the deck bounds, shorter as it travels', 
   assert.equal(backOutMs(390, 390, 0), 220); // already off-screen
   assert.equal(backOutMs(500, 390, 0), 220); // clamped
   assert.ok(backOutMs(200, 390, 0.7) < backOutMs(200, 390, 0));
+});
+
+test('the held page is released only once the route it left is gone', () => {
+  assert.equal(backArrived('/settings/business-info', '/settings/business-info'), false);
+  assert.equal(backArrived('/settings/business-info', '/settings'), true);
+  assert.equal(backArrived('/invoices/inv-1', '/invoices'), true);
+});
+
+test('the hold has a ceiling, so a navigation that never lands cannot blank the screen', () => {
+  assert.ok(BACK_HOLD_MAX_MS >= 500);
+  assert.ok(BACK_HOLD_MAX_MS <= 1000);
 });
 
 test('the parent entrance shortens with the release speed, 180–300 ms', () => {

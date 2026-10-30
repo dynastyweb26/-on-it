@@ -29,6 +29,18 @@ export const BACK_ENTER_MIN_MS = 180;
 /** Release speed (px/ms) that shortens the entrance all the way. */
 const BACK_ENTER_SPEED = 1.5;
 
+/**
+ * How long the outgoing page may stay held off-screen while the router swaps
+ * the route. Long enough for a slow payload, short enough that a navigation
+ * that never lands cannot leave a blank screen.
+ */
+export const BACK_HOLD_MAX_MS = 700;
+
+/** True once the route a committed swipe left is no longer the current one. */
+export function backArrived(from: string, current: string): boolean {
+  return from !== current;
+}
+
 export type BackStartInput = {
   /** The route one level up, or null when this screen has no parent. */
   parent: string | null;

@@ -565,22 +565,22 @@ export default function AppShell({
   // A committed back swipe: the outgoing page has already left (SwipeBack), so
   // the parent mounts at rest and slides in from the left at the release speed
   // (MOTION-SPEC §18). 0 ms means Reduce Motion: no entrance, just the step up.
-  const [backEnter, setBackEnter] = useState(0);
+  const [backEnter, setBackEnter] = useState<{ ms: number; path: string } | null>(null);
   const backEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (backEnterTimer.current) clearTimeout(backEnterTimer.current); }, []);
-  const startBackEnter = useCallback((ms: number) => {
+  const startBackEnter = useCallback((ms: number, path: string) => {
     if (backEnterTimer.current) clearTimeout(backEnterTimer.current);
-    if (!ms) { setBackEnter(0); return; }
+    if (!ms) { setBackEnter(null); return; }
     setEnterDir(null); // one entrance at a time
-    setBackEnter(ms);
-    backEnterTimer.current = setTimeout(() => setBackEnter(0), ms + 60);
+    setBackEnter({ ms, path });
+    backEnterTimer.current = setTimeout(() => setBackEnter(null), ms + 60);
   }, []);
   // The target the Back arrow already uses (lib/back-nav.ts): the previous
   // history entry, or the parent route on a cold deep link.
   const backToParent = useCallback((enterMs: number) => {
     const parent = getParentRoute(window.location.pathname);
     if (!parent) return;
-    startBackEnter(enterMs);
+    startBackEnter(enterMs, parent);
     navigating.current = Date.now();
     goBackOr(
       () => router.push(parent),
@@ -593,6 +593,10 @@ export default function AppShell({
   // header (none at md+), not the nested route's Back button: the design's split
   // carries its own pane, and a Back arrow over it would step out of the split.
   const parentRoute = (openDocument || openSettingsSection) ? null : getParentRoute(path);
+  // The entrance belongs to the route it was timed for. Applied a render
+  // earlier it animates the screen that is still on its way out — the
+  // half-second flash a committed swipe used to leave behind.
+  const backEnterNow = backEnter && backEnter.path === path ? backEnter : null;
 
   return (
     // data-app-shell: locks document scroll while the shell is mounted (globals.css).
@@ -739,8 +743,8 @@ export default function AppShell({
 
         {exactTab >= 0 ? (
           <main
-            className={`min-h-0 flex-1 overflow-hidden${backEnter ? ' onit-enter-from-left' : ''}`}
-            style={backEnter ? { animationDuration: `${backEnter}ms` } : undefined}
+            className={`min-h-0 flex-1 overflow-hidden${backEnterNow ? ' onit-enter-from-left' : ''}`}
+            style={backEnterNow ? { animationDuration: `${backEnterNow.ms}ms` } : undefined}
           >
             <TabDeck
               activeIndex={exactTab}
@@ -754,9 +758,10 @@ export default function AppShell({
         ) : (
           <SwipeBack
             parent={parentRoute}
+            pathname={path}
             mainRef={mainRef}
-            className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}${backEnter ? ' onit-enter-from-left' : ''}`}
-            style={backEnter ? { animationDuration: `${backEnter}ms` } : undefined}
+            className={`min-h-0 flex-1 ${path.startsWith('/chat') ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}${enterDir ? ` ${enterDir}` : ''}${backEnterNow ? ' onit-enter-from-left' : ''}`}
+            style={backEnterNow ? { animationDuration: `${backEnterNow.ms}ms` } : undefined}
             onScroll={() => {
               if (restoringRoute.current || exactTabIndex(path) >= 0) return;
               saveScroll(routeScrollKey(path), mainRef.current?.scrollTop ?? 0);

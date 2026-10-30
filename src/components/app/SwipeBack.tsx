@@ -18,10 +18,19 @@
 // Without a live parent underlay (deliberately out of scope) a commit cannot
 // show the parent tracking the finger. It shows the opposite half of the
 // gesture: the outgoing page leaves in the direction and at the speed the
-// finger left, then the parent slides in from the left (the shell's
-// `onit-enter-from-left`, timed from the same release).
+// finger left, stays held off-screen while the router swaps the route, then
+// the parent slides in from the left (the shell's `onit-enter-from-left`,
+// timed from the same release).
 import { useCallback, useEffect, useRef, type HTMLAttributes, type ReactNode } from 'react';
-import { backAxis, backCommits, backEnterMs, backOutMs, canStartBackSwipe } from '@/lib/back-gesture';
+import {
+  BACK_HOLD_MAX_MS,
+  backArrived,
+  backAxis,
+  backCommits,
+  backEnterMs,
+  backOutMs,
+  canStartBackSwipe,
+} from '@/lib/back-gesture';
 import { COMMIT_EASE, SPRING_EASE } from '@/components/tabs/tab-motion';
 import { NAV_GUARD_MS, dragFromLock, settleDuration, type GestureAxis } from '@/lib/swipe';
 import { swipeBlockedAt } from '@/lib/swipe-dom';
@@ -31,6 +40,9 @@ type Props = {
   /** The route one level up; null on a tab root (and at xl, where a document
    *  or a Settings section is the tab itself and there is no Back arrow). */
   parent: string | null;
+  /** The route this render is for. The held page is released when it changes:
+   *  the pathname and the new children arrive in the same commit. */
+  pathname: string;
   /** The shell's main ref: scroll save/restore keeps using it. */
   mainRef: React.MutableRefObject<HTMLDivElement | null>;
   /** Called once the outgoing page has left: navigation + the parent's entrance. */
@@ -38,13 +50,20 @@ type Props = {
   children: ReactNode;
 } & Omit<HTMLAttributes<HTMLElement>, 'children'>;
 
-export default function SwipeBack({ parent, mainRef, onBack, className = '', children, ...rest }: Props) {
+export default function SwipeBack({ parent, pathname, mainRef, onBack, className = '', children, ...rest }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const gesture = useRef<{ id: number; x: number; y: number; axis: GestureAxis; lockDx: number } | null>(null);
   const samples = useRef<{ x: number; t: number }[]>([]);
   const offset = useRef(0);
   const anim = useRef<Animation | null>(null);
   const lastNav = useRef(0);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdRaf = useRef(0);
+  const holdUnlisten = useRef<(() => void) | null>(null);
+  // Read by the hold's poll. window.location.pathname moves on popstate, which
+  // is before the new screen exists; this moves with the children.
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
 
   const setEl = useCallback((el: HTMLDivElement | null) => {
     elRef.current = el;
@@ -55,7 +74,15 @@ export default function SwipeBack({ parent, mainRef, onBack, className = '', chi
     const el = elRef.current;
     if (!el) return;
 
+    const stopHold = () => {
+      if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+      if (holdRaf.current) { cancelAnimationFrame(holdRaf.current); holdRaf.current = 0; }
+      holdUnlisten.current?.();
+      holdUnlisten.current = null;
+    };
+
     const clear = () => {
+      stopHold();
       anim.current?.cancel();
       anim.current = null;
       el.style.transform = '';
@@ -83,6 +110,33 @@ export default function SwipeBack({ parent, mainRef, onBack, className = '', chi
       return { recentDx, dt, velocity: recentDx / dt };
     };
 
+    // After the slide-out the page is held off-screen until the route it left
+    // is gone. Resetting it to x=0 at the end of the animation is what made the
+    // outgoing screen flash back at full opacity for however long the router
+    // took to land.
+    const holdUntilRouteChanges = (from: string) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        stopHold();
+        // One frame later, so the new screen's commit is painted first.
+        holdRaf.current = requestAnimationFrame(() => { holdRaf.current = 0; clear(); });
+      };
+      const poll = () => {
+        if (done) return;
+        holdRaf.current = 0;
+        if (backArrived(from, pathRef.current)) { finish(); return; }
+        holdRaf.current = requestAnimationFrame(poll);
+      };
+      const onPop = () => { if (backArrived(from, pathRef.current)) finish(); };
+      holdUnlisten.current = () => window.removeEventListener('popstate', onPop);
+      window.addEventListener('popstate', onPop);
+      // A navigation that never lands must not leave a blank screen.
+      holdTimer.current = setTimeout(finish, BACK_HOLD_MAX_MS);
+      holdRaf.current = requestAnimationFrame(poll);
+    };
+
     const springBack = (velocity: number) => {
       const o = offset.current;
       if (!o || reducedMotion()) { clear(); return; }
@@ -104,15 +158,23 @@ export default function SwipeBack({ parent, mainRef, onBack, className = '', chi
         onBack(0);
         return;
       }
+      const from = pathRef.current;
       anim.current = el.animate(
         [{ transform: `translate3d(${o}px, 0, 0)` }, { transform: `translate3d(${width}px, 0, 0)` }],
         { duration: backOutMs(o, width, velocity), easing: COMMIT_EASE, fill: 'both' },
       );
       anim.current.onfinish = () => {
-        // Styles go first: the parent must mount at rest, then animate in.
-        clear();
+        // Held at the width, not reset: the route has not changed yet, so
+        // whatever sits at x=0 here would be the screen on its way out. The
+        // parent mounts at rest behind it and animates in on the pathname.
+        anim.current?.cancel();
+        anim.current = null;
+        el.style.transform = `translate3d(${width}px, 0, 0)`;
+        el.style.willChange = 'transform';
+        offset.current = 0;
         lastNav.current = Date.now();
         onBack(backEnterMs(velocity));
+        holdUntilRouteChanges(from);
       };
     };
 
