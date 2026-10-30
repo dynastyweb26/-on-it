@@ -67,7 +67,7 @@ export function payFigures(input: PayFigureInput): PayFigures {
     primaryLabel = 'Balance due';
     primaryAmount = dueNow;
   } else {
-    primaryLabel = kind === 'quote' ? 'Quoted total' : 'Total due';
+    primaryLabel = kind === 'quote' ? 'Estimated total' : 'Total due';
     primaryAmount = dueNow;
   }
 
