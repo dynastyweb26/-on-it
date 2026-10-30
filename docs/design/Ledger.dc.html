@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+@keyframes oiMoneyPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.8);opacity:0}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@keyframes oiRedPulse{0%{box-shadow:0 0 0 0 rgba(200,65,46,.35)}100%{box-shadow:0 0 0 10px rgba(200,65,46,0)}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation-name:oiFade !important;animation-iteration-count:1 !important}}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:48px;background:#fdf8f1;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45);-webkit-font-smoothing:antialiased;user-select:none;">
+  <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:90;box-sizing:border-box;">
+    <span>7:02</span>
+    <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+  </div>
+  <div style="position:absolute;top:47px;left:0;right:0;height:66px;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+    <span onClick="{{ back }}" role="button" aria-label="Back" style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;cursor:pointer;padding:9px;margin:-9px;border-radius:50%;transition:background-color 120ms;" style-active="background-color:#f0e8db">arrow_back</span>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+    <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 18px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.6px;">How On It works</div>
+  </div>
+
+  <div style="position:absolute;top:113px;left:0;right:0;bottom:84px;overflow-y:auto;padding:16px 16px 40px;box-sizing:border-box;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;">
+      <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:32px;letter-spacing:-.5px;">{{ title }}</div>
+      <div style="width:44px;height:44px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div>
+    </div>
+    <sc-if value="{{ isIncome }}">
+      <div style="padding:2px 4px 0;font-size:15px;color:#5f574b;font-variant-numeric:tabular-nums;">Invoices <span style="color:#1e1a15;font-weight:600;">{{ invStr }}</span> · Other income <span style="color:#1e1a15;font-weight:600;">{{ otherStr }}</span></div>
+    </sc-if>
+
+    <div style="display:grid;grid-template-rows:{{ pinRows }};transition:grid-template-rows 360ms cubic-bezier(.2,.8,.2,1);">
+      <div style="min-height:0;overflow:hidden;">
+        <div style="padding-top:14px;transform:{{ pinTf }};opacity:{{ pinOp }};transition:transform 360ms cubic-bezier(.2,.8,.2,1), opacity 260ms cubic-bezier(.2,.8,.2,1);">
+          <div onClick="{{ tapPinned }}" style="position:relative;display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid #ebe2d2;border-radius:20px;padding:12px 8px 12px 12px;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.98)">
+            <sc-if value="{{ pinShown }}"><span data-m="" style="position:absolute;inset:-1px;border-radius:20px;pointer-events:none;animation:oiRedPulse 600ms cubic-bezier(.2,.8,.2,1) 380ms 1 both;"></span></sc-if>
+            <div style="width:36px;height:36px;border-radius:11px;background:#f7e1dc;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#c8412e;">account_balance</span></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:16px;color:#1e1a15;white-space:nowrap;">Unaccounted for</div>
+              <div style="font-size:13px;line-height:1.3;color:#5f574b;margin-top:1px;text-wrap:pretty;"><span style="color:#c8412e;font-weight:600;font-variant-numeric:tabular-nums;">{{ pinCountText }}</span> · not in your totals</div>
+            </div>
+            <div style="flex:none;white-space:nowrap;font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;color:#c8412e;font-variant-numeric:tabular-nums;">{{ pinAmtStr }}</div>
+            <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;flex:none;margin-left:-4px;">chevron_right</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;display:flex;align-items:center;gap:12px;height:50px;border:1.5px solid #e3d8c5;border-radius:25px;padding:0 18px;background:#fdf8f1;">
+      <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#5f574b;">search</span>
+      <span style="font-size:17px;color:#8f8676;">{{ searchPh }}</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;">
+      <div style="display:flex;background:#f0e8db;border-radius:14px;padding:4px;">
+        <div style="padding:9px 16px;border-radius:10px;background:#ffffff;box-shadow:0 1px 4px rgba(40,30,10,.14);font-weight:600;font-size:15px;">Week</div>
+        <div style="padding:9px 16px;font-size:15px;color:#5f574b;">Month</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:15px;color:#3a352d;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;">schedule</span>Newest first</div>
+    </div>
+
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+      <div style="margin-top:22px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="background:#f2e5b9;border-radius:999px;padding:7px 14px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.4px;color:#5c4a08;">{{ g.label }}</span>
+          <span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;color:#3a352d;font-variant-numeric:tabular-nums;">{{ g.total }}</span>
+        </div>
+        <div style="background:#ffffff;border:1px solid #e3d8c5;border-radius:20px;overflow:hidden;">
+          <sc-for list="{{ g.rows }}" as="r">
+            <div style="display:grid;grid-template-rows:{{ r.gr }};opacity:{{ r.op }};transition:grid-template-rows 280ms cubic-bezier(.2,.8,.2,1), opacity 240ms cubic-bezier(.2,.8,.2,1);">
+              <div style="min-height:0;overflow:hidden;">
+                <div onClick="{{ r.tap }}" style="position:relative;display:flex;align-items:center;gap:13px;padding:12px 16px;border-bottom:1px solid {{ r.line }};background-color:{{ r.bg }};transition:{{ r.bgTr }};cursor:pointer;">
+                  <sc-if value="{{ r.thumb }}"><div style="width:40px;height:40px;border-radius:10px;flex:none;background:repeating-linear-gradient(135deg,#d9d2c4 0 4px,#eee8dc 4px 8px);box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);"></div></sc-if>
+                  <sc-if value="{{ r.iconTile }}"><div style="width:40px;height:40px;border-radius:12px;flex:none;background:#f0e8db;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">{{ r.icon }}</span></div></sc-if>
+                  <sc-if value="{{ r.letterTile }}"><div style="width:40px;height:40px;border-radius:12px;flex:none;background:#f2e5b9;display:flex;align-items:center;justify-content:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;">{{ r.letter }}</div></sc-if>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:17px;color:{{ r.nameColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.name }}</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;">
+                      <sc-if value="{{ r.linkIcon }}"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;color:#735c00;">link</span></sc-if>
+                      <span style="font-size:14px;color:{{ r.metaColor }};font-style:{{ r.metaStyle }};">{{ r.meta }}</span>
+                      <sc-if value="{{ r.verified }}"><span style="display:flex;align-items:center;gap:3px;background:#f0e8db;border-radius:6px;padding:2px 6px 2px 4px;font-size:11px;font-weight:600;color:#5f574b;letter-spacing:.2px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:13px;">verified</span>Bank-verified</span></sc-if>
+                    </div>
+                  </div>
+                  <div style="position:relative;font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;color:{{ r.amtColor }};font-variant-numeric:tabular-nums;">{{ r.amount }}</div>
+                  <sc-if value="{{ r.pulse }}"><span style="position:absolute;left:8px;top:50%;width:8px;height:8px;margin-top:-4px;"><span style="position:absolute;inset:0;border-radius:50%;background:#6f9a78;"></span><span data-m="" style="position:absolute;inset:0;border-radius:50%;background:#6f9a78;animation:oiMoneyPulse 600ms cubic-bezier(.2,.8,.2,1) 2;"></span></span></sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;z-index:40;background:rgba(30,24,14,.38);opacity:{{ bdOp }};transition:opacity 260ms cubic-bezier(.2,.8,.2,1);pointer-events:{{ bdPe }};"></div>
+
+  <sc-if value="{{ showReview }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:41;background:#fdf8f1;border-radius:28px 28px 0 0;padding:10px 16px 26px;transform:{{ sheetTf }};transition:{{ sheetTr }};">
+      <div style="display:flex;justify-content:center;padding-bottom:12px;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.6px;color:#5f574b;text-align:center;margin-bottom:12px;">REVIEW STACK · SEE R1</div>
+      <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 14px 34px -14px rgba(52,40,12,.24);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:44px;height:44px;border-radius:14px;background:#efe7da;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">{{ rvIcon }}</span></div>
+          <div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ rvName }}</div><div style="font-size:14px;color:#5f574b;">{{ rvMeta }}</div></div>
+        </div>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:38px;letter-spacing:-1px;">{{ rvAmt }}</div>
+        <button onClick="{{ rvPrimary }}" style="height:54px;border-radius:27px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:#1e1a15;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97)">{{ rvPrimaryLabel }}</button>
+        <button onClick="{{ rvSecondary }}" style="height:46px;border-radius:23px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:#1e1a15;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.96)">{{ rvSecondaryLabel }}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showDetail }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:41;background:#fdf8f1;border-radius:28px 28px 0 0;padding:10px 20px 26px;display:flex;flex-direction:column;gap:14px;transform:{{ sheetTf }};transition:{{ sheetTr }};">
+      <div style="display:flex;justify-content:center;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+      <div>
+        <div style="font-weight:600;font-size:18px;">{{ dtName }}</div>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:36px;letter-spacing:-1px;margin-top:2px;">{{ dtAmt }}</div>
+      </div>
+      <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:20px;">
+        <div style="display:flex;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #f1e9db;font-size:15px;"><span style="color:#5f574b;">{{ dtLabel }}</span><span style="font-weight:600;">{{ dtSub }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #f1e9db;font-size:15px;"><span style="color:#5f574b;">Date</span><span style="font-weight:600;">{{ dtDate }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:13px 16px;font-size:15px;"><span style="color:#5f574b;">Account</span><span style="font-weight:600;">Chase ••4821</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;background:#faf3e7;border-radius:16px;padding:12px 14px;">
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#735c00;">{{ dtIcon }}</span>
+        <div style="flex:1;"><div style="font-size:14px;font-weight:700;color:#735c00;">{{ dtTag }}</div><div style="font-size:13px;color:#3a352d;">{{ dtMatch }}</div></div>
+      </div>
+      <button onClick="{{ unlink }}" style="height:50px;border-radius:25px;border:1.5px solid #e3d8c5;background:transparent;font-family:Inter,sans-serif;font-weight:600;font-size:15px;color:#1e1a15;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97)"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">link_off</span>Unlink from bank</button>
+      <button onClick="{{ closeSheet }}" style="height:54px;border-radius:27px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:#1e1a15;cursor:pointer;">Done</button>
+    </div>
+  </sc-if>
+
+  <div style="position:absolute;left:16px;right:16px;bottom:96px;z-index:50;background:#34302a;color:#fdf8f1;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;line-height:1.35;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);transform:{{ toastTf }};opacity:{{ toastOp }};transition:transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms cubic-bezier(.2,.8,.2,1);pointer-events:none;">
+    <span style="width:26px;height:26px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#1e1a15;">check</span></span>
+    <span>{{ toast }}</span>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;height:84px;z-index:30;background:#fdf8f1;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="position:relative;width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span><span style="position:absolute;top:1px;right:9px;width:10px;height:10px;border-radius:50%;background:#c8412e;box-shadow:0 0 0 2px #fdf8f1;opacity:{{ dotOp }};transition:opacity 240ms cubic-bezier(.2,.8,.2,1);"></span></div><span style="font-size:12px;font-weight:700;">Books</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+  </div>
+  <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:95;"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;page&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;expenses&quot;,&quot;options&quot;:[&quot;expenses&quot;,&quot;income&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;live&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;items&quot;,&quot;empty&quot;,&quot;resolved&quot;,&quot;detail&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+const fmt=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const EO='cubic-bezier(.2,.8,.2,1)',EI='cubic-bezier(.4,0,1,1)';
+const EXP=[
+  {id:'lo',name:"Lowe's",sub:'Supplies',day:29,amt:142.67,pending:true},
+  {id:'bu',name:'Burlington',sub:'Supplies',day:28,amt:49.49,linked:true,receipt:true},
+  {id:'wm',name:'Walmart',sub:'Food',day:28,amt:30.38,linked:true,receipt:true},
+  {id:'sh',name:'Shell',sub:'Fuel',day:28,amt:52.10,pending:true},
+  {id:'co',name:'Costco Wholesale',sub:'Supplies',day:27,amt:432.98,linked:true,receipt:true},
+  {id:'cf',name:'Chick-fil-A',sub:'Food',day:27,amt:24.31,pending:true},
+  {id:'c2',name:'Costco Wholesale',sub:'Fuel',day:25,amt:45.36,receipt:true},
+  {id:'b1',name:"BJ's Wholesale Club",sub:'Fuel',day:23,amt:15.00,receipt:true},
+  {id:'b2',name:"BJ's Wholesale Club",sub:'Fuel',day:23,amt:97.54,linked:true,receipt:true},
+  {id:'sw',name:'Sherwin-Williams',sub:'Supplies',day:22,amt:93.32,pending:true},
+  {id:'hd',name:'The Home Depot',sub:'Supplies',day:20,amt:101.44,receipt:true}
+];
+const INC=[
+  {id:'ob',name:'Obianuju',sub:'INV-1040',day:29,amt:4500,linked:true},
+  {id:'mb',name:'Mr. Bob',sub:'INV-1038',day:27,amt:650},
+  {id:'dp',name:'Deposit · ZELLE FROM D NAKAMURA',day:26,amt:400,unrec:true,to:{name:'Nakamura Property Group',sub:'INV-1042'}},
+  {id:'nk',name:'Nakamura Property Group',sub:'INV-1035',day:24,amt:1151,linked:true},
+  {id:'md',name:'Deposit · MOBILE DEPOSIT',day:20,amt:1200,unrec:true,to:{name:'client',sub:'INV-1033'}},
+  {id:'bo',name:'Bob',sub:'INV-1031',day:19,amt:1150,linked:true}
+];
+class Component extends DCLogic{
+  constructor(props){super(props);this.t=[];this.tid={};this.mq=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;this.state=this.build(props.scene||'live',props.page||'expenses');this.last=this.targets(this.state);this.lastPin='';}
+  rm(){return this.mq;}
+  later(ms,fn){this.t.push(setTimeout(fn,ms));}
+  raf2(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+  componentDidMount(){if(this.state.scene==='live')this.later(700,()=>this.setState({pinReady:true}));}
+  componentWillUnmount(){this.t.forEach(clearTimeout);}
+  componentDidUpdate(pp){
+    if(pp.scene!==this.props.scene||pp.page!==this.props.page){this.t.forEach(clearTimeout);const s=this.build(this.props.scene||'live',this.props.page||'expenses');this.last=this.targets(s);this.setState(s);return;}
+    const t=this.targets(this.state),L=this.last;this.last=t;
+    Object.keys(t).forEach(k=>{if(Math.abs(L[k]-t[k])>1e-6)this.tween(k,this.state.tw[k]??L[k],t[k]);});
+  }
+  tween(k,a,b){if(this.rm())return;const t0=performance.now(),D=500,id=(this.tid[k]=(this.tid[k]||0)+1);const step=now=>{if(this.tid[k]!==id)return;const p=Math.min(1,(now-t0)/D),e=1-Math.pow(1-p,3);this.setState(x=>{const tw={...x.tw};if(p<1)tw[k]=a+(b-a)*e;else delete tw[k];return{tw};});if(p<1)requestAnimationFrame(step);};requestAnimationFrame(step);}
+  data(s=this.state){return s.page==='income'?INC:EXP;}
+  build(scene,page){
+    const s={scene,page,st:{},unrec:{},linked:{},res:{},extra:[],hl:{},hold:false,pulse:{},pinReady:true,sheet:null,sheetUp:false,reviewId:null,detailId:null,toast:'',toastOn:false,tw:{}};
+    const D=page==='income'?INC:EXP;
+    D.forEach(r=>{s.st[r.id]=r.pending?'hidden':'shown';if(r.unrec)s.unrec[r.id]=true;if(r.linked)s.linked[r.id]=true;});
+    if(scene==='live')s.pinReady=false;
+    if(scene==='empty'){if(page==='income'){D.forEach(r=>{if(r.unrec){s.unrec[r.id]=false;s.res[r.id]='invoice';s.linked[r.id]=true;}});}else D.forEach(r=>{if(r.pending){s.st[r.id]='shown';s.linked[r.id]=true;}});}
+    if(scene==='resolved'){s.hold=true;if(page==='income'){s.unrec.dp=false;s.res.dp='invoice';s.linked.dp=true;s.hl.dp=true;s.pulse.dp=true;}else{s.st.lo='shown';s.linked.lo=true;s.hl.lo=true;}}
+    if(scene==='detail'){s.sheet='detail';s.sheetUp=true;s.detailId=page==='income'?'ob':'co';}
+    return s;
+  }
+  pending(s=this.state){const D=this.data(s);const base=s.page==='income'?D.filter(r=>s.unrec[r.id]):D.filter(r=>r.pending&&s.st[r.id]==='hidden');return base.concat(s.extra);}
+  targets(s){
+    const D=s.page==='income'?INC:EXP,p=this.pending(s),t={pinN:p.length,pinAmt:p.reduce((a,r)=>a+r.amt,0),gA:0,gB:0,inv:14671,other:400};
+    D.forEach(r=>{const shown=s.page==='income'?!s.unrec[r.id]:s.st[r.id]==='shown';if(!shown)return;if(r.day>=26)t.gA+=r.amt;else t.gB+=r.amt;if(s.res[r.id]==='invoice')t.inv+=r.amt;if(s.res[r.id]==='other')t.other+=r.amt;});
+    return t;
+  }
+  toastMsg(m){this.setState({toast:m,toastOn:true});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toastOn:false}),3000);this.t.push(this.tt);}
+  openSheet(n,extra){this.setState({sheet:n,sheetUp:false,...extra});this.raf2(()=>this.setState({sheetUp:true}));}
+  closeSheet(after){this.setState({sheetUp:false});this.later(300,()=>{this.setState({sheet:null});if(after)after();});}
+  flash(id){this.setState(x=>({hl:{...x.hl,[id]:true},pulse:{...x.pulse,[id]:x.page==='income'}}));this.later(320,()=>this.setState(x=>({hl:{...x.hl,[id]:false}})));this.later(1300,()=>this.setState(x=>({pulse:{...x.pulse,[id]:false}})));}
+  resolve(primary){
+    const s=this.state,id=s.reviewId,D=this.data(),r=D.find(x=>x.id===id)||s.extra.find(x=>x.id===id);
+    this.closeSheet(()=>{
+      if(r.extra){this.setState(x=>({extra:x.extra.filter(e=>e.id!==id),linked:{...x.linked,[r.base]:true}}));this.toastMsg('Linked again, totals unchanged.');return;}
+      if(s.page==='income'){this.setState(x=>({unrec:{...x.unrec,[id]:false},res:{...x.res,[id]:primary?'invoice':'other'},linked:{...x.linked,[id]:primary}}));this.flash(id);this.toastMsg(`Recorded Oct ${r.day}, totals updated.`);}
+      else if(primary){this.setState(x=>({st:{...x.st,[id]:'shown'},linked:{...x.linked,[id]:true}}));this.flash(id);this.toastMsg(`Added to Oct ${r.day}, totals updated.`);}
+      else this.setState(x=>({st:{...x.st,[id]:'skipped'}}));
+    });
+  }
+  renderVals(){
+    const s=this.state,inc=s.page==='income',D=this.data(),p=this.pending(),T=this.targets(s),v=k=>s.tw[k]??T[k];
+    const rowsAll=D.map(r=>{
+      const shownRow=inc?true:s.st[r.id]==='shown',un=inc&&s.unrec[r.id],res=inc&&s.res[r.id];
+      const name=res==='invoice'&&r.to?r.to.name:res==='other'?'Other income':r.name;
+      const sub=res==='invoice'&&r.to?r.to.sub:res==='other'?'Transfer':r.sub;
+      const hl=s.hl[r.id];
+      return{r,group:r.day>=26?'A':'B',visible:shownRow,
+        gr:shownRow?'1fr':'0fr',op:shownRow?1:0,
+        bg:hl?(inc?'rgba(111,154,120,.2)':'#f6e9c6'):'#ffffff',bgTr:hl||s.hold?'none':'background-color 1000ms cubic-bezier(.2,.8,.2,1)',
+        thumb:!inc&&!!r.receipt,iconTile:(!inc&&!r.receipt)||un,icon:un?'south_west':'receipt_long',letterTile:inc&&!un,letter:name[0].toUpperCase(),
+        name,nameColor:un?'#5f574b':'#1e1a15',
+        meta:un?`Oct ${r.day} · not recorded`:inc?`${sub} · Oct ${r.day}`:`${sub} · Oct ${r.day}`,
+        metaColor:un?'#8f8676':'#5f574b',metaStyle:un?'italic':'normal',
+        linkIcon:inc&&!un&&!!s.linked[r.id],verified:!inc&&!!s.linked[r.id],
+        amount:fmt(r.amt),amtColor:un?'#8f8676':'#1e1a15',pulse:!!s.pulse[r.id],
+        tap:()=>{if(un)this.openSheet('review',{reviewId:r.id});else if(s.linked[r.id])this.openSheet('detail',{detailId:r.id});}};
+    });
+    const groups=[['A','OCT 26-31','gA'],['B','OCT 19-25','gB']].map(([g,label,k])=>{const rows=rowsAll.filter(x=>x.group===g);const vis=rows.filter(x=>x.visible);const lastId=vis.length?vis[vis.length-1].r.id:null;rows.forEach(x=>x.line=x.r.id===lastId?'transparent':'#f1e9db');return{label,total:fmt(v(k)),rows};});
+    const n=Math.round(v('pinN'));
+    if(T.pinN>0){this.lastCount=`${n} ${n===1?'item':'items'}`;this.lastAmt=fmt(v('pinAmt'));}
+    const pinShown=s.pinReady&&T.pinN>0;
+    const rv=D.find(x=>x.id===s.reviewId)||s.extra.find(x=>x.id===s.reviewId)||{};
+    const dt=D.find(x=>x.id===s.detailId)||{};
+    const dtRes=inc&&s.res[dt.id]==='invoice'&&dt.to;
+    return{
+      title:inc?'Income':'Expenses',isIncome:inc,searchPh:inc?'Search client or invoice':'Search vendor or category',
+      invStr:fmt(v('inv')),otherStr:fmt(v('other')),
+      pinRows:pinShown?'1fr':'0fr',pinTf:pinShown||this.rm()?'none':'translateY(-14px)',pinOp:pinShown?1:0,pinShown,pinCountText:this.lastCount||'',pinAmtStr:this.lastAmt||'',
+      tapPinned:()=>{const q=this.pending();if(q.length)this.openSheet('review',{reviewId:q[0].id});},
+      groups,
+      dotOp:T.pinN>0?1:0,
+      showReview:s.sheet==='review',showDetail:s.sheet==='detail',
+      sheetTf:s.sheetUp?'none':'translateY(105%)',sheetTr:s.sheetUp?`transform 360ms ${EO}`:`transform 280ms ${EI}`,
+      bdOp:s.sheet&&s.sheetUp?1:0,bdPe:s.sheet?'auto':'none',
+      rvIcon:inc||rv.inc?'south_west':'shopping_bag',rvName:rv.name||'',rvAmt:fmt(rv.amt||0),
+      rvMeta:rv.extra?`Chase ••4821 · Oct ${rv.day} · unlinked`:inc?`Chase ••4821 · Oct ${rv.day}`:`Chase ••4821 · Oct ${rv.day} · ${rv.sub||''}`,
+      rvPrimaryLabel:rv.extra?'Link again':inc?`Payment for ${rv.to?rv.to.sub:'an invoice'}`:'Add to record',
+      rvSecondaryLabel:rv.extra?'Not now':inc?'Other money received':"Don't add",
+      rvPrimary:()=>this.resolve(true),rvSecondary:()=>{if(rv.extra){this.closeSheet();return;}this.resolve(false);},
+      dtName:dtRes?dt.to.name:(dt.name||''),dtAmt:fmt(dt.amt||0),dtLabel:inc?'Invoice':'Category',dtSub:dtRes?dt.to.sub:(dt.sub||''),dtDate:`Oct ${dt.day}`,
+      dtIcon:inc?'link':'verified',dtTag:inc?'Linked payment':'Bank-verified',dtMatch:`Matched to Chase ••4821 · Oct ${dt.day}`,
+      unlink:()=>{const id=s.detailId,r=D.find(x=>x.id===id);this.closeSheet(()=>{this.setState(x=>({linked:{...x.linked,[id]:false},extra:x.extra.concat([{id:id+'-x',base:id,extra:true,name:dtRes?r.to.name:r.name,amt:r.amt,day:r.day,sub:r.sub,inc}]),pinReady:true}));this.toastMsg('Unlinked. The bank item is back in Unaccounted for.');});},
+      closeSheet:()=>this.closeSheet(),
+      back:()=>{if(this.props.onBack)this.props.onBack();},
+      toast:s.toast,toastTf:s.toastOn?'none':'translateY(16px)',toastOp:s.toastOn?1:0
+    };
+  }
+}
+</script>
+</body>
+</html>
