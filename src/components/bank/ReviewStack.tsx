@@ -24,8 +24,8 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  accountLabel, addedToast, counterLabel, nextQueueIndex, reviewQueue, rubberBand,
-  SWIPE_COMMIT_PX, swipeTransform,
+  accountLabel, addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, nextQueueIndex,
+  reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
 
@@ -54,6 +54,8 @@ export default function ReviewStack({
 }) {
   const queue = reviewQueue(state);
   const pending = queue.length;
+  const ignored = ignoredQueue(state);
+  const filter = state.filter;
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
   const pos = Math.min(index, Math.max(0, queue.length - 1));
@@ -157,15 +159,31 @@ export default function ReviewStack({
     later(reduce ? 0 : 360, onClose);
   }, [later, onClose, reduce]);
 
-  const caught = pending === 0 && state.items.length > 0;
+  const caught = filter === 'review' && pending === 0 && state.items.length > 0;
 
   // All caught up dismisses itself after 1.9s, but only when the user just
-  // finished the batch — not when the sheet is opened with nothing to do.
+  // finished the batch — not when the sheet is opened with nothing to do, and
+  // never while Ignored holds items the owner may still want to restore.
   useEffect(() => {
-    if (!caught || !finishSoon.current) return;
+    if (!caught || ignored.length > 0 || !finishSoon.current) return;
     const t = setTimeout(dismiss, 1900);
     return () => clearTimeout(t);
-  }, [caught, dismiss]);
+  }, [caught, ignored.length, dismiss]);
+
+  function restore(item: BankItem) {
+    const reopened: BankReviewState = { ...state, status: { ...state.status, [item.id]: 'open' } };
+    const at = reviewQueue(reopened).findIndex((it) => it.id === item.id);
+    dispatch({ type: 'restore', id: item.id });
+    dispatch({ type: 'filter', filter: 'review' });
+    indexRef.current = Math.max(0, at);
+    setIndex(Math.max(0, at));
+    setAnnounce('Back in To review.');
+  }
+
+  const segClass = (on: boolean) =>
+    `flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[10px] text-sm font-semibold transition-colors ${
+      on ? 'bg-surface-container-lowest text-on-background shadow-sm' : 'text-on-surface-variant'
+    }`;
 
   const go = useCallback((dir: 1 | -1) => {
     const next = nextQueueIndex(queue.length, indexRef.current, dir);
@@ -205,7 +223,7 @@ export default function ReviewStack({
 
   // ── Touch browse (touch only; pointer devices use ← / →) ──
   function onPointerDown(e: ReactPointerEvent) {
-    if (e.pointerType !== 'touch' || reduce || !top || leaving) return;
+    if (e.pointerType !== 'touch' || reduce || !top || leaving || filter !== 'review') return;
     gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false };
   }
   function onPointerMove(e: ReactPointerEvent) {
@@ -291,7 +309,9 @@ export default function ReviewStack({
           <div className="flex flex-col items-center gap-0.5">
             <span className="text-[11px] font-bold uppercase tracking-[.16em] text-on-surface-variant">Bank activity</span>
             <div id="bank-activity-counter" aria-live="polite" aria-atomic="true" className="h-[22px] overflow-hidden">
-              {pending > 0 ? (
+              {filter === 'ignored' ? (
+                <span className="block font-display text-[18px] font-extrabold leading-[22px]">Ignored</span>
+              ) : pending > 0 ? (
                 <>
                   <span className="sr-only">Item {pos + 1} of {state.items.length}</span>
                   <span
@@ -311,6 +331,19 @@ export default function ReviewStack({
           <span aria-hidden className="h-11 w-11" />
         </div>
 
+        {ignored.length > 0 && (
+          <div role="group" aria-label="Bank activity filter" className="mx-4 mb-3 flex shrink-0 gap-1 rounded-[14px] bg-surface-container-high p-1">
+            <button type="button" aria-pressed={filter === 'review'} onClick={() => dispatch({ type: 'filter', filter: 'review' })} className={segClass(filter === 'review')}>
+              To review
+              <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{pending}</span>
+            </button>
+            <button type="button" aria-pressed={filter === 'ignored'} onClick={() => dispatch({ type: 'filter', filter: 'ignored' })} className={segClass(filter === 'ignored')}>
+              Ignored
+              <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{ignored.length}</span>
+            </button>
+          </div>
+        )}
+
         <div
           className="relative mx-4 mb-3 min-h-0 flex-1"
           style={{ touchAction: 'pan-y' }}
@@ -319,7 +352,28 @@ export default function ReviewStack({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          {pending === 0 ? (
+          {filter === 'ignored' ? (
+            <div className="bank-fade max-h-full overflow-y-auto rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
+              {ignored.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 border-b border-outline-variant/40 px-3.5 py-2.5 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-semibold">{item.merchant}</div>
+                    <div className="truncate text-[13px] text-on-surface-variant">
+                      {formatDay(item.date)} · {accountLabel(item.accountId)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{formatMoney(item.amount)}</span>
+                  <button
+                    type="button"
+                    onClick={() => restore(item)}
+                    className="h-11 shrink-0 rounded-full border-[1.5px] border-outline-variant px-3.5 text-sm font-semibold transition-transform active:scale-[0.95]"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : pending === 0 ? (
             caught ? (
               <div className="bank-fade flex h-full flex-col items-center justify-center gap-3.5 px-7 pb-16 text-center">
                 <svg width="120" height="120" viewBox="0 0 120 120" className="text-primary-container" aria-hidden>
@@ -331,7 +385,9 @@ export default function ReviewStack({
                 </svg>
                 <h3 className="font-display text-[26px] font-extrabold">All caught up</h3>
                 <p className="text-[15px] leading-[1.45] text-on-surface-variant">
-                  Every bank item is accounted for.
+                  {ignored.length > 0
+                    ? 'Everything left is in Ignored — restore any you still need.'
+                    : 'Every bank item is accounted for.'}
                 </p>
               </div>
             ) : (
@@ -426,7 +482,7 @@ export default function ReviewStack({
             type="button"
             aria-label="Previous item"
             aria-keyshortcuts="ArrowLeft"
-            disabled={pending === 0 || pos === 0}
+            disabled={filter !== 'review' || pending === 0 || pos === 0}
             onClick={() => go(-1)}
             className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
           >
@@ -436,7 +492,7 @@ export default function ReviewStack({
             type="button"
             aria-label="Next item"
             aria-keyshortcuts="ArrowRight"
-            disabled={pending === 0 || pos >= pending - 1}
+            disabled={filter !== 'review' || pending === 0 || pos >= pending - 1}
             onClick={() => go(1)}
             className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
           >

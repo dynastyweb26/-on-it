@@ -11,8 +11,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BANK_ITEMS, addedToast, bankReducer, booksDotVisible, counterLabel, dateOptions, formatDay,
-  formatMoney, nextQueueIndex, pendingCount, reviewQueue, rubberBand, seedReviewState, statusOf,
-  swipeTransform, unaccountedCount, unaccountedItems,
+  formatMoney, ignoredCount, ignoredQueue, nextQueueIndex, pendingCount, reviewQueue, rubberBand,
+  seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
 
 test('fixture seeds a full copy: edits never touch the exported items', () => {
@@ -56,6 +56,47 @@ test('reviewing everything clears the dot; opening never does', () => {
   for (const item of state.items) state = bankReducer(state, { type: 'add', id: item.id });
   assert.equal(pendingCount(state), 0);
   assert.equal(booksDotVisible(state), false);
+});
+
+// CHANGES.md · item 2: hidden becomes Ignored — restorable, and counted by
+// nothing but its own tab.
+test('don\'t add moves a card to Ignored, which counts toward no dot', () => {
+  let state = seedReviewState();
+  const before = unaccountedCount(state);
+  state = bankReducer(state, { type: 'ignore', id: 'lo-1026' });
+  assert.equal(pendingCount(state), before - 1);
+  assert.equal(ignoredCount(state), 1);
+  assert.equal(ignoredQueue(state)[0].id, 'lo-1026');
+  assert.equal(unaccountedCount(state), before - 1, 'ignored is not unaccounted');
+  assert.equal(unaccountedItems(state).some((it) => it.id === 'lo-1026'), false);
+});
+
+test('restore puts an ignored card back into To review at its position', () => {
+  let state = seedReviewState();
+  state = bankReducer(state, { type: 'ignore', id: 'co-1027' });
+  state = bankReducer(state, { type: 'filter', filter: 'ignored' });
+  state = bankReducer(state, { type: 'restore', id: 'co-1027' });
+  assert.equal(ignoredCount(state), 0);
+  assert.equal(statusOf(state, 'co-1027'), 'open');
+  assert.equal(reviewQueue(state)[1].id, 'co-1027');
+});
+
+test('ignored items only become final when the stack closes with To review empty', () => {
+  let state = seedReviewState();
+  state = bankReducer(state, { type: 'ignore', id: 'wm-1028' });
+  // Still cards waiting: closing changes nothing, Ignored persists.
+  const kept = bankReducer(state, { type: 'finalizeIgnored' });
+  assert.equal(ignoredCount(kept), 1);
+  assert.equal(statusOf(kept, 'wm-1028'), 'ignored');
+  // Nothing left to review: ignored becomes final and the tab goes away.
+  for (const item of state.items) {
+    if (statusOf(state, item.id) === 'open') state = bankReducer(state, { type: 'add', id: item.id });
+  }
+  assert.equal(pendingCount(state), 0);
+  const closed = bankReducer(state, { type: 'finalizeIgnored' });
+  assert.equal(ignoredCount(closed), 0);
+  assert.equal(statusOf(closed, 'wm-1028'), 'dropped');
+  assert.equal(closed.filter, 'review');
 });
 
 test('unlink (reopen) sends a bank-verified item back to Unaccounted for', () => {

@@ -66,13 +66,17 @@ export type BankItem = {
   review?: BankReview;
 };
 
-/** open = still to review. Everything else is decided and leaves the stack.
- *  Closing the sheet (X) never changes a status: unresolved items stay open. */
-export type BankItemStatus = 'open' | 'added' | 'already' | 'ignored';
+/** open = still to review; ignored = "Don't add", still restorable until the
+ *  stack is closed with nothing left to review; added / already are decided;
+ *  dropped = an ignored item that became final. */
+export type BankItemStatus = 'open' | 'added' | 'already' | 'ignored' | 'dropped';
+
+export type BankFilter = 'review' | 'ignored';
 
 export type BankReviewState = {
   items: BankItem[];
   status: Record<string, BankItemStatus>;
+  filter: BankFilter;
 };
 
 // ═══ The fixture ═══
@@ -156,15 +160,21 @@ export const BANK_ITEMS: BankItem[] = [
 export const seedReviewState = (items: BankItem[] = BANK_ITEMS): BankReviewState => ({
   items: items.map((it) => ({ ...it })),
   status: {},
+  filter: 'review',
 });
 
 export type BankAction =
   | { type: 'add'; id: string }
   | { type: 'already'; id: string }
   | { type: 'ignore'; id: string }
+  /** Restore on an ignored card: it goes back into To review. */
+  | { type: 'restore'; id: string }
+  /** Closing the stack with nothing left to review makes ignored items final. */
+  | { type: 'finalizeIgnored' }
   /** Unlink on a bank-verified row: the item goes back to Unaccounted for. */
   | { type: 'reopen'; id: string }
-  | { type: 'edit'; id: string; patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>> };
+  | { type: 'edit'; id: string; patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>> }
+  | { type: 'filter'; filter: BankFilter };
 
 const STATUS_FOR: Record<'add' | 'already' | 'ignore', BankItemStatus> = {
   add: 'added',
@@ -179,12 +189,24 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
     case 'ignore':
       return { ...state, status: { ...state.status, [action.id]: STATUS_FOR[action.type] } };
     case 'reopen':
+    case 'restore':
       return { ...state, status: { ...state.status, [action.id]: 'open' } };
+    case 'finalizeIgnored': {
+      // Only when To review is empty: the owner has nothing left to look at, so
+      // the ones they passed on stop being restorable and the tab disappears.
+      const stillOpen = state.items.some((it) => (state.status[it.id] ?? 'open') === 'open');
+      if (stillOpen) return state;
+      const status: Record<string, BankItemStatus> = { ...state.status };
+      for (const it of state.items) if (status[it.id] === 'ignored') status[it.id] = 'dropped';
+      return { ...state, status, filter: 'review' };
+    }
     case 'edit':
       return {
         ...state,
         items: state.items.map((it) => (it.id === action.id ? { ...it, ...action.patch } : it)),
       };
+    case 'filter':
+      return { ...state, filter: action.filter };
     default:
       return state;
   }
@@ -198,6 +220,12 @@ export const reviewQueue = (state: BankReviewState): BankItem[] =>
   state.items.filter((it) => statusOf(state, it.id) === 'open');
 
 export const pendingCount = (state: BankReviewState): number => reviewQueue(state).length;
+
+/** "Don't add" items, still restorable. They count toward nothing else. */
+export const ignoredQueue = (state: BankReviewState): BankItem[] =>
+  state.items.filter((it) => statusOf(state, it.id) === 'ignored');
+
+export const ignoredCount = (state: BankReviewState): number => ignoredQueue(state).length;
 
 /** Whatever the owner still has to deal with. There is no hidden state any
  *  more: X only closes the sheet, so unresolved items are simply still open. */

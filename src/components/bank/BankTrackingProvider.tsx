@@ -9,7 +9,7 @@
 // only when something is waiting — SPEC.txt's trigger) and the
 // `onit:bank-review-open` event the pinned row dispatches.
 import {
-  createContext, useContext, useEffect, useMemo, useReducer, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState,
   type Dispatch, type SetStateAction,
 } from 'react';
 import { usePathname } from 'next/navigation';
@@ -87,6 +87,12 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   }, []);
 
   const openStack = useMemo(() => () => setOpen(true), []);
+  // Closing with nothing left to review makes the ignored items final; closing
+  // with cards still waiting keeps them restorable (the reducer checks).
+  const closeStack = useCallback(() => {
+    setOpen(false);
+    dispatch({ type: 'finalizeIgnored' });
+  }, []);
   const value = useMemo<BankTrackingApi>(
     () => ({ enabled, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
     [enabled, state, openStack, pending, unaccounted, bank, setBank, tier],
@@ -96,7 +102,7 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     <BankContext.Provider value={value}>
       {children}
       {enabled && open && (
-        <ReviewStack state={state} dispatch={dispatch} onClose={() => setOpen(false)} />
+        <ReviewStack state={state} dispatch={dispatch} onClose={closeStack} />
       )}
     </BankContext.Provider>
   );
