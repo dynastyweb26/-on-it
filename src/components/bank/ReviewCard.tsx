@@ -93,7 +93,9 @@ export default function ReviewCard({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
-      <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-[18px]">
+      {/* Expense cards dropped their letter tile (CHANGES.md · item 4), so the
+          block carries a little more room instead of looking short. */}
+      <div className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto ${review ? 'p-[18px]' : 'px-[18px] py-[22px]'}`}>
         {review ? (
           <>
             <div className="flex">
@@ -130,14 +132,12 @@ export default function ReviewCard({
           </>
         ) : (
           <>
-            <div className="flex items-center gap-3 pr-10">
-              <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-primary-soft font-display text-lg font-extrabold">
-                {item.merchant.charAt(0).toUpperCase()}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h3 ref={headingRef} tabIndex={-1} className="truncate text-[18px] font-semibold outline-none">{item.merchant}</h3>
-                <div className="mt-px truncate text-sm text-on-surface-variant">{account}</div>
-              </div>
+            {/* No letter tile here: the merchant name is the card's anchor. */}
+            <div className="flex flex-col gap-1">
+              <h3 ref={headingRef} tabIndex={-1} className="font-display text-[28px] font-extrabold leading-[1.12] tracking-[-0.02em] break-words outline-none">
+                {item.merchant}
+              </h3>
+              <div className="truncate text-[15px] text-on-surface-variant">{account}</div>
             </div>
 
             {editing === 'amount' ? (
