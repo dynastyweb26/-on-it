@@ -1974,6 +1974,24 @@ results(id, ok, expected, actual) as (
         where p.oid in (to_regprocedure('public.set_plaid_access_token(uuid, text, text)'),
                         to_regprocedure('public.get_plaid_access_token(uuid, text)'))), 'missing') end
 
+  union all
+  select 'BB8 expense delete reopen',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'reopen_bank_transaction_on_expense_delete'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 8) = 8 and (t.tgtype & 16) = 0) = 1
+        and coalesce((select p.prosecdef and 'search_path=public' = any(p.proconfig)
+          from pg_proc p
+          where p.oid = to_regprocedure('public.reopen_bank_transaction_on_expense_delete()')), false) end,
+    'expenses BEFORE DELETE trigger reopens the linked txn (definer, search_path pinned)',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select string_agg(t.tgname || ' type=' || t.tgtype, ', ')
+        from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'reopen_bank_transaction_on_expense_delete'), 'trigger missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

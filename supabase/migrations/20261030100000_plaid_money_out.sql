@@ -176,6 +176,36 @@ grant select, insert, update, delete on public.bank_transactions to service_role
 revoke truncate on public.plaid_items, public.plaid_accounts, public.bank_transactions
   from anon, authenticated;
 
+-- 5b ── Deleting an expense reopens its bank transaction ─────────
+-- expense_id is ON DELETE SET NULL, but a decided row ('added' / 'already')
+-- must point at an expense, so a bare SET NULL violates
+-- bank_transactions_link_chk. Reopen it BEFORE the delete instead: the row is
+-- nulled and sent to 'needs_review' in one UPDATE, so the CHECK holds
+-- throughout and the owner is asked rather than silently losing the link.
+-- SECURITY DEFINER because the owner has no UPDATE grant on
+-- bank_transactions; the update is scoped to the expense being deleted.
+-- Account teardown (profiles -> expenses) fires this too: rows of the same
+-- account are either updated harmlessly or already gone.
+create or replace function public.reopen_bank_transaction_on_expense_delete()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.bank_transactions
+    set expense_id = null,
+        review_state = 'needs_review',
+        updated_at = now()
+    where expense_id = old.id
+      and review_state in ('added', 'already');
+  return old;
+end $$;
+
+revoke execute on function public.reopen_bank_transaction_on_expense_delete()
+  from public, anon, authenticated;
+
+drop trigger if exists reopen_bank_transaction_on_expense_delete on public.expenses;
+create trigger reopen_bank_transaction_on_expense_delete
+  before delete on public.expenses
+  for each row execute function public.reopen_bank_transaction_on_expense_delete();
+
 -- 6 ── Access-token helpers (service role only) ──────────────────
 -- The key is passed from the server exactly like set_zelle: it lives in the
 -- deployment's environment (PLAID_TOKEN_ENC_KEY), never in the database.
