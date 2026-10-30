@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+@keyframes oiDotPop{0%{transform:scale(0)}65%{transform:scale(1.25)}100%{transform:scale(1)}}
+@keyframes oiDotIdle{0%{transform:scale(1);opacity:.5}9%{transform:scale(2.4);opacity:0}100%{transform:scale(2.4);opacity:0}}
+@keyframes oiGlow{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation-name:oiFade !important;animation-iteration-count:1 !important}}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:48px;background:#fdf8f1;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45);-webkit-font-smoothing:antialiased;user-select:none;">
+  <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:90;box-sizing:border-box;">
+    <span>7:02</span>
+    <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+  </div>
+  <div style="position:absolute;top:47px;left:0;right:0;height:66px;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+    <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">arrow_back</span>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+    <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 18px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.6px;">How On It works</div>
+  </div>
+
+  <div ref="{{ scrollRef }}" style="position:absolute;top:113px;left:0;right:0;bottom:84px;overflow-y:auto;padding:0 16px 30px;box-sizing:border-box;scroll-behavior:smooth;transform:{{ booksTf }};opacity:{{ booksOp }};transition:transform 320ms cubic-bezier(.2,.8,.2,1), opacity 320ms cubic-bezier(.2,.8,.2,1);">
+    <div style="display:grid;grid-template-rows:{{ bannerRows }};transition:grid-template-rows 320ms cubic-bezier(.2,.8,.2,1);">
+      <div style="min-height:0;overflow:hidden;">
+        <div style="padding-top:14px;transform:{{ bannerTf }};opacity:{{ bannerOp }};transition:transform 320ms cubic-bezier(.2,.8,.2,1), opacity 240ms cubic-bezier(.2,.8,.2,1);">
+          <div style="display:flex;align-items:center;gap:12px;background:#ffffff;border:1px solid #ebe2d2;border-radius:20px;padding:12px 12px 12px 16px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:#d4af37;flex:none;"></span>
+            <div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:15px;">Chase needs you to sign in again</div><div style="font-size:13px;color:#5f574b;">New bank activity is paused.</div></div>
+            <button onClick="{{ fixBank }}" style="height:38px;padding:0 14px;border-radius:19px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:#1e1a15;cursor:pointer;flex:none;transition:transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.95)">Reconnect</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;margin:20px 0 14px;">Books summary</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 18px;background:#ffffff;border:1.5px solid #e3d8c5;border-radius:16px;font-size:17px;"><span>{{ periodLabel }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">expand_more</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+      <div style="height:60px;border-radius:30px;background:#d4af37;display:flex;align-items:center;justify-content:center;gap:8px;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">download</span>Expenses PDF</div>
+      <div style="height:60px;border-radius:30px;background:#d4af37;display:flex;align-items:center;justify-content:center;gap:8px;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">download</span>Income PDF</div>
+    </div>
+
+    <div onClick="{{ replay }}" style="margin-top:16px;background:#34302a;border-radius:24px;padding:22px 22px 20px;color:#fdf8f1;cursor:pointer;">
+      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;color:#e6c65c;">{{ keptLabel }}</div>
+      <div style="position:relative;display:inline-block;margin-top:4px;">
+        <sc-if value="{{ keptGreen }}"><span data-m="" style="position:absolute;inset:-2px -10px;border-radius:12px;background:rgba(111,154,120,.35);animation:oiGlow 600ms cubic-bezier(.2,.8,.2,1) both;"></span></sc-if>
+        <div style="position:relative;font-family:Montserrat,sans-serif;font-weight:800;font-size:38px;letter-spacing:-1px;color:#e6c65c;font-variant-numeric:tabular-nums;">{{ keptStr }}</div>
+      </div>
+      <div style="font-size:13px;color:#b9b0a0;margin-top:4px;">{{ countLine }}</div>
+      <div style="height:1px;background:#4a453c;margin:16px 0;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div onClick="{{ openIncome }}" role="button" aria-label="Brought in. Open Income." style="margin:-8px;padding:8px;border-radius:14px;cursor:pointer;transition:transform 120ms cubic-bezier(.2,.8,.2,1), background-color 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97);background-color:rgba(253,248,241,.07)"><div style="display:flex;align-items:center;gap:2px;font-size:12px;letter-spacing:1px;color:#b9b0a0;">BROUGHT IN<span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">chevron_right</span></div>
+          <div style="position:relative;display:inline-block;margin-top:4px;">
+            <sc-if value="{{ innGreen }}"><span data-m="" style="position:absolute;inset:-2px -8px;border-radius:10px;background:rgba(111,154,120,.4);animation:oiGlow 600ms cubic-bezier(.2,.8,.2,1) both;"></span></sc-if>
+            <div style="position:relative;font-family:Montserrat,sans-serif;font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;">{{ innStr }}</div>
+          </div>
+        </div>
+        <div><div style="font-size:12px;letter-spacing:1px;color:#b9b0a0;">SPENT</div>
+          <div style="position:relative;display:inline-block;margin-top:4px;">
+            <sc-if value="{{ spentGold }}"><span data-m="" style="position:absolute;inset:-2px -8px;border-radius:10px;background:rgba(212,175,55,.38);animation:oiGlow 600ms cubic-bezier(.2,.8,.2,1) both;"></span></sc-if>
+            <div style="position:relative;font-family:Montserrat,sans-serif;font-weight:800;font-size:21px;font-variant-numeric:tabular-nums;">{{ spentStr }}</div>
+          </div>
+        </div>
+      </div>
+      <div style="height:1px;background:#4a453c;margin:16px 0;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div><div style="font-size:12px;letter-spacing:1px;color:#b9b0a0;">STILL OWED (AS OF TODAY)</div><div style="font-size:12px;color:#8f8676;margin-top:2px;">Not counted in kept</div></div>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:21px;color:#e6c65c;">$69,055.40</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-rows:{{ fnRows }};transition:grid-template-rows 300ms cubic-bezier(.2,.8,.2,1);">
+      <div style="min-height:0;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 6px 0;font-size:14px;color:#5f574b;opacity:{{ fnOp }};transition:opacity 240ms cubic-bezier(.2,.8,.2,1);">
+          <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">account_balance</span>
+          <span style="flex:1;">{{ fnText }}</span>
+          <span style="font-weight:600;color:#735c00;">Review</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.4px;color:#3a352d;padding:26px 6px 10px;"><span>EXPENSES BY CATEGORY</span><span style="letter-spacing:0;font-variant-numeric:tabular-nums;">{{ spentStr }}</span></div>
+    <div style="background:#faf3e7;border:1px solid #efe5d3;border-radius:24px;padding:4px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #ebe2d2;"><div><div style="font-size:17px;">Supplies</div><div style="font-size:13px;color:#5f574b;">21 expenses</div></div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">$1,929.75</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #ebe2d2;"><div><div style="font-size:17px;">Food</div><div style="font-size:13px;color:#5f574b;">21 expenses</div></div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">$1,359.26</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;"><div><div style="font-size:17px;">Fuel</div><div style="font-size:13px;color:#5f574b;">21 expenses</div></div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">$1,261.18</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.4px;color:#3a352d;padding:26px 6px 10px;"><span>INCOME BY CLIENT</span><span style="letter-spacing:0;font-variant-numeric:tabular-nums;">{{ innStr }}</span></div>
+    <div style="background:#faf3e7;border:1px solid #efe5d3;border-radius:24px;padding:4px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #ebe2d2;"><div><div style="font-size:17px;">Obianuju</div><div style="font-size:13px;color:#5f574b;">1 payment received</div></div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">$4,500.00</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;"><div><div style="font-size:17px;">Mr. Bob</div><div style="font-size:13px;color:#5f574b;">1 payment received</div></div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">$3,500.00</div></div>
+    </div>
+    <div style="font-size:14px;color:#5f574b;line-height:1.55;padding:20px 6px 0;text-wrap:pretty;">This summary covers everything in your Books: what you logged in On It and bank items you added. Confirm totals against your receipts and bank records.</div>
+  </div>
+
+  <div style="position:absolute;left:16px;right:16px;bottom:96px;z-index:50;background:#34302a;color:#fdf8f1;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);transform:{{ toastTf }};opacity:{{ toastOp }};transition:transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms cubic-bezier(.2,.8,.2,1);pointer-events:none;">
+    <span style="width:26px;height:26px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#1e1a15;">check</span></span>
+    <span>{{ toast }}</span>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;bottom:0;height:84px;z-index:30;background:#fdf8f1;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <div style="position:relative;width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;">
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span>
+        <sc-if value="{{ dotMounted }}">
+          <span style="position:absolute;top:1px;right:9px;width:10px;height:10px;opacity:{{ dotOp }};transition:opacity 240ms cubic-bezier(.2,.8,.2,1);">
+            <span data-m="" style="position:absolute;inset:0;border-radius:50%;background:#c8412e;animation:oiDotIdle 6000ms cubic-bezier(.2,.8,.2,1) 1200ms infinite;"></span>
+            <span data-m="" style="position:absolute;inset:0;border-radius:50%;background:#c8412e;box-shadow:0 0 0 2px #d4af37;animation:oiDotPop 320ms cubic-bezier(.34,1.56,.64,1) both;"></span>
+          </span>
+        </sc-if>
+      </div>
+      <span style="font-size:12px;font-weight:700;">Books</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+  </div>
+  <sc-if value="{{ incMounted }}">
+    <div style="position:absolute;inset:0;z-index:60;transform:{{ incTf }};transition:transform 320ms cubic-bezier(.2,.8,.2,1);box-shadow:-12px 0 30px -18px rgba(40,30,10,.3);">
+      <dc-import name="LedgerPhone" page="income" scene="items" on-back="{{ closeIncome }}" hint-size="390px,844px"></dc-import>
+    </div>
+  </sc-if>
+  <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:95;"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;live&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;dot&quot;,&quot;spent&quot;,&quot;income&quot;,&quot;toast&quot;,&quot;reconnect&quot;,&quot;footnote&quot;,&quot;report&quot;,&quot;period&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+const fmt=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const ALL={kept:10211.28,inn:15071,spent:4859.72,count:65};
+const WEEK={kept:3987.15,inn:4500,spent:512.85,count:7};
+class Component extends DCLogic{
+  constructor(props){super(props);this.t=[];this.tid={};this.scrollRef=React.createRef();this.mq=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;this.state=this.base(props.scene||'live');}
+  base(scene){
+    const s={scene,period:'all',v:{...ALL},tw:{},dot:false,dotOp:1,banner:false,pending:0,fn:false,toast:'',toastOn:false,spentGold:false,innGreen:false,keptGreen:false};
+    if(scene==='footnote'||scene==='report'){s.fn=true;s.pending=3;s.dot=true;}
+    if(scene==='period'){s.period='week';s.v={...WEEK};}
+    if(scene==='spent'||scene==='income'||scene==='toast'){s.dot=true;s.pending=3;s.fn=true;}
+    return s;
+  }
+  componentDidMount(){this.run();}
+  componentDidUpdate(pp){if(pp.scene!==this.props.scene){this.reset();}}
+  componentWillUnmount(){this.t.forEach(clearTimeout);}
+  reset(){this.t.forEach(clearTimeout);this.t=[];this.setState(this.base(this.props.scene||'live'),()=>this.run());}
+  later(ms,fn){this.t.push(setTimeout(fn,ms));}
+  tween(k,b,D=600){const a=this.state.tw[k]??this.state.v[k];this.setState(x=>({v:{...x.v,[k]:b}}));if(this.mq)return;const t0=performance.now(),id=(this.tid[k]=(this.tid[k]||0)+1);const step=now=>{if(this.tid[k]!==id)return;const p=Math.min(1,(now-t0)/D),e=1-Math.pow(1-p,3);this.setState(x=>{const tw={...x.tw};if(p<1)tw[k]=a+(b-a)*e;else delete tw[k];return{tw};});if(p<1)requestAnimationFrame(step);};requestAnimationFrame(step);}
+  pulse(key){this.setState({[key]:true});this.later(650,()=>this.setState({[key]:false}));}
+  toastMsg(m,hold){this.setState({toast:m,toastOn:true});if(!hold)this.later(3000,()=>this.setState({toastOn:false}));}
+  addExpense(amt,date,hold){const v=this.state.v;this.toastMsg(`Added to ${date}, totals updated.`,hold);this.pulse('spentGold');this.tween('spent',v.spent+amt);this.tween('kept',v.kept-amt);this.tween('count',v.count+1);this.consume();}
+  addIncome(amt){const v=this.state.v;this.toastMsg('Added to Oct 26, totals updated.');this.pulse('innGreen');this.pulse('keptGreen');this.tween('inn',v.inn+amt);this.tween('kept',v.kept+amt);this.consume();}
+  consume(){const n=Math.max(0,this.state.pending-1);this.setState({pending:n});if(n===0){this.setState({fn:false,dotOp:0});this.later(260,()=>this.setState({dot:false,dotOp:1}));}}
+  run(){
+    const sc=this.state.scene;
+    if(sc==='live'){this.later(400,()=>this.setState({dot:true,pending:3,fn:true}));this.later(1800,()=>this.addExpense(86.12,'Oct 6'));this.later(5200,()=>this.addIncome(400));this.later(8600,()=>this.addExpense(52.10,'Oct 4'));}
+    if(sc==='dot'){this.later(500,()=>this.setState({dot:true,pending:3}));}
+    if(sc==='spent')this.later(700,()=>{const v=this.state.v;this.pulse('spentGold');this.tween('spent',v.spent+86.12);this.tween('kept',v.kept-86.12);this.tween('count',v.count+1);this.setState({pending:2});});
+    if(sc==='income')this.later(700,()=>{const v=this.state.v;this.pulse('innGreen');this.pulse('keptGreen');this.tween('inn',v.inn+400);this.tween('kept',v.kept+400);this.setState({pending:2});});
+    if(sc==='toast')this.later(400,()=>this.addExpense(86.12,'Oct 6',true));
+    if(sc==='reconnect')this.later(400,()=>this.setState({banner:true}));
+    if(sc==='period')this.later(400,()=>{this.toastMsg('Added to Oct 6, totals updated.',true);this.setState({dot:true});});
+    if(sc==='report')this.later(300,()=>{const el=this.scrollRef.current;if(el)el.scrollTop=el.scrollHeight;});
+  }
+  renderVals(){
+    const s=this.state,d=k=>s.tw[k]??s.v[k],wk=s.period==='week';
+    const n=s.pending;
+    return{
+      scrollRef:this.scrollRef,
+      bannerRows:s.banner?'1fr':'0fr',bannerTf:s.banner||this.mq?'none':'translateY(-12px)',bannerOp:s.banner?1:0,
+      periodLabel:wk?'This week':'All time',keptLabel:wk?'KEPT · THIS WEEK':'KEPT · ALL TIME',
+      keptStr:fmt(d('kept')),innStr:fmt(d('inn')),spentStr:fmt(d('spent')),
+      countLine:wk?`${Math.round(d('count'))} expenses · Oct 26 – Oct 31, 2026`:`${Math.round(d('count'))} expenses · Aug 17, 2025 – Oct 28, 2026`,
+      spentGold:s.spentGold,innGreen:s.innGreen,keptGreen:s.keptGreen,
+      fnRows:s.fn?'1fr':'0fr',fnOp:s.fn?1:0,fnText:`${Math.max(n,1)} bank ${Math.max(n,1)===1?'item':'items'} not included.`,
+      toast:s.toast,toastTf:s.toastOn?'none':'translateY(16px)',toastOp:s.toastOn?1:0,
+      dotMounted:s.dot,dotOp:s.dotOp,
+      replay:()=>this.reset(),
+      incMounted:!!s.incMounted,incTf:s.incOpen?'none':'translateX(100%)',
+      booksTf:s.incOpen?'translateX(-24%)':'none',booksOp:s.incOpen?.6:1,
+      openIncome:e=>{if(e&&e.stopPropagation)e.stopPropagation();this.setState({incMounted:true});requestAnimationFrame(()=>requestAnimationFrame(()=>this.setState({incOpen:true})));},
+      closeIncome:()=>this.setState({incOpen:false}),
+      fixBank:()=>this.setState({banner:false})
+    };
+  }
+}
+</script>
+</body>
+</html>

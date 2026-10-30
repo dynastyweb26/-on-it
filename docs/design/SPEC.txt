@@ -1,0 +1,389 @@
+ON IT BANK TRACKING - design spec text (motion, tokens, accessibility). Source of truth.
+Prototype .dc.html files are visual reference only: rebuild in our components, do not copy markup.
+Invoices-placeholder is NOT final (waiting on real screens).
+
+ 
+ ON IT · BANK TRACKING
+ Review stack + Bank accounts
+ Every phone is a working prototype. The first phone in each row is the live flow; the rest are frozen states you can still tap. Motion specs and CSS tokens sit under each group.
+ 1 · Review stack
+ Full-screen sheet over Books. One component, three card types.
+ R1 · Live flow
+ Sheet slides up, cards deal in. Drag a card sideways to browse. After the last card it dismisses itself. Tap the pinned row to replay.
+ R2 · Expense, possible match
+ Costco already exists in Expenses, so the strip points to Already recorded.
+ R3 · Edit amount + category
+ Field expands inline, no modal. Done counts the amount to its new value.
+ R4 · Deposit → invoice
+ Three paths. Invoice dropdown opens inline. Muted green pulse marks money in.
+ R5 · Deposit → other money
+ Classification chips. Save stays disabled until a choice is complete.
+ R6 · Needs review: modified
+ Fix runs the add motion. Keep fades left.
+ R7 · Needs review: removed
+ R8 · Needs review: bounced
+ R9 · Toast after add
+ "Added to Oct 6, totals updated." Holds 2.4s.
+ R10 · Hidden filter
+ Items sent away with X. Books keeps its red dot while any remain.
+ R11 · Hidden, empty
+ R12 · Nothing new
+ Opened from push or pinned row after items cleared.
+ R13 · All caught up
+ Gold ring draws, check follows. Sheet dismisses after 1.9s.
+ R14 · Back on Books
+ Pinned "Unaccounted for" row stays neutral. Red dot only on the tab.
+ Motion spec · Review stack
+ TRIGGER
+ DURATION
+ EASING
+ WHAT MOVES
+ Sheet open
+ 420ms
+ --oi-ease-out
+ Sheet translateY 105% → 0. Backdrop 0 → .38 over 300ms. Books red dot stays visible behind the sheet: it shows whenever unaccounted + hidden items > 0 and fades (240ms) only when both reach 0. Opens at most once a day, only when there are new items.
+ Cards deal in
+ 560ms each, 80ms stagger
+ --oi-spring
+ Back to front: from translateY(170px) scale(.96), opacity 0. Top card lands last. Rests: peek 1 at translateY(14px) scale(.95), peek 2 at translateY(28px) scale(.9).
+ Counter tick
+ 120ms out + 180ms in
+ ease-in → ease-out
+ "3 of 7" slides up 8px and fades, new value rises from +8px.
+ Add to record
+ 340ms + 340ms
+ ease-out, then --oi-ease-in
+ Card settles to scale(.98) as a white cover fades in. Gold ring draws (260ms), check draws (200ms, +200ms). Card exits translateY(-112%) scale(.9). Next card rises on the spring. Toast rises 16px.
+ Don't add / Keep
+ 240ms
+ --oi-ease-out
+ Soft fade left: translateX(-64px), opacity 1 → 0.
+ Already recorded
+ 280ms + 280ms hold + 320ms
+ --oi-ease-inout, then --oi-ease-in
+ clip-path collapses the card to an 84px band holding a "Linked to …" row, holds, then slides right translateX(112%).
+ X · hide for now
+ 480ms flight + 140ms / 220ms pulse
+ --oi-fly, pulse ease-out / in-out
+ Card shrinks to scale(.06) and travels to the Books icon. A gold ring (the splash ring-fly) rides the same path and lands. Books pill scales 1 → 1.18 → 1. The red dot was already showing and stays, since the item is still unaccounted for.
+ Swipe between cards
+ Follows finger, 460ms release
+ --oi-spring
+ translateX(dx) rotate(dx/26°). 80px commits. At the first or last card dx = |dx|^0.7 (rubber band), then springs home.
+ Edit amount / date / category
+ 200–220ms; amount count 320ms
+ --oi-ease-out
+ Field expands inline from scaleY(.85). On Done, the amount counts to the new value with cubic ease-out.
+ Money in pulse
+ 600ms × 3
+ --oi-ease-out
+ --oi-money-in halo scales 1 → 2.6 and fades. Deposits only.
+ All caught up
+ 600ms ring, 280ms check (+420ms)
+ --oi-ease-inout / --oi-ease-out
+ Ring stroke draws, check follows. After 1.9s the sheet exits (360ms ease-in). Totals count to new values (600ms). Red dot fades only if nothing is hidden.
+ Any button press
+ 120ms
+ --oi-ease-out
+ scale(.97) on primary, .96 on secondary, .88–.9 on icon buttons.
+ Reduced motion
+ 180ms
+ ease-out
+ Opacity only. No flight, no springs, no count-up (values swap under a fade). Try the reducedMotion tweak.
+ 2 · Bank accounts
+ Settings › Money › Bank accounts, plus the connect flow.
+ B1 · Live flow
+ Tap Bank accounts → Connect bank → simulate Plaid → choose accounts → Start tracking.
+ B2 · Settings row, free user
+ New row under Money, locked with "Pro".
+ B3 · Locked page
+ Paywall card. Upgrade hands off to the existing Swoosh celebration.
+ B4 · Empty / pitch
+ Bank glyph in gold arcs, three-line pitch, consent with Privacy Policy link.
+ B5 · Handoff
+ Soft gold arcs turning while Plaid loads.
+ B6 · Plaid sheet (placeholder)
+ Provider UI. Shown only for sequence.
+ B7 · Connect success
+ Arcs converge, tile locks, check pops, accounts stagger in. 1.2s total. Tap the bank tile to replay.
+ B8 · Choose accounts
+ Toggles start off. Shown with two picked. The knob snaps with a small overshoot.
+ B9 · Linked, syncing
+ Gold shimmer passes across the bank card. Status dot breathes.
+ B10 · Linked, up to date
+ B11 · Needs reconnect
+ Gold status dot, inline Reconnect. The Settings row says "Reconnect" with no red dot.
+ B12 · Digest time sheet
+ Same pattern as the Period picker. Default 7:00 PM.
+ B13 · Confirm disconnect
+ B14 · Disconnected
+ Back to the pitch, with a toast confirming records are kept.
+ Motion spec · Bank accounts
+ TRIGGER
+ DURATION
+ EASING
+ WHAT MOVES
+ Open subpage / back
+ 320ms
+ --oi-ease-out
+ Page pushes in from the right. Settings shifts -24% and dims to .6.
+ Connect bank → handoff
+ 200ms fade, loops while loading
+ --oi-ease-inout (outer), linear (inner)
+ Cream veil fades in. Two gold arcs turn in opposite directions (1.1s / 1.6s) around a lock tile. Button label changes to "Opening…".
+ Plaid sheet in / out
+ 360ms / 280ms
+ ease-out / ease-in
+ Bottom sheet rises, backdrop to .38.
+ Connect success
+ 1.2s total
+ --oi-ease-inout, --oi-spring
+ 0–740ms: three arcs converge from scale(1.9) rotate(-80°) to the tile and dissolve (splash language), staggered 60ms. 380–800ms: tile locks in, .6 → 1.06 → 1. 700–960ms: check badge pops. 760–1240ms: title, line, then accounts stagger up 80ms apart. No confetti.
+ Track toggle
+ 260ms knob, 200ms track
+ --oi-snap
+ Knob translateX 0 → 20px, overshoots a few px and snaps back. Track fills gold. Pair with a light haptic.
+ Syncing
+ 1.5s loop (600ms sweep)
+ --oi-ease-inout
+ 16% gold band sweeps across the bank card, then rests. Gold status dot breathes. Stops as soon as the sync ends.
+ Digest time pick
+ 220ms check, close +220ms
+ --oi-spring / ease-in
+ Check pops on the new row from scale(.6). The sheet waits a beat, closes, and a toast confirms.
+ Disconnect confirmed
+ 280ms + 240ms
+ ease-in, then ease-out
+ Sheet drops, page swaps to the pitch, toast rises.
+ Reduced motion
+ ≤200ms
+ ease-out
+ Every keyframe becomes a single fade. Spinners and shimmer play once.
+ 3 · Expenses
+ Existing page plus a pinned row, Bank-verified tags and Unlink.
+ E1 · Live
+ The pinned row slides in. Tap it to add items one at a time: each row drops into its week with a gold fade and the counts tick. When nothing is left, the pinned row collapses. Tap a Bank-verified row to unlink it.
+ E2 · With items
+ "Unaccounted for" over "4 items · not in your totals", with $312.40 in red on the right. One soft red pulse when it first appears, then still. The only dot is on the Books tab.
+ E3 · After resolve
+ Lowe's landed in Oct 26–31 (highlight held here). Count shows 3 · $169.73.
+ E4 · Empty
+ Everything accounted for. No pinned row, no Books dot.
+ E5 · Linked row detail
+ Unlink removes the tag and sends the bank item back to Unaccounted for.
+ 4 · Income
+ A copy of the Expenses layout, opened from the Collected tile on Books.
+ I1 · Live
+ Tap a "not recorded" deposit (or the pinned row). It settles in place with a muted green pulse and Invoices / Other income tick up.
+ I2 · With items
+ Split line, the same pinned row, and two unrecorded deposits shown muted in their weeks.
+ I3 · After resolve
+ The $400 is now Nakamura INV-1042, linked. Invoices shows $15,071.00.
+ I4 · Empty
+ I5 · Linked payment + Unlink
+ 5 · Books summary reactions
+ Layout unchanged. Each phone plays its reaction on load. Tap the dark card to replay.
+ K1 · Live sequence
+ The dot pops in, then an expense, a deposit and a last expense arrive. The footnote counts down, then the footnote and dot both fade. Tap the Brought in tile to push to Income; use its back arrow to return.
+ K2 · Books tab dot
+ Pops in with a slight overshoot, then a soft halo every 6s.
+ K3 · Expense added
+ Spent counts up behind a brief gold glow. Kept counts down with no flash.
+ K4 · Deposit added (phase 2)
+ Brought in and Kept count up with a muted green glow.
+ K5 · Toast
+ Slides up above the tab bar. Stays 3s in the live flow (held here).
+ K6 · Reconnect banner
+ Expands down from the top when the bank login expires.
+ K7 · Totals footnote
+ "3 bank items not included." sits under the totals card.
+ K8 · Report footnote, new wording
+ No longer says "expenses you logged in On It" now that bank items count too.
+ K9 · Other period
+ Viewing This week while an Oct 6 item is added: toast only, numbers stay still.
+ 6 · Invoices + Mark paid
+ Built from the app's patterns. Swap in the real Invoices list and modal once I have the screenshots.
+ V1 · Live
+ Tap Invoices (dot clears), open Nakamura, then Link. Go back to Books and the dot returns when Mr. Bob's invoice goes overdue.
+ V2 · Overdue dot
+ V3 · Opened, dot cleared
+ V4 · Match banner
+ Expands under the amount when the amount matches a deposit. Change the amount and it closes.
+ V5 · Connecting line (frozen)
+ V6 · Linked
+ Motion spec · Expenses, Income, Books, Invoices
+ TRIGGER
+ DURATION
+ EASING
+ WHAT MOVES
+ Pinned row arrives / leaves
+ 360ms
+ --oi-ease-out
+ Height 0 → auto (grid-rows 0fr → 1fr), content from translateY(-14px) and opacity 0. On first appearance only, one soft red ring pulse (box-shadow 0 → 10px, --oi-alert at .35 → 0, 600ms, +380ms delay), then nothing loops. Leaving reverses the open, and the content below closes the gap.
+ Pinned count / amount change
+ 500ms
+ cubic ease-out
+ Item count and dollar amount count to the new value with tabular figures. Week totals do the same.
+ Expense row drops into week
+ 280ms open + 1000ms highlight
+ --oi-ease-out
+ Row opens at its date position. Background starts at #f6e9c6 and fades to white over 1s after a 320ms hold.
+ Deposit settles (Income)
+ 600ms × 2 pulse, 1000ms tint
+ --oi-ease-out
+ Muted row turns solid in place: name, invoice and link icon swap in. --oi-money-in dot pulses, and a green tint fades out. Invoices / Other income tick up, as do Brought in and Kept on Books.
+ Unlink
+ 280ms sheet + count
+ --oi-ease-in
+ Sheet drops, the tag disappears, and the pinned row slides in or counts up.
+ Red dot pop / idle / clear
+ 320ms / 6s cycle / 240ms
+ cubic-bezier(.34,1.56,.64,1) / ease-out
+ Scale 0 → 1.25 → 1. Idle: one halo (scale 2.4, opacity .5 → 0) in the first 540ms of each 6s. Clear: opacity fade. Invoices dot uses the same pop.
+ Spent / Kept on expense
+ 600ms count, 600ms glow
+ cubic ease-out
+ Gold glow (rgba of --oi-gold at .38) behind Spent: 0 → 1 → 0. Kept counts with no color change. Expense count +1.
+ Brought in / Kept on deposit
+ 600ms
+ cubic ease-out
+ Both count up behind a --oi-money-in glow.
+ Toast
+ 260ms in, 3s hold, 200ms out
+ --oi-ease-out
+ Rises 16px above the tab bar. When the item falls outside the current period, show the toast and leave the numbers alone.
+ Reconnect banner / footnote
+ 320ms / 300ms
+ --oi-ease-out
+ Both open by height, the banner from -12px. The footnote collapses once the count hits 0.
+ Brought in tile → Income
+ 120ms press, 320ms push
+ --oi-ease-out
+ Tile scales to .97 on press. Income pushes in from the right (translateX 100% → 0) while Books shifts -24% and dims to .6. Back reverses it.
+ Books dot rule
+ 320ms pop / 240ms fade
+ --oi-pop / ease-out
+ Shows whenever unaccounted + hidden items > 0, whatever screen or sheet is open. Fades only when both are 0.
+ Match banner (Mark paid)
+ 280ms, 520ms after open
+ --oi-ease-out
+ Opens under the amount field once the amount matches a deposit, from -8px and opacity 0. Not now collapses it.
+ Link → connecting line
+ 300 + 380 + 160 + 280ms
+ ease-out, --oi-spring
+ A 2px gold line grows down (scaleY 0 → 1) from the bank tile to the payment row. The payment tile turns gold with a ring pulse. The line fades and the banner collapses. A "Bank-linked" tag fades in on the row.
+ Accessibility handoff
+ Labels, roles and focus order for every new control. Hit targets are 44px or larger throughout.
+ ELEMENT
+ ARIA / ROLE
+ FOCUS + ANNOUNCEMENTS
+ Review sheet
+ role="dialog" aria-modal="true" aria-labelledby="Bank activity counter"
+ Focus moves to X close on open. Order: X → segmented filter → top card (merchant → amount edit → date → category → receipt → Add to record → Already recorded → Don't add → card X). Escape closes; focus returns to whatever opened it (pinned row, push, Books).
+ Counter "3 of 7"
+ aria-live="polite"
+ Announces "Item 3 of 7" on advance. Not focusable.
+ Card X (hide)
+ aria-label="Hide for now"
+ After hiding, focus moves to the next card's heading. Announce "Hidden. In Books under Unaccounted for."
+ Edit amount button
+ aria-label="Edit amount, $432.98"
+ Opens the inline field and focuses the input (inputmode="decimal"). Done returns focus to the edit button.
+ Category chip
+ aria-haspopup="listbox" aria-expanded
+ Chips are role="radio" inside role="radiogroup" aria-label="Category".
+ Deposit options
+ role="radiogroup" aria-label="What is this money?"
+ Each option role="radio" aria-checked. Arrow keys move between them. Save has aria-disabled until a choice is complete.
+ Swipe between cards
+ Swipe plus "Previous item" / "Next item" accessibility actions
+ Never swipe-only: actions exposed via accessibilityActions / aria-keyshortcuts (← →).
+ Track toggle (Bank accounts)
+ role="switch" aria-checked aria-label="Track Business Checking ••4821"
+ Space/Enter toggles. Focus order follows the list. Start tracking has aria-disabled until one is on.
+ Connect bank
+ aria-label="Connect bank with Plaid"
+ During handoff: aria-busy="true" on the page, status "Opening a secure connection" in a polite live region. Focus goes to Plaid's sheet and back to the bank card on success.
+ Connect success
+ role="status"
+ Announces "Chase is connected. Choose accounts to track." Focus lands on the first toggle after the 1.2s sequence.
+ Bank card status
+ aria-live="polite" on status text
+ Announces "Syncing" / "Up to date" / "Needs reconnect". The shimmer is aria-hidden.
+ Bottom sheets (digest, disconnect, detail)
+ role="dialog" aria-modal="true"
+ Focus goes to the first option or primary button. Focus is trapped inside. Escape or backdrop tap closes, and focus returns to the trigger row.
+ Digest time rows
+ role="radio" in role="radiogroup" aria-label="Daily digest time"
+ The checked row is aria-checked="true".
+ Pinned "Unaccounted for" row
+ role="button" aria-label="Unaccounted for, 4 items, $312.40, not in your totals. Review."
+ Sits first in reading order after the page title. The label updates as the count changes.
+ Brought in tile
+ role="button" aria-label="Brought in, $15,071.00. Open Income."
+ Push transition. Focus lands on the Income heading; back returns focus to the tile.
+ Books tab red dot
+ Tab aria-label becomes "Books, 3 items to review"
+ The dot is aria-hidden; its meaning lives in the label. Same for Invoices: "Invoices, 1 overdue".
+ Toasts
+ role="status" aria-live="polite"
+ Never steals focus. Stays 3s, or until dismissed while a screen reader is on.
+ Match banner (Mark paid)
+ role="region" aria-label="Matching deposit found"
+ Inserted after the amount field in focus order. Link / Not now are buttons; after Link, announce "Linked to Chase deposit".
+ Reduced motion
+ prefers-reduced-motion
+ Opacity only; no flight, spring or count-up. Values swap under a fade.
+ 7 · Tokens
+ --oi-bg
+ #fdf8f1
+ --oi-gold
+ #d4af37 · fill only
+ --oi-gold-ink
+ #735c00 · text on light
+ --oi-gold-soft
+ #f2e5b9
+ --oi-brown
+ #34302a
+ --oi-gold-on-dark
+ #e6c65c · text on brown
+ --oi-alert
+ #c8412e · unreviewed bank items, overdue invoices, pinned-row urgency text
+ --oi-money-in
+ #6f9a78 · money-in pulse only
+ :root {
+ /* color */
+ --oi-bg: #fdf8f1; --oi-surface: #ffffff; --oi-surface-2: #faf3e7;
+ --oi-sunken: #f0e8db; --oi-tile: #efe7da; --oi-line: #ebe2d2; --oi-line-strong: #e3d8c5;
+ --oi-ink: #1e1a15; --oi-ink-2: #5f574b; --oi-ink-3: #8f8676;
+ --oi-gold: #d4af37; /* fills only, never text */
+ --oi-gold-soft: #f2e5b9; --oi-gold-ink: #735c00; /* text-safe gold on light */
+ --oi-gold-on-dark: #e6c65c;/* figures on the brown summary card */
+ --oi-brown: #34302a; --oi-brown-line: #4a453c; --oi-scrim: rgba(30,24,14,.38);
+ --oi-alert: #c8412e; /* red: unreviewed bank items, overdue invoices, pinned-row urgency text. Never for reconnect (gold). */
+ --oi-money-in: #6f9a78; /* muted green: money-in pulse only */
+ /* shape + type */
+ --oi-radius-card: 24px; --oi-radius-sheet: 28px; --oi-radius-row: 18px; --oi-radius-tile: 14px; --oi-radius-pill: 999px;
+ --oi-font-head: "Montserrat", sans-serif; /* 700 / 800 */
+ --oi-font-body: "Inter", sans-serif; /* 400 / 500 / 600 */
+ /* motion */
+ --oi-dur-tap: 120ms; --oi-dur-fast: 180ms; --oi-dur-base: 240ms; --oi-dur-move: 340ms;
+ --oi-dur-sheet: 420ms; --oi-dur-max: 600ms; --oi-dur-hero: 1200ms; /* connect success only */
+ --oi-ease-out: cubic-bezier(.2,.8,.2,1); /* arrivals */
+ --oi-ease-in: cubic-bezier(.4,0,1,1); /* exits */
+ --oi-ease-inout: cubic-bezier(.65,0,.35,1); /* between states, ring draws */
+ --oi-spring: cubic-bezier(.34,1.28,.64,1); /* card movement only, low bounce */
+ --oi-snap: cubic-bezier(.3,1.5,.5,1); /* toggle knob */
+ --oi-fly: cubic-bezier(.55,0,.75,.35); /* card + ring flight to a tab */
+ --oi-stack-peek-1: translateY(14px) scale(.95);
+ --oi-stack-peek-2: translateY(28px) scale(.9);
+ --oi-stagger: 80ms;
+ --oi-highlight-new: #f6e9c6; --oi-dur-highlight: 1000ms; /* new row lands in a week group */
+ --oi-dot-idle: 6000ms; --oi-pop: cubic-bezier(.34,1.56,.64,1);
+}
+@media (prefers-reduced-motion: reduce) {
+ * { transition-property: opacity !important; transition-duration: var(--oi-dur-fast) !important;
+ animation-name: oi-fade !important; animation-iteration-count: 1 !important; }
+} 
+ Copy: notification previews never include amounts (e.g. "3 new bank items to review"). No tax language anywhere in these flows.
+ 
