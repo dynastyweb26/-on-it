@@ -348,7 +348,46 @@ and the pill's resting geometry are unchanged.
   spring-back snaps immediately. The pill moves instantly.
 
 **Untouched:** `use-sheet-drag.ts`, long-press menus, recaps, paywall, and
-`SwipeableRow` behaviour. Nested detail routes keep the old pre-deck swipe path.
+`SwipeableRow` behaviour. Nested detail routes are §18.
+
+## 18. Nested-route back swipe as built (`feat/nested-back-swipe`, 2026-10-30)
+
+Below 1280 every nested screen (`/settings/<section>`, `/invoices/<id>`, a
+client, `/vault`, `/expenses`, `/summary`, `/recaps`, `/dashboard/recurring`,
+`/settings/help/feedback`, `/settings/payouts/<method>`) renders through one
+`<main>`. A rightward drag there used to do nothing until release, then
+navigate. Now the page follows the finger, on the deck's own numbers.
+
+**Gesture (`src/components/app/SwipeBack.tsx`, `src/lib/back-gesture.ts`)**
+- Starts only on a route with a parent (`getParentRoute`), never on a tab root,
+  never from the left 20px (`EDGE_GUARD_PX` — iOS's own back gesture), never
+  from a blocked target (`swipeBlockedAt`), and not while a navigation is
+  landing (`NAV_GUARD_MS`).
+- Axis locks once on the shared 10px / 1.2 rule; vertical is a scroll, leftward
+  is the shell's tab gesture. The lock calls non-passive `preventDefault`, so
+  the listeners are native — React's touch listeners are passive.
+- `translate3d` plus a left-edge shadow, written straight to the element: no
+  re-render per frame, and both are removed at rest (a transformed ancestor is
+  the containing block for fixed children; the invoice detail's action bars
+  portal to `<body>` for that reason).
+- Commit on >15% of the width, or the 32px / 0.5 px/ms flick
+  (`tabCommitDirection`, unchanged); otherwise it springs back over
+  `settleDuration`. No rubber band: there is no parent page to pull into view,
+  so the drag stops at the viewport edge.
+- A commit leaves at `backOutMs` (the same 220–340ms settle bound), then
+  `goBackOr` steps up one level — the previous history entry, or the parent on
+  a cold deep link.
+- The parent mounts at rest and slides in from the left with
+  `onit-enter-from-left`, 180–300ms by release speed (`backEnterMs`). Without a
+  live underlay it cannot track the finger; the arrival is timed from the same
+  release so the two read as one gesture.
+
+**Reduced motion:** no drag-follow, no settle, no entrance — the step up
+happens at once.
+
+**Not built:** a live parent underlay (1:1 tracking, at the cost of a second
+fetch), View Transitions, and any change to the xl split, which has no Back
+arrow. The three open items are in PUNCH-LIST.
 
 ## Build order (one commit each)
 
