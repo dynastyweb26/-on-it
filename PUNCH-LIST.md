@@ -821,8 +821,9 @@ estimates function definitions match test by hash. C0 is done: the branch is bas
 | M3 columns on the page's DB (`20261023100200`) | **Applied to production — verified 2026-10-23 by schema check: all columns/table/function present, and all estimates function definitions match test by hash** | The page selects `invoices.title` and `profiles.business_phone/business_email`; both columns are present in production. Step 0 of the seed file re-checks them. |
 | Owner estimate UI | **Done — merged to `main`** (`feat/estimates-owner-ui`, merge `514dfc3`) | `src/app/(app)/invoices/[id]` renders `EstimateDetail` for `kind='quote'` and keeps the invoice view for invoices. Shipped: detail screen with the seven design states (`3097b6c`), send/extend/revoke + inline title edit (`2cd5640`), attachment limits/captions/upload states (`5f01fc7`), convert-after-approval and server-side duplicate (`532ab6d`), reused line-item editor (`becb09c`). |
 
-**Owner attachment viewing (branch `fix/estimate-attachment-viewing`).** Status:
-**Built — typecheck + 775 unit tests pass; preview unverified.** Tapping a photo
+**Owner attachment viewing (branch `fix/estimate-attachment-viewing`, rebased onto
+`main` `b223e77` as `fix/estimate-attachment-viewing-v2`).** Status:
+**Built — typecheck + 848 unit tests pass; preview unverified.** Tapping a photo
 tile on the owner estimate card now opens the same full-screen viewer the public
 page uses: `src/components/estimate/PhotoViewer.tsx` takes a structural
 `ViewerPhoto {id, url, caption}` instead of `PublicAttachment[]`, so public and
@@ -835,6 +836,22 @@ photos too. The 44px remove-X is a later sibling inside the tile, so it still
 wins the hit test. Covered by `src/components/estimates/attachment-tile.test.ts`
 (viewer button in both `editable` values; remove + caption input only when
 editable; a failed-URL tile is not a trigger).
+
+**Viewer exit controls (same branch).** One way out on screen: a 44px back arrow
+at the top-left, notch-aware (`env(safe-area-inset-left)`), drawn as inline SVG
+because the Rounded icon subset (`--font-est-symbols`) loads on `/e/[token]`
+only — a glyph would print its ligature text on the owner card. The bar's close
+X is gone, so there is never a second exit control. At the first photo a
+rightward drag also closes the viewer: it follows the finger, slides away on a
+release past 15% of the width or a flick (any rightward travel when there is one
+photo), springs back on an early release, and is held off-screen until `onClose`
+unmounts it so the photo never flashes back. Leftward drags and the 40px rule
+between photos are unchanged, and the axis lock decides the gesture — never
+touchstart — so the back arrow, the chevrons and the image still click. Pure
+decisions in `src/lib/photo-dismiss.ts` (`photo-dismiss.test.ts`); button markup
+and the single-exit-control guard in
+`src/components/estimate/photo-viewer.test.ts`. Typecheck + 848 unit tests pass;
+not yet verified on a device or a preview.
 
 **Open — found in the same audit, deliberately NOT fixed:**
 - **PDF tiles cannot open on the owner card.** `loadOwnerAttachments`
