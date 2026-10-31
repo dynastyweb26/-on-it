@@ -13,6 +13,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link';
+import PlaidConnect from './PlaidConnect';
 import BankSheet from './BankSheet';
 import BankToast from './BankToast';
 import { useBankTracking } from './BankTrackingProvider';
@@ -27,6 +29,9 @@ export default function BankAccountsScreen() {
   const ctx = useBankTracking();
   const [flow, setFlow] = useState<Flow>('idle');
   const [plaidOpen, setPlaidOpen] = useState(false);
+  // A real Plaid link token, when the preview route answered. Null keeps the
+  // placeholder sheet (and every other mock step) exactly as it was.
+  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [draft, setDraft] = useState<string[]>([]);
   const [digestOpen, setDigestOpen] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
@@ -39,10 +44,12 @@ export default function BankAccountsScreen() {
 
   // Handoff: the veil holds for 700ms, then the provider sheet rises.
   useEffect(() => {
-    if (flow !== 'handoff') return;
+    // With a real link token Plaid's sheet takes over; the placeholder must not
+    // rise on top of it.
+    if (flow !== 'handoff' || linkToken) return;
     const t = setTimeout(() => setPlaidOpen(true), 700);
     return () => clearTimeout(t);
-  }, [flow]);
+  }, [flow, linkToken]);
 
   // Connect success: 1.2s, then the account rows take over.
   useEffect(() => {
@@ -80,6 +87,61 @@ export default function BankAccountsScreen() {
     setFlow('idle');
   }
 
+  // Connect → a real link token when this is a preview build. Anywhere else
+  // (the route 404s) the existing mock handoff still runs, unchanged.
+  async function beginLink() {
+    try {
+      const res = await fetch('/api/plaid/link-token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      if (!res.ok) {
+        setFlow('handoff');
+        return;
+      }
+      const data = (await res.json()) as { link_token?: unknown };
+      if (typeof data.link_token !== 'string') {
+        setFlow('handoff');
+        return;
+      }
+      setFlow('handoff');
+      setLinkToken(data.link_token);
+    } catch {
+      setFlow('handoff');
+    }
+  }
+
+  async function exchangePublicToken(publicToken: string, metadata: PlaidLinkOnSuccessMetadata) {
+    setLinkToken(null);
+    try {
+      const res = await fetch('/api/plaid/exchange', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          public_token: publicToken,
+          institution_name: metadata.institution?.name,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: unknown } | null;
+        setFlow('idle');
+        setToast(typeof body?.message === 'string' ? body.message : 'We couldn’t connect that bank. Try again.');
+        return;
+      }
+      // The rest of the screen stays mock: success → choose accounts.
+      setFlow('success');
+    } catch {
+      setFlow('idle');
+      setToast('We couldn’t connect that bank. Try again.');
+    }
+  }
+
+  function cancelLink() {
+    setLinkToken(null);
+    setFlow('idle');
+  }
+
   function toggleDraft(id: string) {
     setDraft((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   }
@@ -112,7 +174,7 @@ export default function BankAccountsScreen() {
         />
       );
     }
-    if (!isLinked(connection)) return <Pitch onConnect={() => setFlow('handoff')} />;
+    if (!isLinked(connection)) return <Pitch onConnect={beginLink} />;
     return (
       <LinkedCard
         connection={connection}
@@ -127,7 +189,20 @@ export default function BankAccountsScreen() {
     <div data-bank-motion className="space-y-4">
       {body}
 
-      {plaidOpen && (
+      {linkToken && (
+        <PlaidConnect
+          token={linkToken}
+          onPublicToken={exchangePublicToken}
+          onExit={cancelLink}
+          onError={(message) => {
+            setLinkToken(null);
+            setFlow('idle');
+            setToast(message);
+          }}
+        />
+      )}
+
+      {plaidOpen && !linkToken && (
         <BankSheet label="Bank connection" onClose={() => { setPlaidOpen(false); setFlow('idle'); }}>
           <div className="flex items-center justify-between pb-1">
             <h2 className="font-display text-xl font-extrabold">Connect Chase</h2>

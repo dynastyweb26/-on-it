@@ -5,6 +5,8 @@
 //  2. Prove no bank screen can reach a database write. The check is structural
 //     on purpose: the components never import the Supabase client, so there is
 //     no write to stub. If someone adds one, this test fails before the build.
+//     Phase 2 adds exactly two reads of the preview-only Plaid routes (link
+//     token + exchange); everything else, including every write, stays barred.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -196,7 +198,6 @@ test('no bank component can reach a database write', () => {
     [/\.upsert\s*\(/, 'calls upsert()'],
     [/\.delete\s*\(/, 'calls delete()'],
     [/\.rpc\s*\(/, 'calls rpc()'],
-    [/fetch\s*\(\s*['"`]\/?api\//, 'calls an API route'],
     [/\bXMLHttpRequest\b|\bsendBeacon\b/, 'sends a request'],
   ];
   const files = bankSources();
@@ -207,6 +208,21 @@ test('no bank component can reach a database write', () => {
       assert.doesNotMatch(source, pattern, `${file} must not write: it ${what}`);
     }
   }
+});
+
+// Phase 2: the Connect button may call exactly the two preview-only Plaid
+// routes. Any other /api/ call from a bank file still fails here.
+test('a bank screen calls only the preview-only Plaid routes', () => {
+  const allowed = new Set(['/api/plaid/link-token', '/api/plaid/exchange']);
+  const calls: string[] = [];
+  for (const file of bankSources()) {
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/fetch\s*\(\s*['"`](\/?api\/[^'"`]+)['"`]/g)) {
+      assert.ok(allowed.has(match[1]), `${file} must not call ${match[1]}`);
+      calls.push(match[1]);
+    }
+  }
+  assert.deepEqual(calls.sort(), ['/api/plaid/exchange', '/api/plaid/link-token']);
 });
 
 test('the bank screens are flagged, never always-on', () => {
