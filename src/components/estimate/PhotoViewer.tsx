@@ -3,8 +3,13 @@
 // Full-screen photo viewer (design spec §2.5): dark stage, counter, chevrons
 // hidden at the ends, 40px swipe, caption below. Page scroll and the sticky bar
 // are disabled while it is open.
+//
+// One way out on screen: the back arrow at the top-left (ViewerBackButton). The
+// thumb-reach close X that used to sit in the bar is gone with it — two exit
+// controls beside each other only made the bar read as two different actions.
 import { useEffect, useRef } from 'react';
 import EstIcon from './EstIcon';
+import ViewerBackButton from './ViewerBackButton';
 import s from './estimate.module.css';
 
 /** What the viewer needs from a photo. Structural on purpose: the public page
@@ -55,9 +60,7 @@ export default function PhotoViewer({
   return (
     <div className={s.viewer} role="dialog" aria-modal="true" aria-label="Photo viewer">
       <div className={s.viewerBar}>
-        <button type="button" className={s.iconButton} style={{ color: '#FDF8F0' }} onClick={onClose} aria-label="Close photo">
-          <EstIcon name="close" size={26} />
-        </button>
+        <ViewerBackButton onClose={onClose} />
         <span className={s.viewerCount}>
           {index + 1} of {photos.length}
         </span>
