@@ -127,3 +127,9 @@ test('no tax rate: no Subtotal/Tax rows and the total is unchanged', () => {
   assert.equal(pay.total, totals.total);
   assert.equal(pay.primaryLabel, 'Total due');
 });
+
+test('an unpaid estimate says "Estimated total", never "quote"', () => {
+  const { pay } = parity(TWENTY_FOUR, { kind: 'quote' });
+  assert.equal(pay.primaryLabel, 'Estimated total');
+  assert.doesNotMatch(pay.primaryLabel, /quote/i);
+});

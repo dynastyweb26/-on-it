@@ -1,7 +1,6 @@
 {
   "version": 1,
   "copy": {
-    "src/app/pay/[token]/figures.ts": 1,
     "src/lib/ai.ts": 2
   },
   "ternary": {
