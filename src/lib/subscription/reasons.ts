@@ -18,8 +18,17 @@ export const DETAIL_MAX = 500;
  *  when nothing is left. */
 export function cleanDetail(reason: CancelReason | null | undefined, detail: unknown): string | null {
   if (!reason || !REASONS_WITH_DETAIL.has(reason) || typeof detail !== 'string') return null;
-  // eslint-disable-next-line no-control-regex
-  const s = detail.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, DETAIL_MAX).trim();
+  // Normalize Unicode compatibility forms (NFKC) and strip invisible format control characters
+  // before stripping control characters and collapsing whitespace (SECURITY.md layer 6).
+  const s = detail
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, DETAIL_MAX)
+    .trim();
   return s || null;
 }
 

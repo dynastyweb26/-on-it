@@ -185,6 +185,9 @@ test('reasons: keys and detail cleaning', () => {
   assert.equal(cleanDetail('feature', '  needs\n\tmileage  '), 'needs mileage');
   assert.equal(cleanDetail('other', '   '), null);
   assert.equal(cleanDetail('feature', 'x'.repeat(900))?.length, 500);
+  // Security: Unicode NFKC normalization, strip format controls (\p{Cf}), control chars
+  assert.equal(cleanDetail('feature', 'needs\u200B \uFEFFmileage\u3000tracking'), 'needs mileage tracking');
+  assert.equal(cleanDetail('other', '\u200B\uFEFF   '), null);
 });
 
 test('copy: free plan line uses the real limits, never "a month"', () => {
