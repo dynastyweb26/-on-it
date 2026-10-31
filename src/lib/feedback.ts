@@ -16,21 +16,35 @@ export const TAG_LABEL: Record<FeedbackTag, string> = {
   love: 'Love it',
 };
 
+/** Format characters (\p{Cf}) that must survive cleaning: ZWJ/ZWNJ hold emoji
+ *  sequences and Indic/Arabic joins together; LRM/RLM mark RTL runs. */
+const KEPT_FORMAT = new Set(['\u200C', '\u200D', '\u200E', '\u200F']);
+
 /** Control characters (except newline and tab) out, CRLF to LF, outer space
  *  trimmed. Runs BEFORE the length check so a message of control characters
- *  can't pass as "long enough". */
+ *  can't pass as "long enough". Strips format control characters (\p{Cf})
+ *  except ZWNJ/ZWJ/LRM/RLM, and does NOT normalize: NFKC rewrote emoji and the
+ *  math the sender typed ("x²" became "x2"). */
 export function cleanMessage(raw: string): string {
   return raw
+    .replace(/\p{Cf}/gu, (ch) => (KEPT_FORMAT.has(ch) ? ch : ''))
     .replace(/\r\n?/g, '\n')
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .trim();
 }
 
-/** Single-line, bounded: for header-ish fields (screen, version, subject parts). */
+/** Single-line, bounded: for header-ish fields (screen, version, subject parts).
+ *  Applies Unicode NFKC normalization and strips format control characters (\p{Cf}). */
 export function cleanLine(raw: string, max: number): string {
-  // eslint-disable-next-line no-control-regex
-  return raw.replace(/[\u0000-\u001F\u007F]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return raw
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
 export const FeedbackBody = z.object({
