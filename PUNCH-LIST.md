@@ -1039,3 +1039,17 @@ _The drag-follow back swipe is built on `feat/nested-back-swipe` (MOTION-SPEC §
 | `/clients/products/*` has no parent route, so no Back arrow and no back swipe | **Open** | `getParentRoute` (`components/app/AppShell.tsx`) matches `/clients/<id>` only; `/clients/products/[pid]` and `/clients/products/new` fall through to `null`. The header renders its arrow only when that returns a route, and `SwipeBack` starts only when it does too. Both screens carry their own Cancel. |
 | The parent screen refetches on back — there is no list cache | **Open** | A nested screen unmounts the list under it, so going back remounts and re-queries it (`InvoicesView`, the Settings list, `ClientDetail`). The commit navigates after the outgoing page has left, so the parent's skeleton can land inside the entrance slide instead of behind it. An underlay or a cache would fix it; both were out of scope. |
 | The iOS edge swipe (`x < 20px`) is untested on device in the installed app | **Open** | `EDGE_GUARD_PX` leaves that strip to iOS, which animates its own container rather than this gesture, so the two can still look different. Needs a phone test in standalone mode, not Safari. |
+## Plaid money out — PR2 (branch `feat/plaid-money-out`, logged 2026-10-31)
+
+_Money OUT only. Link + webhook + `/transactions/sync`; matching / confirm / Add-to-record is PR3. PR1's schema (`20261030100000_plaid_money_out.sql`) is unchanged and no migration was run. Every route is preview-gated: 404 unless `VERCEL_ENV === 'preview'`._
+
+| Item | Status | Evidence |
+|---|---|---|
+| Routes: link-token, exchange, accounts, webhook, sync, disconnect | **Built — awaiting preview** | `src/app/api/plaid/*/route.ts`, Node runtime, `plaidRouteEnabled()` first (`src/lib/plaid/config.ts`). |
+| Webhook verification | **Done** | `src/lib/plaid/webhook-verify.ts`: ES256 via node:crypto, key cached by kid, 5-minute iat, raw-body SHA-256. Tests generate a P-256 key. |
+| transactions/sync (money out) | **Done** | `sync-reducer.ts` + `sync-loop.ts` + `sync.ts`: posted-only, amount > 0, link-date/30-day window, pending→posted via `pending_transaction_id`, dedupe on `(user_id, plaid_transaction_id)`, commit-then-cursor, restart on mutation. |
+| Review-state rules | **Done** | modified/removed on `added`/`already` → `needs_review`; `new`/`ignored` updated or marked removed. Unit-tested. |
+| Disconnect / account deletion | **Done** | `POST /api/plaid/disconnect`; `/api/delete-account` calls `removePlaidItemsForUser` before the cascade (best effort, code-only logs). |
+| Client Connect button | **Built — awaiting preview** | `BankAccountsScreen` → `PlaidConnect` (react-plaid-link 5.0.0). Every step after Link stays mock. |
+| CSP `cdn.plaid.com` | **Done — own commit** | `next.config.mjs`: `script-src` + `frame-src` only, nothing loosened. |
+| Live preview test | **Unverified** | Needs the branch's Vercel preview and Plaid sandbox env; no network in the test suite. |
