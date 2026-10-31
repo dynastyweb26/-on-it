@@ -19,7 +19,7 @@ import {
   tabCommitDirection,
   tabProgress,
 } from '@/lib/swipe';
-import { swipeBlockedAt } from '@/lib/swipe-dom';
+import { suppressNextClick, swipeBlockedAt } from '@/lib/swipe-dom';
 import TabScroller from './TabScroller';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, markTabGestureNavigation } from './tab-motion';
 
@@ -528,21 +528,6 @@ export default function TabDeck({
       g.samples.push({ x: t.clientX, t: e.timeStamp });
       const cutoff = e.timeStamp - 100;
       while (g.samples.length > 1 && g.samples[0].t < cutoff) g.samples.shift();
-    }
-
-    function suppressNextClick() {
-      // The synthetic click lands immediately after touchend; keep the window
-      // short so an intentional follow-up tap is not swallowed.
-      const until = Date.now() + 350;
-      const handler = (ev: MouseEvent) => {
-        if (Date.now() > until) { cleanup(); return; }
-        ev.preventDefault();
-        ev.stopPropagation();
-        cleanup();
-      };
-      const cleanup = () => document.removeEventListener('click', handler, true);
-      document.addEventListener('click', handler, true);
-      window.setTimeout(cleanup, 400);
     }
 
     function velocityOf(g: Gesture): number {

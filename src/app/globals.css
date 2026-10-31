@@ -882,6 +882,11 @@ html[data-splash=""] .onit-splash {
 /* Tab switch (M5): the screen crossfades in; the new tab's icon bounces 4px;
    Chat presses deeper than the others (.9 scale, 1px down). */
 .onit-tab-enter { animation: onit-fade var(--motion-fast) var(--ease-standard) both; }
+/* Nested-route back swipe (MOTION-SPEC §18): the parent screen arrives from the
+   left. SwipeBack.tsx sets animation-duration inline from the release velocity;
+   240ms is the resting default. The reduce-motion kill switch stops it. */
+@keyframes onit-enter-from-left { from { opacity: .65; transform: translate3d(-18%, 0, 0); } }
+.onit-enter-from-left { animation: onit-enter-from-left 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 /* Tab deck: at rest the active panel is positioned with a margin, never a
    transform. A transformed ancestor becomes the containing block for fixed
    descendants and starts a stacking context, which would trap the composer
