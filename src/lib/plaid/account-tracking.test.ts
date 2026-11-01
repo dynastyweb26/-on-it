@@ -21,7 +21,9 @@ test('the accounts route resets the item cursor and syncs after the response', (
   );
   // The previous value is read before the update, or nothing can tell a flip.
   assert.match(source, /\.select\('id, track'\)/, 'reads the previous track value');
-  assert.match(source, /if \(needsBackfill\(/, 'guards the backfill on the flip');
+  // The guard moved to the batch rules, which apply needsBackfill per change
+  // (accounts-batch.test.ts pins that); the route still asks before it syncs.
+  assert.match(source, /if \(backfillWanted\(current \?\? \[\], changes\)\)/, 'guards the backfill on the flip');
   assert.match(source, /sync_cursor: null/, 'resets the cursor so the window replays');
   assert.match(source, /waitUntil\(task\)/, 'does not block the response on the sync');
   assert.match(source, /syncPlaidItem\(client, admin, item_id, user\.id\)/, 'syncs that item');
