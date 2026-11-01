@@ -10,6 +10,7 @@
 
 export const OPEN_BANK_FAILED_TOAST = 'We couldn’t open your bank. Try again.';
 export const CONNECT_FAILED_TOAST = 'We couldn’t connect that bank. Try again.';
+export const TRACK_FAILED_TOAST = 'We couldn’t turn on tracking. Try again.';
 
 function text(body: unknown, key: string): string | null {
   if (!body || typeof body !== 'object') return null;
