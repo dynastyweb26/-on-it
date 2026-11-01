@@ -15,6 +15,8 @@ export type BankAccountOption = {
 };
 
 export type BankConnection = {
+  /** Plaid item UUID once a real link exists; null on the mock/fixture path. */
+  itemId: string | null;
   status: BankConnectionStatus;
   institution: string | null;
   /** Every account the institution offers, once connected. */
@@ -37,7 +39,7 @@ export const STARTER_ACCOUNTS: BankAccountOption[] = [
 ];
 
 export const emptyConnection = (digestTime = BANK_DIGEST_DEFAULT): BankConnection => ({
-  status: 'none', institution: null, accounts: [], tracked: [], digestTime,
+  itemId: null, status: 'none', institution: null, accounts: [], tracked: [], digestTime,
 });
 
 /** A connected fixture. `status` lets preview show syncing / reconnect states. */
@@ -45,7 +47,7 @@ export const linkedConnection = (
   status: BankConnectionStatus = 'upToDate',
   digestTime = BANK_DIGEST_DEFAULT,
 ): BankConnection => ({
-  status, institution: 'Chase', accounts: STARTER_ACCOUNTS, tracked: ['chk-4821', 'cc-5510'], digestTime,
+  itemId: null, status, institution: 'Chase', accounts: STARTER_ACCOUNTS, tracked: ['chk-4821', 'cc-5510'], digestTime,
 });
 
 /**
@@ -60,12 +62,23 @@ export function bankTierFromSearch(search: string, fallback: BankTier = 'pro'): 
   return fallback;
 }
 
+export type BankPreviewState = 'reconnect' | 'syncing' | 'linked';
+
+/**
+ * The ONLY preview query that may show fixtures: ?bankState=reconnect|syncing|
+ * linked. Anything else (including no query) is a real, empty account.
+ */
+export function bankPreviewState(search: string): BankPreviewState | null {
+  const value = new URLSearchParams(search).get('bankState');
+  return value === 'reconnect' || value === 'syncing' || value === 'linked' ? value : null;
+}
+
 /**
  * ?bankState=reconnect|syncing|linked jumps straight to a frozen state, the way
  * the design's B9–B11 frames sit beside the live flow. No param = the pitch.
  */
 export function initialConnectionFromSearch(search: string): BankConnection {
-  switch (new URLSearchParams(search).get('bankState')) {
+  switch (bankPreviewState(search)) {
     case 'reconnect': return linkedConnection('needsReconnect');
     case 'syncing': return linkedConnection('syncing');
     case 'linked': return linkedConnection('upToDate');

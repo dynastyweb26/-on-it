@@ -169,6 +169,8 @@ export type BankAction =
   | { type: 'ignore'; id: string }
   /** Restore on an ignored card: it goes back into To review. */
   | { type: 'restore'; id: string }
+  /** Replace the batch (preview fixtures only; the app starts empty). */
+  | { type: 'seed'; items: BankItem[] }
   /** Closing the stack with nothing left to review makes ignored items final. */
   | { type: 'finalizeIgnored' }
   /** Unlink on a bank-verified row: the item goes back to Unaccounted for. */
@@ -191,6 +193,8 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
     case 'reopen':
     case 'restore':
       return { ...state, status: { ...state.status, [action.id]: 'open' } };
+    case 'seed':
+      return seedReviewState(action.items);
     case 'finalizeIgnored': {
       // Only when To review is empty: the owner has nothing left to look at, so
       // the ones they passed on stop being restorable and the tab disappears.

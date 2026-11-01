@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BANK_DIGEST_DEFAULT, DIGEST_OPTIONS, ACCOUNT_STATUS_COPY,
-  bankRowTitle, bankRowValue, bankTierFromSearch, digestLabel, digestSentence,
+  bankPreviewState, bankRowTitle, bankRowValue, bankTierFromSearch, digestLabel, digestSentence,
   emptyConnection, initialConnectionFromSearch, isLinked, linkedConnection,
   trackedAccounts, trackedCount,
 } from './bank-accounts';
@@ -16,6 +16,18 @@ test('the pitch is the default; the fixture can jump to a frozen state', () => {
   assert.equal(initialConnectionFromSearch('?bankState=reconnect').status, 'needsReconnect');
   assert.equal(initialConnectionFromSearch('?bankState=syncing').status, 'syncing');
   assert.equal(initialConnectionFromSearch('?bankState=linked').status, 'upToDate');
+});
+
+test('only ?bankState= turns the preview fixtures on; a real account starts empty', () => {
+  assert.equal(bankPreviewState(''), null);
+  assert.equal(bankPreviewState('?bankTier=free'), null);
+  assert.equal(bankPreviewState('?bankState=nope'), null);
+  assert.equal(bankPreviewState('?bankState=linked'), 'linked');
+  assert.equal(bankPreviewState('?bankState=reconnect'), 'reconnect');
+  assert.equal(bankPreviewState('?bankState=syncing'), 'syncing');
+  // Neither fixture ships a Plaid item id: only a real exchange sets one.
+  assert.equal(emptyConnection().itemId, null);
+  assert.equal(linkedConnection().itemId, null);
 });
 
 test('tier fixture: pro unless ?bankTier=free', () => {

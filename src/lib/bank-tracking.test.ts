@@ -156,6 +156,20 @@ test('dates and money match the card copy', () => {
   assert.equal(dateOptions('2026-10-30', '2026-10-30').length, 2);
 });
 
+// A fresh signed-in user has no bank items: the fixtures are demo data, so
+// nothing may pop, dot, or list an Unaccounted row until a real sync lands.
+test('a fresh user starts empty: no popup, no Unaccounted row, no dot', () => {
+  const state = seedReviewState([]);
+  assert.equal(state.items.length, 0);
+  assert.equal(pendingCount(state), 0);
+  assert.equal(unaccountedItems(state).length, 0);
+  assert.equal(booksDotVisible(state), false);
+  const provider = readFileSync(join(ROOT, 'src', 'components', 'bank', 'BankTrackingProvider.tsx'), 'utf8');
+  assert.match(provider, /seedReviewState\(\[\]\)/, 'the provider seeds an empty state');
+  assert.match(provider, /if \(bankPreviewState\(search\)\) dispatch/, 'fixtures only behind ?bankState=');
+  assert.match(provider, /pending === 0/, 'the popup gate still needs items');
+});
+
 test('the bank feature stays inert until someone is signed in', () => {
   assert.equal(bankActive(true, true), true);
   assert.equal(bankActive(true, false), false, 'flag on, no session');

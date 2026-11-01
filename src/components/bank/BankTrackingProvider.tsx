@@ -15,13 +15,13 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso, unaccountedCount,
-  type BankAction, type BankReviewState,
+  BANK_ITEMS, bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso,
+  unaccountedCount, type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
 import { exactTabIndex } from '@/lib/tabs';
 import { useSignedIn } from '@/lib/use-auth-session';
 import {
-  bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
+  bankPreviewState, bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
   type BankConnection, type BankTier,
 } from '@/lib/bank-accounts';
 
@@ -55,7 +55,9 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   enabled?: boolean;
   children: React.ReactNode;
 }) {
-  const [state, dispatch] = useReducer(bankReducer, undefined, () => seedReviewState());
+  // Empty by default: a fresh account has no bank items, so no popup, no
+  // Unaccounted row and no Books dot until a real sync writes something.
+  const [state, dispatch] = useReducer(bankReducer, undefined, () => seedReviewState([]));
   const [open, setOpen] = useState(false);
   const [bank, setBank] = useState<BankConnection>(() => emptyConnection());
   const [tier, setTier] = useState<BankTier>('pro');
@@ -73,11 +75,15 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   stateRef.current = state;
 
   // Preview fixtures: ?bankTier=free and ?bankState=reconnect|syncing|linked.
-  // Read once, on the client, only where the flag is on.
+  // Read once, on the client, only where the flag is on. The review batch is
+  // fixture data too, so it is seeded ONLY behind ?bankState=; every other
+  // preview (and the app itself) starts with an empty state.
   useEffect(() => {
     if (!active) return;
-    setTier(bankTierFromSearch(window.location.search));
-    setBank(initialConnectionFromSearch(window.location.search));
+    const search = window.location.search;
+    setTier(bankTierFromSearch(search));
+    setBank(initialConnectionFromSearch(search));
+    if (bankPreviewState(search)) dispatch({ type: 'seed', items: BANK_ITEMS });
   }, [active]);
 
   // Every close is a dismissal: it forbids the auto popup until a new app open
