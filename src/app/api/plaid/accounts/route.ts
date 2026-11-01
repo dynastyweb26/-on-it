@@ -2,15 +2,23 @@
 // Only tracked accounts produce bank_transactions; tracking is opt-in and the
 // schema requires track and tracked_at to move together.
 //
+// false → true is a backfill: the sync skipped this account's rows while it was
+// untracked, so the item's cursor goes back to null and a sync runs after the
+// response. Any other transition only moves the flag.
+//
 // Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime. Every
 // non-2xx goes through fail(), which logs exactly one line.
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { plaidRouteEnabled } from '@/lib/plaid/config';
+import { PlaidApiError, plaidClientFromEnv } from '@/lib/plaid/client';
 import { trackPatch } from '@/lib/plaid/link';
+import { needsBackfill } from '@/lib/plaid/account-tracking';
+import { syncPlaidItem } from '@/lib/plaid/sync';
 import { fail } from '@/lib/plaid/respond';
 
 export const runtime = 'nodejs';
@@ -37,17 +45,57 @@ export async function POST(req: NextRequest) {
   const { item_id, account_id, track } = parsed.data;
 
   const admin = adminClient();
-  const { data: updated, error } = await admin
+
+  // The previous value first: only a false → true flip needs the replay.
+  const { data: current, error: readError } = await admin
+    .from('plaid_accounts')
+    .select('id, track')
+    .eq('id', account_id)
+    .eq('item_id', item_id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (readError) return fail('accounts', 'db_read_failed', readError.code);
+  if (!current) return fail('accounts', 'not_found');
+
+  const { error } = await admin
     .from('plaid_accounts')
     .update(trackPatch(track, new Date().toISOString()))
     .eq('id', account_id)
     .eq('item_id', item_id)
-    .eq('user_id', user.id)
-    .select('id')
-    .maybeSingle();
+    .eq('user_id', user.id);
 
   if (error) return fail('accounts', 'db_update_failed', error.code);
-  if (!updated) return fail('accounts', 'not_found');
+
+  if (needsBackfill(current.track === true, track)) {
+    // Cursor to null so the next sync replays the window with this account
+    // tracked, instead of resuming past the rows it skipped.
+    const { error: resetError } = await admin
+      .from('plaid_items')
+      .update({ sync_cursor: null, updated_at: new Date().toISOString() })
+      .eq('id', item_id)
+      .eq('user_id', user.id);
+
+    if (resetError) return fail('accounts', 'db_update_failed', resetError.code);
+
+    const client = plaidClientFromEnv();
+    if (client) {
+      const task = syncPlaidItem(client, admin, item_id, user.id)
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          console.error('plaid: backfill sync failed', {
+            error_code: error instanceof PlaidApiError ? error.error_code : 'sync_failed',
+          });
+        });
+      try {
+        waitUntil(task);
+      } catch {
+        // Outside a Vercel request (or with no waitUntil support): keep the
+        // function alive for the bounded sync instead of dropping it.
+        await task;
+      }
+    }
+  }
 
   const { data: accounts } = await admin
     .from('plaid_accounts')
