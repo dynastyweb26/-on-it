@@ -5,6 +5,8 @@
 //  2. Prove no bank screen can reach a database write. The check is structural
 //     on purpose: the components never import the Supabase client, so there is
 //     no write to stub. If someone adds one, this test fails before the build.
+//     Phase 2 adds exactly two reads of the preview-only Plaid routes (link
+//     token + exchange); everything else, including every write, stays barred.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -154,6 +156,20 @@ test('dates and money match the card copy', () => {
   assert.equal(dateOptions('2026-10-30', '2026-10-30').length, 2);
 });
 
+// A fresh signed-in user has no bank items: the fixtures are demo data, so
+// nothing may pop, dot, or list an Unaccounted row until a real sync lands.
+test('a fresh user starts empty: no popup, no Unaccounted row, no dot', () => {
+  const state = seedReviewState([]);
+  assert.equal(state.items.length, 0);
+  assert.equal(pendingCount(state), 0);
+  assert.equal(unaccountedItems(state).length, 0);
+  assert.equal(booksDotVisible(state), false);
+  const provider = readFileSync(join(ROOT, 'src', 'components', 'bank', 'BankTrackingProvider.tsx'), 'utf8');
+  assert.match(provider, /seedReviewState\(\[\]\)/, 'the provider seeds an empty state');
+  assert.match(provider, /if \(bankPreviewState\(search\)\) dispatch/, 'fixtures only behind ?bankState=');
+  assert.match(provider, /pending === 0/, 'the popup gate still needs items');
+});
+
 test('the bank feature stays inert until someone is signed in', () => {
   assert.equal(bankActive(true, true), true);
   assert.equal(bankActive(true, false), false, 'flag on, no session');
@@ -184,6 +200,7 @@ function bankSources(): string[] {
     ...components,
     join(ROOT, 'src', 'lib', 'bank-tracking.ts'),
     join(ROOT, 'src', 'lib', 'bank-accounts.ts'),
+    join(ROOT, 'src', 'lib', 'bank-disconnect.ts'),
   ];
 }
 
@@ -196,7 +213,6 @@ test('no bank component can reach a database write', () => {
     [/\.upsert\s*\(/, 'calls upsert()'],
     [/\.delete\s*\(/, 'calls delete()'],
     [/\.rpc\s*\(/, 'calls rpc()'],
-    [/fetch\s*\(\s*['"`]\/?api\//, 'calls an API route'],
     [/\bXMLHttpRequest\b|\bsendBeacon\b/, 'sends a request'],
   ];
   const files = bankSources();
@@ -207,6 +223,26 @@ test('no bank component can reach a database write', () => {
       assert.doesNotMatch(source, pattern, `${file} must not write: it ${what}`);
     }
   }
+});
+
+// Phase 2: the bank surfaces may call exactly the four preview-only Plaid
+// routes (link token, exchange, accounts, disconnect). Any other call fails.
+test('a bank screen calls only the preview-only Plaid routes', () => {
+  const allowed = new Set([
+    '/api/plaid/accounts', '/api/plaid/link-token', '/api/plaid/exchange', '/api/plaid/disconnect',
+  ]);
+  const calls: string[] = [];
+  for (const file of bankSources()) {
+    const source = readFileSync(file, 'utf8');
+    // Any string literal that points at /api/ counts, whatever it is passed to.
+    for (const match of source.matchAll(/['"`](\/?api\/[^'"`]+)['"`]/g)) {
+      assert.ok(allowed.has(match[1]), `${file} must not call ${match[1]}`);
+      calls.push(match[1]);
+    }
+  }
+  assert.deepEqual(calls.sort(), [
+    '/api/plaid/accounts', '/api/plaid/disconnect', '/api/plaid/exchange', '/api/plaid/link-token',
+  ]);
 });
 
 test('the bank screens are flagged, never always-on', () => {

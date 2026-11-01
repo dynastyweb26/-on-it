@@ -308,7 +308,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex h-full w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-auto md:max-h-[86vh] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex h-full w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-[min(86vh,720px)] md:max-h-[86vh] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >

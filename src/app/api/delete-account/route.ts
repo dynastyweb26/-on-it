@@ -32,6 +32,7 @@ import { getStripe } from '@/lib/stripe/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { clearAccountStorage } from '@/lib/delete-account-storage';
 import { redactAuditAndDelete } from '@/lib/delete-account-audit';
+import { removePlaidItemsForUser } from '@/lib/plaid/items';
 
 export const runtime = 'nodejs';
 
@@ -91,6 +92,17 @@ export async function POST(req: NextRequest) {
       { error: 'storage_clear_failed', message: 'Something went wrong removing your files. Please try again.' },
       { status: 500 }
     );
+  }
+
+  // ── 2b. Plaid: remove every linked item at Plaid BEFORE the profile cascade
+  //    drops our rows, so no access token is left live on Plaid's side. Best
+  //    effort by design: a Plaid error is logged and the account delete still
+  //    proceeds (the owner asked for deletion, not for a retry loop).
+  try {
+    await removePlaidItemsForUser(admin, user.id);
+  } catch (e) {
+    console.error('delete-account: plaid item removal failed',
+      (e as { code?: string } | null)?.code ?? 'error');
   }
 
   // ── 3 + 4. Audit scrub, then the irreversible auth delete, then a second

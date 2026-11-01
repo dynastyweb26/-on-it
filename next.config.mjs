@@ -12,7 +12,7 @@ const isDev = process.env.NODE_ENV !== 'production';
 // a documented follow-up in SECURITY-AUDIT.md.
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://cdn.plaid.com`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com`,
   `img-src 'self' data: blob: https://*.supabase.co`,
@@ -20,7 +20,7 @@ const csp = [
   // r./m.stripe.com — all XHR/fetch, so they must be in connect-src, not just
   // script-src/frame-src. Without these, Stripe.js fails silently in-browser.
   `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com`,
-  `frame-src https://js.stripe.com https://*.stripe.com`,
+  `frame-src https://js.stripe.com https://*.stripe.com https://cdn.plaid.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
   `form-action 'self'`,
