@@ -1071,3 +1071,13 @@ _Money OUT only. Link + webhook + `/transactions/sync`; matching / confirm / Add
 | `PLAID_BACKFILL_DAYS` | **Done** | `sync-window.ts`: integer, default 0, clamped 0–90, junk is 0; window = later of (linked_at − days) and (today − 30d). |
 | Retired webhook keys | **Done** | `webhook-verify.ts` refuses a key whose `expired_at` has passed (`key_expired`), cached or not. |
 | Silent route gate | **Done** | `fail()` skips `console.error` for `route_disabled`; every other failure still logs one line. |
+
+## Plaid money-out — PR3a: the real bank screen (branch `feat/plaid-money-out`, logged 2026-11-01)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Linked card survives a reload | **Built** | `GET /api/plaid/accounts` reads through the session client (RLS) and `accounts-view.ts` allow-lists the columns; the screen loads it on mount, so the item id (and Disconnect) survives. |
+| Batch tracking | **Built** | `POST /api/plaid/accounts` also takes `{ item_id, changes[] }` (max 50, all-or-nothing); one cursor reset and one `waitUntil` sync per request (`accounts-batch.ts`). |
+| Real accounts in Choose accounts | **Built** | The item is re-read after the exchange; Start tracking sends ONE batch and renders the server's tracked set. `STARTER_ACCOUNTS`/`linkedConnection` only behind `?bankState=`. |
+| Syncing poll | **Built** | Every 6s, at most 20 tries, stopping on unmount or when the status settles (`BANK_POLL_MS`, `BANK_POLL_MAX_TRIES`). |
+| Transactions / review queue on real rows | **Open** | PR3b. The review stack still runs on the fixture. |
