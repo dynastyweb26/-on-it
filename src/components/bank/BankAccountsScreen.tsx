@@ -22,6 +22,7 @@ import {
   ACCOUNT_STATUS_COPY, DIGEST_OPTIONS, DISCONNECTED_TOAST, STARTER_ACCOUNTS,
   digestLabel, isLinked, trackedCount, type BankAccountOption, type BankConnection,
 } from '@/lib/bank-accounts';
+import { requestDisconnect } from '@/lib/bank-disconnect';
 
 type Flow = 'idle' | 'handoff' | 'success' | 'choose';
 
@@ -35,6 +36,7 @@ export default function BankAccountsScreen() {
   const [draft, setDraft] = useState<string[]>([]);
   const [digestOpen, setDigestOpen] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const firstToggleRef = useRef<HTMLButtonElement>(null);
 
@@ -123,17 +125,25 @@ export default function BankAccountsScreen() {
           institution_name: metadata.institution?.name,
         }),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: unknown } | null;
+      const body = (await res.json().catch(() => null)) as unknown;
+      const plan = exchangePlan(res.status, body);
+      if (plan.kind === 'error') {
+        // A failed exchange never advances to the mock "choose accounts" step.
         setFlow('idle');
-        setToast(typeof body?.message === 'string' ? body.message : 'We couldn’t connect that bank. Try again.');
+        setToast(plan.message);
         return;
       }
-      // The rest of the screen stays mock: success → choose accounts.
+      // Remember the real item (for disconnect); the rest of the screen stays
+      // mock: success → choose accounts.
+      setBank?.((cur) => ({
+        ...cur,
+        itemId: plan.itemId,
+        institution: plan.institution ?? cur.institution,
+      }));
       setFlow('success');
     } catch {
       setFlow('idle');
-      setToast('We couldn’t connect that bank. Try again.');
+      setToast(CONNECT_FAILED_TOAST);
     }
   }
 
@@ -152,8 +162,23 @@ export default function BankAccountsScreen() {
     setToast(`Digest time set to ${digestLabel(value)}.`);
   }
 
-  function disconnect() {
-    setBank?.((cur) => ({ ...cur, status: 'none', institution: null, accounts: [], tracked: [] }));
+  // A real item is removed at Plaid first; a refusal keeps the connection and
+  // says so. The mock/fixture path has no item id, so it only moves local state.
+  async function disconnect() {
+    const itemId = ctx?.bank?.itemId ?? null;
+    if (itemId) {
+      setDisconnectBusy(true);
+      const result = await requestDisconnect(itemId);
+      setDisconnectBusy(false);
+      if (!result.ok) {
+        setDisconnectOpen(false);
+        setToast(result.message);
+        return;
+      }
+    }
+    setBank?.((cur) => ({
+      ...cur, itemId: null, status: 'none', institution: null, accounts: [], tracked: [],
+    }));
     setDisconnectOpen(false);
     setFlow('idle');
     setToast(DISCONNECTED_TOAST);
@@ -280,9 +305,10 @@ export default function BankAccountsScreen() {
           <button
             type="button"
             onClick={disconnect}
-            className="mt-2 min-h-[52px] w-full rounded-full border-[1.5px] border-error/40 font-semibold text-error active:scale-[0.97]"
+            disabled={disconnectBusy}
+            className="mt-2 min-h-[52px] w-full rounded-full border-[1.5px] border-error/40 font-semibold text-error active:scale-[0.97] disabled:opacity-50"
           >
-            Disconnect
+            {disconnectBusy ? 'Disconnecting…' : 'Disconnect'}
           </button>
           <button
             type="button"
