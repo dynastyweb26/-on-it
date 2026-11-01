@@ -20,6 +20,7 @@ import { trackPatch } from '@/lib/plaid/link';
 import { needsBackfill } from '@/lib/plaid/account-tracking';
 import { syncPlaidItem } from '@/lib/plaid/sync';
 import { fail } from '@/lib/plaid/respond';
+import { ITEMS_SELECT, accountsResponse, type AccountsItemRow } from '@/lib/plaid/accounts-view';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,29 @@ const Body = z.object({
   account_id: z.string().uuid(),
   track: z.boolean(),
 });
+
+export async function GET(req: NextRequest) {
+  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('accounts', 'route_disabled');
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return fail('accounts', 'unauthorized');
+
+  if (!(await rateLimit('plaid_accounts', rateIdentifier(req, user.id)))) {
+    return fail('accounts', 'rate_limited');
+  }
+
+  const { data, error } = await supabase
+    .from('plaid_items')
+    .select(ITEMS_SELECT)
+    .neq('status', 'removed')
+    .order('created_at', { ascending: false });
+
+  if (error) return fail('accounts', 'db_read_failed', error.code);
+
+  // The nested select is untyped at the client; accountsResponse is the mapper.
+  return NextResponse.json(accountsResponse((data ?? []) as unknown as AccountsItemRow[]));
+}
 
 export async function POST(req: NextRequest) {
   if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('accounts', 'route_disabled');
