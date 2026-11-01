@@ -1062,3 +1062,12 @@ _Money OUT only. Link + webhook + `/transactions/sync`; matching / confirm / Add
 | Review sheet height at md+ | **Built — visual check pending** | `ReviewStack`: `md:h-[min(86vh,720px)]` replaces `md:h-auto`; below md unchanged (`h-full`). |
 | Disconnect calls the API | **Built — preview check pending** | `requestDisconnect` (`src/lib/bank-disconnect.ts`) posts the real `item_id`; the screen keeps the connection and toasts on failure. |
 | Failure diagnosis | **Done** | `src/lib/plaid/failure.ts` + `respond.ts`: every non-2xx in link-token/exchange/accounts/disconnect logs one `plaid <route> <status> <reason>` line; exchange 401 carries "Sign in again to connect your bank." |
+
+## Plaid money-out — PR2 hardening (branch `feat/plaid-money-out`, logged 2026-11-01)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Tracking false→true replays | **Done** | `needsBackfill` (`src/lib/plaid/account-tracking.ts`); the accounts route reads the previous flag, sets the item's `sync_cursor = null` and syncs it via `waitUntil`. |
+| `PLAID_BACKFILL_DAYS` | **Done** | `sync-window.ts`: integer, default 0, clamped 0–90, junk is 0; window = later of (linked_at − days) and (today − 30d). |
+| Retired webhook keys | **Done** | `webhook-verify.ts` refuses a key whose `expired_at` has passed (`key_expired`), cached or not. |
+| Silent route gate | **Done** | `fail()` skips `console.error` for `route_disabled`; every other failure still logs one line. |

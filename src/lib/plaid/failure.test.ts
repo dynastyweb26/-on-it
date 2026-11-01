@@ -30,6 +30,8 @@ test('every failure kind has one stable status and reason code', () => {
       assert.equal(f.status, status, `${route} ${kind} status`);
       assert.equal(f.reason, reason, `${route} ${kind} reason`);
       assert.equal(f.line, `plaid ${route} ${status} ${reason}`);
+      // Every failure logs except the gate: a production/local 404 is normal.
+      assert.equal(f.silent, kind === 'route_disabled', `${route} ${kind} logging`);
     }
   }
 });
@@ -79,4 +81,20 @@ test('no route answers a 4xx/5xx except through fail()', () => {
     assert.doesNotMatch(source, /status:\s*[45]\d\d/, `${file} must use fail() for every non-2xx`);
     assert.match(source, /fail\('/, `${file} imports the responder`);
   }
+});
+
+test('a disabled route answers 404 without logging; every other failure logs', () => {
+  const disabled = failure('accounts', 'route_disabled');
+  assert.equal(disabled.silent, true);
+  assert.equal(disabled.status, 404);
+  assert.equal(disabled.reason, 'route_disabled');
+  assert.equal(disabled.line, 'plaid accounts 404 route_disabled');
+
+  for (const kind of ['unauthorized', 'not_found', 'rate_limited', 'db_read_failed'] as FailureKind[]) {
+    assert.equal(failure('accounts', kind).silent, false, kind);
+  }
+
+  // fail() is the only place that writes the line, so the guard has to be there.
+  const respond = readFileSync(join(process.cwd(), 'src', 'lib', 'plaid', 'respond.ts'), 'utf8');
+  assert.match(respond, /if \(!f\.silent\) console\.error\(f\.line\)/, 'fail() skips a silent failure');
 });

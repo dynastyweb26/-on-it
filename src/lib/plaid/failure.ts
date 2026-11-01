@@ -75,6 +75,11 @@ export type Failure = {
   body: Record<string, string>;
   /** The ONE line a route logs. */
   line: string;
+  /**
+   * True when the failure must not be logged. Only a disabled route: that 404
+   * is the production/local gate doing its job, so it stays silent.
+   */
+  silent: boolean;
 };
 
 export function failure(route: PlaidRoute, kind: FailureKind, detail?: string | null): Failure {
@@ -89,5 +94,6 @@ export function failure(route: PlaidRoute, kind: FailureKind, detail?: string | 
     reason,
     body,
     line: `plaid ${route} ${spec.status} ${reason}`,
+    silent: kind === 'route_disabled',
   };
 }
