@@ -3,17 +3,45 @@
 // unit-tested without importing server-only code.
 
 export const LOOKBACK_DAYS = 30;
+/** PLAID_BACKFILL_DAYS may never reach further back than this. */
+export const BACKFILL_MAX_DAYS = 90;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
 /**
- * The link date, but never further back than the ~30 day staging cap. A
- * re-login keeps the original linked_at, so it keeps its window.
+ * PLAID_BACKFILL_DAYS: whole days of history to stage before the link date.
+ * Unset, blank or junk is 0 (start at the link date); 0–90, clamped. Negative
+ * or fractional input is junk, not a number to round.
  */
-export function syncWindowStart(linkedAt: string, nowMs: number = Date.now()): string {
-  const linked = linkedAt.slice(0, 10);
-  const cap = isoDay(nowMs - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  return linked > cap ? linked : cap;
+export function backfillDays(raw: string | undefined): number {
+  const text = (raw ?? '').trim();
+  if (!/^\d+$/.test(text)) return 0;
+  return Math.min(Number(text), BACKFILL_MAX_DAYS);
+}
+
+/**
+ * The link date minus PLAID_BACKFILL_DAYS, but never later than today − 30d:
+ * the later of the two. The backfill can reach before the link date, and the
+ * ~30 day staging cap still wins. A re-login keeps the original linked_at, so
+ * it keeps its window.
+ */
+export function syncWindowStart(
+  linkedAt: string,
+  nowMs: number = Date.now(),
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const linkedDay = linkedAt.slice(0, 10);
+  const cap = isoDay(nowMs - LOOKBACK_DAYS * DAY_MS);
+  const days = backfillDays(env.PLAID_BACKFILL_DAYS);
+  if (days === 0) return linkedDay > cap ? linkedDay : cap;
+
+  const linkedMs = Date.parse(`${linkedDay}T00:00:00.000Z`);
+  if (!Number.isFinite(linkedMs)) return linkedDay > cap ? linkedDay : cap;
+
+  const start = isoDay(linkedMs - days * DAY_MS);
+  return start > cap ? start : cap;
 }
 
 /**
