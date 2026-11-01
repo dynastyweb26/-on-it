@@ -133,3 +133,52 @@ test('an expired cache entry is refetched', async () => {
   assert.equal((await verify(jwtFor(privateKey, claimsFor(BODY)), BODY)).ok, true);
   assert.equal(fetches, 1);
 });
+
+test('a key whose own expired_at has passed is refused', async () => {
+  const { privateKey, jwk } = keyPair();
+  const expired = { ...jwk, expired_at: new Date(NOW - 1_000).toISOString() };
+  const verify = createWebhookVerifier(async () => expired, { now: () => NOW, cache: new Map() });
+  assert.deepEqual(await verify(jwtFor(privateKey, claimsFor(BODY)), BODY), {
+    ok: false,
+    reason: 'key_expired',
+  });
+});
+
+test('a key still inside expired_at verifies, and expiry beats the cache', async () => {
+  const { privateKey, jwk } = keyPair();
+  const alive = { ...jwk, expired_at: new Date(NOW + 60_000).toISOString() };
+  let fetches = 0;
+  const cache = new Map<string, KeyCacheEntry>();
+  const verify = createWebhookVerifier(async () => {
+    fetches++;
+    return alive;
+  }, { now: () => NOW, cache });
+  assert.equal((await verify(jwtFor(privateKey, claimsFor(BODY)), BODY)).ok, true);
+  assert.equal(fetches, 1);
+
+  // Three minutes later the cache TTL is still fresh, but the key is retired:
+  // the entry is refetched, and the retired key is refused.
+  const later = createWebhookVerifier(async () => {
+    fetches++;
+    return alive;
+  }, { now: () => NOW + 180_000, cache });
+  assert.deepEqual(await later(jwtFor(privateKey, claimsFor(BODY, Math.floor((NOW + 180_000) / 1000))), BODY), {
+    ok: false,
+    reason: 'key_expired',
+  });
+  assert.equal(fetches, 2, 'the expired cache entry was not used');
+});
+
+test('a retired cache entry is never trusted, even when the TTL is fresh', async () => {
+  const { privateKey, jwk } = keyPair();
+  const verify = createWebhookVerifier(async () => {
+    throw new Error('must refetch');
+  }, {
+    now: () => NOW,
+    cache: new Map<string, KeyCacheEntry>([['kid-1', { key: jwk, expiresAt: NOW + 1_000, keyExpiresAt: NOW - 1 }]]),
+  });
+  assert.deepEqual(await verify(jwtFor(privateKey, claimsFor(BODY)), BODY), {
+    ok: false,
+    reason: 'key_unavailable',
+  });
+});

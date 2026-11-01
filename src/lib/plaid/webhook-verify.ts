@@ -4,6 +4,7 @@
 //   - alg must be ES256 and the kid must be present;
 //   - the signing key is fetched from /webhook_verification_key/get and cached
 //     by kid (Plaid rotates keys, so a cache entry is never assumed valid);
+//   - a key whose own expired_at has passed is refused, cached or not;
 //   - iat must be within 5 minutes of now;
 //   - SHA-256(raw body) must equal the request_body_sha256 claim;
 //   - the signature must verify over `${header}.${payload}`.
@@ -23,12 +24,31 @@ export type WebhookJwtClaims = {
   webhook_code?: string;
 };
 
-export type KeyCacheEntry = { key: JsonWebKey; expiresAt: number };
+/**
+ * A verification key plus when it stops being usable. `keyExpiresAt` is Plaid's
+ * own `expired_at` in ms; null means the key did not state one.
+ */
+export type KeyCacheEntry = { key: JsonWebKey; expiresAt: number; keyExpiresAt?: number | null };
+
+/** The key Plaid returns: a JWK that also carries created_at / expired_at. */
+export type WebhookKey = JsonWebKey & { expired_at?: string | null };
+
+/** `expired_at` in ms, or null when it is absent or unparseable. */
+export function keyExpiresAt(key: JsonWebKey): number | null {
+  const raw = (key as WebhookKey).expired_at;
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Plaid retires a key at expired_at, so equal-to-now already counts as dead. */
+const keyExpired = (expiresAtMs: number | null, nowMs: number): boolean =>
+  expiresAtMs !== null && expiresAtMs <= nowMs;
 
 /** Shared by every request in the instance: a hot webhook key is fetched once. */
 export const webhookKeyCache = new Map<string, KeyCacheEntry>();
 
-export type KeyFetcher = (kid: string) => Promise<JsonWebKey>;
+export type KeyFetcher = (kid: string) => Promise<WebhookKey>;
 
 export type VerifyFailure =
   | 'malformed'
@@ -38,6 +58,7 @@ export type VerifyFailure =
   | 'future_iat'
   | 'body_mismatch'
   | 'bad_signature'
+  | 'key_expired'
   | 'key_unavailable';
 
 export type VerifyResult =
@@ -101,8 +122,13 @@ export function createWebhookVerifier(
       return { ok: false, reason: 'body_mismatch' };
     }
 
+    // A cached key is usable only while the cache entry AND Plaid's own
+    // expired_at are in the future. A stale entry is refetched; a key Plaid
+    // has retired is refused, never used just because it was cached.
     const cached = cache.get(kid);
-    let key = cached && cached.expiresAt > nowMs ? cached.key : null;
+    const cachedExpiry = cached ? (cached.keyExpiresAt ?? keyExpiresAt(cached.key)) : null;
+    let key =
+      cached && cached.expiresAt > nowMs && !keyExpired(cachedExpiry, nowMs) ? cached.key : null;
     if (!key) {
       try {
         key = await fetchKey(kid);
@@ -110,7 +136,12 @@ export function createWebhookVerifier(
         return { ok: false, reason: 'key_unavailable' };
       }
       if (!key) return { ok: false, reason: 'key_unavailable' };
-      cache.set(kid, { key, expiresAt: nowMs + KEY_CACHE_MS });
+      const expiresAtMs = keyExpiresAt(key);
+      if (keyExpired(expiresAtMs, nowMs)) {
+        cache.delete(kid);
+        return { ok: false, reason: 'key_expired' };
+      }
+      cache.set(kid, { key, expiresAt: nowMs + KEY_CACHE_MS, keyExpiresAt: expiresAtMs });
     }
 
     try {
