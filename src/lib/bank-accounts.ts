@@ -130,3 +130,75 @@ export function digestLabel(hhmm: string): string {
 export const DIGEST_OPTIONS = ['08:00', '12:00', '18:00', '19:00', '20:00', '21:00'];
 
 export const digestSentence = (hhmm: string): string => `Every day at ${digestLabel(hhmm)}.`;
+
+// ── The real connection: GET /api/plaid/accounts ──
+// The route's payload (allow-listed columns only) is mapped to the same
+// BankConnection the fixture uses, so every screen rule above keeps working
+// unchanged. Still pure: the fetch lives in the screen, these are the rules.
+
+export type BankItemApi = {
+  id: string;
+  institution_name: string | null;
+  status: string;
+  last_synced_at: string | null;
+  accounts: {
+    id: string;
+    name: string;
+    mask: string | null;
+    type: string | null;
+    subtype: string | null;
+    track: boolean;
+  }[];
+};
+
+export type BankItemsResponse = { items: BankItemApi[] };
+
+/** credit → 'credit', savings → 'savings', anything else (or unknown) → checking. */
+export function bankKind(type: string | null | undefined, subtype: string | null | undefined): BankAccountOption['kind'] {
+  const t = (type ?? '').toLowerCase();
+  const s = (subtype ?? '').toLowerCase();
+  if (t === 'credit' || s.includes('credit')) return 'credit';
+  if (s === 'savings') return 'savings';
+  return 'checking';
+}
+
+/** syncing → 'syncing', active → 'upToDate', needs_reconnect → 'needsReconnect'. */
+export function bankConnectionStatus(status: string | null | undefined): BankConnectionStatus {
+  if (status === 'active') return 'upToDate';
+  if (status === 'needs_reconnect') return 'needsReconnect';
+  // 'syncing' and anything unrecognised keep polling rather than claim success.
+  return 'syncing';
+}
+
+/** One linked item → the connection every bank screen already renders. */
+export function itemToConnection(
+  item: BankItemApi,
+  digestTime = BANK_DIGEST_DEFAULT,
+): BankConnection {
+  const accounts = item.accounts.map((account) => ({
+    id: account.id,
+    name: account.name.trim() || 'Account',
+    mask: account.mask ?? '',
+    kind: bankKind(account.type, account.subtype),
+  }));
+  return {
+    itemId: item.id,
+    status: bankConnectionStatus(item.status),
+    institution: item.institution_name,
+    accounts,
+    tracked: item.accounts.filter((account) => account.track === true).map((account) => account.id),
+    digestTime,
+  };
+}
+
+/**
+ * The API answers newest first. Multi-bank UI is parked, so the newest item is
+ * the connection and every other item is ignored until that card exists.
+ */
+export function connectionFromItems(
+  items: BankItemApi[],
+  digestTime = BANK_DIGEST_DEFAULT,
+): BankConnection | null {
+  const [newest] = items;
+  return newest ? itemToConnection(newest, digestTime) : null;
+}
