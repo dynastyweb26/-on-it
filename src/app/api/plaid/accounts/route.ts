@@ -2,7 +2,8 @@
 // Only tracked accounts produce bank_transactions; tracking is opt-in and the
 // schema requires track and tracked_at to move together.
 //
-// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime.
+// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime. Every
+// non-2xx goes through fail(), which logs exactly one line.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -10,6 +11,7 @@ import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { plaidRouteEnabled } from '@/lib/plaid/config';
 import { trackPatch } from '@/lib/plaid/link';
+import { fail } from '@/lib/plaid/respond';
 
 export const runtime = 'nodejs';
 
@@ -19,21 +21,19 @@ const Body = z.object({
   track: z.boolean(),
 });
 
-const notFound = () => NextResponse.json({ error: 'not found' }, { status: 404 });
-
 export async function POST(req: NextRequest) {
-  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return notFound();
+  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('accounts', 'route_disabled');
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user) return fail('accounts', 'unauthorized');
 
   if (!(await rateLimit('plaid_accounts', rateIdentifier(req, user.id)))) {
-    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+    return fail('accounts', 'rate_limited');
   }
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+  if (!parsed.success) return fail('accounts', 'invalid_request');
   const { item_id, account_id, track } = parsed.data;
 
   const admin = adminClient();
@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
     .select('id')
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: 'update_failed' }, { status: 500 });
-  if (!updated) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (error) return fail('accounts', 'db_update_failed', error.code);
+  if (!updated) return fail('accounts', 'not_found');
 
   const { data: accounts } = await admin
     .from('plaid_accounts')

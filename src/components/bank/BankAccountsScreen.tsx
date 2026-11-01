@@ -22,6 +22,9 @@ import {
   ACCOUNT_STATUS_COPY, DIGEST_OPTIONS, DISCONNECTED_TOAST, STARTER_ACCOUNTS,
   digestLabel, isLinked, trackedCount, type BankAccountOption, type BankConnection,
 } from '@/lib/bank-accounts';
+import {
+  CONNECT_FAILED_TOAST, OPEN_BANK_FAILED_TOAST, exchangePlan, linkTokenPlan,
+} from '@/lib/bank-connect';
 import { requestDisconnect } from '@/lib/bank-disconnect';
 
 type Flow = 'idle' | 'handoff' | 'success' | 'choose';
@@ -89,8 +92,9 @@ export default function BankAccountsScreen() {
     setFlow('idle');
   }
 
-  // Connect → a real link token when this is a preview build. Anywhere else
-  // (the route 404s) the existing mock handoff still runs, unchanged.
+  // Connect → a real link token when this is a preview build. The mock handoff
+  // runs for exactly one response: the route's 404, which is plaidRouteEnabled
+  // saying no. Every other failure is a toast, never the placeholder sheet.
   async function beginLink() {
     try {
       const res = await fetch('/api/plaid/link-token', {
@@ -98,19 +102,22 @@ export default function BankAccountsScreen() {
         headers: { 'content-type': 'application/json' },
         body: '{}',
       });
-      if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as unknown;
+      const plan = linkTokenPlan(res.status, body);
+      if (plan.kind === 'mock') {
         setFlow('handoff');
         return;
       }
-      const data = (await res.json()) as { link_token?: unknown };
-      if (typeof data.link_token !== 'string') {
-        setFlow('handoff');
+      if (plan.kind === 'error') {
+        setFlow('idle');
+        setToast(plan.message);
         return;
       }
       setFlow('handoff');
-      setLinkToken(data.link_token);
+      setLinkToken(plan.token);
     } catch {
-      setFlow('handoff');
+      setFlow('idle');
+      setToast(OPEN_BANK_FAILED_TOAST);
     }
   }
 

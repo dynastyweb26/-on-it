@@ -200,6 +200,7 @@ function bankSources(): string[] {
     ...components,
     join(ROOT, 'src', 'lib', 'bank-tracking.ts'),
     join(ROOT, 'src', 'lib', 'bank-accounts.ts'),
+    join(ROOT, 'src', 'lib', 'bank-disconnect.ts'),
   ];
 }
 
@@ -224,19 +225,24 @@ test('no bank component can reach a database write', () => {
   }
 });
 
-// Phase 2: the Connect button may call exactly the two preview-only Plaid
-// routes. Any other /api/ call from a bank file still fails here.
+// Phase 2: the bank surfaces may call exactly the three preview-only Plaid
+// routes (link token, exchange, disconnect). Any other /api/ call still fails.
 test('a bank screen calls only the preview-only Plaid routes', () => {
-  const allowed = new Set(['/api/plaid/link-token', '/api/plaid/exchange']);
+  const allowed = new Set([
+    '/api/plaid/link-token', '/api/plaid/exchange', '/api/plaid/disconnect',
+  ]);
   const calls: string[] = [];
   for (const file of bankSources()) {
     const source = readFileSync(file, 'utf8');
-    for (const match of source.matchAll(/fetch\s*\(\s*['"`](\/?api\/[^'"`]+)['"`]/g)) {
+    // Any string literal that points at /api/ counts, whatever it is passed to.
+    for (const match of source.matchAll(/['"`](\/?api\/[^'"`]+)['"`]/g)) {
       assert.ok(allowed.has(match[1]), `${file} must not call ${match[1]}`);
       calls.push(match[1]);
     }
   }
-  assert.deepEqual(calls.sort(), ['/api/plaid/exchange', '/api/plaid/link-token']);
+  assert.deepEqual(calls.sort(), [
+    '/api/plaid/disconnect', '/api/plaid/exchange', '/api/plaid/link-token',
+  ]);
 });
 
 test('the bank screens are flagged, never always-on', () => {

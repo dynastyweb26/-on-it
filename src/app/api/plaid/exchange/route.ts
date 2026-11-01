@@ -5,7 +5,8 @@
 // same bank linked twice (same institution + a shared account mask) is refused
 // before a row exists, and the fresh Plaid item is removed again.
 //
-// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime.
+// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime. Every
+// non-2xx goes through fail(), which logs exactly one line.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -14,8 +15,9 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import {
   plaidRouteEnabled, plaidTokenKey, plaidWebhookUrl,
 } from '@/lib/plaid/config';
-import { DUPLICATE_LINK_MESSAGE, isDuplicateLink, type LinkedBank } from '@/lib/plaid/link';
+import { isDuplicateLink, type LinkedBank } from '@/lib/plaid/link';
 import { PlaidApiError, plaidClientFromEnv, type PlaidAccount } from '@/lib/plaid/client';
+import { fail } from '@/lib/plaid/respond';
 
 export const runtime = 'nodejs';
 
@@ -24,33 +26,39 @@ const Body = z.object({
   institution_name: z.string().max(200).optional(),
 });
 
-const notFound = () => NextResponse.json({ error: 'not found' }, { status: 404 });
-
 type ExistingLink = {
   plaid_item_id: string;
   institution_id: string | null;
   plaid_accounts: { mask: string | null }[] | null;
 };
 
+/** Plaid's error_code or Postgres SQLSTATE for the log line; never a token. */
+const codeOf = (error: unknown): string | null => {
+  if (error instanceof PlaidApiError) return error.error_code;
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
+};
+
 export async function POST(req: NextRequest) {
-  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return notFound();
+  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('exchange', 'route_disabled');
 
   const client = plaidClientFromEnv();
   const tokenKey = plaidTokenKey();
   if (!client || !tokenKey || !plaidWebhookUrl(process.env.VERCEL_URL)) {
-    return NextResponse.json({ error: 'plaid_not_configured' }, { status: 503 });
+    return fail('exchange', 'plaid_not_configured');
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // The 401 carries copy the client shows instead of the generic text.
+  if (!user) return fail('exchange', 'unauthorized');
 
   if (!(await rateLimit('plaid_exchange', rateIdentifier(req, user.id)))) {
-    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+    return fail('exchange', 'rate_limited');
   }
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+  if (!parsed.success) return fail('exchange', 'invalid_request');
 
   const admin = adminClient();
   let accessToken: string;
@@ -60,20 +68,15 @@ export async function POST(req: NextRequest) {
     accessToken = exchanged.access_token;
     plaidItemId = exchanged.item_id;
   } catch (error) {
-    console.error('plaid: exchange failed', {
-      error_code: error instanceof PlaidApiError ? error.error_code : 'unknown',
-    });
-    return NextResponse.json({ error: 'exchange_failed' }, { status: 502 });
+    return fail('exchange', 'exchange_failed', codeOf(error));
   }
 
+  // Cleanup only. A failure here cannot change the outcome, so it adds no
+  // second log line to the one fail() writes.
   const removeOrphan = async () => {
     try {
       await client.itemRemove(accessToken);
-    } catch (error) {
-      console.error('plaid: cleanup /item/remove failed', {
-        error_code: error instanceof PlaidApiError ? error.error_code : 'unknown',
-      });
-    }
+    } catch { /* the orphaned sandbox item is unusable; outcome unchanged */ }
   };
 
   // The institution and its accounts are read server-side; the client-supplied
@@ -92,11 +95,9 @@ export async function POST(req: NextRequest) {
       parsed.data.institution_name?.trim().slice(0, 200) ||
       'Bank';
   } catch (error) {
-    console.error('plaid: account read failed', {
-      error_code: error instanceof PlaidApiError ? error.error_code : 'unknown',
-    });
+    const code = codeOf(error);
     await removeOrphan();
-    return NextResponse.json({ error: 'exchange_failed' }, { status: 502 });
+    return fail('exchange', 'exchange_failed', code);
   }
 
   const { data: existingRows, error: existingError } = await admin
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     .eq('user_id', user.id);
   if (existingError) {
     await removeOrphan();
-    return NextResponse.json({ error: 'exchange_failed' }, { status: 500 });
+    return fail('exchange', 'db_read_failed', existingError.code);
   }
 
   const existing: LinkedBank[] = ((existingRows ?? []) as ExistingLink[]).map((row) => ({
@@ -121,10 +122,7 @@ export async function POST(req: NextRequest) {
     const sameItem = ((existingRows ?? []) as ExistingLink[])
       .some((row) => row.plaid_item_id === plaidItemId);
     if (!sameItem) await removeOrphan();
-    return NextResponse.json(
-      { error: 'already_linked', message: DUPLICATE_LINK_MESSAGE },
-      { status: 409 },
-    );
+    return fail('exchange', 'already_linked');
   }
 
   // The only write path for the token: one SECURITY DEFINER call that inserts
@@ -142,17 +140,13 @@ export async function POST(req: NextRequest) {
     if (error || typeof data !== 'string') throw error ?? new Error('missing item');
     itemRowId = data;
   } catch (error) {
-    const code = (error as { code?: string } | null)?.code;
-    console.error('plaid: item insert failed', { error_code: code ?? 'unknown' });
+    const code = codeOf(error);
     if (code === '23505') {
       // plaid_item_id is already ours: never remove the live connection.
-      return NextResponse.json(
-        { error: 'already_linked', message: DUPLICATE_LINK_MESSAGE },
-        { status: 409 },
-      );
+      return fail('exchange', 'already_linked');
     }
     await removeOrphan();
-    return NextResponse.json({ error: 'exchange_failed' }, { status: 500 });
+    return fail('exchange', 'db_insert_failed', code);
   }
 
   // Tracking is opt-in: every account starts untracked (tracked_at null).
@@ -174,8 +168,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       // No half-linked item: deleting the item cascades any partial rows.
       await admin.from('plaid_items').delete().eq('id', itemRowId).eq('user_id', user.id);
-      console.error('plaid: account insert failed', { code: error.code });
-      return NextResponse.json({ error: 'exchange_failed' }, { status: 500 });
+      return fail('exchange', 'db_insert_failed', error.code);
     }
   }
 

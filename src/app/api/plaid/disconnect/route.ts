@@ -5,7 +5,8 @@
 // A Plaid-side failure never traps the owner: the local row is deleted anyway,
 // the stale token is unusable at Plaid, and only an error code is logged.
 //
-// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime.
+// Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime. Every
+// non-2xx goes through fail(), which logs exactly one line.
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
@@ -14,26 +15,25 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { plaidRouteEnabled } from '@/lib/plaid/config';
 import { plaidClientFromEnv } from '@/lib/plaid/client';
 import { removePlaidItem } from '@/lib/plaid/items';
+import { fail } from '@/lib/plaid/respond';
 
 export const runtime = 'nodejs';
 
 const Body = z.object({ item_id: z.string().uuid() });
 
-const notFound = () => NextResponse.json({ error: 'not found' }, { status: 404 });
-
 export async function POST(req: NextRequest) {
-  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return notFound();
+  if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('disconnect', 'route_disabled');
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user) return fail('disconnect', 'unauthorized');
 
   if (!(await rateLimit('plaid_disconnect', rateIdentifier(req, user.id)))) {
-    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+    return fail('disconnect', 'rate_limited');
   }
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+  if (!parsed.success) return fail('disconnect', 'invalid_request');
 
   const admin = adminClient();
   const { data: item } = await admin
@@ -42,15 +42,13 @@ export async function POST(req: NextRequest) {
     .eq('id', parsed.data.item_id)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!item) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!item) return fail('disconnect', 'not_found');
 
   try {
     const result = await removePlaidItem(plaidClientFromEnv(), admin, parsed.data.item_id, user.id);
     return NextResponse.json({ ok: true, plaid_removed: result.plaidRemoved });
   } catch (error) {
-    console.error('plaid: disconnect delete failed', {
-      error_code: (error as { code?: string } | null)?.code ?? 'unknown',
-    });
-    return NextResponse.json({ error: 'disconnect_failed' }, { status: 500 });
+    const code = (error as { code?: unknown } | null)?.code;
+    return fail('disconnect', 'db_delete_failed', typeof code === 'string' ? code : null);
   }
 }
