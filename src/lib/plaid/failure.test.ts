@@ -19,6 +19,7 @@ test('every failure kind has one stable status and reason code', () => {
     ['link_token_failed', 502, 'link_token_failed'],
     ['exchange_failed', 502, 'exchange_failed'],
     ['already_linked', 409, 'already_linked'],
+    ['bad_state', 409, 'bad_state'],
     ['db_read_failed', 500, 'db_read_failed'],
     ['db_insert_failed', 500, 'db_insert_failed'],
     ['db_update_failed', 500, 'db_update_failed'],

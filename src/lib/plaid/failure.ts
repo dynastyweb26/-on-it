@@ -26,6 +26,7 @@ export type FailureKind =
   | 'link_token_failed'
   | 'exchange_failed'
   | 'already_linked'
+  | 'bad_state'
   | 'db_read_failed'
   | 'db_insert_failed'
   | 'db_update_failed'
@@ -48,6 +49,7 @@ const SPEC: Record<FailureKind, Spec> = {
   link_token_failed: { status: 502, error: 'link_token_failed' },
   exchange_failed: { status: 502, error: 'exchange_failed' },
   already_linked: { status: 409, error: 'already_linked' },
+  bad_state: { status: 409, error: 'bad_state' },
   db_read_failed: { status: 500, error: 'exchange_failed' },
   db_insert_failed: { status: 500, error: 'exchange_failed' },
   db_update_failed: { status: 500, error: 'update_failed' },

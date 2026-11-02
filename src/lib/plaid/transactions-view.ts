@@ -11,11 +11,11 @@ import type { ExpenseCategory } from '../expenses';
 /** Every column the review stack reads. Nothing else is ever selected. */
 export const ROW_COLUMNS = [
   'id', 'description', 'merchant', 'amount', 'occurred_on',
-  'bank_state', 'review_state', 'expense_id', 'category',
+  'bank_state', 'review_state', 'expense_id', 'category', 'removed_at',
 ] as const;
 
 export const ROW_SELECT =
-  'id, description, merchant, amount, occurred_on, bank_state, review_state, expense_id, category, ' +
+  'id, description, merchant, amount, occurred_on, bank_state, review_state, expense_id, category, removed_at, ' +
   'plaid_accounts(name, mask, plaid_items(institution_name))';
 
 /** The expense columns the matcher needs — never the whole expense row. */
@@ -32,6 +32,7 @@ export type BankRowRow = {
   review_state: string;
   expense_id: string | null;
   category: string | null;
+  removed_at?: string | null;
   plaid_accounts: {
     name: string | null;
     mask: string | null;
@@ -56,8 +57,14 @@ export type OpenBankRow = {
 
 const OPEN_STATES = new Set(['new', 'needs_review']);
 
-export const openBankRows = (rows: BankRowRow[]): BankRowRow[] =>
-  rows.filter((row) => OPEN_STATES.has(row.review_state));
+/**
+ * Still the owner's to decide. A charge the bank pulled is never in the stack,
+ * whichever half of the pair the caller forgot to filter.
+ */
+export const isOpenBankRow = (row: BankRowRow): boolean =>
+  OPEN_STATES.has(row.review_state) && row.bank_state !== 'removed' && !row.removed_at;
+
+export const openBankRows = (rows: BankRowRow[]): BankRowRow[] => rows.filter(isOpenBankRow);
 
 /** "Chase ••4821" when the nested item came back, else the account's own name. */
 export function accountLine(account: BankRowRow['plaid_accounts']): { name: string; mask: string } {

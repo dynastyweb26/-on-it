@@ -11,6 +11,10 @@
 //   ignore   review_state 'ignored' (restorable).
 //   restore  back to 'new'.
 //
+// Which of those a row may take is decided by ./review-transitions (pure and
+// exhaustively tested), never by the caller: a decided row, a restore from the
+// wrong tab and a charge the bank removed all answer 409 bad_state.
+//
 // Ownership is always user.id; an id that is not the caller's answers 404. Every
 // non-2xx goes through fail(), which logs exactly one line. Preview only.
 //
@@ -33,6 +37,7 @@ import {
   MAX_EXPENSE_CENTS, centsToAmount, expenseCategoryFromPlaid, parseCents, shiftIsoDay, suggestMatch,
   type MatchExpense,
 } from '@/lib/plaid/match';
+import { transition } from '@/lib/plaid/review-transitions';
 
 export const runtime = 'nodejs';
 
@@ -45,8 +50,6 @@ const Body = z.object({
   category: z.string().refine(isExpenseCategory, 'unknown category').optional(),
 });
 
-const DECIDED = new Set(['added', 'already']);
-
 type Row = {
   id: string;
   plaid_transaction_id: string;
@@ -57,11 +60,12 @@ type Row = {
   category: string | null;
   review_state: string;
   expense_id: string | null;
+  bank_state: string;
+  removed_at: string | null;
 };
 
-const ROW_SELECT = 'id, plaid_transaction_id, merchant, description, amount, occurred_on, category, review_state, expense_id';
-
-const REVIEW_STATE_FOR = { add: 'added', already: 'already', ignore: 'ignored', restore: 'new' } as const;
+const ROW_SELECT = 'id, plaid_transaction_id, merchant, description, amount, occurred_on, category, '
+  + 'review_state, expense_id, bank_state, removed_at';
 
 export async function POST(req: NextRequest) {
   if (!plaidRouteEnabled(process.env.VERCEL_ENV)) return fail('review', 'route_disabled');
@@ -92,9 +96,20 @@ export async function POST(req: NextRequest) {
   // Another user's row and a missing row are the same answer.
   if (!row) return fail('review', 'not_found');
 
+  // The state machine lives in ./review-transitions (pure, exhaustively tested):
+  // only an open row is ignored or linked, only an ignored row is restored, a
+  // decided row replays its own add, and a removed charge is never added.
+  const decision = transition({
+    action,
+    reviewState: row.review_state,
+    bankState: row.bank_state,
+    removedAt: row.removed_at,
+    expenseId: row.expense_id,
+  });
+
   // Idempotent: the row already counts through an expense, so a repeated submit
   // (double tap, retried request) answers that expense and writes nothing.
-  if (DECIDED.has(row.review_state) && row.expense_id && action === 'add') {
+  if (decision.kind === 'replay') {
     return NextResponse.json({
       ok: true,
       transaction_id: row.id,
@@ -102,6 +117,8 @@ export async function POST(req: NextRequest) {
       expense_id: row.expense_id,
     });
   }
+  // Decided, removed, or Restore from the wrong tab: one 409, one log line.
+  if (decision.kind === 'bad_state') return fail('review', 'bad_state');
 
   const now = new Date().toISOString();
 
@@ -150,7 +167,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateError } = await admin
       .from('bank_transactions')
-      .update({ review_state: 'added', expense_id: expenseId, updated_at: now })
+      .update({ review_state: decision.next, expense_id: expenseId, updated_at: now })
       .eq('id', row.id)
       .eq('user_id', user.id);
 
@@ -163,7 +180,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       transaction_id: row.id,
-      review_state: 'added',
+      review_state: decision.next,
       expense_id: expenseId,
     });
   }
@@ -213,7 +230,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateError } = await admin
       .from('bank_transactions')
-      .update({ review_state: 'already', expense_id: match.expense_id, updated_at: now })
+      .update({ review_state: decision.next, expense_id: match.expense_id, updated_at: now })
       .eq('id', row.id)
       .eq('user_id', user.id);
     if (updateError) return fail('review', 'db_update_failed', updateError.code);
@@ -221,7 +238,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       transaction_id: row.id,
-      review_state: 'already',
+      review_state: decision.next,
       expense_id: match.expense_id,
     });
   }
@@ -229,7 +246,7 @@ export async function POST(req: NextRequest) {
   // ignore / restore: the review state moves, nothing else does.
   const { error: stateError } = await admin
     .from('bank_transactions')
-    .update({ review_state: REVIEW_STATE_FOR[action], updated_at: now })
+    .update({ review_state: decision.next, updated_at: now })
     .eq('id', row.id)
     .eq('user_id', user.id);
   if (stateError) return fail('review', 'db_update_failed', stateError.code);
@@ -237,7 +254,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     transaction_id: row.id,
-    review_state: REVIEW_STATE_FOR[action],
+    review_state: decision.next,
     expense_id: row.expense_id,
   });
 }

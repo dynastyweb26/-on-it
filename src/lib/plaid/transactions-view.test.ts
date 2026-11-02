@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EXPENSE_COLUMNS, ROW_COLUMNS, ROW_SELECT, accountLine, openBankRows, transactionsResponse,
-  type BankRowRow,
+  EXPENSE_COLUMNS, ROW_COLUMNS, ROW_SELECT, accountLine, isOpenBankRow, openBankRows,
+  transactionsResponse, type BankRowRow,
 } from './transactions-view';
 
 const ROW: BankRowRow = {
@@ -61,6 +61,16 @@ test('decided rows are never in the payload', () => {
 test('an amount that cannot be read exactly is dropped, not guessed', () => {
   const { items } = transactionsResponse([{ ...ROW, amount: 'abc' }, { ...ROW, amount: '0' }], []);
   assert.deepEqual(items, []);
+});
+
+test('a removed charge never reaches the stack', () => {
+  const removed = { ...ROW, bank_state: 'removed', removed_at: '2026-10-29T10:00:00.000Z' };
+  assert.deepEqual(transactionsResponse([removed], []).items, []);
+  // Either half of the pair being present is enough to keep it out.
+  assert.deepEqual(transactionsResponse([{ ...ROW, removed_at: '2026-10-29' }], []).items, []);
+  assert.deepEqual(transactionsResponse([{ ...ROW, bank_state: 'removed' }], []).items, []);
+  assert.equal(isOpenBankRow(ROW), true);
+  assert.equal(isOpenBankRow({ ...ROW, bank_state: 'removed' }), false);
 });
 
 test('the select lists no secret: no token, Plaid id, cursor or error text', () => {

@@ -3,7 +3,9 @@
 //
 // Reads through the SESSION client, so RLS (owner-only) is the boundary: the
 // admin key is not used here at all. Only the columns in ./transactions-view
-// can be selected — no encrypted token, Plaid id, cursor or error text.
+// can be selected — no encrypted token, Plaid id, cursor or error text. A charge
+// the bank removed is never listed: the query excludes it and the mapper drops
+// it too.
 //
 // Preview only: 404 unless VERCEL_ENV === 'preview'. Node runtime. Every non-2xx
 // goes through fail(), which logs exactly one line.
@@ -41,6 +43,9 @@ export async function GET(req: NextRequest) {
     .select(ROW_SELECT)
     .eq('user_id', user.id)
     .in('review_state', ['new', 'needs_review'])
+    // A charge the bank pulled is never the owner's to decide.
+    .neq('bank_state', 'removed')
+    .is('removed_at', null)
     .order('occurred_on', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(MAX_ROWS);
