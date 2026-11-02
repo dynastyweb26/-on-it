@@ -95,7 +95,7 @@ export default function ReviewCard({
     <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
       {/* Expense cards dropped their letter tile (CHANGES.md · item 4), so the
           block carries a little more room instead of looking short. */}
-      <div className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto ${review ? 'p-[18px]' : 'px-[18px] py-[22px]'}`}>
+      <div className={`flex min-h-0 flex-auto flex-col gap-3.5 overflow-y-auto ${review ? 'p-[18px]' : 'px-[18px] py-[22px]'}`}>
         {review ? (
           <>
             <div className="flex">

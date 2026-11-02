@@ -1,6 +1,6 @@
 'use client';
 // ═══ Review stack ═══
-// A full-screen sheet on phones, a centred 440px dialog from 768px up, over a
+// A bottom sheet on phones, a centred 440px dialog from 768px up, over a
 // scrim. One stack of cards: drag sideways to browse, act on the front card.
 //
 // Structural rules this file keeps (SPEC.txt, overridden where CHANGES.md says):
@@ -300,7 +300,7 @@ export default function ReviewStack({
   }
 
   const sheet = (
-    <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0">
+    <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0 md:items-center">
       <div
         aria-hidden
         onClick={requestClose}
@@ -315,7 +315,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex h-full w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-[min(86vh,720px)] md:max-h-[86vh] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[min(86vh,720px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -378,7 +378,7 @@ export default function ReviewStack({
         )}
 
         <div
-          className="relative mx-4 mb-3 min-h-0 flex-1"
+          className="relative mx-4 mb-3 min-h-0"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -442,7 +442,7 @@ export default function ReviewStack({
                   <div
                     key={item.id}
                     ref={isTop ? topCardRef : undefined}
-                    className="absolute inset-0"
+                    className={isTop ? 'relative' : 'absolute inset-0'}
                     style={{
                       zIndex: 30 - depth,
                       transform: isTop ? swipeTransform(drag, reduce || !dragging) : undefined,

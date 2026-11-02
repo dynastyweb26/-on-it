@@ -1059,7 +1059,7 @@ _Money OUT only. Link + webhook + `/transactions/sync`; matching / confirm / Add
 | Item | Status | Evidence |
 |---|---|---|
 | Empty bank state by default | **Done** | `BankTrackingProvider` seeds `seedReviewState([])`; `BANK_ITEMS` is seeded only behind `?bankState=reconnect\|syncing\|linked` (`bankPreviewState`, `src/lib/bank-accounts.ts`). Popup, Books dot and the Expenses Unaccounted row all require items > 0. |
-| Review sheet height at md+ | **Built — visual check pending** | `ReviewStack`: `md:h-[min(86vh,720px)]` replaces `md:h-auto`; below md unchanged (`h-full`). |
+| Review sheet height | **Built — visual check pending** | `ReviewStack`: the sheet is as tall as its card — `max-h-[88dvh]` below md, `md:max-h-[min(86vh,720px)]` from md, centred; the card body scrolls under the cap. |
 | Disconnect calls the API | **Built — preview check pending** | `requestDisconnect` (`src/lib/bank-disconnect.ts`) posts the real `item_id`; the screen keeps the connection and toasts on failure. |
 | Failure diagnosis | **Done** | `src/lib/plaid/failure.ts` + `respond.ts`: every non-2xx in link-token/exchange/accounts/disconnect logs one `plaid <route> <status> <reason>` line; exchange 401 carries "Sign in again to connect your bank." |
 
