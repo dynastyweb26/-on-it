@@ -1094,3 +1094,4 @@ _Money OUT only. No migration: PR1's schema already holds `bank_transactions`, `
 | Stack / dot / Unaccounted on real rows | **Built — awaiting preview** | `BankTrackingProvider` seeds from GET when signed in and not `?bankState=`; actions POST; failure rolls back with one toast. |
 | Ignored rows after a reload | **Partial** | The GET returns counts only, so the Ignored tab lists nothing until a row is ignored in that session (restore is same-session). |
 | `add` atomicity | **Partial** | Two statements (no cross-table transaction without a migration): a failed link deletes the expense, and the unique tag makes a retry safe. |
+| Receipt attach on bank review card | **Open** | Reuse the invoicing receipt capture, own PR. |
