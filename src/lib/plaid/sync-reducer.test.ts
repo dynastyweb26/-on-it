@@ -68,11 +68,68 @@ test('a posted money-out charge becomes one insert with the bank vendor and date
   });
 });
 
-test('money in is skipped', () => {
+test('money in becomes a deposit, stored positive, never a bank charge', () => {
   // Plaid is negative for money in.
   const plan = planTransactionPage(input({ added: [txn({ amount: -1200 })] }));
-  assert.equal(plan.inserts.length, 0);
+  assert.equal(plan.inserts.length, 0, 'bank_transactions is untouched');
+  assert.equal(plan.updates.length, 0);
+  assert.equal(plan.deposits.inserts.length, 1);
+  assert.equal(plan.deposits.inserts[0].amount, 1200, 'abs(Plaid amount)');
+  assert.equal(plan.deposits.inserts[0].plaid_transaction_id, 't1');
+  assert.equal(plan.deposits.inserts[0].pending, false);
+  assert.equal(plan.skipped.moneyIn, 0, 'a deposit is not a skip');
+});
+
+test('amount 0 stays a real moneyIn skip', () => {
+  const plan = planTransactionPage(input({ added: [txn({ amount: 0 })] }));
+  assert.equal(plan.deposits.inserts.length, 0);
   assert.equal(plan.skipped.moneyIn, 1);
+});
+
+test('a pending deposit is stored, and the posted arrival rekeys the same row', () => {
+  const pending = planTransactionPage(input({
+    added: [txn({ transaction_id: 'p1', amount: -500, pending: true })],
+  }));
+  assert.equal(pending.deposits.inserts.length, 1);
+  assert.equal(pending.deposits.inserts[0].pending, true);
+  assert.equal(pending.deposits.inserts[0].plaid_transaction_id, 'p1');
+
+  // The posted row carries pending_transaction_id: it is an UPDATE of p1, so
+  // any link already attached to that row follows it.
+  const posted = planTransactionPage(input({
+    added: [txn({ transaction_id: 'q1', amount: -500, pending: false, pending_transaction_id: 'p1' })],
+    existingDeposits: [{ id: 'dep-1', plaid_transaction_id: 'p1', removed_at: null }],
+  }));
+  assert.equal(posted.deposits.inserts.length, 0, 'no duplicate deposit');
+  assert.equal(posted.deposits.updates.length, 1);
+  assert.equal(posted.deposits.updates[0].id, 'dep-1', 'same row id, so links survive');
+  assert.equal(posted.deposits.updates[0].patch.plaid_transaction_id, 'q1');
+  assert.equal(posted.deposits.updates[0].patch.pending, false);
+});
+
+test('removing a deposit only sets removed_at: no ledger write, no link change', () => {
+  const plan = planTransactionPage(input({
+    removed: [{ transaction_id: 'd1' }],
+    existingDeposits: [{ id: 'dep-1', plaid_transaction_id: 'd1', removed_at: null }],
+  }));
+  assert.equal(plan.deposits.updates.length, 1);
+  assert.deepEqual(plan.deposits.updates[0].patch, {
+    removed_at: '2026-10-31T12:00:00.000Z',
+  });
+  assert.equal(plan.inserts.length, 0, 'no bank charge');
+  assert.equal(plan.updates.length, 0, 'no invoice_payments path exists here');
+});
+
+test('a Stripe descriptor flags the deposit at upsert; an ordinary one does not', () => {
+  const stripe = planTransactionPage(input({
+    added: [txn({ amount: -850, name: 'STRIPE TRANSFER', merchant_name: 'Stripe' })],
+  }));
+  assert.equal(stripe.deposits.inserts[0].is_stripe_payout, true);
+
+  const zelle = planTransactionPage(input({
+    added: [txn({ amount: -900, name: 'ZELLE FROM MIKE', merchant_name: null })],
+  }));
+  assert.equal(zelle.deposits.inserts[0].is_stripe_payout, false);
 });
 
 test('pending transactions are skipped', () => {

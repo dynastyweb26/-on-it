@@ -1,20 +1,30 @@
 // ═══ Plaid transactions/sync — pure page reducer ═══
 // Turns one /transactions/sync page into the exact writes the sync executor
 // makes. Everything here is pure (no Supabase, no fetch, no env), so the
-// money-out rules, the review-state rules and the dedupe are unit-tested.
+// money-out rules, the deposit rules, the review-state rules and the dedupe
+// are unit-tested.
 //
 // Rules encoded here:
 //   - posted only: pending transactions are skipped; a pending → posted change
 //     arrives as remove(pending) + add(posted), and the posted add carries
 //     pending_transaction_id, so it updates the row we already have instead of
 //     inserting a duplicate;
-//   - money out only: amount > 0 (Plaid's sign convention);
+//   - money out only: amount > 0 (Plaid's sign convention) — unchanged;
+//   - money in: amount < 0 is a deposit. It is stored on bank_deposits as a
+//     positive amount, because bank_transactions keeps money-out positive and
+//     is not touched. amount === 0 stays a real skip (the moneyIn counter);
+//   - a pending deposit is stored with pending = true, and a posted arrival
+//     rekeys the SAME row, so its links can never be lost or duplicated;
 //   - staged only from the link date forward (the caller's windowStart);
 //   - dedupe: one row per (user_id, plaid_transaction_id) — the working map is
 //     keyed by the Plaid id, so a repeated id in one page yields one write;
 //   - modified/removed on an 'added'/'already' row → 'needs_review' (never a
 //     silent change to an expense); on 'new'/'ignored' → update, or mark the
-//     bank state removed.
+//     bank state removed;
+//   - a removal of a deposit only sets removed_at: its links, and every ledger
+//     row behind them, are never touched.
+
+import { isStripePayout } from './payouts';
 
 export type BankState = 'pending' | 'posted' | 'removed';
 export type ReviewState = 'new' | 'added' | 'already' | 'ignored' | 'needs_review';
@@ -47,6 +57,13 @@ export type ExistingBankRow = {
   expense_id: string | null;
 };
 
+/** The columns the deposit lane needs from an existing bank_deposits row. */
+export type ExistingDepositRow = {
+  id: string;
+  plaid_transaction_id: string;
+  removed_at: string | null;
+};
+
 export type BankInsert = {
   user_id: string;
   item_id: string;
@@ -67,6 +84,26 @@ export type BankUpdate = {
   patch: Record<string, unknown>;
 };
 
+export type DepositInsert = {
+  user_id: string;
+  item_id: string;
+  account_id: string;
+  plaid_transaction_id: string;
+  pending_transaction_id: string | null;
+  /** abs(Plaid amount): a deposit is stored positive. */
+  amount: number;
+  occurred_on: string;
+  name: string;
+  merchant_name: string | null;
+  pending: boolean;
+  is_stripe_payout: boolean;
+};
+
+export type DepositUpdate = {
+  id: string;
+  patch: Record<string, unknown>;
+};
+
 export type SyncSkipCounts = {
   pending: number;
   moneyIn: number;
@@ -79,6 +116,8 @@ export type SyncSkipCounts = {
 export type SyncPlan = {
   inserts: BankInsert[];
   updates: BankUpdate[];
+  /** Money in: new rows and in-place updates on bank_deposits only. */
+  deposits: { inserts: DepositInsert[]; updates: DepositUpdate[] };
   skipped: SyncSkipCounts;
 };
 
@@ -89,6 +128,8 @@ export type PlanInput = {
   modified: PlaidSyncTransaction[];
   removed: PlaidRemovedTransaction[];
   existing: ExistingBankRow[];
+  /** Money-in rows already held, keyed by Plaid id (pending included). */
+  existingDeposits?: ExistingDepositRow[];
   /** Plaid account id → plaid_accounts.id, tracked accounts only. */
   trackedAccountIds: Record<string, string>;
   /** yyyy-mm-dd: linked_at date, never older than the ~30 day cap. */
@@ -107,6 +148,17 @@ type Fields = {
   category: string | null;
 };
 
+type DepositFields = {
+  accountId: string;
+  pendingTransactionId: string | null;
+  amount: number;
+  occurredOn: string;
+  name: string;
+  merchant: string | null;
+  pending: boolean;
+  stripePayout: boolean;
+};
+
 type Working = {
   dbId: string | null;
   plaidId: string;
@@ -116,6 +168,16 @@ type Working = {
   bankState: BankState;
   reviewState: ReviewState;
   fields: Fields | null;
+  touched: boolean;
+};
+
+type DepositWorking = {
+  dbId: string | null;
+  plaidId: string;
+  originalPlaidId: string;
+  initialRemoved: boolean;
+  removed: boolean;
+  fields: DepositFields | null;
   touched: boolean;
 };
 
@@ -149,13 +211,31 @@ function fieldsOf(txn: PlaidSyncTransaction, accountId: string): Fields {
   };
 }
 
+function depositFieldsOf(txn: PlaidSyncTransaction, accountId: string): DepositFields {
+  const authorized = (txn.authorized_date ?? '').trim() || null;
+  const posted = authorized ?? (txn.date ?? '').trim();
+  return {
+    accountId,
+    pendingTransactionId: text(txn.pending_transaction_id ?? null, 120) || null,
+    amount: money(Math.abs(txn.amount)),
+    occurredOn: posted,
+    name: text(txn.name, 300, text(txn.merchant_name, 300, 'Bank deposit')),
+    merchant: text(txn.merchant_name, 200) || null,
+    pending: txn.pending,
+    stripePayout: isStripePayout(txn.name, txn.merchant_name),
+  };
+}
+
 /**
  * One page → insert/update writes. Existing rows are keyed by their Plaid id;
  * new rows are staged and only written when they end the page posted.
  */
 export function planTransactionPage(input: PlanInput): SyncPlan {
-  const plan: SyncPlan = { inserts: [], updates: [], skipped: blankSkips() };
+  const plan: SyncPlan = {
+    inserts: [], updates: [], deposits: { inserts: [], updates: [] }, skipped: blankSkips(),
+  };
   const work = new Map<string, Working>();
+  const depositWork = new Map<string, DepositWorking>();
 
   for (const row of input.existing) {
     work.set(row.plaid_transaction_id, {
@@ -171,7 +251,67 @@ export function planTransactionPage(input: PlanInput): SyncPlan {
     });
   }
 
+  for (const row of input.existingDeposits ?? []) {
+    depositWork.set(row.plaid_transaction_id, {
+      dbId: row.id,
+      plaidId: row.plaid_transaction_id,
+      originalPlaidId: row.plaid_transaction_id,
+      initialRemoved: row.removed_at !== null,
+      removed: row.removed_at !== null,
+      fields: null,
+      touched: false,
+    });
+  }
+
+  /** Money in: negative amounts become bank_deposits rows, abs() stored. */
+  const applyDepositUpsert = (txn: PlaidSyncTransaction): void => {
+    const accountId = input.trackedAccountIds[txn.account_id];
+    if (!accountId) {
+      plan.skipped.untrackedAccount++;
+      return;
+    }
+
+    let entry =
+      depositWork.get(txn.transaction_id) ??
+      (txn.pending_transaction_id ? depositWork.get(txn.pending_transaction_id) : undefined);
+
+    if (!entry) {
+      const fields = depositFieldsOf(txn, accountId);
+      // The window gates new rows only, exactly like money out.
+      if (fields.occurredOn < input.windowStart) {
+        plan.skipped.outsideWindow++;
+        return;
+      }
+      entry = {
+        dbId: null,
+        plaidId: txn.transaction_id,
+        originalPlaidId: txn.transaction_id,
+        initialRemoved: false,
+        removed: false,
+        fields,
+        touched: true,
+      };
+      depositWork.set(txn.transaction_id, entry);
+      return;
+    }
+
+    // pending → posted rekeys this same row, so every link follows it.
+    if (entry.plaidId !== txn.transaction_id) {
+      depositWork.delete(entry.plaidId);
+      entry.plaidId = txn.transaction_id;
+      depositWork.set(txn.transaction_id, entry);
+    }
+    entry.fields = depositFieldsOf(txn, accountId);
+    entry.removed = false;
+    entry.touched = true;
+  };
+
   const applyUpsert = (txn: PlaidSyncTransaction): void => {
+    // Money in is a deposit; zero is neither and stays a real skip.
+    if (txn.amount < 0) {
+      applyDepositUpsert(txn);
+      return;
+    }
     if (txn.pending) {
       plan.skipped.pending++;
       return;
@@ -243,6 +383,17 @@ export function planTransactionPage(input: PlanInput): SyncPlan {
     entry.touched = true;
   }
 
+  // A removal only sets removed_at on the deposit. Its links, and every ledger
+  // row behind them, are left exactly as they are.
+  for (const removed of input.removed) {
+    const entry =
+      depositWork.get(removed.transaction_id) ??
+      (removed.pending_transaction_id ? depositWork.get(removed.pending_transaction_id) : undefined);
+    if (!entry) continue;
+    entry.removed = true;
+    entry.touched = true;
+  }
+
   for (const entry of work.values()) {
     if (!entry.touched) continue;
 
@@ -294,6 +445,54 @@ export function planTransactionPage(input: PlanInput): SyncPlan {
     }
     if (Object.keys(patch).length > 0) {
       plan.updates.push({ id: entry.dbId, patch });
+    }
+  }
+
+  for (const entry of depositWork.values()) {
+    if (!entry.touched) continue;
+
+    if (entry.dbId === null) {
+      if (!entry.fields) continue;
+      if (entry.removed) {
+        plan.skipped.removedBeforeInsert++;
+        continue;
+      }
+      const f = entry.fields;
+      plan.deposits.inserts.push({
+        user_id: input.userId,
+        item_id: input.itemId,
+        account_id: f.accountId,
+        plaid_transaction_id: entry.plaidId,
+        pending_transaction_id: f.pendingTransactionId,
+        amount: f.amount,
+        occurred_on: f.occurredOn,
+        name: f.name,
+        merchant_name: f.merchant,
+        pending: f.pending,
+        is_stripe_payout: f.stripePayout,
+      });
+      continue;
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (entry.plaidId !== entry.originalPlaidId) {
+      patch.plaid_transaction_id = entry.plaidId;
+    }
+    if (entry.fields) {
+      patch.account_id = entry.fields.accountId;
+      patch.pending_transaction_id = entry.fields.pendingTransactionId;
+      patch.amount = entry.fields.amount;
+      patch.occurred_on = entry.fields.occurredOn;
+      patch.name = entry.fields.name;
+      patch.merchant_name = entry.fields.merchant;
+      patch.pending = entry.fields.pending;
+      patch.is_stripe_payout = entry.fields.stripePayout;
+    }
+    if (entry.removed !== entry.initialRemoved) {
+      patch.removed_at = entry.removed ? input.removedAt : null;
+    }
+    if (Object.keys(patch).length > 0) {
+      plan.deposits.updates.push({ id: entry.dbId, patch });
     }
   }
 
