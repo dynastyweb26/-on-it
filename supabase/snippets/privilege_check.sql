@@ -20,7 +20,9 @@
 -- Maintenance: when a migration adds a profiles column, add it to the
 -- privileged list (B) or — if users may write it — grant it and, if onboarding
 -- inserts it, add it to the onboarding list, in the same commit. When a
--- migration adds a security-relevant object, add a row here.
+-- migration adds a security-relevant object, add a row here. A storage bucket
+-- whose limits change gets a row too (BC): the limit is part of the protection,
+-- so it is asserted, not just the bucket's private flag.
 -- ═══════════════════════════════════════════════════════════════
 
 with
@@ -2027,6 +2029,29 @@ results(id, ok, expected, actual) as (
       else 'anon=' || coalesce(has_function_privilege('anon', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
         || ' auth=' || coalesce(has_function_privilege('authenticated', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
         || ' service=' || coalesce(has_function_privilege('service_role', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing') end
+
+  -- BC. Receipts bucket limits (20261102180000). SKIP until pushed.
+  --     Storage refuses an upload over 5 MB or not image/jpeg. Until this is
+  --     applied, /api/plaid/review is the only size/type check, and it can only
+  --     refuse AFTER downloading the object it should never have stored.
+  union all
+  select 'BC1 receipts bucket limits',
+    case when not exists (select 1 from applied where version = '20261102180000') then null
+      else exists (select 1 from storage.buckets b
+        where b.id = 'receipts'
+          and not b.public
+          and b.file_size_limit = 5242880
+          and b.allowed_mime_types = array['image/jpeg']) end,
+    'receipts private; file_size_limit 5242880; allowed_mime_types {image/jpeg}',
+    case when not exists (select 1 from applied where version = '20261102180000') then 'not applied yet'
+      else concat_ws('; ',
+        'bucket=' || coalesce((select case when b.public then 'public' else 'private' end
+          from storage.buckets b where b.id = 'receipts'), 'missing'),
+        'limit=' || coalesce((select coalesce(b.file_size_limit::text, 'null')
+          from storage.buckets b where b.id = 'receipts'), 'missing'),
+        'types=' || coalesce((select coalesce(b.allowed_mime_types::text, 'null')
+          from storage.buckets b where b.id = 'receipts'), 'missing'))
+      end
 
 )
 select id as check_id,
