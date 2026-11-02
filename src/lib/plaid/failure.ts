@@ -38,7 +38,6 @@ export type FailureKind =
   | 'receipt_missing'
   | 'receipt_too_large'
   | 'receipt_not_jpeg'
-  | 'receipt_mismatch'
   | 'receipt_duplicate';
 
 type Spec = {
@@ -69,7 +68,6 @@ const SPEC: Record<FailureKind, Spec> = {
   receipt_missing: { status: 422, error: 'receipt_missing' },
   receipt_too_large: { status: 422, error: 'receipt_too_large' },
   receipt_not_jpeg: { status: 422, error: 'receipt_not_jpeg' },
-  receipt_mismatch: { status: 422, error: 'receipt_mismatch' },
   receipt_duplicate: { status: 409, error: 'receipt_duplicate' },
 };
 

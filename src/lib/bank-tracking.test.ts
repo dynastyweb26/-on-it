@@ -12,8 +12,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BANK_ITEMS, addedToast, bankActive, bankReducer, booksDotVisible, cardActions, counterLabel, dateOptions, formatDay,
-  formatMoney, ignoredCount, ignoredQueue, nextQueueIndex, pendingCount, reviewQueue, rubberBand,
+  ADDING_LABEL, BANK_ITEMS, addButtonLabel, addedToast, advancesOptimistically, bankActive, bankReducer,
+  booksDotVisible, cardActions, counterLabel, dateOptions, formatDay, formatMoney, ignoredCount,
+  ignoredQueue, nextQueueIndex, pendingCount, receiptRefusedAction, reviewQueue, rubberBand,
   seedReviewState, statusOf, swipeTransform, unaccountedCount, unaccountedItems,
 } from './bank-tracking';
 import { bankTrackingForEnv } from './feature-flags';
@@ -175,6 +176,41 @@ test('the bank feature stays inert until someone is signed in', () => {
   assert.equal(bankActive(true, false), false, 'flag on, no session');
   assert.equal(bankActive(false, true), false, 'flag off, session');
   assert.equal(bankActive(false, false), false, 'flag off, no session');
+});
+
+// A receipt add carries a photo, so it must not paint first: the refused card
+// came back into view with the photo still attached, which reads as the next
+// card arriving prefilled (preview logs: 409 receipt_duplicate, twice).
+test('a receipt add does not advance optimistically; a plain add and an ignore do', () => {
+  const withPhoto = {
+    ...BANK_ITEMS[0],
+    receipt: { hash: 'a'.repeat(64), previewUrl: 'blob:receipt', blob: new Blob([new Uint8Array([0xff, 0xd8, 0xff])]) },
+  };
+  assert.equal(advancesOptimistically({ type: 'add' }, withPhoto), false, 'no move while the photo uploads');
+  assert.equal(advancesOptimistically({ type: 'add' }, BANK_ITEMS[0]), true, 'a plain add still paints first');
+  assert.equal(advancesOptimistically({ type: 'ignore' }, withPhoto), true, 'every other action keeps its optimistic move');
+  assert.equal(advancesOptimistically({ type: 'already' }, withPhoto), true);
+  assert.equal(advancesOptimistically({ type: 'add' }, null), true, 'nothing to upload');
+});
+
+test('the add button says Adding… only while the upload is out', () => {
+  assert.equal(addButtonLabel(BANK_ITEMS[0], false), 'Add to record');
+  assert.equal(addButtonLabel(BANK_ITEMS[0], true), ADDING_LABEL);
+  const review = BANK_ITEMS.find((it) => it.review);
+  assert.ok(review, 'the fixture still covers the review shape');
+  assert.equal(addButtonLabel(review, false), review.review?.fixLabel, 'a Fix card keeps its own label');
+  assert.equal(addButtonLabel(review, true), ADDING_LABEL);
+});
+
+test('a refused receipt add leaves the card in the queue with the photo dropped', () => {
+  const item = {
+    ...BANK_ITEMS[0],
+    receipt: { hash: 'a'.repeat(64), previewUrl: 'blob:receipt', blob: new Blob([new Uint8Array([0xff, 0xd8, 0xff])]) },
+  };
+  const next = bankReducer(seedReviewState([item]), receiptRefusedAction(item.id));
+  assert.equal(reviewQueue(next).length, 1, 'the card is still there to retry');
+  assert.equal(statusOf(next, item.id), 'open', 'nothing was decided');
+  assert.equal(next.items[0].receipt, null, 'the photo is gone, so the retry starts at the picker');
 });
 
 test('a card offers exactly two buttons', () => {

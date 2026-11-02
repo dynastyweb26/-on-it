@@ -22,8 +22,8 @@
 // computed for a receipt photo, and NOTHING else. The storage path is rebuilt
 // here from user.id (./receipt-verify.ts), so a foreign object and a client-sent
 // path are both unexpressible; the stored bytes are downloaded with the service
-// role and must measure, sniff as JPEG and hash to the named value before any
-// expense exists. A refused receipt writes nothing at all, and this route never
+// role and must exist, measure and sniff as JPEG before any expense exists. The
+// hash is NOT re-compared against those bytes — see verifyReceipt(). A refused receipt writes nothing at all, and this route never
 // deletes a storage object: content-hash keys can be shared.
 //
 // The writes use the service role: the migration grants the client no UPDATE on
@@ -150,7 +150,9 @@ export async function POST(req: NextRequest) {
     // The client sends a content hash only. Everything below happens BEFORE the
     // insert, so a refused receipt leaves no expense behind: the path is rebuilt
     // from user.id, a receipt already on another live expense is a 409, and the
-    // object must exist, fit, sniff as JPEG and hash to the claimed value.
+    // object must exist, fit and sniff as JPEG. The hash is a storage key, not a
+    // claim about the bytes: it is the digest of the ORIGINAL file while the
+    // object is the re-encoded JPEG, so they are never compared.
     let receiptPath: string | null = null;
     let receiptHash: string | null = null;
     if (parsed.data.receipt_hash !== undefined) {
