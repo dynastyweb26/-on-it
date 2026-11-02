@@ -49,6 +49,18 @@ export type BankReview = {
   toast: string;
 };
 
+/** A receipt the owner picked on the card. The server never receives the blob,
+ *  the preview URL or a storage path — only `hash` (see lib/bank-receipt.ts). */
+export type BankReceipt = {
+  /** sha256 of the ORIGINAL bytes (lib/receipt.ts) — the dedup key, and the
+   *  object name under the owner's folder. */
+  hash: string;
+  /** Object URL for the card thumbnail. The card revokes it on remove. */
+  previewUrl: string;
+  /** Compressed JPEG (1600px, <=900 KB) uploaded at "Add to record". */
+  blob: Blob;
+};
+
 export type BankItem = {
   id: string;
   kind: 'expense' | 'review';
@@ -65,8 +77,10 @@ export type BankItem = {
   category: ExpenseCategory;
   /** Already recorded in Expenses: the strip points at it. */
   match?: string;
-  /** A receipt is attached (mock: the button flips this). */
-  receipt: boolean;
+  /** The picked receipt photo, or null. Client-only state: the preview URL is
+   *  an object URL and the blob never leaves the device until "Add to record"
+   *  uploads it and the hash goes to /api/plaid/review. */
+  receipt: BankReceipt | null;
   review?: BankReview;
 };
 
@@ -90,24 +104,24 @@ export type BankReviewState = {
 export const BANK_ITEMS: BankItem[] = [
   {
     id: 'wm-1028', kind: 'expense', merchant: 'Walmart', amount: 30.38,
-    date: '2026-10-28', accountId: 'chase-checking', category: 'food', receipt: false,
+    date: '2026-10-28', accountId: 'chase-checking', category: 'food', receipt: null,
   },
   {
     id: 'co-1027', kind: 'expense', merchant: 'Costco Wholesale', amount: 432.98,
-    date: '2026-10-27', accountId: 'chase-checking', category: 'supplies', receipt: false,
+    date: '2026-10-27', accountId: 'chase-checking', category: 'supplies', receipt: null,
     match: 'Costco Wholesale · Supplies · Oct 27 · $432.98',
   },
   {
     id: 'lo-1026', kind: 'expense', merchant: "Lowe's", amount: 169.73,
-    date: '2026-10-26', accountId: 'chase-checking', category: 'supplies', receipt: false,
+    date: '2026-10-26', accountId: 'chase-checking', category: 'supplies', receipt: null,
   },
   {
     id: 'bj-1023', kind: 'expense', merchant: "BJ's Wholesale Club", amount: 97.54,
-    date: '2026-10-23', accountId: 'chase-card', category: 'fuel', receipt: false,
+    date: '2026-10-23', accountId: 'chase-card', category: 'fuel', receipt: null,
   },
   {
     id: 'rv-modified', kind: 'review', merchant: 'Burlington', amount: 54.49,
-    date: '2026-10-28', accountId: 'chase-card', category: 'supplies', receipt: false,
+    date: '2026-10-28', accountId: 'chase-card', category: 'supplies', receipt: null,
     review: {
       variant: 'modified',
       title: 'Your bank changed this charge',
@@ -121,7 +135,7 @@ export const BANK_ITEMS: BankItem[] = [
   },
   {
     id: 'rv-removed', kind: 'review', merchant: 'Staples', amount: 61.2,
-    date: '2026-10-22', accountId: 'chase-card', category: 'supplies', receipt: false,
+    date: '2026-10-22', accountId: 'chase-card', category: 'supplies', receipt: null,
     review: {
       variant: 'removed',
       title: 'Your bank removed this charge',
@@ -135,15 +149,15 @@ export const BANK_ITEMS: BankItem[] = [
   },
   {
     id: 'hd-1006', kind: 'expense', merchant: 'The Home Depot', amount: 86.12,
-    date: '2026-10-06', accountId: 'chase-card', category: 'supplies', receipt: false,
+    date: '2026-10-06', accountId: 'chase-card', category: 'supplies', receipt: null,
   },
   {
     id: 'sh-1004', kind: 'expense', merchant: 'Shell', amount: 52.1,
-    date: '2026-10-04', accountId: 'chase-card', category: 'fuel', receipt: false,
+    date: '2026-10-04', accountId: 'chase-card', category: 'fuel', receipt: null,
   },
   {
     id: 'rv-bounced', kind: 'review', merchant: 'Mr. Bob', amount: 1150,
-    date: '2026-10-24', accountId: 'chase-checking', category: 'other', receipt: false,
+    date: '2026-10-24', accountId: 'chase-checking', category: 'other', receipt: null,
     review: {
       variant: 'bounced',
       title: 'A payment bounced',
@@ -340,6 +354,33 @@ export const itemAccount = (item: Pick<BankItem, 'accountId' | 'accountLabel'>):
 
 /** The one toast a refused review write shows. */
 export const REVIEW_FAILED_TOAST = 'That didn’t save. Try again.';
+
+/** 409 receipt_duplicate: the photo is already on another expense. */
+export const RECEIPT_IN_USE_TOAST = 'That receipt is already on another expense.';
+
+/** A 422 on the receipt itself: the file did not survive the round trip. */
+export const RECEIPT_REFUSED_TOAST = 'That photo didn’t save. Try attaching it again.';
+
+/**
+ * What the card says for a refused add that carried a receipt. The server's code
+ * decides, so the copy cannot drift from the checks in lib/plaid/receipt-verify.
+ * Unknown codes fall back to the generic refusal.
+ */
+export function receiptRefusalMessage(code: string | null | undefined): string {
+  switch (code) {
+    case 'receipt_duplicate':
+      return RECEIPT_IN_USE_TOAST;
+    case 'receipt_too_large':
+      return 'That photo is too big. Take it again with the camera.';
+    case 'receipt_missing':
+    case 'receipt_not_jpeg':
+    case 'receipt_mismatch':
+    case 'receipt_invalid':
+      return RECEIPT_REFUSED_TOAST;
+    default:
+      return REVIEW_FAILED_TOAST;
+  }
+}
 
 /**
  * The date row's chips: the bank's date, the day before, and today — de-duped

@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, type Ref } from 'react';
 import Icon from '@/components/Icon';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { reducedMotion } from '@/lib/list-motion';
-import { bankPreviewState } from '@/lib/bank-accounts';
+import { prepareReceipt, ReceiptError } from '@/lib/receipt';
 import { cardActions, dateOptions, formatDay, formatMoney, type BankItem, type CardAction } from '@/lib/bank-tracking';
 
 export type { CardAction };
@@ -70,11 +70,12 @@ export default function ReviewCard({
   const amountRef = useRef<HTMLInputElement>(null);
   const editAmountRef = useRef<HTMLButtonElement>(null);
   const shownAmount = useCountedAmount(item.amount);
-  // Receipt attach is a mock (it only flips this card's model field), so the
-  // row ships only on the ?bankState= design fixture, never on a real charge.
-  const [fixture] = useState(
-    () => typeof window !== 'undefined' && bankPreviewState(window.location.search) !== null,
-  );
+  // Receipt attach is real. The picker only PREPARES the photo through the shared
+  // receipt pipeline (decode → downscale → hash); nothing is uploaded until the
+  // owner taps "Add to record", so "Don't add" and closing the card write
+  // nothing at all.
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (editing !== 'amount') return;
@@ -93,6 +94,32 @@ export default function ReviewCard({
     setEditing(null);
     // Done returns focus to the edit button (accessibility table).
     requestAnimationFrame(() => editAmountRef.current?.focus());
+  }
+
+  /** Pick → hash → decode (HEIC-aware) → downscale → JPEG. The blob stays in card
+   *  state for the thumbnail and for the upload at "Add to record". */
+  async function pickReceipt(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // picking the same photo twice still fires onChange
+    if (!file) return;
+    setReceiptError(null);
+    try {
+      const prepared = await prepareReceipt(file);
+      onPatch({
+        receipt: { hash: prepared.hash, previewUrl: prepared.previewUrl, blob: prepared.blob },
+      });
+    } catch (err) {
+      // ReceiptError messages are written for the owner; anything else is not.
+      setReceiptError(err instanceof ReceiptError
+        ? err.message
+        : "Couldn't read that photo. Try another one.");
+    }
+  }
+
+  function removeReceipt() {
+    if (item.receipt) URL.revokeObjectURL(item.receipt.previewUrl);
+    setReceiptError(null);
+    onPatch({ receipt: null });
   }
 
   const meta = review ? review.meta : `${CATEGORY_LABEL[item.category]} · ${formatDay(item.date)} · ${account}`;
@@ -253,22 +280,48 @@ export default function ReviewCard({
               </div>
             )}
 
-            {fixture ? (item.receipt ? (
-              <div className="bank-fade flex h-12 shrink-0 items-center gap-3 rounded-[14px] bg-surface-container-low px-2.5">
-                <span aria-hidden className="h-9 w-[30px] shrink-0 rounded-[6px] bg-[repeating-linear-gradient(135deg,#efe7da_0_4px,#faf3e7_4px_8px)]" />
-                <span className="flex-1 text-sm font-semibold">Receipt attached</span>
-                <Icon name="check_circle" size={20} className="text-primary" />
+            {item.receipt ? (
+              <div className="bank-fade flex h-12 shrink-0 items-center gap-2.5 rounded-[14px] bg-surface-container-low pl-2.5 pr-2">
+                {/* The real photo, not a striped placeholder. Object URL, so it
+                    paints instantly and never leaves the device. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.receipt.previewUrl}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-[6px] border border-outline-variant/40 object-cover"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">Receipt attached</span>
+                <button
+                  type="button"
+                  onClick={removeReceipt}
+                  className="h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-on-surface-variant transition-transform active:scale-[0.95]"
+                >
+                  Remove
+                </button>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => onPatch({ receipt: true })}
+                onClick={() => receiptInputRef.current?.click()}
                 className="flex min-h-touch shrink-0 items-center gap-2.5 rounded-[14px] border-[1.5px] border-dashed border-outline-variant px-3.5 text-[15px] font-semibold"
               >
                 <Icon name="receipt_long" size={20} />
                 Attach receipt
               </button>
-            )) : null}
+            )}
+            {/* One input, no `capture`: the OS sheet offers the camera or the
+                photo library, and prepareReceipt handles either. `hidden` keeps
+                it out of the stack's focus trap. */}
+            <input
+              ref={receiptInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={pickReceipt}
+            />
+            {receiptError && (
+              <p role="alert" className="text-sm font-semibold text-on-surface-variant">{receiptError}</p>
+            )}
           </>
         )}
       </div>

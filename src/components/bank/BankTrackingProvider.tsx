@@ -15,9 +15,11 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  BANK_ITEMS, REVIEW_FAILED_TOAST, bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState,
-  statusOf, todayIso, unaccountedCount, type BankAction, type BankReviewState,
+  BANK_ITEMS, REVIEW_FAILED_TOAST, bankActive, bankReducer, pendingCount, receiptRefusalMessage,
+  reviewQueue, seedReviewState, statusOf, todayIso, unaccountedCount,
+  type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
+import { removeBankReceipt, uploadBankReceipt } from '@/lib/bank-receipt';
 import {
   rollbackAction, reviewBody, rowToItem, transactionsPlan,
   type ApiReviewRow,
@@ -254,6 +256,10 @@ export default function BankTrackingProvider({ enabled = false, children }: {
 
   // Fixture actions move local state only. A real row also posts its decision:
   // the move paints first, and a refusal rolls it back with one toast.
+  //
+  // A picked receipt is uploaded HERE — at "Add to record", not at tap — so a
+  // card the owner passes on or closes stores nothing. Only the hash travels to
+  // the route; it rebuilds the object key from the session.
   const dispatchAction = useCallback((action: BankAction) => {
     if (action.type !== 'add' && action.type !== 'already'
       && action.type !== 'ignore' && action.type !== 'restore') {
@@ -261,12 +267,20 @@ export default function BankTrackingProvider({ enabled = false, children }: {
       return;
     }
     const previous = statusOf(stateRef.current, action.id);
+    const item = stateRef.current.items.find((it) => it.id === action.id);
+    const receipt = action.type === 'add' ? item?.receipt ?? null : null;
     dispatch(action);
     if (!real.current) return;
     const row = rowsRef.current.get(action.id);
-    const item = stateRef.current.items.find((it) => it.id === action.id);
     if (!row || !item) return;
     void (async () => {
+      const upload = receipt ? await uploadBankReceipt(receipt) : 'none';
+      if (upload === 'failed' || upload === 'unsigned') {
+        dispatch(rollbackAction(previous, action.id));
+        setNotice({ message: REVIEW_FAILED_TOAST, id: Date.now() });
+        return;
+      }
+      let code: string | null = null;
       try {
         const res = await fetch(REVIEW_URL, {
           method: 'POST',
@@ -274,9 +288,20 @@ export default function BankTrackingProvider({ enabled = false, children }: {
           body: JSON.stringify(reviewBody(row, item, action.type)),
         });
         if (res.ok) return;
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        code = body?.error ?? null;
       } catch { /* the rollback below is the answer */ }
+      // Remove only the file THIS attempt stored, so an "exists" object (it may
+      // already back another expense) is never deleted, and a duplicate leaves
+      // the receipt where the server says it belongs.
+      if (upload === 'uploaded' && code !== 'receipt_duplicate' && receipt) {
+        void removeBankReceipt(receipt);
+      }
       dispatch(rollbackAction(previous, action.id));
-      setNotice({ message: REVIEW_FAILED_TOAST, id: Date.now() });
+      setNotice({
+        message: receipt ? receiptRefusalMessage(code) : REVIEW_FAILED_TOAST,
+        id: Date.now(),
+      });
     })();
   }, []);
 

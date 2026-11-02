@@ -30,7 +30,16 @@ export type FailureKind =
   | 'db_read_failed'
   | 'db_insert_failed'
   | 'db_update_failed'
-  | 'db_delete_failed';
+  | 'db_delete_failed'
+  // Receipt attach on the review card (./receipt-verify.ts). Each refusal is
+  // specific so the card can say what happened instead of "that didn't save",
+  // and none of them leaves an expense behind.
+  | 'receipt_invalid'
+  | 'receipt_missing'
+  | 'receipt_too_large'
+  | 'receipt_not_jpeg'
+  | 'receipt_mismatch'
+  | 'receipt_duplicate';
 
 type Spec = {
   status: number;
@@ -54,6 +63,14 @@ const SPEC: Record<FailureKind, Spec> = {
   db_insert_failed: { status: 500, error: 'exchange_failed' },
   db_update_failed: { status: 500, error: 'update_failed' },
   db_delete_failed: { status: 500, error: 'disconnect_failed' },
+  // 422: the named receipt is not there or not usable, so nothing was written.
+  // 409: the receipt is real and already on another expense.
+  receipt_invalid: { status: 422, error: 'receipt_invalid' },
+  receipt_missing: { status: 422, error: 'receipt_missing' },
+  receipt_too_large: { status: 422, error: 'receipt_too_large' },
+  receipt_not_jpeg: { status: 422, error: 'receipt_not_jpeg' },
+  receipt_mismatch: { status: 422, error: 'receipt_mismatch' },
+  receipt_duplicate: { status: 409, error: 'receipt_duplicate' },
 };
 
 /** Kinds whose reason carries a Plaid error_code or Postgres SQLSTATE. */

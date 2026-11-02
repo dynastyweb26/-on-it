@@ -1,7 +1,7 @@
 // POST /api/plaid/review — the owner's decision on one bank row.
 //
 //   { transaction_id, action: 'add' | 'already' | 'ignore' | 'restore',
-//     amount_cents?, category? }
+//     amount_cents?, category?, receipt_hash? }
 //
 //   add      insert the expense (plaid_transaction_id set, so the bank-verified
 //            tag stays server-written) and point the row at it. Idempotent: a
@@ -17,6 +17,14 @@
 //
 // Ownership is always user.id; an id that is not the caller's answers 404. Every
 // non-2xx goes through fail(), which logs exactly one line. Preview only.
+//
+// add also accepts an optional receipt_hash — the content hash the client already
+// computed for a receipt photo, and NOTHING else. The storage path is rebuilt
+// here from user.id (./receipt-verify.ts), so a foreign object and a client-sent
+// path are both unexpressible; the stored bytes are downloaded with the service
+// role and must measure, sniff as JPEG and hash to the named value before any
+// expense exists. A refused receipt writes nothing at all, and this route never
+// deletes a storage object: content-hash keys can be shared.
 //
 // The writes use the service role: the migration grants the client no UPDATE on
 // bank_transactions, and its trigger refuses a client-written
@@ -38,6 +46,9 @@ import {
   type MatchExpense,
 } from '@/lib/plaid/match';
 import { transition } from '@/lib/plaid/review-transitions';
+import {
+  RECEIPT_BUCKET, receiptObjectPath, uniqueViolation, verifyReceipt,
+} from '@/lib/plaid/receipt-verify';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +59,9 @@ const Body = z.object({
   amount_cents: z.number().int().positive().max(MAX_EXPENSE_CENTS).optional(),
   // Sent only when the owner changed the category chip.
   category: z.string().refine(isExpenseCategory, 'unknown category').optional(),
+  // Sent only when the card had a receipt photo picked. The format is checked
+  // below so a malformed value answers 422 receipt_invalid, not a generic 400.
+  receipt_hash: z.string().optional(),
 });
 
 type Row = {
@@ -132,6 +146,40 @@ export async function POST(req: NextRequest) {
     const category = parsed.data.category ?? expenseCategoryFromPlaid(row.category, row.description);
     if (!isExpenseCategory(category)) return fail('review', 'invalid_request');
 
+    // ── Optional receipt ──────────────────────────────────────
+    // The client sends a content hash only. Everything below happens BEFORE the
+    // insert, so a refused receipt leaves no expense behind: the path is rebuilt
+    // from user.id, a receipt already on another live expense is a 409, and the
+    // object must exist, fit, sniff as JPEG and hash to the claimed value.
+    let receiptPath: string | null = null;
+    let receiptHash: string | null = null;
+    if (parsed.data.receipt_hash !== undefined) {
+      const hash = parsed.data.receipt_hash;
+      const path = receiptObjectPath(user.id, hash);
+      if (!path) return fail('review', 'receipt_invalid');
+
+      const { data: duplicate, error: duplicateError } = await admin
+        .from('expenses')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('receipt_hash', hash)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (duplicateError) return fail('review', 'db_read_failed', duplicateError.code);
+      if (duplicate) return fail('review', 'receipt_duplicate');
+
+      const { data: blob, error: downloadError } = await admin
+        .storage
+        .from(RECEIPT_BUCKET)
+        .download(path);
+      const bytes = blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+      const refusal = downloadError ? 'receipt_missing' : verifyReceipt(bytes, hash);
+      if (refusal) return fail('review', refusal);
+
+      receiptPath = path;
+      receiptHash = hash;
+    }
+
     const { data: inserted, error: insertError } = await admin
       .from('expenses')
       .insert({
@@ -142,6 +190,9 @@ export async function POST(req: NextRequest) {
         category,
         spent_on: row.occurred_on,
         plaid_transaction_id: row.plaid_transaction_id,
+        // Set together or not at all: the hash is what the dedup index reads.
+        receipt_url: receiptPath,
+        receipt_hash: receiptHash,
       })
       .select('id')
       .maybeSingle();
@@ -151,6 +202,12 @@ export async function POST(req: NextRequest) {
     // 23505 on (user_id, plaid_transaction_id): an earlier attempt already
     // created the expense. Adopt it instead of failing the tap.
     if (insertError?.code === '23505') {
+      // Two indexes raise 23505 now, so the constraint NAME decides. A receipt
+      // clash is never adopted — that would attach this row to an expense whose
+      // photo belongs to a different charge — and a replay never re-attaches.
+      if (uniqueViolation(insertError) === 'receipt_hash') {
+        return fail('review', 'receipt_duplicate');
+      }
       const { data: existing, error: existingError } = await admin
         .from('expenses')
         .select('id')
