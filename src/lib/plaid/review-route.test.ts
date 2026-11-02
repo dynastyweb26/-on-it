@@ -66,3 +66,34 @@ test('every non-2xx is one fail() line: no other logger', () => {
   assert.ok(!POST.includes('console.log'));
   assert.ok(!POST.includes('status: 4') && !POST.includes('status: 5'), 'no hand-written error status');
 });
+
+test('a receipt enters as a hash only, and is verified before the insert', () => {
+  // The path is built from the caller, so a client-sent path has nowhere to go.
+  assert.ok(POST.includes('receipt_hash: z.string().optional()'), 'only a hash is accepted');
+  assert.ok(!POST.includes('receipt_url: parsed'), 'no receipt path from the body');
+  assert.ok(POST.includes('receiptObjectPath(user.id, hash)'), 'the path is rebuilt from the session');
+  assert.ok(POST.includes("fail('review', 'receipt_invalid')"), 'a malformed hash is a 422');
+
+  // Order: duplicate pre-check → download → verify → insert.
+  const duplicate = POST.indexOf("eq('receipt_hash', hash)");
+  const download = POST.indexOf('.download(path)');
+  const verify = POST.indexOf('verifyReceipt(bytes, hash)');
+  const insert = POST.indexOf('.insert({');
+  assert.ok(duplicate > 0 && download > duplicate && verify > download, 'check, fetch, then verify');
+  assert.ok(insert > verify, 'nothing is inserted until the receipt verifies');
+
+  // Both receipt columns are written together, from server values.
+  assert.ok(POST.includes('receipt_url: receiptPath'));
+  assert.ok(POST.includes('receipt_hash: receiptHash'));
+
+  // A content-hash object can be shared, so this route never removes one.
+  assert.ok(!POST.includes('.remove('), 'the route never deletes a storage object');
+});
+
+test('a receipt clash is told apart from a replay by constraint name', () => {
+  assert.ok(POST.includes('uniqueViolation(insertError)'), 'the index name decides');
+  const clash = POST.indexOf("uniqueViolation(insertError) === 'receipt_hash'");
+  const adopt = POST.indexOf("if (insertError?.code === '23505')");
+  assert.ok(clash > adopt, 'the receipt 409 sits inside the 23505 branch, before the adopt');
+  assert.ok(POST.includes("fail('review', 'receipt_duplicate')"), 'a duplicate receipt is a 409');
+});
