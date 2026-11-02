@@ -1081,3 +1081,16 @@ _Money OUT only. Link + webhook + `/transactions/sync`; matching / confirm / Add
 | Real accounts in Choose accounts | **Built** | The item is re-read after the exchange; Start tracking sends ONE batch and renders the server's tracked set. `STARTER_ACCOUNTS`/`linkedConnection` only behind `?bankState=`. |
 | Syncing poll | **Built** | Every 6s, at most 20 tries, stopping on unmount or when the status settles (`BANK_POLL_MS`, `BANK_POLL_MAX_TRIES`). |
 | Transactions / review queue on real rows | **Open** | PR3b. The review stack still runs on the fixture. |
+
+## Plaid money-out — PR3b: the real review stack (branch `feat/plaid-money-out`, logged 2026-11-02)
+
+_Money OUT only. No migration: PR1's schema already holds `bank_transactions`, `expenses.plaid_transaction_id`, the delete trigger and the server-written tag._
+
+| Item | Status | Evidence |
+|---|---|---|
+| GET `/api/plaid/transactions` | **Built — awaiting preview** | Session client + RLS, allow-listed columns, `review_state in ('new','needs_review')`, integer cents, decided counts (`transactions-view.ts`). |
+| Matching a row to an expense | **Tests only** | `match.ts`: same cents, ±3 days, merchant → strong, linked expenses excluded. Pure and unit-tested; no live row has been matched yet. |
+| POST `/api/plaid/review` | **Built — awaiting preview** | `add` (idempotent, replays adopt the expense), `already` (server re-matches), `ignore` / `restore`; every read/WRITE scoped to `user.id`; one log line per failure. |
+| Stack / dot / Unaccounted on real rows | **Built — awaiting preview** | `BankTrackingProvider` seeds from GET when signed in and not `?bankState=`; actions POST; failure rolls back with one toast. |
+| Ignored rows after a reload | **Partial** | The GET returns counts only, so the Ignored tab lists nothing until a row is ignored in that session (restore is same-session). |
+| `add` atomicity | **Partial** | Two statements (no cross-table transaction without a migration): a failed link deletes the expense, and the unique tag makes a retry safe. |

@@ -225,11 +225,13 @@ test('no bank component can reach a database write', () => {
   }
 });
 
-// Phase 2: the bank surfaces may call exactly the four preview-only Plaid
-// routes (link token, exchange, accounts, disconnect). Any other call fails.
+// Phase 2: the bank surfaces may call exactly the six preview-only Plaid
+// routes (link token, exchange, accounts, transactions, review, disconnect).
+// Any other call fails.
 test('a bank screen calls only the preview-only Plaid routes', () => {
   const allowed = new Set([
     '/api/plaid/accounts', '/api/plaid/link-token', '/api/plaid/exchange', '/api/plaid/disconnect',
+    '/api/plaid/transactions', '/api/plaid/review',
   ]);
   const calls: string[] = [];
   for (const file of bankSources()) {
@@ -242,6 +244,7 @@ test('a bank screen calls only the preview-only Plaid routes', () => {
   }
   assert.deepEqual(calls.sort(), [
     '/api/plaid/accounts', '/api/plaid/disconnect', '/api/plaid/exchange', '/api/plaid/link-token',
+    '/api/plaid/review', '/api/plaid/transactions',
   ]);
 });
 
