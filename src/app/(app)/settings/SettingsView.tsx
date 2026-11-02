@@ -16,6 +16,7 @@ import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine, type FreeLimit
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import BankAccountsScreen from '@/components/bank/BankAccountsScreen';
+import PayoutLumpNotice from '@/components/settings/PayoutLumpNotice';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import { bankRowTitle, bankRowValue } from '@/lib/bank-accounts';
 import type { PayoutMethod } from '@/lib/payout-status';
@@ -755,6 +756,10 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
             active={is('payouts')} onNavigate={(e) => openSection(e, 'payouts')}
             value={payoutsValue} />
         </SettingsGroup>
+        <PayoutLumpNotice
+          stripeAccountId={p.stripe_account_id}
+          bankLast4={p.bank_account_last4}
+        />
         <SettingsGroup title="Account">
           {/* Plan: only when the Plan screen has something to show (founder, a
               real subscription, or the paywall on) — the same rule as before.
