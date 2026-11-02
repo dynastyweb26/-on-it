@@ -13,7 +13,7 @@ import { DUPLICATE_LINK_MESSAGE } from './link';
 /** The exchange route's 401 carries this, so the client can say it plainly. */
 export const SIGN_IN_AGAIN_MESSAGE = 'Sign in again to connect your bank.';
 
-export type PlaidRoute = 'link-token' | 'exchange' | 'accounts' | 'disconnect' | 'transactions' | 'review';
+export type PlaidRoute = 'link-token' | 'exchange' | 'accounts' | 'disconnect' | 'transactions' | 'review' | 'deposits';
 
 export type FailureKind =
   | 'route_disabled'
@@ -38,7 +38,13 @@ export type FailureKind =
   | 'receipt_missing'
   | 'receipt_too_large'
   | 'receipt_not_jpeg'
-  | 'receipt_duplicate';
+  | 'receipt_duplicate'
+  // Money in (deposits route). Each refusal says what the deposit is, so the
+  // card can explain instead of a generic failure.
+  | 'payout_not_income'
+  | 'deposit_link_refused'
+  | 'payment_taken'
+  | 'over_limit';
 
 type Spec = {
   status: number;
@@ -69,6 +75,11 @@ const SPEC: Record<FailureKind, Spec> = {
   receipt_too_large: { status: 422, error: 'receipt_too_large' },
   receipt_not_jpeg: { status: 422, error: 'receipt_not_jpeg' },
   receipt_duplicate: { status: 409, error: 'receipt_duplicate' },
+  payout_not_income: { status: 409, error: 'payout_not_income' },
+  deposit_link_refused: { status: 409, error: 'deposit_link_refused' },
+  payment_taken: { status: 409, error: 'payment_taken' },
+  // The invoice's own overpayment guard refused the ledger row.
+  over_limit: { status: 409, error: 'over_limit' },
 };
 
 /** Kinds whose reason carries a Plaid error_code or Postgres SQLSTATE. */
