@@ -18,6 +18,7 @@ export const NO_RESULTS = 'PRIVCHECK ERROR: no results, not a pass';
 export const REQUIRED_CHECKS = [
   'BA1', 'BA2', 'BA3', 'BA4', 'BA5', 'BA6',
   'BB1', 'BB2', 'BB3', 'BB4', 'BB5', 'BB6', 'BB7', 'BB8', 'BB9', 'BB10',
+  'BC1',
 ];
 
 // Postgres/psql put these in the plain-text error, not always in structured form.
