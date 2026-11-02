@@ -90,6 +90,16 @@ test('a receipt enters as a hash only, and is verified before the insert', () =>
   assert.ok(!POST.includes('.remove('), 'the route never deletes a storage object');
 });
 
+test('the stored bytes are never re-hashed against the claimed hash', () => {
+  // lib/receipt.ts hashes the ORIGINAL file; the stored object is the re-encoded
+  // JPEG, so an equality check here refused every real receipt (422
+  // receipt_mismatch). This fails if that check is ever reintroduced.
+  assert.ok(!POST.includes('receipt_mismatch'), 'the mismatch refusal is gone');
+  assert.ok(!POST.includes('sha256'), 'no digest is computed over the stored bytes');
+  assert.ok(POST.includes('verifyReceipt(bytes, hash)'), 'existence, size and the JPEG sniff still run');
+  assert.ok(!POST.includes('createHash'), 'the route computes no hash itself');
+});
+
 test('a receipt clash is told apart from a replay by constraint name', () => {
   assert.ok(POST.includes('uniqueViolation(insertError)'), 'the index name decides');
   const clash = POST.indexOf("uniqueViolation(insertError) === 'receipt_hash'");

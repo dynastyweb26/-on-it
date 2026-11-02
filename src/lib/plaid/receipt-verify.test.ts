@@ -3,17 +3,21 @@
 // so the security rules are asserted with real bytes rather than substrings.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   MAX_RECEIPT_BYTES, RECEIPT_BUCKET, hasUnsafeKeySegments, isJpeg, isReceiptHash,
-  receiptObjectPath, sha256HexBytes, uniqueViolation, verifyReceipt,
+  receiptObjectPath, uniqueViolation, verifyReceipt,
 } from './receipt-verify';
+
+/** Stands in for lib/receipt.ts' sha256Hex: the digest of the ORIGINAL file. */
+const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
 const OWNER = '6f1b8c2e-3a4d-4e5f-8a9b-0c1d2e3f4a5b';
 const OTHER = '11111111-2222-4333-8444-555555555555';
 
 /** A minimal but real JPEG: SOI + APP0 marker start + EOI. */
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0xff, 0xd9]);
-const HASH = sha256HexBytes(JPEG);
+const HASH = sha(JPEG);
 
 test('the path is built from the caller id, never from a request field', () => {
   assert.equal(receiptObjectPath(OWNER, HASH), `${OWNER}/${HASH}.jpg`);
@@ -43,7 +47,7 @@ test('a traversal-shaped key is rejected even when the prefix matches', () => {
   assert.equal(receiptObjectPath(OWNER, `..%2f${HASH}`), null);
 });
 
-test('missing, oversized, non-JPEG and mismatched objects each get their own answer', () => {
+test('missing, oversized and non-JPEG objects each get their own answer', () => {
   assert.equal(verifyReceipt(null, HASH), 'receipt_missing');
   assert.equal(verifyReceipt(new Uint8Array(0), HASH), 'receipt_missing');
 
@@ -54,8 +58,18 @@ test('missing, oversized, non-JPEG and mismatched objects each get their own ans
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.equal(verifyReceipt(png, HASH), 'receipt_not_jpeg');
 
-  // Right bytes, wrong hash: the client claimed a different receipt.
-  assert.equal(verifyReceipt(JPEG, sha256HexBytes(png)), 'receipt_mismatch');
+  // ── The regression this test exists for ───────────────────────────────────
+  // The stored object is the RE-COMPRESSED JPEG; the claimed hash is the digest
+  // of the ORIGINAL file (lib/receipt.ts hashes file.arrayBuffer() before it
+  // decodes). For a real photo the two can never be equal, so a stored-bytes
+  // equality check refused every genuine receipt with 422 receipt_mismatch —
+  // this assertion fails if that check comes back.
+  assert.notEqual(sha(JPEG), sha(png));
+  assert.equal(
+    verifyReceipt(JPEG, sha(png)),
+    null,
+    'a real receipt is accepted even though its stored bytes hash to something else',
+  );
 
   assert.equal(isJpeg(JPEG), true);
   assert.equal(isJpeg(new Uint8Array([0xff, 0xd8])), false, 'a 2-byte prefix is not a JPEG');

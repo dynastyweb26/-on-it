@@ -374,7 +374,6 @@ export function receiptRefusalMessage(code: string | null | undefined): string {
       return 'That photo is too big. Take it again with the camera.';
     case 'receipt_missing':
     case 'receipt_not_jpeg':
-    case 'receipt_mismatch':
     case 'receipt_invalid':
       return RECEIPT_REFUSED_TOAST;
     default:

@@ -12,8 +12,7 @@
 //
 // Mirrors the estimates attachments confirm route (src/app/api/estimates/[id]/
 // attachments/confirm/route.ts): the client's Content-Type is never trusted, the
-// real bytes are measured, sniffed and hashed server-side.
-import { createHash } from 'node:crypto';
+// real bytes are measured and sniffed server-side.
 
 /** The column's CHECK is `^[0-9a-f]{64}$` (expenses_receipt_hash_fmt). */
 export const RECEIPT_HASH_RE = /^[0-9a-f]{64}$/;
@@ -30,7 +29,6 @@ export type ReceiptRefusal =
   | 'receipt_missing'
   | 'receipt_too_large'
   | 'receipt_not_jpeg'
-  | 'receipt_mismatch'
   | 'receipt_duplicate';
 
 export const RECEIPT_BUCKET = 'receipts';
@@ -67,23 +65,30 @@ export function isJpeg(bytes: Uint8Array): boolean {
   return bytes.byteLength >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
 }
 
-export function sha256HexBytes(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
 /**
  * The server-side verdict on the stored object. `null` includes the missing
  * case because a download that returned nothing is the same answer as no object.
  *
- * Order matters: size before sniff before hash, so an oversized upload never
- * gets hashed and a wrong-type file is named as such rather than as a mismatch.
+ * Order matters: size before sniff, so an oversized upload is measured once and a
+ * wrong-type file is named as such.
+ *
+ * There is deliberately NO sha256 equality check here. The hash the client sends
+ * is the dedup key of the ORIGINAL file bytes — lib/receipt.ts hashes
+ * file.arrayBuffer() before decoding, exactly like Chat's saveExpense — while the
+ * object at this path is the RE-ENCODED, downscaled JPEG. Those two digests can
+ * never be equal for a real photo, so comparing them refused every genuine
+ * receipt with 422 receipt_mismatch. The hash is not a claim to verify against
+ * the object: it is the owner-scoped key the object is stored under, and the
+ * column's insert grant already lets a client set receipt_hash directly, so an
+ * equality check would buy no integrity. What IS verified is that the object
+ * exists, fits, really is JPEG, and that the hash is not already on another
+ * expense.
  */
 export function verifyReceipt(bytes: Uint8Array | null, hash: unknown): ReceiptRefusal | null {
   if (!isReceiptHash(hash)) return 'receipt_invalid';
   if (!bytes || bytes.byteLength === 0) return 'receipt_missing';
   if (bytes.byteLength > MAX_RECEIPT_BYTES) return 'receipt_too_large';
   if (!isJpeg(bytes)) return 'receipt_not_jpeg';
-  if (sha256HexBytes(bytes) !== hash) return 'receipt_mismatch';
   return null;
 }
 
