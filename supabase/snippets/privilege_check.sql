@@ -2053,6 +2053,90 @@ results(id, ok, expected, actual) as (
           from storage.buckets b where b.id = 'receipts'), 'missing'))
       end
 
+  -- BD. Bank deposits (money in, 20261102190000). SKIP until pushed.
+  --     Owner SELECT only on both tables, no write policy or grant; the link
+  --     guard is a definer function with a pinned search_path and no client
+  --     EXECUTE; the payment/terminal unique indexes are what stop a ledger row
+  --     or a decision from being counted twice.
+  union all
+  select 'BD1 bank deposits rls',
+    case when not exists (select 1 from applied where version = '20261102190000') then null
+      else (select count(*) from pg_class c
+        where c.oid in (to_regclass('public.bank_deposits'),
+                        to_regclass('public.bank_deposit_links'))
+          and c.relrowsecurity) = 2 end,
+    'bank_deposits + bank_deposit_links: RLS enabled',
+    case when not exists (select 1 from applied where version = '20261102190000') then 'not applied yet'
+      else (select count(*)::text || ' of 2 with RLS' from pg_class c
+        where c.oid in (to_regclass('public.bank_deposits'),
+                        to_regclass('public.bank_deposit_links'))
+          and c.relrowsecurity) end
+  union all
+  select 'BD2 bank deposits owner select only',
+    case when not exists (select 1 from applied where version = '20261102190000') then null
+      else (select count(*) from pg_policies p
+        where p.schemaname = 'public' and p.tablename in ('bank_deposits', 'bank_deposit_links')
+          and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 2
+      and not exists (select 1 from pg_policies p
+        where p.schemaname = 'public' and p.tablename in ('bank_deposits', 'bank_deposit_links')
+          and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL'))
+      and not has_table_privilege('authenticated', 'public.bank_deposits', 'INSERT')
+      and not has_table_privilege('authenticated', 'public.bank_deposit_links', 'INSERT')
+      and not has_table_privilege('anon', 'public.bank_deposits', 'SELECT')
+      and has_table_privilege('service_role', 'public.bank_deposit_links', 'INSERT') end,
+    'one owner SELECT policy per table; no write policy; clients cannot INSERT; service_role can',
+    case when not exists (select 1 from applied where version = '20261102190000') then 'not applied yet'
+      else 'deposit_insert=' || coalesce(has_table_privilege('authenticated', 'public.bank_deposits', 'INSERT')::text, 'missing')
+        || ' link_insert=' || coalesce(has_table_privilege('authenticated', 'public.bank_deposit_links', 'INSERT')::text, 'missing')
+        || ' anon_select=' || coalesce(has_table_privilege('anon', 'public.bank_deposits', 'SELECT')::text, 'missing') end
+  union all
+  select 'BD3 bank deposit link keys',
+    case when not exists (select 1 from applied where version = '20261102190000') then null
+      else (select count(*) from pg_constraint
+        where conrelid = to_regclass('public.bank_deposit_links')
+          and conname = 'bank_deposit_links_payment_chk') = 1
+        and (select pg_get_constraintdef(oid) from pg_constraint
+          where conrelid = to_regclass('public.bank_deposit_links')
+            and conname = 'bank_deposit_links_payment_chk') ilike '%payment_id%'
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'bank_deposit_links_payment_uidx'
+            and indexdef ilike '%unique%' and indexdef ilike '%where%')
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'bank_deposit_links_terminal_uidx'
+            and indexdef ilike '%stripe_payout%' and indexdef ilike '%not_income%')
+        and exists (select 1 from pg_constraint
+          where conrelid = to_regclass('public.bank_deposits')
+            and conname = 'bank_deposits_txn_key') end,
+    'payment shape check; unique payment_id; one terminal link per deposit; unique deposit txn per owner',
+    case when not exists (select 1 from applied where version = '20261102190000') then 'not applied yet'
+      else coalesce((select string_agg(indexname, ', ' order by indexname) from pg_indexes
+        where schemaname = 'public'
+          and indexname in ('bank_deposit_links_payment_uidx',
+                            'bank_deposit_links_terminal_uidx')), 'none') end
+  union all
+  select 'BD4 bank deposit link guard',
+    case when not exists (select 1 from applied where version = '20261102190000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgrelid = to_regclass('public.bank_deposit_links')
+          and t.tgname = 'guard_bank_deposit_link'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 16) = 16) = 1
+        and coalesce((select p.prosecdef and p.proconfig::text ilike '%search_path=%'
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_bank_deposit_link()')), false)
+        and coalesce((select strpos(p.prosrc, 'v_deposit.amount') > 0
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_bank_deposit_link()')), false)
+        and not exists (select 1 from (values ('anon'), ('authenticated')) ro(r)
+          where has_function_privilege(ro.r, to_regprocedure('public.guard_bank_deposit_link()'), 'execute')) end,
+    'BEFORE INSERT OR UPDATE guard: definer, search_path pinned, sum check, no client EXECUTE',
+    case when not exists (select 1 from applied where version = '20261102190000') then 'not applied yet'
+      else coalesce((select 'type=' || t.tgtype || ' definer=' || p.prosecdef
+          || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+        where not t.tgisinternal and t.tgrelid = to_regclass('public.bank_deposit_links')
+          and t.tgname = 'guard_bank_deposit_link'), 'trigger missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
