@@ -95,7 +95,7 @@ export function rowToItem(row: ApiReviewRow): BankItem {
     accountLabel: row.account.name,
     category: row.category,
     match: row.match ? matchStrip(row.match) : undefined,
-    receipt: false,
+    receipt: null,
   };
 }
 
@@ -111,6 +111,9 @@ export function reviewBody(row: ApiReviewRow, item: BankItem, action: ReviewActi
     const cents = amountOf(item);
     if (cents !== row.amount_cents) body.amount_cents = cents;
     if (item.category !== row.category) body.category = item.category;
+    // A picked receipt travels as its content hash only. The server rebuilds the
+    // object key from the session, so no path is ever accepted from here.
+    if (item.receipt) body.receipt_hash = item.receipt.hash;
   }
   return body;
 }

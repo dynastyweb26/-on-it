@@ -76,6 +76,22 @@ test('the body sends an amount only when it was edited', () => {
   assert.deepEqual(reviewBody(ROW, item, 'already'), { transaction_id: 'row-1', action: 'already' });
 });
 
+test('a picked receipt travels as its content hash only', () => {
+  const item: BankItem = {
+    ...rowToItem(ROW),
+    receipt: { hash: 'a'.repeat(64), previewUrl: 'blob:preview', blob: new Blob() },
+  };
+  const body = reviewBody(ROW, item, 'add');
+  assert.equal(body.receipt_hash, 'a'.repeat(64));
+  assert.equal('receipt_url' in body, false, 'never a storage path from the client');
+  assert.equal('receipt_path' in body, false);
+  // A decided action carries no receipt at all.
+  assert.equal('receipt_hash' in reviewBody(ROW, item, 'already'), false);
+  assert.equal('receipt_hash' in reviewBody(ROW, item, 'ignore'), false);
+  // And a card with no photo sends nothing new.
+  assert.equal('receipt_hash' in reviewBody(ROW, rowToItem(ROW), 'add'), false);
+});
+
 test('a failed write rolls back to what the card showed before', () => {
   assert.deepEqual(rollbackAction('open', 'row-1'), { type: 'restore', id: 'row-1' });
   assert.deepEqual(rollbackAction('added', 'row-1'), { type: 'restore', id: 'row-1' });
