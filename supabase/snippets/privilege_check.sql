@@ -1781,7 +1781,7 @@ results(id, ok, expected, actual) as (
     'estimate_reset_at + free_estimate_limit: SECURITY INVOKER, immutable, search_path=""',
     case when not exists (select 1 from applied where version = '20261025100000') then 'not applied yet'
       else coalesce((select string_agg(p.proname || ': definer=' || p.prosecdef
-          || ' volatility=' || p.provolatile || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
+          || ' volatility=' || p.provolatile::text || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
         from pg_proc p
         where p.oid in (to_regprocedure('public.estimate_reset_at()'),
                         to_regprocedure('public.free_estimate_limit()'))), 'missing') end
