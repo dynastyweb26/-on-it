@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { failure, type FailureKind, type PlaidRoute } from './failure';
 
-const ROUTES: PlaidRoute[] = ['link-token', 'exchange', 'accounts', 'disconnect'];
+const ROUTES: PlaidRoute[] = ['link-token', 'exchange', 'accounts', 'disconnect', 'transactions', 'review'];
 
 test('every failure kind has one stable status and reason code', () => {
   const table: [FailureKind, number, string][] = [

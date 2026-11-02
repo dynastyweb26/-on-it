@@ -7,7 +7,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import type { NextRequest } from 'next/server';
 
-export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback' | 'estimate_view' | 'estimate_sign' | 'estimate_upload' | 'estimate_edit' | 'prompts' | 'invoice_send' | 'estimate_send' | 'plaid_link' | 'plaid_exchange' | 'plaid_accounts' | 'plaid_sync' | 'plaid_disconnect' | 'plaid_webhook';
+export type RateRoute = 'parse' | 'parse_receipt' | 'transcribe' | 'zelle_read' | 'zelle_write' | 'bank_write' | 'checkout' | 'billing_portal' | 'delete_account' | 'pay_view' | 'access' | 'connect_onboard' | 'connect_status' | 'connect_config' | 'pay_checkout' | 'pay_viewed' | 'pay_bank_ip' | 'pay_bank_token' | 'push_subscribe' | 'push_test' | 'redeem' | 'subscription_write' | 'subscription_read' | 'feedback' | 'estimate_view' | 'estimate_sign' | 'estimate_upload' | 'estimate_edit' | 'prompts' | 'invoice_send' | 'estimate_send' | 'plaid_link' | 'plaid_exchange' | 'plaid_accounts' | 'plaid_sync' | 'plaid_transactions' | 'plaid_review' | 'plaid_disconnect' | 'plaid_webhook';
 
 // Starting points (tune later). AI ~20/min, transcribe ~12/min.
 const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
@@ -93,6 +93,8 @@ const LIMITS: Record<RateRoute, { tokens: number; window: `${number} s` }> = {
   plaid_exchange:  { tokens: 5,  window: '60 s' },
   plaid_accounts:  { tokens: 30, window: '60 s' },
   plaid_sync:      { tokens: 5,  window: '60 s' },
+  plaid_transactions:      { tokens: 5,  window: '60 s' },
+  plaid_review:      { tokens: 5,  window: '60 s' },
   plaid_disconnect:{ tokens: 5,  window: '60 s' },
   // Plaid's server, not a person: generous per IP, still a hard ceiling on a
   // forged-webhook flood (verification rejects every one).

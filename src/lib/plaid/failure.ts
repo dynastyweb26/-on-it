@@ -13,7 +13,7 @@ import { DUPLICATE_LINK_MESSAGE } from './link';
 /** The exchange route's 401 carries this, so the client can say it plainly. */
 export const SIGN_IN_AGAIN_MESSAGE = 'Sign in again to connect your bank.';
 
-export type PlaidRoute = 'link-token' | 'exchange' | 'accounts' | 'disconnect';
+export type PlaidRoute = 'link-token' | 'exchange' | 'accounts' | 'disconnect' | 'transactions' | 'review';
 
 export type FailureKind =
   | 'route_disabled'
