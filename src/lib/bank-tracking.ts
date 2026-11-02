@@ -381,6 +381,35 @@ export function receiptRefusalMessage(code: string | null | undefined): string {
   }
 }
 
+/** The Add button while a receipt add is still uploading and posting. */
+export const ADDING_LABEL = 'Adding…';
+
+/** The Add button's copy: the in-flight label only while the upload is out. */
+export function addButtonLabel(item: Pick<BankItem, 'review'>, busy: boolean): string {
+  if (busy) return ADDING_LABEL;
+  return item.review ? item.review.fixLabel : 'Add to record';
+}
+
+/**
+ * Whether a card leaves the queue BEFORE its write lands. A plain add, and
+ * every already / ignore / restore, paint first and roll back if refused. An
+ * add that carries a receipt does not: the photo is uploaded at "Add to
+ * record", and rolling that card back after a refusal snaps the same card into
+ * view with its photo still attached — it reads as the next card arriving
+ * already prefilled. Those adds advance only once the row has landed.
+ */
+export function advancesOptimistically(
+  action: { type: BankAction['type'] },
+  item: Pick<BankItem, 'receipt'> | null | undefined,
+): boolean {
+  return !(action.type === 'add' && Boolean(item?.receipt));
+}
+
+/** A refused receipt add: the card keeps its place and drops the photo, so the
+ *  retry starts from the picker instead of re-posting the same duplicate. */
+export const receiptRefusedAction = (id: string): BankAction =>
+  ({ type: 'edit', id, patch: { receipt: null } });
+
 /**
  * The date row's chips: the bank's date, the day before, and today — de-duped
  * and labelled, so a late October charge can still be moved to today.

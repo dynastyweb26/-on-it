@@ -15,7 +15,9 @@ import Icon from '@/components/Icon';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { reducedMotion } from '@/lib/list-motion';
 import { prepareReceipt, ReceiptError } from '@/lib/receipt';
-import { cardActions, dateOptions, formatDay, formatMoney, type BankItem, type CardAction } from '@/lib/bank-tracking';
+import {
+  addButtonLabel, cardActions, dateOptions, formatDay, formatMoney, type BankItem, type CardAction,
+} from '@/lib/bank-tracking';
 
 export type { CardAction };
 type EditField = 'amount' | 'date' | null;
@@ -52,7 +54,7 @@ function useCountedAmount(value: number): number {
 }
 
 export default function ReviewCard({
-  item, account, cover = null, headingRef, onAction, onPatch,
+  item, account, cover = null, headingRef, onAction, onPatch, busy = false, error = null,
 }: {
   item: BankItem;
   account: string;
@@ -62,6 +64,10 @@ export default function ReviewCard({
   headingRef?: Ref<HTMLHeadingElement>;
   onAction: (action: CardAction) => void;
   onPatch: (patch: Partial<Pick<BankItem, 'amount' | 'date' | 'category' | 'receipt'>>) => void;
+  /** A receipt add for this card is still uploading/posting: not actionable twice. */
+  busy?: boolean;
+  /** Why a receipt add was refused, shown under the receipt row. */
+  error?: string | null;
 }) {
   const review = item.review;
   const [editing, setEditing] = useState<EditField>(null);
@@ -123,6 +129,9 @@ export default function ReviewCard({
   }
 
   const meta = review ? review.meta : `${CATEGORY_LABEL[item.category]} · ${formatDay(item.date)} · ${account}`;
+  // The provider's refusal outranks a local pick error: after a refusal the photo
+  // is gone, so a pick error has nothing left to describe.
+  const shownError = error ?? receiptError;
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
@@ -319,8 +328,8 @@ export default function ReviewCard({
               className="hidden"
               onChange={pickReceipt}
             />
-            {receiptError && (
-              <p role="alert" className="text-sm font-semibold text-on-surface-variant">{receiptError}</p>
+            {shownError && (
+              <p role="alert" className="text-sm font-semibold text-on-surface-variant">{shownError}</p>
             )}
           </>
         )}
@@ -333,17 +342,20 @@ export default function ReviewCard({
           <button
             key="add"
             type="button"
+            disabled={busy}
+            aria-busy={busy || undefined}
             onClick={() => onAction('add')}
-            className="min-h-[54px] rounded-full bg-primary-container font-display text-base font-bold text-on-background transition-transform active:scale-[0.97]"
+            className="min-h-[54px] rounded-full bg-primary-container font-display text-base font-bold text-on-background transition-transform active:scale-[0.97] disabled:opacity-60"
           >
-            {review ? review.fixLabel : 'Add to record'}
+            {addButtonLabel(item, busy)}
           </button>
         ) : (
           <button
             key={action}
             type="button"
+            disabled={busy}
             onClick={() => onAction(action)}
-            className="min-h-[46px] w-full rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96]"
+            className="min-h-[46px] w-full rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest text-sm font-semibold transition-transform active:scale-[0.96] disabled:opacity-60"
           >
             {action === 'already' ? 'Already recorded' : review ? review.keepLabel : "Don't add"}
           </button>

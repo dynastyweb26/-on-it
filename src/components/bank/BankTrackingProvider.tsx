@@ -15,9 +15,10 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  BANK_ITEMS, REVIEW_FAILED_TOAST, bankActive, bankReducer, pendingCount, receiptRefusalMessage,
-  reviewQueue, seedReviewState, statusOf, todayIso, unaccountedCount,
-  type BankAction, type BankReviewState,
+  BANK_ITEMS, REVIEW_FAILED_TOAST, addedToast, advancesOptimistically, bankActive, bankReducer,
+  pendingCount, receiptRefusalMessage, receiptRefusedAction, reviewQueue, seedReviewState, statusOf,
+  todayIso, unaccountedCount,
+  type BankAction, type BankReceipt, type BankReviewState,
 } from '@/lib/bank-tracking';
 import { removeBankReceipt, uploadBankReceipt } from '@/lib/bank-receipt';
 import {
@@ -92,6 +93,10 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     () => ({ added: 0, already: 0, ignored: 0 }),
   );
   const [notice, setNotice] = useState<{ message: string; id: number } | null>(null);
+  /** Ids whose receipt add is uploading/posting: their card locks its buttons. */
+  const [inFlight, setInFlight] = useState<string[]>([]);
+  /** The last refused receipt add, reported inline on that card as well. */
+  const [refused, setRefused] = useState<{ id: string; message: string } | null>(null);
   // The rows behind the stack, keyed by bank_transactions id. A fixture item is
   // absent here, which is exactly what keeps its actions local.
   const rowsRef = useRef<Map<string, ApiReviewRow>>(new Map());
@@ -260,22 +265,47 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   // A picked receipt is uploaded HERE — at "Add to record", not at tap — so a
   // card the owner passes on or closes stores nothing. Only the hash travels to
   // the route; it rebuilds the object key from the session.
+  // A refused receipt add: the card never moved, so there is nothing to roll
+  // back — only the photo goes, so a retry starts from the picker instead of
+  // re-posting a duplicate. The reason shows in the toast AND under the receipt
+  // row, and the file this attempt uploaded is gone before we get here.
+  const refuseReceiptAdd = useCallback((id: string, receipt: BankReceipt, message: string) => {
+    URL.revokeObjectURL(receipt.previewUrl);
+    dispatch(receiptRefusedAction(id));
+    setInFlight((ids) => ids.filter((busyId) => busyId !== id));
+    setRefused({ id, message });
+    setNotice({ message, id: Date.now() });
+  }, []);
+
   const dispatchAction = useCallback((action: BankAction) => {
     if (action.type !== 'add' && action.type !== 'already'
       && action.type !== 'ignore' && action.type !== 'restore') {
       dispatch(action);
+      if (action.type === 'edit') setRefused((current) => (current?.id === action.id ? null : current));
       return;
     }
     const previous = statusOf(stateRef.current, action.id);
     const item = stateRef.current.items.find((it) => it.id === action.id);
     const receipt = action.type === 'add' ? item?.receipt ?? null : null;
-    dispatch(action);
+    setRefused((current) => (current?.id === action.id ? null : current));
+    // A receipt add waits for the write (advancesOptimistically) — the photo is
+    // uploaded here, at "Add to record" — so a refusal leaves the card exactly
+    // where it is. A fixture item has no write to wait for, so it still moves.
+    const optimistic = !real.current || advancesOptimistically(action, item);
+    if (optimistic) dispatch(action);
     if (!real.current) return;
     const row = rowsRef.current.get(action.id);
     if (!row || !item) return;
+    if (!optimistic) setInFlight((ids) => (ids.includes(action.id) ? ids : [...ids, action.id]));
     void (async () => {
+      const settle = () => setInFlight((ids) => ids.filter((busyId) => busyId !== action.id));
       const upload = receipt ? await uploadBankReceipt(receipt) : 'none';
       if (upload === 'failed' || upload === 'unsigned') {
+        if (receipt && !optimistic) {
+          refuseReceiptAdd(action.id, receipt, REVIEW_FAILED_TOAST);
+          return;
+        }
+        settle();
         dispatch(rollbackAction(previous, action.id));
         setNotice({ message: REVIEW_FAILED_TOAST, id: Date.now() });
         return;
@@ -287,23 +317,39 @@ export default function BankTrackingProvider({ enabled = false, children }: {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(reviewBody(row, item, action.type)),
         });
-        if (res.ok) return;
+        if (res.ok) {
+          settle();
+          // The write landed: now the card leaves, with one confirmation.
+          if (!optimistic) {
+            dispatch({ type: 'add', id: action.id });
+            setNotice({
+              message: item.review ? item.review.toast : addedToast(item.date),
+              id: Date.now(),
+            });
+          }
+          return;
+        }
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         code = body?.error ?? null;
-      } catch { /* the rollback below is the answer */ }
+      } catch { /* the refusal below is the answer */ }
       // Remove only the file THIS attempt stored, so an "exists" object (it may
       // already back another expense) is never deleted, and a duplicate leaves
       // the receipt where the server says it belongs.
       if (upload === 'uploaded' && code !== 'receipt_duplicate' && receipt) {
         void removeBankReceipt(receipt);
       }
+      if (receipt && !optimistic) {
+        refuseReceiptAdd(action.id, receipt, receiptRefusalMessage(code));
+        return;
+      }
+      settle();
       dispatch(rollbackAction(previous, action.id));
       setNotice({
         message: receipt ? receiptRefusalMessage(code) : REVIEW_FAILED_TOAST,
         id: Date.now(),
       });
     })();
-  }, []);
+  }, [refuseReceiptAdd]);
 
   const value = useMemo<BankTrackingApi>(
     () => ({
@@ -317,7 +363,14 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     <BankContext.Provider value={value}>
       {children}
       {active && open && (
-        <ReviewStack state={state} dispatch={dispatchAction} onClose={closeStack} notice={notice} />
+        <ReviewStack
+          state={state}
+          dispatch={dispatchAction}
+          onClose={closeStack}
+          notice={notice}
+          busyIds={inFlight}
+          refused={refused}
+        />
       )}
     </BankContext.Provider>
   );

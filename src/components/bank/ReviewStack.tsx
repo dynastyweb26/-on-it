@@ -24,8 +24,8 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, itemAccount, nextQueueIndex,
-  reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
+  addedToast, advancesOptimistically, counterLabel, formatDay, formatMoney, ignoredQueue, itemAccount,
+  nextQueueIndex, reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
 
@@ -46,13 +46,17 @@ function booksNavTarget(): HTMLElement | null {
 }
 
 export default function ReviewStack({
-  state, dispatch, onClose, notice = null,
+  state, dispatch, onClose, notice = null, busyIds = [], refused = null,
 }: {
   state: BankReviewState;
   dispatch: Dispatch<BankAction>;
   onClose: () => void;
-  /** A refused write from the provider: shown in the toast slot. */
+  /** A write from the provider, refused or confirmed: the toast slot. */
   notice?: { message: string; id: number } | null;
+  /** Cards whose receipt add is still in flight: their buttons are locked. */
+  busyIds?: string[];
+  /** The refused receipt add that card reports under its receipt row. */
+  refused?: { id: string; message: string } | null;
 }) {
   const queue = reviewQueue(state);
   const pending = queue.length;
@@ -230,6 +234,14 @@ export default function ReviewStack({
       dispatch({ type: 'already', id: item.id });
       setAnnounce('Already recorded. Linked to your expense.');
       later(reduce ? 0 : 900, () => setLeaving(null));
+      return;
+    }
+
+    // A receipt add writes before the card moves (advancesOptimistically): no
+    // cover and no confirmation here. The card keeps its place and shows
+    // "Adding…", and the provider reports the outcome.
+    if (!advancesOptimistically({ type: action }, item)) {
+      dispatch({ type: 'add', id: item.id });
       return;
     }
 
@@ -459,6 +471,8 @@ export default function ReviewStack({
                           item={item}
                           account={itemAccount(item)}
                           headingRef={headingRef}
+                          busy={busyIds.includes(item.id)}
+                          error={refused && refused.id === item.id ? refused.message : null}
                           onAction={run}
                           onPatch={(patch) => dispatch({ type: 'edit', id: item.id, patch })}
                         />
