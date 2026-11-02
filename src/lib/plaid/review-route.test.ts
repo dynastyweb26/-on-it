@@ -7,10 +7,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Normalized to LF: the assertions below are multi-line substrings, and a
+// Windows checkout hands back CRLF. The route's text is otherwise unchanged.
 const POST = readFileSync(
   join(process.cwd(), 'src', 'app', 'api', 'plaid', 'review', 'route.ts'),
   'utf8',
-);
+).replace(/\r\n/g, '\n');
 
 const count = (needle: string): number => POST.split(needle).length - 1;
 
