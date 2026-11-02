@@ -24,7 +24,7 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  accountLabel, addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, nextQueueIndex,
+  addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, itemAccount, nextQueueIndex,
   reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
@@ -46,11 +46,13 @@ function booksNavTarget(): HTMLElement | null {
 }
 
 export default function ReviewStack({
-  state, dispatch, onClose,
+  state, dispatch, onClose, notice = null,
 }: {
   state: BankReviewState;
   dispatch: Dispatch<BankAction>;
   onClose: () => void;
+  /** A refused write from the provider: shown in the toast slot. */
+  notice?: { message: string; id: number } | null;
 }) {
   const queue = reviewQueue(state);
   const pending = queue.length;
@@ -67,6 +69,11 @@ export default function ReviewStack({
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [fly, setFly] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // A failed write is announced like any confirmation, once per failure.
+  useEffect(() => {
+    if (notice) setToast(notice.message);
+  }, [notice]);
   const [announce, setAnnounce] = useState('');
   const [closing, setClosing] = useState(false);
   const [dealt, setDealt] = useState(false);
@@ -385,7 +392,7 @@ export default function ReviewStack({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-semibold">{item.merchant}</div>
                     <div className="truncate text-[13px] text-on-surface-variant">
-                      {formatDay(item.date)} · {accountLabel(item.accountId)}
+                      {formatDay(item.date)} · {itemAccount(item)}
                     </div>
                   </div>
                   <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{formatMoney(item.amount)}</span>
@@ -450,7 +457,7 @@ export default function ReviewStack({
                       {isTop ? (
                         <ReviewCard
                           item={item}
-                          account={accountLabel(item.accountId)}
+                          account={itemAccount(item)}
                           headingRef={headingRef}
                           onAction={run}
                           onPatch={(patch) => dispatch({ type: 'edit', id: item.id, patch })}
@@ -459,7 +466,7 @@ export default function ReviewStack({
                         <div aria-hidden ref={(el) => { el?.setAttribute('inert', ''); }} className="h-full">
                           <ReviewCard
                             item={item}
-                            account={accountLabel(item.accountId)}
+                            account={itemAccount(item)}
                             onAction={() => {}}
                             onPatch={() => {}}
                           />
@@ -491,7 +498,7 @@ export default function ReviewStack({
               >
                 <ReviewCard
                   item={leaving.item}
-                  account={accountLabel(leaving.item.accountId)}
+                  account={itemAccount(leaving.item)}
                   cover={leaving.cover}
                   onAction={() => {}}
                   onPatch={() => {}}

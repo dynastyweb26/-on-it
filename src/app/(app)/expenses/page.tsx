@@ -27,7 +27,7 @@ import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import UnaccountedRow from '@/components/bank/UnaccountedRow';
 import BankRowDetail from '@/components/bank/BankRowDetail';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
-import { accountLabel, unaccountedItems } from '@/lib/bank-tracking';
+import { itemAccount, unaccountedItems, sumCents} from '@/lib/bank-tracking';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -209,13 +209,13 @@ export default function Books() {
         recurring_id: null,
         created_at: null,
         bankVerified: true,
-        bankAccount: accountLabel(item.accountId),
+        bankAccount: itemAccount(item),
       }))
     : [];
   const allRows = [...rows, ...bankRows];
   // The pinned row: whatever is still unaccounted for (open + hidden).
   const unaccounted = bankState ? unaccountedItems(bankState) : [];
-  const unaccountedAmount = unaccounted.reduce((sum, item) => sum + item.amount, 0);
+  const unaccountedAmount = sumCents(unaccounted) / 100;
 
   // A bank row that lands while this page is open gets the one-time gold wash.
   const seenAdded = useRef<Set<string> | null>(null);
