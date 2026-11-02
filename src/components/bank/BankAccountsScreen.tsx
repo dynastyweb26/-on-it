@@ -17,6 +17,7 @@ import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link';
 import PlaidConnect from './PlaidConnect';
 import BankSheet from './BankSheet';
 import BankToast from './BankToast';
+import DepositReview from './DepositReview';
 import { useBankTracking } from './BankTrackingProvider';
 import {
   ACCOUNT_STATUS_COPY, DIGEST_OPTIONS, DISCONNECTED_TOAST, STARTER_ACCOUNTS,
@@ -302,12 +303,15 @@ export default function BankAccountsScreen() {
     }
     if (!isLinked(connection)) return <Pitch onConnect={beginLink} />;
     return (
-      <LinkedCard
-        connection={connection}
-        onReconnect={() => setBank?.((cur) => ({ ...cur, status: 'syncing' }))}
-        onDigest={() => setDigestOpen(true)}
-        onDisconnect={() => setDisconnectOpen(true)}
-      />
+      <>
+        <LinkedCard
+          connection={connection}
+          onReconnect={() => setBank?.((cur) => ({ ...cur, status: 'syncing' }))}
+          onDigest={() => setDigestOpen(true)}
+          onDisconnect={() => setDisconnectOpen(true)}
+        />
+        <DepositReview />
+      </>
     );
   })();
 

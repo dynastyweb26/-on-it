@@ -237,6 +237,7 @@ function bankSources(): string[] {
     join(ROOT, 'src', 'lib', 'bank-tracking.ts'),
     join(ROOT, 'src', 'lib', 'bank-accounts.ts'),
     join(ROOT, 'src', 'lib', 'bank-disconnect.ts'),
+    join(ROOT, 'src', 'lib', 'bank-deposits.ts'),
   ];
 }
 
@@ -267,7 +268,7 @@ test('no bank component can reach a database write', () => {
 test('a bank screen calls only the preview-only Plaid routes', () => {
   const allowed = new Set([
     '/api/plaid/accounts', '/api/plaid/link-token', '/api/plaid/exchange', '/api/plaid/disconnect',
-    '/api/plaid/transactions', '/api/plaid/review',
+    '/api/plaid/transactions', '/api/plaid/review', '/api/plaid/deposits',
   ]);
   const calls: string[] = [];
   for (const file of bankSources()) {
@@ -279,8 +280,9 @@ test('a bank screen calls only the preview-only Plaid routes', () => {
     }
   }
   assert.deepEqual(calls.sort(), [
-    '/api/plaid/accounts', '/api/plaid/disconnect', '/api/plaid/exchange', '/api/plaid/link-token',
-    '/api/plaid/review', '/api/plaid/transactions',
+    '/api/plaid/accounts', '/api/plaid/deposits', '/api/plaid/disconnect',
+    '/api/plaid/exchange', '/api/plaid/link-token', '/api/plaid/review',
+    '/api/plaid/transactions',
   ]);
 });
 
