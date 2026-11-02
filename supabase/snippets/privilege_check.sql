@@ -1851,6 +1851,183 @@ results(id, ok, expected, actual) as (
         from pg_proc p where p.oid = to_regprocedure('public.enforce_free_invoice_limit()')), 'cap missing')
         || '; recurring hint=' || coalesce((select (strpos(p.prosrc, '''PAYWALL_RECURRING''') > 0)::text
         from pg_proc p where p.oid = to_regprocedure('public.enforce_paid_recurring_expenses()')), 'missing') end
+  -- BB. Plaid money-out (20261030100000). SKIP until pushed. PR1 is reads-only
+  --     for clients: authenticated sees its own rows and can never select
+  --     plaid_items.access_token_enc; the two token helpers are definer with a
+  --     pinned search_path and executable by service_role only.
+  union all
+  select 'BB1 plaid tables rls',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_class c
+        where c.oid in (to_regclass('public.plaid_items'),
+                        to_regclass('public.plaid_accounts'),
+                        to_regclass('public.bank_transactions'))
+          and c.relrowsecurity) = 3 end,
+    'plaid_items + plaid_accounts + bank_transactions: RLS enabled',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else (select count(*)::text || ' of 3 with RLS' from pg_class c
+        where c.oid in (to_regclass('public.plaid_items'),
+                        to_regclass('public.plaid_accounts'),
+                        to_regclass('public.bank_transactions'))
+          and c.relrowsecurity) end
+  union all
+  select 'BB2 plaid owner-only select',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_policies p
+        where p.schemaname = 'public' and p.tablename in ('plaid_items', 'plaid_accounts', 'bank_transactions')
+          and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 3
+      and not exists (select 1 from pg_policies p
+        where p.schemaname = 'public' and p.tablename in ('plaid_items', 'plaid_accounts', 'bank_transactions')
+          and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')) end,
+    'one owner SELECT policy per table; no INSERT/UPDATE/DELETE/ALL policy',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select string_agg(p.tablename || ':' || p.cmd, ', ' order by p.tablename, p.cmd)
+        from pg_policies p
+        where p.schemaname = 'public' and p.tablename in ('plaid_items', 'plaid_accounts', 'bank_transactions')), 'no policies') end
+  union all
+  select 'BB3 plaid token column private',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else not has_column_privilege('authenticated', 'public.plaid_items', 'access_token_enc', 'SELECT')
+        and not has_column_privilege('anon', 'public.plaid_items', 'access_token_enc', 'SELECT')
+        and has_column_privilege('authenticated', 'public.plaid_items', 'institution_name', 'SELECT')
+        and has_column_privilege('authenticated', 'public.bank_transactions', 'review_state', 'SELECT')
+        and has_column_privilege('authenticated', 'public.plaid_accounts', 'track', 'SELECT')
+        and not has_table_privilege('anon', 'public.bank_transactions', 'SELECT')
+        and not has_table_privilege('authenticated', 'public.bank_transactions', 'INSERT') end,
+    'access_token_enc unreadable by anon/authenticated; other columns readable; anon none; no client INSERT',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else 'token auth=' || coalesce(has_column_privilege('authenticated', 'public.plaid_items', 'access_token_enc', 'SELECT')::text, 'missing')
+        || ' anon=' || coalesce(has_column_privilege('anon', 'public.plaid_items', 'access_token_enc', 'SELECT')::text, 'missing')
+        || ' insert=' || coalesce(has_table_privilege('authenticated', 'public.bank_transactions', 'INSERT')::text, 'missing') end
+  union all
+  select 'BB4 plaid state checks',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_constraint
+        where conrelid = to_regclass('public.bank_transactions')
+          and conname in ('bank_transactions_bank_state_chk', 'bank_transactions_review_state_chk')) = 2
+        and (select pg_get_constraintdef(oid) from pg_constraint
+          where conrelid = to_regclass('public.bank_transactions')
+            and conname = 'bank_transactions_review_state_chk') not ilike '%hidden%'
+        and (select pg_get_constraintdef(oid) from pg_constraint
+          where conrelid = to_regclass('public.plaid_accounts')
+            and conname = 'plaid_accounts_track_chk') is not null end,
+    'bank_state 3 + review_state 5 (no hidden); accounts track flag tied to tracked_at',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select string_agg(conname, ', ' order by conname) from pg_constraint
+        where conrelid in (to_regclass('public.bank_transactions'), to_regclass('public.plaid_accounts'))
+          and contype = 'c'), 'none') end
+  union all
+  select 'BB5 expenses plaid link',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else coalesce((select is_nullable = 'YES' from information_schema.columns
+        where table_schema = 'public' and table_name = 'expenses'
+          and column_name = 'plaid_transaction_id'), false)
+      and exists (select 1 from pg_indexes
+        where schemaname = 'public' and indexname = 'expenses_user_plaid_transaction_uidx'
+          and indexdef ilike '%unique%' and indexdef ilike '%where%') end,
+    'expenses.plaid_transaction_id nullable + unique partial index',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select is_nullable from information_schema.columns
+        where table_schema = 'public' and table_name = 'expenses'
+          and column_name = 'plaid_transaction_id'), 'missing') end
+  union all
+  select 'BB6 plaid cascades',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_constraint
+        where contype = 'f' and confdeltype = 'c'
+          and ((conrelid = to_regclass('public.plaid_items')
+                and confrelid = to_regclass('public.profiles'))
+            or (conrelid = to_regclass('public.plaid_accounts')
+                and confrelid in (to_regclass('public.profiles'), to_regclass('public.plaid_items')))
+            or (conrelid = to_regclass('public.bank_transactions')
+                and confrelid in (to_regclass('public.profiles'),
+                                  to_regclass('public.plaid_items'),
+                                  to_regclass('public.plaid_accounts'))))) = 6 end,
+    '6 cascade FKs: items/accounts/transactions -> profiles, accounts -> items, transactions -> items + accounts',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else (select count(*)::text || ' of 6 cascade' from pg_constraint
+        where contype = 'f' and confdeltype = 'c'
+          and conrelid in (to_regclass('public.plaid_items'),
+                           to_regclass('public.plaid_accounts'),
+                           to_regclass('public.bank_transactions'))) end
+  union all
+  select 'BB7 plaid token helpers',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_proc p
+        where p.oid in (to_regprocedure('public.set_plaid_access_token(uuid, text, text)'),
+                        to_regprocedure('public.get_plaid_access_token(uuid, text)'))
+          and p.prosecdef and 'search_path=public, extensions' = any(p.proconfig)) = 2
+      and (select count(*) from (values ('public.set_plaid_access_token(uuid, text, text)'),
+                                        ('public.get_plaid_access_token(uuid, text)')) f(sig)
+        cross join (values ('anon'), ('authenticated')) ro(r)
+        where to_regprocedure(f.sig) is not null
+          and not has_function_privilege(ro.r, to_regprocedure(f.sig), 'execute')) = 4
+      and (select count(*) from (values ('public.set_plaid_access_token(uuid, text, text)'),
+                                        ('public.get_plaid_access_token(uuid, text)')) f(sig)
+        where to_regprocedure(f.sig) is not null
+          and has_function_privilege('service_role', to_regprocedure(f.sig), 'execute')) = 2 end,
+    'token helpers: SECURITY DEFINER, search_path pinned; service_role EXECUTE only',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select string_agg(p.proname || ': definer=' || p.prosecdef
+          || ' config=' || coalesce(p.proconfig::text, 'none'), '; ' order by p.proname)
+        from pg_proc p
+        where p.oid in (to_regprocedure('public.set_plaid_access_token(uuid, text, text)'),
+                        to_regprocedure('public.get_plaid_access_token(uuid, text)'))), 'missing') end
+
+  union all
+  select 'BB8 expense delete reopen',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'reopen_bank_transaction_on_expense_delete'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 8) = 8 and (t.tgtype & 16) = 0) = 1
+        and coalesce((select p.prosecdef and 'search_path=public' = any(p.proconfig)
+          from pg_proc p
+          where p.oid = to_regprocedure('public.reopen_bank_transaction_on_expense_delete()')), false) end,
+    'expenses BEFORE DELETE trigger reopens the linked txn (definer, search_path pinned)',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select string_agg(t.tgname || ' type=' || t.tgtype, ', ')
+        from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'reopen_bank_transaction_on_expense_delete'), 'trigger missing') end
+
+  union all
+  select 'BB9 plaid transaction id guard',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'guard_expense_plaid_transaction'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 16) = 16) = 1
+        and coalesce((select strpos(p.prosrc, 'service_role') > 0
+          from pg_proc p
+          where p.oid = to_regprocedure('public.guard_expense_plaid_transaction()')), false)
+        and not has_function_privilege('authenticated',
+          to_regprocedure('public.guard_expense_plaid_transaction()'), 'execute') end,
+    'expenses BEFORE INSERT OR UPDATE guard; service_role check in body; owner cannot call it',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else coalesce((select 'type=' || t.tgtype || ' definer_body=' || coalesce((select strpos(p.prosrc, 'service_role') > 0
+          from pg_proc p where p.oid = to_regprocedure('public.guard_expense_plaid_transaction()'))::text, 'missing')
+        from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = to_regclass('public.expenses')
+          and t.tgname = 'guard_expense_plaid_transaction'), 'trigger missing') end
+
+  union all
+  select 'BB10 create_plaid_item',
+    case when not exists (select 1 from applied where version = '20261030100000') then null
+      else (select count(*) from pg_proc p
+        where p.oid = to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)')
+          and p.prosecdef and 'search_path=public, extensions' = any(p.proconfig)) = 1
+        and not has_function_privilege('anon', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')
+        and not has_function_privilege('authenticated', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')
+        and has_function_privilege('service_role', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute') end,
+    'create_plaid_item: SECURITY DEFINER, search_path pinned, service_role EXECUTE only',
+    case when not exists (select 1 from applied where version = '20261030100000') then 'not applied yet'
+      else 'anon=' || coalesce(has_function_privilege('anon', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
+        || ' auth=' || coalesce(has_function_privilege('authenticated', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing')
+        || ' service=' || coalesce(has_function_privilege('service_role', to_regprocedure('public.create_plaid_item(uuid, text, text, text, text, text)'), 'execute')::text, 'missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

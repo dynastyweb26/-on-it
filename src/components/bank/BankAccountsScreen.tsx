@@ -10,16 +10,28 @@
 // sequence. Nothing here reads a bank, writes a row or calls an API — the mock
 // connection lives in the shell provider, and bank-tracking.test.ts enforces
 // that these files cannot reach a write.
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link';
+import PlaidConnect from './PlaidConnect';
 import BankSheet from './BankSheet';
 import BankToast from './BankToast';
 import { useBankTracking } from './BankTrackingProvider';
 import {
   ACCOUNT_STATUS_COPY, DIGEST_OPTIONS, DISCONNECTED_TOAST, STARTER_ACCOUNTS,
-  digestLabel, isLinked, trackedCount, type BankAccountOption, type BankConnection,
+  bankPreviewState, connectionFromItems, digestLabel, isLinked, trackedCount,
+  type BankAccountOption, type BankConnection,
 } from '@/lib/bank-accounts';
+import { BANK_POLL_MAX_TRIES, BANK_POLL_MS, accountsPlan, trackingBatch } from '@/lib/bank-load';
+import {
+  CONNECT_FAILED_TOAST, OPEN_BANK_FAILED_TOAST, TRACK_FAILED_TOAST, exchangePlan, linkTokenPlan,
+} from '@/lib/bank-connect';
+
+// One literal on purpose: bank-tracking.test.ts counts every /api/ string in the
+// bank files, and this screen reads and writes through this single route.
+const ACCOUNTS_URL = '/api/plaid/accounts';
+import { requestDisconnect } from '@/lib/bank-disconnect';
 
 type Flow = 'idle' | 'handoff' | 'success' | 'choose';
 
@@ -27,22 +39,59 @@ export default function BankAccountsScreen() {
   const ctx = useBankTracking();
   const [flow, setFlow] = useState<Flow>('idle');
   const [plaidOpen, setPlaidOpen] = useState(false);
+  // A real Plaid link token, when the preview route answered. Null keeps the
+  // placeholder sheet (and every other mock step) exactly as it was.
+  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [draft, setDraft] = useState<string[]>([]);
   const [digestOpen, setDigestOpen] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // ?bankState= is the only source of fixtures; anything else is the real item.
+  const [fixture, setFixture] = useState(false);
   const firstToggleRef = useRef<HTMLButtonElement>(null);
+  const pollTries = useRef(0);
 
   const connection = ctx?.bank;
   const tier = ctx?.tier ?? 'pro';
   const setBank = ctx?.setBank;
 
+  // The real list, read through GET /api/plaid/accounts (session + RLS). The
+  // digest time is kept locally: it is a preference the route does not store.
+  const loadAccounts = useCallback(async (): Promise<BankConnection | null> => {
+    try {
+      const res = await fetch(ACCOUNTS_URL, { cache: 'no-store' });
+      const body = (await res.json().catch(() => null)) as unknown;
+      const plan = accountsPlan(res.status, body);
+      // 404 is the gate (keep the pitch) and an error is never a reset.
+      if (plan.kind !== 'items') return null;
+      const next = connectionFromItems(plan.items);
+      if (!next) return null;
+      setBank?.((cur) => ({ ...next, digestTime: cur.digestTime }));
+      return next;
+    } catch {
+      return null;
+    }
+  }, [setBank]);
+
+  // Mount + sign-in: one read, so a reload keeps the linked card (and its item
+  // id, which is what makes Disconnect work). A frozen fixture never reads.
+  useEffect(() => {
+    if (!ctx?.enabled) return;
+    const frozen = bankPreviewState(window.location.search) !== null;
+    setFixture(frozen);
+    if (frozen) return;
+    void loadAccounts();
+  }, [ctx?.enabled, loadAccounts]);
+
   // Handoff: the veil holds for 700ms, then the provider sheet rises.
   useEffect(() => {
-    if (flow !== 'handoff') return;
+    // With a real link token Plaid's sheet takes over; the placeholder must not
+    // rise on top of it.
+    if (flow !== 'handoff' || linkToken) return;
     const t = setTimeout(() => setPlaidOpen(true), 700);
     return () => clearTimeout(t);
-  }, [flow]);
+  }, [flow, linkToken]);
 
   // Connect success: 1.2s, then the account rows take over.
   useEffect(() => {
@@ -59,17 +108,68 @@ export default function BankAccountsScreen() {
   }, [flow]);
 
   // A mock sync finishes by itself (the shimmer and the dot stop with it).
+  // Only a frozen fixture does that: a real item is re-read until Plaid settles.
   const status = connection?.status;
+  const itemId = connection?.itemId ?? null;
   useEffect(() => {
     if (status !== 'syncing' || !setBank) return;
+    if (bankPreviewState(window.location.search) === null) return;
     const t = setTimeout(() => setBank((cur) => ({ ...cur, status: 'upToDate' })), 1600);
     return () => clearTimeout(t);
   }, [status, setBank]);
 
+  // Real sync: re-read every 6s, at most 20 times, and stop on unmount. The
+  // effect restarts when the status moves, so a settled item polls no more.
+  useEffect(() => {
+    if (status !== 'syncing') {
+      pollTries.current = 0;
+      return;
+    }
+    if (!ctx?.enabled || !itemId) return;
+    if (bankPreviewState(window.location.search) !== null) return;
+    if (pollTries.current >= BANK_POLL_MAX_TRIES) return;
+    const t = setInterval(() => {
+      if (pollTries.current >= BANK_POLL_MAX_TRIES) {
+        clearInterval(t);
+        return;
+      }
+      pollTries.current += 1;
+      void loadAccounts();
+    }, BANK_POLL_MS);
+    return () => clearInterval(t);
+  }, [status, itemId, ctx?.enabled, loadAccounts]);
+
   if (!ctx || !connection) return null;
 
-  function startTracking() {
+  // Start tracking: ONE batch request with the accounts that were turned on.
+  // A refusal keeps the owner on this step with a toast; success shows the
+  // linked card from what the server now holds.
+  async function startTracking() {
     if (!draft.length) return;
+    const id = connection?.itemId ?? null;
+    if (id) {
+      try {
+        const res = await fetch(ACCOUNTS_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(trackingBatch(id, draft)),
+        });
+        if (!res.ok) {
+          setToast(TRACK_FAILED_TOAST);
+          return;
+        }
+      } catch {
+        setToast(TRACK_FAILED_TOAST);
+        return;
+      }
+      const next = await loadAccounts();
+      // The write landed even if the re-read did not: show the local truth
+      // rather than dropping back to the pitch.
+      if (!next) setBank?.((cur) => ({ ...cur, status: 'syncing', tracked: draft }));
+      setFlow('idle');
+      return;
+    }
+    // Frozen fixture only (?bankState=): moves local state, writes nothing.
     setBank?.((cur) => ({
       ...cur,
       status: 'syncing',
@@ -77,6 +177,74 @@ export default function BankAccountsScreen() {
       accounts: STARTER_ACCOUNTS,
       tracked: draft,
     }));
+    setFlow('idle');
+  }
+
+  // Connect → a real link token when this is a preview build. The mock handoff
+  // runs for exactly one response: the route's 404, which is plaidRouteEnabled
+  // saying no. Every other failure is a toast, never the placeholder sheet.
+  async function beginLink() {
+    try {
+      const res = await fetch('/api/plaid/link-token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      const body = (await res.json().catch(() => null)) as unknown;
+      const plan = linkTokenPlan(res.status, body);
+      if (plan.kind === 'mock') {
+        setFlow('handoff');
+        return;
+      }
+      if (plan.kind === 'error') {
+        setFlow('idle');
+        setToast(plan.message);
+        return;
+      }
+      setFlow('handoff');
+      setLinkToken(plan.token);
+    } catch {
+      setFlow('idle');
+      setToast(OPEN_BANK_FAILED_TOAST);
+    }
+  }
+
+  async function exchangePublicToken(publicToken: string, metadata: PlaidLinkOnSuccessMetadata) {
+    setLinkToken(null);
+    try {
+      const res = await fetch('/api/plaid/exchange', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          public_token: publicToken,
+          institution_name: metadata.institution?.name,
+        }),
+      });
+      const body = (await res.json().catch(() => null)) as unknown;
+      const plan = exchangePlan(res.status, body);
+      if (plan.kind === 'error') {
+        // A failed exchange never advances to the mock "choose accounts" step.
+        setFlow('idle');
+        setToast(plan.message);
+        return;
+      }
+      // Remember the real item (for disconnect), then re-read it: Choose
+      // accounts must list the bank's own accounts, never the fixture.
+      setBank?.((cur) => ({
+        ...cur,
+        itemId: plan.itemId,
+        institution: plan.institution ?? cur.institution,
+      }));
+      await loadAccounts();
+      setFlow('success');
+    } catch {
+      setFlow('idle');
+      setToast(CONNECT_FAILED_TOAST);
+    }
+  }
+
+  function cancelLink() {
+    setLinkToken(null);
     setFlow('idle');
   }
 
@@ -90,12 +258,32 @@ export default function BankAccountsScreen() {
     setToast(`Digest time set to ${digestLabel(value)}.`);
   }
 
-  function disconnect() {
-    setBank?.((cur) => ({ ...cur, status: 'none', institution: null, accounts: [], tracked: [] }));
+  // A real item is removed at Plaid first; a refusal keeps the connection and
+  // says so. The mock/fixture path has no item id, so it only moves local state.
+  async function disconnect() {
+    const itemId = ctx?.bank?.itemId ?? null;
+    if (itemId) {
+      setDisconnectBusy(true);
+      const result = await requestDisconnect(itemId);
+      setDisconnectBusy(false);
+      if (!result.ok) {
+        setDisconnectOpen(false);
+        setToast(result.message);
+        return;
+      }
+    }
+    setBank?.((cur) => ({
+      ...cur, itemId: null, status: 'none', institution: null, accounts: [], tracked: [],
+    }));
     setDisconnectOpen(false);
     setFlow('idle');
     setToast(DISCONNECTED_TOAST);
   }
+
+  // Real accounts after a link; the starter set only behind ?bankState=.
+  const chooseAccounts = connection.accounts.length > 0
+    ? connection.accounts
+    : fixture ? STARTER_ACCOUNTS : [];
 
   const body = (() => {
     if (tier === 'free') return <LockedCard />;
@@ -103,7 +291,7 @@ export default function BankAccountsScreen() {
     if (flow === 'choose') {
       return (
         <ChooseAccounts
-          accounts={STARTER_ACCOUNTS}
+          accounts={chooseAccounts}
           draft={draft}
           firstToggleRef={firstToggleRef}
           onToggle={toggleDraft}
@@ -112,7 +300,7 @@ export default function BankAccountsScreen() {
         />
       );
     }
-    if (!isLinked(connection)) return <Pitch onConnect={() => setFlow('handoff')} />;
+    if (!isLinked(connection)) return <Pitch onConnect={beginLink} />;
     return (
       <LinkedCard
         connection={connection}
@@ -127,7 +315,20 @@ export default function BankAccountsScreen() {
     <div data-bank-motion className="space-y-4">
       {body}
 
-      {plaidOpen && (
+      {linkToken && (
+        <PlaidConnect
+          token={linkToken}
+          onPublicToken={exchangePublicToken}
+          onExit={cancelLink}
+          onError={(message) => {
+            setLinkToken(null);
+            setFlow('idle');
+            setToast(message);
+          }}
+        />
+      )}
+
+      {plaidOpen && !linkToken && (
         <BankSheet label="Bank connection" onClose={() => { setPlaidOpen(false); setFlow('idle'); }}>
           <div className="flex items-center justify-between pb-1">
             <h2 className="font-display text-xl font-extrabold">Connect Chase</h2>
@@ -205,9 +406,10 @@ export default function BankAccountsScreen() {
           <button
             type="button"
             onClick={disconnect}
-            className="mt-2 min-h-[52px] w-full rounded-full border-[1.5px] border-error/40 font-semibold text-error active:scale-[0.97]"
+            disabled={disconnectBusy}
+            className="mt-2 min-h-[52px] w-full rounded-full border-[1.5px] border-error/40 font-semibold text-error active:scale-[0.97] disabled:opacity-50"
           >
-            Disconnect
+            {disconnectBusy ? 'Disconnecting…' : 'Disconnect'}
           </button>
           <button
             type="button"

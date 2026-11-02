@@ -1,6 +1,6 @@
 'use client';
 // ═══ Review stack ═══
-// A full-screen sheet on phones, a centred 440px dialog from 768px up, over a
+// A bottom sheet on phones, a centred 440px dialog from 768px up, over a
 // scrim. One stack of cards: drag sideways to browse, act on the front card.
 //
 // Structural rules this file keeps (SPEC.txt, overridden where CHANGES.md says):
@@ -24,7 +24,7 @@ import BankToast from './BankToast';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  accountLabel, addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, nextQueueIndex,
+  addedToast, counterLabel, formatDay, formatMoney, ignoredQueue, itemAccount, nextQueueIndex,
   reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
@@ -46,11 +46,13 @@ function booksNavTarget(): HTMLElement | null {
 }
 
 export default function ReviewStack({
-  state, dispatch, onClose,
+  state, dispatch, onClose, notice = null,
 }: {
   state: BankReviewState;
   dispatch: Dispatch<BankAction>;
   onClose: () => void;
+  /** A refused write from the provider: shown in the toast slot. */
+  notice?: { message: string; id: number } | null;
 }) {
   const queue = reviewQueue(state);
   const pending = queue.length;
@@ -67,6 +69,11 @@ export default function ReviewStack({
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [fly, setFly] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // A failed write is announced like any confirmation, once per failure.
+  useEffect(() => {
+    if (notice) setToast(notice.message);
+  }, [notice]);
   const [announce, setAnnounce] = useState('');
   const [closing, setClosing] = useState(false);
   const [dealt, setDealt] = useState(false);
@@ -293,7 +300,7 @@ export default function ReviewStack({
   }
 
   const sheet = (
-    <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0">
+    <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0 md:items-center">
       <div
         aria-hidden
         onClick={requestClose}
@@ -308,7 +315,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex h-full w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-auto md:max-h-[86vh] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[min(86vh,720px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -371,7 +378,7 @@ export default function ReviewStack({
         )}
 
         <div
-          className="relative mx-4 mb-3 min-h-0 flex-1"
+          className="relative mx-4 mb-3 min-h-0"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -385,7 +392,7 @@ export default function ReviewStack({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-semibold">{item.merchant}</div>
                     <div className="truncate text-[13px] text-on-surface-variant">
-                      {formatDay(item.date)} · {accountLabel(item.accountId)}
+                      {formatDay(item.date)} · {itemAccount(item)}
                     </div>
                   </div>
                   <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{formatMoney(item.amount)}</span>
@@ -435,7 +442,7 @@ export default function ReviewStack({
                   <div
                     key={item.id}
                     ref={isTop ? topCardRef : undefined}
-                    className="absolute inset-0"
+                    className={isTop ? 'relative' : 'absolute inset-0'}
                     style={{
                       zIndex: 30 - depth,
                       transform: isTop ? swipeTransform(drag, reduce || !dragging) : undefined,
@@ -450,7 +457,7 @@ export default function ReviewStack({
                       {isTop ? (
                         <ReviewCard
                           item={item}
-                          account={accountLabel(item.accountId)}
+                          account={itemAccount(item)}
                           headingRef={headingRef}
                           onAction={run}
                           onPatch={(patch) => dispatch({ type: 'edit', id: item.id, patch })}
@@ -459,7 +466,7 @@ export default function ReviewStack({
                         <div aria-hidden ref={(el) => { el?.setAttribute('inert', ''); }} className="h-full">
                           <ReviewCard
                             item={item}
-                            account={accountLabel(item.accountId)}
+                            account={itemAccount(item)}
                             onAction={() => {}}
                             onPatch={() => {}}
                           />
@@ -491,7 +498,7 @@ export default function ReviewStack({
               >
                 <ReviewCard
                   item={leaving.item}
-                  account={accountLabel(leaving.item.accountId)}
+                  account={itemAccount(leaving.item)}
                   cover={leaving.cover}
                   onAction={() => {}}
                   onPatch={() => {}}

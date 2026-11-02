@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, type Ref } from 'react';
 import Icon from '@/components/Icon';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES } from '@/lib/expenses';
 import { reducedMotion } from '@/lib/list-motion';
+import { bankPreviewState } from '@/lib/bank-accounts';
 import { cardActions, dateOptions, formatDay, formatMoney, type BankItem, type CardAction } from '@/lib/bank-tracking';
 
 export type { CardAction };
@@ -69,6 +70,11 @@ export default function ReviewCard({
   const amountRef = useRef<HTMLInputElement>(null);
   const editAmountRef = useRef<HTMLButtonElement>(null);
   const shownAmount = useCountedAmount(item.amount);
+  // Receipt attach is a mock (it only flips this card's model field), so the
+  // row ships only on the ?bankState= design fixture, never on a real charge.
+  const [fixture] = useState(
+    () => typeof window !== 'undefined' && bankPreviewState(window.location.search) !== null,
+  );
 
   useEffect(() => {
     if (editing !== 'amount') return;
@@ -95,7 +101,7 @@ export default function ReviewCard({
     <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
       {/* Expense cards dropped their letter tile (CHANGES.md · item 4), so the
           block carries a little more room instead of looking short. */}
-      <div className={`flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto ${review ? 'p-[18px]' : 'px-[18px] py-[22px]'}`}>
+      <div className={`flex min-h-0 flex-auto flex-col gap-3.5 overflow-y-auto ${review ? 'p-[18px]' : 'px-[18px] py-[22px]'}`}>
         {review ? (
           <>
             <div className="flex">
@@ -247,7 +253,7 @@ export default function ReviewCard({
               </div>
             )}
 
-            {item.receipt ? (
+            {fixture ? (item.receipt ? (
               <div className="bank-fade flex h-12 shrink-0 items-center gap-3 rounded-[14px] bg-surface-container-low px-2.5">
                 <span aria-hidden className="h-9 w-[30px] shrink-0 rounded-[6px] bg-[repeating-linear-gradient(135deg,#efe7da_0_4px,#faf3e7_4px_8px)]" />
                 <span className="flex-1 text-sm font-semibold">Receipt attached</span>
@@ -262,7 +268,7 @@ export default function ReviewCard({
                 <Icon name="receipt_long" size={20} />
                 Attach receipt
               </button>
-            )}
+            )) : null}
           </>
         )}
       </div>

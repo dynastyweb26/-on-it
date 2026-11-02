@@ -15,15 +15,24 @@ import {
 import { usePathname } from 'next/navigation';
 import ReviewStack from './ReviewStack';
 import {
-  bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState, todayIso, unaccountedCount,
-  type BankAction, type BankReviewState,
+  BANK_ITEMS, REVIEW_FAILED_TOAST, bankActive, bankReducer, pendingCount, reviewQueue, seedReviewState,
+  statusOf, todayIso, unaccountedCount, type BankAction, type BankReviewState,
 } from '@/lib/bank-tracking';
+import {
+  rollbackAction, reviewBody, rowToItem, transactionsPlan,
+  type ApiReviewRow,
+} from '@/lib/bank-review';
 import { exactTabIndex } from '@/lib/tabs';
 import { useSignedIn } from '@/lib/use-auth-session';
 import {
-  bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
+  bankPreviewState, bankTierFromSearch, emptyConnection, initialConnectionFromSearch,
   type BankConnection, type BankTier,
 } from '@/lib/bank-accounts';
+
+// The two real routes this provider reads and writes. The literals live here on
+// purpose: bank-tracking.test.ts counts every /api/ string in the bank files.
+const TRANSACTIONS_URL = '/api/plaid/transactions';
+const REVIEW_URL = '/api/plaid/review';
 
 type BankTrackingApi = {
   enabled: boolean;
@@ -37,6 +46,10 @@ type BankTrackingApi = {
   setBank: Dispatch<SetStateAction<BankConnection>>;
   /** Pro or free. ?bankTier=free flips it on a preview build only. */
   tier: BankTier;
+  /** Decided counts from the last real read: added / already / ignored. */
+  counts: { added: number; already: number; ignored: number };
+  /** A refused write, shown by the review sheet as a toast. */
+  notice: { message: string; id: number } | null;
 };
 
 const BankContext = createContext<BankTrackingApi | null>(null);
@@ -55,7 +68,9 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   enabled?: boolean;
   children: React.ReactNode;
 }) {
-  const [state, dispatch] = useReducer(bankReducer, undefined, () => seedReviewState());
+  // Empty by default: a fresh account has no bank items, so no popup, no
+  // Unaccounted row and no Books dot until a real sync writes something.
+  const [state, dispatch] = useReducer(bankReducer, undefined, () => seedReviewState([]));
   const [open, setOpen] = useState(false);
   const [bank, setBank] = useState<BankConnection>(() => emptyConnection());
   const [tier, setTier] = useState<BankTier>('pro');
@@ -71,13 +86,48 @@ export default function BankTrackingProvider({ enabled = false, children }: {
   const unaccounted = unaccountedCount(state);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const [counts, setCounts] = useState<{ added: number; already: number; ignored: number }>(
+    () => ({ added: 0, already: 0, ignored: 0 }),
+  );
+  const [notice, setNotice] = useState<{ message: string; id: number } | null>(null);
+  // The rows behind the stack, keyed by bank_transactions id. A fixture item is
+  // absent here, which is exactly what keeps its actions local.
+  const rowsRef = useRef<Map<string, ApiReviewRow>>(new Map());
+  const real = useRef(false);
 
   // Preview fixtures: ?bankTier=free and ?bankState=reconnect|syncing|linked.
-  // Read once, on the client, only where the flag is on.
+  // Read once, on the client, only where the flag is on. The review batch is
+  // fixture data too, so it is seeded ONLY behind ?bankState=; every other
+  // preview (and the app itself) starts with an empty state.
   useEffect(() => {
     if (!active) return;
-    setTier(bankTierFromSearch(window.location.search));
-    setBank(initialConnectionFromSearch(window.location.search));
+    const search = window.location.search;
+    setTier(bankTierFromSearch(search));
+    setBank(initialConnectionFromSearch(search));
+    if (bankPreviewState(search)) dispatch({ type: 'seed', items: BANK_ITEMS });
+  }, [active]);
+
+  // The real queue: one read once the flag is on and someone is signed in, so a
+  // reload rebuilds the stack, the dot and Unaccounted from the database. A
+  // ?bankState= preview keeps its frozen fixtures and never reads.
+  useEffect(() => {
+    if (!active) return;
+    if (bankPreviewState(window.location.search) !== null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(TRANSACTIONS_URL, { cache: 'no-store' });
+        const body = (await res.json().catch(() => null)) as unknown;
+        const plan = transactionsPlan(res.status, body);
+        // 404 is the gate, and an error leaves the queue quiet — never "all done".
+        if (cancelled || plan.kind !== 'rows') return;
+        rowsRef.current = new Map(plan.rows.map((row) => [row.id, row]));
+        real.current = true;
+        setCounts(plan.counts);
+        dispatch({ type: 'seed', items: plan.rows.map(rowToItem) });
+      } catch { /* offline: the stack stays empty */ }
+    })();
+    return () => { cancelled = true; };
   }, [active]);
 
   // Every close is a dismissal: it forbids the auto popup until a new app open
@@ -202,16 +252,47 @@ export default function BankTrackingProvider({ enabled = false, children }: {
     return () => document.removeEventListener('click', onNavPress, true);
   }, [open]);
 
+  // Fixture actions move local state only. A real row also posts its decision:
+  // the move paints first, and a refusal rolls it back with one toast.
+  const dispatchAction = useCallback((action: BankAction) => {
+    if (action.type !== 'add' && action.type !== 'already'
+      && action.type !== 'ignore' && action.type !== 'restore') {
+      dispatch(action);
+      return;
+    }
+    const previous = statusOf(stateRef.current, action.id);
+    dispatch(action);
+    if (!real.current) return;
+    const row = rowsRef.current.get(action.id);
+    const item = stateRef.current.items.find((it) => it.id === action.id);
+    if (!row || !item) return;
+    void (async () => {
+      try {
+        const res = await fetch(REVIEW_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(reviewBody(row, item, action.type)),
+        });
+        if (res.ok) return;
+      } catch { /* the rollback below is the answer */ }
+      dispatch(rollbackAction(previous, action.id));
+      setNotice({ message: REVIEW_FAILED_TOAST, id: Date.now() });
+    })();
+  }, []);
+
   const value = useMemo<BankTrackingApi>(
-    () => ({ enabled: active, state, dispatch, openStack, pending, unaccounted, bank, setBank, tier }),
-    [active, state, openStack, pending, unaccounted, bank, setBank, tier],
+    () => ({
+      enabled: active, state, dispatch: dispatchAction, openStack, pending, unaccounted, bank, setBank,
+      tier, counts, notice,
+    }),
+    [active, state, dispatchAction, openStack, pending, unaccounted, bank, setBank, tier, counts, notice],
   );
 
   return (
     <BankContext.Provider value={value}>
       {children}
       {active && open && (
-        <ReviewStack state={state} dispatch={dispatch} onClose={closeStack} />
+        <ReviewStack state={state} dispatch={dispatchAction} onClose={closeStack} notice={notice} />
       )}
     </BankContext.Provider>
   );

@@ -58,6 +58,10 @@ export type BankItem = {
   /** yyyy-mm-dd, read as a local date (same convention as expenses.spent_on). */
   date: string;
   accountId: string;
+  /** Integer cents when the row came from the real bank: never a float. */
+  cents?: number;
+  /** "Chase ••4821" for a real row; the fixture derives it from accountId. */
+  accountLabel?: string;
   category: ExpenseCategory;
   /** Already recorded in Expenses: the strip points at it. */
   match?: string;
@@ -169,6 +173,8 @@ export type BankAction =
   | { type: 'ignore'; id: string }
   /** Restore on an ignored card: it goes back into To review. */
   | { type: 'restore'; id: string }
+  /** Replace the batch (preview fixtures only; the app starts empty). */
+  | { type: 'seed'; items: BankItem[] }
   /** Closing the stack with nothing left to review makes ignored items final. */
   | { type: 'finalizeIgnored' }
   /** Unlink on a bank-verified row: the item goes back to Unaccounted for. */
@@ -191,6 +197,8 @@ export function bankReducer(state: BankReviewState, action: BankAction): BankRev
     case 'reopen':
     case 'restore':
       return { ...state, status: { ...state.status, [action.id]: 'open' } };
+    case 'seed':
+      return seedReviewState(action.items);
     case 'finalizeIgnored': {
       // Only when To review is empty: the owner has nothing left to look at, so
       // the ones they passed on stop being restorable and the tab disappears.
@@ -317,6 +325,21 @@ export const formatMoney = (n: number): string =>
   Number.isFinite(n)
     ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
     : '$—';
+
+/** Integer cents for an item: the bank's exact value, else the fixture's dollars. */
+export const amountOf = (item: Pick<BankItem, 'amount' | 'cents'>): number =>
+  typeof item.cents === 'number' ? item.cents : Math.round(item.amount * 100);
+
+/** Totals in cents: money math never goes through a float. */
+export const sumCents = (items: Pick<BankItem, 'amount' | 'cents'>[]): number =>
+  items.reduce((sum, item) => sum + amountOf(item), 0);
+
+/** The account line under a merchant: a real row carries its own. */
+export const itemAccount = (item: Pick<BankItem, 'accountId' | 'accountLabel'>): string =>
+  item.accountLabel ?? accountLabel(item.accountId);
+
+/** The one toast a refused review write shows. */
+export const REVIEW_FAILED_TOAST = 'That didn’t save. Try again.';
 
 /**
  * The date row's chips: the bank's date, the day before, and today — de-duped
