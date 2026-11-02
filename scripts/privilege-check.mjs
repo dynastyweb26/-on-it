@@ -1,9 +1,14 @@
-﻿// Runs supabase/snippets/privilege_check.sql and prints one PASS/FAIL line per
+// Runs supabase/snippets/privilege_check.sql and prints one PASS/FAIL line per
 // check. Exit code 0 = all PASS, 1 = any FAIL or an error.
 //
 //   npm run db:privcheck
 //   npm run db:privcheck -- --db-url "postgresql://…"
 //   PRIVCHECK_DB_URL="postgresql://…" npm run db:privcheck
+//
+// A query that errors prints the database's own error text and
+// "PRIVCHECK ERROR: no results, not a pass", then exits 1. An error is never
+// reported as a pass and never counts as one. The result/error handling lives in
+// scripts/lib/privcheck-result.mjs so a test can feed it a failed query.
 //
 // Target selection:
 //   • With --db-url / PRIVCHECK_DB_URL, the query runs against THAT database.
@@ -24,6 +29,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { reportQueryRun } from './lib/privcheck-result.mjs';
 
 const PROD_REF = 'bitfmmffnigxjjyxoxfr';
 
@@ -101,50 +107,10 @@ const run = spawnSync(
     maxBuffer: 16 * 1024 * 1024,
   },
 );
-if (run.status !== 0) {
-  console.error('privilege check: supabase db query failed');
-  console.error(scrub((run.stderr || run.stdout || '').trim()));
-  process.exit(1);
-}
 
-// Rows from either JSON shape: a bare array (--agent no) or { rows: [...] }
-// (agent mode, if an older CLI ignores --agent). Anything else is a clear stop.
-
-const out = run.stdout.trim();
-let parsed;
-try {
-  parsed = JSON.parse(out);
-} catch {
-  console.error('privilege check: the Supabase CLI did not return JSON, so the results could not be read.');
-  console.error('It was asked for JSON (--output-format json). Update the CLI (npx supabase --version; this script was');
-  console.error('checked with 2.119.0) and run again. First lines of what it printed instead:');
-  console.error(out.split('\n').slice(0, 5).join('\n'));
-  process.exit(1);
-}
-const rows = Array.isArray(parsed) ? parsed : parsed?.rows;
-if (!Array.isArray(rows) || rows.length === 0 || typeof rows[0]?.check_id !== 'string') {
-  console.error('privilege check: the CLI returned JSON, but not the expected check rows (check_id, result, expected, found).');
-  console.error(out.slice(0, 2000));
-  process.exit(1);
-}
-
-// SKIP = the check's migration isn't pushed yet; not a failure.
-const label = (r) => (r.result === 'PASS' || r.result === 'SKIP' ? r.result : 'FAIL');
-const width = Math.max(...rows.map((r) => r.check_id.length));
-for (const r of rows) {
-  console.log(`${label(r)}  ${r.check_id.padEnd(width)}  ${r.expected}`);
-  if (label(r) === 'FAIL') console.log(`${' '.repeat(6 + width)}  found: ${r.found}`);
-}
-// Rows that must be in the output at all (a SKIP still counts as present). A
-// stale copy of the SQL, or a query that dropped a section, must not pass.
-const REQUIRED = [
-  'BA1', 'BA2', 'BA3', 'BA4', 'BA5', 'BA6',
-  'BB1', 'BB2', 'BB3', 'BB4', 'BB5', 'BB6', 'BB7', 'BB8', 'BB9', 'BB10',
-];
-const missing = REQUIRED.filter((id) => !rows.some((r) => r.check_id.split(' ')[0] === id));
-for (const id of missing) console.log(`FAIL  ${id}  row missing from the privilege check output`);
-const count = (s) => rows.filter((r) => label(r) === s).length;
-const failed = count('FAIL') + missing.length;
-const skipped = count('SKIP');
-console.log(`\n${count('PASS')} PASS, ${failed} FAIL${skipped ? `, ${skipped} SKIP (migration not pushed yet)` : ''}`);
-process.exit(failed ? 1 : 0);
+// Everything after the query — reading the rows, or reporting why there are
+// none — is in the pure handler. Errors go to stderr with a non-zero code.
+const report = reportQueryRun(run, { redact: scrub });
+const print = report.stream === 'stderr' ? console.error : console.log;
+for (const line of report.lines) print(line);
+process.exitCode = report.exitCode;
