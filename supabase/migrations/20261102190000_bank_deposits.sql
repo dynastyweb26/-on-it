@@ -96,6 +96,7 @@ create index if not exists bank_deposit_links_user_idx
 --   • a ledger row can never be linked to a Stripe payout or a deposit already
 --     marked not income (and vice versa);
 --   • the linked ledger amounts can never exceed the deposit;
+--   • only a plain manual payment can be linked: no Stripe row and no reversal;
 --   • a link can never cross owners.
 -- SECURITY DEFINER because the owner has no write grant; the lock on the
 -- deposit serializes concurrent links so two inserts cannot both pass the sum.
@@ -107,6 +108,7 @@ set search_path = ''
 as $$
 declare
   v_deposit public.bank_deposits%rowtype;
+  v_payment record;
   v_linked  numeric;
   v_this    numeric;
 begin
@@ -153,7 +155,14 @@ begin
   end if;
 
   if new.payment_id is not null then
-    select p.amount into v_this
+    select p.entry_type,
+           p.amount,
+           p.stripe_checkout_session_id,
+           p.stripe_event_id,
+           p.stripe_payment_intent_id,
+           p.stripe_object_id,
+           p.reverses_payment_id
+      into v_payment
       from public.invoice_payments p
       where p.id = new.payment_id
         and p.user_id = new.user_id;
@@ -162,6 +171,22 @@ begin
       raise exception 'Payment does not belong to this owner'
         using errcode = 'check_violation';
     end if;
+
+    -- A deposit is cash the owner received; a Stripe row is card money already
+    -- counted and a reversal is a correction. Neither may take a deposit link.
+    if v_payment.entry_type <> 'payment'
+      or v_payment.amount <= 0
+      or v_payment.stripe_checkout_session_id is not null
+      or v_payment.stripe_event_id is not null
+      or v_payment.stripe_payment_intent_id is not null
+      or v_payment.stripe_object_id is not null
+      or v_payment.reverses_payment_id is not null
+    then
+      raise exception 'Only a manual payment can be linked to a deposit'
+        using errcode = 'check_violation';
+    end if;
+
+    v_this := v_payment.amount;
 
     select coalesce(sum(p.amount), 0)
       into v_linked
@@ -231,4 +256,6 @@ revoke truncate on public.bank_deposits, public.bank_deposit_links
 --    • deposit with not_income, any payment link → refused
 --    • deposit with a payment link, not_income → refused
 --    • another owner's payment_id → refused
+--    • a Stripe-paid row, a non-payment entry or a reversal link → refused
+--    • a payment whose amount is zero or negative → refused
 -- ═══════════════════════════════════════════════════════════════

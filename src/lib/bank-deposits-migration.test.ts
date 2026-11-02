@@ -65,6 +65,33 @@ test('the guard refuses payouts, conflicting decisions, other owners and over-su
   assert.match(MIGRATION, /revoke execute on function public\.guard_bank_deposit_link\(\)/);
 });
 
+test('only a plain manual payment can be linked: no Stripe row, no reversal', () => {
+  // The guard loads exactly what it judges, not just the amount.
+  assert.match(MIGRATION, /select p\.entry_type,/);
+  assert.match(MIGRATION, /p\.amount,/);
+  for (const column of [
+    'stripe_checkout_session_id',
+    'stripe_event_id',
+    'stripe_payment_intent_id',
+    'stripe_object_id',
+    'reverses_payment_id',
+  ]) {
+    assert.match(MIGRATION, new RegExp(`p\\.${column}\\b`), column);
+  }
+  assert.match(MIGRATION, /into v_payment/);
+
+  assert.match(MIGRATION, /v_payment\.entry_type <> 'payment'/);
+  assert.match(MIGRATION, /v_payment\.amount <= 0/);
+  const refusals = MIGRATION.match(
+    /v_payment\.(?:stripe_\w+|reverses_payment_id) is not null/g,
+  ) ?? [];
+  assert.equal(refusals.length, 5, 'every Stripe and reversal column is refused');
+
+  assert.match(MIGRATION, /raise exception 'Only a manual payment can be linked to a deposit'/);
+  // The sum check uses the amount that was just validated.
+  assert.match(MIGRATION, /v_this := v_payment\.amount;/);
+});
+
 test('the privilege check carries the new rows and requires them', () => {
   for (const id of ['BD1', 'BD2', 'BD3', 'BD4']) {
     assert.match(PRIVCHECK, new RegExp(`select '${id} `), `${id} SQL`);
