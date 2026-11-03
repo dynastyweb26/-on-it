@@ -7,7 +7,7 @@
 //     the notice still renders — it just cannot remember the dismissal;
 //   · no profile column: this is a one-device acknowledgement.
 import { useEffect, useState } from 'react';
-import { LUMP_NOTICE_COPY, showLumpNotice } from '@/lib/payout-lump-notice';
+import { LUMP_NOTICE_COPY, showLumpNotice, showLumpPopup } from '@/lib/payout-lump-notice';
 
 const DISMISSED_KEY = 'onit_payout_lump_notice';
 // The popup is remembered separately: the inline note is the durable one, the
@@ -17,10 +17,13 @@ const POPUP_KEY = 'onit_payout_lump_popup';
 export default function PayoutLumpNotice({
   stripeAccountId,
   bankLast4,
+  accessTier,
   variant = 'inline',
 }: {
   stripeAccountId: string | null | undefined;
   bankLast4: string | null | undefined;
+  /** The profile's own access_tier — no second read; the popup is paid-only. */
+  accessTier?: string | null;
   /** inline = the note under the rows; popup = the one-time hello. */
   variant?: 'inline' | 'popup';
 }) {
@@ -30,7 +33,10 @@ export default function PayoutLumpNotice({
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!showLumpNotice(stripeAccountId, bankLast4)) {
+    const wanted = variant === 'popup'
+      ? showLumpPopup(accessTier, stripeAccountId, bankLast4)
+      : showLumpNotice(stripeAccountId, bankLast4);
+    if (!wanted) {
       setVisible(false);
       return;
     }
@@ -55,7 +61,7 @@ export default function PayoutLumpNotice({
     };
     attempt();
     return () => { if (timer) clearTimeout(timer); };
-  }, [stripeAccountId, bankLast4, storageKey, variant]);
+  }, [stripeAccountId, bankLast4, accessTier, storageKey, variant]);
 
   if (!visible) return null;
 

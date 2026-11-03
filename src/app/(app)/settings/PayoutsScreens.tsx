@@ -86,6 +86,7 @@ export function PayoutsIndex({ p, zelleMasked, connectOn }: { p: any; zelleMaske
       />
       <PayoutLumpNotice
         variant="popup"
+        accessTier={p.access_tier}
         stripeAccountId={connectOn ? p.stripe_account_id : null}
         bankLast4={p.bank_account_last4}
       />
