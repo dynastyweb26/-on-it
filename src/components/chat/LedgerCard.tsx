@@ -94,7 +94,8 @@ export function LedgerFrame({
       <div className="px-4 pb-4 pt-3.5">
         <div className="flex items-center gap-1.5 text-caps text-on-surface-variant">
           <Icon name={kind === 'quote' ? 'request_quote' : 'description'} size={17} />
-          <span>{kind === 'quote' ? 'Estimate for' : 'Invoice for'}</span>
+          {/* Keyed: a toggle replays the 8px lift + fade (design 2). */}
+          <span key={kind} className="onit-label-in">{kind === 'quote' ? 'Estimate for' : 'Invoice for'}</span>
         </div>
         {/* Shared-element anchor for the builder morph (item 3). */}
         <m.div
@@ -125,7 +126,9 @@ export function LedgerTotals({
   return (
     <div className="mt-3.5 flex items-end justify-between gap-3 rounded-[14px] bg-inverse-surface px-4 py-4">
       <div className="min-w-0 pb-0.5">
-        <div className="text-caps uppercase text-inverse-on-surface/70">{label}</div>
+        <div className="text-caps uppercase text-inverse-on-surface/70">
+          <span key={label} className="onit-label-in">{label}</span>
+        </div>
         {sublines}
       </div>
       <span

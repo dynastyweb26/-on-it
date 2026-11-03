@@ -212,11 +212,12 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
       <div className="flex items-center gap-2">
         <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary-soft px-2.5 text-[13px] font-bold text-primary-on-container">
           <Icon name={kind === 'quote' ? 'request_quote' : 'description'} size={16} />
-          New {noun}
+          {/* Keyed so a kind change replays the 8px lift + fade (design 2). */}
+          <span key={kind} className="onit-label-in">New {noun}</span>
         </span>
         <button type="button" onClick={() => onKindChange(other)}
           className="min-h-[36px] px-1.5 text-[13.5px] font-bold text-primary active:opacity-60">
-          Make it {other === 'quote' ? 'an estimate' : 'an invoice'}
+          <span key={other} className="onit-label-in">Make it {other === 'quote' ? 'an estimate' : 'an invoice'}</span>
         </button>
         <button type="button" aria-label="Close template" onClick={onClose}
           className="ml-auto grid h-8 w-8 place-items-center rounded-full bg-surface-container-high text-on-background active:scale-90">
