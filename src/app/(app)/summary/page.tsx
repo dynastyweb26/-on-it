@@ -264,7 +264,7 @@ export default function TaxSummary() {
       .map((row) => ({ amount: row.amount, paid_at: row.paid_at ?? null }));
     const spend = (expenses ?? [])
       .filter((row) => on(row.spent_on))
-      .map((row) => ({ amount: row.amount, spent_on: row.spent_on }));
+      .map((row) => ({ amount: row.amount, spent_on: row.spent_on ?? null }));
     return chartPoints(pays, [], spend, chartGrain);
   }, [payments, expenses, chartPreset, chartGrain]);
   const unaccountedBank = bank?.state ? unaccountedItems(bank.state).length : 0;
