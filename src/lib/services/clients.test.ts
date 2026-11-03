@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   matchClient,
+  clientQuestionPending,
   matchOrCreateClient,
   namesRelated,
   type ClientRecord,
@@ -230,4 +231,21 @@ test('service: save mode ambiguity does not call the RPC', async () => {
   const out = await matchOrCreateClient(supabase, 'u1', { name: 'Maria' }, { save: true });
   assert.equal(out.status, 'ambiguous');
   assert.equal(calls.rpcs.length, 0);
+});
+
+// ── clientQuestionPending (the repeat-tap guard) ─────────────────
+
+test('pending: asked in this conversation for the draft\'s current client name', () => {
+  const question = { typed: 'Maria', convo: 'c1' };
+  assert.equal(clientQuestionPending({ question, convo: 'c1', draftName: 'Maria' }), true);
+  assert.equal(clientQuestionPending({ question, convo: 'c1', draftName: '  MARIA ' }), true); // same key
+});
+
+test('not pending: nothing asked, another conversation, or the draft name changed', () => {
+  const question = { typed: 'Maria', convo: 'c1' };
+  assert.equal(clientQuestionPending({ question: null, convo: 'c1', draftName: 'Maria' }), false);
+  assert.equal(clientQuestionPending({ question, convo: 'c2', draftName: 'Maria' }), false);
+  assert.equal(clientQuestionPending({ question, convo: null, draftName: 'Maria' }), false);
+  assert.equal(clientQuestionPending({ question, convo: 'c1', draftName: 'Maria Gonzalez' }), false);
+  assert.equal(clientQuestionPending({ question, convo: 'c1', draftName: null }), false);
 });

@@ -60,7 +60,7 @@ import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type
 import { anchorFor, localToday } from '@/lib/recurring';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
-import { matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
+import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -599,7 +599,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // clients for the typed name and paused to ask which one. Nothing is created
   // until the user answers. `convo` ties it to this conversation.
   const [clientChoice, setClientChoice] =
-    useState<{ typed: string; candidates: ClientRecord[]; convo: string | null } | null>(null);
+    useState<{ typed: string; candidates: ClientRecord[]; convo: string | null; fp: string } | null>(null);
+  // The same question, readable synchronously: finalize() must see it cleared
+  // in the very handler that cleared it (a stale closure would block the resume).
+  const clientAskRef = useRef<{ typed: string; convo: string | null } | null>(null);
   // The client this conversation's draft is already settled on (matched,
   // created, or picked), keyed by name: later edits skip matching entirely.
   const resolvedClientRef = useRef<{ id: string; key: string; convo: string | null } | null>(null);
@@ -1779,6 +1782,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // stashed file may no longer match it. Drop it until this build lands.
       preBuiltRef.current = null;
     } else {
+      // A client question is already waiting on its card: asking again would
+      // repeat the message, the card and the speech. Do nothing.
+      if (clientQuestionPending({ question: clientAskRef.current, convo: convoId || null, draftName: draft?.client_name })) return;
       if (!internal && phase) return;
       // `phase` is state and lags a render, so two taps inside one frame both
       // read it as null. This ref flips synchronously: the second tap (or a typed
@@ -1925,7 +1931,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
             const question = names.length === 1
               ? `I have ${names[0]} on file. Is this ${names[0]}, or a new client?`
               : `I have a few clients that match ${rd0.clientName}. Which one is it?`;
-            setClientChoice({ typed: rd0.clientName, candidates: found.candidates, convo: convoId || null });
+            clientAskRef.current = { typed: rd0.clientName, convo: convoId || null };
+            setClientChoice({ typed: rd0.clientName, candidates: found.candidates, convo: convoId || null, fp: draftFingerprint(draft) });
             setMessages((m) => [...m, aMsg(question, { skipHistory: true })]);
             if (voiceFinalizeRef.current) {
               cancelSpeechRef.current?.();
@@ -3450,6 +3457,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const convo = convoId || null;
     if (choice === 'new') {
       forceNewClientRef.current = { key: clientNameKey(clientChoice.typed), convo };
+      clientAskRef.current = null;
       setClientChoice(null);
       void finalize();
       return;
@@ -3457,11 +3465,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const picked = clientChoice.candidates.find((c) => c.id === choice.id);
     if (!picked) return;
     resolvedClientRef.current = { id: picked.id, key: clientNameKey(picked.name), convo };
+    clientAskRef.current = null;
     setClientChoice(null);
     setMessages((m) => [...m, aMsg(`Using ${picked.name}.`, { skipHistory: true })]);
     resumeAfterPickRef.current = true;
     setDraft((prev) => (prev ? { ...prev, client_name: picked.name } : prev));
   }
+  // Any edit to the draft retires the question: the next Send asks afresh, once.
+  useEffect(() => {
+    if (clientChoice && draftFingerprint(draft) !== clientChoice.fp) {
+      clientAskRef.current = null;
+      setClientChoice(null);
+    }
+  }, [draft, clientChoice]);
   // The pick rewrote draft.client_name; once that render is in, send. Reading
   // `draft` here (not in pickClientChoice) is what makes the resumed finalize
   // build its row and PDF with the stored spelling.
@@ -4144,8 +4160,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {clientChoice && clientChoice.convo === (convoId || null)
-          && clientNameKey(draft?.client_name ?? '') === clientNameKey(clientChoice.typed) && (
+        {clientChoice && clientQuestionPending({ question: clientChoice, convo: convoId || null, draftName: draft?.client_name }) && (
           // finalize() paused: the typed name is close to saved clients but not
           // the same. Nothing is created until one of these is tapped.
           <div className="card border-primary-container/50">
