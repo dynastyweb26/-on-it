@@ -70,6 +70,11 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const pageRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const codeCardRef = useRef<HTMLDivElement>(null);
+  // Synchronous double-tap guards. `busy` is state and lags a render, so two
+  // taps in the same frame both read it as false and would each start a checkout
+  // session (or a restore lookup). These flip inside the tap, clear in a finally.
+  const buyRef = useRef(false);
+  const restoreRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -174,15 +179,22 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
 
   // The ONLY purchase action on the wall: hand over to startSubscription().
   async function buy() {
-    if (busy || state === 'checking') return;
+    // The ref is checked first: a second tap in this same frame still sees the
+    // pre-render `busy`/`state`, which is how a double tap opened two sessions.
+    if (buyRef.current || busy || state === 'checking') return;
+    buyRef.current = true;
     setBusy(true);
     setNotice('');
-    const outcome = await startSubscription(back);
-    if (!outcome.started) {
-      setNotice(outcome.message);
-      setBusy(false);
+    try {
+      const outcome = await startSubscription(back);
+      if (!outcome.started) {
+        setNotice(outcome.message);
+        setBusy(false);
+      }
+      // started: the browser is on its way to the payment sheet; stay busy.
+    } finally {
+      buyRef.current = false;
     }
-    // started: the browser is on its way to the payment sheet; stay busy.
   }
 
   // Restore Purchases. UI only for now: lib/subscription/restore.ts is the stub
@@ -190,8 +202,15 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // something it cannot see. It reports through the same inline notice slot the
   // purchase errors use.
   async function restore() {
-    const outcome = await restorePurchases();
-    setNotice(outcome === 'restored' ? 'Purchase restored.' : RESTORE_UNAVAILABLE);
+    // Same sync guard as buy(): a repeat tap must not stack a second lookup.
+    if (restoreRef.current) return;
+    restoreRef.current = true;
+    try {
+      const outcome = await restorePurchases();
+      setNotice(outcome === 'restored' ? 'Purchase restored.' : RESTORE_UNAVAILABLE);
+    } finally {
+      restoreRef.current = false;
+    }
   }
 
   const footerButton = 'flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary-container font-display text-base font-bold text-on-background outline-none transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100 focus-visible:ring-2 focus-visible:ring-on-background focus-visible:ring-offset-2 focus-visible:ring-offset-background xl:max-w-[400px]';
