@@ -1784,7 +1784,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     } else {
       // A client question is already waiting on its card: asking again would
       // repeat the message, the card and the speech. Do nothing.
-      if (clientQuestionPending({ question: clientAskRef.current, convo: convoId || null, draftName: draft?.client_name })) return;
+      if (clientQuestionPending({ question: clientAskRef.current, convo: convoId || null, draftName: draft?.client_name })) {
+        scrollToClientQuestion(); // a re-tap just shows the card that is already waiting
+        return;
+      }
       if (!internal && phase) return;
       // `phase` is state and lags a render, so two taps inside one frame both
       // read it as null. This ref flips synchronously: the second tap (or a typed
@@ -3447,6 +3450,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setDraft(previous);
   }
 
+  // The question is open: the card is up and Send reads "Pick a client first".
+  const clientQuestionOpen = !!clientChoice
+    && clientQuestionPending({ question: clientChoice, convo: convoId || null, draftName: draft?.client_name });
+  // The card sits below the invoice preview, off-screen on a phone: bring it up.
+  const clientCardRef = useRef<HTMLDivElement | null>(null);
+  function scrollToClientQuestion() {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    clientCardRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+  }
+  // When the question appears (after the list's own pin-to-bottom has run).
+  useEffect(() => {
+    if (!clientQuestionOpen) return;
+    const id = requestAnimationFrame(scrollToClientQuestion);
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientQuestionOpen]);
+
   // ── Client choice resolvers (lib/services/clients) ──────────
   // The card below the chat after finalize() paused on a close-but-not-exact
   // client. A pick uses an id from the candidates the service returned (never
@@ -3845,9 +3865,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
               // No file to build or share: the client gets the link.
               <>
                 <Icon name="send" size={18} />
-                {phase === 'building' ? 'Sending…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
-            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
+            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' && !clientQuestionOpen ? (
               // The file is built and waiting: this tap opens the share sheet.
               <>
                 <Icon name="share" size={18} />
@@ -3856,7 +3876,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ) : (
               <>
                 <Icon name="attach_file" size={18} />
-                {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             )}
           </button>
@@ -4160,10 +4180,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {clientChoice && clientQuestionPending({ question: clientChoice, convo: convoId || null, draftName: draft?.client_name }) && (
+        {clientChoice && clientQuestionOpen && (
           // finalize() paused: the typed name is close to saved clients but not
           // the same. Nothing is created until one of these is tapped.
-          <div className="card border-primary-container/50">
+          <div ref={clientCardRef} className="card border-primary-container/50">
             <p className="text-body-md">Which client is this for?</p>
             {clientChoice.candidates.map((c) => (
               <button
