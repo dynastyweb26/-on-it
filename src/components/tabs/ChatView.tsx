@@ -695,6 +695,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
+  // A finished take is uploading/being transcribed (ring spinner in the field).
+  const [transcribing, setTranscribing] = useState(false);
+  // Inline mic problem (denied permission, no mic, no support) — shown above the
+  // field, never as a chat bubble.
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // The bank popup holds off while the mic owns the screen (CHANGES.md · item
   // 10): the shell cannot see this state, so it is mirrored onto the body.
@@ -2876,6 +2881,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   async function startRecording() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceSession(false); sessionRef.current = false;
+      setVoiceError("Voice isn't available in this browser. You can type instead.");
+      return;
+    }
+    setVoiceError(null);
     try {
       const stream = await getSessionStream(); // reused across takes — one prompt per session
       const rec = new MediaRecorder(stream);
@@ -2889,6 +2900,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         if (recAbortRef.current) return; // session ended mid-take — discard
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         setPhase('thinking'); // transcription is a turn in flight
+        setTranscribing(true);
         let text = '';
         let data: { text?: string; authRequired?: boolean; message?: string } = {};
         try {
@@ -2896,6 +2908,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           data = await res.json();
           text = (data.text ?? '').trim();
         } catch { /* treated as "didn't catch that" */ }
+        setTranscribing(false);
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
@@ -2910,7 +2923,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
-        if (text) void send(text, 'voice');
+        // The transcript lands in the field first, so the words appear where the
+        // user was speaking before the turn is sent.
+        if (text) { setInput(text); void send(text, 'voice'); }
         else setMessages((m) => [...m, aMsg("Didn't catch that — try again or type it.")]);
       };
       rec.start();
@@ -2921,10 +2936,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      // A second denied tap right after the first would stack an identical
-      // bubble; only add it if the last message isn't already this one.
-      const blocked = micBlockedMessage(err);
-      setMessages((m) => (m[m.length - 1]?.content === blocked ? m : [...m, aMsg(blocked)]));
+      // Inline above the field, not a chat bubble: the session is already over
+      // and the field is the thing the user must fall back to.
+      setTranscribing(false);
+      setVoiceError(micBlockedMessage(err));
     }
   }
 
@@ -3237,6 +3252,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   function endVoiceSession() {
     setVoiceSession(false); sessionRef.current = false;
+    setTranscribing(false); setVoiceError(null);
     stopSpeech();
     if (recording && recorderRef.current) {
       recAbortRef.current = true;
@@ -4113,7 +4129,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
+        {((phase === 'thinking' && !transcribing) || phase === 'reading' || (phase === 'preparing' && receipt)) && (
           <div role="status" className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
@@ -4201,6 +4217,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onChange={onPickReceipt}
           />
 
+          {voiceError && (
+            <p role="status" aria-live="polite" className="mb-2 border-l-2 border-primary-container pl-2 text-body-md text-on-surface-variant">
+              {voiceError}
+            </p>
+          )}
+
           <div className="flex items-end gap-2">
             <div className="relative shrink-0">
               {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
@@ -4218,50 +4240,51 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 disabled={!voiceSession && phase !== null}
                 onClick={voiceSession ? endVoiceSession : plusTap}
               >
+                {voiceSession && <MicRings stream={streamRef.current} active={recording} />}
                 <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
                   <Icon name="add" size={28} />
                 </span>
               </button>
             </div>
 
-            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-4 pr-1">
+            {/* One field for both modes: during a voice session it turns gold and
+                reads "Listening…", the recognised words land in this same
+                textarea, and a ring spinner takes the label while the take is
+                transcribed. The right-hand button is always the send arrow. */}
+            <div className={`flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border py-1 pl-4 pr-1 transition-[border-color,box-shadow] duration-settle ease-settle
+              bg-surface-container-lowest ${voiceSession ? 'border-primary-container ring-2 ring-primary-container/35' : 'border-outline-variant'}`}>
+              {voiceSession && (
+                <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-primary" aria-live="polite">
+                  {transcribing ? <><OnItSpinner size={14} /> Transcribing</> : recording ? 'Listening…' : 'Voice'}
+                </span>
+              )}
+              <textarea
+                ref={inputRef}
+                aria-label="Message On It"
+                className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
+                placeholder={voiceSession ? (recording ? 'Listening…' : transcribing ? 'Writing that down…' : 'Say it, On It writes it') : 'Message On It…'}
+                value={input}
+                rows={1}
+                readOnly={voiceSession}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
+                }}
+              />
               {voiceSession ? (
-                // The voice session lives in the field: a live level dot and
-                // "Listening…" with Done (stop → transcribe → send) while
-                // recording, and Speak to take the next turn between takes.
-                // Both call today's micTap() inside the tap.
-                <>
-                  <span className="relative grid h-3 w-3 shrink-0 place-items-center">
-                    <MicRings stream={streamRef.current} active={recording} tone="232, 85, 60" />
-                    <span className={`relative h-2 w-2 rounded-full ${recording ? 'bg-[#c8452c]' : 'bg-outline'}`} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate pl-2 text-body-md font-medium text-on-surface-variant" aria-live="polite">
-                    {recording ? 'Listening…' : phase !== null ? 'On It is on it…' : 'Tap Speak to keep going'}
-                  </span>
-                  <button
-                    aria-label={recording ? 'Stop and send' : 'Speak'}
-                    className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
-                      ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
-                    disabled={!recording && phase !== null}
-                    onClick={micTap}
-                  >
-                    {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
-                  </button>
-                </>
+                // Done stops the take (→ transcribe → send); Speak takes the next
+                // turn. Both run inside the tap, so the mic prompt still counts.
+                <button
+                  aria-label={recording ? 'Stop and send' : 'Speak'}
+                  className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
+                    ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
+                  disabled={!recording && phase !== null}
+                  onClick={micTap}
+                >
+                  {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
+                </button>
               ) : (
                 <>
-                  <textarea
-                    ref={inputRef}
-                    aria-label="Message On It"
-                    className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
-                    placeholder="Message On It…"
-                    value={input}
-                    rows={1}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
-                    }}
-                  />
                   <button
                     aria-label="Upload receipt from gallery"
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
@@ -4285,8 +4308,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
             <button
               aria-label="Send"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-colors active:scale-90
-                disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
+              className="onit-send-arrow grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-[transform,background-color,color] duration-tap ease-settle active:scale-90
+                disabled:scale-[.88] disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
               disabled={voiceSession || !input.trim() || phase !== null}
               onClick={() => void send(input)}
             >
