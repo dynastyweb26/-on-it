@@ -15,6 +15,7 @@ import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
 import type { SavePrompt } from '@/lib/save-prompts';
 import { CADENCE_LABEL } from '@/lib/recurring';
+import { userMessage } from '@/lib/errors';
 
 const OUT_MS = 160; // --motion-fast
 const FLIGHT_MS = 700;
@@ -53,22 +54,26 @@ function flyToTab(from: HTMLElement, href: string) {
   anim.oncancel = done;
 }
 
+/** What a prompt save reports back: the card can only phrase what it is given. */
+export type PromptSaveResult = { ok: true } | { ok: false; message: string };
+
 export default function SavePromptCard({ prompt, onSave, onDone }: {
   prompt: SavePrompt;
-  /** Resolves true once saved. */
-  onSave: () => Promise<boolean>;
+  /** Resolves ok once saved; a failure carries the sentence to show. */
+  onSave: () => Promise<PromptSaveResult>;
   /** The card has left (saved or Not now): show the next prompt. */
   onDone: () => void;
 }) {
   const [state, setState] = useState<'idle' | 'saving' | 'error' | 'done' | 'out'>('idle');
+  const [error, setError] = useState('');
   const disc = useRef<HTMLSpanElement>(null);
 
   const leave = () => { setState('out'); setTimeout(onDone, OUT_MS); };
   async function save() {
     if (state === 'saving' || state === 'done' || state === 'out') return;
     setState('saving');
-    const ok = await onSave().catch(() => false);
-    if (!ok) { setState('error'); return; }
+    const res = await onSave().catch((err: unknown) => ({ ok: false as const, message: userMessage(err) }));
+    if (!res.ok) { setError(res.message); setState('error'); return; }
     if (prompt.kind === 'recurring') { setState('done'); setTimeout(leave, M3_MS); return; }
     if (disc.current) flyToTab(disc.current, '/clients');
     leave();
@@ -108,7 +113,7 @@ export default function SavePromptCard({ prompt, onSave, onDone }: {
           )}
         </p>
       </div>
-      {state === 'error' && <p className="mt-2 pl-[46px] text-[13.5px] text-[#F3B8A8]">Couldn’t save. Try again.</p>}
+      {state === 'error' && error && <p className="mt-2 pl-[46px] text-[13.5px] text-[#F3B8A8]">{error}</p>}
       <div className="mt-2.5 flex justify-end gap-2">
         <button type="button" onClick={leave} disabled={busy}
           className="h-10 rounded-full border border-[#FCF7EF]/30 px-4 text-[14.5px] font-bold active:scale-95">

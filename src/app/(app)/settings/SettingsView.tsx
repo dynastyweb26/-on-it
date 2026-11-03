@@ -24,6 +24,7 @@ import { OPEN_TOUR_PICKER } from '@/components/tutorial/TourPicker';
 import { sectionFromPath, type SettingsSection } from './sections';
 import { noteUpgradeReturn, subscribeAccess } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
+import { userMessage } from '@/lib/errors';
 import PageContainer from '@/components/PageContainer';
 import SplitView from '@/components/layout/SplitView';
 
@@ -115,7 +116,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   const [saved, setSaved] = useState(false);
   // save() applies optimistically; on a failed write it reverts and raises this,
   // mirroring the Saved banner so a swallowed error can no longer look like success.
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   // Zelle is encrypted at rest; only /api/zelle (server-side) touches it.
   // undefined = not loaded yet (or the lookup failed) — never shown as "Not set".
@@ -390,8 +391,8 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
           setP((cur: Record<string, unknown>) => ({ ...cur, ...previous }));
         }
         if (!opts?.silent) {
-          setSaveFailed(true);
-          setTimeout(() => setSaveFailed(false), 2500);
+          setSaveError(userMessage(error));
+          setTimeout(() => setSaveError(null), 2500);
         }
         return false;
       }
@@ -711,7 +712,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   const title = (s: SettingsSection) => (s === 'bank' ? 'Bank accounts' : s === 'business' ? 'Business profile' : s === 'business-info' ? 'Business Info' : s === 'business-brand' ? 'Brand Design' : s === 'payouts' ? 'Payment options' : s === 'plan' ? 'Plan' : s === 'notifications' ? 'Notifications' : s === 'help' ? 'Help & feedback' : s === 'login' ? 'Manage login' : 'Settings');
   const banners = (<>
     {saved && <div className="rounded-input bg-paid-container p-2 text-center text-sm font-semibold text-paid">Saved</div>}
-    {saveFailed && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">Couldn’t save — check your connection and try again.</div>}
+    {saveError && <div className="rounded-input bg-error-container p-2 text-center text-sm font-semibold text-error-on-container">{saveError}</div>}
   </>);
   // A payout method's own route renders no title (unchanged).
   const heading = (s: SettingsSection) => (!(s === 'payouts' && method) ? <SettingsTitle>{title(s)}</SettingsTitle> : null);
