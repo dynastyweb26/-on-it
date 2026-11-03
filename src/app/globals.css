@@ -921,6 +921,19 @@ html[data-splash=""] .onit-splash {
 }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
+/* The typewriter caret (StreamText): 2x18 gold, blinking, only while prose is
+   still revealing. Reduced motion never draws one — the text is instant. */
+@keyframes onit-caret-blink { 50% { opacity: 0; } }
+.onit-caret {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  margin-left: 2px;
+  vertical-align: -3px;
+  background: #d4af37;
+  animation: onit-caret-blink 1s steps(1, end) infinite;
+}
+
 .onit-card-enter { animation: onit-card-in 220ms var(--ease-standard) both; }
 .onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
 /* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the

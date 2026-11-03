@@ -4055,7 +4055,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     ? ''
                     : m.role === 'user' ? ' onit-msg-in-user' : ' onit-msg-in-bot'}`}
               >
-                {m.content}
+                {/* Prose is typed out by StreamText, and a tap on it completes
+                    the line. Restored history, and everything you wrote, is
+                    static — no error, card or quick reply goes through it. */}
+                {restoredMsgIdsRef.current.has(m.id) || m.role === 'user'
+                  ? m.content
+                  : <StreamText text={m.content} />}
               </div>
             </div>
           )}
