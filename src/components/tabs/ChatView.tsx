@@ -41,6 +41,7 @@ import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
 import { LedgerFrame, LedgerTotals, LedgerUsageMeter, SentLedgerRow } from '@/components/chat/LedgerCard';
+import { morphSharedNodes } from '@/lib/morph-shared';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
   ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
@@ -1696,7 +1697,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       morphTimerRef.current = setTimeout(() => {
         dropTemplate();
         setMorphing(false);
-      }, 620);
+      }, 700);
     }
     // Count each line's item for saved products (fire-and-forget; never blocks
     // or changes the send); it returns the save-prompt candidates (2·13).
@@ -3478,6 +3479,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [morphing, setMorphing] = useState(false);
   const morphTimerRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(morphTimerRef.current), []);
+  // The travel itself: clones the builder's shared nodes into a fixed overlay and
+  // carries them to the card's nodes (lib/morph-shared, 600ms settle). Both trees
+  // are mounted for this beat — the card renders beside the builder while
+  // `morphing` is true — so the geometry comes from the live DOM, and the timer
+  // above drops the builder once the travel has landed.
+  useEffect(() => {
+    if (!morphing) return;
+    return morphSharedNodes(
+      document.querySelector('[data-builder]'),
+      document.querySelector('[data-ledger-card]'),
+    );
+  }, [morphing]);
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;

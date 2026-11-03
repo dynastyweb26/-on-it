@@ -98,10 +98,11 @@ export function LedgerFrame({
           {/* Keyed: a toggle replays the 8px lift + fade (design 2). */}
           <span key={kind} className="onit-label-in">{kind === 'quote' ? 'Estimate for' : 'Invoice for'}</span>
         </div>
-        {/* Shared-element anchor for the builder morph (item 3). */}
+        {/* Shared-node anchor for the builder morph. The travel itself is the
+            cloned overlay in lib/morph-shared (this provider loads domAnimation,
+            which has no layout projection, so a layoutId pair never moved). */}
         <m.div
           data-shared="client"
-          layoutId="ledger-client"
           className="mt-1.5 font-display text-[24px] font-bold leading-tight tracking-tight text-on-background"
         >
           {clientName?.trim() || 'Client'}
@@ -137,7 +138,6 @@ export function LedgerTotals({
         className="min-w-0 shrink-0 text-right"
       >
         <m.span
-          layoutId="ledger-total"
           className="block font-display text-[38px] font-extrabold leading-none tracking-[-0.02em] text-inverse-on-surface tabular-nums"
         >
           {children}

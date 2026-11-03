@@ -725,8 +725,9 @@ html[data-splash=""] .onit-splash {
 /* ---- Builder → card morph (docs/design/onit-chat · Prototype 1a/1b) ----
    The builder stays mounted for the morph, then ghosts out: opacity only, on
    the design's exit curve. The card's shared nodes (client, item, price,
-   total) travel with Framer's layout projection — never a CSS transform here.
-   Under reduced motion the ghost is a plain crossfade and the card appears. */
+   total) travel as clones in a fixed overlay (src/lib/morph-shared.ts), 600ms
+   on the settle curve — the card keeps the domAnimation feature set, which has
+   no layout projection. Under reduced motion the ghost is the whole crossfade. */
 @keyframes onit-builder-ghost { to { opacity: 0; } }
 .onit-builder-ghost {
   animation: onit-builder-ghost 220ms var(--ease-exit) both;

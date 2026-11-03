@@ -192,7 +192,7 @@ export default function LineItemsEditor({
                 <Icon name="edit" size={ledger ? 15 : 14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : ledger ? (
-              <m.span layoutId={`ledger-item-${i}`} className="min-w-0 flex-1 truncate text-[17px] font-semibold">
+              <m.span data-shared={`item-${i}`} className="min-w-0 flex-1 truncate text-[17px] font-semibold">
                 {li.description}
               </m.span>
             ) : (
@@ -201,7 +201,7 @@ export default function LineItemsEditor({
 
             {ledger ? (
               <m.span
-                layoutId={`ledger-price-${i}`}
+                data-shared={`price-${i}`}
                 className="shrink-0 pl-2 font-display text-[17px] font-bold tabular-nums"
               >
                 {money(calculateLineAmount(li.qty, li.unit_price))}
