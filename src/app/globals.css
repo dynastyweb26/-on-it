@@ -934,6 +934,18 @@ html[data-splash=""] .onit-splash {
   animation: onit-caret-blink 1s steps(1, end) infinite;
 }
 
+/* Composer field: grows one 22px line at a time to four (88px), then scrolls
+   under a 12px top fade. The height itself is written by ChatView. */
+.onit-composer-field {
+  max-height: 88px;
+  overflow-y: auto;
+  transition: height 150ms var(--ease-settle);
+}
+.onit-composer-field.is-overflowing {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+}
+
 .onit-card-enter { animation: onit-card-in 220ms var(--ease-standard) both; }
 .onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
 /* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the

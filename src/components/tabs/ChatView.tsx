@@ -3878,6 +3878,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
     </LedgerFrame>
   ) : null;
 
+  // Composer field: one line until it needs more, up to four (22px lines,
+  // 88px). Written here because a textarea's scrollHeight can also shrink; the
+  // 150ms height transition and the 12px top fade live in globals.css.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 88)}px`;
+    el.classList.toggle('is-overflowing', el.scrollHeight > 88);
+  }, [input]);
+
   return (
     // xl: the design's 720px column; the composer is a child of it, so the two
     // share left and right edges exactly (gate: design 720, app 720).
@@ -4309,7 +4320,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <textarea
                 ref={inputRef}
                 aria-label="Message On It"
-                className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
+                className="onit-composer-field min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-[22px] text-on-background outline-none placeholder:text-on-surface-variant/60"
                 placeholder={voiceSession ? (recording ? 'Listening…' : transcribing ? 'Writing that down…' : 'Say it, On It writes it') : 'Message On It…'}
                 value={input}
                 rows={1}
