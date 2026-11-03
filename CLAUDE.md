@@ -116,3 +116,14 @@ Deploy workflow:
 6. Before reporting a branch ready: `npx tsc --noEmit` and `npm test` pass. Say so with the counts, not "should work".
 7. Browser checks (`tests/e2e`, Playwright) run against a Vercel PREVIEW URL only, signed out. They never sign in and never write data: preview and production share ONE database. Authenticated specs need a separate test database and the founder's explicit go-ahead.
 8. Required checks on GitHub: `ci`, `test-guard`, `e2e/preview`. A red check is a stop, not a nudge to merge anyway.
+
+## Interaction rules
+1. Any tap that can't finish instantly shows visible feedback within ~100ms (label change, spinner, or scroll to the pending thing).
+2. Repeat taps are idempotent. A pending action ignores further taps via a synchronous ref guard (not only state) and never re-posts messages, cards, or speech.
+3. Pending state clears on every exit: success, error, cancel, edit, navigation.
+4. Anything that appears below the fold scrolls into view.
+5. Failures are visible and name the real cause (signed out, offline, server error). No generic "check your connection" for non-network errors.
+6. Decision logic lives in pure functions with unit tests.
+7. Pre-merge manual pass on the preview: rage-tap, signed-out, slow network, voice path.
+8. Never merge until ci is fully green. ci only runs on pull requests and pushes to main, so open a PR first. The Vercel build is not a typecheck. Report each ci step before asking to merge.
+9. UI bigger than a small tweak is designed in Claude Design first. Every UI spec lists its states: idle, pending, error, repeat-tap.

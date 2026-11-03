@@ -13,8 +13,13 @@ import {
   paymentExceedsBalance,
   payDateYmd,
   yesterdayString,
+  classifyPaymentFailure,
+  paymentFailureMessage,
+  OFFLINE_PAYMENT_ERROR,
+  SIGNED_OUT_PAYMENT_ERROR,
   type PaymentMethod,
 } from '@/lib/record-payment';
+import { ERROR_MESSAGE } from '@/lib/errors';
 
 // Node re-reads process.env.TZ on each Date use, so setting it here (after the
 // imports, which build no Dates) is enough to make the tests timezone-stable.
@@ -132,4 +137,42 @@ test('every method value survives the build unchanged', () => {
 test('yesterdayString steps the calendar day back locally', () => {
   // 00:30 Chicago on Jan 1 → yesterday is Dec 31 of the prior year.
   assert.equal(yesterdayString(new Date('2026-01-01T06:30:00.000Z')), '2025-12-31');
+});
+
+// ── A failed save names its real cause ─────────────────────────────────
+// The sheet used to call userMessage(null), so a signed-out user, a rejected row
+// and a server error all read as the same line. These pin the classification the
+// sheet now runs on the parent's real error.
+
+test('a signed-out payment save reads as signed out, not as our fault', () => {
+  assert.equal(classifyPaymentFailure(SIGNED_OUT_PAYMENT_ERROR), 'signed_out');
+  assert.equal(classifyPaymentFailure({ status: 401 }), 'signed_out');
+  // PostgREST's own shape for a session that expired mid-tap.
+  assert.equal(classifyPaymentFailure({ code: 'PGRST301', message: 'JWT expired' }), 'signed_out');
+  assert.equal(paymentFailureMessage(SIGNED_OUT_PAYMENT_ERROR), ERROR_MESSAGE.signed_out);
+});
+
+test('offline outranks the error shape it arrived in', () => {
+  assert.equal(classifyPaymentFailure(OFFLINE_PAYMENT_ERROR), 'offline');
+  assert.equal(classifyPaymentFailure(new Error('Failed to fetch')), 'offline');
+  // A dead connection explains any status; the browser knows before the status does.
+  assert.equal(classifyPaymentFailure({ status: 500 }, false), 'offline');
+  assert.equal(paymentFailureMessage({ status: 500 }, false), ERROR_MESSAGE.offline);
+});
+
+test('a server error and a rejected row are told apart', () => {
+  assert.equal(classifyPaymentFailure({ status: 500, message: 'boom' }), 'our_end');
+  assert.equal(paymentFailureMessage({ status: 500, message: 'boom' }), ERROR_MESSAGE.our_end);
+  // A check-constraint rejection is bad input, not our end.
+  assert.equal(classifyPaymentFailure({ code: '23514', message: 'check constraint' }), 'bad_input');
+  assert.equal(paymentFailureMessage({ code: '23514' }), ERROR_MESSAGE.bad_input);
+  // A bare permission failure is ours to explain, never "check your connection".
+  assert.equal(classifyPaymentFailure({ status: 403, message: 'permission denied' }), 'our_end');
+});
+
+test('no failure message is ever the offline line by accident', () => {
+  // Only a genuine offline story may print the offline sentence.
+  assert.notEqual(paymentFailureMessage({ status: 401 }), ERROR_MESSAGE.offline);
+  assert.notEqual(paymentFailureMessage({ status: 500 }), ERROR_MESSAGE.offline);
+  assert.notEqual(paymentFailureMessage({ code: '23503' }), ERROR_MESSAGE.offline);
 });

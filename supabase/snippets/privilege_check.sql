@@ -2214,6 +2214,43 @@ results(id, ok, expected, actual) as (
         where conrelid = to_regclass('public.bank_deposit_links')
           and conname = 'bank_deposit_links_kind_check'), 'kind check missing') end
 
+  -- BE1. Parent ownership (20261103100000). SKIP until pushed. The version is
+  --     stamped by the push, but a branch database that took the SQL another way
+  --     records its own version, so the function's existence also counts as applied.
+  --     A recorded version with the function missing is a FAIL, not a SKIP.
+  --     invoices.client_id / converted_from and expenses.invoice_id must point at
+  --     a row the same user owns; the guard is definer + search_path pinned and
+  --     no client role can EXECUTE it.
+  union all
+  select 'BE1 parent ownership guard',
+    case when not exists (select 1 from applied where version = '20261103100000')
+          and to_regprocedure('public.enforce_parent_ownership()') is null then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgenabled <> 'D'
+          and t.tgname = 'enforce_parent_ownership'
+          and t.tgrelid in (to_regclass('public.invoices'), to_regclass('public.expenses'))
+          and t.tgfoid = to_regprocedure('public.enforce_parent_ownership()')
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 16) = 16) = 2
+        and coalesce((select p.prosecdef and p.proconfig::text ilike '%search_path=%'
+          from pg_proc p
+          where p.oid = to_regprocedure('public.enforce_parent_ownership()')), false)
+        and coalesce((select strpos(p.prosrc, 'converted_from') > 0
+            and strpos(p.prosrc, 'new.invoice_id') > 0
+            and strpos(p.prosrc, 'new.client_id') > 0
+          from pg_proc p
+          where p.oid = to_regprocedure('public.enforce_parent_ownership()')), false)
+        and not exists (select 1 from (values ('anon'), ('authenticated')) ro(r)
+          where has_function_privilege(ro.r, to_regprocedure('public.enforce_parent_ownership()'), 'execute')) end,
+    'BEFORE INSERT OR UPDATE on invoices + expenses: definer, search_path pinned, checks client_id / converted_from / invoice_id, no client EXECUTE',
+    case when not exists (select 1 from applied where version = '20261103100000')
+          and to_regprocedure('public.enforce_parent_ownership()') is null then 'not applied yet'
+      else coalesce((select 'triggers=' || (select count(*) from pg_trigger t
+            where not t.tgisinternal and t.tgname = 'enforce_parent_ownership')::text
+          || ' definer=' || p.prosecdef || ' config=' || coalesce(p.proconfig::text, 'none')
+          || ' anon_exec=' || has_function_privilege('anon', p.oid, 'execute')
+          || ' auth_exec=' || has_function_privilege('authenticated', p.oid, 'execute')
+        from pg_proc p where p.oid = to_regprocedure('public.enforce_parent_ownership()')), 'function missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
