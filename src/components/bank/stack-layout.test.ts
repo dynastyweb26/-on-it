@@ -64,8 +64,13 @@ test('at 390x700 and 1280x700 the buttons stay inside the dialog', () => {
       const budget = stackBudget(width, height, shape);
       assert.equal(budget.buttonsInside, true,
         `${shape} at ${width}x${height}: body ${budget.body}px must leave room for the buttons`);
-      assert.equal(budget.scrolls, true,
-        `${shape} at ${width}x${height}: the tall body scrolls rather than pushing the buttons out`);
+      if (shape === 'expense') {
+        assert.equal(budget.scrolls, false,
+          `${shape} at ${width}x${height}: a short body fits without scrolling`);
+      } else {
+        assert.equal(budget.scrolls, true,
+          `${shape} at ${width}x${height}: the tall body scrolls rather than pushing the buttons out`);
+      }
     }
   }
 });
