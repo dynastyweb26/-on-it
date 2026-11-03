@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  INCOME_NOTE_MAX, incomeDateOptions, incomeError, incomeInsertRow, isIsoDay,
+  INCOME_NOTE_MAX, incomeDateOptions, incomeError, incomeInsertRow, incomeWriteRefusal, isIsoDay,
   parseIncomeInput, shiftIso,
 } from './income-form';
 
@@ -80,4 +80,19 @@ test('the date chips are the row date, today and yesterday, de-duped', () => {
   assert.deepEqual(incomeDateOptions('2026-11-02', '2026-11-02'), ['2026-11-02', '2026-11-01']);
   assert.deepEqual(incomeDateOptions(null, '2026-11-02'), ['2026-11-02', '2026-11-01']);
   assert.equal(shiftIso('2026-03-01', -1), '2026-02-28');
+});
+
+test('a deposit-backed row refuses delete and an amount change, and nothing else', () => {
+  const fromDeposit = { deposit_id: 'dep-1' };
+  // Deleting would leave the deposit decided with no money behind it, and the
+  // guard and unique index still count the soft-deleted row.
+  assert.equal(incomeWriteRefusal(fromDeposit, 'delete'), 'from_deposit');
+  assert.equal(incomeWriteRefusal(fromDeposit, 'edit', { amount: 12 }), 'from_deposit');
+  // A rename or a note is fine: the money is not touched.
+  assert.equal(incomeWriteRefusal(fromDeposit, 'edit', { title: 'New name' }), null);
+  assert.equal(incomeWriteRefusal(fromDeposit, 'edit', {}), null);
+  // Hand-typed rows keep full control.
+  assert.equal(incomeWriteRefusal({ deposit_id: null }, 'delete'), null);
+  assert.equal(incomeWriteRefusal({ deposit_id: null }, 'edit', { amount: 5 }), null);
+  assert.equal(incomeWriteRefusal(null, 'delete'), null);
 });

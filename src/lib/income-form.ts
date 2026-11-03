@@ -128,3 +128,21 @@ export function shiftIso(iso: string, days: number): string {
   date.setDate(date.getDate() + days);
   return date.toLocaleDateString('en-CA');
 }
+
+/**
+ * A row that came from a bank deposit belongs to that deposit's decision.
+ * Deleting it, or changing its amount, would leave the deposit looking decided
+ * while the money it decided about is gone — and the deposit guards and unique
+ * indexes still count the soft-deleted row, so nothing could put it back.
+ * Those rows may still be re-titled or re-noted; the amount and the delete are
+ * undone from Bank activity only.
+ */
+export function incomeWriteRefusal(
+  row: { deposit_id?: string | null } | null | undefined,
+  op: 'delete' | 'edit',
+  patch?: { amount?: unknown },
+): 'from_deposit' | null {
+  if (!row?.deposit_id) return null;
+  if (op === 'delete') return 'from_deposit';
+  return patch && patch.amount !== undefined ? 'from_deposit' : null;
+}

@@ -35,6 +35,10 @@ export default function LedgerPair({ initial }: { initial: Side }) {
   const [dragging, setDragging] = useState(false);
   const [depositsToReview, setDepositsToReview] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  // One scroll container per page, as the design has: scrolling Expenses never
+  // moves Income, and each keeps its own position while the other is on screen.
+  const expensesScrollRef = useRef<HTMLDivElement>(null);
+  const incomeScrollRef = useRef<HTMLDivElement>(null);
   const widthRef = useRef(0);
   const dragRef = useRef(0);
   const gesture = useRef<{ id: number; x: number; y: number; active: boolean; edge: boolean } | null>(null);
@@ -128,26 +132,28 @@ export default function LedgerPair({ initial }: { initial: Side }) {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-4 pt-2 md:px-6">
-      <div className="flex items-center justify-between px-1 pb-2.5">
-        <h1 key={side} className="ledger-title font-display text-[28px] font-extrabold leading-tight">
-          {side === 'expenses' ? 'Expenses' : 'Income'}
-        </h1>
-        <button
-          type="button"
-          aria-label={side === 'expenses' ? 'Add expense' : 'Add income'}
-          onClick={() => window.dispatchEvent(new Event(side === 'expenses' ? 'onit:add-expense' : 'onit:add-income'))}
-          className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90"
-        >
-          <Icon name="add" size={24} />
-        </button>
-      </div>
+    <div className="flex h-[calc(100dvh-64px-env(safe-area-inset-bottom))] flex-col">
+      <div className="mx-auto w-full max-w-5xl px-4 pt-2 md:px-6">
+        <div className="flex items-center justify-between px-1 pb-2.5">
+          <h1 key={side} className="ledger-title font-display text-[28px] font-extrabold leading-tight">
+            {side === 'expenses' ? 'Expenses' : 'Income'}
+          </h1>
+          <button
+            type="button"
+            aria-label={side === 'expenses' ? 'Add expense' : 'Add income'}
+            onClick={() => window.dispatchEvent(new Event(side === 'expenses' ? 'onit:add-expense' : 'onit:add-income'))}
+            className="grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background active:scale-90"
+          >
+            <Icon name="add" size={24} />
+          </button>
+        </div>
 
-      <PillTabs label="Expenses or income" options={options} value={side} onChange={go} />
+        <PillTabs label="Expenses or income" options={options} value={side} onChange={go} />
+      </div>
 
       <div
         ref={rootRef}
-        className="relative mt-3 overflow-hidden"
+        className="relative mt-3 min-h-0 flex-1 overflow-hidden"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -155,17 +161,25 @@ export default function LedgerPair({ initial }: { initial: Side }) {
         onPointerCancel={onPointerUp}
       >
         <div
-          className="flex items-start"
+          className="flex h-full items-stretch"
           style={{
             width: '200%',
             transform: `translate3d(calc(${-index * 50}% + ${drag}px), 0, 0)`,
             transition: dragging ? 'none' : 'transform 340ms var(--ease-emphasized)',
           }}
         >
-          <div className="w-1/2 shrink-0">
+          <div
+            ref={expensesScrollRef}
+            data-pane-scroll="expenses"
+            className="h-full w-1/2 shrink-0 overflow-y-auto overscroll-contain"
+          >
             <ExpensesPane chrome={false} />
           </div>
-          <div className="w-1/2 shrink-0">
+          <div
+            ref={incomeScrollRef}
+            data-pane-scroll="income"
+            className="h-full w-1/2 shrink-0 overflow-y-auto overscroll-contain"
+          >
             <IncomePane chrome={false} active={side === 'income'} />
           </div>
         </div>

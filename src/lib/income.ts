@@ -28,6 +28,9 @@ export type IncomeRow = {
   client: string | null;
   /** The note the owner typed on an other-income row; null for a payment. */
   note: string | null;
+  /** True when a bank deposit decided this row: its amount and delete are the
+   *  deposit's, not the sheet's. */
+  fromDeposit: boolean;
   /** Soft-deleted rows never reach here; kept for the type's honesty. */
   deletedAt?: string | null;
 };
@@ -107,6 +110,7 @@ export function mergeIncome(
       bankVerified: Boolean(payment.bank_verified),
       client: payment.client_name ?? null,
       note: null,
+      fromDeposit: false,
     });
   }
   for (const row of other ?? []) {
@@ -128,6 +132,7 @@ export function mergeIncome(
       bankVerified: Boolean(row.deposit_id),
       client: row.client_name ?? null,
       note: row.note ?? null,
+      fromDeposit: Boolean(row.deposit_id),
     });
   }
   return rows

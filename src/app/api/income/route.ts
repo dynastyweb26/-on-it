@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
-import { incomeInsertRow, parseIncomeInput } from '@/lib/income-form';
+import { incomeInsertRow, incomeWriteRefusal, parseIncomeInput } from '@/lib/income-form';
 
 export const runtime = 'nodejs';
 
@@ -106,6 +106,7 @@ export async function PATCH(req: NextRequest) {
   const found = await rowFor(admin, user.id, parsed.data.id);
   if (found.error) return fail('db_read_failed', 500);
   if (!found.row || found.row.deleted_at) return fail('not_found', 404);
+  if (incomeWriteRefusal(found.row, 'edit', parsed.data)) return fail('from_deposit', 409);
 
   // Merge onto the stored row: an edit sends only what it changed, and the
   // deposit's classification and link are carried through untouched.
@@ -148,6 +149,8 @@ export async function DELETE(req: NextRequest) {
   const found = await rowFor(admin, user.id, parsed.data.id);
   if (found.error) return fail('db_read_failed', 500);
   if (!found.row || found.row.deleted_at) return fail('not_found', 404);
+  // A deposit's row is the deposit's decision: undo it in Bank activity.
+  if (incomeWriteRefusal(found.row, 'delete')) return fail('from_deposit', 409);
 
   // Soft delete only: the row stops counting in Collected and can be restored
   // by a later write, but nothing is ever removed from the ledger.

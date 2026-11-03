@@ -34,6 +34,9 @@ export default function IncomeSheet({ state, onClose, onSaved }: {
   const [client, setClient] = useState(row?.client ?? '');
   const [date, setDate] = useState(row?.date ?? todayIso());
   const [note, setNote] = useState(row?.note ?? '');
+  // A bank deposit decided this row: its amount and its delete belong to that
+  // deposit, so the sheet shows neither.
+  const fromDeposit = Boolean(editing && row?.fromDeposit);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -114,6 +117,11 @@ export default function IncomeSheet({ state, onClose, onSaved }: {
     </div>
   ) : (
     <div className="space-y-3">
+      {fromDeposit ? (
+        <p className="rounded-[14px] bg-surface-container-low px-3.5 py-2.5 text-[13px] text-on-surface-variant">
+          This income came from a bank deposit, so its amount is the deposit's. Undo it from Bank activity.
+        </p>
+      ) : (
       <label className="block text-[13px] font-semibold">
         Amount
         <span className="mt-1 flex items-center gap-1 rounded-input border border-outline-variant bg-surface-container-lowest px-3">
@@ -128,6 +136,7 @@ export default function IncomeSheet({ state, onClose, onSaved }: {
           />
         </span>
       </label>
+      )}
       <label className="block text-[13px] font-semibold">
         What was it for?
         <input value={title} onChange={(e) => setTitle(e.target.value)} className={`mt-1 ${field}`} placeholder="Storage unit rent" />
@@ -193,7 +202,7 @@ export default function IncomeSheet({ state, onClose, onSaved }: {
             >
               {busy ? 'Saving…' : editing ? 'Save changes' : 'Add income'}
             </button>
-            {editing && (
+            {editing && !fromDeposit && (
               <button
                 type="button"
                 disabled={busy}
