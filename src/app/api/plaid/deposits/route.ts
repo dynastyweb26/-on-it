@@ -56,7 +56,7 @@ const MAX_ROWS = 100;
 
 const Body = z.object({
   deposit_id: z.string().uuid(),
-  action: z.enum(['record', 'already', 'ignored', 'classified']),
+  action: z.enum(['record', 'already', 'ignored', 'classified', 'restore']),
   invoice_id: z.string().uuid().optional(),
   payment_id: z.string().uuid().optional(),
   classification: z.string().optional(),
@@ -292,6 +292,22 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (incomeReadError) return fail('deposits', 'db_read_failed', incomeReadError.code);
   const hasIncome = (existingIncome as { id?: string } | null)?.id !== undefined;
+
+  // Restore: putting an Ignored deposit back in To review removes only the
+  // 'ignored' link. A recorded payment or an income row is never undone here.
+  if (action === 'restore') {
+    if (hasIncome || !links.some((link) => link.kind === 'ignored')) {
+      return fail('deposits', 'deposit_link_refused');
+    }
+    const { error: restoreError } = await admin
+      .from('bank_deposit_links')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('deposit_id', deposit.id)
+      .eq('kind', 'ignored');
+    if (restoreError) return fail('deposits', 'db_delete_failed', restoreError.code);
+    return NextResponse.json({ ok: true, deposit_id: deposit.id, kind: null, payment_id: null });
+  }
 
   if (action === 'ignored') {
     // Don't add. One terminal decision per deposit; a replay is a success.

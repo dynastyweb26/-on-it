@@ -460,7 +460,9 @@ html[data-splash=""] .onit-splash {
   /* Red: unreviewed bank items (Books dot), the pinned row's urgency text and
      icon, and overdue invoices later. Nothing else — reconnect is gold. */
   --oi-alert: #c8412e;
-  /* Muted green: money-in fill and glow only, never text. Unused in phase 1. */
+  /* The ONE readable green: green text, dots and the chart ridge. */
+  --oi-green: #2f6b3f;
+  /* Muted green: money-in fill and glow only, never text (CHANGES.md · D). */
   --oi-money-in: #6f9a78;
   /* The review sheet's backdrop. */
   --oi-scrim: rgba(30, 24, 14, .38);
@@ -576,6 +578,19 @@ html[data-splash=""] .onit-splash {
 .bank-nav-bump { animation: bank-nav-bump 220ms var(--oi-ease-inout) both; }
 @keyframes bank-splash-pulse { to { opacity: 0; transform: scale(2.6); } }
 .bank-splash-pulse { animation: bank-splash-pulse 140ms var(--oi-ease-out) both; }
+
+/* Money in: the deposit amount. #2f6b3f is the only green that may carry text;
+   the pulse is a fill-coloured halo that plays once and stops. */
+@keyframes bank-money-in-pulse {
+  from { transform: scale(.94); opacity: .55; }
+  to { transform: scale(1); opacity: 1; }
+}
+.bank-money-in { color: var(--oi-green); }
+.bank-money-in:not(.bank-static) { animation: bank-money-in-pulse 420ms var(--oi-ease-emphasized) both; }
+.bank-money-in { text-shadow: 0 0 18px color-mix(in srgb, var(--oi-money-in) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .bank-money-in { animation: none; text-shadow: none; }
+}
 
 /* Inline field reveal (amount / date / category): scaleY(.85) → 1. */
 @keyframes bank-expand { from { opacity: 0; transform: scaleY(.85); } }
