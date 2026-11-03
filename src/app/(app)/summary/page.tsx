@@ -26,6 +26,8 @@ import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/l
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import SummarySkeleton from '@/components/SummarySkeleton';
+import SummaryControls from '@/components/summary/SummaryControls';
+import { resolveGrain, type ChartGrain, type ChartPreset } from '@/lib/books-chart';
 import { useDelayedShow } from '@/lib/use-delayed-show';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
@@ -58,6 +60,10 @@ export default function TaxSummary() {
   const [exporting, setExporting] = useState<SummaryPdfKind | null>(null);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
+  // The chart's own period and grain. The figures above keep the existing
+  // period picker; these only choose what the mountain is drawn from.
+  const [chartPreset, setChartPreset] = useState<ChartPreset>('all');
+  const [chartGrain, setChartGrain] = useState<ChartGrain>('month');
 
   // Period sheet: open flag + which view (the granularity chooser, or one
   // granularity's list of specific periods).
@@ -307,9 +313,21 @@ export default function TaxSummary() {
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-4 md:px-6">
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books summary</h1>
 
-      {/* Period selector — full-width trigger; taps open the two-step sheet. */}
+      <SummaryControls
+        preset={chartPreset}
+        onPreset={(next) => { setChartPreset(next); setChartGrain((g) => resolveGrain(next, g)); }}
+        grain={chartGrain}
+        onGrain={setChartGrain}
+        onExport={openExport}
+        exporting={exporting}
+        canIncome={incomeCount > 0}
+        canExpenses={summary.count > 0}
+        disabled={loading || !hasData}
+      />
+
+      {/* The figures and both PDFs still follow the full period picker. */}
       <button
-        className="flex w-full items-center justify-between rounded-input border border-outline-variant bg-surface-container-lowest px-4 py-3 text-left active:scale-[0.99] transition-transform disabled:opacity-40"
+        className="flex w-full items-center justify-between rounded-input border border-outline-variant bg-surface-container-lowest px-4 py-3 text-left transition-transform active:scale-[0.99] disabled:opacity-40"
         aria-haspopup="dialog"
         disabled={loading}
         onClick={openSheet}
@@ -317,21 +335,6 @@ export default function TaxSummary() {
         <span className="font-semibold text-on-background">{selected?.friendlyLabel ?? 'All time'}</span>
         <Icon name="expand_more" size={22} className="text-on-surface-variant" />
       </button>
-
-      {/* Two exports for the selected period, right under the period they
-          cover. Each opens a sheet to pick Totals (expenses by category, income
-          by client) or Itemized (every expense, every payment). Each is
-          disabled when its side of the period is empty. */}
-      {!loading && hasData && (
-        <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => openExport('expenses')}>
-            <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
-          </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => openExport('income')}>
-            <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
-          </button>
-        </div>
-      )}
 
       {loading ? (
         showSkeleton ? <SummarySkeleton /> : null

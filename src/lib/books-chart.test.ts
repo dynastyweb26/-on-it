@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  bucketOf, chartPoints, chartTop, easeEnds, peakLabelX, plotX,
+  bucketOf, chartPoints, chartTop, easeEnds, grainOptions, peakLabelX, plotX, presetStart, resolveGrain,
 } from './books-chart';
 
 const pay = (amount: string, paid_at: string) => ({ amount, paid_at });
@@ -84,4 +84,31 @@ test('the axis top is a round number above the biggest value', () => {
   assert.equal(chartTop([1234]), 1500);
   // At or above the largest value: a value already round stays itself.
   assert.equal(chartTop([900]), 900);
+});
+
+test('the grain choice follows the period and falls back to Months', () => {
+  assert.deepEqual(grainOptions('all'), ['month', 'year']);
+  assert.deepEqual(grainOptions('last3m'), ['week', 'month']);
+  assert.deepEqual(grainOptions('this_month'), ['week', 'month']);
+  // Picking Weeks then switching to All time does not leave a dead toggle.
+  assert.equal(resolveGrain('all', 'week'), 'month');
+  assert.equal(resolveGrain('all', 'year'), 'year');
+  assert.equal(resolveGrain('last3m', 'year'), 'month');
+  assert.equal(resolveGrain('last3m', 'month'), 'month');
+});
+
+test('a preset starts where it says it does', () => {
+  assert.equal(presetStart('all', '2026-11-03'), '');
+  assert.equal(presetStart('this_month', '2026-11-03'), '2026-11-01');
+  assert.equal(presetStart('last3m', '2026-11-03'), '2026-09-01');
+  assert.equal(presetStart('last3m', '2026-02-15'), '2025-12-01');
+});
+
+test('a year grain buckets by year', () => {
+  const points = chartPoints(
+    [{ amount: '100.00', paid_at: '2025-04-01' }, { amount: '200.00', paid_at: '2026-04-01' }],
+    [], [], 'year',
+  );
+  assert.deepEqual(points.map((p) => p.key), ['2025', '2026']);
+  assert.equal(points[1].collectedCents, 20000);
 });

@@ -8,7 +8,7 @@
 // instead of ignoring it — the chart and the Collected tile read the same rows.
 import { countsAsIncome } from './other-income';
 
-export type ChartGrain = 'week' | 'month';
+export type ChartGrain = 'week' | 'month' | 'year';
 
 export type ChartPoint = {
   key: string;
@@ -40,6 +40,9 @@ const dayOf = (value: string | null | undefined): string =>
 export function bucketOf(day: string, grain: ChartGrain): { key: string; label: string } {
   const [y, m, d] = day.split('-').map(Number);
   const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+  if (grain === 'year') {
+    return { key: day.slice(0, 4), label: day.slice(0, 4) };
+  }
   if (grain === 'month') {
     return {
       key: day.slice(0, 7),
@@ -140,4 +143,33 @@ export function chartTop(values: readonly number[]): number {
   if (max <= 0) return 0;
   const step = Math.pow(10, Math.floor(Math.log10(max)));
   return Math.ceil(max / (step / 2)) * (step / 2);
+}
+
+// ── The shell: which period, and at what grain ────────────────────────────
+
+export type ChartPreset = 'all' | 'last3m' | 'this_month';
+
+export const CHART_PRESETS: readonly { value: ChartPreset; label: string }[] = [
+  { value: 'all', label: 'All time' },
+  { value: 'last3m', label: 'Last 3 months' },
+  { value: 'this_month', label: 'This month' },
+];
+
+/** All time reads by month or year; a short range by week or month. */
+export function grainOptions(preset: ChartPreset): ChartGrain[] {
+  return preset === 'all' ? ['month', 'year'] : ['week', 'month'];
+}
+
+/** Never show a toggle with nothing selected: an unoffered pick becomes Months. */
+export function resolveGrain(preset: ChartPreset, wanted: ChartGrain): ChartGrain {
+  return grainOptions(preset).includes(wanted) ? wanted : 'month';
+}
+
+/** The first day a preset's chart covers, as yyyy-mm-dd, from a real today. */
+export function presetStart(preset: ChartPreset, today: string): string {
+  const [y, m, d] = today.split('-').map(Number);
+  if (preset === 'all') return '';
+  if (preset === 'this_month') return `${today.slice(0, 7)}-01`;
+  const start = new Date(y, m - 1 - 2, 1);
+  return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
 }
