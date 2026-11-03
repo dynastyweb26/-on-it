@@ -20,14 +20,16 @@
 // lib/bank-deposits, which bank-tracking.test.ts scans.
 import { useState, type Ref } from 'react';
 import Icon from '@/components/Icon';
+import PaymentPicker from './PaymentPicker';
 import type { IconName } from '@/components/icon-names';
 import {
   OTHER_MONEY_RECEIVED, classificationNote, type DepositClassification,
 } from '@/lib/other-income';
 import {
-  DEPOSITS_URL, depositBody, depositDoneToast, depositMetaLine, depositNote, depositPaths,
-  depositRefusalMessage, depositSubmit, type ApiDeposit, type DepositInvoice, type DepositPath,
-  type DepositPayment,
+  DEPOSITS_URL, EXISTING_EMPTY, EXISTING_EMPTY_HELPER, depositBody, depositDoneToast,
+  depositMetaLine, depositNote, depositPaths, depositRefusalMessage, depositSubmit,
+  paymentCandidates, type ApiDeposit, type DepositInvoice,
+  type DepositPath, type DepositPayment,
 } from '@/lib/bank-deposits';
 import { formatMoney } from '@/lib/bank-tracking';
 
@@ -57,13 +59,6 @@ const invoiceLabel = (invoice: DepositInvoice): string => {
   return `${number}${client ? ` · ${client}` : ''} · ${formatMoney(invoice.balance_cents / 100)}`;
 };
 
-const paymentLabel = (payment: DepositPayment): string => {
-  const number = Number.isInteger(payment.invoice_number) && (payment.invoice_number ?? 0) > 0
-    ? `INV-${String(payment.invoice_number).padStart(4, '0')}`
-    : 'Payment';
-  return `${number} · ${formatMoney(payment.amount_cents / 100)} · ${payment.method}`;
-};
-
 export default function DepositCard({
   deposit, invoices, payments, headingRef, onResolved,
 }: {
@@ -75,19 +70,24 @@ export default function DepositCard({
   onResolved: (id: string, toast: string, kind: string) => void;
 }) {
   const paths = depositPaths(deposit);
-  const [path, setPath] = useState<DepositPath>(paths[0] ?? 'other');
+  const candidates = paymentCandidates(payments);
+  // No path is chosen for the owner: they pick. The one exception is a
+  // suggestion from the bank, which opens on the invoice it points at.
+  const [path, setPath] = useState<DepositPath | null>(deposit.suggestion ? 'invoice' : null);
   const [paymentId, setPaymentId] = useState('');
   const [invoiceId, setInvoiceId] = useState(deposit.suggestion?.invoice_id ?? '');
   const [classification, setClassification] = useState<DepositClassification | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = depositSubmit(deposit, {
-    path,
-    payment_id: paymentId || undefined,
-    invoice_id: invoiceId || undefined,
-    classification: classification ?? undefined,
-  });
+  const submit = path
+    ? depositSubmit(deposit, {
+      path,
+      payment_id: paymentId || undefined,
+      invoice_id: invoiceId || undefined,
+      classification: classification ?? undefined,
+    })
+    : null;
   const note = depositNote(deposit);
   const waiting = deposit.pending;
 
@@ -165,21 +165,28 @@ export default function DepositCard({
             {paths.map((option) => {
               const copy = PATH_COPY[option];
               const on = path === option;
+              const empty = option === 'existing' && candidates.length === 0;
               return (
                 <button
                   key={option}
                   type="button"
                   role="radio"
                   aria-checked={on}
+                  disabled={empty}
                   onClick={() => setPath(option)}
                   className={`flex min-h-[56px] items-center gap-3 rounded-[16px] border px-3.5 py-2.5 text-left transition-transform active:scale-[0.99] ${
                     on ? 'border-primary-container bg-primary-soft' : 'border-outline-variant bg-surface-container-lowest'
-                  }`}
+                  } ${empty ? 'opacity-60' : ''}`}
                 >
                   <Icon name={copy.icon} size={20} className="shrink-0 text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] font-semibold">{copy.label}</span>
                     <span className="mt-px block text-[13px] text-on-surface-variant">{copy.sub}</span>
+                    {empty && (
+                      <span className="mt-1 block text-[13px] leading-[1.45] text-on-surface-variant">
+                        {EXISTING_EMPTY} {EXISTING_EMPTY_HELPER}
+                      </span>
+                    )}
                   </span>
                   <span
                     aria-hidden
@@ -212,21 +219,8 @@ export default function DepositCard({
           </label>
         )}
 
-        {path === 'existing' && !deposit.removed && (
-          <label className="block text-[13px] font-semibold" htmlFor={`payment-${deposit.id}`}>
-            Which payment did you already record?
-            <select
-              id={`payment-${deposit.id}`}
-              value={paymentId}
-              onChange={(e) => setPaymentId(e.target.value)}
-              className="mt-1 w-full rounded-input border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-normal"
-            >
-              <option value="">Choose a payment</option>
-              {payments.map((payment) => (
-                <option key={payment.id} value={payment.id}>{paymentLabel(payment)}</option>
-              ))}
-            </select>
-          </label>
+        {path === 'existing' && !deposit.removed && candidates.length > 0 && (
+          <PaymentPicker candidates={candidates} selected={paymentId} onPick={setPaymentId} />
         )}
 
         {path === 'other' && !deposit.removed && (

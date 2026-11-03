@@ -188,6 +188,11 @@ export async function GET(req: NextRequest) {
       .map((invoice) => [invoice.id, invoice.invoice_number]),
   );
 
+  const clientByInvoice = new Map(
+    ((invoiceRows ?? []) as unknown as { id: string; client_name: string | null }[])
+      .map((invoice) => [invoice.id, invoice.client_name]),
+  );
+
   const deposits = ((depositRows ?? []) as unknown as (DepositRow & { bank_deposit_links?: LinkRow[] })[])
     .map((row) => {
       const links = Array.isArray(row.bank_deposit_links) ? row.bank_deposit_links : [];
@@ -245,6 +250,7 @@ export async function GET(req: NextRequest) {
     payments: manualPayments.slice(0, 50).map((row) => ({
       id: row.id,
       invoice_number: invoiceById.get(row.invoice_id) ?? null,
+      client_name: clientByInvoice.get(row.invoice_id) ?? null,
       amount_cents: centsOf(row.amount),
       method: row.method,
       paid_at: row.paid_at,

@@ -50,6 +50,8 @@ export type DepositInvoice = {
 export type DepositPayment = {
   id: string;
   invoice_number: number | null;
+  /** The invoice's client, so a row can read "Nakamura · $400.00". */
+  client_name?: string | null;
   amount_cents: number;
   method: string;
   paid_at: string;
@@ -89,6 +91,30 @@ export function depositPlan(status: number, body: unknown): DepositPlan {
   }
   return { kind: 'error' };
 }
+
+/**
+ * The payments this deposit can be pointed at: the route already returns only
+ * manual rows no deposit link names, so the card just drops anything unusable.
+ */
+export const paymentCandidates = (payments: DepositPayment[]): DepositPayment[] =>
+  payments.filter((payment) => Number.isSafeInteger(payment.amount_cents) && payment.amount_cents > 0);
+
+/** "Nakamura Property Group · $400.00" — the client, then the money. */
+export const paymentRowTitle = (payment: DepositPayment): string => {
+  const client = (payment.client_name ?? '').trim();
+  return `${client || 'Payment'} · ${formatMoney(payment.amount_cents / 100)}`;
+};
+
+/** "INV-0042 · logged Oct 29". */
+export const paymentRowSub = (payment: DepositPayment): string => {
+  const number = Number.isInteger(payment.invoice_number) && (payment.invoice_number ?? 0) > 0
+    ? `INV-${String(payment.invoice_number).padStart(4, '0')}`
+    : 'Payment';
+  return `${number} · logged ${formatDay(payment.paid_at)}`;
+};
+
+export const EXISTING_EMPTY = 'No unlinked payments yet.';
+export const EXISTING_EMPTY_HELPER = 'Choose A new payment for an invoice instead.';
 
 /** The POST body. No amount, no name: the server rebuilds those from the row. */
 export function depositBody(
