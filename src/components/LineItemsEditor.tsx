@@ -59,6 +59,13 @@ export default function LineItemsEditor({
   // counter-transform released on the next frame. Nothing else moves.
   const rowsRef = useRef<HTMLDivElement>(null);
   const flipRef = useRef<{ from: number; to: number; tops: number[] } | null>(null);
+  // Row arrival / removal travel (Add / Dup / Delete, 260ms): one row opens its
+  // own height, another closes it and is dropped from the list when the close
+  // ends, so the rows around it slide instead of jumping.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const [openingIndex, setOpeningIndex] = useState<number | null>(null);
+  const [closingIndex, setClosingIndex] = useState<number | null>(null);
 
   function start(i: number, f: Field, current: string) {
     setText(current);
@@ -142,23 +149,46 @@ export default function LineItemsEditor({
     }
   }, [items]);
 
+  /** Open one row's height; the timer clears the flag so a later render does
+   *  not replay it. Reduced motion never marks a row. */
+  function openRow(index: number) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    setOpeningIndex(index);
+    setTimeout(() => setOpeningIndex((cur) => (cur === index ? null : cur)), 320);
+  }
+
   function duplicate(i: number) {
     const item = items[i];
     if (!item) return;
     const next = [...items];
     next.splice(i + 1, 0, { ...item });
     onChange(next);
+    openRow(i + 1);
   }
 
   function remove(i: number) {
-    const next = items.filter((_, idx) => idx !== i);
-    onChange(next);
+    const item = items[i];
+    if (!item) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      onChange(items.filter((_, idx) => idx !== i));
+      return;
+    }
+    setClosingIndex(i);
+    // Remove AFTER the close, and by identity against the latest list, so an
+    // edit made during those 260ms cannot delete the wrong row.
+    setTimeout(() => {
+      setClosingIndex(null);
+      const latest = itemsRef.current;
+      const at = latest.indexOf(item);
+      onChange(at === -1 ? latest.filter((_, idx) => idx !== i) : latest.filter((_, idx) => idx !== at));
+    }, 260);
   }
 
   function addLineItem() {
     const newIndex = items.length;
     const newItem: EditableLineItem = { description: '', qty: 1, unit_price: 0 };
     onChange([...items, newItem]);
+    openRow(newIndex);
     start(newIndex, 'description', '');
   }
 
@@ -207,6 +237,9 @@ export default function LineItemsEditor({
       {items.map((li, i) => (
         <div
           key={i}
+          className={`onit-row-slot${openingIndex === i ? ' is-opening' : ''}${closingIndex === i ? ' is-closing' : ''}`}
+        >
+        <div
           data-line-row=""
           data-line-index={i}
           className={
@@ -402,6 +435,7 @@ export default function LineItemsEditor({
               </button>
             </div>
           )}
+        </div>
         </div>
       ))}
 

@@ -756,6 +756,20 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-undo-flash { from { background-color: #F6E7B9; } to { background-color: transparent; } }
 .onit-undo-flash { animation: onit-undo-flash 450ms var(--ease-standard) both; }
 
+/* A line-item row that arrives (Add / Dup) opens its own height; one that leaves
+   (Delete) closes it before the row is dropped, so its siblings slide rather
+   than jump. One-row grid: neither direction needs a measured height. */
+.onit-row-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-settle) var(--ease-settle);
+}
+.onit-row-slot > * { min-height: 0; }
+.onit-row-slot.is-opening { animation: onit-row-open var(--motion-settle) var(--ease-settle) both; }
+@keyframes onit-row-open { from { grid-template-rows: 0fr; opacity: 0; } }
+.onit-row-slot.is-closing { grid-template-rows: 0fr; pointer-events: none; }
+.onit-row-slot.is-closing > * { overflow: hidden; opacity: 0; transition: opacity 160ms var(--ease-exit); }
+
 /* One gold sweep across the card once, when a send seals. The band is a child
    of the sheet; the sheet clips it, and it never sits over a control
    (pointer-events: none) so a tap during the 760ms still lands. */
