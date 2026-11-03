@@ -442,7 +442,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[min(86vh,720px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex max-h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[calc(100dvh-32px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -504,8 +504,17 @@ export default function ReviewStack({
           </button>
         </div>
 
+        {/* Page dots live in the header stack, never over the card buttons. */}
+        {filter === 'review' && queue.length > 1 && (
+          <div className="mb-2 flex h-[10px] shrink-0 items-center justify-center gap-1.5" aria-hidden>
+            {queue.slice(0, Math.min(queue.length, 6)).map((entry, i) => (
+              <span key={`${entry.kind}-${entry.id}`} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
+            ))}
+          </div>
+        )}
+
         <div
-          className="relative mx-4 mb-3 min-h-0"
+          className="relative mx-4 mb-3 min-h-0 flex-1 overflow-hidden"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -612,13 +621,6 @@ export default function ReviewStack({
                 );
               })}
 
-              {queue.length > 1 && (
-                <div className="pointer-events-none absolute -bottom-1 left-1/2 z-40 flex -translate-x-1/2 gap-1.5" aria-hidden>
-                  {queue.slice(0, Math.min(queue.length, 6)).map((entry, i) => (
-                    <span key={`${entry.kind}-${entry.id}`} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
-                  ))}
-                </div>
-              )}
             </>
           )}
 

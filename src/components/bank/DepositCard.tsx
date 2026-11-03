@@ -122,8 +122,8 @@ export default function DepositCard({
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
-      <div className="flex min-h-0 flex-auto flex-col gap-3.5 overflow-y-auto px-[18px] py-[22px]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest shadow-[0_14px_34px_-14px_rgba(52,40,12,.24)]">
+      <div className="flex min-h-0 flex-auto flex-col gap-3.5 overflow-y-auto overscroll-contain px-[18px] py-[22px]">
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
