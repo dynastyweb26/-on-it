@@ -30,7 +30,7 @@ test('both arrows render for every card type, not only expenses', () => {
 });
 
 test('the arrows are inert when there is nowhere to go', () => {
-  assert.equal((nav('deposit', { pending: 0 }).match(/disabled/g) ?? []).length, 2, 'no items: both stop');
-  assert.equal((nav('deposit', { pos: 0 }).match(/disabled/g) ?? []).length, 1, 'first card: only back stops');
-  assert.equal((nav('stripe', { pos: 2, pending: 3 }).match(/disabled/g) ?? []).length, 1, 'last card: only forward stops');
+  assert.equal((nav('deposit', { pending: 0 }).match(/<button[^>]*\bdisabled=""/g) ?? []).length, 2, 'no items: both stop');
+  assert.equal((nav('deposit', { pos: 0 }).match(/<button[^>]*\bdisabled=""/g) ?? []).length, 1, 'first card: only back stops');
+  assert.equal((nav('stripe', { pos: 2, pending: 3 }).match(/<button[^>]*\bdisabled=""/g) ?? []).length, 1, 'last card: only forward stops');
 });
