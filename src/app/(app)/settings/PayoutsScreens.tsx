@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BrandMark from '@/components/BrandMark';
+import PayoutLumpNotice from '@/components/settings/PayoutLumpNotice';
 import { SettingsGroup, SettingsRow } from './SettingsRows';
 import BankTransferCard, { type BankState } from './BankTransferCard';
 import {
@@ -79,6 +80,16 @@ export function PayoutsIndex({ p, zelleMasked, connectOn }: { p: any; zelleMaske
       <p className="px-1 font-body text-sm text-on-surface-variant">
         Choose how clients can pay you. Everything you set here shows on your pay page.
       </p>
+      <PayoutLumpNotice
+        stripeAccountId={connectOn ? p.stripe_account_id : null}
+        bankLast4={p.bank_account_last4}
+      />
+      <PayoutLumpNotice
+        variant="popup"
+        accessTier={p.access_tier}
+        stripeAccountId={connectOn ? p.stripe_account_id : null}
+        bankLast4={p.bank_account_last4}
+      />
       <SettingsGroup title="Get paid online">
         {row('stripe', stripeStatus(p, connectOn), { icon: 'credit_card' })}
       </SettingsGroup>
@@ -234,6 +245,10 @@ function BankDetail({ p, onBankSaved }: PayoutDetailProps) {
   return (
     <DetailLayout method="bank" badge={p.bank_account_last4 ? CONFIGURED : null}>
       <BankTransferCard initial={p} onSaved={onBankSaved} onDone={() => router.push(INDEX_SAVED)} />
+      <PayoutLumpNotice
+        stripeAccountId={p.stripe_account_id}
+        bankLast4={p.bank_account_last4}
+      />
     </DetailLayout>
   );
 }

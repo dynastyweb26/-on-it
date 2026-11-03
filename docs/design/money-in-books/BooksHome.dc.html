@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+body{margin:0}a{color:#735c00}a:hover{color:#1e1a15}
+@keyframes oiRingRed{0%{box-shadow:0 0 0 0 rgba(200,65,46,.55)}70%{box-shadow:0 0 0 10px rgba(200,65,46,0)}100%{box-shadow:0 0 0 10px rgba(200,65,46,0)}}
+@keyframes oiRingAmber{0%{box-shadow:0 0 0 0 rgba(212,175,55,.7)}70%{box-shadow:0 0 0 10px rgba(212,175,55,0)}100%{box-shadow:0 0 0 10px rgba(212,175,55,0)}}
+@keyframes oiGlowRed{0%,100%{box-shadow:0 0 0 1px rgba(200,65,46,.28),0 8px 22px -10px rgba(200,65,46,.25)}50%{box-shadow:0 0 0 1px rgba(200,65,46,.45),0 10px 30px -8px rgba(200,65,46,.42)}}
+@keyframes oiGlowAmber{0%,100%{box-shadow:0 0 0 1px rgba(212,175,55,.45),0 8px 22px -10px rgba(212,175,55,.35)}50%{box-shadow:0 0 0 1px rgba(212,175,55,.75),0 10px 30px -8px rgba(212,175,55,.6)}}
+@keyframes oiPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:48px;background:#fff8f0;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45);-webkit-font-smoothing:antialiased;user-select:none;">
+  <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:90;box-sizing:border-box;background:#fff8f0;">
+    <span>5:35</span>
+    <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+  </div>
+
+  <div style="position:absolute;inset:0;transform:{{ baseTf }};opacity:{{ baseOp }};transition:{{ navTr }};">
+    <div style="position:absolute;top:47px;left:0;right:0;height:66px;display:flex;align-items:center;padding:0 16px 0 24px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+      <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;flex:none;white-space:nowrap;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+      <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 18px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.6px;white-space:nowrap;">How On It works</div>
+    </div>
+    <div style="position:absolute;top:113px;left:0;right:0;bottom:84px;overflow-y:auto;scrollbar-width:none;padding:18px 16px 30px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:12px;height:62px;padding:0 18px;border:1.5px solid #e3d8c5;border-radius:24px;background:#ffffff;flex:none;">
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;color:#735c00;">auto_awesome</span>
+        <span style="font-weight:600;font-size:19px;flex:1;">Recaps</span>
+        <span style="font-size:15px;color:#3a352d;white-space:nowrap;">Watch again</span>
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">play_arrow</span>
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#5f574b;">chevron_right</span>
+      </div>
+      <div onClick="{{ openNet }}" role="button" aria-label="Net, open Books summary" style="background:#34302a;border-radius:28px;padding:22px 24px;color:#fdf8f1;display:flex;align-items:center;cursor:pointer;flex:none;" style-active="transform:scale(.98)">
+        <div style="flex:1;">
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-1.5px;line-height:1;">$190<span style="font-size:24px;color:#cfc6b6;">.59</span></div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#e0d8ca;margin-top:12px;letter-spacing:.4px;">Net · all time <span style="font-weight:600;color:#b9b0a0;">· 72 invoices</span></div>
+        </div>
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;color:#cfc6b6;">chevron_right</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:none;">
+        <div style="background:#ffffff;border:1.5px solid #efe1b4;border-radius:24px;padding:16px 16px 18px;">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#735c00;"><span style="width:9px;height:9px;border-radius:50%;background:#d4af37;"></span><span style="flex:1;">Still owed</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#8f8676;">chevron_right</span></div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.8px;margin-top:8px;">$11,371<span style="font-size:15px;color:#8f8676;">.06</span></div>
+        </div>
+        <div onClick="{{ openIncome }}" role="button" aria-label="{{ collAria }}" style="position:relative;background:#ffffff;border:1.5px solid {{ collBorder }};border-radius:24px;padding:16px 16px 14px;cursor:pointer;animation:{{ collGlow }};box-shadow:{{ collShadow }};transition:border-color 240ms ease-out;" style-active="transform:scale(.97)">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#1e1a15;"><span style="width:9px;height:9px;border-radius:50%;background:#2f6b3f;"></span><span style="flex:1;">Collected</span>
+            <sc-if value="{{ collOn }}"><span style="display:flex;align-items:center;gap:2px;height:24px;padding:0 8px 0 6px;border-radius:12px;background:{{ bBg }};color:{{ bInk }};font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;animation:{{ ring }};"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">account_balance</span>{{ collN }}</span></sc-if>
+            <sc-if value="{{ collOff }}"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#8f8676;">chevron_right</span></sc-if>
+          </div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.8px;margin-top:8px;">$998<span style="font-size:15px;color:#8f8676;">.00</span></div>
+          <sc-if value="{{ collOn }}"><div style="font-size:12.5px;font-weight:700;color:{{ cueInk }};margin-top:4px;display:flex;align-items:center;gap:4px;"><span>{{ collN }} deposits to review</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">arrow_forward</span></div></sc-if>
+        </div>
+      </div>
+      <div onClick="{{ openExpenses }}" role="button" aria-label="{{ spentAria }}" style="display:flex;align-items:center;gap:12px;background:#ffffff;border:1.5px solid {{ spentBorder }};border-radius:24px;padding:14px 16px 14px 20px;cursor:pointer;animation:{{ spentGlow }};box-shadow:{{ spentShadow }};flex:none;" style-active="transform:scale(.98)">
+        <span style="width:9px;height:9px;border-radius:50%;background:#8f8676;flex:none;"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:18px;">Spent</div>
+          <sc-if value="{{ spentOn }}"><div style="font-size:12.5px;font-weight:700;color:{{ cueInk }};margin-top:1px;"><span>{{ spentN }} charges to review</span></div></sc-if>
+        </div>
+        <sc-if value="{{ spentOn }}"><span style="display:flex;align-items:center;gap:2px;height:24px;padding:0 8px 0 6px;border-radius:12px;background:{{ bBg }};color:{{ bInk }};font-size:13px;font-weight:800;animation:{{ ring }};"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">account_balance</span>{{ spentN }}</span></sc-if>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.6px;color:#3a352d;">$807<span style="font-size:15px;color:#8f8676;">.41</span></div>
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">chevron_right</span>
+      </div>
+      <div style="height:64px;border-radius:32px;background:#d4af37;display:flex;align-items:center;justify-content:center;gap:12px;font-family:Inter,sans-serif;font-weight:700;font-size:20px;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span>Add expense</div>
+      <div onClick="{{ openIncome }}" role="button" style="height:64px;border-radius:32px;background:#f3ece0;border:1.5px solid #e3d8c5;display:flex;align-items:center;justify-content:center;gap:12px;font-family:Inter,sans-serif;font-weight:600;font-size:20px;cursor:pointer;flex:none;box-sizing:border-box;" style-active="transform:scale(.98)"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">description</span>Income &amp; Expenses</div>
+      <div style="background:#ffffff;border:1.5px solid #e3d8c5;border-radius:24px;overflow:hidden;flex:none;margin-top:8px;">
+        <div onClick="{{ openExpenses }}" style="display:flex;align-items:center;gap:14px;padding:16px;border-bottom:1px solid #ebe2d2;cursor:pointer;">
+          <div style="width:46px;height:46px;border-radius:14px;background:#efe7da;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">receipt_long</span></div>
+          <div style="flex:1;"><div style="font-weight:700;font-size:18px;">View expenses</div><div style="font-size:15px;color:#5f574b;">Newest first, by week</div></div>
+          <span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:18px;color:#3a352d;">14</span>
+          <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">chevron_right</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;padding:16px;">
+          <div style="width:46px;height:46px;border-radius:14px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">autorenew</span></div>
+          <div style="flex:1;"><div style="font-weight:700;font-size:18px;">Recurring expenses</div><div style="font-size:15px;color:#5f574b;">1 charge · next Nov 10</div></div>
+          <span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:17px;">$2.00<span style="font-size:13px;font-weight:600;color:#5f574b;">/mo</span></span>
+        </div>
+      </div>
+    </div>
+    <div style="position:absolute;left:0;right:0;bottom:0;height:84px;z-index:28;background:#fff8f0;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div aria-label="{{ tabAria }}" style="position:relative;width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span><sc-if value="{{ anyOn }}"><span style="position:absolute;top:-6px;right:-2px;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;background:{{ tBg }};color:{{ tInk }};font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff8f0;animation:{{ ring }};">{{ total }}</span></sc-if></div><span style="font-size:12px;font-weight:700;">Books</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+    </div>
+  </div>
+
+  <div style="position:absolute;top:47px;left:0;right:0;bottom:0;z-index:50;background:#fff8f0;transform:{{ pushTf }};opacity:{{ pushOp }};transition:{{ navTr }};box-shadow:-12px 0 30px -18px rgba(40,30,10,.4);">
+    <sc-if value="{{ showLedger }}"><dc-import name="LedgerPair" bare="{{ true }}" scene="{{ ledgerScene }}" on-back="{{ pop }}" hint-size="100%,100%" style="position:absolute;inset:0;"></dc-import></sc-if>
+    <sc-if value="{{ showSummary }}"><dc-import name="SummaryScreen" bare="{{ true }}" on-back="{{ pop }}" hint-size="100%,100%" style="position:absolute;inset:0;"></dc-import></sc-if>
+  </div>
+  <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:95;"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;red&quot;,&quot;options&quot;:[&quot;red&quot;,&quot;amber&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;alerts&quot;,&quot;options&quot;:[&quot;alerts&quot;,&quot;cleared&quot;,&quot;static&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;reducedMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const EO='cubic-bezier(.2,.8,.2,1)';
+class Component extends DCLogic{
+  state={page:null,pushed:false};
+  rm(){return !!this.props.reducedMotion||(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}
+  push(page,seg){if(this.props.scene==='static')return;this.setState({page,seg,pushed:false});requestAnimationFrame(()=>requestAnimationFrame(()=>this.setState({pushed:true})));}
+  pop(){this.setState({pushed:false});setTimeout(()=>this.setState({page:null}),340);}
+  renderVals(){
+    const sc=this.props.scene||'alerts',amber=this.props.variant==='amber',rm=this.rm(),cleared=sc==='cleared';
+    const spentN=cleared?0:2,collN=cleared?0:3,s=this.state;
+    const red={bBg:'#c8412e',bInk:'#ffffff',cue:'#a3341f',border:'#efc9c1',ring:'oiRingRed',glow:'oiGlowRed',still:'0 0 0 1px rgba(200,65,46,.35)',stillRing:'0 0 0 3px rgba(200,65,46,.25)'};
+    const amb={bBg:'#d4af37',bInk:'#1e1a15',cue:'#735c00',border:'#e6cf7f',ring:'oiRingAmber',glow:'oiGlowAmber',still:'0 0 0 1px rgba(212,175,55,.6)',stillRing:'0 0 0 3px rgba(212,175,55,.35)'};
+    const k=amber?amb:red;
+    const ring=rm?'none':`${k.ring} 2400ms ${EO} infinite`,glow=rm?'none':`${k.glow} 3200ms ease-in-out infinite`;
+    return{
+      collOn:collN>0,collOff:collN===0,spentOn:spentN>0,anyOn:spentN+collN>0,collN,spentN,total:spentN+collN,
+      bBg:k.bBg,bInk:k.bInk,tBg:k.bBg,tInk:k.bInk,cueInk:k.cue,ring,
+      collBorder:collN?k.border:'#ebe2d2',collGlow:collN?glow:'none',collShadow:collN&&rm?k.still:'none',
+      spentBorder:spentN?k.border:'#ebe2d2',spentGlow:spentN?glow:'none',spentShadow:spentN&&rm?k.still:'none',
+      collAria:collN?`Collected, $998.00. ${collN} bank deposits to review. Open Income.`:'Collected, $998.00. Open Income.',
+      spentAria:spentN?`Spent, $807.41. ${spentN} bank charges to review. Open Expenses.`:'Spent, $807.41. Open Expenses.',
+      tabAria:spentN+collN?`Books, ${spentN+collN} items to review`:'Books',
+      openNet:()=>this.push('summary'),openIncome:()=>this.push('ledger','income'),openExpenses:()=>this.push('ledger','expenses'),pop:()=>this.pop(),
+      showLedger:s.page==='ledger',showSummary:s.page==='summary',ledgerScene:cleared?(s.seg==='income'?'incomeCaught':'expenses'):(s.seg||'income'),
+      baseTf:s.pushed&&!rm?'translateX(-24%)':'none',baseOp:s.pushed?.6:1,pushTf:s.pushed||(rm&&s.page)?'none':'translateX(100%)',pushOp:rm?(s.pushed?1:0):1,
+      navTr:rm?'opacity 350ms ease-out':`transform 320ms ${EO}, opacity 320ms ${EO}`
+    };
+  }
+}
+</script>
+</body>
+</html>

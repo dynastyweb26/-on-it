@@ -5,7 +5,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { failure, type FailureKind, type PlaidRoute } from './failure';
 
-const ROUTES: PlaidRoute[] = ['link-token', 'exchange', 'accounts', 'disconnect', 'transactions', 'review'];
+const ROUTES: PlaidRoute[] = [
+  'link-token', 'exchange', 'accounts', 'disconnect', 'transactions', 'review', 'deposits',
+];
 
 test('every failure kind has one stable status and reason code', () => {
   const table: [FailureKind, number, string][] = [
@@ -24,6 +26,10 @@ test('every failure kind has one stable status and reason code', () => {
     ['db_insert_failed', 500, 'db_insert_failed'],
     ['db_update_failed', 500, 'db_update_failed'],
     ['db_delete_failed', 500, 'db_delete_failed'],
+    ['payout_not_income', 409, 'payout_not_income'],
+    ['deposit_link_refused', 409, 'deposit_link_refused'],
+    ['payment_taken', 409, 'payment_taken'],
+    ['over_limit', 409, 'over_limit'],
   ];
   for (const route of ROUTES) {
     for (const [kind, status, reason] of table) {

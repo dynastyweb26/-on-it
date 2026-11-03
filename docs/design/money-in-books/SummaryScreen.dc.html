@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0}a{color:#735c00}a:hover{color:#1e1a15}</style>
+</helmet>
+<div style="width:{{ fw }};height:{{ fh }};position:relative;overflow:hidden;border-radius:{{ fr }};background:#fff8f0;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:{{ fsh }};-webkit-font-smoothing:antialiased;user-select:none;">
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:70;box-sizing:border-box;">
+      <span>5:36</span>
+      <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+    </div>
+  </sc-if>
+  <div style="position:absolute;top:{{ hTop }};left:{{ cLeft }};right:0;height:66px;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;background:#fff8f0;z-index:20;">
+    <span onClick="{{ back }}" role="button" aria-label="Back" style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;cursor:pointer;padding:9px;margin:-9px;border-radius:50%;" style-active="background-color:#f0e8db">arrow_back</span>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;flex:none;white-space:nowrap;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+    <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 18px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.6px;white-space:nowrap;">How On It works</div>
+  </div>
+
+  <div onClick="{{ closeMenu }}" style="position:absolute;top:{{ cTop }};left:{{ cLeft }};right:0;bottom:{{ cBot }};overflow-y:auto;box-sizing:border-box;scrollbar-width:none;">
+    <div style="max-width:1080px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:14px;">
+
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;">
+        <div style="flex:1 1 auto;font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.4px;">Books summary</div>
+        <div style="display:flex;gap:8px;">
+          <button onClick="{{ pdfIncome }}" style="height:44px;padding:0;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;" style-active="transform:scale(.96)"><span style="display:flex;align-items:center;gap:6px;height:34px;padding:0 13px 0 10px;border-radius:17px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:13px;color:#1e1a15;white-space:nowrap;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#735c00;">download</span>Income PDF</span></button>
+          <button onClick="{{ pdfExp }}" style="height:44px;padding:0;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;" style-active="transform:scale(.96)"><span style="display:flex;align-items:center;gap:6px;height:34px;padding:0 13px 0 10px;border-radius:17px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:13px;color:#1e1a15;white-space:nowrap;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#735c00;">download</span>Expenses PDF</span></button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:stretch;position:relative;z-index:15;">
+        <div style="position:relative;flex:1;min-width:0;">
+          <button onClick="{{ toggleMenu }}" style="width:100%;height:50px;border-radius:25px;border:1.5px solid #e3d8c5;background:#ffffff;display:flex;align-items:center;gap:8px;padding:0 14px 0 18px;font-family:Inter,sans-serif;font-size:16px;font-weight:600;color:#1e1a15;cursor:pointer;box-sizing:border-box;">
+            <span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ periodLabel }}</span>
+            <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;transform:{{ menuChevron }};transition:transform 200ms cubic-bezier(.65,0,.35,1);">expand_more</span>
+          </button>
+          <sc-if value="{{ menuOpen }}">
+            <div style="position:absolute;top:56px;left:0;right:0;background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;box-shadow:0 16px 34px -14px rgba(52,40,12,.3);overflow:hidden;z-index:30;">
+              <sc-for list="{{ periods }}" as="p">
+                <div onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-bottom:1px solid #f1e9db;font-size:15px;cursor:pointer;" style-hover="background:#faf3e7">
+                  <span style="flex:1;font-weight:{{ p.weight }};">{{ p.label }}</span>
+                  <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;opacity:{{ p.checkOp }};">check</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <div role="radiogroup" aria-label="Chart by" style="display:flex;background:#f0e8db;border-radius:14px;padding:4px;flex:none;">
+          <sc-for list="{{ grains }}" as="g" hint-placeholder-count="2">
+            <button onClick="{{ g.pick }}" role="radio" style="height:42px;padding:0 14px;border:none;border-radius:10px;background:{{ g.bg }};box-shadow:{{ g.shadow }};font-family:Inter,sans-serif;font-weight:{{ g.weight }};font-size:15px;color:{{ g.color }};cursor:pointer;transition:background 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms;">{{ g.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:24px;padding:16px 14px 14px;box-shadow:0 14px 34px -22px rgba(52,40,12,.28);">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:0 4px 10px;font-size:13px;font-weight:600;color:#3a352d;">
+          <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#2f6b3f" stroke-width="2.5"></line><circle cx="12" cy="5" r="4" fill="#2f6b3f"></circle></svg>Brought in</span>
+          <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#b03a29" stroke-width="2.5" stroke-dasharray="4 3"></line><rect x="8" y="1" width="8" height="8" fill="#b03a29"></rect></svg>Spent</span>
+          <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><svg width="12" height="12"><rect x="2" y="2" width="8" height="8" fill="#d4af37" transform="rotate(45 6 6)"></rect></svg>Kept</span>
+          <span style="margin-left:auto;font-weight:500;color:#5f574b;font-variant-numeric:tabular-nums;white-space:nowrap;">{{ rangeText }}</span>
+        </div>
+
+        <div style="position:relative;height:{{ chartH }};opacity:{{ chartOp }};transition:opacity 350ms ease-out;">
+          <sc-for list="{{ yTicks }}" as="t">
+            <div style="position:absolute;left:0;right:0;top:{{ t.top }};border-top:1px dashed #ece3d3;"></div>
+            <div style="position:absolute;left:0;top:{{ t.top }};transform:translateY(-120%);z-index:1;font-size:11px;font-weight:600;color:#8f8676;font-variant-numeric:tabular-nums;background:rgba(255,255,255,.86);border-radius:5px;padding:0 3px;">{{ t.label }}</div>
+          </sc-for>
+          <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;">
+            <path d="{{ incArea }}" fill="#6f9a78" fill-opacity=".34"></path>
+            <path d="{{ expArea }}" fill="#c8412e" fill-opacity=".22"></path>
+            <path d="{{ incLine }}" fill="none" stroke="#2f6b3f" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+            <path d="{{ expLine }}" fill="none" stroke="#b03a29" stroke-width="2.25" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+            <line x1="0" y1="280" x2="1000" y2="280" stroke="#d9ccb4" stroke-width="1.5" vector-effect="non-scaling-stroke"></line>
+          </svg>
+          <sc-if value="{{ hasData }}">
+            <div style="position:absolute;left:{{ pkInc.left }};top:{{ pkInc.top }};transform:translate({{ pkInc.tx }},-130%);opacity:{{ labelsOp }};transition:opacity 260ms ease-out;pointer-events:none;display:flex;align-items:center;gap:4px;background:#fff8f0;border:1px solid #d7e5d9;border-radius:9px;padding:3px 7px;font-size:12px;font-weight:700;color:#2f6b3f;white-space:nowrap;font-variant-numeric:tabular-nums;"><svg width="8" height="8"><circle cx="4" cy="4" r="4" fill="#2f6b3f"></circle></svg>{{ pkInc.text }}</div>
+            <div style="position:absolute;left:{{ pkExp.left }};top:{{ pkExp.top }};transform:translate({{ pkExp.tx }},{{ pkExp.ty }});opacity:{{ labelsOp }};transition:opacity 260ms ease-out 80ms;pointer-events:none;display:flex;align-items:center;gap:4px;background:#fff8f0;border:1px solid #efd3cc;border-radius:9px;padding:3px 7px;font-size:12px;font-weight:700;color:#a3341f;white-space:nowrap;font-variant-numeric:tabular-nums;"><svg width="8" height="8"><rect width="8" height="8" fill="#b03a29"></rect></svg>{{ pkExp.text }}</div>
+          </sc-if>
+          <sc-if value="{{ scrubOn }}">
+            <div style="position:absolute;top:0;bottom:20px;left:{{ scrubX }};width:0;border-left:1.5px solid #1e1a15;transition:left 120ms ease-out;pointer-events:none;"></div>
+            <div style="position:absolute;left:{{ scrubX }};top:{{ dotIncTop }};width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#2f6b3f;box-shadow:0 0 0 2.5px #ffffff;transition:left 120ms ease-out, top 120ms ease-out;pointer-events:none;"></div>
+            <div style="position:absolute;left:{{ scrubX }};top:{{ dotExpTop }};width:10px;height:10px;margin:-5px 0 0 -5px;background:#b03a29;box-shadow:0 0 0 2.5px #ffffff;transition:left 120ms ease-out, top 120ms ease-out;pointer-events:none;"></div>
+          </sc-if>
+          <sc-if value="{{ isEmpty }}">
+            <div style="position:absolute;inset:0 0 30px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 30px;">
+              <div style="width:52px;height:52px;border-radius:18px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">landscape</span></div>
+              <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">Nothing to chart yet</div>
+              <div style="font-size:14px;color:#5f574b;line-height:1.4;max-width:280px;text-wrap:pretty;">Payments and expenses you record show up here, week by week.</div>
+            </div>
+          </sc-if>
+          <div onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onPointerCancel="{{ onUp }}" style="position:absolute;inset:0;touch-action:pan-y;cursor:crosshair;"></div>
+          <sc-if value="{{ scrubOn }}">
+            <div onClick="{{ clearScrub }}" style="position:absolute;left:{{ cardX }};top:8px;width:186px;transform:translateX(-50%) scale({{ cardScale }});transform-origin:50% 0;opacity:{{ cardOp }};transition:{{ cardTr }};background:#ffffff;border:1px solid #e3d8c5;border-radius:16px;padding:10px 12px;box-shadow:0 16px 30px -12px rgba(52,40,12,.35);z-index:5;cursor:pointer;">
+              <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.2px;color:#5f574b;">{{ sc.label }}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:13px;"><span style="display:flex;align-items:center;gap:5px;color:#3a352d;"><svg width="8" height="8"><circle cx="4" cy="4" r="4" fill="#2f6b3f"></circle></svg>Brought in</span><span style="font-weight:700;color:#2f6b3f;font-variant-numeric:tabular-nums;">{{ sc.inn }}</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:13px;"><span style="display:flex;align-items:center;gap:5px;color:#3a352d;"><svg width="8" height="8"><rect width="8" height="8" fill="#b03a29"></rect></svg>Spent</span><span style="font-weight:700;font-variant-numeric:tabular-nums;">{{ sc.spent }}</span></div>
+              <div style="height:1px;background:#f1e9db;margin:7px 0 6px;"></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;"><span style="font-weight:700;">Kept</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:15px;color:{{ sc.keptColor }};font-variant-numeric:tabular-nums;">{{ sc.kept }}</span></div>
+              <sc-if value="{{ sc.over }}"><div style="margin-top:6px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#a3341f;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">trending_down</span>Spent more than brought in</div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="position:relative;height:18px;margin-top:6px;">
+          <sc-for list="{{ keptMarks }}" as="k">
+            <div title="{{ k.title }}" style="position:absolute;left:{{ k.left }};top:4px;width:{{ k.size }};height:{{ k.size }};margin-left:{{ k.ml }};transform:rotate(45deg) scale({{ k.sc }});background:{{ k.bg }};box-shadow:{{ k.ring }};opacity:{{ k.op }};transition:transform 320ms cubic-bezier(.34,1.56,.64,1), opacity 240ms ease-out;"></div>
+          </sc-for>
+        </div>
+        <div style="position:relative;height:16px;margin-top:2px;font-size:11px;font-weight:600;color:#5f574b;">
+          <sc-for list="{{ xLabels }}" as="x">
+            <span style="position:absolute;left:{{ x.left }};transform:translateX({{ x.tx }});white-space:nowrap;">{{ x.text }}</span>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showUnacc }}">
+          <div style="margin-top:12px;display:flex;align-items:center;gap:8px;padding:9px 10px 9px 12px;border-radius:14px;background:#faf3e7;font-size:13px;color:#3a352d;line-height:1.35;">
+            <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#5f574b;">account_balance</span>
+            <span style="flex:1;text-wrap:pretty;">{{ unaccText }}</span>
+            <span onClick="{{ review }}" style="font-weight:700;color:#735c00;cursor:pointer;padding:6px 4px;">Review</span>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start;">
+        <div style="background:#34302a;border-radius:24px;padding:18px 20px;color:#fdf8f1;opacity:{{ d0.op }};transform:{{ d0.tf }};transition:{{ d0.tr }};">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+            <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;color:#e6c65c;">{{ keptHead }}</div>
+          </div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:32px;letter-spacing:-.8px;color:#e6c65c;margin-top:2px;font-variant-numeric:tabular-nums;">{{ keptStr }}</div>
+          <div style="font-size:12.5px;color:#b9b0a0;margin-top:2px;">{{ countStr }}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid #4a453c;">
+            <div><div style="font-size:11px;letter-spacing:1px;color:#b9b0a0;">BROUGHT IN</div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;margin-top:3px;font-variant-numeric:tabular-nums;">{{ innStr }}</div></div>
+            <div><div style="font-size:11px;letter-spacing:1px;color:#b9b0a0;">SPENT</div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;margin-top:3px;font-variant-numeric:tabular-nums;">{{ spentStr }}</div></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #4a453c;">
+            <div><div style="font-size:11px;letter-spacing:1px;color:#b9b0a0;">STILL OWED (AS OF TODAY)</div><div style="font-size:11.5px;color:#8f8676;margin-top:1px;">Not counted in kept</div></div>
+            <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;color:#e6c65c;">$11,371.06</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;opacity:{{ d1.op }};transform:{{ d1.tf }};transition:{{ d1.tr }};">
+          <div style="display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.4px;color:#3a352d;padding:4px 6px 0;"><span>EXPENSES BY CATEGORY</span><span style="letter-spacing:0;font-variant-numeric:tabular-nums;">{{ spentStr }}</span></div>
+          <div style="background:#faf3e7;border:1px solid #efe5d3;border-radius:22px;padding:4px 18px;">
+            <sc-for list="{{ cats }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid {{ c.line }};">
+                <div style="flex:1;min-width:0;"><div style="font-size:16px;font-weight:500;">{{ c.name }}</div><div style="font-size:13px;color:#5f574b;">{{ c.sub }}</div></div>
+                <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums;">{{ c.amt }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;opacity:{{ d2.op }};transform:{{ d2.tf }};transition:{{ d2.tr }};">
+          <div style="display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.4px;color:#3a352d;padding:4px 6px 0;"><span>INCOME BY CLIENT</span><span style="letter-spacing:0;font-variant-numeric:tabular-nums;">{{ innStr }}</span></div>
+          <div style="background:#faf3e7;border:1px solid #efe5d3;border-radius:22px;padding:4px 18px;">
+            <sc-for list="{{ clients }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid {{ c.line }};">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;font-size:16px;font-weight:500;">{{ c.name }}<sc-if value="{{ c.isOther }}"><span style="font-size:11px;font-weight:700;letter-spacing:.3px;color:#5f574b;background:#efe7da;border-radius:6px;padding:2px 6px;">NOT FROM AN INVOICE</span></sc-if></div>
+                  <div style="font-size:13px;color:#5f574b;">{{ c.sub }}</div>
+                </div>
+                <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums;">{{ c.amt }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:13.5px;color:#5f574b;line-height:1.5;padding:2px 6px;text-wrap:pretty;opacity:{{ d2.op }};transition:opacity 350ms ease-out;">This is a record of the money you confirmed in On It: invoice payments, other income and expenses, grouped by category and client. Bank items you haven't reviewed are not included. Confirm totals against your receipts and bank records.</div>
+    </div>
+  </div>
+
+  <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;height:84px;z-index:28;background:#fff8f0;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span></div><span style="font-size:12px;font-weight:700;">Books</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ showRail }}">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:96px;z-index:28;background:#fff8f0;border-right:1px solid #ebe2d2;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:86px;box-sizing:border-box;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span></div><span style="font-size:12px;font-weight:700;">Books</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+    </div>
+  </sc-if>
+  <div style="position:absolute;left:50%;bottom:{{ toastBot }};width:min(340px,calc(100% - 32px));transform:translate(-50%,{{ toastY }});opacity:{{ toastOp }};transition:transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease-out;z-index:60;background:#34302a;color:#fdf8f1;border-radius:18px;padding:13px 16px;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;pointer-events:none;box-sizing:border-box;">
+    <span style="width:24px;height:24px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#1e1a15;">download</span></span>{{ toast }}
+  </div>
+  <sc-if value="{{ mobile }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:80;"></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;live&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;years&quot;,&quot;weeks&quot;,&quot;scrub&quot;,&quot;overspent&quot;,&quot;single&quot;,&quot;empty&quot;,&quot;reduced&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;phone&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;tablet&quot;,&quot;laptop&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;reducedMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;bare&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onBack&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;}}">
+const fmt=n=>(n<0?'−':'')+'$'+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt0=n=>'$'+Math.round(n).toLocaleString('en-US');
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const WEEKS=(()=>{const r=mul(11),w=[],end=new Date(2026,9,26);for(let i=0;;i++){const d=new Date(2023,0,2+7*i);if(d>end)break;const yi=d.getFullYear()-2023,season=1+.45*Math.sin((d.getMonth()/12)*Math.PI*2-1.2),grow=.55+.18*yi;let inc=r()<.22?0:Math.round((180+r()*520)*season*grow);let exp=Math.round((35+r()*120)*(.8+.1*yi)*100)/100;if(r()<.05)exp+=380+Math.round(r()*260);if(d.getFullYear()===2026&&d.getMonth()===4){const k=Math.floor((d.getDate()-1)/7);inc=[0,310,0,240][k]||0;exp+=[410,360,40,0][k]||0;}if(d.getFullYear()===2026&&d.getMonth()===7&&d.getDate()<8)inc+=900;w.push({d,inc,exp});}return w;})();
+const years=ws=>{const m=[];ws.forEach(w=>{const k=w.d.getFullYear();let g=m.find(x=>x.k===k);if(!g){g={k,d:new Date(k,0,1),inc:0,exp:0};m.push(g);}g.inc+=w.inc;g.exp+=w.exp;});return m;};
+const GRAINS={all:[['months','Months'],['years','Years']],'3m':[['weeks','Weeks'],['months','Months']],month:[['weeks','Weeks'],['months','Months']]};
+const months=ws=>{const m=[];ws.forEach(w=>{const k=w.d.getFullYear()*12+w.d.getMonth();let g=m.find(x=>x.k===k);if(!g){g={k,d:new Date(w.d.getFullYear(),w.d.getMonth(),1),inc:0,exp:0};m.push(g);}g.inc+=w.inc;g.exp+=w.exp;});return m;};
+const PERIODS=[{key:'all',label:'All time',from:new Date(2000,0,1)},{key:'3m',label:'Last 3 months',from:new Date(2026,7,1)},{key:'month',label:'This month · October',from:new Date(2026,9,1)}];
+const N=120,BASE=280,TOP=26;
+const insFor=n=>n<=1?3:Math.max(3,100/(n+1));
+const DEV={phone:{w:'390px',h:'844px',r:'48px',sh:'0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45)',mobile:true,chart:'232px'},tablet:{w:'820px',h:'1180px',r:'40px',sh:'0 0 0 12px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45)',mobile:true,chart:'320px'},laptop:{w:'1280px',h:'820px',r:'14px',sh:'0 0 0 1px #d9ccb4, 0 40px 70px -30px rgba(40,30,10,.4)',mobile:false,chart:'340px'}};
+const EO='cubic-bezier(.2,.8,.2,1)',SPR='cubic-bezier(.34,1.28,.64,1)';
+const ease=p=>1-Math.pow(1-p,3.2);
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+function samples(vals){const n=vals.length,o=new Array(N);if(!n)return o.fill(0);if(n===1){for(let j=0;j<N;j++){const t=j/(N-1);o[j]=vals[0]*Math.exp(-Math.pow((t-.5)/.2,2));}return o;}for(let j=0;j<N;j++){const t=j/(N-1)*(n-1),i=Math.min(n-2,Math.floor(t)),f=t-i,mu=(1-Math.cos(f*Math.PI))/2;o[j]=vals[i]*(1-mu)+vals[i+1]*mu;}return o;}
+const niceStep=m=>{const raw=m/3,p=Math.pow(10,Math.floor(Math.log10(raw||1))),n=raw/p;return(n<1.5?1:n<3?2:n<7?5:10)*p;};
+
+class Component extends DCLogic{
+  constructor(p){super(p);this.t=[];this.aid=0;this.mq=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;this.state=this.build(p.scene||'live');this.ci=new Array(N).fill(0);this.ce=new Array(N).fill(0);this.cmax=1;this.ins=3;this.ctot={inn:0,spent:0,kept:0};}
+  rm(){return !!this.props.reducedMotion||this.mq||this.state.scene==='reduced';}
+  build(scene){const s={scene,period:'all',grain:'months',menu:false,scrub:null,scrubPop:false,labels:false,dealt:false,chartOp:1,toast:'',toastOn:false,frame:0};
+    if(scene==='weeks'){s.grain='weeks';s.period='3m';}if(scene==='years')s.grain='years';
+    if(scene==='single')s.period='month';
+    if(scene==='scrub')s.scrub=8;
+    if(scene==='overspent')s.scrub='over';
+    return s;}
+  componentDidMount(){this.go(true);}
+  componentWillUnmount(){this.t.forEach(clearTimeout);this.aid++;}
+  componentDidUpdate(pp){if(pp.scene!==this.props.scene||pp.reducedMotion!==this.props.reducedMotion){this.t.forEach(clearTimeout);this.ci.fill(0);this.ce.fill(0);this.ctot={inn:0,spent:0,kept:0};this.setState(this.build(this.props.scene||'live'),()=>this.go(true));}}
+  later(ms,f){this.t.push(setTimeout(f,ms));}
+  data(s=this.state){if(s.scene==='empty')return{rows:[],grain:s.grain};const P=PERIODS.find(p=>p.key===s.period);const ws=WEEKS.filter(w=>w.d>=P.from);const multi=s.period==='all';let rows;
+    if(s.grain==='weeks')rows=ws.map(w=>({...w,short:`${MON[w.d.getMonth()]} ${w.d.getDate()}`,rng:`${MON[w.d.getMonth()]} ${w.d.getDate()}`,long:`WEEK OF ${MON[w.d.getMonth()].toUpperCase()} ${w.d.getDate()}`}));
+    else if(s.grain==='years')rows=years(ws).map(y=>{const last=ws.filter(w=>w.d.getFullYear()===y.k).pop().d,partial=y.k===2026;return{...y,short:String(y.k),rng:String(y.k),long:partial?`JAN – ${MON[last.getMonth()].toUpperCase()} ${y.k} · SO FAR`:String(y.k)};});
+    else rows=months(ws).map(m=>{const yy=String(m.d.getFullYear()).slice(2);return{...m,short:multi?`${MON[m.d.getMonth()]} ’${yy}`:MON[m.d.getMonth()],rng:`${MON[m.d.getMonth()]} ${m.d.getFullYear()}`,long:`${MONL[m.d.getMonth()].toUpperCase()} ${m.d.getFullYear()}`};});
+    return{rows,grain:s.grain};}
+  totals(rows){const inn=rows.reduce((a,r)=>a+r.inc,0),spent=rows.reduce((a,r)=>a+r.exp,0);return{inn,spent,kept:inn-spent};}
+  go(first){
+    const D=this.data(),rows=D.rows,ti=samples(rows.map(r=>r.inc)),te=samples(rows.map(r=>r.exp)),tmax=Math.max(1,...rows.map(r=>Math.max(r.inc,r.exp)))*1.18,tt=this.totals(rows);
+    if(this.state.scrub==='over'){const k=rows.findIndex(r=>r.exp>r.inc&&r.inc>0);this.setState({scrub:k<0?0:k});}
+    const tins=insFor(rows.length),fins=first?tins:this.ins,fi=this.ci.slice(),fe=this.ce.slice(),fm=first?tmax:this.cmax,ft={...this.ctot},id=++this.aid;
+    if(first)this.setState({dealt:false});
+    if(this.rm()){this.ins=tins;this.ci=ti;this.ce=te;this.cmax=tmax;this.ctot=tt;this.setState({chartOp:0,labels:true,frame:Date.now()});requestAnimationFrame(()=>requestAnimationFrame(()=>this.setState({chartOp:1,dealt:true})));return;}
+    this.setState({labels:false});
+    if(first)this.later(160,()=>this.setState({dealt:true}));
+    const t0=performance.now(),D1=760,LAG=150,WAVE=240;
+    const step=now=>{if(id!==this.aid)return;const t=now-t0;
+      for(let j=0;j<N;j++){const w=j/N*WAVE;this.ci[j]=fi[j]+(ti[j]-fi[j])*ease(cl((t-w)/D1,0,1));this.ce[j]=fe[j]+(te[j]-fe[j])*ease(cl((t-LAG-w)/D1,0,1));}
+      const pm=ease(cl(t/D1,0,1));this.cmax=fm+(tmax-fm)*pm;this.ins=fins+(tins-fins)*pm;const pn=ease(cl(t/900,0,1));['inn','spent','kept'].forEach(k=>this.ctot[k]=ft[k]+(tt[k]-ft[k])*pn);
+      this.setState({frame:t});
+      if(t<D1+LAG+WAVE+40||pn<1)requestAnimationFrame(step);else this.setState({labels:true});};
+    requestAnimationFrame(step);
+  }
+  y(v){return BASE-(v/this.cmax)*(BASE-TOP);}
+  path(arr,close){const X0=this.ins*10,R=14,pts=[],y0=this.y(arr[0]),y1=this.y(arr[N-1]),mu=t=>(1-Math.cos(t*Math.PI))/2;for(let k=0;k<R;k++){const t=k/R;pts.push([X0*t,BASE-(BASE-y0)*mu(t)]);}for(let j=0;j<N;j++)pts.push([X0+j/(N-1)*(1000-2*X0),this.y(arr[j])]);for(let k=1;k<=R;k++){const t=k/R;pts.push([1000-X0+X0*t,y1+(BASE-y1)*mu(t)]);}let d='';pts.forEach((p,i)=>{d+=(i?' L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1);});return close?d+' Z':d;}
+  px(i,n){return n===1?50:this.ins+i/(n-1)*(100-2*this.ins);}
+  setPeriod(k){const ok=GRAINS[k].map(g=>g[0]);const g=ok.includes(this.state.grain)?this.state.grain:'months';this.setState({period:k,grain:g,menu:false,scrub:null},()=>this.go(false));}
+  setGrain(g){if(g===this.state.grain)return;this.setState({grain:g,scrub:null},()=>this.go(false));}
+  scrubAt(e){const r=e.currentTarget.getBoundingClientRect(),f=cl(((e.clientX-r.left)/r.width-this.ins/100)/(1-2*this.ins/100),0,1),n=this.data().rows.length;if(!n)return;const i=n===1?0:Math.round(f*(n-1));if(i!==this.state.scrub||!this.state.scrubPop)this.setState({scrub:i,scrubPop:true});}
+  toastMsg(m){this.setState({toast:m,toastOn:true});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toastOn:false}),2400);this.t.push(this.tt);}
+  renderVals(){
+    const s=this.state,dv=DEV[this.props.device]||DEV.phone,laptop=this.props.device==='laptop',bare=!!this.props.bare,rm=this.rm();
+    const D=this.data(),rows=D.rows,n=rows.length,tt=this.ctot,P=PERIODS.find(p=>p.key===s.period);
+    const step=niceStep(this.cmax/1.18),yTicks=[];if(n)for(let v=step;v<this.cmax*.98;v+=step)yTicks.push({top:(this.y(v)/300*100)+'%',label:v>=1000?'$'+(v/1000).toFixed(v%1000?1:0)+'k':'$'+v});
+    const pk=key=>{let bi=0;rows.forEach((r,i)=>{if(r[key]>rows[bi][key])bi=i;});const r=rows[bi]||{},x=this.px(bi,n);return{i:bi,x,left:x<14?`max(calc(${x}% - 10px), 40px)`:x+'%',top:(this.y(r[key]||0)/300*100)+'%',tx:x<14?'0':x>88?'-90%':'-50%',text:fmt0(r[key]||0)};};
+    const pkInc=pk('inc'),pkExp=pk('exp');
+    const close=Math.abs(pkInc.x-pkExp.x)<18;pkExp.ty='-130%';if(close)pkExp.left=`calc(${pkInc.left.startsWith('max')?'40px':pkInc.left} + 78px)`,pkExp.tx='0';
+    let sc={},scrubOn=s.scrub!==null&&s.scrub!=='over'&&n>0&&s.scrub<n;
+    if(scrubOn){const r=rows[s.scrub],kept=r.inc-r.exp;sc={label:r.long,inn:'+'+fmt(r.inc),spent:fmt(r.exp),kept:fmt(kept),keptColor:kept<0?'#a3341f':'#1e1a15',over:kept<0};}
+    const sx=scrubOn?this.px(s.scrub,n):50;
+    const sIdx=scrubOn?Math.round(s.scrub/(Math.max(1,n-1))*(N-1)):0;
+    const mk=n>20?6:8;
+    const keptMarks=rows.map((r,i)=>{const k=r.inc-r.exp,on=s.labels||rm;return{left:this.px(i,n)+'%',size:mk+'px',ml:(-mk/2)+'px',bg:k>=0?'#d4af37':'#ffffff',ring:k>=0?'none':'inset 0 0 0 1.5px #5f574b',sc:on?1:.3,op:on?(scrubOn&&i!==s.scrub?.45:1):0,title:`Kept ${fmt(k)}`};});
+    const lblIdx=n<=1?[0]:n<=8?rows.map((_,i)=>i):n<=12?rows.map((_,i)=>i).filter(i=>n<=6||i%2===0||i===n-1):[0,Math.round(n*.25),Math.round(n*.5),Math.round(n*.75),n-1];
+    const xLabels=n?[...new Set(lblIdx)].map(i=>{const x=this.px(i,n);return{left:x+'%',tx:n===1?'-50%':x<3?'0':x>97?'-100%':'-50%',text:rows[i].short};}):[];
+    const deal=i=>({op:s.dealt?1:0,tf:s.dealt||rm?'none':'translateY(18px)',tr:rm?'opacity 350ms ease-out':`opacity 360ms ${EO} ${i*80}ms, transform 520ms ${SPR} ${i*80}ms`});
+    const spent=tt.spent,inn=tt.inn;
+    const catDef=[['Supplies',.38,9],['Fuel',.22,14],['Travel',.16,3],['Food',.14,17],['Other',.10,6]];
+    const cats=n?catDef.map(([nm,f,c],i)=>({name:nm,sub:`${c} expense${c>1?'s':''}`,amt:fmt(spent*f),line:i===catDef.length-1?'transparent':'#efe5d3'})):[{name:'No expenses yet',sub:'Expenses you add show here',amt:'$0.00',line:'transparent'}];
+    const cliDef=[['Nakamura Property Group',.34,'6 payments received'],['Obianuju',.26,'4 payments received'],['Mr. Bob',.16,'3 payments received'],['Bob',.12,'2 payments received'],['Other income',.12,'2 deposits you confirmed',true]];
+    const clients=n?cliDef.map(([nm,f,sub,o],i)=>({name:nm,sub,amt:fmt(inn*f),isOther:!!o,line:i===cliDef.length-1?'transparent':'#efe5d3'})):[{name:'No income yet',sub:'Payments you record show here',amt:'$0.00',line:'transparent'}];
+    const first=rows[0],last=rows[n-1];
+    const unN=s.scene==='empty'?0:3;
+    return{
+      fw:bare?'100%':dv.w,fh:bare?'100%':dv.h,fr:bare?'0':dv.r,fsh:bare?'none':dv.sh,mobile:dv.mobile&&!bare,
+      hTop:dv.mobile&&!bare?'47px':'0px',cTop:dv.mobile&&!bare?'113px':'66px',cLeft:laptop?'96px':'0px',cBot:laptop?'0px':'84px',showTabs:!laptop,showRail:laptop,chartH:dv.chart,
+      periodLabel:P.label,menuOpen:s.menu,menuChevron:s.menu?'rotate(180deg)':'none',
+      toggleMenu:e=>{e.stopPropagation();this.setState({menu:!s.menu});},closeMenu:()=>{if(this.state.menu)this.setState({menu:false});},
+      periods:PERIODS.map(p=>({label:p.label,weight:p.key===s.period?700:500,checkOp:p.key===s.period?1:0,pick:e=>{e.stopPropagation();this.setPeriod(p.key);}})),
+      grains:GRAINS[s.period].map(([k,l])=>{const on=s.grain===k;return{label:l,bg:on?'#ffffff':'transparent',shadow:on?'0 1px 4px rgba(40,30,10,.14)':'none',weight:on?700:500,color:on?'#1e1a15':'#5f574b',pick:()=>this.setGrain(k)};}),
+      rangeText:n?(n===1?first.rng+' · 1 '+s.grain.slice(0,-1):`${first.rng} – ${last.rng}`):'',
+      chartOp:s.chartOp,hasData:n>0&&s.scene!=='empty',isEmpty:!n,labelsOp:s.labels&&!scrubOn?1:0,
+      incArea:this.path(this.ci,true),expArea:this.path(this.ce,true),incLine:this.path(this.ci),expLine:this.path(this.ce),
+      yTicks,pkInc,pkExp,keptMarks,xLabels,
+      scrubOn,sc,scrubX:sx+'%',cardX:cl(sx,laptop?10:24,laptop?90:76)+'%',
+      dotIncTop:(this.y(this.ci[sIdx]||0)/300*100)+'%',dotExpTop:(this.y(this.ce[sIdx]||0)/300*100)+'%',
+      cardScale:s.scrubPop||rm?1:.94,cardOp:1,cardTr:rm?'opacity 350ms ease-out':`left 420ms ${SPR}, transform 360ms ${SPR}`,
+      onDown:e=>{this.drag=true;if(e.currentTarget.setPointerCapture)e.currentTarget.setPointerCapture(e.pointerId);this.setState({scrubPop:false});this.scrubAt(e);},
+      onMove:e=>{if(this.drag)this.scrubAt(e);},onUp:()=>{this.drag=false;},
+      clearScrub:()=>this.setState({scrub:null}),
+      showUnacc:unN>0,unaccText:`${unN} bank items aren't included. They join once you review them.`,review:()=>this.toastMsg('Opens the review stack'),
+      keptHead:`KEPT · ${P.label.split(' · ')[0].toUpperCase()}`,keptStr:fmt(tt.kept),innStr:fmt(inn),spentStr:fmt(spent),
+      countStr:n?`${s.period==='all'?212:s.period==='3m'?19:6} expenses · ${s.period==='all'?131:s.period==='3m'?12:4} payments · ${first.rng}${n>1?' – '+last.rng:''}`:'Nothing recorded yet',
+      d0:deal(0),d1:deal(1),d2:deal(2),cats,clients,
+      pdfIncome:()=>this.toastMsg('Income PDF ready · '+P.label),pdfExp:()=>this.toastMsg('Expenses PDF ready · '+P.label),
+      toast:s.toast,toastOn:s.toastOn,toastY:s.toastOn||rm?'0':'16px',toastOp:s.toastOn?1:0,toastBot:laptop?'24px':'100px',
+      back:()=>{if(this.props.onBack)this.props.onBack();}
+    };
+  }
+}
+</script>
+</body>
+</html>

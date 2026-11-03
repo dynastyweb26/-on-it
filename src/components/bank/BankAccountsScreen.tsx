@@ -302,12 +302,15 @@ export default function BankAccountsScreen() {
     }
     if (!isLinked(connection)) return <Pitch onConnect={beginLink} />;
     return (
-      <LinkedCard
-        connection={connection}
-        onReconnect={() => setBank?.((cur) => ({ ...cur, status: 'syncing' }))}
-        onDigest={() => setDigestOpen(true)}
-        onDisconnect={() => setDisconnectOpen(true)}
-      />
+      <>
+        <LinkedCard
+          connection={connection}
+          onReconnect={() => setBank?.((cur) => ({ ...cur, status: 'syncing' }))}
+          onDigest={() => setDigestOpen(true)}
+          onDisconnect={() => setDisconnectOpen(true)}
+        />
+        
+      </>
     );
   })();
 

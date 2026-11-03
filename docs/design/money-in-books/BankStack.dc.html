@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+body{margin:0}a{color:#735c00}a:hover{color:#1e1a15}
+@keyframes oiMoneyPulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.6);opacity:0}}
+@keyframes oiExpand{from{opacity:0;transform:scaleY(.85)}to{opacity:1;transform:none}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation:oiFade 350ms ease-out 1 both !important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="width:{{ fw }};height:{{ fh }};position:relative;overflow:hidden;border-radius:{{ fr }};background:#fff8f0;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:{{ fsh }};-webkit-font-smoothing:antialiased;user-select:none;">
+  <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:70;box-sizing:border-box;">
+    <span>7:02</span>
+    <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+  </div>
+  <div style="position:absolute;inset:47px 0 84px;background:#fff8f0;"></div>
+  <sc-if value="{{ sheetClosed }}"><div style="position:absolute;inset:113px 0 84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;"><div style="font-size:14px;color:#5f574b;">Stack closed. Books is behind it.</div><button onClick="{{ openSheet }}" style="height:46px;padding:0 18px;border-radius:23px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:#1e1a15;cursor:pointer;">Reopen bank activity</button></div></sc-if>
+  <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);z-index:25;opacity:{{ bdOp }};transition:opacity 300ms ease-out;pointer-events:none;"></div>
+  <div onClick="{{ closeSheet }}" title="Tab presses close the stack" style="position:absolute;left:0;right:0;bottom:0;height:84px;z-index:28;cursor:pointer;background:#fff8f0;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="position:relative;width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span><sc-if value="{{ tabBadge }}"><span style="position:absolute;top:-4px;right:2px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:#c8412e;color:#ffffff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff8f0;">{{ tabBadge }}</span></sc-if></div><span style="font-size:12px;font-weight:700;">Books</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+  </div>
+
+  <div role="dialog" aria-modal="true" style="position:absolute;left:0;right:0;top:54px;bottom:84px;z-index:30;background:#fdf8f1;border-radius:28px 28px 0 0;box-shadow:0 -12px 30px -8px rgba(40,30,10,.2);display:flex;flex-direction:column;transform:{{ sheetTf }};transition:{{ sheetTr }};pointer-events:{{ sheetPe }};">
+    <div style="display:flex;justify-content:center;padding-top:8px;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:46px;">
+      <button onClick="{{ closeSheet }}" aria-label="Close bank activity" style="width:44px;height:44px;border-radius:50%;border:none;background:#f0e8db;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1e1a15;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">close</span></button>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.6px;color:#5f574b;white-space:nowrap;">BANK ACTIVITY</div>
+        <div aria-live="polite" style="height:22px;overflow:hidden;"><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;line-height:22px;font-variant-numeric:tabular-nums;white-space:nowrap;transform:{{ tickTf }};opacity:{{ tickOp }};transition:{{ tickTr }};">{{ counter }}</div></div>
+      </div>
+      <div style="width:44px;"></div>
+    </div>
+    <div onClick="{{ dismissToast }}" role="status" aria-live="polite" style="position:absolute;left:16px;right:16px;top:60px;z-index:60;background:#34302a;color:#fdf8f1;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:12px;font-size:14px;font-weight:500;line-height:1.35;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);transform:{{ toastTf }};opacity:{{ toastOp }};transition:transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease-out;pointer-events:{{ toastPe }};cursor:pointer;">
+      <span style="width:24px;height:24px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#1e1a15;">check</span></span><span style="flex:1;">{{ toast }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#b9b0a0;">close</span>
+    </div>
+    <div role="tablist" style="margin:4px 16px 8px;display:flex;gap:4px;background:#f0e8db;border-radius:14px;padding:3px;">
+      <sc-for list="{{ segs }}" as="sg" hint-placeholder-count="2">
+        <button onClick="{{ sg.pick }}" role="tab" style="flex:1;height:36px;border:none;border-radius:10px;background:{{ sg.bg }};box-shadow:{{ sg.shadow }};font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:{{ sg.color }};display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;transition:background 200ms cubic-bezier(.2,.8,.2,1);">{{ sg.label }}<span style="font-size:12px;font-weight:600;color:#5f574b;background:#f0e8db;border-radius:999px;padding:1px 7px;">{{ sg.count }}</span></button>
+      </sc-for>
+    </div>
+
+    <div style="position:relative;flex:1;min-height:0;margin:0 16px 8px;">
+      <sc-if value="{{ showStack }}" hint-placeholder-val="{{ true }}">
+        <div onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onPointerCancel="{{ onUp }}" style="position:absolute;inset:0;touch-action:pan-y;">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+            <div style="position:absolute;left:0;right:0;top:0;bottom:10px;transform:{{ c.tf }};opacity:{{ c.op }};transition:{{ c.tr }};z-index:{{ c.z }};pointer-events:{{ c.pe }};">
+              <div style="position:relative;height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #ebe2d2;border-radius:24px;box-shadow:{{ c.shadow }};overflow:hidden;display:flex;flex-direction:column;padding:14px 16px 12px;gap:9px;">
+
+                <div style="display:flex;flex-direction:column;gap:2px;flex:none;">
+                  <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:28px;line-height:1.1;letter-spacing:-.4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;text-wrap:pretty;">{{ c.name }}</div>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <span style="font-size:14px;color:#5f574b;white-space:nowrap;">{{ c.meta }}</span>
+                      <sc-for list="{{ c.chips }}" as="ch">
+                        <span style="display:flex;align-items:center;gap:3px;height:22px;padding:0 8px 0 5px;border-radius:11px;background:{{ ch.bg }};font-size:12px;font-weight:700;color:{{ ch.color }};white-space:nowrap;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">{{ ch.icon }}</span>{{ ch.label }}</span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:10px;flex:none;">
+                  <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:40px;line-height:1.05;letter-spacing:-1px;color:{{ c.amtColor }};font-variant-numeric:tabular-nums;">{{ c.amount }}</div>
+                  <sc-if value="{{ c.halo }}"><span style="position:relative;width:10px;height:10px;flex:none;"><span style="position:absolute;inset:0;border-radius:50%;background:#6f9a78;"></span><span data-m="" style="position:absolute;inset:0;border-radius:50%;background:#6f9a78;animation:oiMoneyPulse 600ms cubic-bezier(.2,.8,.2,1) 3;"></span></span></sc-if>
+                  <sc-if value="{{ c.edit }}"><button aria-label="Edit amount" style="width:34px;height:34px;border-radius:50%;border:none;background:#f0e8db;display:flex;align-items:center;justify-content:center;color:#1e1a15;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">edit</span></button></sc-if>
+                  <sc-if value="{{ c.amtSub }}"><span style="font-size:13px;font-weight:600;color:#5f574b;">{{ c.amtSub }}</span></sc-if>
+                </div>
+
+                <div style="position:relative;z-index:2;flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;">
+                  <sc-if value="{{ c.caution }}">
+                    <div style="display:flex;gap:10px;align-items:flex-start;background:#faf3e7;border-radius:14px;padding:10px 12px;font-size:13.5px;line-height:1.4;color:#3a352d;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;color:#735c00;">info</span><span style="text-wrap:pretty;">{{ c.caution }}</span></div>
+                  </sc-if>
+
+                  <sc-if value="{{ c.isPending }}">
+                    <div style="display:flex;gap:10px;align-items:flex-start;background:#faf3e7;border-radius:16px;padding:12px 14px;font-size:14px;line-height:1.45;color:#3a352d;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">hourglass_top</span><span style="text-wrap:pretty;"><b>Pending at the bank.</b> Not final yet. Review it once it posts, usually in 1–2 days.</span></div>
+                  </sc-if>
+                  <sc-if value="{{ c.isExpense }}">
+                    <div style="background:#faf3e7;border-radius:18px;">
+                      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #efe5d3;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">calendar_today</span><span style="flex:1;font-size:15px;color:#5f574b;">Date</span><span style="font-size:15px;font-weight:600;">{{ c.date }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#8f8676;">edit</span></div>
+                      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#5f574b;">sell</span><span style="flex:1;font-size:15px;color:#5f574b;">Category</span><span style="font-size:12px;color:#735c00;font-weight:600;">Suggested</span><span style="display:flex;align-items:center;gap:2px;height:32px;padding:0 8px 0 12px;border-radius:16px;background:#f2e5b9;font-size:14px;font-weight:600;">{{ c.cat }}<span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">expand_more</span></span></div>
+                    </div>
+                    <sc-if value="{{ c.match }}">
+                      <div style="display:flex;align-items:center;gap:12px;background:#f8efd6;border-radius:16px;padding:12px 14px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">link</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:#735c00;">Possible match · already recorded?</div><div style="font-size:14px;color:#3a352d;margin-top:1px;">{{ c.match }}</div></div></div>
+                    </sc-if>
+                    <button style="display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:14px;border:1.5px dashed #d9ccb4;background:transparent;font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:#1e1a15;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">receipt_long</span>Attach receipt</button>
+                  </sc-if>
+
+                  <sc-if value="{{ c.isDeposit }}">
+                    <sc-if value="{{ c.sug }}">
+                      <div style="display:flex;align-items:center;gap:10px;background:#f8efd6;border-radius:16px;padding:9px 10px 9px 12px;">
+                        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">{{ c.sug.icon }}</span>
+                        <div style="flex:1;min-width:0;">
+                          <div style="font-size:13.5px;line-height:1.3;color:#3a352d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><b style="color:#735c00;">{{ c.sug.head }}</b> · {{ c.sug.text }}</div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+                            <span style="display:flex;align-items:center;gap:4px;height:22px;padding:0 8px 0 5px;border-radius:11px;background:#ffffff;font-size:12px;font-weight:600;color:#3a352d;box-shadow:inset 0 0 0 1px #e8dcc0;white-space:nowrap;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;color:#735c00;">{{ c.sug.whyIcon }}</span>{{ c.sug.why }}</span>
+                            <span style="font-size:12px;color:#5f574b;white-space:nowrap;">You confirm.</span>
+                          </div>
+                        </div>
+                        <button onClick="{{ c.sug.use }}" style="height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #d4af37;background:{{ c.sug.btnBg }};font-family:Inter,sans-serif;font-weight:700;font-size:13px;color:#1e1a15;cursor:pointer;flex:none;">{{ c.sug.btn }}</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ c.hasOpts }}"><div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;">What is this money?</div></sc-if>
+                    <div role="radiogroup" aria-label="What is this money?" style="display:flex;flex-direction:column;gap:6px;opacity:{{ c.optsOp }};">
+                      <sc-for list="{{ c.opts }}" as="o">
+                        <div style="display:flex;flex-direction:column;border:1.5px solid {{ o.border }};background:{{ o.bg }};border-radius:16px;transition:border-color 180ms cubic-bezier(.2,.8,.2,1), background 180ms;">
+                          <div onClick="{{ o.pick }}" role="radio" aria-checked="{{ o.sel }}" style="display:flex;align-items:center;gap:12px;min-height:42px;padding:6px 12px;cursor:pointer;box-sizing:border-box;">
+                            <span style="width:22px;height:22px;border-radius:50%;box-sizing:border-box;border:2px solid {{ o.ring }};background:{{ o.fill }};display:flex;align-items:center;justify-content:center;flex:none;"><span style="width:8px;height:8px;border-radius:50%;background:#1e1a15;opacity:{{ o.dotOp }};"></span></span>
+                            <div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:600;">{{ o.label }}</div><sc-if value="{{ o.showSub }}"><div style="font-size:13px;color:#5f574b;">{{ o.sub }}</div></sc-if></div>
+                          </div>
+                          <sc-if value="{{ o.open }}">
+                            <div data-m="" style="display:flex;flex-direction:column;gap:6px;margin:0 10px 10px;animation:oiExpand 200ms cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 0;">
+                              <div style="position:relative;">
+                              <sc-if value="{{ o.dd }}">
+                                <div onClick="{{ o.dd.toggle }}" role="button" aria-haspopup="listbox" aria-expanded="{{ o.dd.exp }}" style="display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 10px 6px 12px;border-radius:12px;background:#ffffff;border:1.5px solid {{ o.dd.border }};cursor:pointer;box-sizing:border-box;">
+                                  <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:{{ o.dd.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ o.dd.label }}</div><sc-if value="{{ o.dd.sub }}"><div style="font-size:12.5px;color:#5f574b;">{{ o.dd.sub }}</div></sc-if></div>
+                                  <span style="font-size:12px;font-weight:600;color:#5f574b;white-space:nowrap;">{{ o.dd.count }}</span>
+                                  <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;transform:{{ o.dd.chev }};transition:transform 200ms cubic-bezier(.65,0,.35,1);">expand_more</span>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ o.listOpen }}">
+                                <div data-m="" role="listbox" style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;border-radius:12px;background:#ffffff;border:1px solid #e3d8c5;overflow:hidden;box-shadow:0 18px 34px -12px rgba(52,40,12,.4);animation:oiExpand 180ms cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 0;">
+                                  <sc-for list="{{ o.rows }}" as="r">
+                                    <div onClick="{{ r.pick }}" role="option" aria-selected="{{ r.sel }}" style="display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 12px;border-bottom:1px solid #f1e9db;background:{{ r.bg }};cursor:pointer;box-sizing:border-box;">
+                                      <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;">{{ r.label }}</div><div style="font-size:12.5px;color:#5f574b;">{{ r.sub }}</div></div>
+                                      <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;color:#735c00;opacity:{{ r.checkOp }};">check</span>
+                                    </div>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
+                              </div>
+                              <sc-if value="{{ o.chips }}">
+                                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                                  <sc-for list="{{ o.chips }}" as="k">
+                                    <button onClick="{{ k.pick }}" style="height:32px;padding:0 9px;border-radius:16px;border:1px solid {{ k.border }};background:{{ k.bg }};font-family:Inter,sans-serif;font-size:12px;white-space:nowrap;font-weight:600;color:#1e1a15;cursor:pointer;">{{ k.label }}</button>
+                                  </sc-for>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ o.note }}">
+                                <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:{{ o.noteColor }};padding:2px 2px 0;white-space:nowrap;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">{{ o.noteIcon }}</span>{{ o.note }}</div>
+                              </sc-if>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ c.isStripe }}">
+                    <div style="background:#faf3e7;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+                      <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#735c00;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">verified</span>Already counted in Collected</div>
+                      <div style="font-size:14px;color:#3a352d;line-height:1.45;text-wrap:pretty;">Stripe sent these card payments to your bank in one lump. Each one is already recorded, so this deposit isn't new income.</div>
+                      <div style="background:#ffffff;border-radius:14px;border:1px solid #efe5d3;">
+                        <sc-for list="{{ c.payouts }}" as="p">
+                          <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid {{ p.line }};font-size:13.5px;"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.label }}</span><span style="font-weight:700;font-variant-numeric:tabular-nums;">{{ p.amt }}</span></div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  
+
+                  <sc-if value="{{ c.isReview }}">
+                    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;line-height:1.2;text-wrap:pretty;">{{ c.title }}</div>
+                    <div style="background:#faf3e7;border-radius:18px;padding:14px 16px;">
+                      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.4px;color:#5f574b;">STATUS</div>
+                      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;"><span style="font-size:16px;color:#8f8676;text-decoration:line-through;">{{ c.from }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#5f574b;">arrow_forward</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;">{{ c.to }}</span></div>
+                    </div>
+                    <div style="font-size:14px;color:#3a352d;line-height:1.45;text-wrap:pretty;">{{ c.note }}</div>
+                  </sc-if>
+
+                  <sc-if value="{{ c.refusal }}">
+                    <div data-m="" role="alert" style="display:flex;gap:10px;align-items:flex-start;background:#ffffff;border:1.5px solid #e3d8c5;border-radius:14px;padding:11px 12px;font-size:13.5px;line-height:1.4;color:#1e1a15;animation:oiExpand 220ms cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 0;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;color:#5f574b;">{{ c.refusal.icon }}</span><span style="text-wrap:pretty;"><b>{{ c.refusal.head }}</b> {{ c.refusal.text }}</span></div>
+                  </sc-if>
+                </div>
+
+                <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:6px;flex:none;">
+                  <button onClick="{{ c.primary.act }}" aria-disabled="{{ c.primary.dis }}" style="height:50px;border-radius:25px;border:none;background:{{ c.primary.bg }};font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:{{ c.primary.color }};cursor:pointer;transition:background 200ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97)">{{ c.primary.label }}</button>
+                  <sc-if value="{{ c.secondaries }}">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                      <sc-for list="{{ c.secondaries }}" as="b">
+                        <button onClick="{{ b.act }}" style="width:100%;height:44px;border-radius:22px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:#1e1a15;cursor:pointer;" style-active="transform:scale(.96)">{{ b.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+
+                <div style="position:absolute;inset:0;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:{{ c.chkOp }};transition:opacity 140ms cubic-bezier(.2,.8,.2,1);pointer-events:none;">
+                  <svg width="72" height="72"><circle cx="36" cy="36" r="30" fill="none" stroke="#d4af37" style="stroke-width:4px;stroke-linecap:round;stroke-dasharray:189;stroke-dashoffset:{{ c.ringOff }};transform:rotate(-90deg);transform-origin:36px 36px;transition:stroke-dashoffset 260ms cubic-bezier(.2,.8,.2,1) 40ms;"></circle><polyline points="24,37 32,45 48,28" fill="none" stroke="#1e1a15" style="stroke-width:4.5px;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:36;stroke-dashoffset:{{ c.checkOff }};transition:stroke-dashoffset 200ms cubic-bezier(.2,.8,.2,1) 200ms;"></polyline></svg>
+                  <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;">{{ c.doneLabel }}</div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showList }}">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:24px;overflow:hidden;">
+            <sc-for list="{{ listRows }}" as="r" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f1e9db;">
+                <div style="width:40px;height:40px;border-radius:12px;background:{{ r.tileBg }};display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">{{ r.icon }}</span></div>
+                <div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.name }}</div><div style="font-size:13px;color:#5f574b;">{{ r.meta }}</div></div>
+                <button onClick="{{ r.act }}" style="height:44px;padding:0 14px;border-radius:22px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:#1e1a15;cursor:pointer;display:flex;align-items:center;gap:5px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">undo</span>Restore</button>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:13px;color:#5f574b;line-height:1.45;padding:0 6px;text-wrap:pretty;">Ignored items stay out of every total. Restore puts one back in To review.</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showListEmpty }}">
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:0 36px 70px;text-align:center;">
+          <div style="width:64px;height:64px;border-radius:22px;background:#efe7da;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:30px;">visibility_off</span></div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;">Nothing here</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showCaught }}">
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:0 28px 70px;text-align:center;">
+          <svg width="120" height="120"><circle cx="60" cy="60" r="50" fill="none" stroke="#f2e5b9" style="stroke-width:5px;"></circle><circle cx="60" cy="60" r="50" fill="none" stroke="#d4af37" style="stroke-width:5px;stroke-linecap:round;stroke-dasharray:315;stroke-dashoffset:{{ ringOff }};transform:rotate(-90deg);transform-origin:60px 60px;transition:stroke-dashoffset 600ms cubic-bezier(.65,0,.35,1);"></circle><polyline points="40,62 54,76 82,46" fill="none" stroke="#1e1a15" style="stroke-width:6px;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:64;stroke-dashoffset:{{ checkOff }};transition:stroke-dashoffset 280ms cubic-bezier(.2,.8,.2,1) 420ms;"></polyline></svg>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;">All caught up</div>
+          <div style="font-size:15px;color:#5f574b;line-height:1.45;">Every charge and deposit is accounted for.</div>
+          <button onClick="{{ replay }}" style="height:44px;padding:0 18px;border-radius:22px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:#1e1a15;cursor:pointer;">Replay</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:80;"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;live&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;suggestMemo&quot;,&quot;suggestExact&quot;,&quot;noSuggest&quot;,&quot;newInvoice&quot;,&quot;existing&quot;,&quot;existingClosed&quot;,&quot;other&quot;,&quot;otherUnknown&quot;,&quot;expense&quot;,&quot;stripeSure&quot;,&quot;stripeRestored&quot;,&quot;stripeMaybe&quot;,&quot;pending&quot;,&quot;removed&quot;,&quot;refuseLinked&quot;,&quot;refuseLarger&quot;,&quot;refuseAccounted&quot;,&quot;ignored&quot;,&quot;caught&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;reducedMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const fmt=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const EO='cubic-bezier(.2,.8,.2,1)',EI='cubic-bezier(.4,0,1,1)',SPR='cubic-bezier(.34,1.28,.64,1)';
+const INVOICES=[{id:'INV-1042',client:'Nakamura Property Group',due:1200},{id:'INV-1038',client:'Mr. Bob',due:650},{id:'INV-1039',client:'Obianuju',due:400}];
+const PAYMENTS=[{id:'p1',client:'Nakamura Property Group',inv:'INV-1042',date:'Oct 29',amt:400},{id:'p2',client:'Obianuju',inv:'INV-1040',date:'Oct 20',amt:400,linkedTo:'the Oct 20 deposit'},{id:'p3',client:'Mr. Bob',inv:'INV-1038',date:'Oct 25',amt:650}];
+const CLASS=[['Customer payment','in'],['Vendor refund','out'],['Transfer','out'],['Loan or owner money','out'],['Other income','in'],['Unknown','un']];
+const ITEMS=[
+  {id:'pd',type:'deposit',pending:true,payer:'ZELLE FROM K OKAFOR',amount:300,date:'Oct 31'},
+  {id:'d1',type:'deposit',payer:'ZELLE FROM D NAKAMURA',amount:400,date:'Oct 30',memo:'INV-1042',sug:{kind:'invoice',inv:'INV-1042',why:'Invoice number in memo',whyIcon:'tag'}},
+  {id:'wm',type:'expense',merchant:'Walmart',amount:30.38,date:'Oct 29',cat:'Food'},
+  {id:'st',type:'stripe',amount:1934.50,date:'Oct 29'},
+  {id:'d2',type:'deposit',payer:'MOBILE DEPOSIT',amount:650,date:'Oct 28',sug:{kind:'invoice',inv:'INV-1038',why:'Matches one open invoice exactly',whyIcon:'target'}},
+  {id:'co',type:'expense',merchant:'Costco Wholesale',amount:432.98,date:'Oct 27',cat:'Supplies',match:'Costco Wholesale · Supplies · Oct 27 · $432.98'},
+  {id:'d3',type:'deposit',payer:'ACH CREDIT HOMEDEPOT',amount:84.20,date:'Oct 26'},
+  {id:'sm',type:'deposit',maybeStripe:true,payer:'STRIPE TRANSFER ST-7Q2',amount:1212,date:'Oct 25'},
+  {id:'rv',type:'review',payer:'MOBILE DEPOSIT',amount:650,date:'Oct 22'}
+];
+const RMSG=(r,a)=>r==='linked'?"That payment is already linked to the Oct 20 deposit. Pick another, or unlink it first.":`That payment (${Number(a).toFixed(2)}) is bigger than this deposit. One deposit covers one payment.`;
+const SCENES={live:{},suggestMemo:{cur:'d1'},suggestExact:{cur:'d2',dep:{choice:'invoice',inv:'INV-1038'}},noSuggest:{cur:'d3'},newInvoice:{cur:'d1',dep:{choice:'invoice',invOpen:true,inv:'INV-1042'}},existingClosed:{cur:'d1',dep:{choice:'existing'}},other:{cur:'d3',dep:{choice:'other',other:'Vendor refund'}},otherUnknown:{cur:'d3',dep:{choice:'other',other:'Unknown'}},existing:{cur:'d1',dep:{choice:'existing',payOpen:true,pay:'p1'}},stripeSure:{filter:'ignored'},stripeRestored:{cur:'st',restored:true},stripeMaybe:{cur:'sm'},pending:{cur:'pd'},removed:{cur:'rv'},refuseLinked:{cur:'d3',dep:{choice:'existing',pay:'p2',refuse:'linked'}},refuseLarger:{cur:'d3',dep:{choice:'existing',pay:'p3',refuse:'larger'}},refuseAccounted:{cur:'d3',refuse:'accounted'},ignored:{filter:'ignored',ignored:['wm','d3']},expense:{cur:'co'},caught:{caught:true}};
+class Component extends DCLogic{
+  constructor(p){super(p);this.t=[];this.root=React.createRef();this.mq=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;this.state=this.build(p.scene||'live');}
+  rm(){return !!this.props.reducedMotion||this.mq;}
+  componentDidMount(){if(this.state.scene==='live'){this.later(120,()=>this.setState({dealt:true,dealing:true}));this.later(900,()=>this.setState({dealing:false}));}}
+  componentDidUpdate(pp){if(pp.scene!==this.props.scene){this.t.forEach(clearTimeout);this.setState(this.build(this.props.scene||'live'));return;}}
+  componentWillUnmount(){this.t.forEach(clearTimeout);}
+  later(ms,f){this.t.push(setTimeout(f,ms));}
+  raf2(f){requestAnimationFrame(()=>requestAnimationFrame(f));}
+  build(scene){const c=SCENES[scene]||{};const s={scene,status:{},cursor:0,filter:c.filter||'review',dep:c.dep||{},refuse:c.refuse||null,dealt:scene!=='live',dealing:false,open:true,drag:0,dragging:false,tick:'idle',shownPos:1,toast:'',toastOn:false,caught:!!c.caught,ringGo:!!c.caught};
+    if(!c.restored)s.status.st='ignored';(c.ignored||[]).forEach(id=>s.status[id]='ignored');if(c.caught)ITEMS.forEach(it=>{if(!s.status[it.id])s.status[it.id]='added';});
+    if(c.cur){const i=ITEMS.findIndex(x=>x.id===c.cur);ITEMS.slice(0,i).forEach(it=>{if(it.id!=='pd'&&!s.status[it.id])s.status[it.id]='added';});s.cursor=i;if(i>0&&!s.status.pd)s.status.pd='skip';}
+    if(c.dep&&c.dep.refuse){s.toast=RMSG(c.dep.refuse,c.dep.refuse==='larger'?650:400);s.toastOn=true;}
+    s.shownPos=this.pend(s).indexOf(s.cursor)+1;return s;}
+  pend(s=this.state){return ITEMS.map((_,i)=>i).filter(i=>!s.status[ITEMS[i].id]||s.status[ITEMS[i].id]==='skip');}
+  setCursor(c){this.setState({dep:{},refuse:null});if(this.rm()){this.setState({cursor:c},()=>this.setState({shownPos:this.pend().indexOf(c)+1}));return;}this.setState({cursor:c,tick:'out'});this.later(120,()=>{this.setState({shownPos:this.pend().indexOf(c)+1,tick:'pre'});this.raf2(()=>this.setState({tick:'idle'}));});}
+  toastMsg(m){this.setState({toast:m,toastOn:true});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({toastOn:false}),2400);this.t.push(this.tt);}
+  decide(kind,msg){const s=this.state,it=ITEMS[s.cursor],rm=this.rm();const rest=this.pend().filter(i=>i!==s.cursor);
+    const adv=()=>{if(!rest.length){this.later(rm?0:420,()=>{this.setState({caught:true,ringGo:false});this.raf2(()=>this.setState({ringGo:true}));});return;}const nx=rest.find(i=>i>s.cursor);this.setCursor(nx!==undefined?nx:rest[0]);};
+    if(kind==='add'){this.setState(x=>({status:{...x.status,[it.id]:'checking'}}));this.later(rm?0:340,()=>{this.setState(x=>({status:{...x.status,[it.id]:'added'}}));adv();if(msg)this.toastMsg(msg);});}
+    else{this.setState(x=>({status:{...x.status,[it.id]:kind}}));adv();if(msg)this.toastMsg(msg);}}
+  cardView(it,i,s,p,rm){
+    const st=s.status[it.id]==='skip'?null:s.status[it.id],k=p.indexOf(s.cursor),rel=st?null:p.indexOf(i)-k,top=rel===0;
+    let tf='none',op=1,z=10,pe='none',chk=0,tr=`transform 460ms ${SPR}, opacity 240ms ${EO}`;
+    if(!st){if(rel===0){tf=`translateX(${s.drag}px) rotate(${(s.drag/26).toFixed(2)}deg)`;z=30;pe='auto';if(s.dragging)tr='none';}
+      else if(rel<0){tf='translateX(-118%) rotate(-7deg)';op=0;z=31;tr=`transform 340ms ${EO}, opacity 260ms ${EO}`;}
+      else if(rel===1){tf='translateY(8px) scale(.96)';z=20;}else if(rel===2){tf='translateY(16px) scale(.92)';z=19;}else{tf='translateY(16px) scale(.92)';op=0;z=18;}
+      if(!s.dealt){tf='translateY(170px) scale(.96)';op=0;}else if(s.dealing&&rel>=0&&rel<=2){const d=(2-rel)*80;tr=`transform 560ms ${SPR} ${d}ms, opacity 240ms ${EO} ${d}ms`;}}
+    else{z=30;if(st==='checking'){tf='scale(.98)';chk=1;tr=`transform 200ms ${EO}`;}else if(st==='added'){tf='translateY(-112%) scale(.9)';op=0;chk=1;tr=`transform 340ms ${EI}, opacity 280ms ${EI} 60ms`;}else{tf='translateX(-64px)';op=0;tr=`transform 240ms ${EO}, opacity 240ms ${EO}`;}}
+    if(rm)tr='opacity 350ms ease-out';
+    const d=top?s.dep:{},ref=top?s.refuse:null;
+    const inc={label:'Income',icon:'south_west',bg:'#e7f0e8',color:'#2f6b3f'};
+    const v={sb:top?'1':'0',moreOp:top&&s.more?1:0,upOp:top&&s.up?1:0,tf,op,tr,z,pe,chkOp:chk,ringOff:chk?0:189,checkOff:chk?0:36,shadow:'0 14px 34px -14px rgba(52,40,12,.24)',doneLabel:it.type==='expense'?'Added':'Saved',
+      hasOpts:true,isExpense:false,isDeposit:false,isStripe:false,isPending:false,isReview:false,halo:false,edit:false,amtSub:'',caution:'',sug:null,refusal:null,secondaries:null,secCols:'1fr 1fr',tileIcon:'',tileLetter:'',tileBg:'#f2e5b9',chips:[]};
+    const DONT=()=>({label:"Don't add",act:()=>this.decide('ignored',"Moved to Ignored. Restore it anytime.")});
+    const P=(label,act,ok=true)=>({label,act:ok?act:()=>{},dis:ok?'false':'true',bg:ok?'#d4af37':'#efe7da',color:ok?'#1e1a15':'#8f8676'});
+    if(it.type==='expense'){Object.assign(v,{isExpense:true,tileLetter:it.merchant[0],name:it.merchant,meta:`${it.date} · Chase ••4821`,amount:fmt(it.amount),amtColor:'#1e1a15',edit:true,date:it.date,cat:it.cat,match:it.match||'',
+        linkMatch:()=>this.decide('already','Linked to the Costco record, totals unchanged.'),
+        primary:P('Add to record',()=>this.decide('add',`Added to ${it.date}, totals updated.`)),secondaries:[it.match?{label:'Already recorded',act:()=>this.decide('already','Linked to the Costco record, totals unchanged.')}:DONT()]});}
+    else if(it.type==='stripe'){Object.assign(v,{isStripe:true,tileIcon:'sync_alt',tileBg:'#efe7da',name:'Stripe payout (already tracked)',meta:`${it.date} · Chase ••4821`,chips:[{label:'Payout',icon:'sync_alt',bg:'#f0e8db',color:'#3a352d'}],amount:fmt(it.amount),amtColor:'#1e1a15',amtSub:'Not new income',
+        payouts:[['Nakamura Property Group · INV-1044 · card','$1,284.50'],['Obianuju · INV-1041 · card','$708.12'],['Stripe fees','−$58.12']].map((x,j,a)=>({label:x[0],amt:x[1],line:j===a.length-1?'transparent':'#f1e9db'})),
+        primary:P('Got it',()=>this.decide('ignored','Moved to Ignored. Nothing counted twice.')),secondaries:[{label:"This isn't a payout",act:()=>this.toastMsg('Moves to normal review with the three paths')}]});}
+    else if(it.type==='review'){Object.assign(v,{isReview:true,tileLetter:'M',name:it.payer,meta:`${it.date} · Chase ••4821`,chips:[{label:'Needs review',icon:'sync_problem',bg:'#f2e5b9',color:'#735c00'},inc],amount:'+'+fmt(it.amount),amtColor:'#2f6b3f',
+        title:'Your bank removed this deposit',from:'Posted +$650.00',to:'Removed by bank',note:'Nothing in your books changed. The $650.00 payment on INV-1038 stays recorded unless you remove it.',
+        primary:P('Remove the payment',()=>this.decide('add','Payment removed from INV-1038, totals updated.')),secondaries:[{label:'Keep it',act:()=>this.decide('kept','Kept as recorded. Nothing changed.')}]});}
+    else{
+      const pending=!!it.pending,acct=ref==='accounted';
+      const ok=!pending&&!acct&&((d.choice==='existing'&&d.pay&&!d.refuse)||(d.choice==='invoice'&&d.inv)||(d.choice==='other'&&d.other));
+      const sg=it.sug&&!pending&&!acct?it.sug:null,sInv=sg&&INVOICES.find(x=>x.id===sg.inv);
+      const used=sg&&d.choice==='invoice'&&d.inv===sg.inv;
+      const cls=CLASS.find(x=>x[0]===d.other);
+      const OPTS=[{key:'existing',label:'An existing payment',sub:'Link it to one you already logged'},{key:'invoice',label:'A new payment for an invoice',sub:'Marks the invoice paid'},{key:'other',label:'Other money received',sub:'Not from an invoice'}];
+      const chips=[inc];if(pending)chips.push({label:'Pending',icon:'hourglass_top',bg:'#f0e8db',color:'#3a352d'});
+      Object.assign(v,{isDeposit:true,isPending:pending,tileLetter:it.payer.replace(/^(ZELLE FROM|ACH CREDIT|STRIPE TRANSFER|MOBILE)\s*/,'')[0]||'$',name:it.payer,meta:`${it.date} · Chase ••4821`,chips,amount:'+'+fmt(it.amount),amtColor:'#2f6b3f',halo:!pending,
+        caution:it.maybeStripe?'This might be a Stripe payout. If it is, choose An existing payment so the card payments inside aren\u2019t counted twice.':'',
+        optsOp:pending||acct?.45:1,
+        sug:sg?{icon:'lightbulb',head:'Suggested',text:`${sInv.id} · ${fmt(sInv.due)} due`,why:sg.why,whyIcon:sg.whyIcon,btn:used?'Selected':'Use',btnBg:used?'#f2e5b9':'#ffffff',use:()=>this.setState({dep:{choice:'invoice',inv:sg.inv},refuse:null})}:null,
+        opts:OPTS.map(o=>{const on=d.choice===o.key,ox={...o,showSub:!pending&&!d.choice&&!sg,sel:on?'true':'false',border:on?'#d4af37':'#ebe2d2',bg:on?'#fffaf0':'#ffffff',ring:on?'#d4af37':'#cfc4b1',fill:on?'#d4af37':'transparent',dotOp:on?1:0,open:on,rows:[],chips:null,note:'',
+          pick:()=>{if(pending)return;if(acct)return;this.setState({dep:{choice:o.key},refuse:null});}};
+          if(on&&o.key==='existing'){const sel=PAYMENTS.find(x=>x.id===d.pay);ox.listOpen=!!d.payOpen;const why=d.refuse==='linked'?'Already linked to the Oct 20 deposit':d.refuse==='larger'?`Bigger than this deposit (${fmt(sel?sel.amt:0)} vs ${fmt(it.amount)})`:'';ox.dd={label:sel?`${sel.client} · ${fmt(sel.amt)}`:'Choose a payment',sub:why?'\u26A0 '+why:(sel?`${sel.inv} · logged ${sel.date}`:''),color:sel?'#1e1a15':'#5f574b',count:sel?'':`${PAYMENTS.length} logged`,border:d.payOpen||sel?'#d4af37':'#e3d8c5',exp:d.payOpen?'true':'false',chev:d.payOpen?'rotate(180deg)':'none',toggle:()=>this.setState(y=>({dep:{...y.dep,payOpen:!y.dep.payOpen}}))};
+            ox.rows=PAYMENTS.map(pp=>({label:`${pp.client} · ${fmt(pp.amt)}`,sub:`${pp.inv} · logged ${pp.date}${pp.linkedTo?' · linked':''}`,sel:d.pay===pp.id?'true':'false',bg:d.pay===pp.id?'#fffaf0':'#ffffff',checkOp:d.pay===pp.id?1:0,pick:()=>{const r=pp.linkedTo?'linked':pp.amt>it.amount?'larger':null;this.setState({dep:{choice:'existing',pay:pp.id,refuse:r,payOpen:false}});if(r)this.toastMsg(RMSG(r,pp.amt));}}));}
+          if(on&&o.key==='invoice'){const sel=INVOICES.find(x=>x.id===d.inv);ox.listOpen=!!d.invOpen;ox.dd={label:sel?`${sel.id} · ${sel.client}`:'Choose an invoice',sub:sel?`${fmt(sel.due)} due`:'',color:sel?'#1e1a15':'#5f574b',count:sel?'':`${INVOICES.length} open`,border:d.invOpen||sel?'#d4af37':'#e3d8c5',exp:d.invOpen?'true':'false',chev:d.invOpen?'rotate(180deg)':'none',toggle:()=>this.setState(y=>({dep:{...y.dep,invOpen:!y.dep.invOpen}}))};
+            ox.rows=INVOICES.map(x=>({label:`${x.id} · ${x.client}`,sub:`${fmt(x.due)} due${sg&&sg.inv===x.id?' · suggested':''}`,sel:d.inv===x.id?'true':'false',bg:d.inv===x.id?'#fffaf0':'#ffffff',checkOp:d.inv===x.id?1:0,pick:()=>this.setState(y=>({dep:{...y.dep,inv:x.id,invOpen:false}}))}));}
+          if(on&&o.key==='other'){ox.chips=CLASS.map(([l])=>({label:l,bg:l===d.other?'#f2e5b9':'#ffffff',border:l===d.other?'#d4af37':'#e3d8c5',pick:()=>this.setState(y=>({dep:{...y.dep,other:l}}))}));
+            if(cls){ox.note=cls[1]==='in'?'Counts in Collected':cls[1]==='un'?'Stays unaccounted, outside every total':'Not counted as income';ox.noteIcon=cls[1]==='in'?'south_west':cls[1]==='un'?'help':'block';ox.noteColor=cls[1]==='in'?'#2f6b3f':'#5f574b';}}
+          return ox;})});
+      const R={linked:{icon:'link',head:'That payment is already linked.',text:'It belongs to the Oct 20 deposit. Pick another one, or unlink it first.'},larger:{icon:'straighten',head:'That payment is bigger than this deposit.',text:`It's $650.00 and this deposit is ${fmt(it.amount)}. One deposit covers one payment.`},accounted:{icon:'task_alt',head:'Already accounted for.',text:'This deposit was saved as Other income on Oct 27. Nothing to do here.'}};
+      if(acct){v.refusal=R.accounted;v.opts=[];v.hasOpts=false;}else if(d.choice)v.hasOpts=false;
+      v.secondaries=[DONT()];
+      v.primary=pending?P('Waiting for the bank',null,false):acct?P('Got it',()=>this.decide('already','Nothing to do. It was already accounted for.')):P('Save',()=>{if(!ok)return;const msg=d.choice==='existing'?'Linked, totals unchanged.':d.choice==='invoice'?`${d.inv} marked paid, totals updated.`:cls[1]==='in'?'Saved as '+d.other+', totals updated.':cls[1]==='un'?'Kept in Unaccounted for.':'Saved as '+d.other+'. Not counted as income.';this.decide(d.choice==='existing'?'already':'add',msg);},!!ok);
+    }
+    return v;}
+  renderVals(){
+    const s=this.state,rm=this.rm(),p=this.pend(),dv=this.props.device==='tablet';
+    const ign=ITEMS.filter(it=>s.status[it.id]==='ignored');
+    const segs=[['review','To review',p.length],['ignored','Ignored',ign.length]].map(([k,l,n])=>{const on=s.filter===k;return{label:l,count:n,bg:on?'#ffffff':'transparent',shadow:on?'0 1px 4px rgba(40,30,10,.14)':'none',color:on?'#1e1a15':'#5f574b',pick:()=>this.setState({filter:k})};});
+    const tick={out:['translateY(-8px)',0,`transform 120ms ${EI}, opacity 120ms ${EI}`],pre:['translateY(8px)',0,'none'],idle:['none',1,`transform 180ms ${EO}, opacity 180ms ${EO}`]}[s.tick];
+    const listRows=s.filter==='ignored'?ign.map(it=>({icon:it.type==='stripe'?'sync_alt':it.type==='expense'?'shopping_bag':'south_west',tileBg:it.type==='stripe'?'#efe7da':'#f2e5b9',name:it.type==='stripe'?'Stripe payout (already tracked)':it.merchant||it.payer,meta:`${it.date} · ${it.type==='expense'||it.type==='stripe'?'':'+'}${fmt(it.amount)}${it.type==='stripe'?' · auto-labeled, not new income':" · Don't add"}`,act:()=>{this.setState(x=>{const st={...x.status};delete st[it.id];return{status:st,filter:'review',caught:false};});this.setCursor(ITEMS.indexOf(it));this.toastMsg('Restored to To review.');}})):[];
+    return{
+      fw:'390px',fh:'844px',fr:'48px',fsh:'0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45)',
+      cards:ITEMS.map((it,i)=>this.cardView(it,i,s,p,rm)),segs,
+      showStack:s.filter==='review'&&!s.caught,showCaught:s.filter==='review'&&s.caught,showList:s.filter!=='review'&&listRows.length>0,showListEmpty:s.filter!=='review'&&!listRows.length,listRows,
+      counter:s.caught||!p.length?'Done':`${Math.max(1,s.shownPos)} of ${p.length}`,tickTf:tick[0],tickOp:tick[1],tickTr:rm?'none':tick[2],
+      ringOff:s.ringGo?0:315,checkOff:s.ringGo?0:64,replay:()=>this.setState(this.build('live'),()=>this.componentDidMount()),
+      tabBadge:p.length||'',rootRef:this.root,
+      toast:s.toast,toastTf:s.toastOn||rm?'none':'translateY(-12px)',toastOp:s.toastOn?1:0,toastPe:s.toastOn?'auto':'none',dismissToast:()=>this.setState({toastOn:false}),
+      closeSheet:()=>this.setState({open:false,toastOn:false}),openSheet:()=>this.setState({open:true}),sheetClosed:!s.open,bdOp:s.open?1:0,
+      sheetTf:s.open||rm?'none':'translateY(105%)',sheetTr:rm?'opacity 350ms ease-out':(s.open?`transform 420ms ${EO}`:`transform 360ms ${EI}`),sheetPe:s.open?'auto':'none',
+      onDown:e=>{if(e.target.closest('button,input,[role=radio],[role=option],[role=button]'))return;const rr=this.root.current.getBoundingClientRect();this.edge=(e.clientX-rr.left)<24;this.sx=e.clientX;this.dragOn=true;this.setState({dragging:true});if(e.currentTarget.setPointerCapture)e.currentTarget.setPointerCapture(e.pointerId);},
+      onMove:e=>{if(!this.dragOn)return;let dx=e.clientX-this.sx;if(this.edge){if(dx>70){this.dragOn=false;this.setState({open:false,dragging:false,drag:0});}return;}const pp=this.pend(),k=pp.indexOf(this.state.cursor);if((dx<0&&k>=pp.length-1)||(dx>0&&k<=0))dx=Math.sign(dx)*Math.pow(Math.abs(dx),.7);this.setState({drag:dx});},
+      onUp:()=>{if(!this.dragOn)return;this.dragOn=false;const dx=this.state.drag,pp=this.pend(),k=pp.indexOf(this.state.cursor);let c=this.state.cursor;if(dx<-80&&k<pp.length-1)c=pp[k+1];else if(dx>80&&k>0)c=pp[k-1];this.setState({dragging:false,drag:0});if(c!==this.state.cursor)this.setCursor(c);}
+    };
+  }
+}
+</script>
+</body>
+</html>

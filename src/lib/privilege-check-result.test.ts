@@ -83,8 +83,12 @@ test('PASS/FAIL per-check output and the summary are unchanged', () => {
   assert.equal(report.stream, 'stdout');
   assert.match(printed, /^PASS {2}AA1 +RLS on profiles$/m);
   assert.match(printed, /^SKIP {2}BA2 +paywall v3$/m);
-  // One row per REQUIRED_CHECKS id (+AA1, with BA2 the SKIP): 17 PASS today.
-  assert.match(printed, /^17 PASS, 0 FAIL, 1 SKIP \(migration not pushed yet\)$/m);
+  // One PASS row per REQUIRED_CHECKS id (+AA1, with BA2 the SKIP). Derived from
+  // the list so growing the check set cannot leave a stale count behind.
+  assert.match(
+    printed,
+    new RegExp(`^${REQUIRED_CHECKS.length} PASS, 0 FAIL, 1 SKIP \\(migration not pushed yet\\)$`, 'm'),
+  );
   assert.ok(!printed.includes(NO_RESULTS), 'a healthy run must not mention an error');
 });
 
@@ -101,7 +105,7 @@ test('a check returning FAIL is a FAIL, not a SQL error', () => {
   assert.equal(report.exitCode, 1);
   assert.match(printed, /^FAIL {2}BB3 +check BB3$/m);
   assert.match(printed, /^ +found: anon can select$/m);
-  assert.match(printed, /^16 PASS, 1 FAIL$/m);
+  assert.match(printed, new RegExp(`^${REQUIRED_CHECKS.length - 1} PASS, 1 FAIL$`, 'm'));
   assert.ok(!printed.includes(NO_RESULTS));
 });
 

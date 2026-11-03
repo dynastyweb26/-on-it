@@ -460,7 +460,9 @@ html[data-splash=""] .onit-splash {
   /* Red: unreviewed bank items (Books dot), the pinned row's urgency text and
      icon, and overdue invoices later. Nothing else — reconnect is gold. */
   --oi-alert: #c8412e;
-  /* Muted green: money-in fill and glow only, never text. Unused in phase 1. */
+  /* The ONE readable green: green text, dots and the chart ridge. */
+  --oi-green: #2f6b3f;
+  /* Muted green: money-in fill and glow only, never text (CHANGES.md · D). */
   --oi-money-in: #6f9a78;
   /* The review sheet's backdrop. */
   --oi-scrim: rgba(30, 24, 14, .38);
@@ -576,6 +578,10 @@ html[data-splash=""] .onit-splash {
 .bank-nav-bump { animation: bank-nav-bump 220ms var(--oi-ease-inout) both; }
 @keyframes bank-splash-pulse { to { opacity: 0; transform: scale(2.6); } }
 .bank-splash-pulse { animation: bank-splash-pulse 140ms var(--oi-ease-out) both; }
+
+/* Money in: the deposit amount. #2f6b3f is the only green that may carry text.
+   The amount is colour only: no halo, no glow, no pulse. */
+.bank-money-in { color: var(--oi-green); }
 
 /* Inline field reveal (amount / date / category): scaleY(.85) → 1. */
 @keyframes bank-expand { from { opacity: 0; transform: scaleY(.85); } }
@@ -1020,4 +1026,29 @@ html[data-splash=""] .onit-splash {
     transition-timing-function: var(--oi-ease-out) !important;
   }
   [data-bank-motion] .bank-dot-halo::after { animation: none !important; }
+}
+
+/* The Expenses | Income pair: the title cross-fades as the pill changes page. */
+@keyframes ledger-title { from { opacity: 0; transform: translateY(4px); } }
+.ledger-title { animation: ledger-title 240ms var(--ease-standard) both; }
+@media (prefers-reduced-motion: reduce) { .ledger-title { animation: none; } }
+
+/* Books alerts: money waiting in To review. Not an error, so the row keeps its
+   layout and only gains a #efc9c1 border and a slow glow. */
+@keyframes bank-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 65, 46, 0); }
+  50%      { box-shadow: 0 0 0 5px rgba(200, 65, 46, .10); }
+}
+.bank-alert-pulse { animation: bank-alert-pulse 3.2s ease-in-out infinite; border-color: #efc9c1 !important; }
+
+@keyframes bank-alert-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(200, 65, 46, .45); }
+  70%  { box-shadow: 0 0 0 7px rgba(200, 65, 46, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 65, 46, 0); }
+}
+.bank-alert-ring { animation: bank-alert-ring 2.4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bank-alert-pulse, .bank-alert-ring { animation: none; }
+  .bank-alert-pulse { box-shadow: 0 0 0 2px #efc9c1; }
 }

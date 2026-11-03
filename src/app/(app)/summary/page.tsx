@@ -26,6 +26,14 @@ import { buildSummaryPdf, type SummaryPdfKind, type SummaryPdfDetail } from '@/l
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import SummarySkeleton from '@/components/SummarySkeleton';
+import SummaryControls from '@/components/summary/SummaryControls';
+import MountainChart from '@/components/summary/MountainChart';
+import { chartPoints, presetStart } from '@/lib/books-chart';
+import { countsAsIncome } from '@/lib/other-income';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import { unaccountedItems } from '@/lib/bank-tracking';
+import { reducedMotion } from '@/lib/list-motion';
+import { resolveGrain, type ChartGrain, type ChartPreset } from '@/lib/books-chart';
 import { useDelayedShow } from '@/lib/use-delayed-show';
 
 // Long lists show this many rows, then a "See all N →" row that expands in
@@ -58,6 +66,10 @@ export default function TaxSummary() {
   const [exporting, setExporting] = useState<SummaryPdfKind | null>(null);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
+  // The chart's own period and grain. The figures above keep the existing
+  // period picker; these only choose what the mountain is drawn from.
+  const [chartPreset, setChartPreset] = useState<ChartPreset>('all');
+  const [chartGrain, setChartGrain] = useState<ChartGrain>('month');
 
   // Period sheet: open flag + which view (the granularity chooser, or one
   // granularity's list of specific periods).
@@ -133,7 +145,7 @@ export default function TaxSummary() {
         setOwed(cached.owed);
         setSelected(cached.selected);
       }
-      const [exp, pay, owe] = await Promise.all([
+      const [exp, pay, owe, other] = await Promise.all([
         supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
@@ -144,9 +156,13 @@ export default function TaxSummary() {
           .is('deleted_at', null)
           .eq('kind', 'invoice')
           .in('status', ['sent', 'overdue']),
+        // Other money received: income that is not a customer paying an invoice.
+        supabase.from('other_income')
+          .select('amount, received_on, client_name, classification, deleted_at')
+          .is('deleted_at', null),
       ]);
-      if (exp.error || pay.error || owe.error) {
-        console.error('summary read failed', exp.error ?? pay.error ?? owe.error);
+      if (exp.error || pay.error || owe.error || other.error) {
+        console.error('summary read failed', exp.error ?? pay.error ?? owe.error ?? other.error);
         // Nothing cached: show the empty view instead of hanging on the
         // skeleton. With a cached copy, leave it on screen.
         if (!cached) {
@@ -173,6 +189,18 @@ export default function TaxSummary() {
           invoice_number: inv?.invoice_number ?? null,
         };
       });
+      // Other income joins the income rows: same shape, so the list, the
+      // period buckets and the PDF all include it without a second read path.
+      const oIncome = ((other.data ?? []) as Array<Record<string, unknown>>)
+        .filter((r) => countsAsIncome(r.classification as string | null))
+        .map((r) => ({
+        amount: r.amount as number | string,
+        paid_at: `${String(r.received_on)}T12:00:00.000Z`,
+        client_name: (r.client_name as string | null) ?? 'Other income',
+        method: 'other',
+        invoice_number: null,
+      }));
+      pRows.push(...oIncome);
       const oRows = (owe.data ?? []) as InvoiceLite[];
       setExpenses(eRows);
       setPayments(pRows);
@@ -225,6 +253,21 @@ export default function TaxSummary() {
   );
 
   const kept = income.broughtIn - summary.total;
+
+  // The mountain reads confirmed rows only, over the chart's own period.
+  const bank = useBankTracking();
+  const chartData = useMemo(() => {
+    const start = presetStart(chartPreset, new Date().toLocaleDateString('en-CA'));
+    const on = (day: string | null | undefined) => !start || (day ?? '') >= start;
+    const pays = (payments ?? [])
+      .filter((row) => on((row.paid_at ?? '').slice(0, 10)))
+      .map((row) => ({ amount: row.amount, paid_at: row.paid_at ?? null }));
+    const spend = (expenses ?? [])
+      .filter((row) => on(row.spent_on))
+      .map((row) => ({ amount: row.amount, spent_on: row.spent_on ?? null }));
+    return chartPoints(pays, [], spend, chartGrain);
+  }, [payments, expenses, chartPreset, chartGrain]);
+  const unaccountedBank = bank?.state ? unaccountedItems(bank.state).length : 0;
   const hasData = summary.count > 0 || income.broughtIn > 0 || income.stillOwed > 0;
 
   // Sheets: body scroll lock + Escape to dismiss (matches PaywallModal).
@@ -244,6 +287,10 @@ export default function TaxSummary() {
   function pick(p: Period) { setSelected(p); setSheetOpen(false); }
 
   const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
+  // Other income is money with no invoice and no client: one named row, never
+  // mixed in with the clients above it.
+  const otherIncomeRow = income.byClient.find((c) => c.client === 'Other income') ?? null;
+  const clients = income.byClient.filter((c) => c.client !== 'Other income');
 
   function pickDetail(detail: SummaryPdfDetail) {
     const kind = pdfSheet;
@@ -293,9 +340,21 @@ export default function TaxSummary() {
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-4 md:px-6">
       <h1 className="font-display text-headline-mobile font-extrabold text-on-background">Books summary</h1>
 
-      {/* Period selector — full-width trigger; taps open the two-step sheet. */}
+      <SummaryControls
+        preset={chartPreset}
+        onPreset={(next) => { setChartPreset(next); setChartGrain((g) => resolveGrain(next, g)); }}
+        grain={chartGrain}
+        onGrain={setChartGrain}
+        onExport={openExport}
+        exporting={exporting}
+        canIncome={incomeCount > 0}
+        canExpenses={summary.count > 0}
+        disabled={loading || !hasData}
+      />
+
+      {/* The figures and both PDFs still follow the full period picker. */}
       <button
-        className="flex w-full items-center justify-between rounded-input border border-outline-variant bg-surface-container-lowest px-4 py-3 text-left active:scale-[0.99] transition-transform disabled:opacity-40"
+        className="flex w-full items-center justify-between rounded-input border border-outline-variant bg-surface-container-lowest px-4 py-3 text-left transition-transform active:scale-[0.99] disabled:opacity-40"
         aria-haspopup="dialog"
         disabled={loading}
         onClick={openSheet}
@@ -304,19 +363,13 @@ export default function TaxSummary() {
         <Icon name="expand_more" size={22} className="text-on-surface-variant" />
       </button>
 
-      {/* Two exports for the selected period, right under the period they
-          cover. Each opens a sheet to pick Totals (expenses by category, income
-          by client) or Itemized (every expense, every payment). Each is
-          disabled when its side of the period is empty. */}
       {!loading && hasData && (
-        <div className="grid grid-cols-2 gap-3">
-          <button className="btn-primary px-3" disabled={exporting !== null || summary.count === 0} aria-haspopup="dialog" onClick={() => openExport('expenses')}>
-            <Icon name="download" size={20} /> {exporting === 'expenses' ? 'Building…' : 'Expenses PDF'}
-          </button>
-          <button className="btn-primary px-3" disabled={exporting !== null || incomeCount === 0} aria-haspopup="dialog" onClick={() => openExport('income')}>
-            <Icon name="download" size={20} /> {exporting === 'income' ? 'Building…' : 'Income PDF'}
-          </button>
-        </div>
+        <MountainChart
+          points={chartData}
+          reduce={typeof window !== 'undefined' && reducedMotion()}
+          unaccounted={unaccountedBank}
+          onReview={() => window.dispatchEvent(new Event('onit:bank-review-open'))}
+        />
       )}
 
       {loading ? (
@@ -400,7 +453,7 @@ export default function TaxSummary() {
                 <span className="font-display normal-case tracking-normal text-on-background">{money(income.broughtIn)}</span>
               </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
-                {(showAllIncome ? income.byClient : income.byClient.slice(0, PREVIEW_ROWS)).map((c) => (
+                {(showAllIncome ? clients : clients.slice(0, PREVIEW_ROWS)).map((c) => (
                   <div key={c.client} className="flex items-center justify-between px-4 py-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-on-background">{c.client}</div>
@@ -411,13 +464,26 @@ export default function TaxSummary() {
                     <div className="font-display font-bold text-on-background">{money(c.total)}</div>
                   </div>
                 ))}
-                <SeeAllRow total={income.byClient.length} expanded={showAllIncome} onToggle={() => setShowAllIncome((v) => !v)} />
+                {otherIncomeRow && (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-on-background">Other income</div>
+                      <div className="text-[11px] font-bold uppercase tracking-[.06em] text-on-surface-variant">
+                        NOT FROM AN INVOICE
+                      </div>
+                    </div>
+                    <div className="font-display font-bold text-on-background">{money(otherIncomeRow.total)}</div>
+                  </div>
+                )}
+                <SeeAllRow total={clients.length} expanded={showAllIncome} onToggle={() => setShowAllIncome((v) => !v)} />
               </div>
             </section>
           )}
 
 
-          <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">{DISCLAIMER}</p>
+          <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">
+            A record of the money you confirmed in On It. Bank items you haven’t reviewed are not included.
+          </p>
         </>
       )}
 

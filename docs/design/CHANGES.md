@@ -72,3 +72,33 @@ Phase 1 is still mock-only. Nothing here writes to Supabase (the structural test
     down; signing in again behaves like a fresh app open. Reading the session is
     the only thing bank code touches — still no network call and no database
     write, which the structural test enforces.
+## Oct 30 addendum (Money In + Books)
+
+Same phone-test batch, money-in round. **These override the mockups in
+`docs/design/money-in-books/` and the Notion money-out spec wherever they
+disagree.** Where a screen ships slightly differently, this list is the reason —
+do not restore the mockup.
+
+**A. The "Unaccounted for" row is pinned, for expenses and for income.** A soft
+red icon tile with a red icon, the amount set in ink (never red), and the line
+"not in your totals" underneath. It is a status row, not an alarm: nothing in it
+is counted in any figure. This is what the red Books badge reports — red marks
+money the owner has not decided about, and it clears only when the row empties.
+Overrides the mockup's placement of the row and the Notion note that calls it
+neutral. Colour rule: soft tile + red icon, black amount.
+
+**B. An expense card with a possible match is text-only, two buttons.** The match
+box is text; there is no inline Link button inside it. The buttons stack
+full-width and there are exactly two: **Add to record** + **Already recorded**.
+With no match the pair is **Add to record** + **Don't add**. Never three buttons
+on an expense card. (Restates item 3 for the match case, so the exception cannot
+be re-read as a third action.)
+
+**C. Summary chart, Weeks grain.** The data is inset about 3% from both edges so
+the first and last points are not standing on the axis; the first and last points
+ease in instead of starting at a cliff. A peak label that would collide with a
+y-axis label shifts right rather than overlapping it or being dropped.
+
+**D. One readable green.** **#2f6b3f** is the only green for green text, the dots
+and the chart ridge. **#6f9a78** is a fill green only — chart fills and the
+money-in pulse. Never the lighter green on type; it does not read at 13px.

@@ -1,33 +1,49 @@
 'use client';
-// ═══ Review stack ═══
+// ═══ Bank activity stack ═══
 // A bottom sheet on phones, a centred 440px dialog from 768px up, over a
-// scrim. One stack of cards: drag sideways to browse, act on the front card.
+// scrim. ONE stack of cards — money out and money in together — drag sideways
+// to browse, act on the front card.
 //
 // Structural rules this file keeps (SPEC.txt, overridden where CHANGES.md says):
 //   · role="dialog" aria-modal, labelled by the counter; Escape closes and
 //     focus returns to whatever opened it.
 //   · Focus order: X → top card … (the peeks are inert).
-//   · "3 of 7" is aria-live and announces "Item 3 of 7".
+//   · "3 of 7" is aria-live and announces "Item 3 of 7", and 7 is To review's
+//     own count: Ignored never enters it.
 //   · Swipe is touch-only and rubber-banded at the ends; ← / → and the
 //     on-screen prev/next buttons (pointer devices) are the keyboard path.
 //   · ONE X, top-left. It shrinks the sheet and flies it to whichever Books nav
 //     item is visible, then pulses that item. Unresolved items stay open: there
 //     is no hidden state, so closing never loses a card.
+//   · An edge swipe from the left 24px closes the stack like Escape does.
+//   · Two tabs, always: To review N / Ignored N. Don't add and Keep move a card
+//     to Ignored; Restore puts it back. Ignored counts toward nothing else.
 //   · Reduced motion: no flight, no springs, no count-up; each action is one
 //     fade and the card is simply gone.
 //
-// No Supabase, no fetch: every action is one dispatch into fixture state.
+// Deposits are read from the preview-gated deposits route (the URL lives in
+// lib/bank-deposits) and decided by their own card. No Supabase client here.
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import BankToast from './BankToast';
+import { DEPOSITS_CHANGED } from './useDepositReview';
+import DepositCard from './DepositCard';
 import ReviewCard, { type CardAction } from './ReviewCard';
+import StackNav from './StackNav';
 import { reducedMotion } from '@/lib/list-motion';
 import {
-  addedToast, advancesOptimistically, counterLabel, formatDay, formatMoney, ignoredQueue, itemAccount,
-  nextQueueIndex, reviewQueue, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
+  addedToast, advancesOptimistically, counterLabel, formatDay, formatMoney, itemAccount,
+  nextQueueIndex, rubberBand, SWIPE_COMMIT_PX, swipeTransform,
   type BankAction, type BankItem, type BankReviewState,
 } from '@/lib/bank-tracking';
+import {
+  DEPOSITS_URL, depositPlan, depositRefusalMessage, depositRestoreBody,
+  type ApiDeposit, type DepositInvoice, type DepositPayment,
+} from '@/lib/bank-deposits';
+import {
+  cardKindOf, ignoredEntries, restoreDeposit, resolveDeposit, stackEntries, type StackEntry,
+} from '@/lib/bank-stack';
 
 type Leaving = {
   item: BankItem;
@@ -45,6 +61,9 @@ function booksNavTarget(): HTMLElement | null {
   return candidates.find((el) => el.getClientRects().length > 0) ?? null;
 }
 
+/** The left edge belongs to the back gesture; inside the sheet it closes it. */
+const EDGE_CLOSE_PX = 24;
+
 export default function ReviewStack({
   state, dispatch, onClose, notice = null, busyIds = [], refused = null,
 }: {
@@ -58,9 +77,32 @@ export default function ReviewStack({
   /** The refused receipt add that card reports under its receipt row. */
   refused?: { id: string; message: string } | null;
 }) {
-  const queue = reviewQueue(state);
+  // ── Money in: the deposits route, fetched once per open ──
+  const [deposits, setDeposits] = useState<ApiDeposit[]>([]);
+  const [moneyIn, setMoneyIn] = useState<{ invoices: DepositInvoice[]; payments: DepositPayment[] }>({
+    invoices: [], payments: [],
+  });
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(DEPOSITS_URL, { cache: 'no-store' });
+        const body = (await res.json().catch(() => null)) as unknown;
+        const plan = depositPlan(res.status, body);
+        if (!live || plan.kind !== 'rows') return;
+        setDeposits(plan.deposits);
+        setMoneyIn({ invoices: plan.invoices, payments: plan.payments });
+      } catch {
+        // Offline or gated: the stack still shows money out.
+      }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  const queue = stackEntries(state, deposits);
   const pending = queue.length;
-  const ignored = ignoredQueue(state);
+  const passed = ignoredEntries(state, deposits);
   const filter = state.filter;
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
@@ -92,7 +134,7 @@ export default function ReviewStack({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const topCardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef(0);
-  const gesture = useRef<{ id: number; x: number; y: number; active: boolean } | null>(null);
+  const gesture = useRef<{ id: number; x: number; y: number; active: boolean; edge: boolean } | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishSoon = useRef(false);
   const closingRef = useRef(false);
@@ -162,7 +204,7 @@ export default function ReviewStack({
     later(reduce ? 0 : 460, onClose);
   }, [later, onClose, reduce]);
 
-  /** Escape and the scrim: plain slide down, no flight. */
+  /** Escape, the scrim and the edge swipe: plain slide down, no flight. */
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
@@ -179,25 +221,45 @@ export default function ReviewStack({
     return () => window.removeEventListener('onit:bank-stack-close', onNavPress);
   }, [requestClose]);
 
-  const caught = filter === 'review' && pending === 0 && state.items.length > 0;
+  const caught = filter === 'review' && pending === 0
+    && state.items.length + deposits.length > 0;
 
   // All caught up dismisses itself after 1.9s, but only when the user just
   // finished the batch — not when the sheet is opened with nothing to do, and
   // never while Ignored holds items the owner may still want to restore.
   useEffect(() => {
-    if (!caught || ignored.length > 0 || !finishSoon.current) return;
+    if (!caught || passed.length > 0 || !finishSoon.current) return;
     const t = setTimeout(dismiss, 1900);
     return () => clearTimeout(t);
-  }, [caught, ignored.length, dismiss]);
+  }, [caught, passed.length, dismiss]);
 
-  function restore(item: BankItem) {
-    const reopened: BankReviewState = { ...state, status: { ...state.status, [item.id]: 'open' } };
-    const at = reviewQueue(reopened).findIndex((it) => it.id === item.id);
+  function restoreExpense(item: BankItem) {
     dispatch({ type: 'restore', id: item.id });
     dispatch({ type: 'filter', filter: 'review' });
-    indexRef.current = Math.max(0, at);
-    setIndex(Math.max(0, at));
     setAnnounce('Back in To review.');
+  }
+
+  /** Restore on an ignored DEPOSIT: drop its 'ignored' link, then show it in
+   *  To review again. A recorded payment or income row is never touched. */
+  async function restoreDepositRow(deposit: ApiDeposit) {
+    try {
+      const res = await fetch(DEPOSITS_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(depositRestoreBody(deposit.id)),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setToast(depositRefusalMessage(body?.error));
+        return;
+      }
+      setDeposits((rows) => restoreDeposit(rows, deposit.id));
+      window.dispatchEvent(new Event(DEPOSITS_CHANGED));
+      dispatch({ type: 'filter', filter: 'review' });
+      setAnnounce('Back in To review.');
+    } catch {
+      setToast(depositRefusalMessage(null));
+    }
   }
 
   const segClass = (on: boolean) =>
@@ -215,9 +277,25 @@ export default function ReviewStack({
     setIndex(next);
   }, [queue.length]);
 
+  /** Money out: one dispatch. Money in: its card already wrote, so this only
+   *  drops it from the queue and shows the confirmation. */
+  const ranDeposit = useCallback((id: string, message: string, kind: string) => {
+    if (queue.length === 1) finishSoon.current = true;
+    setDeposits((rows) => resolveDeposit(rows, id, {
+      kind: kind as 'recorded' | 'linked' | 'classified' | 'ignored' | 'stripe_payout',
+      payment_id: null,
+      classification: null,
+    }));
+    setToast(message);
+    setAnnounce(message);
+    window.dispatchEvent(new Event(DEPOSITS_CHANGED));
+    setIndex((current) => Math.max(0, Math.min(current, queue.length - 2)));
+  }, [queue.length]);
+
   const run = useCallback((action: CardAction) => {
-    const item = top;
-    if (!item || leaving) return;
+    const entry = top;
+    if (!entry || entry.kind !== 'expense' || leaving) return;
+    const item = entry.item;
     const review = item.review;
     if (queue.length === 1) finishSoon.current = true;
 
@@ -256,13 +334,28 @@ export default function ReviewStack({
   // ── Touch browse (touch only; pointer devices use ← / →) ──
   function onPointerDown(e: ReactPointerEvent) {
     if (e.pointerType !== 'touch' || reduce || !top || leaving || filter !== 'review') return;
-    gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false };
+    gesture.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      active: false,
+      edge: e.clientX <= EDGE_CLOSE_PX,
+    };
   }
   function onPointerMove(e: ReactPointerEvent) {
     const g = gesture.current;
     if (!g || e.pointerId !== g.id) return;
     const dx = e.clientX - g.x;
     const dy = e.clientY - g.y;
+    // The left 24px is the back gesture, not a card browse: drag right and the
+    // sheet closes exactly like Escape.
+    if (g.edge && dx > 48 && Math.abs(dx) > Math.abs(dy)) {
+      gesture.current = null;
+      setDrag(0);
+      dragRef.current = 0;
+      requestClose();
+      return;
+    }
     if (!g.active) {
       if (Math.abs(dx) < 10) return;
       if (Math.abs(dy) > Math.abs(dx)) { gesture.current = null; return; }
@@ -311,6 +404,32 @@ export default function ReviewStack({
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); lastEl.focus(); }
   }
 
+  /** One row in the Ignored tab, whichever side it came from. */
+  function ignoredRow(entry: StackEntry) {
+    const name = entry.kind === 'expense' ? entry.item.merchant : (entry.deposit.merchant || entry.deposit.name);
+    const when = entry.kind === 'expense' ? formatDay(entry.item.date) : formatDay(entry.deposit.occurred_on);
+    const where = entry.kind === 'expense' ? itemAccount(entry.item) : 'Bank deposit';
+    const amount = entry.kind === 'expense'
+      ? formatMoney(entry.item.amount)
+      : formatMoney(entry.deposit.amount_cents / 100);
+    return (
+      <div key={`${entry.kind}-${entry.id}`} className="flex items-center gap-3 border-b border-outline-variant/40 px-3.5 py-2.5 last:border-b-0">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[15px] font-semibold">{name}</div>
+          <div className="truncate text-[13px] text-on-surface-variant">{when} · {where}</div>
+        </div>
+        <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{amount}</span>
+        <button
+          type="button"
+          onClick={() => (entry.kind === 'expense' ? restoreExpense(entry.item) : void restoreDepositRow(entry.deposit))}
+          className="h-11 shrink-0 rounded-full border-[1.5px] border-outline-variant px-3.5 text-sm font-semibold transition-transform active:scale-[0.95]"
+        >
+          Restore
+        </button>
+      </div>
+    );
+  }
+
   const sheet = (
     <div data-bank-motion className="fixed inset-x-0 top-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-[85] flex items-end justify-center md:inset-0 md:bottom-0 md:items-center">
       <div
@@ -327,7 +446,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[min(86vh,720px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex max-h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[calc(100dvh-32px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -376,21 +495,30 @@ export default function ReviewStack({
           </div>
         )}
 
-        {ignored.length > 0 && (
-          <div role="group" aria-label="Bank activity filter" className="mx-4 mb-3 flex shrink-0 gap-1 rounded-[14px] bg-surface-container-high p-1">
-            <button type="button" aria-pressed={filter === 'review'} onClick={() => dispatch({ type: 'filter', filter: 'review' })} className={segClass(filter === 'review')}>
-              To review
-              <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{pending}</span>
-            </button>
-            <button type="button" aria-pressed={filter === 'ignored'} onClick={() => dispatch({ type: 'filter', filter: 'ignored' })} className={segClass(filter === 'ignored')}>
-              Ignored
-              <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{ignored.length}</span>
-            </button>
+        {/* Two tabs, always (CHANGES.md · item 2). Ignored shows its own count
+            but never enters the counter above. */}
+        <div role="group" aria-label="Bank activity filter" className="mx-4 mb-3 flex shrink-0 gap-1 rounded-[14px] bg-surface-container-high p-1">
+          <button type="button" aria-pressed={filter === 'review'} onClick={() => dispatch({ type: 'filter', filter: 'review' })} className={segClass(filter === 'review')}>
+            To review
+            <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{pending}</span>
+          </button>
+          <button type="button" aria-pressed={filter === 'ignored'} onClick={() => dispatch({ type: 'filter', filter: 'ignored' })} className={segClass(filter === 'ignored')}>
+            Ignored
+            <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[12px] font-semibold text-on-surface-variant">{passed.length}</span>
+          </button>
+        </div>
+
+        {/* Page dots live in the header stack, never over the card buttons. */}
+        {filter === 'review' && queue.length > 1 && (
+          <div className="mb-2 flex h-[10px] shrink-0 items-center justify-center gap-1.5" aria-hidden>
+            {queue.slice(0, Math.min(queue.length, 6)).map((entry, i) => (
+              <span key={`${entry.kind}-${entry.id}`} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
+            ))}
           </div>
         )}
 
         <div
-          className="relative mx-4 mb-3 min-h-0"
+          className="relative mx-4 mb-3 min-h-0 flex-1 overflow-hidden"
           style={{ touchAction: 'pan-y' }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -399,24 +527,11 @@ export default function ReviewStack({
         >
           {filter === 'ignored' ? (
             <div className="bank-fade max-h-full overflow-y-auto rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
-              {ignored.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 border-b border-outline-variant/40 px-3.5 py-2.5 last:border-b-0">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[15px] font-semibold">{item.merchant}</div>
-                    <div className="truncate text-[13px] text-on-surface-variant">
-                      {formatDay(item.date)} · {itemAccount(item)}
-                    </div>
-                  </div>
-                  <span className="shrink-0 font-display text-[15px] font-bold tabular-nums">{formatMoney(item.amount)}</span>
-                  <button
-                    type="button"
-                    onClick={() => restore(item)}
-                    className="h-11 shrink-0 rounded-full border-[1.5px] border-outline-variant px-3.5 text-sm font-semibold transition-transform active:scale-[0.95]"
-                  >
-                    Restore
-                  </button>
-                </div>
-              ))}
+              {passed.length === 0 ? (
+                <p className="px-3.5 py-6 text-center text-sm text-on-surface-variant">
+                  Nothing ignored. Cards you pass on land here.
+                </p>
+              ) : passed.map(ignoredRow)}
             </div>
           ) : pending === 0 ? (
             caught ? (
@@ -430,7 +545,7 @@ export default function ReviewStack({
                 </svg>
                 <h3 className="font-display text-[26px] font-extrabold">All caught up</h3>
                 <p className="text-[15px] leading-[1.45] text-on-surface-variant">
-                  {ignored.length > 0
+                  {passed.length > 0
                     ? 'Everything left is in Ignored — restore any you still need.'
                     : 'Every bank item is accounted for.'}
                 </p>
@@ -442,17 +557,17 @@ export default function ReviewStack({
                 </span>
                 <h3 className="font-display text-[22px] font-extrabold">No new bank activity</h3>
                 <p className="text-[15px] leading-[1.45] text-on-surface-variant">
-                  On It checks your bank through the day. New charges land here.
+                  On It checks your bank through the day. New charges and deposits land here.
                 </p>
               </div>
             )
           ) : (
             <>
-              {queue.slice(pos, pos + 3).map((item, depth) => {
+              {queue.slice(pos, pos + 3).map((entry, depth) => {
                 const isTop = depth === 0;
                 return (
                   <div
-                    key={item.id}
+                    key={`${entry.kind}-${entry.id}`}
                     ref={isTop ? topCardRef : undefined}
                     className={isTop ? 'relative' : 'absolute inset-0'}
                     style={{
@@ -467,23 +582,42 @@ export default function ReviewStack({
                       style={!dealt && !reduce && depth < 3 ? ({ '--deal-n': depth } as CSSProperties) : undefined}
                     >
                       {isTop ? (
-                        <ReviewCard
-                          item={item}
-                          account={itemAccount(item)}
-                          headingRef={headingRef}
-                          busy={busyIds.includes(item.id)}
-                          error={refused && refused.id === item.id ? refused.message : null}
-                          onAction={run}
-                          onPatch={(patch) => dispatch({ type: 'edit', id: item.id, patch })}
-                        />
+                        entry.kind === 'deposit' ? (
+                          <DepositCard
+                            deposit={entry.deposit}
+                            invoices={moneyIn.invoices}
+                            payments={moneyIn.payments}
+                            headingRef={headingRef}
+                            onResolved={ranDeposit}
+                          />
+                        ) : (
+                          <ReviewCard
+                            item={entry.item}
+                            account={itemAccount(entry.item)}
+                            headingRef={headingRef}
+                            busy={busyIds.includes(entry.item.id)}
+                            error={refused && refused.id === entry.item.id ? refused.message : null}
+                            onAction={run}
+                            onPatch={(patch) => dispatch({ type: 'edit', id: entry.item.id, patch })}
+                          />
+                        )
                       ) : (
                         <div aria-hidden ref={(el) => { el?.setAttribute('inert', ''); }} className="h-full">
-                          <ReviewCard
-                            item={item}
-                            account={itemAccount(item)}
-                            onAction={() => {}}
-                            onPatch={() => {}}
-                          />
+                          {entry.kind === 'deposit' ? (
+                            <DepositCard
+                              deposit={entry.deposit}
+                              invoices={moneyIn.invoices}
+                              payments={moneyIn.payments}
+                              onResolved={() => {}}
+                            />
+                          ) : (
+                            <ReviewCard
+                              item={entry.item}
+                              account={itemAccount(entry.item)}
+                              onAction={() => {}}
+                              onPatch={() => {}}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -491,16 +625,11 @@ export default function ReviewStack({
                 );
               })}
 
-              {queue.length > 1 && (
-                <div className="pointer-events-none absolute -bottom-1 left-1/2 z-40 flex -translate-x-1/2 gap-1.5" aria-hidden>
-                  {queue.slice(0, Math.min(queue.length, 6)).map((item, i) => (
-                    <span key={item.id} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
-                  ))}
-                </div>
-              )}
             </>
           )}
 
+          {/* Money out keeps its exit animation; a deposit is gone the moment
+              its write lands (its own card owns the busy state). */}
           {leaving && (
             <div className="pointer-events-none absolute inset-0 z-40" aria-hidden>
               <div
@@ -522,30 +651,9 @@ export default function ReviewStack({
           )}
         </div>
 
-        {/* Pointer-only prev/next (touch browses by swiping). Kept after the
-            stack so the documented focus order inside a card is untouched. */}
-        <div className="hidden shrink-0 items-center justify-center gap-2 pb-2 pt-3 [@media(hover:hover)]:flex">
-          <button
-            type="button"
-            aria-label="Previous item"
-            aria-keyshortcuts="ArrowLeft"
-            disabled={filter !== 'review' || pending === 0 || pos === 0}
-            onClick={() => go(-1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
-          >
-            <Icon name="arrow_back" size={20} />
-          </button>
-          <button
-            type="button"
-            aria-label="Next item"
-            aria-keyshortcuts="ArrowRight"
-            disabled={filter !== 'review' || pending === 0 || pos >= pending - 1}
-            onClick={() => go(1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
-          >
-            <Icon name="arrow_forward" size={20} />
-          </button>
-        </div>
+        {/* Pointer-only prev/next. It belongs to the sheet, so every card type
+            gets it (stack-nav.test.ts); touch browses by swiping. */}
+        <StackNav kind={cardKindOf(top)} pending={pending} pos={pos} filter={filter} onStep={go} />
 
         <p role="status" aria-live="polite" className="sr-only">{announce}</p>
       </div>

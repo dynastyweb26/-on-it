@@ -9,6 +9,7 @@ import { plaidAccessToken, type Admin } from './items';
 import {
   planTransactionPage,
   type ExistingBankRow,
+  type ExistingDepositRow,
   type PlaidRemovedTransaction,
   type PlaidSyncTransaction,
   type SyncPlan,
@@ -26,6 +27,8 @@ export type SyncSummary = {
   restarts: number;
   inserts: number;
   updates: number;
+  /** Money in: rows written to bank_deposits (new + in-place updates). */
+  deposits: { inserts: number; updates: number };
   skipped: SyncSkipCounts;
   moreRemaining: boolean;
 };
@@ -87,6 +90,7 @@ export async function syncPlaidItem(
   const totals = {
     inserts: 0,
     updates: 0,
+    deposits: { inserts: 0, updates: 0 },
     skipped: {
       pending: 0, moneyIn: 0, outsideWindow: 0, untrackedAccount: 0,
       unknownRemoved: 0, removedBeforeInsert: 0,
@@ -122,6 +126,7 @@ export async function syncPlaidItem(
         }
 
         const existing: ExistingBankRow[] = [];
+        const deposits: ExistingDepositRow[] = [];
         for (const part of chunk([...ids], EXISTING_CHUNK)) {
           const { data, error } = await admin
             .from('bank_transactions')
@@ -130,6 +135,14 @@ export async function syncPlaidItem(
             .in('plaid_transaction_id', part);
           if (error) throw error;
           existing.push(...((data ?? []) as ExistingBankRow[]));
+
+          const { data: depositRows, error: depositError } = await admin
+            .from('bank_deposits')
+            .select('id, plaid_transaction_id, removed_at')
+            .eq('user_id', userId)
+            .in('plaid_transaction_id', part);
+          if (depositError) throw depositError;
+          deposits.push(...((depositRows ?? []) as ExistingDepositRow[]));
         }
 
         return planTransactionPage({
@@ -139,6 +152,7 @@ export async function syncPlaidItem(
           modified: page.modified,
           removed: page.removed,
           existing,
+          existingDeposits: deposits,
           trackedAccountIds,
           windowStart,
           removedAt: new Date().toISOString(),
@@ -163,8 +177,29 @@ export async function syncPlaidItem(
             .eq('user_id', userId);
           if (error) throw error;
         }
+        // Money in. A deposit update is one statement on the deposit row, so a
+        // pending → posted rekey can never orphan a link.
+        if (plan.deposits.inserts.length > 0) {
+          const { error } = await admin
+            .from('bank_deposits')
+            .upsert(plan.deposits.inserts, {
+              onConflict: 'user_id,plaid_transaction_id',
+              ignoreDuplicates: true,
+            });
+          if (error) throw error;
+        }
+        for (const update of plan.deposits.updates) {
+          const { error } = await admin
+            .from('bank_deposits')
+            .update(update.patch)
+            .eq('id', update.id)
+            .eq('user_id', userId);
+          if (error) throw error;
+        }
         totals.inserts += plan.inserts.length;
         totals.updates += plan.updates.length;
+        totals.deposits.inserts += plan.deposits.inserts.length;
+        totals.deposits.updates += plan.deposits.updates.length;
         totals.skipped.pending += plan.skipped.pending;
         totals.skipped.moneyIn += plan.skipped.moneyIn;
         totals.skipped.outsideWindow += plan.skipped.outsideWindow;
@@ -203,6 +238,7 @@ export async function syncPlaidItem(
       restarts: result.restarts,
       inserts: totals.inserts,
       updates: totals.updates,
+      deposits: totals.deposits,
       skipped: totals.skipped,
       moreRemaining: result.moreRemaining,
     };
