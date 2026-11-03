@@ -3759,7 +3759,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   : <>This invoice was sent, so it&apos;s locked.</>}
               </p>
               {lockedQuote && linkedToken && estimateLink(linkedToken) && (
-                <div className="mt-3">
+                // Copy link, then Share 40ms later (globals: .onit-ready-actions).
+                <div className="mt-3 onit-ready-actions">
                   <EstimateLinkActions
                     url={estimateLink(linkedToken)!}
                     title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
@@ -3767,7 +3768,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">

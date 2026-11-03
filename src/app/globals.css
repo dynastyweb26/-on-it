@@ -770,6 +770,13 @@ html[data-splash=""] .onit-splash {
 .onit-row-slot.is-closing { grid-template-rows: 0fr; pointer-events: none; }
 .onit-row-slot.is-closing > * { overflow: hidden; opacity: 0; transition: opacity 160ms var(--ease-exit); }
 
+/* A ready card's controls arrive in order: Copy link, Share 40ms later, then
+   Revise. Opacity only — every control is tappable the whole time. */
+@keyframes onit-ready-in { from { opacity: 0; } }
+.onit-ready-actions button { animation: onit-ready-in 200ms var(--ease-settle) both; }
+.onit-ready-actions button:nth-of-type(2) { animation-delay: 40ms; }
+.onit-ready-revise { animation: onit-ready-in 200ms var(--ease-settle) 120ms both; }
+
 /* One gold sweep across the card once, when a send seals. The band is a child
    of the sheet; the sheet clips it, and it never sits over a control
    (pointer-events: none) so a tap during the 760ms still lands. */
