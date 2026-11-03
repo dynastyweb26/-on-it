@@ -2,9 +2,10 @@
 // Money in: one card per deposit that still needs a decision.
 //
 // Three buttons on an ordinary deposit — Record payment / Already recorded /
-// Not income. A Stripe payout keeps ONLY "Not income", with a short note; a
-// deposit the bank removed keeps none, because nothing here ever reverses a
-// ledger row.
+// Don't add. A Stripe payout keeps ONLY "Don't add", with a note, and an
+// ambiguous STRIPE descriptor drops Record payment: the lump is card money
+// already counted. A deposit the bank removed keeps none, because nothing here
+// ever reverses a ledger row.
 //
 // Presentational plus its own read/post of the preview-only deposits route:
 // the URL lives in lib/bank-deposits, so the bank-component guard still holds.
@@ -92,7 +93,7 @@ export default function DepositReview() {
       <div>
         <h2 className="font-display text-lg font-extrabold">Money in</h2>
         <p className="text-[13px] text-on-surface-variant">
-          Deposits that came into your bank. Record one as a payment, match one you already recorded, or say it is not income.
+          Deposits that came into your bank. Record one as a payment, match one you already recorded, or leave it out of your totals.
         </p>
       </div>
       {notice && <p role="status" className="text-[13px] font-semibold text-paid">{notice}</p>}
@@ -216,14 +217,14 @@ function DepositCard({
               Already recorded
             </button>
           )}
-          {actions.includes('not_income') && (
+          {actions.includes('ignored') && (
             <button
               type="button"
               disabled={busy}
-              onClick={() => onDecide('not_income', {})}
+              onClick={() => onDecide('ignored', {})}
               className="btn-outline flex-1"
             >
-              Not income
+              Don’t add
             </button>
           )}
         </div>

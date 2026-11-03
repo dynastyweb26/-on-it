@@ -44,6 +44,7 @@ export type FailureKind =
   | 'payout_not_income'
   | 'deposit_link_refused'
   | 'payment_taken'
+  | 'deposit_already_decided'
   | 'over_limit';
 
 type Spec = {
@@ -78,6 +79,8 @@ const SPEC: Record<FailureKind, Spec> = {
   payout_not_income: { status: 409, error: 'payout_not_income' },
   deposit_link_refused: { status: 409, error: 'deposit_link_refused' },
   payment_taken: { status: 409, error: 'payment_taken' },
+  // One deposit takes one decision, across bank_deposit_links and other_income.
+  deposit_already_decided: { status: 409, error: 'deposit_already_decided' },
   // The invoice's own overpayment guard refused the ledger row.
   over_limit: { status: 409, error: 'over_limit' },
 };

@@ -3,13 +3,23 @@
 // Everything here is pure so the rules are testable without a browser; the URL
 // literal lives in this file, which bank-tracking.test.ts scans, so no bank
 // component can call an unlisted endpoint.
+//
+// The vocabulary is the six-way "Other money received" set (lib/other-income),
+// not a "Not income" bucket: a deposit the owner does not count as income has
+// to say WHAT it was. Two of the six are income; the rest are recorded and
+// count nowhere.
 import { formatDay, formatMoney } from './bank-tracking';
-import { STRIPE_PAYOUT_NOTE } from './plaid/payouts';
+import { payoutNote, type StripeVerdict } from './plaid/payouts';
+import { countsAsIncome, type DepositClassification } from './other-income';
 
 export const DEPOSITS_URL = '/api/plaid/deposits';
 
-export type DepositKind = 'recorded' | 'linked' | 'not_income' | 'stripe_payout';
-export type DepositAction = 'record' | 'already' | 'not_income';
+/** What a decision row can say. Mirrors bank_deposit_links.kind. */
+export type DepositKind =
+  | 'recorded' | 'linked' | 'classified' | 'ignored' | 'stripe_payout';
+
+/** What the card can post. 'classified' carries a classification. */
+export type DepositAction = 'record' | 'already' | 'ignored' | 'classified';
 
 export type ApiDeposit = {
   id: string;
@@ -20,7 +30,11 @@ export type ApiDeposit = {
   pending: boolean;
   removed: boolean;
   is_stripe_payout: boolean;
-  link: { kind: DepositKind; payment_id: string | null } | null;
+  /** Server-derived: a STRIPE descriptor, and nothing more certain than that. */
+  payout: StripeVerdict;
+  /** A link row or an other_income row already decides this deposit. */
+  accounted: boolean;
+  link: { kind: DepositKind; payment_id: string | null; classification: string | null } | null;
   suggestion: { invoice_id: string; invoice_number: number | null; reason: 'invoice_number' | 'amount' } | null;
 };
 
@@ -78,30 +92,43 @@ export function depositPlan(status: number, body: unknown): DepositPlan {
 export function depositBody(
   depositId: string,
   action: DepositAction,
-  extra: { invoice_id?: string; payment_id?: string } = {},
+  extra: {
+    invoice_id?: string;
+    payment_id?: string;
+    classification?: DepositClassification;
+  } = {},
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { deposit_id: depositId, action };
   if (action === 'record' && extra.invoice_id) body.invoice_id = extra.invoice_id;
   if (action === 'already' && extra.payment_id) body.payment_id = extra.payment_id;
+  if (action === 'classified' && extra.classification) body.classification = extra.classification;
   return body;
 }
 
 /**
- * What the card offers. A Stripe payout offers ONE action (Not income, stored
- * as stripe_payout). A deposit the bank removed offers none: the ledger is
- * never reversed from here, so there is nothing to decide.
+ * What the card offers.
+ *
+ *   removed      nothing: the ledger is never reversed from here.
+ *   STRIPE       Already recorded + Don't add. Recording a NEW payment from a
+ *                lump of card money would count it twice, so that button is not
+ *                offered; the server refuses it as well.
+ *   ordinary     Record payment + Already recorded + Don't add.
+ *
+ * 'classified' is deliberately not here yet: choosing among the six is the
+ * card's Round 2 work, and the route already accepts it.
  */
-export function depositActions(deposit: Pick<ApiDeposit, 'is_stripe_payout' | 'removed'>): DepositAction[] {
+export function depositActions(
+  deposit: Pick<ApiDeposit, 'removed' | 'payout'>,
+): DepositAction[] {
   if (deposit.removed) return [];
-  if (deposit.is_stripe_payout) return ['not_income'];
-  return ['record', 'already', 'not_income'];
+  if (deposit.payout === 'ambiguous') return ['already', 'ignored'];
+  return ['record', 'already', 'ignored'];
 }
 
 /** The short note above the buttons, or null. */
-export function depositNote(deposit: Pick<ApiDeposit, 'is_stripe_payout' | 'removed'>): string | null {
-  if (deposit.is_stripe_payout) return STRIPE_PAYOUT_NOTE;
+export function depositNote(deposit: Pick<ApiDeposit, 'removed' | 'payout'>): string | null {
   if (deposit.removed) return 'Your bank removed this deposit. Nothing in your payments was changed.';
-  return null;
+  return payoutNote(deposit.payout ?? 'not_stripe');
 }
 
 /** "Matches INV-0042" when a signal fired; the amount and date when none did. */
@@ -116,9 +143,10 @@ export function depositSubline(deposit: ApiDeposit): string {
 }
 
 export const DEPOSIT_FAILED_TOAST = 'That didn’t save. Try again.';
-export const DEPOSIT_PAYOUT_TOAST = 'That is a Stripe payout, so it is not new income.';
+export const DEPOSIT_PAYOUT_TOAST = 'That might be a Stripe payout, so it is not new income.';
 export const DEPOSIT_REMOVED_TOAST = 'Your bank removed that deposit. Nothing was changed.';
 export const DEPOSIT_TAKEN_TOAST = 'That payment is already matched to another deposit.';
+export const DEPOSIT_DECIDED_TOAST = 'That deposit already has a decision.';
 
 /** One message per refusal code, so the copy cannot drift from the route. */
 export function depositRefusalMessage(code: string | null | undefined): string {
@@ -129,6 +157,8 @@ export function depositRefusalMessage(code: string | null | undefined): string {
       return DEPOSIT_REMOVED_TOAST;
     case 'payment_taken':
       return DEPOSIT_TAKEN_TOAST;
+    case 'deposit_already_decided':
+      return DEPOSIT_DECIDED_TOAST;
     case 'over_limit':
       return 'That is more than the deposit, or more than the invoice still owes.';
     case 'deposit_link_refused':
@@ -139,8 +169,16 @@ export function depositRefusalMessage(code: string | null | undefined): string {
 }
 
 /** The confirmation after the route ok, before the card is removed. */
-export function depositDoneToast(action: DepositAction): string {
-  if (action === 'not_income') return 'Marked as not income.';
+export function depositDoneToast(
+  action: DepositAction,
+  classification?: string | null,
+): string {
+  if (action === 'ignored') return 'Ignored. It stays out of your totals.';
   if (action === 'already') return 'Linked to the payment already on record.';
+  if (action === 'classified') {
+    return countsAsIncome(classification)
+      ? 'Added to your income.'
+      : 'Recorded. It counts in no total.';
+  }
   return 'Payment recorded.';
 }

@@ -1,8 +1,11 @@
-// The Stripe payout detector: one whole word, both descriptors, fail closed.
+// The Stripe payout detector: one whole word, both descriptors, fail closed —
+// and no invented certainty. A descriptor is not proof, so every STRIPE deposit
+// is ambiguous until On It holds a payout record.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  STRIPE_PAYOUT_NOTE, depositLinkRefusal, isStripePayout, notIncomeKind,
+  STRIPE_PAYOUT_CAUTION, STRIPE_PAYOUT_NOTE, depositLinkRefusal,
+  isStripePayout, payoutNote, stripePayoutVerdict,
 } from './payouts';
 
 test('the whole word STRIPE in either descriptor is the only signal', () => {
@@ -17,29 +20,61 @@ test('the whole word STRIPE in either descriptor is the only signal', () => {
   assert.equal(isStripePayout(null, undefined), false);
 });
 
-test('a payout can never take a ledger row, and the stored flag is not trusted alone', () => {
-  // The descriptor is re-read: a stale flag cannot let one through.
-  assert.equal(depositLinkRefusal({ is_stripe_payout: false, name: 'STRIPE TRANSFER' }), 'stripe_payout');
-  // And the flag refuses even when the descriptor was rewritten.
-  assert.equal(depositLinkRefusal({ is_stripe_payout: true, name: 'ZELLE' }), 'stripe_payout');
-  assert.equal(
-    depositLinkRefusal({ name: 'STRIPE TRANSFER', removed_at: '2026-10-31T00:00:00.000Z' }),
-    'stripe_payout',
-  );
-  // A removed deposit is refused too; the ledger is never reversed from here.
-  assert.equal(depositLinkRefusal({ name: 'ZELLE', removed_at: '2026-10-31T00:00:00.000Z' }), 'removed');
-  assert.equal(depositLinkRefusal({ name: 'ZELLE', merchant_name: 'Mike Davis' }), null);
+test('an ordinary deposit is not a payout at all', () => {
+  assert.equal(stripePayoutVerdict({ name: 'ZELLE FROM MIKE' }), 'not_stripe');
+  assert.equal(stripePayoutVerdict({ merchant_name: 'Mike Davis' }), 'not_stripe');
+  assert.equal(stripePayoutVerdict({}), 'not_stripe');
 });
 
-test('not income stores stripe_payout for a payout so the reason survives', () => {
-  assert.equal(notIncomeKind({ name: 'STRIPE TRANSFER' }), 'stripe_payout');
-  assert.equal(notIncomeKind({ is_stripe_payout: true, name: 'ZELLE' }), 'stripe_payout');
-  assert.equal(notIncomeKind({ name: 'ZELLE FROM MIKE' }), 'not_income');
+test('every STRIPE descriptor is AMBIGUOUS: nothing here can prove a payout', () => {
+  // The rule this round ships with. A descriptor says "might be", and there is
+  // no stored payout record to compare an amount against, so no deposit is ever
+  // auto-filed. All of these go to To review with the caution note.
+  assert.equal(stripePayoutVerdict({ name: 'STRIPE TRANSFER' }), 'ambiguous');
+  assert.equal(stripePayoutVerdict({ merchant_name: 'Stripe' }), 'ambiguous');
+  assert.equal(stripePayoutVerdict({ name: 'stripe payout 1234' }), 'ambiguous');
+  // The stored flag is honoured too, so a rewritten descriptor cannot hide one.
+  assert.equal(stripePayoutVerdict({ is_stripe_payout: true, name: 'ZELLE' }), 'ambiguous');
 });
 
-test('the notice copy is the exact sentence the card shows', () => {
+test('there is no "sure" verdict to reach, by type or by value', () => {
+  // A tight, self-documenting guard: the only values the function can return.
+  const verdicts = new Set([
+    stripePayoutVerdict({ name: 'STRIPE TRANSFER' }),
+    stripePayoutVerdict({ name: 'ZELLE' }),
+  ]);
+  assert.deepEqual([...verdicts].sort(), ['ambiguous', 'not_stripe']);
+  assert.equal(verdicts.has('sure' as never), false);
+});
+
+test('each verdict carries its own sentence, and an ordinary deposit gets none', () => {
+  assert.equal(payoutNote('not_stripe'), null);
+  assert.equal(payoutNote('ambiguous'), STRIPE_PAYOUT_CAUTION);
   assert.equal(
-    STRIPE_PAYOUT_NOTE,
-    "Looks like a Stripe payout. Those pay out money already counted, so it's not new income.",
+    STRIPE_PAYOUT_CAUTION,
+    "This might be a Stripe payout. If it is, choose An existing payment so the card payments inside aren't counted twice.",
   );
+  // The old "it IS a payout" sentence is kept only for a stored stripe_payout
+  // row, which nothing writes yet.
+  assert.match(STRIPE_PAYOUT_NOTE, /not new income/);
+});
+
+test('a STRIPE deposit never takes a NEW payment, but may claim one already there', () => {
+  // Recording a new payment from a lump of card money would count it twice, and
+  // would be income from a payout if the descriptor is right.
+  assert.equal(depositLinkRefusal({}, 'ambiguous', 'record'), 'stripe_payout');
+  // Claiming the card payments the lump is made of is exactly the right answer.
+  assert.equal(depositLinkRefusal({}, 'ambiguous', 'already'), null);
+
+  // An ordinary deposit allows both.
+  assert.equal(depositLinkRefusal({}, 'not_stripe', 'record'), null);
+  assert.equal(depositLinkRefusal({}, 'not_stripe', 'already'), null);
+});
+
+test('a deposit the bank removed refuses everything: no ledger is reversed here', () => {
+  const gone = { removed_at: '2026-10-31T00:00:00.000Z' };
+  assert.equal(depositLinkRefusal(gone, 'not_stripe', 'record'), 'removed');
+  assert.equal(depositLinkRefusal(gone, 'not_stripe', 'already'), 'removed');
+  // The payout reason wins over removal: it is the more useful sentence.
+  assert.equal(depositLinkRefusal(gone, 'ambiguous', 'record'), 'stripe_payout');
 });
