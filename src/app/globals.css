@@ -708,6 +708,39 @@ html[data-splash=""] .onit-splash {
 /* Reconnect banner / totals footnote: open by height, from -12px. */
 @keyframes bank-fade-in { from { opacity: 0; transform: translateY(-12px); } }
 .bank-fade-in { animation: bank-fade-in 320ms var(--oi-ease-out) both; }
+/* ---- On It Chat redesign tokens (docs/design/onit-chat · Motion) ----
+   The Ledger card's own timing, kept BESIDE the motion system above rather
+   than replacing it: every existing surface keeps --motion-fast/base/slow.
+   The card, the builder and every transition between them use these, and the
+   matching Tailwind names live in tailwind.config.ts (duration-tap, ease-settle). */
+:root {
+  --motion-tap: 140ms;      /* presses, steppers, chevrons, the copy crossfade */
+  --motion-settle: 260ms;   /* arrivals: labels, rows, pills, controls */
+  --motion-hero: 600ms;     /* the builder -> card morph (shared nodes) */
+  --motion-sweep: 760ms;    /* the one gold sweep */
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1); /* design "settle" */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);       /* design "exit" */
+}
+
+/* ---- Reduced motion: the card family ----
+   The global block at the bottom of this file stops every CSS animation and
+   transition, but Framer Motion is JS and is not reached by it. Card components
+   read usePrefersReducedMotion() for the JS half; these are the CSS halves.
+   .onit-rm-fade keeps a plain 140ms opacity fade and removes every transform
+   (so a card still swaps its state, it just doesn't travel or sweep).
+   .onit-rm-static is the still version: no motion at all. */
+@media (prefers-reduced-motion: reduce) {
+  .onit-rm-fade {
+    transform: none !important;
+    transition-property: opacity !important;
+    transition-duration: var(--motion-tap) !important;
+    transition-timing-function: var(--ease-settle) !important;
+  }
+  .onit-rm-static {
+    transform: none !important;
+    animation: none !important;
+  }
+}
 @keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
 @keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
 @keyframes onit-fade { from { opacity: 0; } }

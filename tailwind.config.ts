@@ -34,6 +34,9 @@ const config: Config = {
           fixed: '#ffe088',
           'fixed-dim': '#e9c349',
         },
+        // Ledger card sheet (design token "sheet" #FFFDF8): the warm-white body
+        // the draft / sent / ready cards are printed on.
+        sheet: '#fffdf8',
         secondary: { DEFAULT: '#5f5e59', container: '#e5e2db', 'on-container': '#65645f' },
         tertiary: { DEFAULT: '#415ba4', container: '#97b0ff', 'on-container': '#254188' },
         error: { DEFAULT: '#ba1a1a', container: '#ffdad6', 'on-container': '#93000a' },
@@ -44,6 +47,9 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
         body: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        // Ledger card meta (line numbers, links, document IDs). System mono: the
+        // design's JetBrains Mono would be a second webfont for ~20 characters.
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       fontSize: {
         'display-lg': ['48px', { lineHeight: '56px', letterSpacing: '-0.02em', fontWeight: '700' }],
@@ -54,12 +60,21 @@ const config: Config = {
         'body-lg': ['18px', { lineHeight: '28px' }],
         'body-md': ['16px', { lineHeight: '24px' }],
         'label-lg': ['14px', { lineHeight: '20px', letterSpacing: '0.05em', fontWeight: '600' }],
+        // On It Chat (docs/design/onit-chat · Tokens): line-item name, caps
+        // labels above a total, and the mono meta line under a locked item.
+        'item-md': ['17px', { lineHeight: '20px' }],
+        caps: ['12px', { lineHeight: '16px', letterSpacing: '0.1em', fontWeight: '700' }],
+        meta: ['13px', { lineHeight: '18px' }],
       },
       borderRadius: {
         card: '20px',
         button: '9999px',
         input: '12px',
         chip: '8px',
+        // Ledger card: the sheet (18), its controls (10) and fields (8).
+        ledger: '18px',
+        control: '10px',
+        field: '8px',
       },
       spacing: {
         container: '24px',
@@ -71,6 +86,22 @@ const config: Config = {
       boxShadow: {
         card: '0 4px 24px rgba(115, 92, 0, 0.08)',
         'card-raised': '0 8px 32px rgba(115, 92, 0, 0.10)',
+        // Ledger card (design tokens: card-rest, card-lift, menu). Neutral ink,
+        // not gold: the warm-white sheet is lifted by a soft shadow.
+        ledger: '0 1px 2px rgba(31, 27, 19, 0.06), 0 12px 28px -18px rgba(31, 27, 19, 0.28)',
+        'ledger-lift': '0 4px 8px rgba(31, 27, 19, 0.10), 0 24px 48px -18px rgba(31, 27, 19, 0.38)',
+        menu: '0 12px 32px -10px rgba(31, 27, 19, 0.35)',
+      },
+      // On It Chat motion (design: 140 / 260 / 600). The CSS custom properties in
+      // globals.css mirror these; use whichever side a component already speaks.
+      transitionDuration: {
+        tap: '140ms',
+        settle: '260ms',
+        hero: '600ms',
+      },
+      transitionTimingFunction: {
+        settle: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        exit: 'cubic-bezier(0.4, 0, 1, 1)',
       },
     },
   },
