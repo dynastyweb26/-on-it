@@ -86,7 +86,7 @@ function takeUnseen(ids: string[]): Set<string> {
 
 const SIGNED_URL_TTL = 3600;
 
-export default function Books() {
+export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
   const supabase = createClient();
   const router = useRouter();
   // Bank tracking (mock phase 1). Null unless the shell's flag is on.
@@ -119,6 +119,12 @@ export default function Books() {
   }
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  // The pair's + lives in its shared header, so it asks this pane to open.
+  useEffect(() => {
+    const open = () => setAdding(true);
+    window.addEventListener('onit:add-expense', open);
+    return () => window.removeEventListener('onit:add-expense', open);
+  }, []);
   const [shimmer, setShimmer] = useState<Set<string>>(new Set());
   const shimmerTaken = useRef<Set<string> | null>(null);
 
@@ -296,6 +302,7 @@ export default function Books() {
       {/* Release frames 4b: title + gold "+" (the same Add expense sheet as
           Books), search, Week / Month + sort, then the groups. Laptop (xl) puts
           the title and the + on one shared 40px page-header row. */}
+      {chrome && (
       <PageHeader
         title="Expenses"
         actions={addButton}
@@ -306,6 +313,7 @@ export default function Books() {
           </div>
         }
       />
+      )}
       {/* The pinned row sits first in reading order after the page title.
           Tapping it reopens the review stack; it disappears when nothing is
           left, and the content below closes the gap. */}

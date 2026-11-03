@@ -1036,3 +1036,8 @@ html[data-splash=""] .onit-splash {
   }
   [data-bank-motion] .bank-dot-halo::after { animation: none !important; }
 }
+
+/* The Expenses | Income pair: the title cross-fades as the pill changes page. */
+@keyframes ledger-title { from { opacity: 0; transform: translateY(4px); } }
+.ledger-title { animation: ledger-title 240ms var(--ease-standard) both; }
+@media (prefers-reduced-motion: reduce) { .ledger-title { animation: none; } }

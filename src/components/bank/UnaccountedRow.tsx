@@ -33,9 +33,12 @@ function useTween(value: number, ms = 500): number {
   return shown;
 }
 
-export default function UnaccountedRow({ count, amount, onReview }: {
+export default function UnaccountedRow({ count, amount, onReview, label = 'Unaccounted for', note = 'not in your totals' }: {
   count: number;
   amount: number;
+  /** Expenses and Income each name their own (CHANGES.md · A). */
+  label?: string;
+  note?: string;
   onReview: () => void;
 }) {
   const shownCount = useTween(count);
@@ -47,7 +50,7 @@ export default function UnaccountedRow({ count, amount, onReview }: {
       <button
         type="button"
         onClick={onReview}
-        aria-label={`Unaccounted for, ${count} ${items}, ${formatMoney(amount)}, not in your totals. Review.`}
+        aria-label={`${label}, ${count} ${items}, ${formatMoney(amount)}, ${note}. Review.`}
         className="bank-pulse-once flex w-full items-center gap-3.5 rounded-[20px] border border-outline-variant/70 bg-surface-container-lowest px-4 py-3.5 text-left shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform active:scale-[0.98]"
       >
         <span
@@ -58,15 +61,12 @@ export default function UnaccountedRow({ count, amount, onReview }: {
           <Icon name="account_balance" size={22} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-base font-semibold text-on-background">Unaccounted for</span>
+          <span className="block text-base font-semibold text-on-background">{label}</span>
           <span className="mt-0.5 block truncate text-[14px] text-on-surface-variant">
-            {Math.round(shownCount)} {items} · not in your totals
+            {Math.round(shownCount)} {items} · {note}
           </span>
         </span>
-        <span
-          className="shrink-0 font-display text-[15px] font-bold tabular-nums"
-          style={{ color: 'var(--oi-alert)' }}
-        >
+        <span className="shrink-0 font-display text-[15px] font-bold tabular-nums text-on-background">
           {formatMoney(shownAmount)}
         </span>
         <Icon name="chevron_right" size={22} className="shrink-0 text-on-surface-variant" />
