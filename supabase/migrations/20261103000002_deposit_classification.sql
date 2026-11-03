@@ -64,11 +64,13 @@ alter table public.bank_deposit_links
 
 alter table public.bank_deposit_links
   drop constraint if exists bank_deposit_links_classification_check;
+-- Only the four kinds that count nowhere may sit on a link. The two income
+-- kinds are a real row in the income table, where that table's own check counts
+-- them; a link carrying one would be a decision with no income row behind it.
 alter table public.bank_deposit_links
   add constraint bank_deposit_links_classification_check
   check (classification is null or classification in (
-    'customer_payment', 'vendor_refund', 'transfer', 'loan_or_owner',
-    'other_income', 'unknown'
+    'vendor_refund', 'transfer', 'loan_or_owner', 'unknown'
   ));
 
 -- Required iff classified, and never set on any other kind: one iff, both ways.

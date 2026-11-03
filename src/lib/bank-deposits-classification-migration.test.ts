@@ -95,9 +95,23 @@ test('the old kind check goes first, then the rows, then the new check', () => {
 
 test('classification is required iff the link is classified', () => {
   assert.match(CHANGING, /add column if not exists classification text/);
-  assert.match(
-    CHANGING,
-    /classification in \(\s*'customer_payment', 'vendor_refund', 'transfer', 'loan_or_owner',\s*'other_income', 'unknown'\s*\)/,
+  // Only the four kinds that count nowhere belong on a link. The two income
+  // kinds are a real other_income row, and Collected sums rows, not links.
+  const linkCheck = CHANGING.slice(
+    CHANGING.indexOf('bank_deposit_links_classification_check'),
+    CHANGING.indexOf('bank_deposit_links_classified_chk'),
+  );
+  assert.ok(
+    linkCheck.includes("'vendor_refund', 'transfer', 'loan_or_owner', 'unknown'"),
+    'the four non-income kinds',
+  );
+  assert.equal(
+    linkCheck.includes('customer_payment'), false,
+    'an income kind is never stored on a link',
+  );
+  assert.equal(
+    linkCheck.includes('other_income'), false,
+    'an income kind is never stored on a link',
   );
   assert.match(
     CHANGING,
@@ -119,26 +133,11 @@ test('one deposit is one payment, enforced by a partial unique index', () => {
   assert.doesNotMatch(CHANGING, /Linked payments exceed the deposit/);
 });
 
-test('the guards refuse a second decision on either side', () => {
-  // The links guard looks at other_income...
-  assert.match(CHANGING, /create or replace function public\.guard_bank_deposit_link\(\)/);
-  assert.match(CHANGING, /select 1 from public\.other_income o/);
-  // ...and other_income looks back at the links.
-  assert.match(CHANGING, /create or replace function public\.guard_other_income_deposit\(\)/);
-  assert.match(CHANGING, /select 1 from public\.bank_deposit_links l/);
-  // Both lock the deposit so concurrent writes serialize.
-  assert.equal((CHANGING.match(/for update;/g) ?? []).length, 2);
-  // Both are definer functions with a pinned search_path and no client EXECUTE.
-  assert.equal((CHANGING.match(/security definer/g) ?? []).length, 2);
-  assert.equal((CHANGING.match(/set search_path = ''/g) ?? []).length, 2);
-  assert.match(CHANGING, /revoke execute on function public\.guard_other_income_deposit\(\)/);
-});
-
-/** The body of one create-or-replace function, up to its closing $;. */
+/** The body of one create-or-replace function, up to its closing $$;. */
 function guardBody(name: string): string {
   const start = CHANGING.indexOf(`create or replace function public.${name}()`);
   assert.ok(start > 0, `${name} exists`);
-  const end = CHANGING.indexOf('$;', start);
+  const end = CHANGING.indexOf('$$;', start);
   return CHANGING.slice(start, end);
 }
 
@@ -158,6 +157,22 @@ test('a flagged payout refuses a new payment but still takes an existing one', (
   assert.ok(guardBody('guard_other_income_deposit').includes('if v_deposit.is_stripe_payout then'),
     'other_income refuses a payout deposit whatever the kind');
 });
+
+test('the guards refuse a second decision on either side', () => {
+  // The links guard looks at other_income...
+  assert.match(CHANGING, /create or replace function public\.guard_bank_deposit_link\(\)/);
+  assert.match(CHANGING, /select 1 from public\.other_income o/);
+  // ...and other_income looks back at the links.
+  assert.match(CHANGING, /create or replace function public\.guard_other_income_deposit\(\)/);
+  assert.match(CHANGING, /select 1 from public\.bank_deposit_links l/);
+  // Both lock the deposit so concurrent writes serialize.
+  assert.equal((CHANGING.match(/for update;/g) ?? []).length, 2);
+  // Both are definer functions with a pinned search_path and no client EXECUTE.
+  assert.equal((CHANGING.match(/security definer/g) ?? []).length, 2);
+  assert.equal((CHANGING.match(/set search_path = ''/g) ?? []).length, 2);
+  assert.match(CHANGING, /revoke execute on function public\.guard_other_income_deposit\(\)/);
+});
+
 test('the refusals that stay stay: payment bigger than the deposit, manual only, no payout', () => {
   assert.match(CHANGING, /if v_payment\.amount > v_deposit\.amount then/);
   assert.match(CHANGING, /raise exception 'Payment is bigger than the deposit'/);
