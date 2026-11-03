@@ -84,6 +84,11 @@ export function PayoutsIndex({ p, zelleMasked, connectOn }: { p: any; zelleMaske
         stripeAccountId={connectOn ? p.stripe_account_id : null}
         bankLast4={p.bank_account_last4}
       />
+      <PayoutLumpNotice
+        variant="popup"
+        stripeAccountId={connectOn ? p.stripe_account_id : null}
+        bankLast4={p.bank_account_last4}
+      />
       <SettingsGroup title="Get paid online">
         {row('stripe', stripeStatus(p, connectOn), { icon: 'credit_card' })}
       </SettingsGroup>
@@ -239,6 +244,10 @@ function BankDetail({ p, onBankSaved }: PayoutDetailProps) {
   return (
     <DetailLayout method="bank" badge={p.bank_account_last4 ? CONFIGURED : null}>
       <BankTransferCard initial={p} onSaved={onBankSaved} onDone={() => router.push(INDEX_SAVED)} />
+      <PayoutLumpNotice
+        stripeAccountId={p.stripe_account_id}
+        bankLast4={p.bank_account_last4}
+      />
     </DetailLayout>
   );
 }
