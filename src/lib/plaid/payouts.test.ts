@@ -52,7 +52,7 @@ test('each verdict carries its own sentence, and an ordinary deposit gets none',
   assert.equal(payoutNote('ambiguous'), STRIPE_PAYOUT_CAUTION);
   assert.equal(
     STRIPE_PAYOUT_CAUTION,
-    "This might be a Stripe payout. If it is, choose An existing payment so the card payments inside aren't counted twice.",
+    "This might be a Stripe payout. If it is, choose Don't add. Those card payments are already counted.",
   );
   // The old "it IS a payout" sentence is kept only for a stored stripe_payout
   // row, which nothing writes yet.

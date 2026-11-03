@@ -33,7 +33,7 @@ export const STRIPE_PAYOUT_NOTE =
 
 /** Shown on every STRIPE descriptor in To review. Names the one safe answer. */
 export const STRIPE_PAYOUT_CAUTION =
-  "This might be a Stripe payout. If it is, choose An existing payment so the card payments inside aren't counted twice.";
+  "This might be a Stripe payout. If it is, choose Don't add. Those card payments are already counted.";
 
 const STRIPE_WORD = /\bSTRIPE\b/;
 

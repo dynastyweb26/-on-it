@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEPOSIT_DECIDED_TOAST, DEPOSIT_PAYOUT_TOAST, DEPOSIT_TAKEN_TOAST, depositActions,
-  depositBody, depositDoneToast, depositNote, depositPlan, depositRefusalMessage,
-  depositSubline, type ApiDeposit,
+  depositBody, depositDoneToast, depositNote, depositPaths, depositPlan, depositRefusalMessage,
+  depositRestoreBody, depositSubline, depositSubmit, type ApiDeposit,
 } from './bank-deposits';
 import { STRIPE_PAYOUT_CAUTION } from './plaid/payouts';
 
@@ -32,18 +32,48 @@ test('404 is the gate; a deposit list is read; anything else is an error', () =>
   assert.deepEqual(depositPlan(500, { deposits: [] }), { kind: 'error' });
 });
 
-test('an ordinary deposit offers three decisions, and "Not income" is gone', () => {
+test('an ordinary deposit offers exactly two buttons: Save + Don\'t add', () => {
   const actions = depositActions(row());
-  assert.deepEqual(actions, ['record', 'already', 'ignored']);
+  assert.deepEqual(actions, ['record', 'ignored']);
+  assert.equal(actions.length, 2, 'never three buttons on a card');
   // The retired kind must not be reachable from the card.
   assert.equal(actions.includes('not_income' as never), false);
 });
 
-test('a STRIPE deposit offers "Already recorded" + "Don\'t add", never a new payment', () => {
+test('a STRIPE deposit still shows two buttons, but never offers a new payment', () => {
   const actions = depositActions(row({ payout: 'ambiguous', is_stripe_payout: true }));
-  assert.deepEqual(actions, ['already', 'ignored']);
-  // Recording a new payment from a lump of card money would count it twice.
-  assert.equal(actions.includes('record'), false);
+  assert.deepEqual(actions, ['record', 'ignored']);
+  assert.equal(actions.length, 2);
+  // The refusal lives in the paths, so "a new payment" cannot even be chosen.
+  assert.deepEqual(depositPaths(row({ payout: 'ambiguous' })), ['existing', 'other']);
+});
+
+test('the three paths: an existing payment, a new payment, other money', () => {
+  assert.deepEqual(depositPaths(row()), ['existing', 'invoice', 'other']);
+  // A STRIPE lump is made of card payments already counted: no new payment.
+  assert.deepEqual(depositPaths(row({ payout: 'ambiguous' })), ['existing', 'other']);
+  assert.deepEqual(depositPaths(row({ removed: true })), []);
+});
+
+test('Save maps the chosen path to the one route action that belongs to it', () => {
+  assert.deepEqual(depositSubmit(row(), { path: 'existing', payment_id: 'pay-1' }),
+    { action: 'already', extra: { payment_id: 'pay-1' } });
+  assert.deepEqual(depositSubmit(row(), { path: 'invoice', invoice_id: 'inv-1' }),
+    { action: 'record', extra: { invoice_id: 'inv-1' } });
+  assert.deepEqual(depositSubmit(row(), { path: 'other', classification: 'transfer' }),
+    { action: 'classified', extra: { classification: 'transfer' } });
+});
+
+test('Save is refused with no pick, and on a path that is not offered', () => {
+  assert.equal(depositSubmit(row(), { path: 'existing' }), null);
+  assert.equal(depositSubmit(row(), { path: 'other' }), null);
+  // A STRIPE deposit cannot submit a new payment even if the path is forced.
+  assert.equal(depositSubmit(row({ payout: 'ambiguous' }), { path: 'invoice', invoice_id: 'inv-1' }), null);
+  assert.equal(depositSubmit(row({ removed: true }), { path: 'other', classification: 'transfer' }), null);
+});
+
+test('restoring an Ignored deposit posts the restore action, ids only', () => {
+  assert.deepEqual(depositRestoreBody('dep-1'), { deposit_id: 'dep-1', action: 'restore' });
 });
 
 test('a deposit the bank removed offers nothing: no ledger is reversed here', () => {
@@ -57,7 +87,8 @@ test('the note names the payout, the caution, or the removal — never silence',
   assert.match(depositNote(row({ removed: true })) ?? '', /Nothing in your payments was changed/);
   assert.equal(depositNote(row()), null);
   // The exact caution copy: it names the one safe answer.
-  assert.match(STRIPE_PAYOUT_CAUTION, /choose An existing payment/);
+  assert.match(STRIPE_PAYOUT_CAUTION, /choose Don't add/);
+  assert.match(STRIPE_PAYOUT_CAUTION, /Those card payments are already counted/);
 });
 
 test('the POST body carries ids only, never an amount or a name', () => {
