@@ -60,6 +60,7 @@ import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type
 import { anchorFor, localToday } from '@/lib/recurring';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
+import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -594,6 +595,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // draft awaiting the decision. Null when there's nothing pending.
   const [pendingChange, setPendingChange] =
     useState<{ no: number; kind: 'quote' | 'invoice'; draft: Partial<ExtractResult> } | null>(null);
+  // Client match (lib/services/clients): finalize() found close-but-not-exact
+  // clients for the typed name and paused to ask which one. Nothing is created
+  // until the user answers. `convo` ties it to this conversation.
+  const [clientChoice, setClientChoice] =
+    useState<{ typed: string; candidates: ClientRecord[]; convo: string | null; fp: string } | null>(null);
+  // The same question, readable synchronously: finalize() must see it cleared
+  // in the very handler that cleared it (a stale closure would block the resume).
+  const clientAskRef = useRef<{ typed: string; convo: string | null } | null>(null);
+  // The client this conversation's draft is already settled on (matched,
+  // created, or picked), keyed by name: later edits skip matching entirely.
+  const resolvedClientRef = useRef<{ id: string; key: string; convo: string | null } | null>(null);
+  // "New client" was chosen for this typed name: create it despite the match.
+  const forceNewClientRef = useRef<{ key: string; convo: string | null } | null>(null);
+  // A pick just rewrote draft.client_name; send once that render has landed.
+  const resumeAfterPickRef = useRef(false);
+  // The send that reached finalize was spoken, so the question is spoken too.
+  const voiceFinalizeRef = useRef(false);
   // Live status of the linked saved invoice (Commit B). Fetched on restore,
   // history open, and at save time so the card knows if it has left 'draft'. A
   // non-draft, non-null status locks the card read-only; amount_paid decides the
@@ -1205,7 +1223,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // A bare affirmative ("yes", "send it") while the preview card is up sends
     // it. Voice users just say it; no tap needed (decision: button + text).
     if (draft && ready && isAffirmative(trimmed)) {
-      await finalize(true); // internal: we already hold the turn, skip its guard
+      voiceFinalizeRef.current = source === 'voice';
+      try {
+        await finalize(true); // internal: we already hold the turn, skip its guard
+      } finally {
+        voiceFinalizeRef.current = false;
+      }
       return null;
     }
 
@@ -1759,6 +1782,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // stashed file may no longer match it. Drop it until this build lands.
       preBuiltRef.current = null;
     } else {
+      // A client question is already waiting on its card: asking again would
+      // repeat the message, the card and the speech. Do nothing.
+      if (clientQuestionPending({ question: clientAskRef.current, convo: convoId || null, draftName: draft?.client_name })) {
+        scrollToClientQuestion(); // a re-tap just shows the card that is already waiting
+        return;
+      }
       if (!internal && phase) return;
       // `phase` is state and lags a render, so two taps inside one frame both
       // read it as null. This ref flips synchronously: the second tap (or a typed
@@ -1877,20 +1906,52 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // for both a fresh insert and an edit — a corrected address is stored too.
       // Only write a field we have: omitting a column leaves any stored value
       // intact, so an invoice that didn't restate the address never wipes one.
-      const clientRow: { user_id: string; name: string; address?: string; phone?: string } = {
-        user_id: profile.id,
-        name: rd0.clientName,
-      };
-      if (rd0.clientAddress) clientRow.address = rd0.clientAddress;
-      if (rd0.clientPhone) clientRow.phone = rd0.clientPhone;
-      const { data: client } = await supabase
-        .from('clients')
-        // (user_id, name) stays the conflict target: the clients_canonical_name
-        // trigger snaps a case variant ("cyril") onto the stored spelling
-        // ("Cyril") first, so this updates that row instead of hitting the
-        // unique name_key index (migration 20261003000001).
-        .upsert(clientRow, { onConflict: 'user_id,name' })
-        .select('id').single();
+      // One service decides which client this is (lib/services/clients): an
+      // exact case-insensitive name is the same client as before (address and
+      // phone refreshed, nothing duplicated); close-but-not-exact ("Maria" vs
+      // "Maria Gonzalez") PAUSES here and asks, creating nothing. A lookup
+      // failure stays soft, as the old upsert's did: the invoice saves unlinked.
+      let client: { id: string } | null = null;
+      const typedKey = clientNameKey(rd0.clientName);
+      try {
+        const settled = resolvedClientRef.current;
+        if (settled && settled.convo === (convoId || null) && settled.key === typedKey) {
+          // Already resolved for this name: no re-matching on later edits.
+          await updateClientContact(supabase, settled.id, { address: rd0.clientAddress, phone: rd0.clientPhone });
+          client = { id: settled.id };
+        } else {
+          const forced = forceNewClientRef.current;
+          const found = await matchOrCreateClient(
+            supabase,
+            profile.id,
+            { name: rd0.clientName, phone: rd0.clientPhone, address: rd0.clientAddress },
+            { createIfAmbiguous: !!forced && forced.convo === (convoId || null) && forced.key === typedKey },
+          );
+          if (found.status === 'ambiguous') {
+            // The background pre-build never asks; the Send tap does.
+            if (mode === 'prepare') return;
+            const names = found.candidates.map((c) => c.name);
+            const question = names.length === 1
+              ? `I have ${names[0]} on file. Is this ${names[0]}, or a new client?`
+              : `I have a few clients that match ${rd0.clientName}. Which one is it?`;
+            clientAskRef.current = { typed: rd0.clientName, convo: convoId || null };
+            setClientChoice({ typed: rd0.clientName, candidates: found.candidates, convo: convoId || null, fp: draftFingerprint(draft) });
+            setMessages((m) => [...m, aMsg(question, { skipHistory: true })]);
+            if (voiceFinalizeRef.current) {
+              cancelSpeechRef.current?.();
+              cancelSpeechRef.current = speak(question);
+            }
+            return; // outer finally clears phase; draft + ready untouched
+          }
+          if (found.status === 'matched' || found.status === 'created') {
+            client = { id: found.client.id };
+            resolvedClientRef.current = { id: found.client.id, key: typedKey, convo: convoId || null };
+            forceNewClientRef.current = null;
+          }
+        }
+      } catch (clientErr) {
+        console.error('client match failed', clientErr);
+      }
 
       // Record the AI's original wording on any line whose description the user
       // edited; an unedited line carries no original_description (null is the
@@ -3148,10 +3209,22 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return true;
     }
     if (p.kind === 'client') {
-      const { data, error } = await supabase.rpc('save_client', { p_name: p.name });
-      if (error) return false;
-      const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
-      if (row?.id) markNewEntry('clients', row.id); // glows in Clients (2·14)
+      // Through the client service (save mode = the same save_client RPC, run
+      // with the stored spelling). The prompt is only offered for a client that
+      // already matched exactly, so this is a match; if it somehow isn't, ask
+      // instead of creating a second client.
+      if (!profile) return false;
+      let saved: Awaited<ReturnType<typeof matchOrCreateClient>>;
+      try {
+        saved = await matchOrCreateClient(supabase, profile.id, { name: p.name }, { save: true });
+      } catch { return false; }
+      if (saved.status === 'ambiguous') {
+        setPromptShown(null);
+        setMessages((m) => [...m, aMsg(`I have more than one client like ${p.name}. Open Clients to save the right one.`, { skipHistory: true })]);
+        return false;
+      }
+      if (saved.status === 'invalid') return false;
+      markNewEntry('clients', saved.client.id); // glows in Clients (2·14)
     } else {
       // Price / unit are the last used ones, already on the row (record_product_use).
       const { data, error } = await supabase.from('products')
@@ -3376,6 +3449,66 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setDraftHistory((prev) => prev.slice(0, -1));
     setDraft(previous);
   }
+
+  // The question is open: the card is up and Send reads "Pick a client first".
+  const clientQuestionOpen = !!clientChoice
+    && clientQuestionPending({ question: clientChoice, convo: convoId || null, draftName: draft?.client_name });
+  // The card sits below the invoice preview, off-screen on a phone: bring it up.
+  const clientCardRef = useRef<HTMLDivElement | null>(null);
+  function scrollToClientQuestion() {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    clientCardRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+  }
+  // When the question appears (after the list's own pin-to-bottom has run).
+  useEffect(() => {
+    if (!clientQuestionOpen) return;
+    const id = requestAnimationFrame(scrollToClientQuestion);
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientQuestionOpen]);
+
+  // ── Client choice resolvers (lib/services/clients) ──────────
+  // The card below the chat after finalize() paused on a close-but-not-exact
+  // client. A pick uses an id from the candidates the service returned (never
+  // anything else), writes the client's stored spelling onto the draft, and
+  // resumes the send. "New client" resumes it with creation allowed.
+  function pickClientChoice(choice: ClientRecord | 'new') {
+    if (!clientChoice || phase) return;
+    const convo = convoId || null;
+    if (choice === 'new') {
+      forceNewClientRef.current = { key: clientNameKey(clientChoice.typed), convo };
+      clientAskRef.current = null;
+      setClientChoice(null);
+      void finalize();
+      return;
+    }
+    const picked = clientChoice.candidates.find((c) => c.id === choice.id);
+    if (!picked) return;
+    resolvedClientRef.current = { id: picked.id, key: clientNameKey(picked.name), convo };
+    clientAskRef.current = null;
+    setClientChoice(null);
+    setMessages((m) => [...m, aMsg(`Using ${picked.name}.`, { skipHistory: true })]);
+    resumeAfterPickRef.current = true;
+    setDraft((prev) => (prev ? { ...prev, client_name: picked.name } : prev));
+  }
+  // Any edit to the draft retires the question: the next Send asks afresh, once.
+  useEffect(() => {
+    if (clientChoice && draftFingerprint(draft) !== clientChoice.fp) {
+      clientAskRef.current = null;
+      setClientChoice(null);
+    }
+  }, [draft, clientChoice]);
+  // The pick rewrote draft.client_name; once that render is in, send. Reading
+  // `draft` here (not in pickClientChoice) is what makes the resumed finalize
+  // build its row and PDF with the stored spelling.
+  useEffect(() => {
+    if (!resumeAfterPickRef.current) return;
+    const settled = resolvedClientRef.current;
+    if (!draft?.client_name || !settled || clientNameKey(draft.client_name) !== settled.key) return;
+    resumeAfterPickRef.current = false;
+    void finalize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   // ── Change guard resolvers (Commit A) ───────────────────────
   // "Update this one": apply the held draft as a normal edit. The link is kept,
@@ -3732,9 +3865,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
               // No file to build or share: the client gets the link.
               <>
                 <Icon name="send" size={18} />
-                {phase === 'building' ? 'Sending…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
-            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
+            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' && !clientQuestionOpen ? (
               // The file is built and waiting: this tap opens the share sheet.
               <>
                 <Icon name="share" size={18} />
@@ -3743,7 +3876,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ) : (
               <>
                 <Icon name="attach_file" size={18} />
-                {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             )}
           </button>
@@ -4043,6 +4176,31 @@ export default function Chat({ active = true }: { active?: boolean }) {
               onClick={resolvePendingChangeNew}
             >
               Start a new invoice
+            </button>
+          </div>
+        )}
+
+        {clientChoice && clientQuestionOpen && (
+          // finalize() paused: the typed name is close to saved clients but not
+          // the same. Nothing is created until one of these is tapped.
+          <div ref={clientCardRef} className="card border-primary-container/50">
+            <p className="text-body-md">Which client is this for?</p>
+            {clientChoice.candidates.map((c) => (
+              <button
+                key={c.id}
+                className="btn-primary mt-3 w-full"
+                disabled={phase !== null}
+                onClick={() => pickClientChoice(c)}
+              >
+                {c.name}
+              </button>
+            ))}
+            <button
+              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              disabled={phase !== null}
+              onClick={() => pickClientChoice('new')}
+            >
+              New client “{clientChoice.typed}”
             </button>
           </div>
         )}
