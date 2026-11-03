@@ -20,6 +20,7 @@ import {
   type Cadence, type Recurring,
 } from '@/lib/recurring';
 import { useFormDraft } from '@/lib/use-form-draft';
+import { userMessage } from '@/lib/errors';
 
 const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
 
@@ -87,33 +88,40 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
     };
     setBusy(true);
     setError('');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setBusy(false); router.replace('/login'); return; }
-    const { error: err } = mode === 'new'
-      ? await supabase.from('recurring_expenses').insert({ ...fields, user_id: session.user.id })
-      : await supabase.from('recurring_expenses').update(fields).eq('id', item!.id);
-    setBusy(false);
-    // Free and canceled users can't create a recurring item (PAYWALL_RECURRING):
-    // the wall, with the form still filled in.
-    if (err?.hint === 'PAYWALL_RECURRING') { setShowPaywall(true); return; }
-    if (err) {
-      setError(err.code === '23505'
-        ? `You already have ${fields.vendor} as a ${CADENCE_LABEL[cadence].toLowerCase()} recurring expense.`
-        : 'Couldn’t save — check your connection and try again.');
-      return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      const { error: err } = mode === 'new'
+        ? await supabase.from('recurring_expenses').insert({ ...fields, user_id: session.user.id })
+        : await supabase.from('recurring_expenses').update(fields).eq('id', item!.id);
+      // Free and canceled users can't create a recurring item (PAYWALL_RECURRING):
+      // the wall, with the form still filled in.
+      if (err?.hint === 'PAYWALL_RECURRING') { setShowPaywall(true); return; }
+      if (err) {
+        // A duplicate vendor + cadence is its own cause; the rest is the classifier's.
+        setError(err.code === '23505'
+          ? `You already have ${fields.vendor} as a ${CADENCE_LABEL[cadence].toLowerCase()} recurring expense.`
+          : userMessage(err));
+        return;
+      }
+      draft.clear();
+      setDone(true);
+      setTimeout(() => router.replace(RECURRING_PATH), SAVED_MS);
+    } finally {
+      setBusy(false);
     }
-    draft.clear();
-    setDone(true);
-    setTimeout(() => router.replace(RECURRING_PATH), SAVED_MS);
   }
 
   async function stop() {
     if (!item || busy) return;
     setBusy(true);
-    const { error: err } = await supabase.from('recurring_expenses').update({ deleted_at: new Date().toISOString() }).eq('id', item.id);
-    setBusy(false);
-    if (err) { setError('Couldn’t stop it — check your connection and try again.'); return; }
-    router.replace(RECURRING_PATH);
+    try {
+      const { error: err } = await supabase.from('recurring_expenses').update({ deleted_at: new Date().toISOString() }).eq('id', item.id);
+      if (err) { setError(userMessage(err)); return; }
+      router.replace(RECURRING_PATH);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

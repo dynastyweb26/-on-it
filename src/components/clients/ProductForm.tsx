@@ -17,6 +17,7 @@ import { clientNameKey } from '@/lib/client-name';
 import { markNewEntry } from '@/lib/list-motion';
 import { UNITS, parsePrice, usedLine, type Product, type Unit } from '@/lib/products';
 import { useFormDraft } from '@/lib/use-form-draft';
+import { userMessage } from '@/lib/errors';
 
 const LIST = '/clients?segment=products';
 const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
@@ -78,45 +79,50 @@ export default function ProductForm({ mode, product, initialName, onSaved, onCan
     if (Number.isNaN(parsed)) { setError('Enter a price like 450 or 3.25, or leave it empty.'); priceRef.current?.focus(); return; }
     setBusy(true);
     setError('');
-    const fields = { name: name.trim(), unit, unit_price: parsed, detail: detail.trim() || null };
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setBusy(false); router.replace('/login'); return; }
-    let err: { code?: string } | null = null;
-    if (mode === 'edit') {
-      ({ error: err } = await supabase.from('products').update(fields).eq('id', product!.id));
-    } else {
-      const { data: existing } = await supabase.from('products').select('id, saved_at, deleted_at')
-        .eq('name_key', clientNameKey(fields.name)).maybeSingle();
-      const ex = existing as { id: string; saved_at: string | null; deleted_at: string | null } | null;
-      if (ex && ex.saved_at && !ex.deleted_at) {
-        setBusy(false);
-        setError(`You already have an item named “${fields.name}”.`);
+    try {
+      const fields = { name: name.trim(), unit, unit_price: parsed, detail: detail.trim() || null };
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace('/login'); return; }
+      let err: { code?: string } | null = null;
+      if (mode === 'edit') {
+        ({ error: err } = await supabase.from('products').update(fields).eq('id', product!.id));
+      } else {
+        const { data: existing } = await supabase.from('products').select('id, saved_at, deleted_at')
+          .eq('name_key', clientNameKey(fields.name)).maybeSingle();
+        const ex = existing as { id: string; saved_at: string | null; deleted_at: string | null } | null;
+        if (ex && ex.saved_at && !ex.deleted_at) {
+          setError(`You already have an item named “${fields.name}”.`);
+          return;
+        }
+        const now = new Date().toISOString();
+        ({ error: err } = ex
+          ? await supabase.from('products').update({ ...fields, saved_at: now, deleted_at: null }).eq('id', ex.id)
+          : await supabase.from('products').insert({ ...fields, user_id: session.user.id, saved_at: now }));
+      }
+      if (err) {
+        setError(err.code === '23505' ? `You already have an item named “${fields.name}”.` : userMessage(err));
         return;
       }
-      const now = new Date().toISOString();
-      ({ error: err } = ex
-        ? await supabase.from('products').update({ ...fields, saved_at: now, deleted_at: null }).eq('id', ex.id)
-        : await supabase.from('products').insert({ ...fields, user_id: session.user.id, saved_at: now }));
+      if (mode === 'new') markNewEntry('products', clientNameKey(fields.name));
+      draft.clear();
+      // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
+      setDone(true);
+      setTimeout(() => { if (onSaved) onSaved(fields); else router.replace(LIST); }, SAVED_MS);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    if (err) {
-      setError(err.code === '23505' ? `You already have an item named “${fields.name}”.` : 'Couldn’t save — check your connection and try again.');
-      return;
-    }
-    if (mode === 'new') markNewEntry('products', clientNameKey(fields.name));
-    draft.clear();
-    // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
-    setDone(true);
-    setTimeout(() => { if (onSaved) onSaved(fields); else router.replace(LIST); }, SAVED_MS);
   }
 
   async function remove() {
     if (!product || busy) return;
     setBusy(true);
-    const { error: err } = await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', product.id);
-    setBusy(false);
-    if (err) { setError('Couldn’t delete — check your connection and try again.'); return; }
-    router.replace(LIST);
+    try {
+      const { error: err } = await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', product.id);
+      if (err) { setError(userMessage(err)); return; }
+      router.replace(LIST);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
