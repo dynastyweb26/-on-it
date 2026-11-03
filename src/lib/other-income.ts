@@ -67,6 +67,17 @@ export function classificationLabel(value: string | null | undefined): string {
   return (isClassification(value) && BY_VALUE.get(value)!.label) || 'Other money received';
 }
 
+/**
+ * The line under a chip: what picking it does to the owner's totals.
+ * Three possible answers, because there are three outcomes: the two income
+ * kinds count, three non-income kinds are recorded and count nowhere, and
+ * "Unknown" is the honest one that stays outside every total until decided.
+ */
+export function classificationNote(value: string | null | undefined): string {
+  if (value === 'unknown') return 'Stays unaccounted, outside every total';
+  return countsAsIncome(value) ? 'Counts in Collected' : 'Not counted as income';
+}
+
 /** The two that go to public.other_income, narrowed for the route. */
 export function incomeClassification(
   value: string | null | undefined,

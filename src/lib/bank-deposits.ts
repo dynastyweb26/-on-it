@@ -106,24 +106,66 @@ export function depositBody(
 }
 
 /**
- * What the card offers.
+ * What the card offers: exactly two stacked buttons, never three (CHANGES.md
+ * · item 3 and B). Save applies whichever path is chosen; 'record' here means
+ * "submit the chosen path", not "write a new payment" — depositSubmit() maps
+ * the path to the real action, and the invoice path is not offered at all for
+ * a STRIPE descriptor.
  *
  *   removed      nothing: the ledger is never reversed from here.
- *   STRIPE       Already recorded + Don't add. Recording a NEW payment from a
- *                lump of card money would count it twice, so that button is not
- *                offered; the server refuses it as well.
- *   ordinary     Record payment + Already recorded + Don't add.
- *
- * 'classified' is deliberately not here yet: choosing among the six is the
- * card's Round 2 work, and the route already accepts it.
+ *   every other  Save + Don't add.
  */
 export function depositActions(
   deposit: Pick<ApiDeposit, 'removed' | 'payout'>,
 ): DepositAction[] {
   if (deposit.removed) return [];
-  if (deposit.payout === 'ambiguous') return ['already', 'ignored'];
-  return ['record', 'already', 'ignored'];
+  return ['record', 'ignored'];
 }
+
+/** The three ways a deposit becomes money the owner can point at. */
+export type DepositPath = 'existing' | 'invoice' | 'other';
+
+/** Which paths the card offers, in reading order. */
+export function depositPaths(
+  deposit: Pick<ApiDeposit, 'removed' | 'payout'>,
+): DepositPath[] {
+  if (deposit.removed) return [];
+  // A STRIPE descriptor never gets "A new payment": the lump is made of card
+  // payments already in the ledger, so a second row would count them twice.
+  return deposit.payout === 'ambiguous'
+    ? ['existing', 'other']
+    : ['existing', 'invoice', 'other'];
+}
+
+export type DepositChoice = {
+  path: DepositPath;
+  invoice_id?: string;
+  payment_id?: string;
+  classification?: DepositClassification;
+};
+
+/**
+ * The POST one Save makes, or null when the chosen path is not complete (no
+ * payment picked, no invoice, no classification). Pure, so the mapping from a
+ * card choice to a route action is testable and cannot drift.
+ */
+export function depositSubmit(
+  deposit: Pick<ApiDeposit, 'removed' | 'payout'>,
+  choice: DepositChoice,
+): { action: DepositAction; extra: { invoice_id?: string; payment_id?: string; classification?: DepositClassification } } | null {
+  if (!depositPaths(deposit).includes(choice.path)) return null;
+  if (choice.path === 'existing') {
+    return choice.payment_id ? { action: 'already', extra: { payment_id: choice.payment_id } } : null;
+  }
+  if (choice.path === 'invoice') {
+    return choice.invoice_id ? { action: 'record', extra: { invoice_id: choice.invoice_id } } : null;
+  }
+  return choice.classification ? { action: 'classified', extra: { classification: choice.classification } } : null;
+}
+
+/** Put an Ignored deposit back in To review: drop the 'ignored' link only. */
+export const depositRestoreBody = (depositId: string): Record<string, unknown> =>
+  ({ deposit_id: depositId, action: 'restore' });
 
 /** The short note above the buttons, or null. */
 export function depositNote(deposit: Pick<ApiDeposit, 'removed' | 'payout'>): string | null {
