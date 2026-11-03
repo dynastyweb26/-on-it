@@ -3746,7 +3746,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             {docKind(draft) === 'quote' ? (
               // No file to build or share: the client gets the link.
               <>
-                <Icon name="send" size={18} />
+                {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="send" size={18} />}
                 {phase === 'building' ? 'Sending…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' ? (
@@ -3757,7 +3757,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </>
             ) : (
               <>
-                <Icon name="attach_file" size={18} />
+                {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="attach_file" size={18} />}
                 {phase === 'building' ? 'Building your PDF…' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             )}

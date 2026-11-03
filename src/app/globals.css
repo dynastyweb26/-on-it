@@ -753,6 +753,11 @@ html[data-splash=""] .onit-splash {
   animation: onit-gold-sweep var(--motion-sweep) var(--ease-settle) 160ms both;
 }
 
+/* The sent/ready pill slides in from +12px on the server-confirmed seal
+   (design 3a: "Sent pill in x 12→0, 280 settle"). Opacity + transform only. */
+@keyframes onit-pill-in { from { opacity: 0; transform: translateX(12px); } }
+.onit-pill-in { animation: onit-pill-in var(--motion-settle) var(--ease-settle) both; }
+
 /* A label that swaps (invoice ↔ estimate): 8px lift + fade, settle curve. */
 @keyframes onit-label-in { from { opacity: 0; transform: translateY(8px); } }
 .onit-label-in { display: inline-block; animation: onit-label-in var(--motion-settle) var(--ease-settle) both; }

@@ -41,7 +41,7 @@ export function LedgerStateStrip({
     <div
       data-ledger-strip={state}
       className={`flex h-10 items-center gap-1.5 px-4 text-caps uppercase ${skin}${
-        anim ? ' onit-fade-in' : ''
+        anim ? ' onit-pill-in' : ''
       }`}
     >
       <Icon
