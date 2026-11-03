@@ -11,10 +11,11 @@
 // client Montserrat 24, total Montserrat 38/800 on #2F2A24). Colours resolve to
 // the app's tokens: gold = primary-container, ink = inverse-surface, sheet =
 // surface-sheet, so a theme change carries through instead of pinning hexes.
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
 import LedgerMotionProvider from '@/components/chat/LedgerMotion';
+import { fetchUsageSnapshot } from '@/lib/usage';
 
 export type LedgerState = 'draft' | 'sent' | 'ready';
 
@@ -142,6 +143,40 @@ export function LedgerTotals({
           {children}
         </m.span>
       </span>
+    </div>
+  );
+}
+
+/** The free-tier counter: one segment per allowed invoice, filled to the real
+ *  count (/api/access), plus the existing text line. Paid tiers report no
+ *  limit, so they get the text only — never an invented bar. Purely visual:
+ *  the count comes from the server and nothing here can change it. */
+export function LedgerUsageMeter({ text }: { text: string }) {
+  const [snap, setSnap] = useState<{ invoiceCount?: number; invoiceLimit?: number | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fetchUsageSnapshot().then((s) => { if (live) setSnap(s); });
+    return () => { live = false; };
+  }, [text]);
+
+  const used = typeof snap?.invoiceCount === 'number' ? snap.invoiceCount : null;
+  const limit = typeof snap?.invoiceLimit === 'number' ? snap.invoiceLimit : null;
+  const segments = used !== null && limit !== null && limit > 0 ? Math.min(limit, 12) : 0;
+
+  return (
+    <div className="mt-2 px-1">
+      {segments > 0 && (
+        <div className="flex gap-1" aria-hidden>
+          {Array.from({ length: segments }).map((_, i) => (
+            <span
+              key={i}
+              className={`h-1.5 flex-1 rounded-full ${i < (used ?? 0) ? 'onit-seg-fill bg-primary-container' : 'bg-surface-container-high'}`}
+              style={i < (used ?? 0) ? { animationDelay: `${120 + i * 80}ms` } : undefined}
+            />
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-sm text-on-surface-variant">{text}</p>
     </div>
   );
 }

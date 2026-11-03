@@ -758,6 +758,12 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-pill-in { from { opacity: 0; transform: translateX(12px); } }
 .onit-pill-in { animation: onit-pill-in var(--motion-settle) var(--ease-settle) both; }
 
+/* Free-invoice counter: each used segment fills left → right, 80ms apart
+   (design: "segment fill scaleX 0→1 420 settle"). Under reduced motion the
+   global kill switch leaves every segment at its filled width. */
+@keyframes onit-seg-fill { from { transform: scaleX(0); } }
+.onit-seg-fill { transform-origin: left; animation: onit-seg-fill var(--motion-slow) var(--ease-settle) both; }
+
 /* A label that swaps (invoice ↔ estimate): 8px lift + fade, settle curve. */
 @keyframes onit-label-in { from { opacity: 0; transform: translateY(8px); } }
 .onit-label-in { display: inline-block; animation: onit-label-in var(--motion-settle) var(--ease-settle) both; }

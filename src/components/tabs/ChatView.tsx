@@ -40,7 +40,7 @@ import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
-import { LedgerFrame, LedgerTotals, SentLedgerRow } from '@/components/chat/LedgerCard';
+import { LedgerFrame, LedgerTotals, LedgerUsageMeter, SentLedgerRow } from '@/components/chat/LedgerCard';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
   ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
@@ -4003,9 +4003,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
             <>
-              {invoiceUsage.text && (
-                <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
-              )}
+              {invoiceUsage.text && <LedgerUsageMeter text={invoiceUsage.text} />}
               {invoiceUsage.nudge && (
                 <ChatNudgeCard
                   className="mt-2 w-full"

@@ -54,7 +54,7 @@ export default function EstimateLinkActions({
         </button>
       </div>
       {note && (
-        <p role="status" className="mt-1.5 text-center text-xs text-on-surface-variant">
+        <p key={note} role="status" className="onit-label-in mt-1.5 text-center text-xs text-on-surface-variant">
           {note}
         </p>
       )}
