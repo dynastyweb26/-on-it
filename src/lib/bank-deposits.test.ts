@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEPOSIT_DECIDED_TOAST, DEPOSIT_PAYOUT_TOAST, DEPOSIT_TAKEN_TOAST, depositActions,
-  depositBody, depositDoneToast, depositNote, depositPaths, depositPlan, depositRefusalMessage,
-  depositRestoreBody, depositSubline, depositSubmit, type ApiDeposit,
+  depositBody, depositDoneToast, depositMetaLine, depositNote, depositPaths, depositPlan,
+  depositRefusalMessage, depositRestoreBody, depositSubline, depositSubmit, type ApiDeposit,
 } from './bank-deposits';
 import { STRIPE_PAYOUT_CAUTION } from './plaid/payouts';
 
@@ -134,6 +134,17 @@ test('a done toast says what happened to the totals, not just "saved"', () => {
   assert.match(depositDoneToast('classified', 'vendor_refund'), /counts in no total/);
   assert.match(depositDoneToast('classified', 'unknown'), /counts in no total/);
   assert.match(depositDoneToast('record'), /Payment recorded/);
+});
+
+test('the meta line under the payer reads date · account, never a placeholder', () => {
+  assert.equal(
+    depositMetaLine({ occurred_on: '2026-11-01', account: 'Plaid Mortgage ••8888' }),
+    'Nov 1 · Plaid Mortgage ••8888',
+  );
+  // No account read? Say something true, but never the old placeholder.
+  assert.equal(depositMetaLine({ occurred_on: '2026-11-01' }), 'Nov 1 · Bank account');
+  assert.equal(depositMetaLine({ occurred_on: '2026-11-01', account: '   ' }), 'Nov 1 · Bank account');
+  assert.equal(depositMetaLine({ occurred_on: '2026-11-01' }).includes('Bank deposit'), false);
 });
 
 test('the subline names the invoice only when an exact signal fired', () => {

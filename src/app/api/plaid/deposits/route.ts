@@ -64,6 +64,7 @@ const Body = z.object({
 
 type DepositRow = {
   id: string;
+  account_id: string | null;
   name: string;
   merchant_name: string | null;
   amount: string | number;
@@ -75,7 +76,7 @@ type DepositRow = {
 
 type LinkRow = { kind: string; payment_id: string | null; classification: string | null };
 
-const DEPOSIT_SELECT = 'id, name, merchant_name, amount, occurred_on, pending, removed_at, is_stripe_payout';
+const DEPOSIT_SELECT = 'id, account_id, name, merchant_name, amount, occurred_on, pending, removed_at, is_stripe_payout';
 
 /** The Stripe columns a ledger row must NOT carry to be claimable by a deposit. */
 const STRIPE_SELECT = 'stripe_checkout_session_id, stripe_event_id, stripe_payment_intent_id, stripe_object_id';
@@ -161,6 +162,27 @@ export async function GET(req: NextRequest) {
     && !row.stripe_checkout_session_id && !row.stripe_event_id
     && !row.stripe_payment_intent_id && !row.stripe_object_id);
 
+  // The account line under the payer, joined exactly the way an expense gets
+  // its own: the Plaid account's name and mask. RLS scopes it to the owner, and
+  // a failed read leaves the card's line truthful instead of guessed.
+  const accountIds = [...new Set(
+    ((depositRows ?? []) as unknown as { account_id: string | null }[])
+      .map((row) => row.account_id)
+      .filter((id): id is string => typeof id === 'string'),
+  )];
+  const accountLabelById = new Map<string, string>();
+  if (accountIds.length > 0) {
+    const { data: accountRows } = await supabase
+      .from('plaid_accounts')
+      .select('id, name, official_name, mask')
+      .in('id', accountIds);
+    for (const account of (accountRows ?? []) as unknown as
+      { id: string; name: string | null; official_name: string | null; mask: string | null }[]) {
+      const name = (account.name || account.official_name || 'Bank account').trim();
+      accountLabelById.set(account.id, account.mask ? `${name} ••${account.mask}` : name);
+    }
+  }
+
   const invoiceById = new Map(
     ((invoiceRows ?? []) as unknown as { id: string; invoice_number: number | null }[])
       .map((invoice) => [invoice.id, invoice.invoice_number]),
@@ -183,6 +205,7 @@ export async function GET(req: NextRequest) {
       return {
         id: row.id,
         name: row.name,
+        account: (row.account_id && accountLabelById.get(row.account_id)) || null,
         merchant: row.merchant_name,
         amount_cents: cents,
         occurred_on: row.occurred_on,

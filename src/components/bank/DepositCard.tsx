@@ -25,10 +25,11 @@ import {
   OTHER_MONEY_RECEIVED, classificationNote, type DepositClassification,
 } from '@/lib/other-income';
 import {
-  DEPOSITS_URL, depositBody, depositDoneToast, depositNote, depositPaths, depositRefusalMessage,
-  depositSubmit, type ApiDeposit, type DepositInvoice, type DepositPath, type DepositPayment,
+  DEPOSITS_URL, depositBody, depositDoneToast, depositMetaLine, depositNote, depositPaths,
+  depositRefusalMessage, depositSubmit, type ApiDeposit, type DepositInvoice, type DepositPath,
+  type DepositPayment,
 } from '@/lib/bank-deposits';
-import { formatDay, formatMoney } from '@/lib/bank-tracking';
+import { formatMoney } from '@/lib/bank-tracking';
 
 const PATH_COPY: Record<DepositPath, { label: string; sub: string; icon: IconName }> = {
   existing: {
@@ -142,11 +143,8 @@ export default function DepositCard({
               </span>
             )}
           </div>
-          {/* date · account: the deposit payload carries no account label, so
-              the second half names what the row is. */}
-          <div className="truncate text-[15px] text-on-surface-variant">
-            {formatDay(deposit.occurred_on)} · Bank deposit
-          </div>
+          {/* date · account, the same shape as an expense card. */}
+          <div className="truncate text-[15px] text-on-surface-variant">{depositMetaLine(deposit)}</div>
         </div>
 
         <div className="flex flex-col gap-1">

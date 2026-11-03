@@ -32,6 +32,8 @@ export type ApiDeposit = {
   is_stripe_payout: boolean;
   /** Server-derived: a STRIPE descriptor, and nothing more certain than that. */
   payout: StripeVerdict;
+  /** The bank account line, joined like an expense's: "Plaid Mortgage ••8888". */
+  account?: string | null;
   /** A link row or an other_income row already decides this deposit. */
   accounted: boolean;
   link: { kind: DepositKind; payment_id: string | null; classification: string | null } | null;
@@ -171,6 +173,19 @@ export const depositRestoreBody = (depositId: string): Record<string, unknown> =
 export function depositNote(deposit: Pick<ApiDeposit, 'removed' | 'payout'>): string | null {
   if (deposit.removed) return 'Your bank removed this deposit. Nothing in your payments was changed.';
   return payoutNote(deposit.payout ?? 'not_stripe');
+}
+
+/**
+ * The line under the payer: `date · account`, the same shape as an expense
+ * card. The account is the Plaid account's own name and mask, joined on the
+ * server; when it cannot be read the line still reads truthfully rather than
+ * inventing a bank.
+ */
+export function depositMetaLine(
+  deposit: Pick<ApiDeposit, 'occurred_on'> & { account?: string | null },
+): string {
+  const account = (deposit.account ?? '').trim() || 'Bank account';
+  return `${formatDay(deposit.occurred_on)} · ${account}`;
 }
 
 /** "Matches INV-0042" when a signal fired; the amount and date when none did. */
