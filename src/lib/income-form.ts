@@ -140,7 +140,7 @@ export function shiftIso(iso: string, days: number): string {
 export function incomeWriteRefusal(
   row: { deposit_id?: string | null } | null | undefined,
   op: 'delete' | 'edit',
-  patch?: { amount?: unknown },
+  patch?: { amount?: unknown; [key: string]: unknown },
 ): 'from_deposit' | null {
   if (!row?.deposit_id) return null;
   if (op === 'delete') return 'from_deposit';
