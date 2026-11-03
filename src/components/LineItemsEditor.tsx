@@ -11,7 +11,7 @@
 // uses the ledger skin (a printed list: number, name, amount, a quiet sub-row
 // and a 40px control strip). The invoice/estimate detail screens keep the
 // default skin. No handler, aria-label or validation rule differs between them.
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
 import { money, calculateLineAmount } from '@/lib/financials';
@@ -27,6 +27,10 @@ export interface EditableLineItem {
   // Preserved through edits (item 3 training signal); this component never sets it.
   original_description?: string | null;
 }
+
+// useLayoutEffect warns during the server render; the DOM-only half is the point
+// of the FLIP below, so pick the layout effect only in the browser.
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 type Field = 'description' | 'qty' | 'unit_price' | 'detail';
 
@@ -50,6 +54,11 @@ export default function LineItemsEditor({
   const [cell, setCell] = useState<{ i: number; f: Field } | null>(null);
   const [text, setText] = useState('');
   const ledger = variant === 'ledger';
+  // Reorder travel (design: Up/Down moves the row, 260ms settle). FLIP: the two
+  // swapped rows are measured before the change and their old tops become a
+  // counter-transform released on the next frame. Nothing else moves.
+  const rowsRef = useRef<HTMLDivElement>(null);
+  const flipRef = useRef<{ from: number; to: number; tops: number[] } | null>(null);
 
   function start(i: number, f: Field, current: string) {
     setText(current);
@@ -93,12 +102,45 @@ export default function LineItemsEditor({
   function move(i: number, dir: -1 | 1) {
     const target = i + dir;
     if (target < 0 || target >= items.length) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (!reduce) {
+      const rows = rowsRef.current?.querySelectorAll<HTMLElement>('[data-line-row]');
+      const tops = rows ? Array.from(rows, (r) => r.getBoundingClientRect().top) : [];
+      flipRef.current = tops.length > target ? { from: i, to: target, tops } : null;
+    }
     const next = [...items];
     const temp = next[i];
     next[i] = next[target];
     next[target] = temp;
     onChange(next);
   }
+
+  // The rows are keyed by index, so React keeps each box in place and swaps the
+  // content: measuring each box's new top and offsetting it by where its new
+  // content came from is what makes the swap read as travel.
+  useIsoLayoutEffect(() => {
+    const flip = flipRef.current;
+    flipRef.current = null;
+    if (!flip || !rowsRef.current) return;
+    const rows = rowsRef.current.querySelectorAll<HTMLElement>('[data-line-row]');
+    const pairs: Array<[number, number | undefined]> = [
+      [flip.to, flip.tops[flip.from]],
+      [flip.from, flip.tops[flip.to]],
+    ];
+    for (const [index, oldTop] of pairs) {
+      const row = rows[index];
+      if (!row || oldTop == null) continue;
+      const delta = oldTop - row.getBoundingClientRect().top;
+      if (!delta) continue;
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => {
+        row.style.transition = 'transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+        row.style.transform = 'none';
+        setTimeout(() => { row.style.transition = ''; }, 300);
+      });
+    }
+  }, [items]);
 
   function duplicate(i: number) {
     const item = items[i];
@@ -161,7 +203,7 @@ export default function LineItemsEditor({
 
   return (
     // onit-li-rows: hook for the card build-in stagger (globals.css, MOTION-SPEC §3).
-    <div className={ledger ? 'onit-li-rows' : 'onit-li-rows space-y-3'}>
+    <div ref={rowsRef} className={ledger ? 'onit-li-rows' : 'onit-li-rows space-y-3'}>
       {items.map((li, i) => (
         <div
           key={i}
