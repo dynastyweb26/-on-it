@@ -875,6 +875,32 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-msg-in { from { opacity: 0; transform: translateY(8px); } }
 .onit-msg-in { animation: onit-msg-in var(--motion-base) var(--ease-emphasized) both; }
 
+/* The assistant monogram (AssistantMark): a 4px gold dot, and a hairline ring
+   that breathes out while a reply is being written. Transform/opacity only, so
+   it never nudges the transcript. */
+.onit-mark { position: relative; }
+.onit-mark-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #d4af37;
+}
+.onit-mark.is-pulsing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid #d4af37;
+  animation: onit-mark-pulse 1800ms var(--ease-settle) infinite;
+}
+@keyframes onit-mark-pulse {
+  0% { opacity: .5; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
+
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
 .onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
 .onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
