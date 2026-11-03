@@ -70,13 +70,21 @@ export default function RecordPaymentSheet({
   // A ref, not `saving`: two taps in the same frame both read the pre-render
   // closure, and would each submit. The ref flips synchronously.
   const submittingRef = useRef(false);
+  // While a save is in flight this sheet cannot be dismissed: the write is
+  // already going out, and this sheet is the only place its outcome can be
+  // reported. Held in a ref for the same reason as submittingRef — Escape, the
+  // scrim and a drag can all fire before `saving` re-renders.
+  const savingRef = useRef(false);
   // One key per submission: minted on the first tap, reused by every retry
   // while this sheet is open, so a lost response can never double-record.
   const keyRef = useRef<string | null>(null);
-  const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(onClose);
+  // One guarded exit, shared by the scrim, the Close button and the drag handle.
+  // While saving it does nothing at all: no dismiss, no unmount, no lost outcome.
+  const closeSheet = () => { if (!savingRef.current) onClose(); };
+  const { handleProps, sheetStyle, scrimStyle } = useSheetDrag(closeSheet);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !savingRef.current) onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -115,6 +123,7 @@ export default function RecordPaymentSheet({
   async function save() {
     if (!valid || submittingRef.current) return;
     submittingRef.current = true;
+    savingRef.current = true;
     setSaving(true);
     setSaveError('');
     const idempotencyKey = keyRef.current ?? (keyRef.current = newPaymentKey(invoiceId));
@@ -131,6 +140,7 @@ export default function RecordPaymentSheet({
     } finally {
       // Re-enable on failure; a success has already closed the sheet.
       submittingRef.current = false;
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -146,7 +156,7 @@ export default function RecordPaymentSheet({
 
   return createPortal(
     <div className="fixed inset-0 z-[78] flex items-end md:items-center md:p-6 justify-center" data-no-tab-swipe="true">
-      <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={onClose} />
+      <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={closeSheet} />
       <div
         role="dialog"
         aria-modal="true"
@@ -165,8 +175,9 @@ export default function RecordPaymentSheet({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeSheet}
               aria-label="Close"
+              aria-disabled={saving || undefined}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface-container text-on-surface-variant transition active:scale-95"
             >
               <Icon name="close" size={18} />
