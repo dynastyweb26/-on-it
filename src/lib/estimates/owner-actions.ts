@@ -43,7 +43,9 @@ export function sendErrorMessage(status: number, code?: string | null): string {
     if (code === 'converted') return 'This estimate has already been converted.';
     if (code === 'void') return 'This estimate can no longer be sent.';
   }
-  return "Couldn't send the estimate. Please try again.";
+  // Accurate on purpose: a failed first send may have written a draft row, so
+  // the copy promises only what is true — the client received nothing.
+  return "Couldn't create the link. Nothing was shared.";
 }
 
 /** `validUntil` (YYYY-MM-DD) is optional; without it the server keeps the row's
@@ -63,7 +65,7 @@ export async function requestEstimateSend(id: string, validUntil?: string | null
     }
     return { ok: true, estimate: body.estimate, firstSend: body.firstSend === true };
   } catch {
-    return { ok: false, message: "Couldn't send the estimate. Please try again." };
+    return { ok: false, message: "Couldn't create the link. Nothing was shared." };
   }
 }
 
