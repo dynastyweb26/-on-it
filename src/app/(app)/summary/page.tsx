@@ -27,6 +27,12 @@ import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import SummarySkeleton from '@/components/SummarySkeleton';
 import SummaryControls from '@/components/summary/SummaryControls';
+import MountainChart from '@/components/summary/MountainChart';
+import { chartPoints, presetStart } from '@/lib/books-chart';
+import { countsAsIncome } from '@/lib/other-income';
+import { useBankTracking } from '@/components/bank/BankTrackingProvider';
+import { unaccountedItems } from '@/lib/bank-tracking';
+import { reducedMotion } from '@/lib/list-motion';
 import { resolveGrain, type ChartGrain, type ChartPreset } from '@/lib/books-chart';
 import { useDelayedShow } from '@/lib/use-delayed-show';
 
@@ -185,7 +191,9 @@ export default function TaxSummary() {
       });
       // Other income joins the income rows: same shape, so the list, the
       // period buckets and the PDF all include it without a second read path.
-      const oIncome = ((other.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      const oIncome = ((other.data ?? []) as Array<Record<string, unknown>>)
+        .filter((r) => countsAsIncome(r.classification as string | null))
+        .map((r) => ({
         amount: r.amount as number | string,
         paid_at: `${String(r.received_on)}T12:00:00.000Z`,
         client_name: (r.client_name as string | null) ?? 'Other income',
@@ -245,6 +253,21 @@ export default function TaxSummary() {
   );
 
   const kept = income.broughtIn - summary.total;
+
+  // The mountain reads confirmed rows only, over the chart's own period.
+  const bank = useBankTracking();
+  const chartData = useMemo(() => {
+    const start = presetStart(chartPreset, new Date().toLocaleDateString('en-CA'));
+    const on = (day: string | null | undefined) => !start || (day ?? '') >= start;
+    const pays = (payments ?? [])
+      .filter((row) => on((row.paid_at ?? '').slice(0, 10)))
+      .map((row) => ({ amount: row.amount, paid_at: row.paid_at }));
+    const spend = (expenses ?? [])
+      .filter((row) => on(row.spent_on))
+      .map((row) => ({ amount: row.amount, spent_on: row.spent_on }));
+    return chartPoints(pays, [], spend, chartGrain);
+  }, [payments, expenses, chartPreset, chartGrain]);
+  const unaccountedBank = bank?.state ? unaccountedItems(bank.state).length : 0;
   const hasData = summary.count > 0 || income.broughtIn > 0 || income.stillOwed > 0;
 
   // Sheets: body scroll lock + Escape to dismiss (matches PaywallModal).
@@ -335,6 +358,15 @@ export default function TaxSummary() {
         <span className="font-semibold text-on-background">{selected?.friendlyLabel ?? 'All time'}</span>
         <Icon name="expand_more" size={22} className="text-on-surface-variant" />
       </button>
+
+      {!loading && hasData && (
+        <MountainChart
+          points={chartData}
+          reduce={typeof window !== 'undefined' && reducedMotion()}
+          unaccounted={unaccountedBank}
+          onReview={() => window.dispatchEvent(new Event('onit:bank-review-open'))}
+        />
+      )}
 
       {loading ? (
         showSkeleton ? <SummarySkeleton /> : null
