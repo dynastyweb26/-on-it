@@ -1682,8 +1682,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setLinkedAmountPaid(0);
     setRenderData(null);
     playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
-    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
-    if (template) dropTemplate();   // sent: the template's job is done
+    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary    // Sent: the builder's job is done — but it morphs into the card first
+    // (design 1a/1b). Nothing about the send changes here: this is after the
+    // server confirmed, and the builder is only held on screen for the beat.
+    if (template) {
+      setMorphing(true);
+      clearTimeout(morphTimerRef.current);
+      morphTimerRef.current = setTimeout(() => {
+        dropTemplate();
+        setMorphing(false);
+      }, 620);
+    }
     // Count each line's item for saved products (fire-and-forget; never blocks
     // or changes the send); it returns the save-prompt candidates (2·13).
     // Template sends only for now: chat lines carry the AI's free-form wording,
@@ -3445,6 +3454,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the new conversation's draft card builds in like any fresh card. The ref
   // drops repeat taps for the whole transition; a 20+ item draft is safe
   // because the build-in only animates the first 8 rows.
+  // Builder → card morph (docs/design/onit-chat · Prototype 1a/1b). The builder
+  // stays mounted for one hero beat AFTER the server confirms (finishFinalize
+  // runs only then), so its shared client/item/price/total nodes can travel into
+  // the card. It ghosts out, then leaves. A timer ref keeps a repeat send from
+  // restarting the beat; unmount clears it.
+  const [morphing, setMorphing] = useState(false);
+  const morphTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(morphTimerRef.current), []);
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
@@ -3519,7 +3536,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
-  const invoiceCard = ready && draft && !template ? (
+  // During the morph the builder is still mounted, so the card has to render
+  // beside it for the shared nodes to travel.
+  const invoiceCard = ready && draft && (!template || morphing) ? (
     // Ledger sheet (docs/design/onit-chat · CardLedger): the state strip, the
     // client block and the paper are LedgerCard's; everything below is the
     // card's own controls, unchanged. Only real text entry / selects opt out
@@ -4123,6 +4142,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+          <div className={morphing ? 'onit-builder-ghost' : undefined}>
           <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
@@ -4130,6 +4150,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
             onSend={() => { void finalize(); }} />
+          </div>
         </div>
       ) : expenseTemplate && expenseDraft ? (
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">

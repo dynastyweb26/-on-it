@@ -12,7 +12,9 @@
 // the app's tokens: gold = primary-container, ink = inverse-surface, sheet =
 // surface-sheet, so a theme change carries through instead of pinning hexes.
 import type { ReactNode } from 'react';
+import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
+import LedgerMotionProvider from '@/components/chat/LedgerMotion';
 
 export type LedgerState = 'draft' | 'sent' | 'ready';
 
@@ -79,12 +81,15 @@ export function LedgerFrame({
   children: ReactNode;
 }) {
   return (
+    <LedgerMotionProvider>
     <div
       data-ledger-card=""
-      className={`overflow-hidden rounded-ledger border border-outline-variant/70 bg-surface-sheet shadow-ledger${
+      className={`relative overflow-hidden rounded-ledger border border-outline-variant/70 bg-surface-sheet shadow-ledger${
         anim === 'enter' ? ' onit-card-enter' : anim === 'exit' ? ' onit-card-exit' : ''
       }`}
     >
+      {/* One gold sweep, once, on the server-confirmed seal. Never blocks taps. */}
+      {anim === 'lock' && <span aria-hidden className="onit-gold-sweep" />}
       <LedgerStateStrip state={state} label={pillLabel} anim={anim === 'lock'} />
       <div className="px-4 pb-4 pt-3.5">
         <div className="flex items-center gap-1.5 text-caps text-on-surface-variant">
@@ -92,15 +97,17 @@ export function LedgerFrame({
           <span>{kind === 'quote' ? 'Estimate for' : 'Invoice for'}</span>
         </div>
         {/* Shared-element anchor for the builder morph (item 3). */}
-        <div
+        <m.div
           data-shared="client"
+          layoutId="ledger-client"
           className="mt-1.5 font-display text-[24px] font-bold leading-tight tracking-tight text-on-background"
         >
           {clientName?.trim() || 'Client'}
-        </div>
+        </m.div>
         <div className="mt-3 border-t border-outline-variant/40">{children}</div>
       </div>
     </div>
+    </LedgerMotionProvider>
   );
 }
 
@@ -123,9 +130,14 @@ export function LedgerTotals({
       </div>
       <span
         data-shared="total"
-        className="shrink-0 font-display text-[38px] font-extrabold leading-none tracking-[-0.02em] text-inverse-on-surface tabular-nums"
+        className="min-w-0 shrink-0 text-right"
       >
-        {children}
+        <m.span
+          layoutId="ledger-total"
+          className="block font-display text-[38px] font-extrabold leading-none tracking-[-0.02em] text-inverse-on-surface tabular-nums"
+        >
+          {children}
+        </m.span>
       </span>
     </div>
   );

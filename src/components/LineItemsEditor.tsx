@@ -12,6 +12,7 @@
 // and a 40px control strip). The invoice/estimate detail screens keep the
 // default skin. No handler, aria-label or validation rule differs between them.
 import { useState } from 'react';
+import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
 import { money, calculateLineAmount } from '@/lib/financials';
 import { LINE_UNITS, DETAIL_MAX, normalizeLineDetail, unitLabel, type LineUnit } from '@/lib/line-units';
@@ -190,13 +191,26 @@ export default function LineItemsEditor({
                 <span className="truncate">{li.description || <span className="italic text-on-surface-variant/50">Empty description</span>}</span>
                 <Icon name="edit" size={ledger ? 15 : 14} className="shrink-0 text-on-surface-variant/70" />
               </button>
+            ) : ledger ? (
+              <m.span layoutId={`ledger-item-${i}`} className="min-w-0 flex-1 truncate text-[17px] font-semibold">
+                {li.description}
+              </m.span>
             ) : (
-              <span className={`min-w-0 flex-1 truncate ${ledger ? 'font-semibold text-[17px]' : ''}`}>{li.description}</span>
+              <span className="min-w-0 flex-1 truncate">{li.description}</span>
             )}
 
-            <span className={`shrink-0 font-display font-bold tabular-nums ${ledger ? 'pl-2 text-[17px]' : 'pl-1'}`}>
-              {money(calculateLineAmount(li.qty, li.unit_price))}
-            </span>
+            {ledger ? (
+              <m.span
+                layoutId={`ledger-price-${i}`}
+                className="shrink-0 pl-2 font-display text-[17px] font-bold tabular-nums"
+              >
+                {money(calculateLineAmount(li.qty, li.unit_price))}
+              </m.span>
+            ) : (
+              <span className="shrink-0 pl-1 font-display font-bold">
+                {money(calculateLineAmount(li.qty, li.unit_price))}
+              </span>
+            )}
           </div>
 
           {/* Description (a saved product's "shows on invoices" text). */}

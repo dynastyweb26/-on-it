@@ -722,6 +722,41 @@ html[data-splash=""] .onit-splash {
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);       /* design "exit" */
 }
 
+/* ---- Builder → card morph (docs/design/onit-chat · Prototype 1a/1b) ----
+   The builder stays mounted for the morph, then ghosts out: opacity only, on
+   the design's exit curve. The card's shared nodes (client, item, price,
+   total) travel with Framer's layout projection — never a CSS transform here.
+   Under reduced motion the ghost is a plain crossfade and the card appears. */
+@keyframes onit-builder-ghost { to { opacity: 0; } }
+.onit-builder-ghost {
+  animation: onit-builder-ghost 220ms var(--ease-exit) both;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onit-builder-ghost { animation: onit-fade-out 160ms linear both; }
+}
+
+/* One gold sweep across the card once, when a send seals. The band is a child
+   of the sheet; the sheet clips it, and it never sits over a control
+   (pointer-events: none) so a tap during the 760ms still lands. */
+@keyframes onit-gold-sweep {
+  from { opacity: 1; transform: translateX(-120%) skewX(-12deg); }
+  70% { opacity: 1; }
+  to { opacity: 0; transform: translateX(260%) skewX(-12deg); }
+}
+.onit-gold-sweep {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(100deg, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, .32) 50%, rgba(212, 175, 55, 0) 100%);
+  animation: onit-gold-sweep var(--motion-sweep) var(--ease-settle) 160ms both;
+}
+
+/* A label that swaps (invoice ↔ estimate): 8px lift + fade, settle curve. */
+@keyframes onit-label-in { from { opacity: 0; transform: translateY(8px); } }
+.onit-label-in { display: inline-block; animation: onit-label-in var(--motion-settle) var(--ease-settle) both; }
+
 /* ---- Reduced motion: the card family ----
    The global block at the bottom of this file stops every CSS animation and
    transition, but Framer Motion is JS and is not reached by it. Card components

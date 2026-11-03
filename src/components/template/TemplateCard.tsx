@@ -38,7 +38,9 @@
 //
 // Merge 2 · 2·10 (part 1) + 2·11 (part 2) + 2·12a/b.
 import { useEffect, useRef, useState } from 'react';
+import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
+import LedgerMotionProvider from '@/components/chat/LedgerMotion';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import { ClientSheet, ItemSheet } from '@/components/template/TemplateSheets';
 import KeypadSheet from '@/components/template/KeypadSheet';
@@ -203,6 +205,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   );
 
   return (
+    <LedgerMotionProvider>
     <div className="onit-rise rounded-[22px] border border-outline-variant/60 bg-surface-container-low p-3 shadow-card"
       role="group" aria-label={`New ${noun}`}>
       {/* Header */}
@@ -229,7 +232,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
         <Icon name="person" size={20} className={client ? 'text-primary-fixed-dim' : ''} filled={!!client} />
         {client ? (
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[17px] font-bold leading-tight">{client.name}</span>
+            <m.span layoutId="ledger-client" className="block truncate text-[17px] font-bold leading-tight">{client.name}</m.span>
             <span className="block truncate text-[13px] leading-snug opacity-70">{clientContactLine(client)}</span>
           </span>
         ) : (
@@ -258,7 +261,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
                     <Icon name="handyman" size={20} className={named ? 'text-primary-fixed-dim' : ''} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[16px] leading-tight">
-                        {named ? (<><span className="font-bold">{it.name}</span>{it.unit ? <span className="opacity-60"> · {it.unit === 'hour' ? 'hr' : it.unit}</span> : null}</>) : 'Product/Service'}
+                        {named ? (<><m.span layoutId={`ledger-item-${i}`} className="font-bold">{it.name}</m.span>{it.unit ? <span className="opacity-60"> · {it.unit === 'hour' ? 'hr' : it.unit}</span> : null}</>) : 'Product/Service'}
                       </span>
                       {named && it.detail && <span className="block truncate text-[13px] leading-snug opacity-70">{it.detail}</span>}
                     </span>
@@ -293,7 +296,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
                     onClick={() => setSheet({ type: 'keypad', key: it.key, kind: 'price' })}
                     className={`inline-flex h-10 items-center rounded-[11px] px-3 text-[15px] tabular-nums active:scale-95
                       ${priced ? 'bg-inverse-surface font-bold text-inverse-on-surface' : 'border border-dashed border-outline-variant text-on-surface-variant'}`}>
-                    {priced ? money(it.unit_price!) : '$ Price'}
+                    {priced ? <m.span layoutId={`ledger-price-${i}`}>{money(it.unit_price!)}</m.span> : '$ Price'}
                   </button>
                   <span className={`ml-auto font-display text-[16px] font-bold tabular-nums ${named && priced ? 'text-on-background' : 'text-on-surface-variant/60'}`}>
                     {money(priced ? calculateLineAmount(it.qty, it.unit_price!) : 0)}
@@ -356,7 +359,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
               {totals.depositAmount > 0 && (
                 <p className="text-[13px] font-bold text-primary">{depositLabel} due now: {money(totals.depositAmount)}</p>
               )}
-              <p className="mt-0.5 text-[13px] text-on-surface-variant">Total <span className="font-display text-[22px] font-extrabold text-on-background tabular-nums">{money(totals.total)}</span></p>
+              <p className="mt-0.5 text-[13px] text-on-surface-variant">Total <m.span layoutId="ledger-total" className="inline-block font-display text-[22px] font-extrabold text-on-background tabular-nums">{money(totals.total)}</m.span></p>
             </div>
           )}
         </div>
@@ -405,5 +408,6 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
           }} />
       )}
     </div>
+    </LedgerMotionProvider>
   );
 }
