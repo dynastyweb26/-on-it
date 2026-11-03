@@ -134,6 +134,30 @@ test('the guards refuse a second decision on either side', () => {
   assert.match(CHANGING, /revoke execute on function public\.guard_other_income_deposit\(\)/);
 });
 
+/** The body of one create-or-replace function, up to its closing $;. */
+function guardBody(name: string): string {
+  const start = CHANGING.indexOf(`create or replace function public.${name}()`);
+  assert.ok(start > 0, `${name} exists`);
+  const end = CHANGING.indexOf('$;', start);
+  return CHANGING.slice(start, end);
+}
+
+test('a flagged payout refuses a new payment but still takes an existing one', () => {
+  const links = guardBody('guard_bank_deposit_link');
+  // Only 'recorded' writes a new ledger row, so only it can double-count.
+  assert.ok(links.includes("if new.kind = 'recorded' and v_deposit.is_stripe_payout then"),
+    'a new payment is refused on a flagged payout');
+  // No blanket refusal on the link path: that would refuse the safe answer.
+  assert.equal(links.includes('if v_deposit.is_stripe_payout then'), false,
+    'the link path has no unconditional payout refusal');
+  // The link is still checked as usual: manual only, and no bigger than the
+  // deposit. Claiming an existing payment creates no income.
+  assert.ok(links.includes("if new.kind in ('recorded', 'linked') then"));
+  assert.ok(links.includes('if v_payment.amount > v_deposit.amount then'));
+  // other_income is the income side, so its refusal stays unconditional.
+  assert.ok(guardBody('guard_other_income_deposit').includes('if v_deposit.is_stripe_payout then'),
+    'other_income refuses a payout deposit whatever the kind');
+});
 test('the refusals that stay stay: payment bigger than the deposit, manual only, no payout', () => {
   assert.match(CHANGING, /if v_payment\.amount > v_deposit\.amount then/);
   assert.match(CHANGING, /raise exception 'Payment is bigger than the deposit'/);

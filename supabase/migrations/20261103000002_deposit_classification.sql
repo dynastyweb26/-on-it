@@ -99,6 +99,7 @@ create unique index bank_deposit_links_terminal_uidx
 -- A BEFORE INSERT/UPDATE trigger is the database backstop for the route:
 --   • one decision per deposit, across bank_deposit_links and other_income;
 --   • a deposit can never carry two link rows of any kind;
+--   • a flagged payout refuses a NEW payment, not a link to an existing one;
 --   • only a plain manual payment can be linked: no Stripe row, no reversal;
 --   • a payment bigger than the deposit is refused (one deposit, one payment);
 --   • a link can never cross owners.
@@ -149,13 +150,16 @@ begin
             hint = 'Remove that other income row first.';
   end if;
 
-  if new.kind in ('recorded', 'linked') then
-    if v_deposit.is_stripe_payout then
-      raise exception 'A Stripe payout is never new income'
-        using errcode = 'check_violation',
-              hint = 'Those pay out money already counted.';
-    end if;
+  -- A NEW ledger row from a lump of card money would count that money twice,
+  -- so a flagged payout refuses one. An EXISTING payment is allowed: it claims
+  -- card payments already in the ledger and creates no income at all.
+  if new.kind = 'recorded' and v_deposit.is_stripe_payout then
+    raise exception 'A Stripe payout is never new income'
+      using errcode = 'check_violation',
+            hint = 'Those pay out money already counted.';
+  end if;
 
+  if new.kind in ('recorded', 'linked') then
     select p.entry_type,
            p.amount,
            p.stripe_checkout_session_id,
