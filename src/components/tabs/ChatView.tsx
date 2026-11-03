@@ -3791,7 +3791,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         <div className={`onit-collapse${locked ? ' is-exiting' : ''}`} aria-hidden={locked || undefined}>
         <div>
           {!isValidTotal && (
-            <p className="mt-2 text-xs font-semibold text-error">
+            <p className="mt-2 rounded-[10px] bg-error-container px-2.5 py-2 text-xs font-semibold text-error-on-container">
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
@@ -3948,7 +3948,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <div className="flex max-w-[82%] flex-col items-start gap-1">
                 <div
                   key={`${m.id}-${retryShake[m.id] ?? 0}`}
-                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug${
+                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-error/40 bg-error-container px-3.5 py-2.5 text-[15px] leading-snug text-error-on-container${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
                   {m.content}
