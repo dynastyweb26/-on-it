@@ -12,12 +12,11 @@ import type { IconName } from '@/components/icon-names';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
 import { KEYS, pressKey, type Key } from '@/lib/keypad';
 import { money } from '@/lib/financials';
-import { userMessage } from '@/lib/errors';
 import { newPaymentKey } from '@/lib/payment-idempotency';
 import {
   PAYMENT_METHODS, buildRecordPayment, localDateString, methodLabel, payAmountValue,
-  paymentExceedsBalance, yesterdayString,
-  type PayDateMode, type PayMode, type PaymentMethod, type RecordPaymentInput,
+  paymentExceedsBalance, paymentFailureMessage, yesterdayString,
+  type PayDateMode, type PayMode, type PaymentMethod, type PaymentSaveResult, type RecordPaymentInput,
 } from '@/lib/record-payment';
 
 const METHOD_ICONS: Partial<Record<PaymentMethod, IconName>> = {
@@ -55,11 +54,11 @@ export default function RecordPaymentSheet({
   depositRemaining: number;
   onClose: () => void;
   /**
-   * Same save path as the page's recordPayment; resolves false on failure.
+   * Same save path as the page's recordPayment; a failure carries the real error.
    * `idempotencyKey` is minted by `save()` at the first tap and reused by every
    * retry of this submission.
    */
-  onSave: (input: RecordPaymentInput, idempotencyKey: string) => Promise<boolean>;
+  onSave: (input: RecordPaymentInput, idempotencyKey: string) => Promise<PaymentSaveResult>;
 }) {
   const [mode, setMode] = useState<PayMode>('full');
   const [amountText, setAmountText] = useState('');
@@ -82,7 +81,9 @@ export default function RecordPaymentSheet({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const press = (k: Key) => setAmountText((t) => pressKey(t, k, 'price'));
+  // Editing the amount or the method retires the previous failure: it described
+  // a submission this one no longer repeats.
+  const press = (k: Key) => { setSaveError(''); setAmountText((t) => pressKey(t, k, 'price')); };
 
   const amount = payAmountValue(mode, amountText, balance, depositRemaining);
   const over = paymentExceedsBalance(amount, balance);
@@ -118,13 +119,14 @@ export default function RecordPaymentSheet({
     setSaveError('');
     const idempotencyKey = keyRef.current ?? (keyRef.current = newPaymentKey(invoiceId));
     try {
-      const ok = await onSave(buildRecordPayment({
+      const result = await onSave(buildRecordPayment({
         mode, amountText, balance, depositRemaining, method, dateMode, pickedDate, now: new Date(),
       }), idempotencyKey);
       // A success unmounts the sheet from the parent; only a failure stays open.
-      if (!ok) {
-        // Message only — nothing is queued. Offline reads as no connection.
-        setSaveError(userMessage(null));
+      if (!result.ok) {
+        // The real error picks the sentence: signed out says so, offline says
+        // offline, a server error says it broke on our end.
+        setSaveError(result.message ?? paymentFailureMessage(result.error));
       }
     } finally {
       // Re-enable on failure; a success has already closed the sheet.
@@ -180,7 +182,7 @@ export default function RecordPaymentSheet({
               <button
                 key={m.key}
                 type="button"
-                onClick={() => setMode(m.key)}
+                onClick={() => { setSaveError(''); setMode(m.key); }}
                 aria-pressed={on}
                 className={`relative flex min-h-[62px] flex-col items-start justify-center gap-0.5 rounded-[16px] border-2 px-3.5 py-2.5 text-left transition ${
                   on ? 'border-primary-container bg-primary-container/10' : 'border-outline-variant/50 bg-surface-container-lowest'
@@ -230,7 +232,7 @@ export default function RecordPaymentSheet({
               <button
                 key={m.value}
                 type="button"
-                onClick={() => setMethod(m.value)}
+                onClick={() => { setSaveError(''); setMethod(m.value); }}
                 aria-pressed={on}
                 className={`${tileBase} ${on ? selected : unselected}`}
               >
@@ -246,7 +248,7 @@ export default function RecordPaymentSheet({
             <button
               key={m.value}
               type="button"
-              onClick={() => setMethod(m.value)}
+              onClick={() => { setSaveError(''); setMethod(m.value); }}
               aria-pressed={on}
               className={`mt-2 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[14px] border text-[13px] font-semibold transition ${
                 on ? selected : unselected

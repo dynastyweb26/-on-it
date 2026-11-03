@@ -33,7 +33,7 @@ import AttachmentsEditor, { type EditorAttachment } from '@/components/Attachmen
 import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
 import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
-import type { RecordPaymentInput } from '@/lib/record-payment';
+import { RecordPaymentInput, SIGNED_OUT_PAYMENT_ERROR, OFFLINE_PAYMENT_ERROR, type PaymentSaveError, type PaymentSaveResult } from '@/lib/record-payment';
 import { recordPaymentOnce } from '@/lib/payment-idempotency';
 import { ledgerFrom } from '@/lib/payment-ledger-client';
 import {
@@ -555,22 +555,29 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // and hands the SAME key to every retry. The insert ignores a repeat (partial
   // unique index on user_id + key) and the row is read back, so a response lost
   // in flight can never record the money twice.
-  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput, idempotencyKey: string): Promise<boolean> {
+  async function recordPayment({ amount, method, paidAt }: RecordPaymentInput, idempotencyKey: string): Promise<PaymentSaveResult> {
     // Synchronous ref guard: `saving` in the sheet lags a render behind.
-    if (!(amount > 0) || paymentSaveRef.current) return false;
+    // Unreachable from the sheet, which holds its own ref; if it ever fires, say
+    // what happened rather than closing silently.
+    if (paymentSaveRef.current) {
+      return { ok: false, error: { status: 409 }, message: 'That payment is already saving — give it a second.' };
+    }
+    if (!(amount > 0)) return { ok: false, error: { message: 'invalid amount' } };
     paymentSaveRef.current = true;
     try {
       const dueBefore = totals.dueNow;
       const { data: { user } } = await getSharedUser();
-      if (!user) return false;
+      // Signed out is its own story: the sheet must not call this a network fault.
+      if (!user) return { ok: false, error: SIGNED_OUT_PAYMENT_ERROR };
       // Known offline: queue it (same key) instead of failing the tap.
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const store = paymentQueueStore();
         const outcome = store
           ? await enqueuePayment(store, { key: idempotencyKey, invoiceId: id, userId: user.id, amount, method, paidAt })
           : 'capped';
-        if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return true; }
-        return false;
+        if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return { ok: true }; }
+        // Offline with nowhere to keep it: the tap recorded nothing.
+        return { ok: false, error: OFFLINE_PAYMENT_ERROR };
       }
       const saved = await recordPaymentOnce(ledgerFrom(supabase), {
         invoice_id: id,
@@ -588,10 +595,11 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           const outcome = store
             ? await enqueuePayment(store, { key: idempotencyKey, invoiceId: id, userId: user.id, amount, method, paidAt })
             : 'capped';
-          if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return true; }
+          if (outcome === 'queued') { setPaySheetOpen(false); void refreshQueue(); return { ok: true }; }
         }
         console.error('record payment failed', saved.error);
-        return false;
+        // The insert's own error decides the sentence (rejected row, server, signed out).
+        return { ok: false, error: saved.error as PaymentSaveError };
       }
       // Celebrate when the balance hits zero, not on status: the ledger trigger
       // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
@@ -605,7 +613,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       }
       setPaySheetOpen(false);
       void fetchPayments();
-      return true;
+      return { ok: true };
     } finally {
       paymentSaveRef.current = false;
     }
