@@ -22,7 +22,7 @@ test('the route is preview-gated first and scoped to the session user', () => {
 });
 
 test('the action set is the new one: no "not_income" anywhere', () => {
-  assert.match(SOURCE, /action: z\.enum\(\['record', 'already', 'ignored', 'classified'\]\)/);
+  assert.ok(SOURCE.includes("action: z.enum(['record', 'already', 'ignored', 'classified', 'restore'])"));
   assert.doesNotMatch(SOURCE, /'not_income'/);
 });
 
@@ -69,9 +69,12 @@ test('a duplicate idempotency key adopts the row instead of writing a second one
 
 test('every ledger delete is the keyed compensation for a refused link', () => {
   const deletes = SOURCE.match(/\.delete\(\)/g) ?? [];
-  assert.equal(deletes.length, 2, 'only the two compensation paths delete');
+  assert.equal(deletes.length, 3, "the two compensations, plus Restore's link delete");
   const keyed = SOURCE.match(/eq\('idempotency_key', key\)/g) ?? [];
   assert.ok(keyed.length >= 2, 'each delete is scoped to this deposit key');
+  // The third is Restore: it drops the 'ignored' link and nothing else.
+  assert.ok(SOURCE.includes("from('bank_deposit_links')"));
+  assert.ok(SOURCE.includes("eq('kind', 'ignored')"));
   // No path edits a ledger row (a removal must never rewrite one).
   assert.doesNotMatch(SOURCE, /from\('invoice_payments'\)[\s\S]{0,80}\.update\(/);
 });
