@@ -737,6 +737,20 @@ html[data-splash=""] .onit-splash {
   .onit-builder-ghost { animation: onit-fade-out 160ms linear both; }
 }
 
+/* The card's draft controls folding away as it seals (260ms settle). The wrapper
+   is a one-row grid, so 1fr -> 0fr animates the height without measuring it and
+   the inner block clips. Kept mounted until the exit ends; taps are already void
+   on an exiting block, and reduced motion swaps instantly (the app skips the
+   class entirely). */
+.onit-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-settle) var(--ease-settle);
+}
+.onit-collapse > * { min-height: 0; overflow: hidden; }
+.onit-collapse.is-exiting { grid-template-rows: 0fr; pointer-events: none; }
+.onit-collapse.is-exiting > * { opacity: 0; transition: opacity 180ms var(--ease-exit); }
+
 /* One gold sweep across the card once, when a send seals. The band is a child
    of the sheet; the sheet clips it, and it never sits over a control
    (pointer-events: none) so a tap during the 760ms still lands. */

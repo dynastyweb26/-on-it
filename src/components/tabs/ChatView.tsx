@@ -3350,6 +3350,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     : !!draft && prepState?.sig === draftSignature(draft);
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
+  // The draft controls fold away when the card seals instead of vanishing: they
+  // stay mounted for the 260ms exit (grid rows 1fr -> 0fr, nothing measured) and
+  // the read-only block arrives when it ends. A card restored already locked
+  // swaps at once, and reduced motion swaps at once too.
+  const wasLockedRef = useRef(locked);
+  const [draftControlsOut, setDraftControlsOut] = useState(locked);
+  useEffect(() => {
+    if (!locked) { wasLockedRef.current = false; setDraftControlsOut(false); return; }
+    if (wasLockedRef.current) { setDraftControlsOut(true); return; }
+    wasLockedRef.current = true;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setDraftControlsOut(true);
+      return;
+    }
+    const timer = setTimeout(() => setDraftControlsOut(true), 280);
+    return () => clearTimeout(timer);
+  }, [locked]);
 
   // A locked estimate card needs its public token for Copy link / Share. Read it
   // from the row (RLS: own rows) so a reload or a reopen from history gets it too.
@@ -3719,7 +3736,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
         />
       </LedgerTotals>
-      {locked ? (
+      {locked && draftControlsOut ? (
         // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
         // unpaid invoice offers "Revise" (opens an editable copy as a new
         // invoice — Commit C); once any payment has landed it stays fully
@@ -3760,7 +3777,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </div>
       ) : (
-        <>
+        // Still mounted while it exits, so the seal folds the controls away
+        // instead of dropping the block out from under the layout.
+        <div className={`onit-collapse${locked ? ' is-exiting' : ''}`} aria-hidden={locked || undefined}>
+        <div>
           {!isValidTotal && (
             <p className="mt-2 text-xs font-semibold text-error">
               Something went wrong reading the amounts. Try rephrasing the prices.
@@ -3845,7 +3865,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
               Change something
             </button>
           </div>
-        </>
+        </div>
+        </div>
       )}
     </LedgerFrame>
   ) : null;
