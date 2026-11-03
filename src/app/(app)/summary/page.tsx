@@ -261,7 +261,7 @@ export default function TaxSummary() {
     const on = (day: string | null | undefined) => !start || (day ?? '') >= start;
     const pays = (payments ?? [])
       .filter((row) => on((row.paid_at ?? '').slice(0, 10)))
-      .map((row) => ({ amount: row.amount, paid_at: row.paid_at }));
+      .map((row) => ({ amount: row.amount, paid_at: row.paid_at ?? null }));
     const spend = (expenses ?? [])
       .filter((row) => on(row.spent_on))
       .map((row) => ({ amount: row.amount, spent_on: row.spent_on }));
@@ -287,6 +287,10 @@ export default function TaxSummary() {
   function pick(p: Period) { setSelected(p); setSheetOpen(false); }
 
   const incomeCount = income.byClient.reduce((s, c) => s + c.count, 0);
+  // Other income is money with no invoice and no client: one named row, never
+  // mixed in with the clients above it.
+  const otherIncomeRow = income.byClient.find((c) => c.client === 'Other income') ?? null;
+  const clients = income.byClient.filter((c) => c.client !== 'Other income');
 
   function pickDetail(detail: SummaryPdfDetail) {
     const kind = pdfSheet;
@@ -449,7 +453,7 @@ export default function TaxSummary() {
                 <span className="font-display normal-case tracking-normal text-on-background">{money(income.broughtIn)}</span>
               </h2>
               <div className="card divide-y divide-outline-variant/40 p-0">
-                {(showAllIncome ? income.byClient : income.byClient.slice(0, PREVIEW_ROWS)).map((c) => (
+                {(showAllIncome ? clients : clients.slice(0, PREVIEW_ROWS)).map((c) => (
                   <div key={c.client} className="flex items-center justify-between px-4 py-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-on-background">{c.client}</div>
@@ -460,13 +464,26 @@ export default function TaxSummary() {
                     <div className="font-display font-bold text-on-background">{money(c.total)}</div>
                   </div>
                 ))}
-                <SeeAllRow total={income.byClient.length} expanded={showAllIncome} onToggle={() => setShowAllIncome((v) => !v)} />
+                {otherIncomeRow && (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-on-background">Other income</div>
+                      <div className="text-[11px] font-bold uppercase tracking-[.06em] text-on-surface-variant">
+                        NOT FROM AN INVOICE
+                      </div>
+                    </div>
+                    <div className="font-display font-bold text-on-background">{money(otherIncomeRow.total)}</div>
+                  </div>
+                )}
+                <SeeAllRow total={clients.length} expanded={showAllIncome} onToggle={() => setShowAllIncome((v) => !v)} />
               </div>
             </section>
           )}
 
 
-          <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">{DISCLAIMER}</p>
+          <p className="px-1 text-xs leading-relaxed text-on-surface-variant/80">
+            A record of the money you confirmed in On It. Bank items you haven’t reviewed are not included.
+          </p>
         </>
       )}
 
