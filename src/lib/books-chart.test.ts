@@ -82,5 +82,6 @@ test('a peak label that would hit the y-axis shifts right', () => {
 test('the axis top is a round number above the biggest value', () => {
   assert.equal(chartTop([0]), 0);
   assert.equal(chartTop([1234]), 1500);
-  assert.equal(chartTop([900]), 1000);
+  // At or above the largest value: a value already round stays itself.
+  assert.equal(chartTop([900]), 900);
 });
