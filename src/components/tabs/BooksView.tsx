@@ -332,7 +332,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           <div data-coach="books-stats" className="@4xl:col-span-2 flex flex-col gap-2 xl:col-span-1 xl:gap-3">
             <div className="grid grid-cols-2 gap-2.5 md:gap-4 xl:gap-3 xl:grid-rows-1">
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
-              <MetricTile href="/summary?period=all#income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
+              <MetricTile href="/income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
             </div>
             <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} alert={bankEnabled && spentToReview > 0} />
           </div>
