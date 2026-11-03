@@ -11,6 +11,8 @@ import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
+import AssistantMark from '@/components/chat/AssistantMark';
+import StreamText from '@/components/chat/StreamText';
 import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
@@ -3934,7 +3936,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ]}
           />
         )}
-        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
+        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
         <Fragment key={m.id}>{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
@@ -4053,10 +4055,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
               startAfter={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.flashPeak : undefined}
             />
           ) : (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {/* Release frames: On It = cream bubble, you = ink bubble. A
-                  message that just arrived rises 8px (motion inventory "New On
-                  It message", 240ms); restored ones are static. */}
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start gap-2'}`}>
+              {/* The monogram opens a run of On It's messages, and only breathes
+                  while a reply is still being written. */}
+              {m.role !== 'user' && messages[mi - 1]?.role !== 'assistant' && (
+                <AssistantMark
+                  pulsing={phase !== null && m.id === messages[messages.length - 1]?.id}
+                />
+              )}
               <div
                 className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
                   ${m.role === 'user'
