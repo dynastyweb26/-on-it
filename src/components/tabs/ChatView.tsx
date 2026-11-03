@@ -3414,11 +3414,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
   }
 
+  // Undo last edit: the items area flashes warm gold once (450ms). The counter
+  // keys the wrapper so the flash replays on every undo; nothing else remounts.
+  const [itemsFlash, setItemsFlash] = useState(0);
   function undoLastEdit() {
     if (draftHistory.length === 0) return;
     const previous = draftHistory[draftHistory.length - 1];
     setDraftHistory((prev) => prev.slice(0, -1));
     setDraft(previous);
+    setItemsFlash((n) => n + 1);
   }
 
   // ── Change guard resolvers (Commit A) ───────────────────────
@@ -3606,7 +3610,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
           Similar invoice sent recently
         </div>
       )}
-      <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} variant="ledger" />
+      <div key={`items-${itemsFlash}`} className={`rounded-[10px]${itemsFlash ? ' onit-undo-flash' : ''}`}>
+        <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} variant="ledger" />
+      </div>
 
       <AttachmentsEditor
         items={attachments}

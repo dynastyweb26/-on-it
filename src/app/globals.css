@@ -751,6 +751,11 @@ html[data-splash=""] .onit-splash {
 .onit-collapse.is-exiting { grid-template-rows: 0fr; pointer-events: none; }
 .onit-collapse.is-exiting > * { opacity: 0; transition: opacity 180ms var(--ease-exit); }
 
+/* Undo last edit: the line items flash warm gold, then clear (450ms). Opacity
+   and colour only, so the rows never move while it plays. */
+@keyframes onit-undo-flash { from { background-color: #F6E7B9; } to { background-color: transparent; } }
+.onit-undo-flash { animation: onit-undo-flash 450ms var(--ease-standard) both; }
+
 /* One gold sweep across the card once, when a send seals. The band is a child
    of the sheet; the sheet clips it, and it never sits over a control
    (pointer-events: none) so a tap during the 760ms still lands. */
