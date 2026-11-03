@@ -87,3 +87,16 @@ export function restoreDeposit(deposits: ApiDeposit[], id: string): ApiDeposit[]
 /** Reading order for the sheet: the label above each entry's name. */
 export const entryName = (entry: StackEntry): string =>
   entry.kind === 'deposit' ? (entry.deposit.merchant || entry.deposit.name) : entry.item.merchant;
+
+/** What kind of card the arrows are sitting under. Only reported, never used to
+ *  gate them: every kind keeps the arrows (stack-nav.test.ts). */
+export type StackCardKind = 'expense' | 'deposit' | 'stripe' | 'pending' | 'removed';
+
+export function cardKindOf(entry: StackEntry | null): StackCardKind {
+  if (!entry || entry.kind === 'expense') return 'expense';
+  const deposit = entry.deposit;
+  if (deposit.removed) return 'removed';
+  if (deposit.pending) return 'pending';
+  if (deposit.payout === 'ambiguous') return 'stripe';
+  return 'deposit';
+}

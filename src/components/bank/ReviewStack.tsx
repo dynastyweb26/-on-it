@@ -29,6 +29,7 @@ import Icon from '@/components/Icon';
 import BankToast from './BankToast';
 import DepositCard from './DepositCard';
 import ReviewCard, { type CardAction } from './ReviewCard';
+import StackNav from './StackNav';
 import { reducedMotion } from '@/lib/list-motion';
 import {
   addedToast, advancesOptimistically, counterLabel, formatDay, formatMoney, itemAccount,
@@ -40,7 +41,7 @@ import {
   type ApiDeposit, type DepositInvoice, type DepositPayment,
 } from '@/lib/bank-deposits';
 import {
-  ignoredEntries, restoreDeposit, resolveDeposit, stackEntries, type StackEntry,
+  cardKindOf, ignoredEntries, restoreDeposit, resolveDeposit, stackEntries, type StackEntry,
 } from '@/lib/bank-stack';
 
 type Leaving = {
@@ -647,30 +648,9 @@ export default function ReviewStack({
           )}
         </div>
 
-        {/* Pointer-only prev/next (touch browses by swiping). Kept after the
-            stack so the documented focus order inside a card is untouched. */}
-        <div className="hidden shrink-0 items-center justify-center gap-2 pb-2 pt-3 [@media(hover:hover)]:flex">
-          <button
-            type="button"
-            aria-label="Previous item"
-            aria-keyshortcuts="ArrowLeft"
-            disabled={filter !== 'review' || pending === 0 || pos === 0}
-            onClick={() => go(-1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
-          >
-            <Icon name="arrow_back" size={20} />
-          </button>
-          <button
-            type="button"
-            aria-label="Next item"
-            aria-keyshortcuts="ArrowRight"
-            disabled={filter !== 'review' || pending === 0 || pos >= pending - 1}
-            onClick={() => go(1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-outline-variant bg-surface-container-lowest disabled:opacity-40"
-          >
-            <Icon name="arrow_forward" size={20} />
-          </button>
-        </div>
+        {/* Pointer-only prev/next. It belongs to the sheet, so every card type
+            gets it (stack-nav.test.ts); touch browses by swiping. */}
+        <StackNav kind={cardKindOf(top)} pending={pending} pos={pos} filter={filter} onStep={go} />
 
         <p role="status" aria-live="polite" className="sr-only">{announce}</p>
       </div>
