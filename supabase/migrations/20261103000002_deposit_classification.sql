@@ -33,19 +33,24 @@
 -- Idempotent. Verify after applying: npm run db:privcheck — BD3/BD4/BD7/BD8.
 -- ═══════════════════════════════════════════════════════════════
 
--- 1 ── Existing rows first ──────────────────────────────────────
--- 'not_income' becomes 'ignored' (Don't add). Before the new check, so no row
--- is ever outside the constraint. Leaving the partial terminal index's
--- predicate simply drops these rows out of it; no uniqueness can be violated
--- because the index held at most one per deposit already.
+-- 1 ── The old kind check goes first ────────────────────────────
+-- 'ignored' is not in the OLD check, so this backfill would be refused while it
+-- is still in place. Dropping it first leaves the column unconstrained for the
+-- one statement below, which is narrower than leaving a row that satisfies
+-- neither the old check nor the new one.
+alter table public.bank_deposit_links
+  drop constraint if exists bank_deposit_links_kind_check;
+
+-- 2 ── Existing rows ───────────────────────────────────────────
+-- The partial terminal index still names 'not_income' at this point, which is
+-- harmless: its predicate drops these rows out of it and it is rebuilt in step
+-- 5 anyway. No uniqueness can be violated — it held at most one row per
+-- deposit already.
 update public.bank_deposit_links
    set kind = 'ignored'
  where kind = 'not_income';
 
--- 2 ── The kind set ─────────────────────────────────────────────
-alter table public.bank_deposit_links
-  drop constraint if exists bank_deposit_links_kind_check;
-
+-- 3 ── The new kind set ────────────────────────────────────────
 alter table public.bank_deposit_links
   add constraint bank_deposit_links_kind_check
   check (kind in ('recorded', 'linked', 'classified', 'ignored', 'stripe_payout'));
@@ -53,7 +58,7 @@ alter table public.bank_deposit_links
 -- The payment-shape check is unchanged and still right: only recorded/linked
 -- carry a payment_id, so a classified, ignored or payout row keeps it null.
 
--- 3 ── The classification, only on a classified link ────────────
+-- 4 ── The classification, only on a classified link ────────────
 alter table public.bank_deposit_links
   add column if not exists classification text;
 
@@ -73,7 +78,7 @@ alter table public.bank_deposit_links
   add constraint bank_deposit_links_classified_chk
   check ((classification is not null) = (kind = 'classified'));
 
--- 4 ── One deposit, one payment ─────────────────────────────────
+-- 5 ── One deposit, one payment ─────────────────────────────────
 -- A deposit's money arrives as one deposit, so v1 records it as one payment.
 -- Replaces the "sum of the linked amounts must not exceed the deposit" rule:
 -- with a single row there is no sum to compute.
@@ -90,7 +95,7 @@ create unique index bank_deposit_links_terminal_uidx
 -- bank_deposit_links_payment_uidx is kept as is: one ledger row belongs to at
 -- most one deposit, which is the "payment already linked" refusal.
 
--- 5 ── The guard, rewritten ────────────────────────────────────
+-- 6 ── The guard, rewritten ────────────────────────────────────
 -- A BEFORE INSERT/UPDATE trigger is the database backstop for the route:
 --   • one decision per deposit, across bank_deposit_links and other_income;
 --   • a deposit can never carry two link rows of any kind;
@@ -204,7 +209,7 @@ create trigger guard_bank_deposit_link
   for each row
   execute function public.guard_bank_deposit_link();
 
--- 6 ── The other side of "one decision" ────────────────────────
+-- 7 ── The other side of "one decision" ────────────────────────
 -- Writepath for the deposit: an income classification writes an other_income
 -- row instead of a link, so this guard enforces the same rule from that side.
 -- A row with no deposit_id is a manual entry and passes straight through.

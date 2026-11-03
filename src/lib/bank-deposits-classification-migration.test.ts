@@ -77,11 +77,19 @@ test('the kind set drops "not_income" and keeps "stripe_payout"', () => {
   assert.match(CHANGING, /stripe_payout/);
 });
 
-test('existing not_income rows are carried to ignored before the check changes', () => {
+test('the old kind check goes first, then the rows, then the new check', () => {
+  const dropped = CHANGING.indexOf(
+    'drop constraint if exists bank_deposit_links_kind_check',
+  );
   const update = CHANGING.indexOf("set kind = 'ignored'");
-  const check = CHANGING.indexOf('bank_deposit_links_kind_check');
-  assert.ok(update > 0, 'the backfill exists');
-  assert.ok(check > update, 'the backfill runs before the new constraint');
+  const added = CHANGING.indexOf(
+    'add constraint bank_deposit_links_kind_check',
+  );
+  assert.ok(dropped > 0, 'the old check is dropped');
+  // 'ignored' is not in the OLD check, so the backfill is refused if the drop
+  // comes after it.
+  assert.ok(update > dropped, 'the backfill runs after the old check is gone');
+  assert.ok(added > update, 'the new check lands once every row is valid');
   assert.match(CHANGING, /where kind = 'not_income'/);
 });
 
