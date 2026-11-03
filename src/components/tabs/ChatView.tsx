@@ -3669,7 +3669,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <span className="text-xs font-semibold text-on-surface-variant">%</span>
                 {!locked && (
                   <button type="button" aria-label="Remove tax" onClick={() => { setTaxOpen(false); applyDraftTax(0); }}
-                    className="grid h-11 min-h-[44px] w-11 place-items-center text-on-surface-variant">
+                    className="grid h-11 min-h-[44px] w-11 place-items-center text-on-surface-variant transition active:opacity-60">
                     <Icon name="close" size={16} />
                   </button>
                 )}
@@ -3679,7 +3679,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 type="button"
                 disabled={locked}
                 onClick={() => setTaxOpen(true)}
-                className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-xs font-semibold text-primary outline-none disabled:opacity-50"
+                className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-xs font-semibold text-primary outline-none transition active:opacity-60 disabled:opacity-50"
               >
                 + Add tax
               </button>
@@ -3827,7 +3827,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {/* Invoices only: an estimate has no PDF, so there is nothing to download. */}
           {docKind(draft) === 'invoice' && (
           <div className="mt-1 flex items-center justify-center gap-1">
-            <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+            <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null || !isValidTotal}
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} />
@@ -3836,7 +3836,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             {(
               <button
                 type="button"
-                className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant"
+                className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant transition active:opacity-60"
                 aria-label="About draft downloads"
                 aria-expanded={draftInfoOpen}
                 onClick={() => setDraftInfoOpen((v) => !v)}
@@ -3859,7 +3859,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           <div className="mt-1 flex items-center justify-between gap-2">
             <button
               type="button"
-              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="min-h-touch text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null || draftHistory.length === 0}
               onClick={undoLastEdit}
             >
@@ -3867,7 +3867,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </button>
             <button
               type="button"
-              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="min-h-touch text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null}
               onClick={() => send('Actually, let me change something')}
             >
@@ -4122,7 +4122,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
             </button>
             <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null}
               onClick={resolvePendingChangeNew}
             >
@@ -4157,7 +4157,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
             </p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60" onClick={dismissReminders}>
               Not now
             </button>
           </div>
@@ -4399,7 +4399,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             )}
             <div className="space-y-2">
               {history.map((h) => (
-                <button key={h.id} className="card flex w-full items-center justify-between gap-3 text-left"
+                <button key={h.id} className="card flex w-full items-center justify-between gap-3 text-left transition active:scale-[0.99]"
                   onClick={() => openHistoryEntry(h)}>
                   <div className="min-w-0">
                     <div className="truncate font-semibold">{h.title}</div>
