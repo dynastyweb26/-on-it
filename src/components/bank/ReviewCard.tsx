@@ -179,7 +179,8 @@ export default function ReviewCard({
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-[28px] font-extrabold leading-[1.12] tracking-[-0.02em] break-words outline-none">
                 {item.merchant}
               </h3>
-              <div className="truncate text-[15px] text-on-surface-variant">{account}</div>
+              {/* date · account, then the chips: the name is the anchor. */}
+              <div className="truncate text-[15px] text-on-surface-variant">{formatDay(item.date)} · {account}</div>
             </div>
 
             {editing === 'amount' ? (
