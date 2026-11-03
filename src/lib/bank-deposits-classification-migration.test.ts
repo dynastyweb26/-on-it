@@ -64,6 +64,13 @@ test('other_income is owner-read only, with service-role writes', () => {
   assert.match(ADDITIVE, /grant select, insert, update, delete on public\.other_income to service_role/);
 });
 
+test('deleting a deposit unlinks the income row instead of deleting it', () => {
+  assert.ok(ADDITIVE.includes('references public.bank_deposits(id) on delete set null'),
+    'the income row survives: the money still arrived');
+  assert.equal(ADDITIVE.includes('references public.bank_deposits(id) on delete cascade'),
+    false,
+    'a removed bank connection never deletes income');
+});
 // ── The changing half ──────────────────────────────────────────────────────
 
 test('the kind set drops "not_income" and keeps "stripe_payout"', () => {

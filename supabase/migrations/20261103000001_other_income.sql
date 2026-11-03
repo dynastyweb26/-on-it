@@ -19,7 +19,8 @@
 --
 -- deposit_id: set when this row is how a bank deposit was decided. Null for a
 -- row the owner types in. Unique where not null — one deposit can never become
--- two incomes. The guard trigger on the links table (see
+-- two incomes. Deleting the deposit does not delete this row: the money
+-- arrived, so it stands counting, unlinked. The guard trigger on the links table (see
 -- 20261103000002_deposit_classification.sql) refuses the other direction, so a
 -- deposit has one decision across both tables.
 --
@@ -40,8 +41,11 @@ create table if not exists public.other_income (
   -- The day the money arrived; Collected is cash basis, so this is the date.
   received_on    date not null,
   note           text check (note is null or char_length(note) <= 1000),
-  -- Null for an entry the owner made; the deposit it decided, otherwise.
-  deposit_id     uuid references public.bank_deposits(id) on delete cascade,
+  -- Null for an entry the owner made, and for a row whose deposit was deleted.
+  -- The money still arrived, so the row stands and stops pointing at a
+  -- deposit: cascading here would take income out of Collected because a bank
+  -- connection was removed.
+  deposit_id     uuid references public.bank_deposits(id) on delete set null,
   classification text not null
                    check (classification in ('customer_payment', 'other_income')),
   created_at     timestamptz not null default now(),
@@ -86,5 +90,5 @@ revoke truncate on public.other_income from anon, authenticated;
 --    • classification 'vendor_refund'          → refused (not this table)
 --    • two rows with the same deposit_id       → refused (unique index)
 --    • two rows with deposit_id null           → allowed (manual entries)
---    • deleting the deposit cascades the row   → yes
+--    • deleting the deposit keeps the row, deposit_id null → yes
 -- ═══════════════════════════════════════════════════════════════
