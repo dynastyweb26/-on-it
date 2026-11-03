@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"></helmet>
+<div data-builder="1" style="margin:8px 12px 10px;background:#FBF2E4;border:1px solid #EADCC2;border-radius:22px;padding:12px;font-family:Inter,sans-serif;color:#1F1B16;box-sizing:border-box;opacity:{{ ghost }};transition:opacity 200ms cubic-bezier(0.4,0,1,1)">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;white-space:nowrap">
+    <div style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;background:#F1E2B8;font:600 14px/1 Inter,sans-serif;color:#1F1B16">
+      <span style="font:18px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">{{ chipIcon }}</span>
+      <span style="display:grid">
+        <span style="grid-area:1/1;opacity:{{ invO }};transform:translateY({{ invY }}px);transition:opacity 180ms cubic-bezier(0.2,0.8,0.2,1),transform 260ms cubic-bezier(0.2,0.8,0.2,1)">New invoice</span>
+        <span style="grid-area:1/1;opacity:{{ estO }};transform:translateY({{ estY }}px);transition:opacity 180ms cubic-bezier(0.2,0.8,0.2,1),transform 260ms cubic-bezier(0.2,0.8,0.2,1)">New estimate</span>
+      </span>
+    </div>
+    <button onClick="{{ toggle }}" style="display:grid;border:0;background:transparent;padding:10px 0;font:600 14px/1 Inter,sans-serif;color:#6E5410;cursor:pointer" style-active="opacity:.6">
+      <span style="grid-area:1/1;opacity:{{ invO }};transform:translateY({{ invY }}px);transition:opacity 180ms cubic-bezier(0.2,0.8,0.2,1),transform 260ms cubic-bezier(0.2,0.8,0.2,1)">Make it an estimate</span>
+      <span style="grid-area:1/1;opacity:{{ estO }};transform:translateY({{ estY }}px);transition:opacity 180ms cubic-bezier(0.2,0.8,0.2,1),transform 260ms cubic-bezier(0.2,0.8,0.2,1)">Make it an invoice</span>
+    </button>
+    <button onClick="{{ onClose }}" aria-label="Close" style="margin-left:auto;width:36px;height:36px;border-radius:999px;border:0;background:#EFE6D8;display:grid;place-items:center;color:#2F2A24;cursor:pointer"><span style="font:20px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">close</span></button>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;background:#2F2A24;border-radius:12px;padding:9px 14px;color:#FFF8F0;outline:{{ hl }};outline-offset:2px">
+    <span style="font:22px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#D5AF36">person</span>
+    <div style="flex:1;min-width:0"><div data-shared="client" style="font:700 18px/22px Inter,sans-serif;display:inline-block">Brandon</div><div style="font:400 13px/17px Inter,sans-serif;color:#CFC5B4">No address or phone on file</div></div>
+    <span style="font:22px/1 'Material Symbols Rounded';color:#CFC5B4">unfold_more</span>
+  </div>
+  <div style="margin-top:8px;background:#FFFDF8;border-radius:12px;padding:6px">
+    <sc-if value="{{ filled }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:10px;background:#2F2A24;border-radius:10px;padding:0 12px;height:46px;color:#FFF8F0;outline:{{ hl }};outline-offset:2px">
+        <span style="font:21px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#D5AF36">handyman</span>
+        <span style="font:700 17px/1 Inter,sans-serif;white-space:nowrap"><span data-shared="item" style="display:inline-block">Car Wash</span><span style="font-weight:400;color:#BDB3A2"> · each</span></span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:10px;border:1px dashed #DCCDB2;border-radius:10px;padding:0 12px;height:46px;color:#5C5347;font:400 17px/1 Inter,sans-serif"><span style="font:21px/1 'Material Symbols Rounded'">handyman</span>Product/Service</div>
+    </sc-if>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+      <div style="display:flex;align-items:center;background:#EFE7DA;border-radius:10px;padding:4px;height:44px;box-sizing:border-box">
+        <button onClick="{{ dec }}" aria-label="Less" style="width:36px;height:36px;border:0;background:transparent;font:500 20px/1 Inter,sans-serif;color:{{ decC }};cursor:pointer">−</button>
+        <span style="width:36px;height:34px;background:#FFFFFF;border-radius:8px;display:grid;place-items:center;font:500 16px/1 Inter,sans-serif">{{ qty }}</span>
+        <button onClick="{{ inc }}" aria-label="More" style="width:36px;height:36px;border:0;background:transparent;font:500 20px/1 Inter,sans-serif;color:#2F2A24;cursor:pointer">+</button>
+      </div>
+      <span style="color:#9A8F7D;font-size:14px">×</span>
+      <sc-if value="{{ filled }}" hint-placeholder-val="{{ true }}"><span style="height:44px;padding:0 14px;border-radius:10px;background:#2F2A24;color:#FFF8F0;display:flex;align-items:center;font:700 16px/1 Inter,sans-serif;outline:{{ hl }};outline-offset:2px"><span data-shared="price" style="display:inline-block">$200.00</span></span></sc-if>
+      <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}"><span style="height:44px;padding:0 14px;border-radius:10px;border:1px dashed #DCCDB2;color:#5C5347;display:flex;align-items:center;font:400 16px/1 Inter,sans-serif">$ Price</span></sc-if>
+      <span style="margin-left:auto;font:700 16px/1 Inter,sans-serif;color:{{ lineC }}">{{ lineTotal }}</span>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;margin-top:4px">
+    <div style="display:flex;align-items:center;gap:8px;height:44px;font:600 16px/1 Inter,sans-serif;color:#6E5410;padding-left:4px"><span style="font:22px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">add</span>Add item</div>
+    <div style="display:flex;align-items:center;gap:8px;height:44px;font:600 16px/1 Inter,sans-serif;color:#6E5410;padding-left:4px"><span style="font:22px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">add</span>Add attachment</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+    <div style="display:flex;align-items:center;gap:10px;height:44px;border:1px dashed #DCCDB2;border-radius:12px;background:#FFFDF8;padding:0 12px;font:400 16px/1 Inter,sans-serif;color:#3D362E"><span style="font:20px/1 'Material Symbols Rounded'">add</span>Add tax</div>
+    <div style="display:flex;align-items:center;gap:10px;height:44px;border:1px dashed #DCCDB2;border-radius:12px;background:#FFFDF8;padding:0 12px;font:400 16px/1 Inter,sans-serif;color:#3D362E"><span style="font:20px/1 'Material Symbols Rounded'">sticky_note_2</span>Extra info<span style="color:#9A8F7D"> · dates, notes, deposit</span></div>
+  </div>
+  <sc-if value="{{ warn }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;gap:10px;margin-top:8px;background:#F1E2B8;border-radius:12px;padding:10px 12px;font:400 14px/20px Inter,sans-serif;color:#2F2A24;animation:onitWarnIn 260ms cubic-bezier(0.2,0.8,0.2,1) 200ms both"><span style="font:18px/20px 'Material Symbols Rounded'">history</span><span>Heads up — you already made one for Brandon at this amount in the last 2 days. Send makes a new one.</span></div>
+  </sc-if>
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;border-top:1px solid #E6D9C3;margin-top:12px;padding-top:10px">
+    <sc-if value="{{ filled }}" hint-placeholder-val="{{ true }}"><div><div style="font:400 13px/18px Inter,sans-serif;color:#3D362E">Subtotal {{ lineTotal }}</div><div style="font:400 14px/1 Inter,sans-serif;color:#3D362E;display:flex;align-items:baseline;gap:6px">Total <span data-shared="total" style="display:inline-block;font:800 24px/1.1 Montserrat,sans-serif;color:#1F1B16">{{ lineTotal }}</span></div></div></sc-if>
+    <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}"><div style="font:400 14px/1 Inter,sans-serif;color:#5C5347;padding-bottom:10px">Add an item to send</div></sc-if>
+    <button onClick="{{ send }}" aria-label="Send" style="width:56px;height:56px;border-radius:999px;border:0;background:{{ sendBg }};color:{{ sendFg }};display:grid;place-items:center;cursor:pointer;transform:scale({{ sendS }});transition:transform 140ms cubic-bezier(0.2,0.8,0.2,1)" style-active="transform:scale(0.92)"><sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}"><span style="font:28px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">north_east</span></sc-if><sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}"><span style="width:22px;height:22px;border-radius:99px;border:2.5px solid rgba(255,248,240,.25);border-top-color:#FFF8F0;animation:onitBSpin .8s linear infinite;box-sizing:border-box"></span></sc-if></button>
+  </div>
+</div>
+<helmet><style>@keyframes onitBSpin{to{transform:rotate(360deg)}}@keyframes onitWarnIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}</style></helmet>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:640},&quot;kind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;invoice&quot;,&quot;estimate&quot;],&quot;default&quot;:&quot;invoice&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;empty&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;warn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;highlight&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;pressed&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;ghost&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;max&quot;:1},&quot;qty&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1,&quot;tsType&quot;:&quot;number&quot;},&quot;onToggle&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;fn&quot;},&quot;onSend&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;fn&quot;},&quot;onClose&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;fn&quot;}}">
+class Component extends DCLogic {
+  state = { kind: null, qty: null };
+  renderVals() {
+    const P = this.props;
+    const kind = this.state.kind ?? (P.kind || 'invoice');
+    const qty = this.state.qty ?? (P.qty ?? 1);
+    const empty = !!P.empty, filled = !empty, est = kind === 'estimate';
+    const total = empty ? 0 : qty * 200;
+    const fmt = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return {
+      filled, empty, qty, warn: filled && P.warn !== false && !est,
+      chipIcon: est ? 'request_quote' : 'description',
+      invO: est ? 0 : 1, invY: est ? -8 : 0, estO: est ? 1 : 0, estY: est ? 0 : 8,
+      lineTotal: fmt(total), lineC: empty ? '#9A8F7D' : '#1F1B16',
+      decC: qty > 1 ? '#2F2A24' : '#B9AE9C',
+      dec: () => this.setState({ qty: Math.max(1, qty - 1) }),
+      inc: () => this.setState({ qty: qty + 1 }),
+      toggle: () => { const k = est ? 'invoice' : 'estimate'; this.setState({ kind: k }); P.onToggle && P.onToggle(k); },
+      onClose: () => P.onClose && P.onClose(),
+      ghost: P.ghost ?? 1,
+      hl: P.highlight ? '2px solid #D5AF36' : '0 solid transparent',
+      sendBg: empty ? '#EFE7DA' : '#2F2A24', sendFg: empty ? '#B9AE9C' : '#FFF8F0',
+      sendS: P.pressed ? 0.92 : 1, sending: !!P.sending, notSending: !P.sending,
+      send: () => { if (!empty && !P.sending && P.onSend) P.onSend({ kind, qty }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
