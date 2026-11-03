@@ -29,6 +29,7 @@ import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/pu
 import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
 import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
+import { userMessage } from '@/lib/errors';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
@@ -2905,12 +2906,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setPhase('thinking'); // transcription is a turn in flight
         setTranscribing(true);
         let text = '';
-        let data: { text?: string; authRequired?: boolean; message?: string } = {};
+        let data: { text?: string; authRequired?: boolean; message?: string; error?: string } = {};
+        // A failed take has a cause of its own (offline, rate limited, our end).
+        // "Didn't catch that" is only honest for a clean 200 with no transcript.
+        let failure: unknown = null;
         try {
           const res = await fetch('/api/transcribe', { method: 'POST', body: blob });
-          data = await res.json();
+          data = await res.json().catch(() => ({}));
+          if (!res.ok) failure = { status: res.status, code: data.error ?? null, message: data.message ?? null };
           text = (data.text ?? '').trim();
-        } catch { /* treated as "didn't catch that" */ }
+        } catch (err) { failure = err; }
         setTranscribing(false);
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
@@ -2923,6 +2928,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Clear before delegating to send(), which re-claims the turn (its guard
         // reads `phase`, so it must be idle here). No-text take just reports back.
         setPhase(null);
+        // Name the cause. A 429 (today's cap), a 500 and an offline take all
+        // used to read "Didn't catch that", which blamed the user's speech.
+        if (failure) {
+          setMessages((m) => [...m, aMsg(userMessage(failure))]);
+          return;
+        }
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
