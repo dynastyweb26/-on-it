@@ -15,6 +15,7 @@ import { groupByLetter, matchesQuery } from '@/lib/clients';
 import { PRODUCT_COLS, copyName, normalizeProduct, priceText, productSubtitle, type Product } from '@/lib/products';
 import { clientNameKey } from '@/lib/client-name';
 import { takeNewEntry } from '@/lib/list-motion';
+import { userMessage } from '@/lib/errors';
 
 export default function ProductsList({ active = true, tabs }: { active?: boolean; tabs?: ReactNode }) {
   // Same laptop header as Clients (title, tabs, search, + on one 40px row).
@@ -100,7 +101,7 @@ export default function ProductsList({ active = true, tabs }: { active?: boolean
       user_id: session.user.id, name, unit: p.unit, unit_price: p.unit_price, detail: p.detail,
       saved_at: new Date().toISOString(),
     }).select(PRODUCT_COLS).single();
-    if (error || !data) { setFailed('Couldn’t duplicate — check your connection and try again.'); return; }
+    if (error || !data) { setFailed(userMessage(error ?? { status: 500 })); return; }
     const copy = normalizeProduct(data as Record<string, unknown>);
     setRows((rs) => [...(rs ?? []), copy]);
     setFresh({ id: copy.id, motion: 'new' });

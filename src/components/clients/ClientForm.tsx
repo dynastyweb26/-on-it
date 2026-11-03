@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { usageNote } from '@/lib/clients';
 import { markNewEntry } from '@/lib/list-motion';
 import { useFormDraft } from '@/lib/use-form-draft';
+import { userMessage } from '@/lib/errors';
 
 export type ClientFields = { name: string; phone: string; email: string; address: string; notes: string };
 type Field = keyof ClientFields;
@@ -46,6 +47,7 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
   const [error, setError] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const refs = useRef<Partial<Record<Field, HTMLInputElement | HTMLTextAreaElement | null>>>({});
+  const errorRef = useRef<HTMLParagraphElement>(null);
   // #11: a half-typed client survives Cancel / Back / closing the tab. Keyed per
   // user and per record, cleared on save, dropped on sign-out.
   const draft = useFormDraft<ClientFields>({
@@ -58,6 +60,9 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
     const f = (focus ?? (mode === 'new' && !start.current.name ? 'name' : null)) as Field | null;
     if (f && f in CAP) refs.current[f]?.focus();
   }, [focus, mode]);
+
+  // Keep a save error in view: inside a sheet the keyboard can cover it.
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [error]);
 
   // History note (New only): debounce the name, ask how many documents use it.
   useEffect(() => {
@@ -89,30 +94,37 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
     setBusy(true);
     setError('');
     const clean = (s: string) => s.trim() || null;
-    if (mode === 'new') {
-      const { data, error: err } = await supabase.rpc('save_client', {
-        p_name: v.name.trim(), p_phone: clean(v.phone), p_email: clean(email),
-        p_address: clean(v.address), p_notes: clean(v.notes),
-      });
-      const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
-      if (err || !row?.id) { setBusy(false); setError('Couldn’t save — check your connection and try again.'); return; }
-      markNewEntry('clients', row.id);
-      const cid = row.id;
-      saved(() => { if (onSaved) onSaved(cid); else router.replace(`/clients/${cid}`); });
-      return;
-    }
-    const { error: err } = await supabase.from('clients').update({
-      name: v.name.trim(), phone: clean(v.phone), email: clean(email),
-      address: clean(v.address), notes: clean(v.notes),
-    }).eq('id', id!);
-    if (err) {
+    // One exit clears busy for every path: a request that threw used to leave
+    // the button reading "Saving…" for good.
+    try {
+      if (mode === 'new') {
+        const { data, error: err } = await supabase.rpc('save_client', {
+          p_name: v.name.trim(), p_phone: clean(v.phone), p_email: clean(email),
+          p_address: clean(v.address), p_notes: clean(v.notes),
+        });
+        const row = (Array.isArray(data) ? data[0] : data) as { id?: string } | null;
+        if (err || !row?.id) { setError(userMessage(err ?? { status: 500 })); return; }
+        markNewEntry('clients', row.id);
+        const cid = row.id;
+        saved(() => { if (onSaved) onSaved(cid); else router.replace(`/clients/${cid}`); });
+        return;
+      }
+      const { error: err } = await supabase.from('clients').update({
+        name: v.name.trim(), phone: clean(v.phone), email: clean(email),
+        address: clean(v.address), notes: clean(v.notes),
+      }).eq('id', id!);
+      if (err) {
+        // A rename onto another client's name is the one refusal worth naming
+        // the client in; everything else takes the classifier's sentence.
+        setError(err.code === '23505'
+          ? `You already have a client named “${v.name.trim()}”.`
+          : userMessage(err));
+        return;
+      }
+      saved(() => router.replace(`/clients/${id}`));
+    } finally {
       setBusy(false);
-      setError(err.code === '23505'
-        ? `You already have a client named “${v.name.trim()}”.`
-        : 'Couldn’t save — check your connection and try again.');
-      return;
     }
-    saved(() => router.replace(`/clients/${id}`));
   }
   // Form save (2·14): the Save label turns into a ✓, then the screen moves on.
   function saved(next: () => void) {
@@ -161,7 +173,7 @@ export default function ClientForm({ mode, id, initial, focus, onSaved, onCancel
           <Icon name="history" size={20} className="mt-0.5 shrink-0" />{note}
         </p>
       )}
-      {error && <p role="alert" className="mt-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{error}</p>}
+      {error && <p ref={errorRef} role="alert" className="mt-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{error}</p>}
     </div>
   );
 }
