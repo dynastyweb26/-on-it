@@ -141,6 +141,26 @@ export function matchClient(input: ClientInput, existing: ClientRecord[]): Match
   return candidates.length ? { status: 'ambiguous', candidates } : { status: 'none' };
 }
 
+// ── Pending-question guard (pure) ────────────────────────────────
+
+/** The "which client?" question a chat is waiting on. */
+export type ClientQuestion = { typed: string; convo: string | null };
+
+/**
+ * Whether a client question is still open: it was asked in THIS conversation,
+ * for the name the draft still carries. A different conversation, or a draft
+ * whose client name has since changed, means it is stale and nothing is pending.
+ */
+export function clientQuestionPending(p: {
+  question: ClientQuestion | null;
+  convo: string | null;
+  draftName: string | null | undefined;
+}): boolean {
+  return !!p.question
+    && p.question.convo === p.convo
+    && clientNameKey(p.draftName ?? '') === clientNameKey(p.question.typed);
+}
+
 // ── Supabase-backed service ──────────────────────────────────────
 
 function likeEscape(s: string): string {
