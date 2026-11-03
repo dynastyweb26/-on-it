@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0}a{color:#735c00}a:hover{color:#1e1a15}</style>
+</helmet>
+<template id="__bundler_thumbnail" data-bg-color="#fff8f0"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><rect width="1200" height="800" fill="#fff8f0"></rect><rect x="450" y="250" width="300" height="300" rx="80" fill="#d4af37"></rect><rect x="530" y="370" width="140" height="80" rx="14" fill="#34302a"></rect></svg></template>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:48px;background:#fff8f0;font-family:Inter,system-ui,sans-serif;color:#1e1a15;box-shadow:0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45);-webkit-font-smoothing:antialiased;user-select:none;">
+  <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:70;box-sizing:border-box;">
+    <span>7:02</span>
+    <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">wifi</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+  </div>
+  <div style="position:absolute;top:47px;left:0;right:0;height:66px;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+    <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">arrow_back</span>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">{{ title }}</div>
+  </div>
+  <div style="position:absolute;top:113px;left:0;right:0;bottom:84px;padding:18px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.6px;color:#5f574b;padding:0 4px;">{{ section }}</div>
+    <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:24px;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:12px;padding:16px;">
+        <div style="width:46px;height:46px;border-radius:14px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">{{ icon }}</span></div>
+        <div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:17px;">{{ name }}</div><div style="font-size:14px;color:#5f574b;margin-top:1px;">{{ sub }}</div></div>
+        <span style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#3a352d;white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:#6f9a78;"></span>Connected</span>
+      </div>
+      <sc-for list="{{ rows }}" as="r">
+        <div style="display:flex;justify-content:space-between;padding:13px 16px;border-top:1px solid #f1e9db;font-size:15px;"><span style="color:#5f574b;">{{ r.k }}</span><span style="font-weight:600;">{{ r.v }}</span></div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ inline }}">
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:16px;background:#faf3e7;font-size:13.5px;line-height:1.45;color:#3a352d;">
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;color:#735c00;">sync_alt</span>
+        <span style="text-wrap:pretty;">Card payments pay out to your bank in one lump. We'll label those so they're never counted twice.</span>
+      </div>
+    </sc-if>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:0;height:84px;background:#fff8f0;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">chat</span></div><span style="font-size:12px;font-weight:500;">Chat</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span></div><span style="font-size:12px;font-weight:500;">Books</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:700;">Settings</span></div>
+  </div>
+
+  <sc-if value="{{ popup }}">
+    <div style="position:absolute;inset:0;z-index:40;background:rgba(30,24,14,.38);opacity:{{ popOp }};transition:opacity 300ms cubic-bezier(.2,.8,.2,1);"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="pt" style="position:absolute;left:20px;right:20px;top:50%;z-index:41;background:#fdf8f1;border-radius:28px;padding:26px 22px 20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;transform:{{ popTf }};opacity:{{ popOp }};transition:transform 420ms cubic-bezier(.34,1.28,.64,1), opacity 260ms cubic-bezier(.2,.8,.2,1);box-shadow:0 30px 60px -20px rgba(30,24,14,.45);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:52px;height:52px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">credit_card</span></div>
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#735c00;">arrow_forward</span>
+        <div style="width:52px;height:52px;border-radius:17px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">account_balance</span></div>
+      </div>
+      <div id="pt" style="font-family:Montserrat,sans-serif;font-weight:800;font-size:21px;line-height:1.25;text-wrap:balance;">Stripe and your bank are both connected</div>
+      <div style="font-size:15px;color:#3a352d;line-height:1.5;text-wrap:pretty;">Card payments pay out to your bank in one lump. We'll label those so they're never counted twice.</div>
+      <button onClick="{{ dismiss }}" style="margin-top:6px;width:100%;height:54px;border-radius:27px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:#1e1a15;cursor:pointer;" style-active="transform:scale(.97)">Got it</button>
+    </div>
+  </sc-if>
+  <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:80;"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:864},&quot;scene&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;popup&quot;,&quot;options&quot;:[&quot;popup&quot;,&quot;payouts&quot;,&quot;bankAccounts&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;reducedMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic{
+  state={open:false,shown:true};
+  componentDidMount(){requestAnimationFrame(()=>requestAnimationFrame(()=>this.setState({open:true})));}
+  renderVals(){
+    const sc=this.props.scene||'popup',pay=sc==='payouts',s=this.state;
+    const rm=!!this.props.reducedMotion;
+    return{
+      title:pay?'Payouts':'Bank accounts',section:pay?'CARD PAYMENTS':'CONNECTED BANK',
+      icon:pay?'credit_card':'account_balance',name:pay?'Stripe':'Chase',sub:pay?'Payouts to Chase ••4821':'Business Checking ••4821',
+      rows:pay?[{k:'Payout schedule',v:'Daily'},{k:'Last payout',v:'Oct 29 · $1,934.50'}]:[{k:'Tracking',v:'1 account'},{k:'Last checked',v:'Today, 6:58 PM'}],
+      inline:sc!=='popup'||!s.shown,popup:sc==='popup'&&s.shown,
+      popOp:s.open?1:0,popTf:s.open||rm?'translateY(-50%)':'translateY(calc(-50% + 30px)) scale(.96)',
+      dismiss:()=>{this.setState({open:false});setTimeout(()=>this.setState({shown:false}),300);}
+    };
+  }
+}
+</script>
+</body>
+</html>
