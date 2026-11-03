@@ -2103,7 +2103,7 @@ results(id, ok, expected, actual) as (
             and indexdef ilike '%unique%' and indexdef ilike '%where%')
         and exists (select 1 from pg_indexes
           where schemaname = 'public' and indexname = 'bank_deposit_links_terminal_uidx'
-            and indexdef ilike '%stripe_payout%' and indexdef ilike '%not_income%')
+            and indexdef ilike '%stripe_payout%' and indexdef ilike '%ignored%')
         and exists (select 1 from pg_constraint
           where conrelid = to_regclass('public.bank_deposits')
             and conname = 'bank_deposits_txn_key') end,
@@ -2129,13 +2129,90 @@ results(id, ok, expected, actual) as (
           where p.oid = to_regprocedure('public.guard_bank_deposit_link()')), false)
         and not exists (select 1 from (values ('anon'), ('authenticated')) ro(r)
           where has_function_privilege(ro.r, to_regprocedure('public.guard_bank_deposit_link()'), 'execute')) end,
-    'BEFORE INSERT OR UPDATE guard: definer, search_path pinned, sum check, no client EXECUTE',
+    'BEFORE INSERT OR UPDATE guard: definer, search_path pinned, one decision per deposit, no client EXECUTE',
     case when not exists (select 1 from applied where version = '20261102190000') then 'not applied yet'
       else coalesce((select 'type=' || t.tgtype || ' definer=' || p.prosecdef
           || ' config=' || coalesce(p.proconfig::text, 'none')
         from pg_trigger t join pg_proc p on p.oid = t.tgfoid
         where not t.tgisinternal and t.tgrelid = to_regclass('public.bank_deposit_links')
           and t.tgname = 'guard_bank_deposit_link'), 'trigger missing') end
+
+  -- BD5-BD6. Other income (money in, 20261103000001). SKIP until pushed.
+  --     Owner SELECT only, service-role writes, and one income row per deposit.
+  union all
+  select 'BD5 other income rls',
+    case when not exists (select 1 from applied where version = '20261103000001') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.other_income') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'other_income'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and not exists (select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'other_income'
+            and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL'))
+        and not has_table_privilege('authenticated', 'public.other_income', 'INSERT')
+        and not has_table_privilege('anon', 'public.other_income', 'SELECT')
+        and has_table_privilege('service_role', 'public.other_income', 'INSERT') end,
+    'other_income: RLS on, one owner SELECT policy, no write policy, service_role writes',
+    case when not exists (select 1 from applied where version = '20261103000001') then 'not applied yet'
+      else 'insert=' || coalesce(has_table_privilege('authenticated', 'public.other_income', 'INSERT')::text, 'missing')
+        || ' anon_select=' || coalesce(has_table_privilege('anon', 'public.other_income', 'SELECT')::text, 'missing') end
+  union all
+  select 'BD6 other income keys',
+    case when not exists (select 1 from applied where version = '20261103000001') then null
+      else exists (select 1 from pg_indexes
+        where schemaname = 'public' and indexname = 'other_income_deposit_uidx'
+          and indexdef ilike '%unique%' and indexdef ilike '%deposit_id%' and indexdef ilike '%where%')
+        and exists (select 1 from pg_constraint
+          where conrelid = to_regclass('public.other_income') and contype = 'c'
+            and pg_get_constraintdef(oid) ilike '%customer_payment%'
+            and pg_get_constraintdef(oid) ilike '%other_income%') end,
+    'one income row per deposit (partial unique); classification limited to the two that count',
+    case when not exists (select 1 from applied where version = '20261103000001') then 'not applied yet'
+      else coalesce((select indexdef from pg_indexes
+        where schemaname = 'public' and indexname = 'other_income_deposit_uidx'), 'index missing') end
+
+  -- BD7-BD8. The deposit decision (20261103000002). SKIP until pushed.
+  --     Two guards, so a deposit has one decision across both tables, and the
+  --     kind set no longer carries 'not_income'.
+  union all
+  select 'BD7 one decision per deposit',
+    case when not exists (select 1 from applied where version = '20261103000002') then null
+      else (select count(*) from pg_proc p
+        where p.oid in (to_regprocedure('public.guard_bank_deposit_link()'),
+                        to_regprocedure('public.guard_other_income_deposit()'))
+          and p.prosecdef and p.proconfig::text ilike '%search_path=%') = 2
+        and (select count(*) from pg_trigger t
+          where not t.tgisinternal and t.tgenabled <> 'D'
+            and t.tgrelid in (to_regclass('public.bank_deposit_links'), to_regclass('public.other_income'))
+            and t.tgname in ('guard_bank_deposit_link', 'guard_other_income_deposit')) = 2
+        and coalesce((select strpos(p.prosrc, 'other_income') > 0 from pg_proc p
+          where p.oid = to_regprocedure('public.guard_bank_deposit_link()')), false)
+        and coalesce((select strpos(p.prosrc, 'bank_deposit_links') > 0 from pg_proc p
+          where p.oid = to_regprocedure('public.guard_other_income_deposit()')), false)
+        and not exists (select 1 from (values ('anon'), ('authenticated')) ro(r)
+          where has_function_privilege(ro.r, to_regprocedure('public.guard_other_income_deposit()'), 'execute')) end,
+    'both guards definer + search_path pinned + no client EXECUTE; each refuses a decision the other side wrote',
+    case when not exists (select 1 from applied where version = '20261103000002') then 'not applied yet'
+      else coalesce((select 'link_guard=' || (strpos(p.prosrc, 'other_income') > 0)::text
+        from pg_proc p where p.oid = to_regprocedure('public.guard_bank_deposit_link()')), 'link guard missing') end
+  union all
+  select 'BD8 deposit kind set',
+    case when not exists (select 1 from applied where version = '20261103000002') then null
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = to_regclass('public.bank_deposit_links')
+          and conname = 'bank_deposit_links_kind_check'), '') ilike '%classified%'
+        and coalesce((select pg_get_constraintdef(oid) from pg_constraint
+          where conrelid = to_regclass('public.bank_deposit_links')
+            and conname = 'bank_deposit_links_kind_check'), 'x') not ilike '%not_income%'
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'bank_deposit_links_payment_of_deposit_uidx'
+            and indexdef ilike '%unique%' and indexdef ilike '%deposit_id%' and indexdef ilike '%where%') end,
+    'kinds recorded/linked/classified/ignored/stripe_payout, not_income gone, one payment per deposit',
+    case when not exists (select 1 from applied where version = '20261103000002') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = to_regclass('public.bank_deposit_links')
+          and conname = 'bank_deposit_links_kind_check'), 'kind check missing') end
 
 )
 select id as check_id,
