@@ -58,7 +58,7 @@ export default function SummaryControls({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 text-[13px] font-semibold text-on-surface-variant">
           <span className="sr-only">Chart period</span>
-          <Icon name="date_range" size={18} />
+          <Icon name="schedule" size={18} />
           <select
             value={preset}
             disabled={disabled}
