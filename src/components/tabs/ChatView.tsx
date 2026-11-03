@@ -40,6 +40,7 @@ import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import { LedgerFrame, LedgerTotals, SentLedgerRow } from '@/components/chat/LedgerCard';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
   ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
@@ -3519,28 +3520,28 @@ export default function Chat({ active = true }: { active?: boolean }) {
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
   const invoiceCard = ready && draft && !template ? (
-    // Only real text entry / selects opt out (swipeBlockedAt). The card's
-    // padding, labels and buttons hand a horizontal drag to the tab deck.
-    <div className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
-      <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
-        <Icon name="description" size={18} />
-        {docNoun(docKind(draft))} for {draft.client_name}
-      </div>
-      {locked && (
-        // Read-only: the linked invoice has left 'draft' (sent/paid).
-        <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
-          <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
-          {lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))}
-        </div>
-      )}
+    // Ledger sheet (docs/design/onit-chat · CardLedger): the state strip, the
+    // client block and the paper are LedgerCard's; everything below is the
+    // card's own controls, unchanged. Only real text entry / selects opt out
+    // of the tab swipe (swipeBlockedAt) — the card's padding, labels and
+    // buttons hand a horizontal drag to the deck.
+    <LedgerFrame
+      state={!locked ? 'draft' : docKind(draft) === 'quote' ? 'ready' : 'sent'}
+      pillLabel={locked && linkedStatus !== 'sent'
+        ? lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))
+        : undefined}
+      kind={docKind(draft)}
+      clientName={draft.client_name}
+      anim={cardAnim}
+    >
       {duplicateHint && !locked && (
         // Passive indicator only — the card stays fully actionable below.
-        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
+        <div className="mb-3 mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-on-background">
           <Icon name="error" size={16} filled />
           Similar invoice sent recently
         </div>
       )}
-      <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
+      <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} variant="ledger" />
 
       <AttachmentsEditor
         items={attachments}
@@ -3628,53 +3629,48 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </div>
       </div>
 
-      <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
-        {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
-            Values from calculateInvoiceTotals (single source of truth);
-            mirrors the PDF Totals block. No editable tax field here — tax
-            is set via chat / the detail page only. */}
-        {(draft.tax_rate ?? 0) > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Subtotal</span>
-              <span>{money(previewTotals.subtotal)}</span>
+      {/* Charcoal total block (Ledger). Values stay calculateInvoiceTotals'
+          (single source of truth); the tax/deposit lines only describe them. */}
+      <LedgerTotals
+        label={previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Estimate total' : 'Total due'}
+        sublines={
+          (draft.tax_rate ?? 0) > 0 || previewTotals.depositAmount > 0 ? (
+            <div className="mt-1.5 space-y-0.5">
+              {(draft.tax_rate ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">{money(previewTotals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Tax ({draft.tax_rate}%)</span>
+                    <span className="tabular-nums">{money(previewTotals.taxAmount)}</span>
+                  </div>
+                </>
+              )}
+              {previewTotals.depositAmount > 0 && (
+                <>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
+                    <span className="tabular-nums">{money(previewTotals.depositAmount)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Remaining</span>
+                    <span className="tabular-nums">{money(previewTotals.remaining)}</span>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Tax ({draft.tax_rate}%)</span>
-              <span>{money(previewTotals.taxAmount)}</span>
-            </div>
-          </>
-        )}
-        {previewTotals.depositAmount > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Project total</span>
-              <span>{money(previewTotals.total)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
-              <span>{money(previewTotals.depositAmount)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-on-surface-variant font-medium">
-              <span>Remaining balance</span>
-              <span>{money(previewTotals.remaining)}</span>
-            </div>
-          </>
-        )}
-        <div className="flex items-end justify-between pt-1">
-          <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
-            {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Estimate total' : 'Total due'}
-          </span>
-          <span className="font-display text-numeric-xl tracking-tight text-on-background tabular-nums">
-            <CountUpMoney
-              value={previewTotals.amountDueNow}
-              run={cardAnim === 'enter'}
-              format={money}
-              delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
-            />
-          </span>
-        </div>
-      </div>
+          ) : undefined
+        }
+      >
+        <CountUpMoney
+          value={previewTotals.amountDueNow}
+          run={cardAnim === 'enter'}
+          format={money}
+          delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
+        />
+      </LedgerTotals>
       {locked ? (
         // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
         // unpaid invoice offers "Revise" (opens an editable copy as a new
@@ -3803,7 +3799,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         </>
       )}
-    </div>
+    </LedgerFrame>
   ) : null;
 
   return (
@@ -3916,25 +3912,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.sentCard ? (
-            // Sent invoice summary chip (invoices only) — a compact card showing the
-            // client, doc number, amount due, and due date. Appears right after
-            // the "Sent!" confirmation bubble. Static (no animation needed; the
-            // bubble above already signals the moment).
+            // Sent invoice summary row (Ledger): client, doc number · due,
+            // amount and SENT. Appears right after the "Sent!" bubble.
             <div key={m.id} className="flex flex-col items-start">
-              <div className="flex w-full max-w-[82%] items-center justify-between gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-bold leading-tight text-on-surface">{m.sentCard.clientName}</p>
-                  <p className="mt-0.5 text-xs text-on-surface-variant">
-                    {m.sentCard.invoiceNo} · Due {m.sentCard.dueDate}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-base font-extrabold text-on-surface">{m.sentCard.amount}</span>
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
-                    {m.sentCard.kind === 'quote' ? 'Sent' : '▶ Sent'}
-                  </span>
-                </div>
-              </div>
+              <SentLedgerRow
+                clientName={m.sentCard.clientName}
+                invoiceNo={m.sentCard.invoiceNo}
+                dueDate={m.sentCard.dueDate}
+                amount={m.sentCard.amount}
+              />
             </div>
           ) : m.payoutsNudge ? (
             // Payouts nudge — shown once after a sent invoice when the pro has no

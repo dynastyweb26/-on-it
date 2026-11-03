@@ -6,6 +6,11 @@
 // the new items via onChange and the parent decides what to do (a draft in
 // React state, or a DB write with recomputed totals). Amounts are validated
 // here — non-negative, bounded, snapped to two decimals.
+//
+// `variant` is VISUAL only (docs/design/onit-chat · CardLedger): the chat card
+// uses the ledger skin (a printed list: number, name, amount, a quiet sub-row
+// and a 40px control strip). The invoice/estimate detail screens keep the
+// default skin. No handler, aria-label or validation rule differs between them.
 import { useState } from 'react';
 import Icon from '@/components/Icon';
 import { money, calculateLineAmount } from '@/lib/financials';
@@ -33,13 +38,17 @@ export default function LineItemsEditor({
   items,
   editable,
   onChange,
+  variant = 'default',
 }: {
   items: EditableLineItem[];
   editable: boolean;
   onChange: (items: EditableLineItem[]) => void;
+  /** 'ledger' = the chat card's printed list. Visual only. */
+  variant?: 'default' | 'ledger';
 }) {
   const [cell, setCell] = useState<{ i: number; f: Field } | null>(null);
   const [text, setText] = useState('');
+  const ledger = variant === 'ledger';
 
   function start(i: number, f: Field, current: string) {
     setText(current);
@@ -116,9 +125,15 @@ export default function LineItemsEditor({
     return (
       <input
         autoFocus
-        className={`rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-on-background outline-none focus:border-primary ${
-          numeric ? 'w-24 text-right' : 'min-w-0 flex-1 text-body-md'
-        }`}
+        className={
+          ledger
+            ? `rounded-field border-2 border-primary-container bg-surface-container-lowest px-2 py-1 text-on-background outline-none ${
+                numeric ? 'w-24 text-right tabular-nums' : 'min-w-0 flex-1 text-[17px]'
+              }`
+            : `rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-on-background outline-none focus:border-primary ${
+                numeric ? 'w-24 text-right' : 'min-w-0 flex-1 text-body-md'
+              }`
+        }
         value={text}
         inputMode={numeric ? 'decimal' : 'text'}
         onChange={(e) => setText(e.target.value)}
@@ -137,17 +152,29 @@ export default function LineItemsEditor({
     );
   }
 
-  const editBtnStyle =
-    'inline-flex items-center gap-1 underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60 text-left min-h-[44px] py-1';
+  const editBtnStyle = ledger
+    ? 'inline-flex items-center gap-1 border-b border-dashed border-outline-variant text-left transition active:opacity-60 min-h-[44px] py-1'
+    : 'inline-flex items-center gap-1 underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60 text-left min-h-[44px] py-1';
+
+  const controlBtn = `min-h-[44px] px-3 py-1.5 rounded-control border border-outline-variant/60 bg-surface-container-lowest font-semibold text-[13px] text-on-background transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none`;
 
   return (
     // onit-li-rows: hook for the card build-in stagger (globals.css, MOTION-SPEC §3).
-    <div className="onit-li-rows space-y-3">
+    <div className={ledger ? 'onit-li-rows' : 'onit-li-rows space-y-3'}>
       {items.map((li, i) => (
-        <div key={i} className="rounded-lg border border-outline-variant/20 bg-surface-container-lowest/50 p-2.5 text-body-md">
+        <div
+          key={i}
+          data-line-row=""
+          data-line-index={i}
+          className={
+            ledger
+              ? `py-3 text-[17px] ${i === items.length - 1 ? '' : 'border-b border-outline-variant/40'}`
+              : 'rounded-lg border border-outline-variant/20 bg-surface-container-lowest/50 p-2.5 text-body-md'
+          }
+        >
           {/* Main row: Line number + Description + Amount */}
           <div className="flex items-center justify-between gap-2">
-            <span className="shrink-0 font-mono text-sm font-semibold text-on-surface-variant/80">
+            <span className={`shrink-0 font-mono text-sm font-semibold ${ledger ? 'w-[22px] text-on-surface-variant/70' : 'text-on-surface-variant/80'}`}>
               {i + 1}.
             </span>
 
@@ -156,28 +183,32 @@ export default function LineItemsEditor({
             ) : editable ? (
               <button
                 type="button"
-                className={`min-w-0 flex-1 ${editBtnStyle}`}
+                className={`min-w-0 flex-1 ${editBtnStyle} ${ledger ? 'text-[17px] font-semibold' : ''}`}
                 onClick={() => start(i, 'description', li.description)}
                 aria-label={`Edit description: ${li.description || 'empty'}`}
               >
                 <span className="truncate">{li.description || <span className="italic text-on-surface-variant/50">Empty description</span>}</span>
-                <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
+                <Icon name="edit" size={ledger ? 15 : 14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : (
-              <span className="min-w-0 flex-1 truncate">{li.description}</span>
+              <span className={`min-w-0 flex-1 truncate ${ledger ? 'font-semibold text-[17px]' : ''}`}>{li.description}</span>
             )}
 
-            <span className="shrink-0 font-display font-bold pl-1">
+            <span className={`shrink-0 font-display font-bold tabular-nums ${ledger ? 'pl-2 text-[17px]' : 'pl-1'}`}>
               {money(calculateLineAmount(li.qty, li.unit_price))}
             </span>
           </div>
 
           {/* Description (a saved product's "shows on invoices" text). */}
           {editingHere(i, 'detail') ? (
-            <div className="mt-1 flex pl-5">
+            <div className={`mt-1 flex ${ledger ? 'pl-[30px]' : 'pl-5'}`}>
               <input
                 autoFocus
-                className="min-w-0 flex-1 rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-sm text-on-background outline-none focus:border-primary"
+                className={`min-w-0 flex-1 bg-surface-container-lowest px-2 py-1 outline-none ${
+                  ledger
+                    ? 'rounded-field border border-outline-variant/60 text-[14px] text-on-background'
+                    : 'rounded-md border border-primary/50 text-sm text-on-background focus:border-primary'
+                }`}
                 value={text}
                 maxLength={DETAIL_MAX}
                 placeholder="Shows under this line on the invoice"
@@ -192,18 +223,18 @@ export default function LineItemsEditor({
             </div>
           ) : li.detail ? (
             editable ? (
-              <button type="button" className={`ml-5 max-w-[calc(100%-1.25rem)] text-sm text-on-surface-variant ${editBtnStyle} min-h-[36px]`}
+              <button type="button" className={`${ledger ? 'ml-[30px]' : 'ml-5'} max-w-[calc(100%-1.25rem)] text-[14px] leading-snug text-on-surface-variant ${editBtnStyle} min-h-[36px]`}
                 onClick={() => start(i, 'detail', li.detail ?? '')} aria-label={`Edit line description: ${li.detail}`}>
                 <span className="line-clamp-2">{li.detail}</span>
                 <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : (
-              <p className="mt-0.5 pl-5 text-sm text-on-surface-variant">{li.detail}</p>
+              <p className={`mt-0.5 text-[13px] text-on-surface-variant ${ledger ? 'pl-[30px]' : 'pl-5'}`}>{li.detail}</p>
             )
           ) : null}
 
           {/* Sub-row: Qty x Unit price */}
-          <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-sm text-on-surface-variant">
+          <div className={`mt-1 flex items-center gap-1.5 text-on-surface-variant ${ledger ? 'pl-[30px] text-[15px]' : 'pl-5 text-sm'}`}>
             {editingHere(i, 'qty') ? (
               cellInput('Edit quantity', true)
             ) : editable ? (
@@ -213,11 +244,11 @@ export default function LineItemsEditor({
                 onClick={() => start(i, 'qty', String(li.qty))}
                 aria-label={`Edit quantity: ${li.qty}`}
               >
-                <span>{li.qty}</span>
+                <span className="tabular-nums">{li.qty}</span>
                 <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : (
-              <span>{li.qty}</span>
+              <span className="tabular-nums">{li.qty}</span>
             )}
 
             {editable ? (
@@ -225,7 +256,11 @@ export default function LineItemsEditor({
                 value={li.unit ?? 'each'}
                 onChange={(e) => setUnit(i, e.target.value as LineUnit)}
                 aria-label={`Unit for line ${i + 1}`}
-                className="min-h-[36px] rounded-md bg-surface-container-high px-1.5 text-sm text-on-surface"
+                className={
+                  ledger
+                    ? 'min-h-[36px] rounded-field border border-outline-variant/60 bg-surface-container-lowest px-1.5 text-[14px] text-on-background transition active:scale-95'
+                    : 'min-h-[36px] rounded-md bg-surface-container-high px-1.5 text-sm text-on-surface'
+                }
               >
                 {LINE_UNITS.map((u) => <option key={u} value={u}>{u === 'hour' ? 'hr' : u}</option>)}
               </select>
@@ -244,22 +279,24 @@ export default function LineItemsEditor({
                 onClick={() => start(i, 'unit_price', String(li.unit_price))}
                 aria-label={`Edit unit price: ${money(li.unit_price)}`}
               >
-                <span>{money(li.unit_price)}</span>
+                <span className="tabular-nums">{money(li.unit_price)}</span>
                 <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : (
-              <span>{money(li.unit_price)}</span>
+              <span className="tabular-nums">{money(li.unit_price)}</span>
             )}
           </div>
 
           {/* Control row: Up, Down, Dup, Delete */}
           {editable && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-5 border-t border-outline-variant/15 pt-2">
+            <div className={ledger
+              ? 'mt-2 flex flex-wrap items-center gap-1.5 pl-[30px]'
+              : 'mt-2 flex flex-wrap items-center gap-1.5 pl-5 border-t border-outline-variant/15 pt-2'}>
               <button
                 type="button"
                 disabled={i === 0}
                 onClick={() => move(i, -1)}
-                className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none disabled:bg-surface-container"
+                className={ledger ? controlBtn : 'min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none disabled:bg-surface-container'}
                 aria-label={`Move line ${i + 1} up`}
               >
                 Up
@@ -269,7 +306,7 @@ export default function LineItemsEditor({
                 type="button"
                 disabled={i === items.length - 1}
                 onClick={() => move(i, 1)}
-                className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none disabled:bg-surface-container"
+                className={ledger ? controlBtn : 'min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none disabled:bg-surface-container'}
                 aria-label={`Move line ${i + 1} down`}
               >
                 Down
@@ -279,7 +316,7 @@ export default function LineItemsEditor({
                 <button
                   type="button"
                   onClick={() => start(i, 'detail', '')}
-                  className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95"
+                  className={ledger ? controlBtn : 'min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95'}
                   aria-label={`Add a description to line ${i + 1}`}
                 >
                   + Description
@@ -289,7 +326,7 @@ export default function LineItemsEditor({
               <button
                 type="button"
                 onClick={() => duplicate(i)}
-                className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95"
+                className={ledger ? controlBtn : 'min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-surface-container-high font-medium text-xs text-on-surface transition active:scale-95'}
                 aria-label={`Duplicate line ${i + 1}`}
               >
                 Dup
@@ -298,10 +335,14 @@ export default function LineItemsEditor({
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-error/10 text-error font-semibold text-xs transition active:scale-95 hover:bg-error/20"
+                className={
+                  ledger
+                    ? 'ml-auto grid h-11 w-11 place-items-center rounded-control text-error transition active:scale-90 active:bg-error-container/50'
+                    : 'min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-md bg-error/10 text-error font-semibold text-xs transition active:scale-95 hover:bg-error/20'
+                }
                 aria-label={`Delete line ${i + 1}`}
               >
-                Delete
+                {ledger ? <Icon name="delete" size={20} /> : 'Delete'}
               </button>
             </div>
           )}
@@ -313,9 +354,13 @@ export default function LineItemsEditor({
         <button
           type="button"
           onClick={addLineItem}
-          className="w-full min-h-[44px] rounded-lg border border-dashed border-outline-variant/60 bg-surface-container-lowest/30 py-2.5 px-4 text-sm font-semibold text-primary transition hover:bg-primary/5 active:scale-[0.99] flex items-center justify-center gap-1.5"
+          className={
+            ledger
+              ? 'flex min-h-[44px] w-full items-center gap-1.5 px-0 text-[15px] font-bold text-primary transition active:opacity-60'
+              : 'w-full min-h-[44px] rounded-lg border border-dashed border-outline-variant/60 bg-surface-container-lowest/30 py-2.5 px-4 text-sm font-semibold text-primary transition hover:bg-primary/5 active:scale-[0.99] flex items-center justify-center gap-1.5'
+          }
         >
-          <Icon name="add" size={18} />
+          <Icon name="add" size={ledger ? 20 : 18} />
           <span>Add line item</span>
         </button>
       )}
