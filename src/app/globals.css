@@ -579,18 +579,9 @@ html[data-splash=""] .onit-splash {
 @keyframes bank-splash-pulse { to { opacity: 0; transform: scale(2.6); } }
 .bank-splash-pulse { animation: bank-splash-pulse 140ms var(--oi-ease-out) both; }
 
-/* Money in: the deposit amount. #2f6b3f is the only green that may carry text;
-   the pulse is a fill-coloured halo that plays once and stops. */
-@keyframes bank-money-in-pulse {
-  from { transform: scale(.94); opacity: .55; }
-  to { transform: scale(1); opacity: 1; }
-}
+/* Money in: the deposit amount. #2f6b3f is the only green that may carry text.
+   The amount is colour only: no halo, no glow, no pulse. */
 .bank-money-in { color: var(--oi-green); }
-.bank-money-in:not(.bank-static) { animation: bank-money-in-pulse 420ms var(--oi-ease-emphasized) both; }
-.bank-money-in { text-shadow: 0 0 18px color-mix(in srgb, var(--oi-money-in) 55%, transparent); }
-@media (prefers-reduced-motion: reduce) {
-  .bank-money-in { animation: none; text-shadow: none; }
-}
 
 /* Inline field reveal (amount / date / category): scaleY(.85) → 1. */
 @keyframes bank-expand { from { opacity: 0; transform: scaleY(.85); } }
