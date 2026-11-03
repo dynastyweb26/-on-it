@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"><style>@keyframes onitRing{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.75);opacity:0}}@keyframes onitSpin{to{transform:rotate(360deg)}}@keyframes onitBlink{0%,100%{opacity:1}50%{opacity:.25}}@media (prefers-reduced-motion:reduce){*{animation-duration:1ms!important;transition-duration:1ms!important}}</style></helmet>
+<div style="padding:8px 10px 10px;background:#FFF8F0;border-top:1px solid #EFE4D3;display:flex;align-items:flex-end;gap:8px;font-family:Inter,sans-serif;box-sizing:border-box;position:relative">
+  <button aria-label="Start invoice or estimate" onClick="{{ onPlus }}" style="flex:none;width:48px;height:48px;border-radius:999px;border:0;background:#F1E2B8;color:#1F1B16;display:grid;place-items:center;cursor:pointer;transition:transform 140ms cubic-bezier(0.2,0.8,0.2,1)" style-active="transform:scale(0.92)"><span style="font:28px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">add</span></button>
+  <div style="flex:1;min-width:0;display:flex;align-items:flex-end;background:#FFFFFF;border:{{ border }};border-radius:24px;padding:2px 2px 2px 16px;box-sizing:border-box;transition:border-color 180ms">
+    <div style="flex:1;min-width:0;position:relative;padding:11px 0">
+      <sc-if value="{{ showLabel }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:6px;font:600 11px/14px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#6E5410;margin-bottom:2px;white-space:nowrap"><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:onitBlink 1s ease-in-out infinite"></span>{{ labelText }}</div>
+      </sc-if>
+      <div ref="{{ mirrorRef }}" aria-hidden="true" style="position:absolute;visibility:hidden;left:0;right:0;top:0;font:400 16px/22px Inter,sans-serif;white-space:pre-wrap;word-wrap:break-word">{{ mirrorText }}</div>
+      <sc-if value="{{ showTranscript }}" hint-placeholder-val="{{ false }}">
+        <div style="font:400 16px/22px Inter,sans-serif;color:#1F1B16;min-height:22px;opacity:{{ trO }}">{{ finalT }} <span style="color:#9A8F7D">{{ interimT }}</span></div>
+      </sc-if>
+      <sc-if value="{{ showInput }}" hint-placeholder-val="{{ true }}">
+        <textarea ref="{{ taRef }}" rows="1" value="{{ value }}" onChange="{{ onInput }}" onKeyDown="{{ onKey }}" readOnly="{{ readOnly }}" placeholder="Message On It…" style="display:block;width:100%;box-sizing:border-box;border:0;outline:0;resize:none;padding:0;margin:0;background:transparent;font:400 16px/22px Inter,sans-serif;color:#1F1B16;height:{{ h }}px;overflow-y:{{ ovf }};transition:height 150ms cubic-bezier(0.2,0.8,0.2,1);scrollbar-width:thin"></textarea>
+      </sc-if>
+      <div style="position:absolute;left:0;right:0;top:11px;height:12px;background:linear-gradient(#FFFFFF,rgba(255,255,255,0));pointer-events:none;opacity:{{ fadeO }};transition:opacity 150ms"></div>
+    </div>
+    <button aria-label="Add photo" style="flex:none;width:44px;height:44px;border:0;background:transparent;border-radius:999px;display:grid;place-items:center;color:#2F2A24;cursor:pointer;transition:transform 140ms" style-active="transform:scale(0.92)"><span style="font:22px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">image</span></button>
+    <button aria-label="Snap receipt" style="flex:none;width:44px;height:44px;border:0;background:#F1E2B8;border-radius:999px;display:grid;place-items:center;color:#1F1B16;cursor:pointer;transition:transform 140ms" style-active="transform:scale(0.92)"><span style="font:22px/1 'Material Symbols Rounded';font-variation-settings:'wght' 500">photo_camera</span></button>
+  </div>
+  <button aria-label="{{ rightLabel }}" onClick="{{ onRight }}" style="flex:none;position:relative;width:48px;height:48px;border-radius:999px;border:0;padding:0;background:transparent;cursor:pointer" style-active="transform:scale(0.92)">
+    <sc-if value="{{ listening }}" hint-placeholder-val="{{ false }}">
+      <span style="position:absolute;inset:0;border-radius:999px;background:#D5AF36;animation:onitRing 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span>
+      <span style="position:absolute;inset:0;border-radius:999px;background:#D5AF36;animation:onitRing 1.6s cubic-bezier(0.2,0.8,0.2,1) .8s infinite"></span>
+    </sc-if>
+    <span style="position:absolute;inset:0;border-radius:999px;background:{{ micBg }};color:#1F1B16;display:grid;place-items:center;opacity:{{ micO }};transform:scale({{ micS }});transition:opacity 160ms cubic-bezier(0.2,0.8,0.2,1),transform 160ms cubic-bezier(0.2,0.8,0.2,1),background-color 160ms"><span style="font:24px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1,'wght' 500">{{ micIcon }}</span></span>
+    <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:3px;border-radius:999px;border:2.5px solid rgba(110,84,16,.18);border-top-color:#6E5410;animation:onitSpin .9s linear infinite"></span></sc-if>
+    <span style="position:absolute;inset:0;border-radius:999px;background:{{ sendBg }};color:{{ sendFg }};display:grid;place-items:center;opacity:{{ sendO }};transform:scale({{ sendS }});transition:opacity 160ms cubic-bezier(0.2,0.8,0.2,1),transform 160ms cubic-bezier(0.2,0.8,0.2,1),background-color 160ms,color 160ms"><span style="font:24px/1 'Material Symbols Rounded';font-variation-settings:'wght' 600">arrow_upward</span></span>
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:140},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;empty&quot;,&quot;listening&quot;,&quot;thinking&quot;,&quot;text&quot;,&quot;sending&quot;],&quot;default&quot;:&quot;empty&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;text&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;interim&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;interactive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;sending&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onSend&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(t:string)=&gt;void&quot;},&quot;onPlus&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;()=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { value: '', listening: false, thinking: false, finalT: '', interimT: '', h: 22, ovf: false };
+  mirrorRef = React.createRef();
+  taRef = React.createRef();
+  componentDidMount() { this.measure(); }
+  componentDidUpdate() { this.measure(); }
+  componentWillUnmount() { clearInterval(this.iv); clearTimeout(this.tt); }
+  measure() {
+    const m = this.mirrorRef.current; if (!m) return;
+    const full = m.scrollHeight || 22;
+    const h = Math.max(22, Math.min(88, Math.round(full / 22) * 22));
+    const ovf = full > 90;
+    if (h !== this.state.h || ovf !== this.state.ovf) this.setState({ h, ovf });
+    if (ovf && !this.props.interactive && this.taRef.current) this.taRef.current.scrollTop = 9999;
+  }
+  startListening() {
+    const words = 'Invoice Brandon two hundred for the car wash'.split(' ');
+    let i = 0;
+    this.setState({ listening: true, finalT: '', interimT: '' });
+    this.iv = setInterval(() => {
+      i++;
+      if (i > words.length) { clearInterval(this.iv); return; }
+      this.setState({ finalT: words.slice(0, i - 1).join(' '), interimT: words[i - 1] });
+    }, 320);
+  }
+  stopListening() {
+    clearInterval(this.iv);
+    const t = (this.state.finalT + ' ' + this.state.interimT).trim();
+    this.setState({ listening: false, thinking: true });
+    this.tt = setTimeout(() => this.setState({ thinking: false, value: t ? t.charAt(0).toUpperCase() + t.slice(1) + ' $200' : '' }), 700);
+  }
+  send() {
+    const v = this.state.value.trim(); if (!v) return;
+    this.props.onSend && this.props.onSend(v);
+    this.setState({ value: '' });
+  }
+  renderVals() {
+    const P = this.props, S = this.state, live = !!P.interactive;
+    let mode = live ? (S.listening ? 'listening' : S.thinking ? 'thinking' : (S.value.trim() ? 'text' : 'empty')) : (P.state || 'empty');
+    if (P.sending) mode = 'sending';
+    const value = live ? S.value : (P.text || '');
+    const finalT = live ? S.finalT : (P.text || '');
+    const interimT = live ? S.interimT : (P.interim || '');
+    const isMic = mode === 'empty' || mode === 'listening' || mode === 'thinking';
+    const voice = mode === 'listening' || mode === 'thinking';
+    return {
+      onPlus: () => P.onPlus && P.onPlus(),
+      mirrorRef: this.mirrorRef, taRef: this.taRef,
+      mirrorText: (voice ? finalT + ' ' + interimT : value) + ' ',
+      value, readOnly: !live, h: S.h, ovf: S.ovf ? 'auto' : 'hidden', fadeO: S.ovf ? 1 : 0,
+      onInput: (e) => live && this.setState({ value: e.target.value }),
+      onKey: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+      showInput: !voice, showTranscript: voice, showLabel: voice,
+      labelText: mode === 'thinking' ? 'Transcribing…' : 'Listening…',
+      finalT, interimT, trO: mode === 'thinking' ? 0.6 : 1,
+      border: voice ? '2px solid #D5AF36' : (mode === 'text' ? '1.5px solid #CDBFA6' : '1.5px solid #E6DBC8'),
+      listening: mode === 'listening', thinking: mode === 'thinking',
+      micIcon: mode === 'listening' ? 'stop' : 'mic',
+      micBg: mode === 'thinking' ? '#F1E2B8' : '#D5AF36',
+      micO: isMic ? 1 : 0, micS: isMic ? 1 : 0.6,
+      sendO: isMic ? 0 : 1, sendS: isMic ? 0.6 : (mode === 'sending' ? 0.92 : 1),
+      sendBg: mode === 'text' ? '#2F2A24' : '#EAE0D5', sendFg: mode === 'text' ? '#FFF8F0' : '#A89C8A',
+      rightLabel: isMic ? 'Talk' : 'Send',
+      onRight: () => {
+        if (!live) return;
+        if (mode === 'empty') this.startListening();
+        else if (mode === 'listening') this.stopListening();
+        else if (mode === 'text') this.send();
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
