@@ -197,7 +197,8 @@ test('service: no match creates an unsaved client for this user', async () => {
   const out = await matchOrCreateClient(supabase, 'u1', { name: '  Zed Plumbing ', address: '1 Main' });
   assert.equal(out.status, 'created');
   assert.deepEqual(calls.inserts, [{ user_id: 'u1', name: 'Zed Plumbing', address: '1 Main' }]);
-  assert.equal(calls.inserts[0].saved_at, undefined);
+  // deepEqual above narrows calls.inserts to the expected shape; read through a cast.
+  assert.equal((calls.inserts[0] as Record<string, unknown>).saved_at, undefined);
 });
 
 test('service: exact match refreshes address/phone and never inserts', async () => {
