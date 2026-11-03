@@ -2745,7 +2745,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         return;
       }
       if (!res.ok) {
-        setMessages((m) => [...m, aMsg(data.reply ?? "Couldn't read that one.")]);
+        // 413 (too big), 415 (not a photo), 429 (capped) and 500 (ours) each
+        // have a cause of their own; the server's reply is only the payload.
+        setMessages((m) => [...m, aMsg(userMessage({ status: res.status, code: data.error ?? null, message: data.reply ?? null }))]);
         setReceipt(null);
         return;
       }
@@ -2768,8 +2770,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // What was bought (the reader's short phrase); editable on the card.
         description: typeof data.description === 'string' ? data.description : null,
       });
-    } catch {
-      setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
+    } catch (err) {
+      // A thrown upload is offline or ours — the classifier can tell which.
+      setMessages((m) => [...m, aMsg(userMessage(err))]);
       setReceipt(null);
     }
     // No finally here — onPickReceipt's finally owns clearing the phase.
