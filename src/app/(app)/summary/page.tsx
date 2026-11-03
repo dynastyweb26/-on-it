@@ -133,7 +133,7 @@ export default function TaxSummary() {
         setOwed(cached.owed);
         setSelected(cached.selected);
       }
-      const [exp, pay, owe] = await Promise.all([
+      const [exp, pay, owe, other] = await Promise.all([
         supabase.from('expenses').select('amount, category, spent_on').is('deleted_at', null),
         supabase.from('invoice_payments')
           .select('amount, paid_at, method, stripe_checkout_session_id, invoices!inner(client_name, invoice_number, kind, deleted_at)')
@@ -144,9 +144,13 @@ export default function TaxSummary() {
           .is('deleted_at', null)
           .eq('kind', 'invoice')
           .in('status', ['sent', 'overdue']),
+        // Other money received: income that is not a customer paying an invoice.
+        supabase.from('other_income')
+          .select('amount, received_on, client_name, classification, deleted_at')
+          .is('deleted_at', null),
       ]);
-      if (exp.error || pay.error || owe.error) {
-        console.error('summary read failed', exp.error ?? pay.error ?? owe.error);
+      if (exp.error || pay.error || owe.error || other.error) {
+        console.error('summary read failed', exp.error ?? pay.error ?? owe.error ?? other.error);
         // Nothing cached: show the empty view instead of hanging on the
         // skeleton. With a cached copy, leave it on screen.
         if (!cached) {
@@ -173,6 +177,16 @@ export default function TaxSummary() {
           invoice_number: inv?.invoice_number ?? null,
         };
       });
+      // Other income joins the income rows: same shape, so the list, the
+      // period buckets and the PDF all include it without a second read path.
+      const oIncome = ((other.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+        amount: r.amount as number | string,
+        paid_at: `${String(r.received_on)}T12:00:00.000Z`,
+        client_name: (r.client_name as string | null) ?? 'Other income',
+        method: 'other',
+        invoice_number: null,
+      }));
+      pRows.push(...oIncome);
       const oRows = (owe.data ?? []) as InvoiceLite[];
       setExpenses(eRows);
       setPayments(pRows);

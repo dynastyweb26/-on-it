@@ -22,6 +22,7 @@ import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import { reviewQueue, unaccountedItems } from '@/lib/bank-tracking';
+import { sumOtherIncome } from '@/lib/other-income';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -179,6 +180,7 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
       { data: invs, error: invErr },
       { data: pays, error: payErr },
       { data: exps, error: expErr },
+      { data: otherIn, error: otherErr },
     ] = await Promise.all([
       supabase.from('invoices').select('total, status, amount_paid, kind').eq('kind', 'invoice').is('deleted_at', null),
       // The SAME ledger query as the Books summary's income, so the Collected
@@ -188,6 +190,11 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
         .eq('invoices.kind', 'invoice')
         .is('invoices.deleted_at', null),
       supabase.from('expenses').select('amount, spent_on').is('deleted_at', null),
+      // Other money received that is not an invoice payment. Collected is the
+      // ledger PLUS this, so the tile stays equal to the income list it opens.
+      supabase.from('other_income')
+        .select('amount, classification, deleted_at')
+        .is('deleted_at', null),
     ]);
     // Cash basis (Jules F2). "Collected" is money actually received: the sum of
     // the invoice_payments ledger (deposits and partial payments included), not
@@ -195,14 +202,15 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     // "Still owed" is the unpaid remainder of sent/overdue invoices, so a deposit
     // already collected is counted once (in collected) and not again here.
     const rows = invs ?? [];
-    const collected = (pays ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    const collected = (pays ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0)
+      + sumOtherIncome(otherIn as unknown as { amount: string | number }[] | null);
     const outstanding = rows
       .filter((i) => ['sent', 'overdue'].includes(i.status))
       .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
-    if (invErr || payErr || expErr) {
+    if (invErr || payErr || expErr || otherErr) {
       // A failed refresh leaves the figures on screen (cached or last-good)
       // instead of replacing them with $0.00, which reads as an empty account.
-      console.error('books totals read failed', invErr ?? payErr ?? expErr);
+      console.error('books totals read failed', invErr ?? payErr ?? expErr ?? otherErr);
       return;
     }
     const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
