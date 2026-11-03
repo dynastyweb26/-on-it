@@ -873,7 +873,26 @@ html[data-splash=""] .onit-splash {
    a new bubble rises 8px in 240ms. "On It is thinking…" uses the On It
    spinner (MOTION-SPEC §2), not typing dots. */
 @keyframes onit-msg-in { from { opacity: 0; transform: translateY(8px); } }
-.onit-msg-in { animation: onit-msg-in var(--motion-base) var(--ease-emphasized) both; }
+@keyframes onit-msg-user-in { from { opacity: 0; transform: translateY(6px); } }
+/* Per role: you 160ms, On It 180ms (motion inventory). */
+.onit-msg-in-user { animation: onit-msg-user-in 160ms var(--ease-emphasized) both; }
+.onit-msg-in-bot { animation: onit-msg-in 180ms var(--ease-emphasized) both; }
+
+/* The day divider (TODAY) fades in under the transcript, once. */
+@keyframes onit-day-in { from { opacity: 0; transform: translateY(4px); } }
+.onit-day-in { animation: onit-day-in var(--motion-settle) var(--ease-standard) both; }
+
+/* The "Heads up" duplicate note in the builder: 6px rise, 260ms, 200ms after
+   the sheet itself (design: "y 6→0 260 settle, +200 after sheet"). */
+@keyframes onit-heads-up { from { opacity: 0; transform: translateY(6px); } }
+.onit-heads-up { animation: onit-heads-up var(--motion-settle) var(--ease-settle) 200ms both; }
+
+/* In-chat nudge cards (payouts tip, feedback ask, add-your-terms): 260ms fade. */
+.onit-nudge-in { animation: onit-fade var(--motion-settle) var(--ease-settle) both; }
+
+/* The builder sheet rises from the composer edge when it opens (300ms settle). */
+@keyframes onit-builder-in { from { opacity: 0; transform: translateY(18px); } }
+.onit-builder-in { animation: onit-builder-in 300ms var(--ease-settle) both; }
 
 /* The assistant monogram (AssistantMark): a 4px gold dot, and a hairline ring
    that breathes out while a reply is being written. Transform/opacity only, so
@@ -902,7 +921,7 @@ html[data-splash=""] .onit-splash {
 }
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
-.onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
+.onit-card-enter { animation: onit-card-in 220ms var(--ease-standard) both; }
 .onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
 /* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the
    card and skip rendering until scrolled to, so a 20+ item card stays smooth. */

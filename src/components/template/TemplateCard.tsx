@@ -206,7 +206,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
 
   return (
     <LedgerMotionProvider>
-    <div data-builder="" className="onit-rise rounded-[22px] border border-outline-variant/60 bg-surface-container-low p-3 shadow-card"
+    <div data-builder="" className="onit-builder-in rounded-[22px] border border-outline-variant/60 bg-surface-container-low p-3 shadow-card"
       role="group" aria-label={`New ${noun}`}>
       {/* Header */}
       <div className="flex items-center gap-2">
@@ -341,7 +341,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
       </button>
 
       {duplicateNote && !hint && (
-        <p role="status" className="mt-2 flex items-start gap-2 rounded-[12px] bg-primary-soft px-3 py-2 text-[13.5px] text-on-background">
+        <p role="status" className="onit-heads-up mt-2 flex items-start gap-2 rounded-[12px] bg-primary-soft px-3 py-2 text-[13.5px] text-on-background">
           <Icon name="history" size={18} className="mt-0.5 shrink-0" />{duplicateNote}
         </p>
       )}

@@ -3894,7 +3894,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
-          <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
+          <div className="onit-day-in py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
         )}
         {/* Payouts empty-state nudge — shown once at the top of a blank chat when
             Connect is enabled but no payment processor is connected yet. Same
@@ -4051,7 +4051,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   ${m.role === 'user'
                     ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
                     : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
-                  restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
+                  restoredMsgIdsRef.current.has(m.id)
+                    ? ''
+                    : m.role === 'user' ? ' onit-msg-in-user' : ' onit-msg-in-bot'}`}
               >
                 {m.content}
               </div>
