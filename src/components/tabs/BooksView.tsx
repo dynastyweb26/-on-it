@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import BooksTotalsSkeleton from '@/components/BooksTotalsSkeleton';
 import RecapsCard from '@/components/recap/RecapsCard';
+import useDepositReview from '@/components/bank/useDepositReview';
+import { ALERT_INK, ALERT_RED, chargeCue, collectedAria, depositCue, spentAria } from '@/lib/books-alert';
 import AddExpenseSheet from '@/components/AddExpenseSheet';
 import RecurringBooksRow from '@/components/recurring/RecurringBooksRow';
 import RecurringSkipBanner from '@/components/recurring/RecurringSkipBanner';
@@ -98,6 +100,9 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   // CHANGES.md · item 9: a red dot on Spent while a bank expense still waits in
   // To review. Derived from the same state as the nav dot, so it clears at 0.
   const spentToReview = bankState ? reviewQueue(bankState).filter((item) => item.kind === 'expense').length : 0;
+  // The Collected side: deposits the stack still has to decide. To review only —
+  // Ignored is a decision and counts nowhere (CHANGES.md · item 2).
+  const depositsToReview = useDepositReview(bankEnabled);
   const needsReconnect = bank?.bank.status === 'needsReconnect';
   const bankSpentRef = useRef(bankSpent);
   bankSpentRef.current = bankSpent;
@@ -332,9 +337,9 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
           <div data-coach="books-stats" className="@4xl:col-span-2 flex flex-col gap-2 xl:col-span-1 xl:gap-3">
             <div className="grid grid-cols-2 gap-2.5 md:gap-4 xl:gap-3 xl:grid-rows-1">
               <MetricTile href="/invoices?filter=unpaid" value={tile.outstanding} label="Still owed" dot="bg-primary-container" hint="see unpaid invoices" tone="owed" intro={intro} order={0} dim={isZero} />
-              <MetricTile href="/income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} />
+              <MetricTile href="/income" value={tile.collected} label="Collected" dot="bg-paid" hint="see income" intro={intro} order={1} dim={isZero} alert={bankEnabled ? depositsToReview : 0} />
             </div>
-            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} alert={bankEnabled && spentToReview > 0} />
+            <SpentRow key={`spent-${spentFlash}`} href="/expenses" value={tile.spent} label="Spent" dot="bg-outline" hint="see expenses" intro={intro} order={2} flash={spentFlash > 0} dim={isZero} alert={bankEnabled ? spentToReview : 0} />
           </div>
         </div>
         {/* Totals footnote: what the bank has that these figures do not. */}
@@ -410,19 +415,40 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
   );
 }
 
-function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = false, order = 0, dim = false }: {
+function AlertBadge({ count }: { count: number }) {
+  // 24px tall, #c8412e, white ink, with the 2.4s ring. aria-hidden: the link's
+  // own label already says how many are waiting.
+  return (
+    <span
+      aria-hidden
+      className="bank-alert-ring flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-1.5 text-[13px] font-extrabold leading-none text-white tabular-nums"
+      style={{ background: ALERT_RED }}
+    >
+      {count}
+    </span>
+  );
+}
+
+function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = false, order = 0, dim = false, alert = 0 }: {
   href: string; value: number; label: string; dot: string; hint: string;
   tone?: 'plain' | 'owed'; intro?: boolean; order?: number; dim?: boolean;
+  /** Items waiting in To review: badge, cue line, red border and slow glow. */
+  alert?: number;
 }) {
   // Design 1b half tile. The amount is the exact money() string, split so the
   // cents can shrink; `container-type` lets 15cqi scale it to the tile while
   // the clamp floor/ceiling keeps six figures inside 360px. Never truncated.
   const owed = tone === 'owed';
+  const aria = label === 'Collected'
+    ? collectedAria(money(value), alert)
+    : `${label}: ${money(value)}. Tap to ${hint}`;
   return (
     <Link
       href={href}
-      aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] xl:rounded-card xl:p-4 ${owed ? 'border-primary-container/40' : 'border-outline-variant/60'} bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
+      aria-label={aria}
+      className={`[container-type:inline-size] flex min-h-touch min-w-0 flex-col gap-2 rounded-[18px] border p-3.5 shadow-[0_1px_2px_rgba(34,30,24,.05)] transition-transform duration-[120ms] active:scale-[0.97] xl:rounded-card xl:p-4 ${
+        alert > 0 ? 'bank-alert-pulse' : owed ? 'border-primary-container/40' : 'border-outline-variant/60'
+      } bg-surface-container-lowest active:bg-surface-container${intro ? ' onit-rise' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
       <div className="flex min-w-0 items-center gap-1.5">
@@ -430,8 +456,16 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
           style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
         <span className={`whitespace-nowrap text-[13px] md:text-[13.5px] font-semibold ${owed ? 'text-primary' : 'text-on-surface-variant'}`}>{label}</span>
         <span className="flex-1" />
-        <Icon name="chevron_right" size={18} className={`shrink-0 ${owed ? 'text-primary/50' : 'text-outline'}`} />
+        {alert > 0
+          ? <AlertBadge count={alert} />
+          : <Icon name="chevron_right" size={18} className={`shrink-0 ${owed ? 'text-primary/50' : 'text-outline'}`} />}
       </div>
+      {alert > 0 && (
+        <div className="flex items-center gap-1 text-[12.5px] font-bold leading-none" style={{ color: ALERT_INK }}>
+          {depositCue(alert)}
+          <Icon name="arrow_forward" size={14} />
+        </div>
+      )}
       <div className={`whitespace-nowrap font-display text-[clamp(17px,15cqi,26px)] xl:text-[26px] font-extrabold leading-[1.1] tracking-[-0.03em] text-on-background tabular-nums${dim ? ' opacity-40' : ''}`}>
         <MoneyText text={money(value)} centsClassName="text-[0.62em] text-on-surface-variant/70" />
       </div>
@@ -439,30 +473,38 @@ function MetricTile({ href, value, label, dot, hint, tone = 'plain', intro = fal
   );
 }
 
-function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false, alert = false }: {
+function SpentRow({ href, value, label, dot, hint, intro = false, order = 0, flash = false, dim = false, alert = 0 }: {
   href: string; value: number; label: string; dot: string; hint: string;
   intro?: boolean; order?: number; flash?: boolean; dim?: boolean;
-  /** CHANGES.md · item 9: at least one bank expense is still in To review. */
-  alert?: boolean;
+  /** Bank charges still in To review: badge, cue line, red border and glow. */
+  alert?: number;
 }) {
   // Design 1b: Spent is demoted to one full-width row, so even a six-figure
   // amount with cents has the whole row's width. `flash` still bumps the value
-  // once after a new expense; no colour, per the no-coloured-numbers rule.
+  // once after a new expense; no coloured numbers, per the house rule.
   return (
     <Link
       href={href}
-      aria-label={`${label}: ${money(value)}. Tap to ${hint}`}
-      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border border-outline-variant/60 bg-surface-container-lowest px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0${intro ? ' onit-rise' : ''}${flash ? ' bank-gold-glow' : ''}`}
+      aria-label={spentAria(money(value), alert)}
+      className={`flex min-h-touch items-center gap-2.5 rounded-[16px] border px-3.5 py-3 transition-transform duration-[120ms] active:scale-[0.98] active:bg-surface-container xl:h-[52px] xl:rounded-[14px] xl:px-[18px] xl:py-0 ${
+        alert > 0 ? 'bank-alert-pulse' : 'border-outline-variant/60'
+      }${intro ? ' onit-rise' : ''}${flash ? ' bank-gold-glow' : ''}`}
       style={intro ? { animationDelay: `${70 * (order + 1)}ms` } : undefined}
     >
-      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${alert ? 'bg-[var(--oi-alert)]' : dot}${intro ? ' onit-pop' : alert ? ' bank-dot-pop' : ''}`}
+      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${alert > 0 ? 'bg-[var(--oi-alert)]' : dot}${intro ? ' onit-pop' : alert > 0 ? ' bank-dot-pop' : ''}`}
         style={intro ? { animationDelay: `${700 + 70 * order}ms` } : undefined} />
-      <span className="whitespace-nowrap text-[14.5px] font-semibold text-on-surface-variant">{label}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="whitespace-nowrap text-[14.5px] font-semibold text-on-surface-variant">{label}</span>
+        {alert > 0 && (
+          <span className="text-[12.5px] font-bold leading-tight" style={{ color: ALERT_INK }}>{chargeCue(alert)}</span>
+        )}
+      </span>
       <span className="flex-1" />
+      {alert > 0 && <AlertBadge count={alert} />}
       <span className={`whitespace-nowrap font-display text-[16px] md:text-[18px] font-bold leading-none tracking-[-0.02em] text-on-surface-variant tabular-nums${dim ? ' opacity-40' : ''}${flash ? ' onit-bump' : ''}`}>
         <MoneyText text={money(value)} centsClassName="text-[0.72em] text-on-surface-variant/70" />
       </span>
-      <Icon name="chevron_right" size={18} className="shrink-0 text-outline" />
+      {alert > 0 ? null : <Icon name="chevron_right" size={18} className="shrink-0 text-outline" />}
     </Link>
   );
 }

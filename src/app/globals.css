@@ -1032,3 +1032,23 @@ html[data-splash=""] .onit-splash {
 @keyframes ledger-title { from { opacity: 0; transform: translateY(4px); } }
 .ledger-title { animation: ledger-title 240ms var(--ease-standard) both; }
 @media (prefers-reduced-motion: reduce) { .ledger-title { animation: none; } }
+
+/* Books alerts: money waiting in To review. Not an error, so the row keeps its
+   layout and only gains a #efc9c1 border and a slow glow. */
+@keyframes bank-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 65, 46, 0); }
+  50%      { box-shadow: 0 0 0 5px rgba(200, 65, 46, .10); }
+}
+.bank-alert-pulse { animation: bank-alert-pulse 3.2s ease-in-out infinite; border-color: #efc9c1 !important; }
+
+@keyframes bank-alert-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(200, 65, 46, .45); }
+  70%  { box-shadow: 0 0 0 7px rgba(200, 65, 46, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 65, 46, 0); }
+}
+.bank-alert-ring { animation: bank-alert-ring 2.4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bank-alert-pulse, .bank-alert-ring { animation: none; }
+  .bank-alert-pulse { box-shadow: 0 0 0 2px #efc9c1; }
+}

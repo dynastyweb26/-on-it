@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Disp
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import BankToast from './BankToast';
+import { DEPOSITS_CHANGED } from './useDepositReview';
 import DepositCard from './DepositCard';
 import ReviewCard, { type CardAction } from './ReviewCard';
 import StackNav from './StackNav';
@@ -253,6 +254,7 @@ export default function ReviewStack({
         return;
       }
       setDeposits((rows) => restoreDeposit(rows, deposit.id));
+      window.dispatchEvent(new Event(DEPOSITS_CHANGED));
       dispatch({ type: 'filter', filter: 'review' });
       setAnnounce('Back in To review.');
     } catch {
@@ -286,6 +288,7 @@ export default function ReviewStack({
     }));
     setToast(message);
     setAnnounce(message);
+    window.dispatchEvent(new Event(DEPOSITS_CHANGED));
     setIndex((current) => Math.max(0, Math.min(current, queue.length - 2)));
   }, [queue.length]);
 
