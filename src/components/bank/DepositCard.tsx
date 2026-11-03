@@ -26,10 +26,9 @@ import {
 } from '@/lib/other-income';
 import {
   DEPOSITS_URL, depositBody, depositDoneToast, depositNote, depositPaths, depositRefusalMessage,
-  depositSubline, depositSubmit, type ApiDeposit, type DepositInvoice, type DepositPath,
-  type DepositPayment,
+  depositSubmit, type ApiDeposit, type DepositInvoice, type DepositPath, type DepositPayment,
 } from '@/lib/bank-deposits';
-import { formatMoney } from '@/lib/bank-tracking';
+import { formatDay, formatMoney } from '@/lib/bank-tracking';
 
 const PATH_COPY: Record<DepositPath, { label: string; sub: string; icon: IconName }> = {
   existing: {
@@ -143,15 +142,22 @@ export default function DepositCard({
               </span>
             )}
           </div>
-          {/* date · account: the row's own account label is not in the deposit
-              payload, so the second half names what the row is. */}
-          <div className="truncate text-[15px] text-on-surface-variant">{depositSubline(deposit)}</div>
+          {/* date · account: the deposit payload carries no account label, so
+              the second half names what the row is. */}
+          <div className="truncate text-[15px] text-on-surface-variant">
+            {formatDay(deposit.occurred_on)} · Bank deposit
+          </div>
         </div>
 
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-col gap-1">
           <span className="bank-money-in font-display text-[40px] font-extrabold leading-none tracking-[-1px] tabular-nums">
             +{formatMoney(deposit.amount_cents / 100)}
           </span>
+          {Number.isInteger(deposit.suggestion?.invoice_number) && (deposit.suggestion?.invoice_number ?? 0) > 0 && (
+            <span className="text-[13px] text-on-surface-variant">
+              Looks like INV-{String(deposit.suggestion?.invoice_number).padStart(4, '0')}
+            </span>
+          )}
         </div>
 
         {note && <p className="text-sm leading-[1.45] text-on-surface-variant">{note}</p>}
