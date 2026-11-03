@@ -27,6 +27,7 @@ import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/pu
 import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
 import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
+import { userMessage } from '@/lib/errors';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
@@ -54,7 +55,7 @@ import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
-import SavePromptCard from '@/components/SavePromptCard';
+import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
 import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import { anchorFor, localToday } from '@/lib/recurring';
@@ -2744,7 +2745,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         return;
       }
       if (!res.ok) {
-        setMessages((m) => [...m, aMsg(data.reply ?? "Couldn't read that one.")]);
+        // 413 (too big), 415 (not a photo), 429 (capped) and 500 (ours) each
+        // have a cause of their own; the server's reply is only the payload.
+        setMessages((m) => [...m, aMsg(userMessage({ status: res.status, code: data.error ?? null, message: data.reply ?? null }))]);
         setReceipt(null);
         return;
       }
@@ -2767,8 +2770,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // What was bought (the reader's short phrase); editable on the card.
         description: typeof data.description === 'string' ? data.description : null,
       });
-    } catch {
-      setMessages((m) => [...m, aMsg('Connection hiccup — try that photo again.')]);
+    } catch (err) {
+      // A thrown upload is offline or ours — the classifier can tell which.
+      setMessages((m) => [...m, aMsg(userMessage(err))]);
       setReceipt(null);
     }
     // No finally here — onPickReceipt's finally owns clearing the phase.
@@ -2941,12 +2945,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         setPhase('thinking'); // transcription is a turn in flight
         let text = '';
-        let data: { text?: string; authRequired?: boolean; message?: string } = {};
+        let data: { text?: string; authRequired?: boolean; message?: string; error?: string } = {};
+        // A failed take has a cause of its own (offline, rate limited, our end).
+        // "Didn't catch that" is only honest for a clean 200 with no transcript.
+        let failure: unknown = null;
         try {
           const res = await fetch('/api/transcribe', { method: 'POST', body: blob });
-          data = await res.json();
+          data = await res.json().catch(() => ({}));
+          if (!res.ok) failure = { status: res.status, code: data.error ?? null, message: data.message ?? null };
           text = (data.text ?? '').trim();
-        } catch { /* treated as "didn't catch that" */ }
+        } catch (err) { failure = err; }
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
@@ -2958,6 +2966,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Clear before delegating to send(), which re-claims the turn (its guard
         // reads `phase`, so it must be idle here). No-text take just reports back.
         setPhase(null);
+        // Name the cause. A 429 (today's cap), a 500 and an offline take all
+        // used to read "Didn't catch that", which blamed the user's speech.
+        if (failure) {
+          setMessages((m) => [...m, aMsg(userMessage(failure))]);
+          return;
+        }
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
@@ -3188,9 +3202,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const add = [...(cp ? [cp] : []), ...productPrompts(n, lines)];
     if (add.length) setPromptQueue((q) => enqueue(q, promptShownRef.current, add));
   }
-  async function saveFromPrompt(p: SavePrompt): Promise<boolean> {
+  async function saveFromPrompt(p: SavePrompt): Promise<PromptSaveResult> {
+    // A signed-out session is a cause of its own, not a failed save.
+    const signedOut = (): PromptSaveResult => ({ ok: false, message: userMessage({ status: 401 }) });
     if (p.kind === 'recurring') {
-      if (!profile) return false;
+      if (!profile) return signedOut();
       const { error } = await supabase.from('recurring_expenses').insert({
         user_id: profile.id, vendor: p.name, amount: p.amount, category: p.category,
         cadence: p.cadence, anchor_day: anchorFor(p.cadence, p.nextOn), next_on: p.nextOn, auto_log: true,
@@ -3201,40 +3217,41 @@ export default function Chat({ active = true }: { active?: boolean }) {
       if (error?.hint === 'PAYWALL_RECURRING') {
         setPromptShown(null);
         setPaywallFor('recurring');
-        return false;
+        return { ok: false, message: '' }; // the card leaves; the wall speaks
       }
       // 23505: it's already recurring (another device, a moment ago) — that's the goal.
-      if (error && error.code !== '23505') return false;
+      if (error && error.code !== '23505') return { ok: false, message: userMessage(error) };
       setMessages((m) => [...m, aMsg(savedLine(p, localToday()))]);
-      return true;
+      return { ok: true };
     }
     if (p.kind === 'client') {
       // Through the client service (save mode = the same save_client RPC, run
       // with the stored spelling). The prompt is only offered for a client that
       // already matched exactly, so this is a match; if it somehow isn't, ask
       // instead of creating a second client.
-      if (!profile) return false;
+      if (!profile) return signedOut();
       let saved: Awaited<ReturnType<typeof matchOrCreateClient>>;
       try {
         saved = await matchOrCreateClient(supabase, profile.id, { name: p.name }, { save: true });
-      } catch { return false; }
+      } catch (err) { return { ok: false, message: userMessage(err) }; }
       if (saved.status === 'ambiguous') {
         setPromptShown(null);
         setMessages((m) => [...m, aMsg(`I have more than one client like ${p.name}. Open Clients to save the right one.`, { skipHistory: true })]);
-        return false;
+        return { ok: false, message: '' }; // the card leaves; the chat says which
       }
-      if (saved.status === 'invalid') return false;
+      if (saved.status === 'invalid') return { ok: false, message: userMessage({ status: 400 }) };
       markNewEntry('clients', saved.client.id); // glows in Clients (2·14)
     } else {
       // Price / unit are the last used ones, already on the row (record_product_use).
       const { data, error } = await supabase.from('products')
         .update({ saved_at: new Date().toISOString(), deleted_at: null })
         .eq('name_key', p.name.trim().toLowerCase()).select('id');
-      if (error || !data?.length) return false;
+      // No row matched the name: it is gone, or the write was refused. Both are causes.
+      if (error || !data?.length) return { ok: false, message: userMessage(error ?? { status: 404 }) };
       markNewEntry('products', clientNameKey(p.name));
     }
     setMessages((m) => [...m, aMsg(savedLine(p))]);
-    return true;
+    return { ok: true };
   }
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();

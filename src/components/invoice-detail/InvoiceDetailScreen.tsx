@@ -795,7 +795,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       .eq('id', id);
     if (error) {
       setInv((p: any) => ({ ...p, ...prev }));
-      setShareError("Couldn’t save the deposit — check your connection and try again.");
+      // The row was refused for a reason (offline, signed out, permission,
+      // constraint) — say that reason, not "check your connection".
+      setShareError(userMessage(error));
     } else {
       setShareError(null);
     }

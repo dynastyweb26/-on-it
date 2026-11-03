@@ -1,11 +1,18 @@
 // One place that turns any error into what the user should read next.
-// The raw error is logged, never rendered. Five outcomes only:
-// offline / signed out / bad input / not found / our end.
-export type ErrorKind = 'offline' | 'signed_out' | 'bad_input' | 'not_found' | 'our_end';
+// The raw error is logged, never rendered. Every cause gets its own sentence:
+// offline / signed out / rate limit / too large / unsupported file /
+// duplicate / bad input / not found / our end.
+export type ErrorKind =
+  | 'offline' | 'signed_out' | 'rate_limit' | 'too_large' | 'unsupported'
+  | 'duplicate' | 'bad_input' | 'not_found' | 'our_end';
 
 export const ERROR_MESSAGE: Record<ErrorKind, string> = {
   offline: 'No connection. Check your signal and try again.',
   signed_out: "You've been signed out. Sign in again to keep going.",
+  rate_limit: "You've hit the limit for now. Try again a little later.",
+  too_large: 'That file is too big. Try a smaller one.',
+  unsupported: "That file type can't be read. Send a photo instead.",
+  duplicate: 'That name is already taken. Use a different one.',
   bad_input: "Something doesn't look right. Check the highlighted field and try again.",
   not_found: "We couldn't find that. It may have been deleted.",
   our_end: 'Something broke on our end, not yours. Try again in a minute.',
@@ -55,15 +62,33 @@ export function classifyError(error: unknown): ErrorKind {
   if (status === 401 || code === 'PGRST301' || code === '401' || matches(message, /jwt expired|invalid jwt|not authenticated|unauthorized|auth session missing|sign in again/i)) {
     return 'signed_out';
   }
+  // Rate limited and day-capped ("that's today's voice limit") is a
+  // try-again-later cause, never a failure of ours.
+  if (status === 429 || code === '429' || matches(message, /rate limit|rate limited|too many|slow down|daily limit|voice limit|receipt limit|limit reached|hit the limit|resets tomorrow/i)) {
+    return 'rate_limit';
+  }
+  // 413: the file was readable, just bigger than we accept.
+  if (status === 413 || matches(message, /too large|too big|payload too large|file size/i)) {
+    return 'too_large';
+  }
+  // 415: the file's type, not its size or contents.
+  if (status === 415 || matches(message, /bad type|unsupported (media|file) ?type|isn't a (photo|file) i can read/i)) {
+    return 'unsupported';
+  }
+  // 23505 is a unique-name collision (a client, item or recurring vendor
+  // already on file) — its own cause, because "check the field" misleads.
+  if (code === '23505' || matches(message, /duplicate key|already exists|already have .*named/i)) {
+    return 'duplicate';
+  }
   if (status === 404 || code === 'PGRST116' || matches(message, /not found|no rows|0 rows|does not exist|couldn't find/i)) {
     return 'not_found';
   }
   if (
     status === 400 || status === 409 || status === 422
-    || code === '23505' || code === '23503' || code === '23502' || code === '23514'
+    || code === '23503' || code === '23502' || code === '23514'
     || code.startsWith('22') || code.startsWith('23')
     || e.name === 'ZodError'
-    || matches(message, /invalid|validation|required|duplicate|already exists|too short|too long|doesn't look right/i)
+    || matches(message, /invalid|validation|required|too short|too long|doesn't look right/i)
   ) {
     return 'bad_input';
   }
