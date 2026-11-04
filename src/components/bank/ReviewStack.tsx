@@ -44,6 +44,7 @@ import {
 import {
   cardKindOf, ignoredEntries, restoreDeposit, resolveDeposit, stackEntries, type StackEntry,
 } from '@/lib/bank-stack';
+import { STACK_CARD_SLOT } from '@/lib/stack-fit';
 
 type Leaving = {
   item: BankItem;
@@ -446,7 +447,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex max-h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[calc(100dvh-32px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-[calc(100dvh-32px)] md:max-h-[680px] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -569,7 +570,7 @@ export default function ReviewStack({
                   <div
                     key={`${entry.kind}-${entry.id}`}
                     ref={isTop ? topCardRef : undefined}
-                    className={isTop ? 'relative' : 'absolute inset-0'}
+                    className={STACK_CARD_SLOT}
                     style={{
                       zIndex: 30 - depth,
                       transform: isTop ? swipeTransform(drag, reduce || !dragging) : undefined,
