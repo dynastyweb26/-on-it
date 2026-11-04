@@ -11,6 +11,18 @@ export const ENABLE_CAMERA_ANIMATION = false; // Vaulted: decision pending.
 // on is an env var plus a redeploy — never a runtime lookup.
 export const IN_APP_CAMERA = process.env.NEXT_PUBLIC_IN_APP_CAMERA === 'true';
 
+// AI Smart (Slice 0): the read-only tool loop behind POST /api/ask. Two gates,
+// both required, so nothing turns on by accident — a build-time public flag (the
+// same inlining as IN_APP_CAMERA above) and a server-side preview-only check (the
+// same shape as bankTrackingForEnv below). Production never serves /api/ask, and
+// neither does local development unless both gates are deliberately set.
+export const AI_TOOLS = process.env.NEXT_PUBLIC_AI_TOOLS === 'true';
+
+/** Preview-only, fails closed: production, local dev and an unset env are off. */
+export function aiToolsForEnv(vercelEnv: string | undefined): boolean {
+  return vercelEnv === 'preview';
+}
+
 /**
  * Bank tracking (mock phase 1: review stack, bank accounts, Expenses and
  * Books). SPEC.txt keeps it behind a flag and off in production. VERCEL_ENV is
