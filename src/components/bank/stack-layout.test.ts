@@ -85,6 +85,13 @@ test('the sheet has a fixed height on phones and on desktop', () => {
     'the desktop dialog is a definite height too');
 });
 
+test('the Ignored tab cannot resize the sheet', () => {
+  assert.ok(/filter === 'ignored'[\s\S]{0,600}?absolute inset-0/.test(stackSource),
+    'the Ignored pane fills the same card zone, so switching tabs changes no height');
+  assert.ok(/filter === 'ignored'[\s\S]{0,900}?grid flex-1 place-items-center/.test(stackSource),
+    'the empty Ignored state is centred inside that zone instead of collapsing it');
+});
+
 test('at 390x700 and 1280x700 the buttons stay inside the dialog', () => {
   const shapes: StackCardShape[] = ['expense', 'deposit-existing', 'deposit-chips'];
   for (const [width, height] of [[390, 700], [1280, 700]] as const) {

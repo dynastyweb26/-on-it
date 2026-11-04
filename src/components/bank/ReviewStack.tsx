@@ -527,12 +527,20 @@ export default function ReviewStack({
           onPointerCancel={onPointerUp}
         >
           {filter === 'ignored' ? (
-            <div className="bank-fade max-h-full overflow-y-auto rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
+            // Same height as To review: the pane owns the whole card zone and
+            // the list scrolls inside it, so switching tabs never resizes the
+            // sheet and the empty state sits in the middle of it
+            // (CHANGES.md · item 7).
+            <div className="bank-fade absolute inset-0 flex flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
               {passed.length === 0 ? (
-                <p className="px-3.5 py-6 text-center text-sm text-on-surface-variant">
+                <p className="grid flex-1 place-items-center px-6 text-center text-sm text-on-surface-variant">
                   Nothing ignored. Cards you pass on land here.
                 </p>
-              ) : passed.map(ignoredRow)}
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  {passed.map(ignoredRow)}
+                </div>
+              )}
             </div>
           ) : pending === 0 ? (
             caught ? (
