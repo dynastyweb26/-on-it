@@ -934,10 +934,12 @@ html[data-splash=""] .onit-splash {
   animation: onit-caret-blink 1s steps(1, end) infinite;
 }
 
-/* Composer field: grows one 22px line at a time to four (88px), then scrolls
-   under a 12px top fade. The height itself is written by ChatView. */
+/* Composer field: grows one 22px line at a time to four, then scrolls under a
+   12px top fade. The cap is four lines plus the field's vertical padding
+   (border-box); ChatView measures it and writes --composer-max-height, so the
+   100px fallback (4 × 22 + 12) only covers the first paint. */
 .onit-composer-field {
-  max-height: 88px;
+  max-height: var(--composer-max-height, 100px);
   overflow-y: auto;
   transition: height 150ms var(--ease-settle);
 }
