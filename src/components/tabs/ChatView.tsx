@@ -4305,7 +4305,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </button>
             ))}
             <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="pressable mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
               disabled={phase !== null}
               onClick={() => pickClientChoice('new')}
             >
