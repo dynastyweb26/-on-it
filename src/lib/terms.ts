@@ -7,10 +7,18 @@
 
 export const TERMS_MAX = 3000;
 
-/** Trimmed terms, or null when empty / not a string / over the cap. */
+/** Cleaned terms, or null when empty / not a string / over the cap.
+ *  Normalizes Unicode NFKC, strips format control characters (\p{Cf}),
+ *  normalizes line breaks, and removes control characters before capping length (SECURITY.md layer 6). */
 export function cleanTerms(v: unknown): string | null {
   if (typeof v !== 'string') return null;
-  const t = v.trim();
+  const t = v
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .replace(/\r\n?/g, '\n')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
   if (!t.length) return null;
   return t.slice(0, TERMS_MAX);
 }
