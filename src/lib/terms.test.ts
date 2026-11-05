@@ -10,6 +10,17 @@ test('cleanTerms trims, empties to null, caps length', () => {
   assert.equal(cleanTerms('x'.repeat(TERMS_MAX + 10))?.length, TERMS_MAX);
 });
 
+test('cleanTerms normalizes Unicode compatibility forms and strips format and control chars', () => {
+  // NFKC converts compatibility characters (e.g. fullwidth 'Ｎｅｔ　３０' -> 'Net 30')
+  assert.equal(cleanTerms('Ｎｅｔ　３０'), 'Net 30');
+  // Invisible format control characters (\p{Cf}, e.g. zero-width space U+200B) stripped
+  assert.equal(cleanTerms('Net\u200B 30'), 'Net 30');
+  // ASCII control characters stripped and CRLF normalized to LF
+  assert.equal(cleanTerms('Net 30\r\nDue upon receipt\u0000\u0007'), 'Net 30\nDue upon receipt');
+  // String consisting solely of control/format characters cleans to null
+  assert.equal(cleanTerms('\u200B\u0000\u0007   \r\n'), null);
+});
+
 test('termsSnapshot is empty when there is nothing to freeze', () => {
   assert.deepEqual(termsSnapshot(null), {});
   assert.deepEqual(termsSnapshot('A'), { terms: 'A' });
