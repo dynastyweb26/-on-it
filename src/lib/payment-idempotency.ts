@@ -29,10 +29,11 @@ export type PaymentLedgerRow = PaymentRowInput & { id: string };
 /** The two database operations, injected so the sequence stays testable. */
 export interface PaymentLedgerIO {
   /**
-   * Insert unless (user_id, idempotency_key) already exists. A repeat must be a
-   * no-op that reports no error (PostgREST `resolution=ignore-duplicates`).
+   * Insert unless (user_id, idempotency_key) already exists. A repeat of the
+   * same payment must be a no-op that reports no error; `fatal` marks a repeat
+   * that must not be forgiven (the key already owns a different payment).
    */
-  insertOnce: (row: PaymentRowInput) => Promise<{ error: unknown }>;
+  insertOnce: (row: PaymentRowInput) => Promise<{ error: unknown; fatal?: boolean }>;
   /** Read the row for this key — the original, whether we just wrote it or not. */
   findByKey: (userId: string, key: string) => Promise<PaymentLedgerRow | null>;
 }
@@ -60,17 +61,20 @@ export interface RecordPaymentResult {
 /**
  * Write the payment once, then return the row that key owns.
  *
- * A repeat never inserts: the database ignores it, and the read-back returns
- * the first row — so the caller shows the same result, not a second payment.
- * An error is only fatal when no row exists for the key (a real failure, not a
- * repeat whose response was lost).
+ * A repeat never inserts: the database raises the unique violation, the adapter
+ * reads the original row back, and the caller shows the same result, not a
+ * second payment. An error is only recoverable when no row exists for the key
+ * (a real failure, not a repeat whose response was lost) and the adapter has
+ * not marked it fatal.
  */
 export async function recordPaymentOnce(
   io: PaymentLedgerIO,
   row: PaymentRowInput,
 ): Promise<RecordPaymentResult> {
-  const { error } = await io.insertOnce(row);
+  const { error, fatal } = await io.insertOnce(row);
   if (error) {
+    // A key already spent on different money is not recoverable by reading.
+    if (fatal) return { ok: false, payment: null, error };
     // The insert may have landed and only the response been lost: the key
     // decides. A row for this key means the money is recorded exactly once.
     const existing = await io.findByKey(row.user_id, row.idempotency_key);
