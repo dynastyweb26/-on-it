@@ -59,6 +59,27 @@ test('offline, not found, and our end keep their own classes', () => {
   assert.equal(classifyError({ status: 503, message: 'boom' }), 'our_end');
 });
 
+test('a constraint or schema fault is ours, never the user\'s field', () => {
+  const onConflict = {
+    status: 400,
+    code: '42P10',
+    message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification',
+  };
+  assert.equal(classifyError(onConflict), 'our_end');
+  assert.equal(userMessage(onConflict), ERROR_MESSAGE.our_end);
+  // The same fault with no SQL code still names the real cause.
+  assert.equal(
+    classifyError({ status: 400, message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' }),
+    'our_end',
+  );
+  assert.equal(classifyError({ status: 400, code: '42703', message: 'column invoice_payments.foo does not exist' }), 'our_end');
+  assert.equal(classifyError({ status: 400, code: 'PGRST204', message: "Could not find the 'foo' column of 'invoice_payments'" }), 'our_end');
+  // Everything else keeps its own mapping.
+  assert.equal(classifyError({ status: 400 }), 'bad_input');
+  assert.equal(classifyError({ code: '23514' }), 'bad_input');
+  assert.equal(classifyError({ code: '23505' }), 'duplicate');
+});
+
 test('no cause is ever reported as offline by accident', () => {
   for (const err of [{ status: 401 }, { status: 429 }, { status: 413 }, { status: 415 }, { code: '23505' }, { status: 500 }]) {
     assert.notEqual(classifyError(err), 'offline');

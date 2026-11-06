@@ -28,6 +28,7 @@ type Errorish = {
   message?: string | null;
   name?: string | null;
   hint?: string | null;
+  details?: string | null;
 };
 
 function asErrorish(error: unknown): Errorish {
@@ -43,6 +44,24 @@ export function isPermissionDenied(error: unknown): boolean {
 
 function matches(text: string | null | undefined, re: RegExp): boolean {
   return typeof text === 'string' && re.test(text);
+}
+
+// Postgres 42xxx is a query/constraint/schema mismatch, not a user's field
+// value; PGRST20x is PostgREST's schema-cache miss for the same reason.
+const SCHEMA_FAULT_CODE = /^(42\d{3}|PGRST20[0-5])$/;
+
+/**
+ * A constraint or schema fault: the query and the database disagree. These
+ * often arrive as HTTP 400, so without this they read as "check the field".
+ */
+export function isSchemaFault(error: unknown): boolean {
+  const e = asErrorish(error);
+  const code = e.code == null ? '' : String(e.code);
+  if (SCHEMA_FAULT_CODE.test(code)) return true;
+  return matches(
+    `${e.message ?? ''} ${e.details ?? ''}`,
+    /no unique or exclusion constraint matching the "?on conflict"? specification|schema cache/i,
+  );
 }
 
 export function classifyError(error: unknown): ErrorKind {
@@ -75,6 +94,8 @@ export function classifyError(error: unknown): ErrorKind {
   if (status === 415 || matches(message, /bad type|unsupported (media|file) ?type|isn't a (photo|file) i can read/i)) {
     return 'unsupported';
   }
+  // A constraint/schema mismatch is ours, whatever the HTTP status says.
+  if (isSchemaFault(e)) return 'our_end';
   // 23505 is a unique-name collision (a client, item or recurring vendor
   // already on file) — its own cause, because "check the field" misleads.
   if (code === '23505' || matches(message, /duplicate key|already exists|already have .*named/i)) {
