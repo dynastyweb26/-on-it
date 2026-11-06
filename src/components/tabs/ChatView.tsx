@@ -4030,15 +4030,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     </LedgerFrame>
   ) : null;
 
-  // Composer field: one line until it needs more, up to four (22px lines,
-  // 88px). Written here because a textarea's scrollHeight can also shrink; the
-  // 150ms height transition and the 12px top fade live in globals.css.
+  // Composer field: one line until it needs more, up to four 22px lines. The
+  // cap has to include the field's vertical padding (the textarea is border-box),
+  // so measure it from the element instead of hard-coding 88px. The same value
+  // feeds the CSS max-height, and the 150ms height transition and the 12px top
+  // fade live in globals.css.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    const style = getComputedStyle(el);
+    const maxHeight =
+      4 * (parseFloat(style.lineHeight) || 22) +
+      (parseFloat(style.paddingTop) || 0) +
+      (parseFloat(style.paddingBottom) || 0);
+    el.style.setProperty('--composer-max-height', `${maxHeight}px`);
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 88)}px`;
-    el.classList.toggle('is-overflowing', el.scrollHeight > 88);
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.classList.toggle('is-overflowing', el.scrollHeight > maxHeight);
   }, [input]);
 
   return (
@@ -4297,7 +4305,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </button>
             ))}
             <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="pressable mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
               disabled={phase !== null}
               onClick={() => pickClientChoice('new')}
             >
