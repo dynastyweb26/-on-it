@@ -11,6 +11,8 @@ import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
+import AssistantMark from '@/components/chat/AssistantMark';
+import StreamText from '@/components/chat/StreamText';
 import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
@@ -41,6 +43,8 @@ import ExpenseCard from '@/components/ExpenseCard';
 import ReceiptBubble from '@/components/ReceiptBubble';
 import LoggedExpenseCard, { type LoggedExpense } from '@/components/LoggedExpenseCard';
 import LineItemsEditor from '@/components/LineItemsEditor';
+import { LedgerFrame, LedgerTotals, LedgerUsageMeter, SentLedgerRow } from '@/components/chat/LedgerCard';
+import { morphSharedNodes } from '@/lib/morph-shared';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
   ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
@@ -713,6 +717,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // now follows per-message input modality (voice vs typed), not session state.
   const [voiceSession, setVoiceSession] = useState(false);
   const [recording, setRecording] = useState(false);
+  // A finished take is uploading/being transcribed (ring spinner in the field).
+  const [transcribing, setTranscribing] = useState(false);
+  // Inline mic problem (denied permission, no mic, no support) — shown above the
+  // field, never as a chat bubble.
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // The bank popup holds off while the mic owns the screen (CHANGES.md · item
   // 10): the shell cannot see this state, so it is mirrored onto the body.
@@ -1705,8 +1714,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setLinkedAmountPaid(0);
     setRenderData(null);
     playCardAnim('lock', 1200);     // chip springs in, padlock settles (MOTION-SPEC §4)
-    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary
-    if (template) dropTemplate();   // sent: the template's job is done
+    if (summary) setCardAfterId(summary.id); // the sent card sits under its summary    // Sent: the builder's job is done — but it morphs into the card first
+    // (design 1a/1b). Nothing about the send changes here: this is after the
+    // server confirmed, and the builder is only held on screen for the beat.
+    if (template) {
+      setMorphing(true);
+      clearTimeout(morphTimerRef.current);
+      morphTimerRef.current = setTimeout(() => {
+        dropTemplate();
+        setMorphing(false);
+      }, 700);
+    }
     // Count each line's item for saved products (fire-and-forget; never blocks
     // or changes the send); it returns the save-prompt candidates (2·13).
     // Template sends only for now: chat lines carry the AI's free-form wording,
@@ -2931,6 +2949,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   async function startRecording() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceSession(false); sessionRef.current = false;
+      setVoiceError("Voice isn't available in this browser. You can type instead.");
+      return;
+    }
+    setVoiceError(null);
     try {
       const stream = await getSessionStream(); // reused across takes — one prompt per session
       const rec = new MediaRecorder(stream);
@@ -2944,6 +2968,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         if (recAbortRef.current) return; // session ended mid-take — discard
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         setPhase('thinking'); // transcription is a turn in flight
+        setTranscribing(true);
         let text = '';
         let data: { text?: string; authRequired?: boolean; message?: string; error?: string } = {};
         // A failed take has a cause of its own (offline, rate limited, our end).
@@ -2955,6 +2980,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           if (!res.ok) failure = { status: res.status, code: data.error ?? null, message: data.message ?? null };
           text = (data.text ?? '').trim();
         } catch (err) { failure = err; }
+        setTranscribing(false);
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
@@ -2975,7 +3001,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Voice auto-sends immediately as a 'voice' message — no cancel window,
         // no send tap. One final transcript per take (record-then-POST), so this
         // fires exactly once. The reply is spoken because the source is 'voice'.
-        if (text) void send(text, 'voice');
+        // The transcript lands in the field first, so the words appear where the
+        // user was speaking before the turn is sent.
+        if (text) { setInput(text); void send(text, 'voice'); }
         else setMessages((m) => [...m, aMsg("Didn't catch that — try again or type it.")]);
       };
       rec.start();
@@ -2986,10 +3014,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
       setVoiceSession(false); sessionRef.current = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      // A second denied tap right after the first would stack an identical
-      // bubble; only add it if the last message isn't already this one.
-      const blocked = micBlockedMessage(err);
-      setMessages((m) => (m[m.length - 1]?.content === blocked ? m : [...m, aMsg(blocked)]));
+      // Inline above the field, not a chat bubble: the session is already over
+      // and the field is the thing the user must fall back to.
+      setTranscribing(false);
+      setVoiceError(micBlockedMessage(err));
     }
   }
 
@@ -3317,6 +3345,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   function endVoiceSession() {
     setVoiceSession(false); sessionRef.current = false;
+    setTranscribing(false); setVoiceError(null);
     stopSpeech();
     if (recording && recorderRef.current) {
       recAbortRef.current = true;
@@ -3413,6 +3442,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     : !!draft && prepState?.sig === draftSignature(draft);
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
+  // The draft controls fold away when the card seals instead of vanishing: they
+  // stay mounted for the 260ms exit (grid rows 1fr -> 0fr, nothing measured) and
+  // the read-only block arrives when it ends. A card restored already locked
+  // swaps at once, and reduced motion swaps at once too.
+  const wasLockedRef = useRef(locked);
+  const [draftControlsOut, setDraftControlsOut] = useState(locked);
+  useEffect(() => {
+    if (!locked) { wasLockedRef.current = false; setDraftControlsOut(false); return; }
+    if (wasLockedRef.current) { setDraftControlsOut(true); return; }
+    wasLockedRef.current = true;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setDraftControlsOut(true);
+      return;
+    }
+    const timer = setTimeout(() => setDraftControlsOut(true), 280);
+    return () => clearTimeout(timer);
+  }, [locked]);
 
   // A locked estimate card needs its public token for Copy link / Share. Read it
   // from the row (RLS: own rows) so a reload or a reopen from history gets it too.
@@ -3460,11 +3506,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
   }
 
+  // Undo last edit: the items area flashes warm gold once (450ms). The counter
+  // keys the wrapper so the flash replays on every undo; nothing else remounts.
+  const [itemsFlash, setItemsFlash] = useState(0);
   function undoLastEdit() {
     if (draftHistory.length === 0) return;
     const previous = draftHistory[draftHistory.length - 1];
     setDraftHistory((prev) => prev.slice(0, -1));
     setDraft(previous);
+    setItemsFlash((n) => n + 1);
   }
 
   // The question is open: the card is up and Send reads "Pick a client first".
@@ -3594,6 +3644,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the new conversation's draft card builds in like any fresh card. The ref
   // drops repeat taps for the whole transition; a 20+ item draft is safe
   // because the build-in only animates the first 8 rows.
+  // Builder → card morph (docs/design/onit-chat · Prototype 1a/1b). The builder
+  // stays mounted for one hero beat AFTER the server confirms (finishFinalize
+  // runs only then), so its shared client/item/price/total nodes can travel into
+  // the card. It ghosts out, then leaves. A timer ref keeps a repeat send from
+  // restarting the beat; unmount clears it.
+  const [morphing, setMorphing] = useState(false);
+  const morphTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(morphTimerRef.current), []);
+  // The travel itself: clones the builder's shared nodes into a fixed overlay and
+  // carries them to the card's nodes (lib/morph-shared, 600ms settle). Both trees
+  // are mounted for this beat — the card renders beside the builder while
+  // `morphing` is true — so the geometry comes from the live DOM, and the timer
+  // above drops the builder once the travel has landed.
+  useEffect(() => {
+    if (!morphing) return;
+    return morphSharedNodes(
+      document.querySelector('[data-builder]'),
+      document.querySelector('[data-ledger-card]'),
+    );
+  }, [morphing]);
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
@@ -3668,29 +3738,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
-  const invoiceCard = ready && draft && !template ? (
-    // Only real text entry / selects opt out (swipeBlockedAt). The card's
-    // padding, labels and buttons hand a horizontal drag to the tab deck.
-    <div className={`card border-primary-container/50 ring-1 ring-primary-container/30${cardAnim === 'enter' ? ' onit-card-enter' : ''}${cardAnim === 'exit' ? ' onit-card-exit' : ''}`}>
-      <div className="mb-3 flex items-center gap-2 text-label-lg font-semibold uppercase tracking-wide text-primary">
-        <Icon name="description" size={18} />
-        {docNoun(docKind(draft))} for {draft.client_name}
-      </div>
-      {locked && (
-        // Read-only: the linked invoice has left 'draft' (sent/paid).
-        <div className={`mb-3 inline-flex items-center gap-1.5 rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface-variant${cardAnim === 'lock' ? ' onit-chip-in' : ''}`}>
-          <Icon name="lock" size={16} filled className={cardAnim === 'lock' ? 'onit-lock-drop' : ''} />
-          {lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))}
-        </div>
-      )}
+  // During the morph the builder is still mounted, so the card has to render
+  // beside it for the shared nodes to travel.
+  const invoiceCard = ready && draft && (!template || morphing) ? (
+    // Ledger sheet (docs/design/onit-chat · CardLedger): the state strip, the
+    // client block and the paper are LedgerCard's; everything below is the
+    // card's own controls, unchanged. Only real text entry / selects opt out
+    // of the tab swipe (swipeBlockedAt) — the card's padding, labels and
+    // buttons hand a horizontal drag to the deck.
+    <LedgerFrame
+      state={!locked ? 'draft' : docKind(draft) === 'quote' ? 'ready' : 'sent'}
+      pillLabel={locked && linkedStatus !== 'sent'
+        ? lockBadgeText(linkedStatus, linkedAmountPaid, docKind(draft))
+        : undefined}
+      kind={docKind(draft)}
+      clientName={draft.client_name}
+      anim={cardAnim}
+    >
       {duplicateHint && !locked && (
         // Passive indicator only — the card stays fully actionable below.
-        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-container/40 px-3 py-1 text-xs font-semibold text-primary">
+        <div className="mb-3 mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-on-background">
           <Icon name="error" size={16} filled />
           Similar invoice sent recently
         </div>
       )}
-      <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} />
+      <div key={`items-${itemsFlash}`} className={`rounded-[10px]${itemsFlash ? ' onit-undo-flash' : ''}`}>
+        <LineItemsEditor items={previewItems} editable={!locked} onChange={applyDraftLineItems} variant="ledger" />
+      </div>
 
       <AttachmentsEditor
         items={attachments}
@@ -3745,7 +3819,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <span className="text-xs font-semibold text-on-surface-variant">%</span>
                 {!locked && (
                   <button type="button" aria-label="Remove tax" onClick={() => { setTaxOpen(false); applyDraftTax(0); }}
-                    className="grid h-11 min-h-[44px] w-11 place-items-center text-on-surface-variant">
+                    className="grid h-11 min-h-[44px] w-11 place-items-center text-on-surface-variant transition active:opacity-60">
                     <Icon name="close" size={16} />
                   </button>
                 )}
@@ -3755,7 +3829,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 type="button"
                 disabled={locked}
                 onClick={() => setTaxOpen(true)}
-                className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-xs font-semibold text-primary outline-none disabled:opacity-50"
+                className="h-11 min-h-[44px] rounded-md border border-outline-variant/60 bg-surface-container-lowest px-3 text-xs font-semibold text-primary outline-none transition active:opacity-60 disabled:opacity-50"
               >
                 + Add tax
               </button>
@@ -3778,54 +3852,49 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </div>
       </div>
 
-      <div className="mt-2 border-t border-outline-variant pt-2.5 space-y-1">
-        {/* Display-only Subtotal + Tax, shown only when a tax rate is set.
-            Values from calculateInvoiceTotals (single source of truth);
-            mirrors the PDF Totals block. No editable tax field here — tax
-            is set via chat / the detail page only. */}
-        {(draft.tax_rate ?? 0) > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Subtotal</span>
-              <span>{money(previewTotals.subtotal)}</span>
+      {/* Charcoal total block (Ledger). Values stay calculateInvoiceTotals'
+          (single source of truth); the tax/deposit lines only describe them. */}
+      <LedgerTotals
+        label={previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Estimate total' : 'Total due'}
+        sublines={
+          (draft.tax_rate ?? 0) > 0 || previewTotals.depositAmount > 0 ? (
+            <div className="mt-1.5 space-y-0.5">
+              {(draft.tax_rate ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">{money(previewTotals.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Tax ({draft.tax_rate}%)</span>
+                    <span className="tabular-nums">{money(previewTotals.taxAmount)}</span>
+                  </div>
+                </>
+              )}
+              {previewTotals.depositAmount > 0 && (
+                <>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
+                    <span className="tabular-nums">{money(previewTotals.depositAmount)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[12px] text-inverse-on-surface/70">
+                    <span>Remaining</span>
+                    <span className="tabular-nums">{money(previewTotals.remaining)}</span>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Tax ({draft.tax_rate}%)</span>
-              <span>{money(previewTotals.taxAmount)}</span>
-            </div>
-          </>
-        )}
-        {previewTotals.depositAmount > 0 && (
-          <>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>Project total</span>
-              <span>{money(previewTotals.total)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-on-surface-variant">
-              <span>{(draft as any).deposit_type === 'percentage' ? `${(draft as any).deposit_value}% deposit` : 'Deposit'}</span>
-              <span>{money(previewTotals.depositAmount)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-on-surface-variant font-medium">
-              <span>Remaining balance</span>
-              <span>{money(previewTotals.remaining)}</span>
-            </div>
-          </>
-        )}
-        <div className="flex items-end justify-between pt-1">
-          <span className="pb-1 text-label-lg font-semibold uppercase text-on-surface-variant">
-            {previewTotals.depositAmount > 0 ? 'Deposit due now' : docKind(draft) === 'quote' ? 'Estimate total' : 'Total due'}
-          </span>
-          <span className="font-display text-numeric-xl tracking-tight text-on-background tabular-nums">
-            <CountUpMoney
-              value={previewTotals.amountDueNow}
-              run={cardAnim === 'enter'}
-              format={money}
-              delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
-            />
-          </span>
-        </div>
-      </div>
-      {locked ? (
+          ) : undefined
+        }
+      >
+        <CountUpMoney
+          value={previewTotals.amountDueNow}
+          run={cardAnim === 'enter'}
+          format={money}
+          delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
+        />
+      </LedgerTotals>
+      {locked && draftControlsOut ? (
         // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
         // unpaid invoice offers "Revise" (opens an editable copy as a new
         // invoice — Commit C); once any payment has landed it stays fully
@@ -3842,7 +3911,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   : <>This invoice was sent, so it&apos;s locked.</>}
               </p>
               {lockedQuote && linkedToken && estimateLink(linkedToken) && (
-                <div className="mt-3">
+                // Copy link, then Share 40ms later (globals: .onit-ready-actions).
+                <div className="mt-3 onit-ready-actions">
                   <EstimateLinkActions
                     url={estimateLink(linkedToken)!}
                     title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
@@ -3850,7 +3920,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
@@ -3866,9 +3936,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </div>
       ) : (
-        <>
+        // Still mounted while it exits, so the seal folds the controls away
+        // instead of dropping the block out from under the layout.
+        <div className={`onit-collapse${locked ? ' is-exiting' : ''}`} aria-hidden={locked || undefined}>
+        <div>
           {!isValidTotal && (
-            <p className="mt-2 text-xs font-semibold text-error">
+            <p className="mt-2 rounded-[10px] bg-error-container px-2.5 py-2 text-xs font-semibold text-error-on-container">
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
@@ -3881,7 +3954,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             {docKind(draft) === 'quote' ? (
               // No file to build or share: the client gets the link.
               <>
-                <Icon name="send" size={18} />
+                {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="send" size={18} />}
                 {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' && !clientQuestionOpen ? (
@@ -3892,7 +3965,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </>
             ) : (
               <>
-                <Icon name="attach_file" size={18} />
+                {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="attach_file" size={18} />}
                 {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
               </>
             )}
@@ -3904,7 +3977,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {/* Invoices only: an estimate has no PDF, so there is nothing to download. */}
           {docKind(draft) === 'invoice' && (
           <div className="mt-1 flex items-center justify-center gap-1">
-            <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant disabled:opacity-40"
+            <button className="min-h-touch inline-flex items-center justify-center gap-1.5 text-sm text-on-surface-variant transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null || !isValidTotal}
               onClick={() => finalize(false, undefined, 'download')}>
               <Icon name="download" size={18} />
@@ -3913,7 +3986,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             {(
               <button
                 type="button"
-                className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant"
+                className="min-h-touch min-w-[44px] inline-flex items-center justify-center text-on-surface-variant transition active:opacity-60"
                 aria-label="About draft downloads"
                 aria-expanded={draftInfoOpen}
                 onClick={() => setDraftInfoOpen((v) => !v)}
@@ -3936,7 +4009,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           <div className="mt-1 flex items-center justify-between gap-2">
             <button
               type="button"
-              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="min-h-touch text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null || draftHistory.length === 0}
               onClick={undoLastEdit}
             >
@@ -3944,17 +4017,37 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </button>
             <button
               type="button"
-              className="min-h-touch text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="min-h-touch text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null}
               onClick={() => send('Actually, let me change something')}
             >
               Change something
             </button>
           </div>
-        </>
+        </div>
+        </div>
       )}
-    </div>
+    </LedgerFrame>
   ) : null;
+
+  // Composer field: one line until it needs more, up to four 22px lines. The
+  // cap has to include the field's vertical padding (the textarea is border-box),
+  // so measure it from the element instead of hard-coding 88px. The same value
+  // feeds the CSS max-height, and the 150ms height transition and the 12px top
+  // fade live in globals.css.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const style = getComputedStyle(el);
+    const maxHeight =
+      4 * (parseFloat(style.lineHeight) || 22) +
+      (parseFloat(style.paddingTop) || 0) +
+      (parseFloat(style.paddingBottom) || 0);
+    el.style.setProperty('--composer-max-height', `${maxHeight}px`);
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.classList.toggle('is-overflowing', el.scrollHeight > maxHeight);
+  }, [input]);
 
   return (
     // xl: the design's 720px column; the composer is a child of it, so the two
@@ -3972,7 +4065,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6"
       >
         {hydrated && dayLabel(messages) && (
-          <div className="py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
+          <div className="onit-day-in py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
         )}
         {/* Payouts empty-state nudge — shown once at the top of a blank chat when
             Connect is enabled but no payment processor is connected yet. Same
@@ -4001,7 +4094,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ]}
           />
         )}
-        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m) => (
+        {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
         <Fragment key={m.id}>{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
@@ -4013,7 +4106,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <div className="flex max-w-[82%] flex-col items-start gap-1">
                 <div
                   key={`${m.id}-${retryShake[m.id] ?? 0}`}
-                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug${
+                  className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-error/40 bg-error-container px-3.5 py-2.5 text-[15px] leading-snug text-error-on-container${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
                   {m.content}
@@ -4066,25 +4159,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.sentCard ? (
-            // Sent invoice summary chip (invoices only) — a compact card showing the
-            // client, doc number, amount due, and due date. Appears right after
-            // the "Sent!" confirmation bubble. Static (no animation needed; the
-            // bubble above already signals the moment).
+            // Sent invoice summary row (Ledger): client, doc number · due,
+            // amount and SENT. Appears right after the "Sent!" bubble.
             <div key={m.id} className="flex flex-col items-start">
-              <div className="flex w-full max-w-[82%] items-center justify-between gap-3 rounded-2xl border border-outline-variant/50 bg-surface-container px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-bold leading-tight text-on-surface">{m.sentCard.clientName}</p>
-                  <p className="mt-0.5 text-xs text-on-surface-variant">
-                    {m.sentCard.invoiceNo} · Due {m.sentCard.dueDate}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-base font-extrabold text-on-surface">{m.sentCard.amount}</span>
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
-                    {m.sentCard.kind === 'quote' ? 'Sent' : '▶ Sent'}
-                  </span>
-                </div>
-              </div>
+              <SentLedgerRow
+                clientName={m.sentCard.clientName}
+                invoiceNo={m.sentCard.invoiceNo}
+                dueDate={m.sentCard.dueDate}
+                amount={m.sentCard.amount}
+              />
             </div>
           ) : m.payoutsNudge ? (
             // Payouts nudge — shown once after a sent invoice when the pro has no
@@ -4130,27 +4213,36 @@ export default function Chat({ active = true }: { active?: boolean }) {
               startAfter={liveReceiptRef.current?.id === m.id ? liveReceiptRef.current.flashPeak : undefined}
             />
           ) : (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {/* Release frames: On It = cream bubble, you = ink bubble. A
-                  message that just arrived rises 8px (motion inventory "New On
-                  It message", 240ms); restored ones are static. */}
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start gap-2'}`}>
+              {/* The monogram opens a run of On It's messages, and only breathes
+                  while a reply is still being written. */}
+              {m.role !== 'user' && messages[mi - 1]?.role !== 'assistant' && (
+                <AssistantMark
+                  pulsing={phase !== null && m.id === messages[messages.length - 1]?.id}
+                />
+              )}
               <div
                 className={`max-w-[82%] whitespace-pre-wrap rounded-[18px] px-3.5 py-2.5 text-[15px] leading-snug
                   ${m.role === 'user'
                     ? 'rounded-br-md bg-inverse-surface text-inverse-on-surface'
                     : 'rounded-bl-md border border-outline-variant/50 bg-surface-container'}${
-                  restoredMsgIdsRef.current.has(m.id) ? '' : ' onit-msg-in'}`}
+                  restoredMsgIdsRef.current.has(m.id)
+                    ? ''
+                    : m.role === 'user' ? ' onit-msg-in-user' : ' onit-msg-in-bot'}`}
               >
-                {m.content}
+                {/* Prose is typed out by StreamText, and a tap on it completes
+                    the line. Restored history, and everything you wrote, is
+                    static — no error, card or quick reply goes through it. */}
+                {restoredMsgIdsRef.current.has(m.id) || m.role === 'user'
+                  ? m.content
+                  : <StreamText text={m.content} />}
               </div>
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
             <>
-              {invoiceUsage.text && (
-                <p className="mt-2 px-1 text-sm text-on-surface-variant">{invoiceUsage.text}</p>
-              )}
+              {invoiceUsage.text && <LedgerUsageMeter text={invoiceUsage.text} />}
               {invoiceUsage.nudge && (
                 <ChatNudgeCard
                   className="mt-2 w-full"
@@ -4188,7 +4280,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
             </button>
             <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
               disabled={phase !== null}
               onClick={resolvePendingChangeNew}
             >
@@ -4213,7 +4305,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </button>
             ))}
             <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
+              className="pressable mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
               disabled={phase !== null}
               onClick={() => pickClientChoice('new')}
             >
@@ -4248,7 +4340,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
             </p>
             <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline" onClick={dismissReminders}>
+            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60" onClick={dismissReminders}>
               Not now
             </button>
           </div>
@@ -4285,7 +4377,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           </div>
         )}
 
-        {(phase === 'thinking' || phase === 'reading' || (phase === 'preparing' && receipt)) && (
+        {((phase === 'thinking' && !transcribing) || phase === 'reading' || (phase === 'preparing' && receipt)) && (
           <div role="status" className="flex items-center gap-2 px-2 text-body-lg italic text-on-surface-variant/70">
             {/* The spinner inherits this row's text color (MOTION-SPEC §2). */}
             <OnItSpinner size={20} />
@@ -4312,6 +4404,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
+          <div className={morphing ? 'onit-builder-ghost' : undefined}>
           <TemplateCard key={`template-${templateNonce}`} kind={template} onKindChange={switchTemplateKind} onClose={closeTemplate}
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
@@ -4319,6 +4412,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
             onSend={() => { void finalize(); }} />
+          </div>
         </div>
       ) : expenseTemplate && expenseDraft ? (
         <div data-template-slot="" className="max-h-[85%] min-h-0 shrink-0 overflow-y-auto overflow-x-hidden overscroll-contain border-t border-outline-variant/40 bg-background px-3 py-2.5">
@@ -4371,6 +4465,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onChange={onPickReceipt}
           />
 
+          {voiceError && (
+            <p role="status" aria-live="polite" className="mb-2 border-l-2 border-primary-container pl-2 text-body-md text-on-surface-variant">
+              {voiceError}
+            </p>
+          )}
+
           <div className="flex items-end gap-2">
             <div className="relative shrink-0">
               {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
@@ -4388,50 +4488,51 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 disabled={!voiceSession && phase !== null}
                 onClick={voiceSession ? endVoiceSession : plusTap}
               >
+                {voiceSession && <MicRings stream={streamRef.current} active={recording} />}
                 <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
                   <Icon name="add" size={28} />
                 </span>
               </button>
             </div>
 
-            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-lowest py-1 pl-4 pr-1">
+            {/* One field for both modes: during a voice session it turns gold and
+                reads "Listening…", the recognised words land in this same
+                textarea, and a ring spinner takes the label while the take is
+                transcribed. The right-hand button is always the send arrow. */}
+            <div className={`flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border py-1 pl-4 pr-1 transition-[border-color,box-shadow] duration-settle ease-settle
+              bg-surface-container-lowest ${voiceSession ? 'border-primary-container ring-2 ring-primary-container/35' : 'border-outline-variant'}`}>
+              {voiceSession && (
+                <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-primary" aria-live="polite">
+                  {transcribing ? <><OnItSpinner size={14} /> Transcribing</> : recording ? 'Listening…' : 'Voice'}
+                </span>
+              )}
+              <textarea
+                ref={inputRef}
+                aria-label="Message On It"
+                className="onit-composer-field min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-[22px] text-on-background outline-none placeholder:text-on-surface-variant/60"
+                placeholder={voiceSession ? (recording ? 'Listening…' : transcribing ? 'Writing that down…' : 'Say it, On It writes it') : 'Message On It…'}
+                value={input}
+                rows={1}
+                readOnly={voiceSession}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
+                }}
+              />
               {voiceSession ? (
-                // The voice session lives in the field: a live level dot and
-                // "Listening…" with Done (stop → transcribe → send) while
-                // recording, and Speak to take the next turn between takes.
-                // Both call today's micTap() inside the tap.
-                <>
-                  <span className="relative grid h-3 w-3 shrink-0 place-items-center">
-                    <MicRings stream={streamRef.current} active={recording} tone="232, 85, 60" />
-                    <span className={`relative h-2 w-2 rounded-full ${recording ? 'bg-[#c8452c]' : 'bg-outline'}`} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate pl-2 text-body-md font-medium text-on-surface-variant" aria-live="polite">
-                    {recording ? 'Listening…' : phase !== null ? 'On It is on it…' : 'Tap Speak to keep going'}
-                  </span>
-                  <button
-                    aria-label={recording ? 'Stop and send' : 'Speak'}
-                    className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
-                      ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
-                    disabled={!recording && phase !== null}
-                    onClick={micTap}
-                  >
-                    {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
-                  </button>
-                </>
+                // Done stops the take (→ transcribe → send); Speak takes the next
+                // turn. Both run inside the tap, so the mic prompt still counts.
+                <button
+                  aria-label={recording ? 'Stop and send' : 'Speak'}
+                  className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3.5 text-sm font-semibold active:scale-95 disabled:opacity-40
+                    ${recording ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-container text-on-background'}`}
+                  disabled={!recording && phase !== null}
+                  onClick={micTap}
+                >
+                  {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
+                </button>
               ) : (
                 <>
-                  <textarea
-                    ref={inputRef}
-                    aria-label="Message On It"
-                    className="max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-snug text-on-background outline-none placeholder:text-on-surface-variant/60"
-                    placeholder="Message On It…"
-                    value={input}
-                    rows={1}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!phase) void send(input); }
-                    }}
-                  />
                   <button
                     aria-label="Upload receipt from gallery"
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
@@ -4455,8 +4556,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
             <button
               aria-label="Send"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-colors active:scale-90
-                disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
+              className="onit-send-arrow grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-[transform,background-color,color] duration-tap ease-settle active:scale-90
+                disabled:scale-[.88] disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
               disabled={voiceSession || !input.trim() || phase !== null}
               onClick={() => void send(input)}
             >
@@ -4481,7 +4582,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             )}
             <div className="space-y-2">
               {history.map((h) => (
-                <button key={h.id} className="card flex w-full items-center justify-between gap-3 text-left"
+                <button key={h.id} className="card flex w-full items-center justify-between gap-3 text-left transition active:scale-[0.99]"
                   onClick={() => openHistoryEntry(h)}>
                   <div className="min-w-0">
                     <div className="truncate font-semibold">{h.title}</div>

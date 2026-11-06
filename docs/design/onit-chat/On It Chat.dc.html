@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"><style>body{margin:0;background:#ECE5D9;font-family:Inter,system-ui,sans-serif;color:#1F1B16}a{color:#6E5410}a:hover{color:#1F1B16}.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1F1B16;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{flex:1;font:700 15px/1.2 Inter,sans-serif;color:#1F1B16}.dv-opts{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1F1B16;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:500 12px/1.35 Inter,sans-serif;color:rgba(0,0,0,.6)}.dv-card{max-width:100%;background:#FFF8F0;border:1px solid rgba(0,0,0,.08);border-radius:28px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 20px 40px -24px rgba(60,40,10,.35);overflow:hidden}.dv-opt:target .dv-oid{background:#D5AF36;color:#1F1B16}.dv-next{margin:24px 0 0;font:12px/1.5 Inter,sans-serif;color:rgba(0,0,0,.55)}
+@keyframes bCaret{0%,49%{opacity:1}50%,100%{opacity:0}}@keyframes bDot{0%,80%,100%{opacity:.25;transform:scale(.75)}40%{opacity:1;transform:scale(1)}}@keyframes bGlow{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.1);opacity:0}}@media (prefers-reduced-motion:reduce){*{animation-duration:1ms!important}}</style></helmet>
+
+<section class="dv-turn" id="t1" style="padding-top:56px">
+  <div style="max-width:1100px;margin-bottom:40px">
+    <div style="font:800 40px/1.05 Montserrat,sans-serif;letter-spacing:-0.02em">On It — chat behavior &amp; polish pass</div>
+    <div style="font:400 17px/26px Inter,sans-serif;color:#4A4238;margin-top:14px;max-width:820px;text-wrap:pretty">Same identity, same controls, same builder. What changes: the assistant feels alive (typing, thinking, glow), the cards have a clear hierarchy with the total as the hero, status is unmistakable, and nothing pops in. Colors are sampled from your screenshots. Every control from the current screen is still here and does the same thing.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">
+      <span style="font:600 12px/1 Inter,sans-serif;padding:8px 12px;border-radius:999px;background:#FFF8F0;border:1px solid #DCCFB8">390 × 844 · one-handed</span>
+      <span style="font:600 12px/1 Inter,sans-serif;padding:8px 12px;border-radius:999px;background:#FFF8F0;border:1px solid #DCCFB8">44–56px targets</span>
+      <span style="font:600 12px/1 Inter,sans-serif;padding:8px 12px;border-radius:999px;background:#FFF8F0;border:1px solid #DCCFB8">Builder template locked</span>
+      <span style="font:600 12px/1 Inter,sans-serif;padding:8px 12px;border-radius:999px;background:#FFF8F0;border:1px solid #DCCFB8">transform + opacity motion</span>
+      <span style="font:600 12px/1 Inter,sans-serif;padding:8px 12px;border-radius:999px;background:#FFF8F0;border:1px solid #DCCFB8">No full-screen voice mode (later)</span>
+    </div>
+  </div>
+
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Live prototype — every motion in this doc runs here</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;margin-bottom:56px">
+    <dc-import name="Prototype" card-style="{{ protoCard }}" mark="{{ protoMark }}" reduce-motion="{{ reduceMotion }}" hint-size="440px,1060px"></dc-import>
+    <div style="max-width:420px;display:flex;flex-direction:column;gap:14px;padding-top:24px">
+      <div style="font:700 13px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410">TRY THIS ORDER</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font:400 15px/22px Inter,sans-serif;color:#3D362E">
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">01</span><span>Tap <b>+</b> in the composer. The builder slides up and the Heads up banner follows.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">02</span><span>Tap <b>Make it an estimate</b> and back to see the label swap. The builder looks the same either way; the ↗ arrow just leads somewhere different.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">03</span><span>Tap the dark <b>↗</b> (invoice). Client, item, price and total glide into the draft card, then the controls stagger in.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">04</span><span>Edit something: pencils, the unit menu, Dup, Delete, Add line item, Deposit. Then <b>Undo last edit</b>.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">05</span><span><b>Looks right — send it</b>. It waits about 1.2s for the server, then locks, sweeps and posts the counter, “Sent!” and the summary row.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">06</span><span><b>Revise</b> streams the revision message and adds a fresh draft card.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">07</span><span><b>Open estimate builder</b> → ↗. The arrow spins until the link exists, then the builder morphs straight into <b>Ready to share</b>. There's no draft step. Estimate Revise reopens the builder.</span></div>
+        <div style="display:flex;gap:10px"><span style="font:600 13px/22px 'JetBrains Mono',monospace;color:#8C8170">08</span><span>Turn on “Next send fails” to see the error and Retry on either path.</span></div>
+      </div>
+      <div style="font:400 13px/19px Inter,sans-serif;color:#6B6255;border-top:1px solid #D9CCB4;padding-top:12px">Use Tweaks to switch the card system (<a class="dv-oid" href="#1a">1a</a> / <a class="dv-oid" href="#1b">1b</a>), the assistant mark (<a class="dv-oid" href="#1c">1c</a> / <a class="dv-oid" href="#1d">1d</a>) and reduced motion.</div>
+    </div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Chat frames F01–F10</span></div>
+  <div class="dv-opts" style="margin-bottom:56px">
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F01</span>Empty state: greeting + 4 suggestions, pinned near the thumb</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 0 12px">
+          <div style="text-align:center;font:600 12px/1 Inter,sans-serif;letter-spacing:.14em;color:#8C8170">TODAY</div>
+          <div style="flex:1"></div>
+          <div style="padding:0 20px 14px">
+            <span style="display:block;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF;margin-left:2px"></span>
+            <div style="font:700 30px/1.12 Montserrat,sans-serif;letter-spacing:-0.01em;margin-top:18px">Morning, Mike.</div>
+            <div style="font:400 17px/24px Inter,sans-serif;color:#4A4238;margin-top:8px;text-wrap:pretty">Say it or type it. I'll handle the paperwork.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px">
+            <button style="height:76px;border-radius:18px;border:1px solid #EADFCB;background:#FFFCF6;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:12px 14px;font:600 15px/1.2 Inter,sans-serif;color:#1F1B16;text-align:left"><span style="font:22px/1 'Material Symbols Rounded';color:#6E5410">receipt_long</span>Create invoice</button>
+            <button style="height:76px;border-radius:18px;border:1px solid #EADFCB;background:#FFFCF6;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:12px 14px;font:600 15px/1.2 Inter,sans-serif;color:#1F1B16;text-align:left"><span style="font:22px/1 'Material Symbols Rounded';color:#6E5410">add_card</span>Add expense</button>
+            <button style="height:76px;border-radius:18px;border:1px solid #EADFCB;background:#FFFCF6;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:12px 14px;font:600 15px/1.2 Inter,sans-serif;color:#1F1B16;text-align:left"><span style="font:22px/1 'Material Symbols Rounded';color:#6E5410">bar_chart</span>What did I make this week?</button>
+            <button style="height:76px;border-radius:18px;border:1px solid #EADFCB;background:#FFFCF6;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:12px 14px;font:600 15px/1.2 Inter,sans-serif;color:#1F1B16;text-align:left"><span style="font:22px/1 'Material Symbols Rounded';color:#6E5410">person_search</span>Find a customer</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;font:400 14px/20px Inter,sans-serif;color:#6B6255"><span style="font:17px/1 'Material Symbols Rounded';color:#6E5410">mic</span>Try: “Invoice John 300 for the faucet”</div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F02</span>Streaming: mark on first reply, soft glow, thin gold cursor</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="text-align:center;font:600 12px/1 Inter,sans-serif;letter-spacing:.14em;color:#8C8170;padding-bottom:6px">TODAY</div>
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">What did I make this week?</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="position:relative;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"><span style="position:absolute;inset:0;border-radius:99px;background:#D5AF36;animation:bGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></span></div>
+            <div style="position:relative;max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif;color:#1F1B16;box-shadow:0 0 0 3px rgba(213,175,54,.22),0 8px 24px -8px rgba(213,175,54,.6)">You made <b>$3,840</b> this week across 7 jobs. Biggest was the Hendricks water heater at $1,250. Two invoices are still o<span style="display:inline-block;width:2px;height:18px;margin-left:2px;vertical-align:-3px;background:#D5AF36;border-radius:1px;animation:bCaret 1s steps(1) infinite"></span></div>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F03</span>Thinking: names the real task + staggered gold dots</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Invoice John for the faucet, same as last time</div></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:0 12px;min-height:44px">
+            <div style="width:26px;height:26px;flex:none;display:grid;place-items:center"><span style="position:relative;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"><span style="position:absolute;inset:0;border-radius:99px;background:#D5AF36;animation:bGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></span></div>
+            <span style="font:500 15px/20px Inter,sans-serif;color:#4A4238">Looking up John's past jobs…</span>
+            <span style="display:flex;gap:4px"><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .16s infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .32s infinite"></span></span>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F04</span>Draft card (Paper, <a class="dv-oid" href="#1a">1a</a>): raised, dashed “Not sent” pill</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Invoice John for the faucet, same as last time</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Here's the draft. Nothing goes out until you confirm.</div>
+          </div>
+          <div style="margin:2px 12px 0 46px;background:#FBF2E4;border:1px solid #EAD9AE;border-radius:20px;padding:14px;box-shadow:0 1px 2px rgba(74,52,14,.06),0 14px 30px -16px rgba(74,52,14,.32)">
+            <div style="display:flex;align-items:center;justify-content:space-between"><span style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410">INVOICE DRAFT</span><span style="display:flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:999px;border:1.5px dashed #C9AE68;color:#6E5410;font:600 12px/1 Inter,sans-serif"><span style="font:15px/1 'Material Symbols Rounded'">edit_note</span>Not sent</span></div>
+            <div style="font:700 19px/24px Inter,sans-serif;margin-top:10px">John Alvarez</div>
+            <div style="font:400 15px/21px Inter,sans-serif;color:#4A4238">Kitchen faucet replacement · parts + 1.5 hr</div>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;border-top:1px solid #E6D9C3;margin-top:12px;padding-top:12px"><span style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#3D362E;padding-bottom:4px">TOTAL</span><span style="font:800 30px/1 Montserrat,sans-serif;letter-spacing:-0.02em">$285.00</span></div>
+            <button style="width:100%;height:52px;margin-top:14px;border:0;border-radius:999px;background:#D5AF36;color:#1F1B16;font:700 16px/1 Inter,sans-serif;display:flex;align-items:center;justify-content:center;gap:6px">Review &amp; confirm<span style="font:20px/1 'Material Symbols Rounded'">arrow_forward</span></button>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F04b</span>Draft card (Ledger, <a class="dv-oid" href="#1b">1b</a>): status band + charcoal total</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Invoice John for the faucet, same as last time</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Here's the draft. Nothing goes out until you confirm.</div>
+          </div>
+          <div style="margin:2px 12px 0 46px;background:#FFFDF8;border:1px solid #E3D6BF;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(47,42,36,.06),0 14px 30px -16px rgba(47,42,36,.32)">
+            <div style="height:36px;display:flex;align-items:center;gap:6px;padding:0 14px;background:#F6EED9;border-bottom:1.5px dashed #D9C38A;font:700 11px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410"><span style="font:16px/1 'Material Symbols Rounded'">edit_note</span>DRAFT · NOT SENT</div>
+            <div style="padding:12px 14px 14px">
+              <div style="font:700 20px/24px Montserrat,sans-serif">John Alvarez</div>
+              <div style="font:400 15px/21px Inter,sans-serif;color:#4A4238;margin-top:2px">Kitchen faucet replacement · parts + 1.5 hr</div>
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;background:#2F2A24;border-radius:12px;padding:12px 14px;margin-top:12px"><span style="font:700 11px/1 Inter,sans-serif;letter-spacing:.1em;color:#D9CFBE;padding-bottom:4px">TOTAL</span><span style="font:800 28px/1 Montserrat,sans-serif;color:#FFF8F0">$285.00</span></div>
+              <button style="width:100%;height:52px;margin-top:10px;border:0;border-radius:12px;background:#D5AF36;color:#1F1B16;font:700 16px/1 Inter,sans-serif;display:flex;align-items:center;justify-content:center;gap:6px">Review &amp; confirm<span style="font:20px/1 'Material Symbols Rounded'">arrow_forward</span></button>
+            </div>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F05</span>Pricing insight: the answer first, reasoning as a compact card</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">What should I charge for a water heater swap?</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">For a 50-gal tank swap I'd quote <b>$1,150–$1,400</b>. You usually finish in about 3 hours.</div>
+          </div>
+          <div style="margin:0 12px 0 46px;background:#FFFCF6;border:1px solid #EADFCB;border-radius:16px;padding:12px 14px">
+            <div style="display:flex;align-items:center;gap:6px;font:600 13px/18px Inter,sans-serif;color:#3D362E"><span style="font:17px/1 'Material Symbols Rounded';color:#6E5410">history</span>Based on your last 6 similar jobs</div>
+            <div style="position:relative;height:28px;margin-top:12px">
+              <div style="position:absolute;left:0;right:0;top:11px;height:6px;border-radius:3px;background:#EFE6D6"></div>
+              <div style="position:absolute;left:30%;width:42%;top:8px;height:12px;border-radius:6px;background:#F1E2B8;border:1px solid #E0C36A;box-sizing:border-box"></div>
+              <span style="position:absolute;left:4%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+              <span style="position:absolute;left:34%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+              <span style="position:absolute;left:44%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+              <span style="position:absolute;left:51%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+              <span style="position:absolute;left:62%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+              <span style="position:absolute;left:93%;top:9px;width:10px;height:10px;border-radius:9px;background:#2F2A24"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font:500 12px/16px 'JetBrains Mono',monospace;color:#6B6255"><span>$980</span><span style="color:#6E5410">suggested</span><span>$1,520</span></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid #F0E5D2;margin-top:10px;padding-top:10px">
+              <div><div style="font:400 12px/16px Inter,sans-serif;color:#6B6255">Average</div><div style="font:700 16px/22px Inter,sans-serif">$1,260</div></div>
+              <div><div style="font:400 12px/16px Inter,sans-serif;color:#6B6255">Avg time</div><div style="font:700 16px/22px Inter,sans-serif">3.1 hr</div></div>
+              <div><div style="font:400 12px/16px Inter,sans-serif;color:#6B6255">Last one</div><div style="font:700 16px/22px Inter,sans-serif">Mar 12</div></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;padding:2px 12px 0 46px">
+            <button style="height:44px;padding:0 16px;border-radius:999px;border:0;background:#D5AF36;font:700 15px/1 Inter,sans-serif;color:#1F1B16">Use $1,250</button>
+            <button style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #DCCFB8;background:#FFFFFF;font:600 15px/1 Inter,sans-serif;color:#1F1B16">Show the 6 jobs</button>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F06</span>Not sure: one short question + big quick replies</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Invoice Brandon 200 for the car wash</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">I've got two Brandons. Which one is this for?</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding:2px 12px 0 46px">
+            <button style="height:56px;border-radius:16px;border:1.5px solid #DCCFB8;background:#FFFFFF;display:flex;align-items:center;gap:10px;padding:0 12px 0 14px;text-align:left"><span style="flex:1"><span style="display:block;font:600 16px/20px Inter,sans-serif;color:#1F1B16">Brandon Miller</span><span style="display:block;font:400 13px/17px Inter,sans-serif;color:#6B6255">Oak St · last job Oct 28</span></span><span style="font:22px/1 'Material Symbols Rounded';color:#8C8170">chevron_right</span></button>
+            <button style="height:56px;border-radius:16px;border:1.5px solid #DCCFB8;background:#FFFFFF;display:flex;align-items:center;gap:10px;padding:0 12px 0 14px;text-align:left"><span style="flex:1"><span style="display:block;font:600 16px/20px Inter,sans-serif;color:#1F1B16">Brandon Smith</span><span style="display:block;font:400 13px/17px Inter,sans-serif;color:#6B6255">No address · last job Oct 2</span></span><span style="font:22px/1 'Material Symbols Rounded';color:#8C8170">chevron_right</span></button>
+            <button style="height:52px;border-radius:16px;border:1.5px dashed #C9AE68;background:transparent;display:flex;align-items:center;gap:8px;padding:0 14px;font:600 16px/1 Inter,sans-serif;color:#6E5410"><span style="font:20px/1 'Material Symbols Rounded'">person_add</span>New customer</button>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F08</span>Feedback: quiet thumbs, thumbs-down opens reason chips</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Logged a $46.20 expense at Home Depot under Materials.</div>
+          </div>
+          <div style="display:flex;gap:2px;padding:0 12px 0 42px;margin-top:-4px"><button aria-label="Good" style="width:44px;height:44px;border:0;background:transparent;border-radius:99px;display:grid;place-items:center;color:#8C8170"><span style="font:20px/1 'Material Symbols Rounded'">thumb_up</span></button><button aria-label="Bad" style="width:44px;height:44px;border:0;background:transparent;border-radius:99px;display:grid;place-items:center;color:#8C8170"><span style="font:20px/1 'Material Symbols Rounded'">thumb_down</span></button></div>
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">How much did Hendricks pay?</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px">
+            <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div>
+            <div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Hendricks paid $1,520 on Oct 30 for the water heater.</div>
+          </div>
+          <div style="display:flex;gap:2px;padding:0 12px 0 42px;margin-top:-4px"><button aria-label="Good" style="width:44px;height:44px;border:0;background:transparent;border-radius:99px;display:grid;place-items:center;color:#8C8170"><span style="font:20px/1 'Material Symbols Rounded'">thumb_up</span></button><button aria-label="Bad" style="width:44px;height:44px;border:0;background:#2F2A24;border-radius:99px;display:grid;place-items:center;color:#FFF8F0"><span style="font:20px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1">thumb_down</span></button></div>
+          <div style="margin:0 12px 0 46px;background:#FFFCF6;border:1px solid #EADFCB;border-radius:16px;padding:12px">
+            <div style="font:600 14px/18px Inter,sans-serif;color:#3D362E;margin-bottom:10px">What went wrong?</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #2F2A24;background:#2F2A24;color:#FFF8F0;font:600 14px/1 Inter,sans-serif">Wrong number</button>
+              <button style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #DCCFB8;background:#FFFFFF;color:#1F1B16;font:600 14px/1 Inter,sans-serif">Didn't understand me</button>
+              <button style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #DCCFB8;background:#FFFFFF;color:#1F1B16;font:600 14px/1 Inter,sans-serif">Too long</button>
+              <button style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #DCCFB8;background:#FFFFFF;color:#1F1B16;font:600 14px/1 Inter,sans-serif">Not helpful</button>
+              <button style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #DCCFB8;background:#FFFFFF;color:#1F1B16;font:600 14px/1 Inter,sans-serif">Other</button>
+            </div>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F09</span>“New response ↓” while scrolled up</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column;gap:8px;padding:10px 0 14px;overflow:hidden">
+          <div style="text-align:center;font:600 12px/1 Inter,sans-serif;letter-spacing:.14em;color:#8C8170;padding-bottom:6px">YESTERDAY</div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px"><div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div><div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div>
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Invoice for Brandon: Car Wash $200.00</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px"><div style="width:26px;height:26px;flex:none"></div><div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Sent! I'll notify you if Brandon hasn't paid in 2 days.</div></div>
+          <div style="margin-left:46px"><dc-import name="CardPaper" status="summary" hint-size="300px,72px"></dc-import></div>
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Did Hendricks pay yet?</div></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px"><div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div><div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Yes — $1,520 on Oct 30. That closes out the water heater job.</div></div>
+          <button style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);height:44px;padding:0 16px 0 18px;border-radius:999px;border:0;background:#2F2A24;color:#FFF8F0;font:600 14px/1 Inter,sans-serif;display:flex;align-items:center;gap:6px;box-shadow:0 8px 20px -8px rgba(31,27,22,.55)">New response<span style="font:18px/1 'Material Symbols Rounded'">arrow_downward</span></button>
+        </div>
+        <dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">F10</span>Error: inline, says what didn't happen, one Retry</div>
+      <div class="dv-card" style="width:390px;height:844px;display:flex;flex-direction:column">
+        <dc-import name="OnItHeader" hint-size="390px,64px"></dc-import>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 0 14px">
+          <div style="display:flex;justify-content:flex-end;padding:0 12px"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Send John's invoice</div></div>
+          <div style="padding:0 12px 0 46px">
+            <div style="max-width:296px;background:#FBEDE8;border:1px solid #EFC9BD;border-radius:18px 18px 18px 6px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:8px;font:400 15px/21px Inter,sans-serif;color:#4E1A10"><span style="font:20px/21px 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#A8321F">error</span><span>Couldn't send — your signal dropped. Nothing went out to John.</span></div>
+              <button style="align-self:flex-start;height:44px;padding:0 18px 0 14px;border-radius:999px;border:1.5px solid #A8321F;background:#FFFFFF;color:#A8321F;font:700 15px/1 Inter,sans-serif;display:flex;align-items:center;gap:6px"><span style="font:19px/1 'Material Symbols Rounded'">refresh</span>Retry</button>
+            </div>
+          </div>
+        </div>
+        <dc-import name="OnItComposer" state="text" text="Send John's invoice" hint-size="390px,70px"></dc-import>
+        <dc-import name="OnItNav" hint-size="390px,72px"></dc-import>
+      </div>
+    </div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">F07 · Composer states (mic is primary when empty; send replaces it when there's text)</span></div>
+  <div class="dv-opts" style="margin-bottom:56px">
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C1</span>(a) Empty — mic primary</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="empty" hint-size="390px,70px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C2</span>(b) Listening — gold pulse, live transcript</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="listening" text="Invoice Brandon two hundred for the" interim="car" hint-size="390px,90px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C3</span>Mic thinking — transcribing</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="thinking" text="Invoice Brandon two hundred for the car wash" hint-size="390px,110px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C4</span>(c) Text, 1 line — send enabled</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="text" text="Invoice Brandon $200" hint-size="390px,70px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C5</span>4 lines — max height (88px)</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="text" text="Invoice Brandon for the car wash, two hundred. Add a note that the deposit is due before I order materials, usually 3 to 5 days." hint-size="390px,130px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C6</span>4+ lines — scrolls inside, top fade</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="text" text="Invoice Brandon for the car wash, two hundred. Add a note that the deposit is due before I order materials, usually 3 to 5 days. Also add a second line for the wax at forty and put the due date two weeks out from today please." hint-size="390px,130px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">C7</span>Just sent — collapsed, send grey while in flight</div><div class="dv-card" style="width:390px;border-radius:16px"><dc-import name="OnItComposer" state="sending" hint-size="390px,70px"></dc-import></div></div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Assistant mark — 2 options</span></div>
+  <div class="dv-opts" style="margin-bottom:56px">
+    <div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Gold period — borrowed from the “On It.” logo dot</div>
+      <div class="dv-card" style="width:390px;border-radius:20px;padding:22px;box-sizing:border-box;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Idle</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:grid;place-items:center"><span style="position:relative;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"><span style="position:absolute;inset:0;border-radius:99px;background:#D5AF36;animation:bGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Generating</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;gap:4px"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF;margin-right:6px"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .16s infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .32s infinite"></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Thinking</span></div>
+      </div>
+      <div style="font:400 13px/19px Inter,sans-serif;color:#6B6255;max-width:390px">The smallest possible mark. It reads as “the app” rather than a character, and it stays out of the way.</div>
+    </div>
+    <div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Monogram tile — charcoal “O” with a gold dot</div>
+      <div class="dv-card" style="width:390px;border-radius:20px;padding:22px;box-sizing:border-box;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:grid;place-items:center"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Idle</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:grid;place-items:center"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span><span style="position:absolute;inset:-3px;border-radius:10px;border:2px solid #D5AF36;animation:bGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Generating</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px"><span style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;gap:4px"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0;margin-right:4px">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .16s infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:bDot 1.2s ease-in-out .32s infinite"></span></span><span style="font:600 12px/1 Inter,sans-serif;color:#6B6255">Thinking</span></div>
+      </div>
+      <div style="font:400 13px/19px Inter,sans-serif;color:#6B6255;max-width:390px">More presence and easier to spot at arm's length. It echoes the charcoal user bubble, so it pairs best with Ledger (<a class="dv-oid" href="#1b">1b</a>).</div>
+    </div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Card system — 2 options (draft · edit · sent-locked · summary · estimate)</span></div>
+  <div class="dv-opts" style="margin-bottom:56px">
+    <div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Paper — tonal cream, inset groups, gold hairline. Closest to today.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">DRAFT</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardPaper" status="draft" hint-size="390px,880px"></dc-import></div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">EDIT — NAME FIELD FOCUSED · DEPOSIT MENU OPEN</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardPaper" status="draft" edit-field="name" menu="deposit" hint-size="390px,880px"></dc-import></div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">SENT — LOCKED + COUNTER + SUMMARY ROW</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px;display:flex;flex-direction:column;gap:8px">
+          <dc-import name="CardPaper" status="sent" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,720px"></dc-import>
+          <div style="display:flex;align-items:center;gap:10px;padding:2px 16px"><div style="display:flex;gap:3px"><span style="width:22px;height:6px;border-radius:3px;background:#D5AF36"></span><span style="width:22px;height:6px;border-radius:3px;background:#EADFCB"></span><span style="width:22px;height:6px;border-radius:3px;background:#EADFCB"></span></div><span style="font:500 14px/20px Inter,sans-serif;color:#4A4238">1 of 3 free invoices used</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px"><div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"></span></div><div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Sent! I'll notify you if Brandon hasn't paid in 2 days.</div></div>
+          <div style="padding-left:34px"><dc-import name="CardPaper" status="summary" hint-size="300px,72px"></dc-import></div>
+        </div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">ESTIMATE — READY TO SHARE</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardPaper" status="ready" kind="estimate" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,860px"></dc-import></div></div>
+      </div>
+    </div>
+    <div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Ledger — white sheet, full-width status band, charcoal total block. Status reads from across the cab.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">DRAFT</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardLedger" status="draft" hint-size="390px,880px"></dc-import></div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">EDIT — PRICE FIELD FOCUSED · UNIT MENU</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardLedger" status="draft" edit-field="price" menu="unit" hint-size="390px,880px"></dc-import></div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">SENT — LOCKED + COUNTER + SUMMARY ROW</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px;display:flex;flex-direction:column;gap:8px">
+          <dc-import name="CardLedger" status="sent" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,720px"></dc-import>
+          <div style="display:flex;align-items:center;gap:10px;padding:2px 16px"><div style="display:flex;gap:3px"><span style="width:22px;height:6px;border-radius:3px;background:#2F2A24"></span><span style="width:22px;height:6px;border-radius:3px;background:#E3D6BF"></span><span style="width:22px;height:6px;border-radius:3px;background:#E3D6BF"></span></div><span style="font:500 14px/20px Inter,sans-serif;color:#4A4238">1 of 3 free invoices used</span></div>
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px"><div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span></span></div><div style="max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">Sent! I'll notify you if Brandon hasn't paid in 2 days.</div></div>
+          <div style="padding-left:34px"><dc-import name="CardLedger" status="summary" hint-size="310px,72px"></dc-import></div>
+        </div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px/1 'JetBrains Mono',monospace;color:#6B6255">ESTIMATE — READY TO SHARE</span><div class="dv-card" style="width:390px;padding:12px 0;border-radius:20px"><dc-import name="CardLedger" status="ready" kind="estimate" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,860px"></dc-import></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Builder (locked, as-is) → invoice draft morph · key frames</span></div>
+  <div class="dv-opts" style="margin-bottom:24px">
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">B1</span>Builder — invoice (locked)</div><div class="dv-card" style="width:390px;border-radius:20px"><dc-import name="Builder" kind="invoice" hint-size="390px,640px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">B2</span>Toggle → “New estimate / Make it an invoice”</div><div class="dv-card" style="width:390px;border-radius:20px"><dc-import name="Builder" kind="estimate" hint-size="390px,560px"></dc-import></div><div style="font:400 13px/19px Inter,sans-serif;color:#6B6255;max-width:390px">Both labels sit stacked in one grid cell. The old one fades and lifts 8px, the new one rises from 8px below. The chip icon swaps at the same time. The builder's look doesn't change. Only the result of ↗ does: invoice → editable draft, estimate → Ready to share (no draft).</div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">B3</span>Builder — estimate, empty</div><div class="dv-card" style="width:390px;border-radius:20px"><dc-import name="Builder" kind="estimate" empty="{{ true }}" hint-size="390px,560px"></dc-import></div></div>
+  </div>
+  <div class="dv-opts" style="margin-bottom:56px">
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">K0 · 0ms</span>Tap ↗: arrow scales to .92, shared nodes tagged</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px"><dc-import name="Builder" kind="invoice" pressed="{{ true }}" highlight="{{ true }}" hint-size="390px,640px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">K1 · 120ms</span>Builder ghost fades out, shared nodes leave</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px"><dc-import name="Builder" kind="invoice" ghost="{{ 0.35 }}" highlight="{{ true }}" hint-size="390px,640px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">K2 · 300ms</span>Card shell in, shared nodes landing, controls hidden</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="draft" phase="morph" hint-size="390px,880px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">K3 · 450ms</span>Controls stagger in, top to bottom, 40ms apart</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="draft" phase="stagger" hint-size="390px,880px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">K4 · 650ms</span>Settled: lift shadow fades to resting elevation</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="draft" hint-size="390px,880px"></dc-import></div></div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Estimate: builder → Ready to share (no draft) · key frames</span></div>
+  <div class="dv-opts" style="margin-bottom:56px">
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">E0 · 0ms</span>Tap ↗: spinner in arrow, builder stays put</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px"><dc-import name="Builder" kind="estimate" sending="{{ true }}" pressed="{{ true }}" hint-size="390px,640px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">E1 · confirm +120ms</span>Server confirms → ghost fades, shared nodes leave</div><div class="dv-card" style="width:390px;height:620px;border-radius:20px"><dc-import name="Builder" kind="estimate" ghost="{{ 0.35 }}" highlight="{{ true }}" hint-size="390px,640px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">E2 · +300ms</span>Read-only shell in, shared nodes landing</div><div class="dv-card" style="width:390px;height:780px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="ready" kind="estimate" phase="morph" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,860px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">E3 · +520ms</span>Lock pill snaps, gold sweep, link row rising, buttons next</div><div class="dv-card" style="width:390px;height:780px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="ready" kind="estimate" phase="stagger" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,860px"></dc-import></div></div>
+    <div class="dv-opt"><div class="dv-olabel"><span class="dv-oid">E4 · +900ms</span>Settled → “Estimate's ready…” types out below</div><div class="dv-card" style="width:390px;height:780px;border-radius:20px;padding-top:12px;box-sizing:border-box"><dc-import name="CardPaper" status="ready" kind="estimate" notes="Deposit due before materials are ordered. 3–5 day lead time." hint-size="390px,860px"></dc-import></div></div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Motion spec</span></div>
+  <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:28px;max-width:1360px;margin-bottom:40px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:24px">
+      <div style="background:#FBF2E4;border-radius:14px;padding:14px"><div style="font:600 11px/1 'JetBrains Mono',monospace;color:#6E5410">--dur-micro</div><div style="font:800 26px/1.2 Montserrat,sans-serif;margin-top:6px">140ms</div><div style="font:400 13px/18px Inter,sans-serif;color:#4A4238">range 120–180 · presses, swaps, menus</div></div>
+      <div style="background:#FBF2E4;border-radius:14px;padding:14px"><div style="font:600 11px/1 'JetBrains Mono',monospace;color:#6E5410">--dur-standard</div><div style="font:800 26px/1.2 Montserrat,sans-serif;margin-top:6px">260ms</div><div style="font:400 13px/18px Inter,sans-serif;color:#4A4238">range 220–320 · enter, collapse, pills</div></div>
+      <div style="background:#FBF2E4;border-radius:14px;padding:14px"><div style="font:600 11px/1 'JetBrains Mono',monospace;color:#6E5410">--dur-hero</div><div style="font:800 26px/1.2 Montserrat,sans-serif;margin-top:6px">600ms</div><div style="font:400 13px/18px Inter,sans-serif;color:#4A4238">range 500–700 · builder→card, gold sweep</div></div>
+      <div style="background:#FBF2E4;border-radius:14px;padding:14px"><div style="font:600 11px/1 'JetBrains Mono',monospace;color:#6E5410">--ease-settle (main)</div><div style="font:600 15px/1.3 'JetBrains Mono',monospace;margin-top:10px">cubic-bezier(0.2,0.8,0.2,1)</div><div style="font:400 13px/18px Inter,sans-serif;color:#4A4238;margin-top:4px">Framer: ease [0.2,0.8,0.2,1]</div></div>
+      <div style="background:#FBF2E4;border-radius:14px;padding:14px"><div style="font:600 11px/1 'JetBrains Mono',monospace;color:#6E5410">--ease-exit</div><div style="font:600 15px/1.3 'JetBrains Mono',monospace;margin-top:10px">cubic-bezier(0.4,0,1,1)</div><div style="font:400 13px/18px Inter,sans-serif;color:#4A4238;margin-top:4px">leaving elements · no bounce, no spring overshoot</div></div>
+    </div>
+    <div style="font:400 14px/21px Inter,sans-serif;color:#3D362E;margin-bottom:18px;max-width:1000px;text-wrap:pretty"><b>Rules.</b> Only <code>transform</code> and <code>opacity</code> animate. Height changes use Framer <code>layout</code>, which is transform-based. The CSS prototype uses <code>grid-template-rows</code> as a stand-in. Animations never block input: no <code>pointer-events:none</code> on live controls and no awaiting animations before state changes. Loops (dots, caret, mic rings, spinner) are CSS keyframes. <b>Reduced motion:</b> every entry becomes opacity-only at 160ms, the typewriter is instant with no caret, and there's no sweep, no shared-element travel and no ring pulse.</div>
+    <div style="display:grid;grid-template-columns:150px 1.1fr 1.6fr 0.9fr 1.1fr;border-top:1px solid #DCCFB8;font:400 13px/19px Inter,sans-serif">
+      <div style="display:contents;font-weight:700"><div style="padding:10px 8px 10px 0;border-bottom:1px solid #DCCFB8;font:700 11px/1.4 Inter,sans-serif;letter-spacing:.08em;color:#6E5410">ANIMATION</div><div style="padding:10px 8px;border-bottom:1px solid #DCCFB8;font:700 11px/1.4 Inter,sans-serif;letter-spacing:.08em;color:#6E5410">TRIGGER</div><div style="padding:10px 8px;border-bottom:1px solid #DCCFB8;font:700 11px/1.4 Inter,sans-serif;letter-spacing:.08em;color:#6E5410">PROPERTIES · DURATION · EASING</div><div style="padding:10px 8px;border-bottom:1px solid #DCCFB8;font:700 11px/1.4 Inter,sans-serif;letter-spacing:.08em;color:#6E5410">DELAY / STAGGER</div><div style="padding:10px 8px;border-bottom:1px solid #DCCFB8;font:700 11px/1.4 Inter,sans-serif;letter-spacing:.08em;color:#6E5410">REDUCED MOTION / NOTES</div></div>
+      <sc-for list="{{ spec }}" as="r" hint-placeholder-count="20">
+        <div style="padding:10px 8px 10px 0;border-bottom:1px solid #EADFCB;font-weight:700;color:#1F1B16">{{ r.name }}</div>
+        <div style="padding:10px 8px;border-bottom:1px solid #EADFCB;color:#3D362E">{{ r.trig }}</div>
+        <div style="padding:10px 8px;border-bottom:1px solid #EADFCB;color:#1F1B16;font-family:'JetBrains Mono',monospace;font-size:12px">{{ r.props }}</div>
+        <div style="padding:10px 8px;border-bottom:1px solid #EADFCB;color:#3D362E;font-family:'JetBrains Mono',monospace;font-size:12px">{{ r.delay }}</div>
+        <div style="padding:10px 8px;border-bottom:1px solid #EADFCB;color:#4A4238">{{ r.rm }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="dv-thd"><span class="dv-tname">Tokens</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;max-width:1360px">
+    <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:22px">
+      <div style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410;margin-bottom:14px">COLOR</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ colors }}" as="c" hint-placeholder-count="16">
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:9px;background:{{ c.hex }};border:1px solid rgba(0,0,0,.1);flex:none"></span><span style="flex:1;min-width:0"><span style="display:block;font:600 12px/16px 'JetBrains Mono',monospace">{{ c.name }}</span><span style="display:block;font:400 12px/16px Inter,sans-serif;color:#6B6255">{{ c.use }}</span></span><span style="font:500 12px/1 'JetBrains Mono',monospace;color:#3D362E">{{ c.hex }}</span></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:22px">
+        <div style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410;margin-bottom:14px">TYPE · Inter / Montserrat / JetBrains Mono</div>
+        <sc-for list="{{ type }}" as="t" hint-placeholder-count="9"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #F0E5D2"><span style="font:600 12px/16px 'JetBrains Mono',monospace">{{ t.name }}</span><span style="font:400 12px/16px Inter,sans-serif;color:#4A4238;text-align:right">{{ t.spec }}</span></div></sc-for>
+      </div>
+      <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:22px">
+        <div style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410;margin-bottom:14px">RADII</div>
+        <sc-for list="{{ radii }}" as="t" hint-placeholder-count="8"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #F0E5D2"><span style="font:600 12px/16px 'JetBrains Mono',monospace">{{ t.name }}</span><span style="font:400 12px/16px Inter,sans-serif;color:#4A4238;text-align:right">{{ t.spec }}</span></div></sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:22px">
+        <div style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410;margin-bottom:14px">SPACING · SIZES</div>
+        <sc-for list="{{ space }}" as="t" hint-placeholder-count="10"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #F0E5D2"><span style="font:600 12px/16px 'JetBrains Mono',monospace">{{ t.name }}</span><span style="font:400 12px/16px Inter,sans-serif;color:#4A4238;text-align:right">{{ t.spec }}</span></div></sc-for>
+      </div>
+      <div style="background:#FFF8F0;border:1px solid #DCCFB8;border-radius:20px;padding:22px">
+        <div style="font:700 12px/1 Inter,sans-serif;letter-spacing:.1em;color:#6E5410;margin-bottom:14px">SHADOWS</div>
+        <sc-for list="{{ shadows }}" as="t" hint-placeholder-count="5"><div style="padding:6px 0;border-bottom:1px solid #F0E5D2"><div style="font:600 12px/16px 'JetBrains Mono',monospace">{{ t.name }}</div><div style="font:400 11px/16px 'JetBrains Mono',monospace;color:#4A4238">{{ t.spec }}</div></div></sc-for>
+      </div>
+    </div>
+  </div>
+  <p class="dv-next">Try next: “go with <a class="dv-oid" href="#1b">1b</a> but use the gold-period mark from <a class="dv-oid" href="#1c">1c</a>” · “make the Paper total block charcoal like Ledger” · “show the estimate morph and the revise flow as key frames too”</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;protoCard&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Paper&quot;,&quot;Ledger&quot;],&quot;default&quot;:&quot;Paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;protoMark&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const P = this.props;
+    const R = (name, trig, props, delay, rm) => ({ name, trig, props, delay, rm });
+    return {
+      protoCard: P.protoCard || 'Paper', protoMark: P.protoMark || 'A', reduceMotion: !!P.reduceMotion,
+      spec: [
+        R('1a · Builder → invoice draft (hero)', 'Tap dark ↗ (invoice)', 'Arrow: scale 1→.92 140 settle. Ghost builder: opacity 1→0 220 exit, scale 1→.97 320 exit. Shared client/item/price/total: translate+scale from builder rect → card rect 600 settle (Framer layoutId), old/new text crossfade opacity 280. Card shell opacity 0→1 260.', 'Ghost 0 · shared 0 · shell 0 · controls: pill 260, line controls 300, add/fields 340–360, total label 380, footer 420 (each opacity 220 + y 6→0 260). Lift shadow layer opacity 1→0 600 from 380', 'Crossfade builder→card 160, no travel'),
+        R('1b · Builder → Ready to share (estimate)', 'Tap dark ↗ (estimate) → wait for server', 'Pending: arrow icon → spinner (rotate 800 linear), builder stays and stays usable. On confirm only: same hero morph as 1a (ghost, shared nodes 600, shell 260) into the read-only card. No draft card is ever rendered.', 'Lock pill x 12→0 at 260, lock_open→lock scale 1.2→1 at 420 · gold sweep at 360 (760) · copy text + link row 480 / 520 · Copy link 600 · Share 640 (40 apart) · Revise 700 · “Estimate\'s ready…” bubble at 1000', 'Crossfade 160, no sweep, no travel. Failure: spinner stops, error bubble + Retry, no card'),
+        R('2 · Invoice ↔ estimate toggle', 'Tap “Make it an estimate / invoice”', 'Builder only. Stacked labels: out opacity→0 180, y 0→−8 260; in y 8→0 260 settle. Chip icon swaps. The arrow looks the same; only its destination changes (draft vs ready).', '0 for all labels (one beat)', 'Opacity-only 160'),
+        R('3a · Invoice draft → sent', 'Server 200 on “Looks right — send it” (never before)', 'Pending: button spinner rotate 800 linear, label “Sending…”. On confirm: draft controls collapse (layout) 320 + opacity 180 exit; fields opacity 1→.5 320; draft pill out x 0→−8 160 exit; Sent pill in x 12→0 280 settle; lock_open → lock + scale 1.2→1 180; gold sweep translateX −120%→260% 760 settle; locked footer expand 360', 'Pill +120 · lock swap +240 · sweep +160 · footer +120/opacity +200 · counter +560 · “Sent!” bubble +860 · summary row after typing +140', 'No sweep, no lock scale; pills + footer crossfade 160'),
+        R('3b · Estimate link creation', 'Server 200 on ↗ (estimate)', 'No separate send step: the Ready card is the result of 1b. Copy link: icon link→check + label crossfade 160, bg/border → gold-soft 200, revert at 1600. Revise: assistant streams the revision note, then the builder sheet reopens (300) for editing.', 'Revise → builder +220 after typing', 'Error: inline bubble (180) + Retry; on retry the bubble collapses 220 and the spinner returns'),
+        R('4 · Typewriter', 'Each streamed assistant token', 'Reveal chars: 38 cps base, 48 with backlog >25, 60 with backlog >60 (never under 30). Canned: 85 cps. Caret 2×18 gold, blink 1000 steps(1). Bubble glow opacity 0↔1 400 settle', 'Pause 170 after . ! ? — (70 canned)', 'Tap the bubble to finish. Reduced: full text at once, no caret'),
+        R('5 · Composer auto-expand', 'Input / paste / send', 'Height 22→88 (1–4 lines × 22) 150 settle, then overflow-y:auto + 12px top fade 150. Buttons align flex-end. List stays pinned (ResizeObserver / layout). Collapse to 1 line after send 150. Mic ↔ send: opacity 160 + scale .6↔1 settle; send bg grey #EAE0D5 ↔ charcoal 160', '0', 'Height snaps, opacity-only swap'),
+        R('Mic states', 'Tap mic / tap stop', 'Listening: 2 gold rings scale 1→1.75 + opacity .55→0 1600 settle, infinite; border gold 2px 180. Thinking: ring rotate 900 linear', 'Ring 2 offset 800', 'Rings hidden; static gold fill'),
+        R('User bubble', 'Message sent', 'opacity 0→1, translate(8px,8px)→0 160 settle', '0', 'Opacity 160'),
+        R('Assistant bubble', 'First token / canned', 'opacity 0→1, translate(−6px,6px)→0 180 settle', 'Quick replies after bubble: 40 stagger', 'Opacity 160'),
+        R('Card / inline card', 'Card in reply', 'opacity 0→1, y 10→0 220 settle', '+80 after its bubble', 'Opacity 160'),
+        R('Thinking', 'Request in flight', 'Dots opacity .25↔1 + scale .75↔1 1200 ease-in-out, infinite. Mark ring scale 1→2.1, opacity .55→0 1600', 'Dots 0 / 160 / 320', 'Dots static at 1'),
+        R('TODAY divider', 'First message of day', 'opacity 0→1 260 settle', '0', '—'),
+        R('Heads up banner', 'Builder opens with a duplicate', 'opacity 0→1, y 6→0 260 settle', '+200 after sheet', 'Opacity 160'),
+        R('Builder sheet', 'Tap +', 'opacity 0→1, y 24→0 300 settle; composer fades 200', '0', 'Opacity 160'),
+        R('Add line item', 'Tap “+ Add line item”', 'Row height 0→auto (layout) 260 + opacity 200; name field enters scale .97→1 160 and focuses', '0', 'Opacity only'),
+        R('Delete / Dup', 'Tap Delete / Dup', 'Delete: opacity→0 200 + collapse 260, siblings slide up via layout. Dup: new row expands under its source 260', 'State commits at 240 (taps stay live)', 'Instant'),
+        R('Up / Down', 'Tap ↑ / ↓', 'FLIP translateY 260 settle', '0', 'Instant'),
+        R('Undo last edit', 'Tap Undo', 'Restores snapshot; items area flashes #F6E7B9 → transparent 450; disabled ↔ enabled color 200', '0', 'No flash'),
+        R('Dropdown / select', 'Tap unit / Deposit', 'Menu opacity 0→1 160 + scale .96→1 + y −4→0 200, origin at trigger; chevron rotate 0→180 180. Close: reverse with exit', '0', 'Opacity 120'),
+        R('Inline edit field', 'Tap pencil', 'Field scale .97→1 + opacity 160; focus ring 4px gold 18%', '0', 'Opacity'),
+        R('Press states', 'pointerdown', 'Icon buttons scale .92 · pills .96 · full-width buttons .98, 140 settle; release reverses', '0', 'Keep (tiny, informative)'),
+        R('Pills / badges', 'Status change', 'x 12→0 + opacity 280 settle; outgoing x→−8 160 exit', '+120', 'Crossfade'),
+        R('Copy link', 'Tap Copy link', 'Icon + label crossfade 160; bg/border to gold-soft 200; reverts after 1600', '0', 'Same'),
+        R('Header buttons', 'Hover / press', 'bg #F6EDDF hover; scale .92 press 140', '0', '—'),
+        R('Bottom nav', 'Tap tab', 'Gold pill translateX between tabs 280 settle; icon FILL 0→1 200; label weight swap', '0', 'Pill jumps, fades 120'),
+        R('New response pill', 'New content while scrolled up', 'opacity 0→1 180 + y 12→0 220 settle; out with exit curve. Tap: smooth scroll to bottom', '0', 'Opacity'),
+        R('Free-invoice counter', 'After send confirm', 'Row opacity 240; segment fill scaleX 0→1 420 settle', '120 + 80 × segment', 'Static fill'),
+        R('Feedback', 'Tap 👎', 'Reason panel layout 260 + opacity 200; chips opacity + y 4→0 180', 'Chips 30 stagger', 'Opacity'),
+        R('Error / Retry', 'Request failed', 'Assistant entry (180). Retry press .96. On retry the error bubble collapses 220 and the send re-runs', '0', 'Opacity')
+      ],
+      colors: [
+        { name: 'bg', hex: '#FFF8F0', use: 'App background, header, nav' },
+        { name: 'surface', hex: '#FBF2E4', use: 'Card + builder surface' },
+        { name: 'surface-inset', hex: '#FFFCF6', use: 'Line items, field groups, chips' },
+        { name: 'sheet (Ledger)', hex: '#FFFDF8', use: 'Ledger card body' },
+        { name: 'bubble', hex: '#F3EADB', use: 'Assistant bubble (border #E9DDC8)' },
+        { name: 'line', hex: '#E6D9C3', use: 'Dividers, inputs #E6DAC4' },
+        { name: 'gold-line', hex: '#EAD9AE', use: 'Paper card border' },
+        { name: 'ink', hex: '#1F1B16', use: 'Primary text, totals' },
+        { name: 'charcoal', hex: '#2F2A24', use: 'User bubble, dark rows, sent pill' },
+        { name: 'ink-2', hex: '#3D362E', use: 'Labels' },
+        { name: 'muted', hex: '#6B6255', use: 'Secondary text (5.6:1 on bg)' },
+        { name: 'gold', hex: '#D5AF36', use: 'Primary action, nav pill, mark, caret' },
+        { name: 'gold-soft', hex: '#F1E2B8', use: '+ button, camera, Heads up, ready' },
+        { name: 'gold-ink', hex: '#6E5410', use: 'Gold text on cream (7.1:1)' },
+        { name: 'disabled', hex: '#EAE0D5', use: 'Disabled send (icon #A89C8A)' },
+        { name: 'danger', hex: '#A8321F', use: 'Delete, error (bg #FBEDE8)' }
+      ],
+      type: [
+        { name: 'display', spec: 'Montserrat 800 · 40/40 · −0.02em (total)' },
+        { name: 'greeting', spec: 'Montserrat 700 · 30/34' },
+        { name: 'title', spec: 'Montserrat 700 · 24/29 (Ledger client)' },
+        { name: 'body-lg', spec: 'Inter 400 · 16/23 (bubbles, input)' },
+        { name: 'item', spec: 'Inter 500–700 · 17/20' },
+        { name: 'button', spec: 'Inter 700 · 17 (primary) / 15 (secondary)' },
+        { name: 'label', spec: 'Inter 500 · 15' },
+        { name: 'caps', spec: 'Inter 700 · 12–13 · +0.08–0.1em' },
+        { name: 'meta', spec: 'Inter 400 · 13/18' },
+        { name: 'mono', spec: 'JetBrains Mono 500–600 · 12–13 (line #, links, IDs)' }
+      ],
+      radii: [
+        { name: 'r-pill', spec: '999 — buttons, pills, composer' },
+        { name: 'r-card', spec: '22 Paper · 18 Ledger' },
+        { name: 'r-bubble', spec: '18, tail corner 6' },
+        { name: 'r-inset', spec: '16 — line item, field group' },
+        { name: 'r-chip', spec: '18 — suggestion tiles' },
+        { name: 'r-control', spec: '12 Paper · 10 Ledger' },
+        { name: 'r-field', spec: '10 Paper · 8 Ledger' },
+        { name: 'r-mark', spec: '99 dot (1c) · 8 tile (1d)' }
+      ],
+      space: [
+        { name: 'space-1…6', spec: '4 · 8 · 12 · 16 · 20 · 24' },
+        { name: 'gutter', spec: '12 screen edge · 46 assistant indent' },
+        { name: 'card padding', spec: '16/14 Paper · 16 Ledger' },
+        { name: 'message gap', spec: '8' },
+        { name: 'header / nav', spec: '64 / 72' },
+        { name: 'composer', spec: '48 controls · 44 inner buttons · min 48 field' },
+        { name: 'touch min', spec: '44 · primary 56 · quick reply 52–56' },
+        { name: 'bubble max', spec: '296 assistant · 290 user' },
+        { name: 'caret', spec: '2 × 18, radius 1' },
+        { name: 'mark', spec: '14 dot + 4 ring · 26 tile' }
+      ],
+      shadows: [
+        { name: 'card-rest', spec: '0 1px 2px rgba(74,52,14,.06), 0 10px 28px -16px rgba(74,52,14,.22)' },
+        { name: 'card-lift (morph start)', spec: '0 4px 8px rgba(74,52,14,.08), 0 24px 48px -18px rgba(74,52,14,.34)' },
+        { name: 'menu', spec: '0 12px 32px -10px rgba(74,52,14,.35)' },
+        { name: 'gold-button', spec: '0 6px 14px -8px rgba(140,104,10,.55)' },
+        { name: 'glow (streaming)', spec: '0 0 0 3px rgba(213,175,54,.22), 0 8px 24px -8px rgba(213,175,54,.6)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

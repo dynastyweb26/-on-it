@@ -708,6 +708,126 @@ html[data-splash=""] .onit-splash {
 /* Reconnect banner / totals footnote: open by height, from -12px. */
 @keyframes bank-fade-in { from { opacity: 0; transform: translateY(-12px); } }
 .bank-fade-in { animation: bank-fade-in 320ms var(--oi-ease-out) both; }
+/* ---- On It Chat redesign tokens (docs/design/onit-chat · Motion) ----
+   The Ledger card's own timing, kept BESIDE the motion system above rather
+   than replacing it: every existing surface keeps --motion-fast/base/slow.
+   The card, the builder and every transition between them use these, and the
+   matching Tailwind names live in tailwind.config.ts (duration-tap, ease-settle). */
+:root {
+  --motion-tap: 140ms;      /* presses, steppers, chevrons, the copy crossfade */
+  --motion-settle: 260ms;   /* arrivals: labels, rows, pills, controls */
+  --motion-hero: 600ms;     /* the builder -> card morph (shared nodes) */
+  --motion-sweep: 760ms;    /* the one gold sweep */
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1); /* design "settle" */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);       /* design "exit" */
+}
+
+/* ---- Builder → card morph (docs/design/onit-chat · Prototype 1a/1b) ----
+   The builder stays mounted for the morph, then ghosts out: opacity only, on
+   the design's exit curve. The card's shared nodes (client, item, price,
+   total) travel as clones in a fixed overlay (src/lib/morph-shared.ts), 600ms
+   on the settle curve — the card keeps the domAnimation feature set, which has
+   no layout projection. Under reduced motion the ghost is the whole crossfade. */
+@keyframes onit-builder-ghost { to { opacity: 0; } }
+.onit-builder-ghost {
+  animation: onit-builder-ghost 220ms var(--ease-exit) both;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onit-builder-ghost { animation: onit-fade-out 160ms linear both; }
+}
+
+/* The card's draft controls folding away as it seals (260ms settle). The wrapper
+   is a one-row grid, so 1fr -> 0fr animates the height without measuring it and
+   the inner block clips. Kept mounted until the exit ends; taps are already void
+   on an exiting block, and reduced motion swaps instantly (the app skips the
+   class entirely). */
+.onit-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-settle) var(--ease-settle);
+}
+.onit-collapse > * { min-height: 0; overflow: hidden; }
+.onit-collapse.is-exiting { grid-template-rows: 0fr; pointer-events: none; }
+.onit-collapse.is-exiting > * { opacity: 0; transition: opacity 180ms var(--ease-exit); }
+
+/* Undo last edit: the line items flash warm gold, then clear (450ms). Opacity
+   and colour only, so the rows never move while it plays. */
+@keyframes onit-undo-flash { from { background-color: #F6E7B9; } to { background-color: transparent; } }
+.onit-undo-flash { animation: onit-undo-flash 450ms var(--ease-standard) both; }
+
+/* A line-item row that arrives (Add / Dup) opens its own height; one that leaves
+   (Delete) closes it before the row is dropped, so its siblings slide rather
+   than jump. One-row grid: neither direction needs a measured height. */
+.onit-row-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-settle) var(--ease-settle);
+}
+.onit-row-slot > * { min-height: 0; }
+.onit-row-slot.is-opening { animation: onit-row-open var(--motion-settle) var(--ease-settle) both; }
+@keyframes onit-row-open { from { grid-template-rows: 0fr; opacity: 0; } }
+.onit-row-slot.is-closing { grid-template-rows: 0fr; pointer-events: none; }
+.onit-row-slot.is-closing > * { overflow: hidden; opacity: 0; transition: opacity 160ms var(--ease-exit); }
+
+/* A ready card's controls arrive in order: Copy link, Share 40ms later, then
+   Revise. Opacity only — every control is tappable the whole time. */
+@keyframes onit-ready-in { from { opacity: 0; } }
+.onit-ready-actions button { animation: onit-ready-in 200ms var(--ease-settle) both; }
+.onit-ready-actions button:nth-of-type(2) { animation-delay: 40ms; }
+.onit-ready-revise { animation: onit-ready-in 200ms var(--ease-settle) 120ms both; }
+
+/* One gold sweep across the card once, when a send seals. The band is a child
+   of the sheet; the sheet clips it, and it never sits over a control
+   (pointer-events: none) so a tap during the 760ms still lands. */
+@keyframes onit-gold-sweep {
+  from { opacity: 1; transform: translateX(-120%) skewX(-12deg); }
+  70% { opacity: 1; }
+  to { opacity: 0; transform: translateX(260%) skewX(-12deg); }
+}
+.onit-gold-sweep {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 55%;
+  pointer-events: none;
+  background: linear-gradient(100deg, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, .32) 50%, rgba(212, 175, 55, 0) 100%);
+  animation: onit-gold-sweep var(--motion-sweep) var(--ease-settle) 160ms both;
+}
+
+/* The sent/ready pill slides in from +12px on the server-confirmed seal
+   (design 3a: "Sent pill in x 12→0, 280 settle"). Opacity + transform only. */
+@keyframes onit-pill-in { from { opacity: 0; transform: translateX(12px); } }
+.onit-pill-in { animation: onit-pill-in var(--motion-settle) var(--ease-settle) both; }
+
+/* Free-invoice counter: each used segment fills left → right, 80ms apart
+   (design: "segment fill scaleX 0→1 420 settle"). Under reduced motion the
+   global kill switch leaves every segment at its filled width. */
+@keyframes onit-seg-fill { from { transform: scaleX(0); } }
+.onit-seg-fill { transform-origin: left; animation: onit-seg-fill var(--motion-slow) var(--ease-settle) both; }
+
+/* A label that swaps (invoice ↔ estimate): 8px lift + fade, settle curve. */
+@keyframes onit-label-in { from { opacity: 0; transform: translateY(8px); } }
+.onit-label-in { display: inline-block; animation: onit-label-in var(--motion-settle) var(--ease-settle) both; }
+
+/* ---- Reduced motion: the card family ----
+   The global block at the bottom of this file stops every CSS animation and
+   transition, but Framer Motion is JS and is not reached by it. Card components
+   read usePrefersReducedMotion() for the JS half; these are the CSS halves.
+   .onit-rm-fade keeps a plain 140ms opacity fade and removes every transform
+   (so a card still swaps its state, it just doesn't travel or sweep).
+   .onit-rm-static is the still version: no motion at all. */
+@media (prefers-reduced-motion: reduce) {
+  .onit-rm-fade {
+    transform: none !important;
+    transition-property: opacity !important;
+    transition-duration: var(--motion-tap) !important;
+    transition-timing-function: var(--ease-settle) !important;
+  }
+  .onit-rm-static {
+    transform: none !important;
+    animation: none !important;
+  }
+}
 @keyframes onit-rise { from { opacity: 0; transform: translateY(12px); } }
 @keyframes onit-rise-sm { from { opacity: 0; transform: translateY(6px); } }
 @keyframes onit-fade { from { opacity: 0; } }
@@ -753,10 +873,82 @@ html[data-splash=""] .onit-splash {
    a new bubble rises 8px in 240ms. "On It is thinking…" uses the On It
    spinner (MOTION-SPEC §2), not typing dots. */
 @keyframes onit-msg-in { from { opacity: 0; transform: translateY(8px); } }
-.onit-msg-in { animation: onit-msg-in var(--motion-base) var(--ease-emphasized) both; }
+@keyframes onit-msg-user-in { from { opacity: 0; transform: translateY(6px); } }
+/* Per role: you 160ms, On It 180ms (motion inventory). */
+.onit-msg-in-user { animation: onit-msg-user-in 160ms var(--ease-emphasized) both; }
+.onit-msg-in-bot { animation: onit-msg-in 180ms var(--ease-emphasized) both; }
+
+/* The day divider (TODAY) fades in under the transcript, once. */
+@keyframes onit-day-in { from { opacity: 0; transform: translateY(4px); } }
+.onit-day-in { animation: onit-day-in var(--motion-settle) var(--ease-standard) both; }
+
+/* The "Heads up" duplicate note in the builder: 6px rise, 260ms, 200ms after
+   the sheet itself (design: "y 6→0 260 settle, +200 after sheet"). */
+@keyframes onit-heads-up { from { opacity: 0; transform: translateY(6px); } }
+.onit-heads-up { animation: onit-heads-up var(--motion-settle) var(--ease-settle) 200ms both; }
+
+/* In-chat nudge cards (payouts tip, feedback ask, add-your-terms): 260ms fade. */
+.onit-nudge-in { animation: onit-fade var(--motion-settle) var(--ease-settle) both; }
+
+/* The builder sheet rises from the composer edge when it opens (300ms settle). */
+@keyframes onit-builder-in { from { opacity: 0; transform: translateY(18px); } }
+.onit-builder-in { animation: onit-builder-in 300ms var(--ease-settle) both; }
+
+/* The assistant monogram (AssistantMark): a 4px gold dot, and a hairline ring
+   that breathes out while a reply is being written. Transform/opacity only, so
+   it never nudges the transcript. */
+.onit-mark { position: relative; }
+.onit-mark-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #d4af37;
+}
+.onit-mark.is-pulsing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid #d4af37;
+  animation: onit-mark-pulse 1800ms var(--ease-settle) infinite;
+}
+@keyframes onit-mark-pulse {
+  0% { opacity: .5; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
 
 /* ---- Invoice / quote card (MOTION-SPEC.md §3-5) ---- */
-.onit-card-enter { animation: onit-card-in 320ms var(--ease-standard) both; }
+/* The typewriter caret (StreamText): 2x18 gold, blinking, only while prose is
+   still revealing. Reduced motion never draws one — the text is instant. */
+@keyframes onit-caret-blink { 50% { opacity: 0; } }
+.onit-caret {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  margin-left: 2px;
+  vertical-align: -3px;
+  background: #d4af37;
+  animation: onit-caret-blink 1s steps(1, end) infinite;
+}
+
+/* Composer field: grows one 22px line at a time to four, then scrolls under a
+   12px top fade. The cap is four lines plus the field's vertical padding
+   (border-box); ChatView measures it and writes --composer-max-height, so the
+   100px fallback (4 × 22 + 12) only covers the first paint. */
+.onit-composer-field {
+  max-height: var(--composer-max-height, 100px);
+  overflow-y: auto;
+  transition: height 150ms var(--ease-settle);
+}
+.onit-composer-field.is-overflowing {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+}
+
+.onit-card-enter { animation: onit-card-in 220ms var(--ease-standard) both; }
 .onit-card-exit { animation: onit-card-out 150ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
 /* Line items stagger 70ms. Only the first 8 animate; the rest arrive with the
    card and skip rendering until scrolled to, so a 20+ item card stays smooth. */

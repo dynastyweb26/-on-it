@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"><style>
+@keyframes onitFade{from{opacity:0}to{opacity:1}}
+@keyframes onitInL{from{opacity:0;transform:translate(-6px,6px)}to{opacity:1;transform:none}}
+@keyframes onitInR{from{opacity:0;transform:translate(8px,8px)}to{opacity:1;transform:none}}
+@keyframes onitCardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes onitSheetIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes onitCaret{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes onitDot{0%,80%,100%{opacity:.25;transform:scale(.75)}40%{opacity:1;transform:scale(1)}}
+@keyframes onitGlow{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.1);opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:1ms!important;transition-duration:1ms!important}}
+</style></helmet>
+<div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 20px;font-family:Inter,sans-serif;color:#1F1B16">
+  <div ref="{{ phoneRef }}" style="position:relative;width:390px;height:844px;border-radius:42px;overflow:hidden;background:#FFF8F0;box-shadow:0 0 0 10px #1F1B16,0 0 0 11px #3A342C,0 40px 70px -24px rgba(31,27,22,.55);display:flex;flex-direction:column">
+    <dc-import name="OnItHeader" hint-size="100%,64px"></dc-import>
+    <div style="flex:1;min-height:0;position:relative">
+      <div ref="{{ listRef }}" onScroll="{{ onScroll }}" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none">
+        <sc-for list="{{ rows }}" as="m" hint-placeholder-count="2">
+          <sc-if value="{{ m.isDivider }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;font:600 12px/1 Inter,sans-serif;letter-spacing:.14em;color:#8C8170;padding:10px 0 4px;animation:onitFade 260ms cubic-bezier(0.2,0.8,0.2,1) both">TODAY</div></sc-if>
+          <sc-if value="{{ m.isAsst }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:0 12px;animation:onitInL 180ms cubic-bezier(0.2,0.8,0.2,1) both">
+              <div style="width:26px;height:26px;flex:none;margin-top:10px;display:grid;place-items:center">
+                <sc-if value="{{ m.mA }}" hint-placeholder-val="{{ false }}"><span style="position:relative;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"><sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:99px;background:#D5AF36;animation:onitGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></sc-if></span></sc-if>
+                <sc-if value="{{ m.mB }}" hint-placeholder-val="{{ false }}"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span><sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:-3px;border-radius:10px;border:2px solid #D5AF36;animation:onitGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></sc-if></span></sc-if>
+              </div>
+              <div onClick="{{ m.onTap }}" style="position:relative;max-width:296px;background:#F3EADB;border:1px solid #E9DDC8;border-radius:18px 18px 18px 6px;padding:11px 14px;font:400 16px/23px Inter,sans-serif;color:#1F1B16;text-wrap:pretty;cursor:default">
+                <div style="position:absolute;inset:-1px;border-radius:inherit;box-shadow:0 0 0 3px rgba(213,175,54,.22),0 8px 24px -8px rgba(213,175,54,.6);opacity:{{ m.glowO }};transition:opacity 400ms cubic-bezier(0.2,0.8,0.2,1);pointer-events:none"></div>
+                {{ m.shown }}<sc-if value="{{ m.typing }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:2px;height:18px;margin-left:2px;vertical-align:-3px;background:#D5AF36;border-radius:1px;animation:onitCaret 1s steps(1) infinite"></span></sc-if>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isThinking }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;padding:0 12px;min-height:44px;animation:onitInL 180ms cubic-bezier(0.2,0.8,0.2,1) both">
+              <div style="width:26px;height:26px;flex:none;display:grid;place-items:center">
+                <sc-if value="{{ m.mA }}" hint-placeholder-val="{{ false }}"><span style="position:relative;width:14px;height:14px;border-radius:99px;background:#D5AF36;box-shadow:0 0 0 4px #F6EBCF"><span style="position:absolute;inset:0;border-radius:99px;background:#D5AF36;animation:onitGlow 1.6s cubic-bezier(0.2,0.8,0.2,1) infinite"></span></span></sc-if>
+                <sc-if value="{{ m.mB }}" hint-placeholder-val="{{ false }}"><span style="position:relative;width:26px;height:26px;border-radius:8px;background:#2F2A24;display:grid;place-items:center;font:800 13px/1 Montserrat,sans-serif;color:#FFF8F0">O<span style="position:absolute;right:4px;bottom:5px;width:4px;height:4px;border-radius:9px;background:#D5AF36"></span></span></sc-if>
+              </div>
+              <span style="font:500 15px/20px Inter,sans-serif;color:#4A4238">{{ m.label }}</span>
+              <span style="display:flex;gap:4px;margin-left:2px"><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:onitDot 1.2s ease-in-out infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:onitDot 1.2s ease-in-out .16s infinite"></span><span style="width:6px;height:6px;border-radius:9px;background:#D5AF36;animation:onitDot 1.2s ease-in-out .32s infinite"></span></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;justify-content:flex-end;padding:0 12px;animation:onitInR 160ms cubic-bezier(0.2,0.8,0.2,1) both"><div style="max-width:290px;background:#2F2A24;color:#FFF8F0;border-radius:18px 18px 6px 18px;padding:11px 14px;font:400 16px/23px Inter,sans-serif">{{ m.text }}</div></div>
+          </sc-if>
+          <sc-if value="{{ m.isCard }}" hint-placeholder-val="{{ false }}">
+            <div data-card-msg="{{ m.id }}" style="animation:{{ m.anim }}">
+              <sc-if value="{{ m.paper }}" hint-placeholder-val="{{ true }}"><dc-import name="CardPaper" status="{{ m.status }}" kind="{{ m.kind }}" sending="{{ m.sending }}" sealing="{{ m.sealing }}" animate-in="{{ m.animateIn }}" interactive="{{ true }}" notes="{{ m.notes }}" qty="{{ m.qty }}" on-send="{{ m.onSend }}" on-revise="{{ m.onRevise }}" hint-size="100%,760px"></dc-import></sc-if>
+              <sc-if value="{{ m.ledger }}" hint-placeholder-val="{{ false }}"><dc-import name="CardLedger" status="{{ m.status }}" kind="{{ m.kind }}" sending="{{ m.sending }}" sealing="{{ m.sealing }}" animate-in="{{ m.animateIn }}" interactive="{{ true }}" notes="{{ m.notes }}" qty="{{ m.qty }}" on-send="{{ m.onSend }}" on-revise="{{ m.onRevise }}" hint-size="100%,760px"></dc-import></sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isSummary }}" hint-placeholder-val="{{ false }}">
+            <div style="animation:onitInL 220ms cubic-bezier(0.2,0.8,0.2,1) both">
+              <sc-if value="{{ m.sPaper }}" hint-placeholder-val="{{ true }}"><dc-import name="CardPaper" status="summary" hint-size="300px,72px"></dc-import></sc-if>
+              <sc-if value="{{ m.sLedger }}" hint-placeholder-val="{{ false }}"><dc-import name="CardLedger" status="summary" hint-size="300px,72px"></dc-import></sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isCounter }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;padding:2px 16px;animation:onitFade 240ms cubic-bezier(0.2,0.8,0.2,1) both">
+              <div style="display:flex;gap:3px"><sc-for list="{{ m.segs }}" as="s" hint-placeholder-count="3"><span style="width:22px;height:6px;border-radius:3px;background:#EADFCB;overflow:hidden"><span style="display:block;height:100%;background:#D5AF36;transform-origin:left;transform:scaleX({{ s.sx }});transition:transform 420ms cubic-bezier(0.2,0.8,0.2,1) {{ s.d }}ms"></span></span></sc-for></div>
+              <span style="font:500 14px/20px Inter,sans-serif;color:#4A4238">1 of 3 free invoices used</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.isError }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:0 12px 0 46px;animation:onitInL 180ms cubic-bezier(0.2,0.8,0.2,1) both">
+              <div style="max-width:296px;background:#FBEDE8;border:1px solid #EFC9BD;border-radius:18px 18px 18px 6px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;gap:8px;font:400 15px/21px Inter,sans-serif;color:#4E1A10"><span style="font:20px/21px 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#A8321F">error</span><span>{{ m.text }}</span></div>
+                <button onClick="{{ m.onRetry }}" style="align-self:flex-start;height:44px;padding:0 18px 0 14px;border-radius:999px;border:1.5px solid #A8321F;background:#FFFFFF;color:#A8321F;font:700 15px/1 Inter,sans-serif;display:flex;align-items:center;gap:6px;cursor:pointer;transition:transform 140ms" style-active="transform:scale(0.96)"><span style="font:19px/1 'Material Symbols Rounded'">refresh</span>Retry</button>
+              </div>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+      <button onClick="{{ jump }}" style="position:absolute;left:50%;bottom:12px;z-index:6;height:44px;padding:0 16px 0 18px;border-radius:999px;border:0;background:#2F2A24;color:#FFF8F0;font:600 14px/1 Inter,sans-serif;display:flex;align-items:center;gap:6px;box-shadow:0 8px 20px -8px rgba(31,27,22,.55);transform:translate(-50%,{{ pillY }}px);opacity:{{ pillO }};pointer-events:{{ pillPe }};transition:opacity 180ms cubic-bezier(0.2,0.8,0.2,1),transform 220ms cubic-bezier(0.2,0.8,0.2,1);cursor:pointer">New response<span style="font:18px/1 'Material Symbols Rounded'">arrow_downward</span></button>
+    </div>
+    <sc-if value="{{ builder }}" hint-placeholder-val="{{ false }}">
+      <div style="border-top:1px solid #EFE4D3;animation:onitSheetIn 300ms cubic-bezier(0.2,0.8,0.2,1) both">
+        <dc-import name="Builder" kind="{{ builderKind }}" sending="{{ builderSending }}" on-send="{{ onBuilderSend }}" on-close="{{ onBuilderClose }}" hint-size="100%,600px"></dc-import>
+      </div>
+    </sc-if>
+    <sc-if value="{{ noBuilder }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:onitFade 200ms cubic-bezier(0.2,0.8,0.2,1) both"><dc-import name="OnItComposer" interactive="{{ true }}" on-send="{{ onUserSend }}" on-plus="{{ onPlus }}" hint-size="100%,70px"></dc-import></div>
+    </sc-if>
+    <dc-import name="OnItNav" hint-size="100%,72px"></dc-import>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:420px">
+    <button onClick="{{ restart }}" style="height:40px;padding:0 14px;border-radius:999px;border:1px solid #D9CCB4;background:#FFFFFF;font:600 13px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer;display:flex;align-items:center;gap:6px"><span style="font:17px/1 'Material Symbols Rounded'">restart_alt</span>Restart</button>
+    <button onClick="{{ openInvoice }}" style="height:40px;padding:0 14px;border-radius:999px;border:1px solid #D9CCB4;background:#FFFFFF;font:600 13px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer">Open invoice builder</button>
+    <button onClick="{{ openEstimate }}" style="height:40px;padding:0 14px;border-radius:999px;border:1px solid #D9CCB4;background:#FFFFFF;font:600 13px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer">Open estimate builder</button>
+    <button onClick="{{ ask }}" style="height:40px;padding:0 14px;border-radius:999px;border:1px solid #D9CCB4;background:#FFFFFF;font:600 13px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer">Ask “what did I make?”</button>
+    <button onClick="{{ toggleFail }}" style="height:40px;padding:0 14px;border-radius:999px;border:1px solid {{ failBorder }};background:{{ failBg }};font:600 13px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer">Next send fails: {{ failTxt }}</button>
+  </div>
+  <div style="max-width:400px;font:400 13px/19px Inter,sans-serif;color:#6B6255;text-align:center;text-wrap:pretty">Invoice: ↗ morphs the builder into an editable draft → “Looks right — send it” locks it. Estimate: ↗ spins while the link is created, then morphs straight into the Ready-to-share card. Tap any typing bubble to finish it. Mic: tap to listen, tap again to stop. Scroll up while a reply types to see “New response”.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:440,&quot;height&quot;:1060},&quot;cardStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Paper&quot;,&quot;Ledger&quot;],&quot;default&quot;:&quot;Paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Variations&quot;},&quot;mark&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Variations&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Motion&quot;}}">
+class Component extends DCLogic {
+  state = { msgs: [], builder: false, builderKind: 'invoice', builderSending: false, newPill: false, failNext: false };
+  listRef = React.createRef();
+  phoneRef = React.createRef();
+  uid = 1; timers = []; atBottom = true;
+  componentDidMount() {
+    this.restart();
+    if (window.ResizeObserver && this.listRef.current) {
+      this.ro = new ResizeObserver(() => { if (this.atBottom) this.pin(); });
+      this.ro.observe(this.listRef.current);
+    }
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); this.ro && this.ro.disconnect(); this.timers.forEach(clearTimeout); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+  restart() {
+    this.timers.forEach(clearTimeout); this.timers = [];
+    this.atBottom = true;
+    this.setState({ msgs: [], builder: false, builderSending: false, newPill: false });
+    this.later(() => this.add({ type: 'divider' }), 80);
+    this.later(() => this.say("Morning! Snap a receipt, or tap + to start an invoice or estimate.", { fast: true }), 300);
+  }
+  add(m) {
+    m.id = this.uid++;
+    this.setState(s => ({ msgs: [...s.msgs, m] }), () => this.afterAdd());
+    return m.id;
+  }
+  upd(id, patch) { this.setState(s => ({ msgs: s.msgs.map(m => m.id === id ? { ...m, ...patch } : m) })); }
+  removeMsg(id) { this.setState(s => ({ msgs: s.msgs.filter(m => m.id !== id) })); }
+  afterAdd() {
+    if (this.skipPin) return;
+    if (this.atBottom) { const l = this.listRef.current; l && l.scrollTo({ top: l.scrollHeight, behavior: 'smooth' }); }
+    else if (!this.state.newPill) this.setState({ newPill: true });
+  }
+  pin() { const l = this.listRef.current; if (l && !this.skipPin) l.scrollTop = l.scrollHeight; }
+  say(text, o) {
+    o = o || {};
+    const m = { type: 'asst', full: text, n: 0, avail: o.stream ? 0 : text.length, fast: !!o.fast, stream: !!o.stream, pause: 0, onDone: o.onDone };
+    m.onTap = () => this.complete(m.id);
+    this.add(m); this.tick(); return m.id;
+  }
+  complete(id) {
+    const m = this.state.msgs.find(x => x.id === id); if (!m || m.n >= m.full.length) return;
+    const done = m.onDone;
+    this.upd(id, { n: m.full.length, avail: m.full.length, onDone: null });
+    if (done) setTimeout(done, 0);
+  }
+  tick() {
+    if (this.raf) return;
+    let last = performance.now();
+    const step = (t) => {
+      const dt = Math.min(64, t - last); last = t;
+      let any = false, changed = false; const dones = [];
+      const msgs = this.state.msgs.map(m0 => {
+        if (m0.type !== 'asst' || m0.n >= m0.full.length) return m0;
+        any = true; const m = { ...m0 };
+        if (this.props.reduceMotion) { m.n = m.full.length; m.avail = m.n; changed = true; }
+        else {
+          if (m.stream && m.avail < m.full.length) { m.acc = (m.acc || 0) + dt; if (m.acc > 80) { m.acc = 0; m.avail = Math.min(m.full.length, m.avail + 4 + Math.floor(Math.random() * 12)); } }
+          if (m.pause > 0) { m.pause -= dt; return m; }
+          const backlog = m.avail - m.n;
+          const cps = m.fast ? 85 : (backlog > 60 ? 60 : backlog > 25 ? 48 : 38);
+          m.frac = (m.frac || 0) + cps * dt / 1000;
+          let k = Math.floor(m.frac); m.frac -= k;
+          while (k-- > 0 && m.n < m.avail) {
+            m.n++; changed = true;
+            const c = m.full[m.n - 1];
+            if ('.!?—'.includes(c) && m.full[m.n] === ' ') { m.pause = m.fast ? 70 : 170; break; }
+          }
+        }
+        if (m.n >= m.full.length && m.onDone) { dones.push(m.onDone); m.onDone = null; }
+        return m;
+      });
+      if (changed || dones.length) { this.setState({ msgs }); if (this.atBottom) this.pin(); else if (!this.state.newPill) this.setState({ newPill: true }); }
+      else this.state.msgs = msgs;
+      dones.forEach(f => setTimeout(f, 0));
+      if (any) this.raf = requestAnimationFrame(step); else this.raf = null;
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  mkClone(el, r, pr, k) {
+    const c = el.cloneNode(true); const cs = getComputedStyle(el);
+    Object.assign(c.style, { position: 'absolute', left: (r.left - pr.left) / k + 'px', top: (r.top - pr.top) / k + 'px', margin: '0', font: cs.font, color: cs.color, letterSpacing: cs.letterSpacing, whiteSpace: 'nowrap', transformOrigin: '0 0', zIndex: '30', pointerEvents: 'none', borderBottom: '0', visibility: 'visible', willChange: 'transform,opacity' });
+    c.removeAttribute('data-shared');
+    return c;
+  }
+  estimateSend(d) {
+    if (this.state.builderSending) return;
+    this.setState({ builderSending: true });
+    this.later(() => {
+      if (this.state.failNext) {
+        this.setState({ builderSending: false, failNext: false });
+        const e = { type: 'error', text: "Couldn't create the link — your signal dropped. No estimate was made." };
+        e.onRetry = () => { this.removeMsg(e.id); this.estimateSend(d); };
+        this.add(e);
+        return;
+      }
+      this.setState({ builderSending: false });
+      this.builderSend(d, true);
+    }, 1200);
+  }
+  builderSend({ kind, qty }, ready) {
+    const phone = this.phoneRef.current; const pr = phone.getBoundingClientRect(); const k = pr.width / phone.offsetWidth || 1;
+    const keys = ['client', 'item', 'price', 'total']; const bld = phone.querySelector('[data-builder]');
+    const old = {}, oldC = {}; const morph = !!bld && !this.props.reduceMotion;
+    if (morph) {
+      keys.forEach(key => { const el = bld.querySelector('[data-shared="' + key + '"]'); if (el) { old[key] = el.getBoundingClientRect(); oldC[key] = this.mkClone(el, old[key], pr, k); } });
+      const br = bld.getBoundingClientRect(); const g = bld.cloneNode(true); g.removeAttribute('data-builder');
+      Object.assign(g.style, { position: 'absolute', left: (br.left - pr.left) / k + 'px', top: (br.top - pr.top) / k + 'px', width: br.width / k + 'px', margin: '0', zIndex: '20', pointerEvents: 'none', transformOrigin: '50% 0', transition: 'opacity 220ms cubic-bezier(0.4,0,1,1),transform 320ms cubic-bezier(0.4,0,1,1)' });
+      g.querySelectorAll('[data-shared]').forEach(e => { e.style.visibility = 'hidden'; });
+      phone.appendChild(g); Object.values(oldC).forEach(c => phone.appendChild(c));
+      requestAnimationFrame(() => { g.style.opacity = '0'; g.style.transform = 'scale(0.97)'; });
+      setTimeout(() => g.remove(), 380);
+    }
+    const card = { type: 'card', status: ready ? 'ready' : 'draft', kind, qty, animateIn: true, morph, sending: false, sealing: !!ready, notes: '' };
+    card.onSend = () => this.cardSend(card.id); card.onRevise = () => this.revise(card.id);
+    this.skipPin = true;
+    this.setState({ builder: false });
+    const id = this.add(card);
+    if (ready) {
+      this.later(() => this.upd(id, { sealing: false }), 1800);
+      this.later(() => this.say("Estimate's ready. Copy the link or share it with Brandon.", { fast: true }), 1000);
+    }
+    let tries = 0;
+    const find = () => {
+      const wrap = phone.querySelector('[data-card-msg="' + id + '"]');
+      const cardEl = wrap && wrap.querySelector('[data-card] [data-shared="total"]');
+      if (!cardEl) { if (tries++ < 60) return requestAnimationFrame(find); this.skipPin = false; Object.values(oldC).forEach(c => c.remove()); return; }
+      const l = this.listRef.current; l.scrollTop = Math.max(0, wrap.offsetTop - 8);
+      this.atBottom = l.scrollHeight - l.scrollTop - l.clientHeight < 40;
+      this.skipPin = false;
+      if (!morph) return;
+      const T = 'transform 600ms cubic-bezier(0.2,0.8,0.2,1),opacity 280ms cubic-bezier(0.2,0.8,0.2,1)';
+      keys.forEach(key => {
+        const el = wrap.querySelector('[data-shared="' + key + '"]'); const o = old[key]; const oc = oldC[key];
+        if (!el || !o) { oc && oc.remove(); return; }
+        const nr = el.getBoundingClientRect(); const nc = this.mkClone(el, nr, pr, k);
+        const dx = (o.left - nr.left) / k, dy = (o.top - nr.top) / k, s = o.height / nr.height || 1;
+        nc.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')'; nc.style.opacity = '0';
+        phone.appendChild(nc); el.style.visibility = 'hidden';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          nc.style.transition = T; oc.style.transition = T;
+          nc.style.transform = 'none'; nc.style.opacity = '1';
+          oc.style.transform = 'translate(' + (-dx) + 'px,' + (-dy) + 'px) scale(' + (1 / s) + ')'; oc.style.opacity = '0';
+        }));
+        setTimeout(() => { el.style.visibility = ''; nc.remove(); oc.remove(); }, 640);
+      });
+    };
+    requestAnimationFrame(find);
+  }
+  cardSend(id) {
+    const m = this.state.msgs.find(x => x.id === id); if (!m) return;
+    this.upd(id, { sending: true });
+    if (this.state.failNext) {
+      this.later(() => {
+        this.upd(id, { sending: false }); this.setState({ failNext: false });
+        const e = { type: 'error', text: "Couldn't send — your signal dropped. Nothing went out to Brandon." };
+        e.onRetry = () => { this.removeMsg(e.id); this.cardSend(id); };
+        this.add(e);
+      }, 1300);
+      return;
+    }
+    this.later(() => {
+      this.upd(id, { sending: false, status: 'sent', sealing: true });
+      this.later(() => this.upd(id, { sealing: false }), 1500);
+      this.later(() => { const c = { type: 'counter', used: 1, filled: false }; const cid = this.add(c); this.later(() => this.upd(cid, { filled: true }), 60); }, 560);
+      this.later(() => this.say("Sent! I'll notify you if Brandon hasn't paid in 2 days.", { fast: true, onDone: () => this.later(() => this.add({ type: 'summary' }), 140) }), 860);
+    }, 1200);
+  }
+  revise(id) {
+    const m = this.state.msgs.find(x => x.id === id);
+    const est = m && m.kind === 'estimate';
+    if (est) {
+      this.say("Starting a revision of this estimate. Change anything in the builder, then tap send — it makes a new link and the original stays as it was.", { stream: true, onDone: () => this.later(() => this.setState({ builder: true, builderKind: 'estimate' }), 220) });
+      return;
+    }
+    this.say("Starting a revision of INV-0022. Change anything, then send — this is a new invoice and the original stays as it was.", {
+      stream: true,
+      onDone: () => this.later(() => {
+        const c = { type: 'card', status: 'draft', kind: est ? 'estimate' : 'invoice', qty: 1, animateIn: true, morph: false, sending: false, sealing: false, notes: est ? '' : 'Replaces INV-0022' };
+        c.onSend = () => this.cardSend(c.id); c.onRevise = () => this.revise(c.id);
+        this.add(c);
+      }, 220)
+    });
+  }
+  userSend(text) {
+    this.add({ type: 'user', text });
+    const t = text.toLowerCase();
+    const label = /brandon|john|customer/.test(t) ? "Looking up Brandon's past jobs…" : /week|make|made|earn/.test(t) ? "Adding up this week's invoices…" : /charge|price|quote/.test(t) ? "Checking your similar jobs…" : 'Working on it…';
+    const reply = /week|make|made|earn/.test(t)
+      ? "You made $3,840 this week across 7 jobs. Biggest was the Hendricks water heater at $1,250. Two invoices are still out — $560 total. Want me to nudge them?"
+      : /brandon/.test(t)
+      ? "Got it — Brandon, $200 for the car wash. Tap + and I'll have the invoice filled in, or say “send it” and I'll draft it now."
+      : "On it. Tell me the customer, the job and the price, and I'll draft the invoice. Nothing goes out until you confirm.";
+    const th = { type: 'thinking', label };
+    const id = this.add(th);
+    this.later(() => {
+      const m = { type: 'asst', full: reply, n: 0, avail: 0, stream: true, fast: false, pause: 0 };
+      m.onTap = () => this.complete(id);
+      this.upd(id, m); this.tick();
+    }, 1500);
+  }
+  renderVals() {
+    const P = this.props, S = this.state;
+    const ledger = (P.cardStyle || 'Paper') === 'Ledger'; const mk = P.mark || 'A';
+    let prev = false;
+    const rows = S.msgs.map(m => {
+      const asstish = m.type === 'asst' || m.type === 'thinking';
+      const showMark = asstish && !prev; prev = asstish;
+      const typing = m.type === 'asst' && m.n < m.full.length;
+      return {
+        id: m.id, text: m.text, label: m.label, status: m.status, kind: m.kind, sending: m.sending, sealing: m.sealing, animateIn: m.animateIn, notes: m.notes, qty: m.qty,
+        onSend: m.onSend, onRevise: m.onRevise, onTap: m.onTap, onRetry: m.onRetry,
+        isDivider: m.type === 'divider', isAsst: m.type === 'asst', isThinking: m.type === 'thinking', isUser: m.type === 'user',
+        isCard: m.type === 'card', isSummary: m.type === 'summary', isCounter: m.type === 'counter', isError: m.type === 'error',
+        mA: showMark && mk === 'A', mB: showMark && mk === 'B', active: typing,
+        shown: m.type === 'asst' ? m.full.slice(0, m.n) : '', typing, glowO: typing ? 1 : 0,
+        paper: !ledger, ledger, sPaper: !ledger, sLedger: ledger,
+        anim: m.morph ? 'onitFade 260ms cubic-bezier(0.2,0.8,0.2,1) both' : 'onitCardIn 220ms cubic-bezier(0.2,0.8,0.2,1) both',
+        segs: [0, 1, 2].map(i => ({ sx: m.filled && i < (m.used || 0) ? 1 : 0, d: 120 + i * 80 }))
+      };
+    });
+    return {
+      rows, phoneRef: this.phoneRef, listRef: this.listRef,
+      onScroll: () => { const l = this.listRef.current; if (!l) return; this.atBottom = l.scrollHeight - l.scrollTop - l.clientHeight < 40; if (this.atBottom && S.newPill) this.setState({ newPill: false }); },
+      jump: () => { const l = this.listRef.current; l && l.scrollTo({ top: l.scrollHeight, behavior: 'smooth' }); this.atBottom = true; this.setState({ newPill: false }); },
+      pillO: S.newPill ? 1 : 0, pillY: S.newPill ? 0 : 12, pillPe: S.newPill ? 'auto' : 'none',
+      builder: S.builder, noBuilder: !S.builder, builderKind: S.builderKind,
+      builderSending: S.builderSending,
+      onBuilderSend: (d) => d.kind === 'estimate' ? this.estimateSend(d) : this.builderSend(d), onBuilderClose: () => this.setState({ builder: false, builderSending: false }),
+      onPlus: () => this.setState({ builder: true, builderKind: 'invoice' }),
+      onUserSend: (t) => this.userSend(t),
+      restart: () => this.restart(),
+      openInvoice: () => this.setState({ builder: false }, () => this.setState({ builder: true, builderKind: 'invoice' })),
+      openEstimate: () => this.setState({ builder: false }, () => this.setState({ builder: true, builderKind: 'estimate' })),
+      ask: () => this.userSend('What did I make this week?'),
+      toggleFail: () => this.setState({ failNext: !S.failNext }),
+      failTxt: S.failNext ? 'On' : 'Off', failBg: S.failNext ? '#F6E0D8' : '#FFFFFF', failBorder: S.failNext ? '#A8321F' : '#D9CCB4'
+    };
+  }
+}
+</script>
+</body>
+</html>

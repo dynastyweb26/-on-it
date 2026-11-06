@@ -40,7 +40,7 @@ export default function ChatNudgeCard({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5 ${className}`}>
+    <div className={`onit-nudge-in rounded-2xl border border-primary/30 bg-surface-container px-4 py-3.5 ${className}`}>
       <div className="mb-1.5 flex items-center gap-1.5">
         <Icon name={icon} size={15} className="text-primary" />
         <span className="text-[11px] font-bold uppercase tracking-widest text-primary">{eyebrow}</span>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"><style>@keyframes onitIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes onitFieldIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}@keyframes onitSpin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){*{animation-duration:1ms!important;transition-duration:1ms!important;transition-delay:0ms!important}}</style></helmet>
+<sc-if value="{{ isSummary }}" hint-placeholder-val="{{ false }}">
+  <div style="margin:4px 12px;max-width:300px;display:flex;align-items:center;gap:12px;background:#FFFCF6;border:1px solid #EADFCB;border-radius:18px;padding:12px 14px 12px 16px;font-family:Inter,sans-serif;color:#1F1B16;box-shadow:0 1px 2px rgba(74,52,14,.05)">
+    <div style="flex:1;min-width:0"><div style="font:700 17px/22px Inter,sans-serif">{{ client }}</div><div style="font:400 13px/18px Inter,sans-serif;color:#6B6255">{{ invNo }} · Due {{ due }}</div></div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><span style="font:800 18px/1 Montserrat,sans-serif">{{ totalTxt }}</span><span style="display:flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;background:#2F2A24;color:#FFF8F0;font:700 11px/1 Inter,sans-serif;letter-spacing:.08em"><span style="font:13px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#D5AF36">check_circle</span>SENT</span></div>
+  </div>
+</sc-if>
+<sc-if value="{{ notSummary }}" hint-placeholder-val="{{ true }}">
+<div ref="{{ rootRef }}" data-card="1" style="position:relative;margin:4px 12px;font-family:Inter,sans-serif;color:#1F1B16">
+  <div style="position:absolute;inset:0;border-radius:22px;box-shadow:0 4px 8px rgba(74,52,14,.08),0 24px 48px -18px rgba(74,52,14,.34);opacity:{{ liftO }};transition:opacity 600ms cubic-bezier(0.2,0.8,0.2,1);pointer-events:none"></div>
+  <div style="position:relative;background:#FBF2E4;border:1px solid {{ borderC }};border-radius:22px;padding:16px 14px 14px;box-shadow:0 1px 2px rgba(74,52,14,.06),0 10px 28px -16px rgba(74,52,14,.22);transition:border-color 320ms">
+    <div style="position:absolute;inset:0;border-radius:22px;overflow:hidden;pointer-events:none"><div style="position:absolute;top:-20%;bottom:-20%;left:0;width:55%;background:linear-gradient(100deg,rgba(213,175,54,0) 0%,rgba(213,175,54,.30) 50%,rgba(213,175,54,0) 100%);transform:translateX({{ sweepX }}%) skewX(-12deg);opacity:{{ sweepO }};transition:{{ sweepT }}"></div></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:10px;min-height:30px">
+      <span style="font:20px/1 'Material Symbols Rounded';color:#6E5410">{{ docIcon }}</span>
+      <div style="flex:1 1 calc(100% - 40px);min-width:0;font:700 13px/1 Inter,sans-serif;letter-spacing:.08em;color:#6E5410;display:flex;align-items:center;gap:5px;white-space:nowrap">
+        <span style="position:relative;display:inline-block;white-space:nowrap"><span style="position:{{ invPos }};left:0;top:0;opacity:{{ invO }};transform:translateY({{ invY }}px);transition:opacity 180ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1)">INVOICE FOR</span><span style="position:{{ estPos }};left:0;top:0;opacity:{{ estO }};transform:translateY({{ estY }}px);transition:opacity 180ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1)">ESTIMATE FOR</span></span>
+        <span data-shared="client" style="display:inline-block">{{ clientUp }}</span>
+      </div>
+      <div style="display:grid;justify-items:start;opacity:{{ g1 }};transform:translateY({{ g1y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 260ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 260ms">
+        <span style="grid-area:1/1;display:flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;border:1.5px dashed #C9AE68;color:#6E5410;font:600 12px/1 Inter,sans-serif;white-space:nowrap;opacity:{{ dpO }};transform:translateX({{ dpX }}px);transition:opacity 160ms cubic-bezier(0.4,0,1,1),transform 160ms cubic-bezier(0.4,0,1,1)"><span style="font:15px/1 'Material Symbols Rounded'">edit_note</span>Draft · not sent</span>
+        <span style="grid-area:1/1;display:flex;align-items:center;gap:5px;height:28px;padding:0 11px 0 9px;border-radius:999px;background:#2F2A24;color:#FFF8F0;font:600 12px/1 Inter,sans-serif;white-space:nowrap;opacity:{{ spO }};transform:translateX({{ spX }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 120ms,transform 280ms cubic-bezier(0.2,0.8,0.2,1) 120ms"><span style="font:15px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#D5AF36;display:inline-block;transform:scale({{ lockS }});transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1)">{{ lockIcon }}</span>Sent — locked</span>
+        <span style="grid-area:1/1;display:flex;align-items:center;gap:5px;height:28px;padding:0 11px 0 9px;border-radius:999px;background:#D5AF36;color:#1F1B16;font:600 12px/1 Inter,sans-serif;white-space:nowrap;opacity:{{ rpO }};transform:translateX({{ rpX }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 120ms,transform 280ms cubic-bezier(0.2,0.8,0.2,1) 120ms"><span style="font:15px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;display:inline-block;transform:scale({{ lockS }});transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1)">{{ lockIcon }}</span>Ready to share</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;margin-top:12px;background:{{ itemsBg }};border-radius:16px;transition:background-color 450ms">
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="1">
+        <div data-item="{{ it.id }}" style="display:grid;grid-template-rows:{{ it.rows }};opacity:{{ it.o }};transition:grid-template-rows 260ms cubic-bezier(0.2,0.8,0.2,1),opacity 200ms cubic-bezier(0.2,0.8,0.2,1);position:relative;z-index:{{ it.z }}">
+          <div style="min-height:0;overflow:{{ it.ovf }}">
+            <div style="background:#FFFCF6;border:1px solid #F0E4CE;border-radius:16px;padding:12px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;min-height:32px">
+                <span style="font:600 13px/1 'JetBrains Mono',monospace;color:#8C8170;width:20px">{{ it.n }}</span>
+                <sc-if value="{{ it.editName }}" hint-placeholder-val="{{ false }}"><div style="flex:1;min-width:0;display:flex"><input value="{{ it.dv }}" onChange="{{ it.onDraft }}" onBlur="{{ it.commit }}" onKeyDown="{{ it.onKey }}" autoFocus="{{ it.focus }}" size="1" style="width:100%;min-width:0;height:40px;box-sizing:border-box;border:2px solid #D5AF36;border-radius:10px;padding:0 10px;font:500 17px/1 Inter,sans-serif;color:#1F1B16;background:#FFFFFF;outline:0;box-shadow:0 0 0 4px rgba(213,175,54,.18);animation:onitFieldIn 160ms cubic-bezier(0.2,0.8,0.2,1)"></div></sc-if>
+                <sc-if value="{{ it.showName }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ it.onEditName }}" disabled="{{ locked }}" style="display:flex;align-items:center;gap:6px;border:0;background:transparent;padding:6px 0;cursor:pointer;color:#1F1B16;font:500 17px/1.2 Inter,sans-serif;text-align:left;min-width:0">
+                    <span data-shared="item" style="display:inline-block;white-space:nowrap;border-bottom:{{ editLine }}">{{ it.name }}</span>
+                    <sc-if value="{{ isDraft }}" hint-placeholder-val="{{ true }}"><span style="font:16px/1 'Material Symbols Rounded';color:#8C8170;opacity:{{ g2 }};transition:opacity 220ms 300ms">edit</span></sc-if>
+                  </button>
+                </sc-if>
+                <span data-shared="price" style="margin-left:auto;display:inline-block;font:700 17px/1 Inter,sans-serif;white-space:nowrap">{{ it.lineTxt }}</span>
+              </div>
+              <sc-if value="{{ locked }}" hint-placeholder-val="{{ false }}"><div style="font:400 14px/20px Inter,sans-serif;color:#6B6255;padding-left:28px">{{ it.meta }}</div></sc-if>
+              <sc-if value="{{ it.descShow }}" hint-placeholder-val="{{ false }}"><textarea value="{{ it.desc }}" onChange="{{ it.onDesc }}" readOnly="{{ locked }}" placeholder="Describe the work (optional)" rows="2" style="display:block;width:calc(100% - 28px);margin:6px 0 0 28px;box-sizing:border-box;border:1px solid #E6DAC4;border-radius:10px;padding:8px 10px;font:400 14px/20px Inter,sans-serif;color:#1F1B16;background:#FFFFFF;resize:none;outline:0;animation:onitFieldIn 180ms cubic-bezier(0.2,0.8,0.2,1)"></textarea></sc-if>
+              <div style="display:grid;grid-template-rows:{{ dRows }};opacity:{{ dO }};transition:grid-template-rows 320ms cubic-bezier(0.2,0.8,0.2,1),opacity 180ms;pointer-events:{{ dPe }}">
+                <div style="min-height:0;overflow:{{ dOvf }}">
+                  <div style="opacity:{{ g2 }};transform:translateY({{ g2y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 300ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 300ms">
+                    <div style="display:flex;align-items:center;gap:6px;padding-left:28px;margin-top:4px;position:relative">
+                      <sc-if value="{{ it.editQty }}" hint-placeholder-val="{{ false }}"><input value="{{ it.dv }}" inputMode="numeric" onChange="{{ it.onDraft }}" onBlur="{{ it.commit }}" onKeyDown="{{ it.onKey }}" autoFocus="{{ it.focus }}" style="width:52px;height:40px;box-sizing:border-box;border:2px solid #D5AF36;border-radius:10px;padding:0 8px;font:500 16px/1 Inter,sans-serif;background:#FFF;outline:0;box-shadow:0 0 0 4px rgba(213,175,54,.18);animation:onitFieldIn 160ms"></sc-if>
+                      <sc-if value="{{ it.showQty }}" hint-placeholder-val="{{ true }}"><button onClick="{{ it.onEditQty }}" style="display:flex;align-items:center;gap:3px;height:44px;border:0;background:transparent;padding:0 4px 0 0;font:500 16px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer"><span style="border-bottom:1px dashed #C9BB9F">{{ it.qty }}</span><span style="font:15px/1 'Material Symbols Rounded';color:#8C8170">edit</span></button></sc-if>
+                      <button onClick="{{ it.onUnit }}" style="display:flex;align-items:center;gap:2px;height:36px;padding:0 6px 0 12px;border-radius:10px;border:0;background:{{ it.unitBg }};font:500 15px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer;transition:background-color 140ms">{{ it.unit }}<span style="font:20px/1 'Material Symbols Rounded';display:inline-block;transform:rotate({{ it.chev }}deg);transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1)">expand_more</span></button>
+                      <span style="color:#9A8F7D;font-size:14px;margin:0 2px">×</span>
+                      <sc-if value="{{ it.editPrice }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;height:40px;box-sizing:border-box;border:2px solid #D5AF36;border-radius:10px;padding:0 8px;background:#FFF;box-shadow:0 0 0 4px rgba(213,175,54,.18);animation:onitFieldIn 160ms"><span style="font:500 16px/1 Inter,sans-serif;color:#6B6255">$</span><input value="{{ it.dv }}" inputMode="decimal" onChange="{{ it.onDraft }}" onBlur="{{ it.commit }}" onKeyDown="{{ it.onKey }}" autoFocus="{{ it.focus }}" size="1" style="width:64px;border:0;outline:0;font:500 16px/1 Inter,sans-serif;background:transparent;padding:0 0 0 2px"></div></sc-if>
+                      <sc-if value="{{ it.showPrice }}" hint-placeholder-val="{{ true }}"><button onClick="{{ it.onEditPrice }}" style="display:flex;align-items:center;gap:3px;height:44px;border:0;background:transparent;padding:0;font:500 16px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer"><span style="border-bottom:1px dashed #C9BB9F">{{ it.priceTxt }}</span><span style="font:15px/1 'Material Symbols Rounded';color:#8C8170">edit</span></button></sc-if>
+                      <div style="position:absolute;top:42px;left:60px;z-index:10;width:148px;background:#FFFFFF;border:1px solid #EADFCB;border-radius:14px;padding:4px;box-shadow:0 12px 32px -10px rgba(74,52,14,.35);transform-origin:top left;opacity:{{ it.uO }};transform:translateY({{ it.uY }}px) scale({{ it.uS }});pointer-events:{{ it.uPe }};transition:opacity 160ms cubic-bezier(0.2,0.8,0.2,1),transform 200ms cubic-bezier(0.2,0.8,0.2,1)">
+                        <sc-for list="{{ it.units }}" as="u" hint-placeholder-count="6"><button onClick="{{ u.on }}" style="display:flex;align-items:center;width:100%;height:40px;border:0;border-radius:10px;padding:0 10px;background:{{ u.bg }};font:500 15px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer;text-align:left" style-hover="background:#F6EEE0">{{ u.label }}<span style="margin-left:auto;font:18px/1 'Material Symbols Rounded';color:#6E5410">{{ u.check }}</span></button></sc-for>
+                      </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;border-top:1px solid #F0E5D2;margin-top:8px;padding-top:8px">
+                      <div style="display:flex;align-items:center;background:#F4ECDE;border-radius:12px">
+                        <button aria-label="Up" onClick="{{ it.onUp }}" style="width:40px;height:44px;border:0;background:transparent;display:grid;place-items:center;color:#2F2A24;opacity:{{ it.upO }};cursor:pointer" style-active="transform:scale(0.9)"><span style="font:22px/1 'Material Symbols Rounded'">keyboard_arrow_up</span></button>
+                        <span style="width:1px;height:20px;background:#E1D3BA"></span>
+                        <button aria-label="Down" onClick="{{ it.onDown }}" style="width:40px;height:44px;border:0;background:transparent;display:grid;place-items:center;color:#2F2A24;opacity:{{ it.downO }};cursor:pointer" style-active="transform:scale(0.9)"><span style="font:22px/1 'Material Symbols Rounded'">keyboard_arrow_down</span></button>
+                      </div>
+                      <button onClick="{{ it.onDescT }}" style="height:44px;padding:0 10px;border:0;border-radius:12px;background:transparent;font:600 14px/1 Inter,sans-serif;color:#3D362E;cursor:pointer;white-space:nowrap" style-active="background:#F1E6D4">{{ it.descLabel }}</button>
+                      <button onClick="{{ it.onDup }}" style="height:44px;padding:0 10px;border:0;border-radius:12px;background:transparent;font:600 14px/1 Inter,sans-serif;color:#3D362E;cursor:pointer" style-active="background:#F1E6D4">Dup</button>
+                      <button aria-label="Delete" onClick="{{ it.onDel }}" style="margin-left:auto;width:44px;height:44px;border:0;border-radius:12px;background:transparent;display:grid;place-items:center;color:#A8321F;cursor:pointer;transition:background-color 140ms" style-hover="background:#F6E0D8" style-active="background:#F0CFC4;transform:scale(0.94)"><span style="font:21px/1 'Material Symbols Rounded'">delete</span></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-rows:{{ dRows }};opacity:{{ dO }};transition:grid-template-rows 320ms cubic-bezier(0.2,0.8,0.2,1),opacity 180ms;pointer-events:{{ dPe }}">
+      <div style="min-height:0;overflow:hidden">
+        <div style="opacity:{{ g3 }};transform:translateY({{ g3y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 340ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 340ms">
+          <button onClick="{{ addLine }}" style="width:100%;height:48px;border:1.5px dashed #DCCBA6;border-radius:14px;background:transparent;display:flex;align-items:center;justify-content:center;gap:6px;font:600 15px/1 Inter,sans-serif;color:#6E5410;cursor:pointer;transition:background-color 140ms,transform 140ms" style-hover="background:#F6EBD3" style-active="transform:scale(0.98)"><span style="font:20px/1 'Material Symbols Rounded'">add</span>Add line item</button>
+          <button style="height:44px;margin-top:4px;border:0;background:transparent;display:flex;align-items:center;gap:6px;padding:0 4px;font:600 15px/1 Inter,sans-serif;color:#6E5410;cursor:pointer;white-space:nowrap" style-active="opacity:.6"><span style="font:20px/1 'Material Symbols Rounded'">attach_file</span>Add attachment</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="opacity:{{ g3 }};transform:translateY({{ g3y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 360ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 360ms;margin-top:6px">
+      <div style="background:#FFFCF6;border:1px solid #F0E4CE;border-radius:16px;position:relative">
+        <div style="opacity:{{ fieldsO }};transition:opacity 320ms cubic-bezier(0.2,0.8,0.2,1)">
+          <div style="display:flex;align-items:center;min-height:56px;padding:0 8px 0 14px;border-bottom:1px solid #F2E8D6;position:relative">
+            <span style="font:500 15px/1 Inter,sans-serif;color:#3D362E;white-space:nowrap">Deposit required</span>
+            <button onClick="{{ onDep }}" disabled="{{ locked }}" style="margin-left:auto;display:flex;align-items:center;gap:2px;height:40px;padding:0 6px 0 12px;border-radius:10px;border:0;background:{{ depBg }};font:600 15px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer;transition:background-color 140ms">{{ deposit }}<span style="font:20px/1 'Material Symbols Rounded';display:inline-block;transform:rotate({{ depChev }}deg);transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1)">expand_more</span></button>
+            <div style="position:absolute;top:50px;right:8px;z-index:10;width:160px;background:#FFFFFF;border:1px solid #EADFCB;border-radius:14px;padding:4px;box-shadow:0 12px 32px -10px rgba(74,52,14,.35);transform-origin:top right;opacity:{{ dmO }};transform:translateY({{ dmY }}px) scale({{ dmS }});pointer-events:{{ dmPe }};transition:opacity 160ms cubic-bezier(0.2,0.8,0.2,1),transform 200ms cubic-bezier(0.2,0.8,0.2,1)">
+              <sc-for list="{{ depOpts }}" as="d" hint-placeholder-count="4"><button onClick="{{ d.on }}" style="display:flex;align-items:center;width:100%;height:40px;border:0;border-radius:10px;padding:0 10px;background:{{ d.bg }};font:500 15px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer" style-hover="background:#F6EEE0">{{ d.label }}<span style="margin-left:auto;font:18px/1 'Material Symbols Rounded';color:#6E5410">{{ d.check }}</span></button></sc-for>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;min-height:56px;padding:0 8px 0 14px;border-bottom:1px solid #F2E8D6">
+            <span style="font:500 15px/1 Inter,sans-serif;color:#3D362E">Tax</span>
+            <sc-if value="{{ noTax }}" hint-placeholder-val="{{ true }}"><button onClick="{{ addTax }}" disabled="{{ locked }}" style="margin-left:auto;height:40px;padding:0 12px;border-radius:10px;border:0;background:transparent;font:600 15px/1 Inter,sans-serif;color:#6E5410;cursor:pointer" style-active="background:#F1E6D4">+ Add tax</button></sc-if>
+            <sc-if value="{{ hasTax }}" hint-placeholder-val="{{ false }}"><div style="margin-left:auto;display:flex;align-items:center;gap:4px;height:40px;border:1px solid #E6DAC4;border-radius:10px;padding:0 10px;background:#FFF;animation:onitFieldIn 160ms"><input value="{{ tax }}" onChange="{{ onTax }}" readOnly="{{ locked }}" inputMode="decimal" style="width:44px;border:0;outline:0;font:600 15px/1 Inter,sans-serif;text-align:right;background:transparent"><span style="font:500 15px/1 Inter,sans-serif;color:#6B6255">%</span></div></sc-if>
+          </div>
+          <div style="padding:12px 14px 14px">
+            <div style="font:500 15px/1 Inter,sans-serif;color:#3D362E;margin-bottom:8px">Notes</div>
+            <textarea value="{{ notes }}" onChange="{{ onNotes }}" readOnly="{{ locked }}" placeholder="Anything the customer should know" rows="2" style="display:block;width:100%;box-sizing:border-box;border:1px solid #E6DAC4;border-radius:10px;padding:8px 10px;font:400 14px/20px Inter,sans-serif;color:#1F1B16;background:#FFFFFF;resize:none;outline:0"></textarea>
+          </div>
+        </div>
+        <sc-if value="{{ locked }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;border-radius:16px;cursor:not-allowed"></div></sc-if>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:14px;padding:14px 2px 4px;border-top:1px solid #E6D9C3">
+      <div style="opacity:{{ g4 }};transform:translateY({{ g4y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 380ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 380ms;padding-bottom:6px">
+        <div style="display:grid;font:700 13px/1 Inter,sans-serif;letter-spacing:.08em;color:#3D362E"><span style="grid-area:1/1;opacity:{{ invO }};transform:translateY({{ invY }}px);transition:opacity 180ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1)">TOTAL DUE</span><span style="grid-area:1/1;opacity:{{ estO }};transform:translateY({{ estY }}px);transition:opacity 180ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1)">ESTIMATE TOTAL</span></div>
+        <sc-if value="{{ hasTax }}" hint-placeholder-val="{{ false }}"><div style="font:400 12px/16px Inter,sans-serif;color:#6B6255;margin-top:6px">{{ taxLine }}</div></sc-if>
+      </div>
+      <span data-shared="total" style="display:inline-block;font:800 40px/1 Montserrat,sans-serif;letter-spacing:-0.02em;color:#1F1B16">{{ totalTxt }}</span>
+    </div>
+
+    <div style="display:grid;grid-template-rows:{{ dRows }};opacity:{{ dO }};transition:grid-template-rows 320ms cubic-bezier(0.2,0.8,0.2,1),opacity 180ms;pointer-events:{{ dPe }}">
+      <div style="min-height:0;overflow:hidden">
+        <div style="padding-top:14px;opacity:{{ g5 }};transform:translateY({{ g5y }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 420ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 420ms">
+          <button onClick="{{ onSend }}" style="width:100%;height:56px;border:0;border-radius:999px;background:{{ sendBg }};color:#1F1B16;display:flex;align-items:center;justify-content:center;gap:8px;font:700 17px/1 Inter,sans-serif;cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 6px 14px -8px rgba(140,104,10,.55);transition:transform 140ms cubic-bezier(0.2,0.8,0.2,1),background-color 200ms" style-active="transform:scale(0.98)">
+            <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}"><span style="width:18px;height:18px;border-radius:99px;border:2.5px solid rgba(31,27,22,.2);border-top-color:#1F1B16;animation:onitSpin .8s linear infinite"></span></sc-if>
+            <sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}"><span style="font:20px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1">send</span></sc-if>
+            <span style="display:grid"><span style="grid-area:1/1;opacity:{{ sendLblInv }};transition:opacity 180ms">{{ sendInvTxt }}</span><span style="grid-area:1/1;opacity:{{ sendLblEst }};transition:opacity 180ms">{{ sendEstTxt }}</span></span>
+          </button>
+          <div style="display:flex;align-items:center;justify-content:center;gap:2px;margin-top:6px">
+            <button style="height:44px;border:0;background:transparent;display:flex;align-items:center;gap:6px;padding:0 10px;font:500 15px/1 Inter,sans-serif;color:#3D362E;cursor:pointer;border-radius:12px" style-active="background:#F1E6D4"><span style="font:19px/1 'Material Symbols Rounded'">download</span><span style="white-space:nowrap">Download draft</span></button>
+            <button aria-label="What happens when I send" style="width:44px;height:44px;border:0;background:transparent;display:grid;place-items:center;color:#3D362E;cursor:pointer;border-radius:99px" style-active="background:#F1E6D4"><span style="font:20px/1 'Material Symbols Rounded'">info</span></button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #EEE2CD;margin-top:4px;padding-top:2px">
+            <button onClick="{{ undo }}" disabled="{{ noUndo }}" style="height:44px;border:0;background:transparent;display:flex;align-items:center;gap:6px;padding:0 4px;font:500 15px/1 Inter,sans-serif;color:{{ undoC }};cursor:pointer;transition:color 200ms"><span style="font:18px/1 'Material Symbols Rounded'">undo</span><span style="white-space:nowrap">Undo last edit</span></button>
+            <button style="height:44px;border:0;background:transparent;padding:0 4px;font:600 15px/1 Inter,sans-serif;color:#1F1B16;cursor:pointer;text-decoration:underline;text-underline-offset:4px;text-decoration-color:#C9BB9F"><span style="white-space:nowrap">Change something</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-rows:{{ sRows }};opacity:{{ sO }};transition:grid-template-rows 360ms cubic-bezier(0.2,0.8,0.2,1) 120ms,opacity 240ms cubic-bezier(0.2,0.8,0.2,1) 200ms;pointer-events:{{ sPe }}">
+      <div style="min-height:0;overflow:hidden">
+        <div style="padding-top:12px;border-top:1px solid #EEE2CD;margin-top:10px;display:flex;flex-direction:column;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:6px;font:500 15px/20px Inter,sans-serif;color:#3D362E"><span style="font:17px/1 'Material Symbols Rounded';font-variation-settings:'FILL' 1;color:#6E5410">lock</span>This invoice was sent, so it's locked.</div>
+          <button onClick="{{ onRevise }}" style="width:100%;height:56px;border:0;border-radius:999px;background:#D5AF36;color:#1F1B16;display:flex;align-items:center;justify-content:center;gap:8px;font:700 17px/1 Inter,sans-serif;cursor:pointer;box-shadow:0 6px 14px -8px rgba(140,104,10,.55);transition:transform 140ms" style-active="transform:scale(0.98)"><span style="font:20px/1 'Material Symbols Rounded'">edit</span>Revise</button>
+          <div style="font:400 13px/18px Inter,sans-serif;color:#6B6255;text-align:center;text-wrap:pretty;max-width:280px">Opens an editable copy as a new invoice. The original stays as it was.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-rows:{{ rRows }};opacity:{{ rO }};transition:grid-template-rows 360ms cubic-bezier(0.2,0.8,0.2,1) 120ms,opacity 240ms cubic-bezier(0.2,0.8,0.2,1) 200ms;pointer-events:{{ rPe }}">
+      <div style="min-height:0;overflow:hidden">
+        <div style="padding-top:12px;border-top:1px solid #EEE2CD;margin-top:10px;display:flex;flex-direction:column;gap:10px">
+          <div style="font:500 15px/20px Inter,sans-serif;color:#3D362E;text-align:center;opacity:{{ eL }};transform:translateY({{ eLy }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 480ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 480ms">Copy or share the link with {{ client }}.</div>
+          <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-radius:12px;background:#FFFCF6;opacity:{{ eL }};transform:translateY({{ eLy }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 520ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 520ms;border:1px solid #EADFCB;font:500 13px/1 'JetBrains Mono',monospace;color:#3D362E"><span style="font:17px/1 'Material Symbols Rounded';color:#6E5410">link</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">https://example.com/e/TOKEN</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="display:grid;opacity:{{ eC }};transform:translateY({{ eCy }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 600ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 600ms"><button onClick="{{ onCopy }}" style="height:52px;border-radius:14px;border:1.5px solid {{ copyBorder }};background:{{ copyBg }};display:flex;align-items:center;justify-content:center;gap:7px;font:700 15px/1 Inter,sans-serif;color:#4A3A0C;cursor:pointer;transition:background-color 200ms,border-color 200ms,transform 140ms" style-active="transform:scale(0.97)"><span style="font:19px/1 'Material Symbols Rounded'">{{ copyIcon }}</span><span style="display:grid"><span style="grid-area:1/1;opacity:{{ copyO1 }};transition:opacity 160ms">Copy link</span><span style="grid-area:1/1;opacity:{{ copyO2 }};transition:opacity 160ms">Copied</span></span></button></div>
+            <div style="display:grid;opacity:{{ eS }};transform:translateY({{ eSy }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 640ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 640ms"><button style="height:52px;border-radius:14px;border:1.5px solid #E2D4BB;background:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:7px;font:700 15px/1 Inter,sans-serif;color:#4A3A0C;cursor:pointer;transition:transform 140ms" style-active="transform:scale(0.97)"><span style="font:19px/1 'Material Symbols Rounded'">share</span>Share</button></div>
+          </div>
+          <div style="display:grid;opacity:{{ eR }};transform:translateY({{ eRy }}px);transition:opacity 220ms cubic-bezier(0.2,0.8,0.2,1) 700ms,transform 260ms cubic-bezier(0.2,0.8,0.2,1) 700ms"><button onClick="{{ onRevise }}" style="width:100%;height:56px;border:0;border-radius:999px;background:#D5AF36;color:#1F1B16;display:flex;align-items:center;justify-content:center;gap:8px;font:700 17px/1 Inter,sans-serif;cursor:pointer;box-shadow:0 6px 14px -8px rgba(140,104,10,.55);transition:transform 140ms" style-active="transform:scale(0.98)"><span style="font:20px/1 'Material Symbols Rounded'">edit</span>Revise</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:900},&quot;status&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;draft&quot;,&quot;sent&quot;,&quot;ready&quot;,&quot;summary&quot;],&quot;default&quot;:&quot;draft&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;kind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;invoice&quot;,&quot;estimate&quot;],&quot;default&quot;:&quot;invoice&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;phase&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;settled&quot;,&quot;morph&quot;,&quot;stagger&quot;],&quot;default&quot;:&quot;settled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;editField&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;&quot;,&quot;name&quot;,&quot;qty&quot;,&quot;price&quot;],&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;menu&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;&quot;,&quot;unit&quot;,&quot;deposit&quot;],&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;sending&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;sealing&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;animateIn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;interactive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;notes&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;client&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Brandon&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;onSend&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;fn&quot;},&quot;onRevise&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;fn&quot;}}">
+class Component extends DCLogic {
+  state = {
+    items: [{ id: 1, name: 'Car Wash', qty: (this.props && this.props.qty) || 1, unit: 'each', price: 200, desc: null }],
+    hist: [], edit: undefined, dv: '', menu: undefined, deposit: 'None', tax: null,
+    notes: (this.props && this.props.notes) || '', rv: this.props && this.props.animateIn ? 0 : 1,
+    lift: this.props && this.props.animateIn ? 1 : 0, entering: null, removing: null, flash: false,
+    sealT: false, sweepGo: false, copied: false, nextId: 2
+  };
+  rootRef = React.createRef();
+  componentDidMount() {
+    if (this.props.sealing) this.seal();
+    if (this.props.animateIn) {
+      requestAnimationFrame(() => requestAnimationFrame(() => this.setState({ rv: 1 })));
+      this.t1 = setTimeout(() => this.setState({ lift: 0 }), 380);
+    }
+  }
+  seal() {
+    this.setState({ sealT: false, sweepGo: false });
+    requestAnimationFrame(() => requestAnimationFrame(() => this.setState({ sweepGo: true })));
+    this.t2 = setTimeout(() => this.setState({ sealT: true }), this.props.animateIn ? 420 : 240);
+  }
+  componentWillUnmount() { [this.t1, this.t2, this.t3, this.t4].forEach(clearTimeout); }
+  componentDidUpdate(prev) {
+    if (!prev.sealing && this.props.sealing) this.seal();
+    if (prev.sealing && !this.props.sealing) this.setState({ sweepGo: false });
+    if (this.prevTops && this.rootRef.current) {
+      const pt = this.prevTops; this.prevTops = null;
+      this.rootRef.current.querySelectorAll('[data-item]').forEach(el => {
+        const p = pt[el.getAttribute('data-item')]; if (p == null) return;
+        const d = p - el.getBoundingClientRect().top; if (!d) return;
+        const old = el.style.transition;
+        el.style.transition = 'none'; el.style.transform = 'translateY(' + d + 'px)';
+        el.getBoundingClientRect();
+        el.style.transition = old + ',transform 260ms cubic-bezier(0.2,0.8,0.2,1)'; el.style.transform = '';
+        setTimeout(() => { el.style.transition = old; }, 300);
+      });
+    }
+  }
+  snap() { const S = this.state; return { items: S.items, deposit: S.deposit, tax: S.tax, notes: S.notes }; }
+  push(patch) { this.setState(s => ({ hist: [...s.hist, this.snap()].slice(-20), ...patch })); }
+  setItems(fn, extra) { this.push({ items: fn(this.state.items.map(i => ({ ...i }))), ...(extra || {}) }); }
+  captureTops() {
+    const r = this.rootRef.current; if (!r) return; this.prevTops = {};
+    r.querySelectorAll('[data-item]').forEach(el => { this.prevTops[el.getAttribute('data-item')] = el.getBoundingClientRect().top; });
+  }
+  startEdit(it, field) {
+    if (this.isLocked()) return;
+    const v = field === 'name' ? it.name : field === 'qty' ? String(it.qty) : it.price.toFixed(2);
+    this.setState({ edit: { id: it.id, field }, dv: v, menu: null });
+  }
+  commit() {
+    const e = this.state.edit; if (!e) return;
+    const v = this.state.dv;
+    this.setItems(items => items.map(i => {
+      if (i.id !== e.id) return i;
+      if (e.field === 'name') i.name = v.trim() || i.name;
+      if (e.field === 'qty') i.qty = Math.max(1, parseInt(v, 10) || i.qty);
+      if (e.field === 'price') { const n = parseFloat(v.replace(/[^0-9.]/g, '')); if (!isNaN(n)) i.price = n; }
+      return i;
+    }), { edit: null });
+  }
+  isLocked() { const s = this.props.status; return s === 'sent' || s === 'ready'; }
+  enter(id) { this.setState({ entering: id }); requestAnimationFrame(() => requestAnimationFrame(() => this.setState({ entering: null }))); }
+  renderVals() {
+    const P = this.props, S = this.state;
+    const status = P.status || 'draft', est = (P.kind || 'invoice') === 'estimate';
+    const isDraft = status === 'draft', isSent = status === 'sent', isReady = status === 'ready', locked = isSent || isReady;
+    const fmt = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const edit = S.edit !== undefined ? S.edit : (P.editField ? { id: 1, field: P.editField } : null);
+    const dv = S.edit !== undefined ? S.dv : (P.editField === 'price' ? '200.00' : P.editField === 'qty' ? '1' : 'Car Wash');
+    const menu = S.menu !== undefined ? S.menu : (P.menu === 'unit' ? 'unit-1' : P.menu === 'deposit' ? 'deposit' : null);
+    const sub = S.items.reduce((a, i) => a + i.qty * i.price, 0);
+    const taxN = S.tax != null ? (parseFloat(S.tax) || 0) : 0;
+    const total = sub + sub * taxN / 100;
+    const rv = S.rv, phase = P.phase;
+    const gv = phase === 'morph' ? [0, 0, 0, 0, 0] : phase === 'stagger' ? [1, 0.85, 0.5, 0.2, 0] : [rv, rv, rv, rv, rv];
+    const abbr = { each: 'ea', hr: 'hr', day: 'day', ft: 'ft', 'sq ft': 'sq ft', job: 'job' };
+    const live = !!P.interactive;
+    const n = S.items.length;
+    const items = S.items.map((it, i) => {
+      const isE = f => !!edit && edit.id === it.id && edit.field === f;
+      const uOpen = menu === 'unit-' + it.id;
+      const anim = S.entering === it.id || S.removing === it.id;
+      return {
+        id: it.id, n: (i + 1) + '.', name: it.name, qty: it.qty, unit: it.unit, priceTxt: fmt(it.price), lineTxt: fmt(it.qty * it.price),
+        meta: it.qty + ' ' + abbr[it.unit] + ' × ' + fmt(it.price),
+        editName: isE('name'), showName: !isE('name'), editQty: isE('qty'), showQty: !isE('qty'), editPrice: isE('price'), showPrice: !isE('price'),
+        dv, focus: live,
+        onDraft: e => this.setState({ dv: e.target.value }),
+        commit: () => this.commit(),
+        onKey: e => { if (e.key === 'Enter') this.commit(); if (e.key === 'Escape') this.setState({ edit: null }); },
+        onEditName: () => this.startEdit(it, 'name'), onEditQty: () => this.startEdit(it, 'qty'), onEditPrice: () => this.startEdit(it, 'price'),
+        onUnit: () => this.setState({ menu: uOpen ? null : 'unit-' + it.id }),
+        unitBg: uOpen ? '#EADFCB' : '#F4ECDE', chev: uOpen ? 180 : 0,
+        uO: uOpen ? 1 : 0, uS: uOpen ? 1 : 0.96, uY: uOpen ? 0 : -4, uPe: uOpen ? 'auto' : 'none',
+        z: uOpen ? 5 : 1,
+        units: ['each', 'hr', 'day', 'ft', 'sq ft', 'job'].map(u => ({
+          label: u, check: u === it.unit ? 'check' : '', bg: u === it.unit ? '#FBF4E6' : 'transparent',
+          on: () => this.setItems(items => items.map(x => x.id === it.id ? { ...x, unit: u } : x), { menu: null })
+        })),
+        upO: i === 0 ? 0.3 : 1, downO: i === n - 1 ? 0.3 : 1,
+        onUp: () => { if (i === 0) return; this.captureTops(); this.setItems(a => { [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; }); },
+        onDown: () => { if (i === n - 1) return; this.captureTops(); this.setItems(a => { [a[i + 1], a[i]] = [a[i], a[i + 1]]; return a; }); },
+        descShow: it.desc !== null, desc: it.desc || '', descLabel: it.desc !== null ? '− Description' : '+ Description',
+        onDescT: () => this.setItems(a => a.map(x => x.id === it.id ? { ...x, desc: x.desc === null ? '' : null } : x)),
+        onDesc: e => { const v = e.target.value; this.setState(s => ({ items: s.items.map(x => x.id === it.id ? { ...x, desc: v } : x) })); },
+        onDup: () => { const id = S.nextId; this.setItems(a => { a.splice(i + 1, 0, { ...it, id }); return a; }, { nextId: id + 1 }); this.enter(id); },
+        onDel: () => { this.setState({ removing: it.id }); this.t3 = setTimeout(() => this.setItems(a => a.filter(x => x.id !== it.id), { removing: null }), 240); },
+        rows: anim ? '0fr' : '1fr', o: anim ? 0 : 1, ovf: anim ? 'hidden' : 'visible'
+      };
+    });
+    const depOpen = menu === 'deposit';
+    const g = (k) => gv[k];
+    const ev = phase === 'morph' ? [0, 0, 0, 0] : phase === 'stagger' ? [0.6, 0.25, 0.1, 0] : [rv, rv, rv, rv];
+    const stS = phase === 'stagger' && isReady;
+    return {
+      rootRef: this.rootRef,
+      isSummary: status === 'summary', notSummary: status !== 'summary',
+      client: P.client || 'Brandon', clientUp: (P.client || 'Brandon').toUpperCase(),
+      invNo: P.invNo || 'INV-0022', due: P.due || '12/3/2026',
+      isDraft, locked, items, docIcon: est ? 'request_quote' : 'description',
+      invPos: est ? 'absolute' : 'relative', estPos: est ? 'relative' : 'absolute', invO: est ? 0 : 1, invY: est ? -8 : 0, estO: est ? 1 : 0, estY: est ? 0 : 8,
+      dpO: isDraft ? 1 : 0, dpX: isDraft ? 0 : -8,
+      spO: isSent ? 1 : 0, spX: isSent ? 0 : 12, rpO: isReady ? 1 : 0, rpX: isReady ? 0 : 12,
+      lockIcon: (P.sealing && !S.sealT) ? 'lock_open' : 'lock', lockS: (P.sealing && !S.sealT) ? 1.2 : 1,
+      sweepX: stS ? 70 : (P.sealing && S.sweepGo ? 260 : -120), sweepO: stS || P.sealing ? 1 : 0,
+      sweepT: P.sealing && S.sweepGo ? 'transform 760ms cubic-bezier(0.2,0.8,0.2,1) ' + (P.animateIn ? 360 : 160) + 'ms' : 'none',
+      eL: ev[0], eLy: (1 - ev[0]) * 8, eC: ev[1], eCy: (1 - ev[1]) * 8, eS: ev[2], eSy: (1 - ev[2]) * 8, eR: ev[3], eRy: (1 - ev[3]) * 8,
+      borderC: isDraft ? '#EAD9AE' : isSent ? '#E3D6BF' : '#E2C770',
+      liftO: S.lift, itemsBg: S.flash ? '#F6E7B9' : 'transparent',
+      editLine: isDraft ? '1px dashed #C9BB9F' : '0',
+      g1: g(0), g1y: (1 - g(0)) * 6, g2: g(1), g2y: (1 - g(1)) * 6, g3: g(2), g3y: (1 - g(2)) * 6, g4: g(3), g4y: (1 - g(3)) * 6, g5: g(4), g5y: (1 - g(4)) * 6,
+      dRows: isDraft ? '1fr' : '0fr', dO: isDraft ? 1 : 0, dPe: isDraft ? 'auto' : 'none', dOvf: isDraft ? 'visible' : 'hidden',
+      sRows: isSent ? '1fr' : '0fr', sO: isSent ? 1 : 0, sPe: isSent ? 'auto' : 'none',
+      rRows: isReady ? '1fr' : '0fr', rO: isReady ? 1 : 0, rPe: isReady ? 'auto' : 'none',
+      fieldsO: locked ? 0.5 : 1,
+      deposit: S.deposit, onDep: () => this.setState({ menu: depOpen ? null : 'deposit' }),
+      depBg: depOpen ? '#EADFCB' : '#F4ECDE', depChev: depOpen ? 180 : 0,
+      dmO: depOpen ? 1 : 0, dmS: depOpen ? 1 : 0.96, dmY: depOpen ? 0 : -4, dmPe: depOpen ? 'auto' : 'none',
+      depOpts: ['None', '25%', '50%', 'Full amount'].map(d => ({ label: d, check: d === S.deposit ? 'check' : '', bg: d === S.deposit ? '#FBF4E6' : 'transparent', on: () => this.push({ deposit: d, menu: null }) })),
+      noTax: S.tax == null, hasTax: S.tax != null, tax: S.tax || '',
+      addTax: () => this.push({ tax: '8.25' }), onTax: e => this.setState({ tax: e.target.value }),
+      taxLine: 'Subtotal ' + fmt(sub) + ' · Tax ' + fmt(sub * taxN / 100),
+      notes: S.notes, onNotes: e => this.setState({ notes: e.target.value }),
+      totalTxt: fmt(total),
+      sending: !!P.sending, notSending: !P.sending, sendBg: P.sending ? '#E2C56A' : '#D5AF36',
+      sendInvTxt: P.sending ? 'Sending…' : 'Looks right — send it', sendEstTxt: P.sending ? 'Creating link…' : 'Looks right — share it',
+      sendLblInv: est ? 0 : 1, sendLblEst: est ? 1 : 0,
+      onSend: () => { if (!P.sending && P.onSend) P.onSend({ total: fmt(total) }); },
+      onRevise: () => P.onRevise && P.onRevise(),
+      noUndo: S.hist.length === 0, undoC: S.hist.length ? '#1F1B16' : '#B4A994',
+      undo: () => {
+        if (!S.hist.length) return;
+        const h = S.hist[S.hist.length - 1];
+        this.setState({ ...h, hist: S.hist.slice(0, -1), flash: true, edit: null });
+        this.t4 = setTimeout(() => this.setState({ flash: false }), 420);
+      },
+      addLine: () => { const id = S.nextId; this.setItems(a => [...a, { id, name: 'New item', qty: 1, unit: 'each', price: 0, desc: null }], { nextId: id + 1, edit: { id, field: 'name' }, dv: '' }); this.enter(id); },
+      onCopy: () => { this.setState({ copied: true }); this.t1 = setTimeout(() => this.setState({ copied: false }), 1600); },
+      copyIcon: S.copied ? 'check' : 'link', copyO1: S.copied ? 0 : 1, copyO2: S.copied ? 1 : 0,
+      copyBg: S.copied ? '#F1E2B8' : '#FFFFFF', copyBorder: S.copied ? '#D5AF36' : '#E2D4BB'
+    };
+  }
+}
+</script>
+</body>
+</html>

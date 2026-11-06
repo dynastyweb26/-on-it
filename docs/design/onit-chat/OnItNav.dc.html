@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..700,0..1,0&amp;display=block"></helmet>
+<nav style="height:72px;position:relative;display:flex;background:#FFF8F0;border-top:1px solid #EFE4D3;box-sizing:border-box;font-family:Inter,sans-serif">
+  <div style="position:absolute;top:7px;left:0;width:60px;height:34px;border-radius:999px;background:#D5AF36;transform:translateX({{ pillX }}px);transition:transform 280ms cubic-bezier(0.2,0.8,0.2,1)"></div>
+  <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+    <button onClick="{{ t.onClick }}" style="flex:1;min-width:0;height:100%;border:0;background:transparent;padding:0;position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#2F2A24;-webkit-tap-highlight-color:transparent" style-active="transform:scale(0.96)">
+      <span style="position:relative;margin-top:12px;font:24px/1 'Material Symbols Rounded';font-variation-settings:'FILL' {{ t.fill }},'wght' 500;transition:font-variation-settings 200ms">{{ t.icon }}<sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:-1px;right:-3px;width:8px;height:8px;border-radius:99px;background:#D94B2B;box-shadow:0 0 0 2px #FFF8F0"></span></sc-if></span>
+      <span style="margin-top:9px;font-size:12px;line-height:14px;font-weight:{{ t.weight }};color:#2F2A24">{{ t.label }}</span>
+    </button>
+  </sc-for>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:72},&quot;active&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;max&quot;:4},&quot;onSelect&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(i:number)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { tab: null };
+  renderVals() {
+    const names = [['Clients','group'],['Invoices','description'],['Chat','chat'],['Books','payments'],['Settings','settings']];
+    const active = this.state.tab ?? (this.props.active ?? 2);
+    const w = 390 / 5;
+    return {
+      pillX: active * w + (w - 60) / 2,
+      tabs: names.map(([label, icon], i) => ({
+        label, icon, badge: i === 3, fill: i === active ? 1 : 0, weight: i === active ? 700 : 500,
+        onClick: () => { this.setState({ tab: i }); this.props.onSelect && this.props.onSelect(i); }
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

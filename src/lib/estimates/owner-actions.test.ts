@@ -13,7 +13,7 @@ test('send errors explain the state instead of leaking a code', () => {
   assert.equal(sendErrorMessage(404), "This estimate couldn't be found.");
   assert.equal(sendErrorMessage(429), 'Too many attempts. Try again in a minute.');
   assert.equal(sendErrorMessage(400, 'past_date'), "Pick a date that isn't in the past.");
-  assert.equal(sendErrorMessage(500), "Couldn't send the estimate. Please try again.");
+  assert.equal(sendErrorMessage(500), "Couldn't create the link. Nothing was shared.");
 });
 
 test('the client link needs a token and only exists in the browser', () => {

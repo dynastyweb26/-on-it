@@ -16,3 +16,6 @@ shots/
 # Anchored to the repo root: an unanchored `auth/` also matched
 # src/components/auth/, so new files there were silently ignored.
 /auth/
+# Every env file, but keep the committed example addable on a fresh clone.
+.env*
+!.env.example
