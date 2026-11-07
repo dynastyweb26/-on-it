@@ -18,7 +18,7 @@
 //
 // Writes only through the preview-gated deposits route; the URL lives in
 // lib/bank-deposits, which bank-tracking.test.ts scans.
-import { useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import Icon from '@/components/Icon';
 import PaymentPicker from './PaymentPicker';
 import type { IconName } from '@/components/icon-names';
@@ -32,6 +32,7 @@ import {
   type DepositPath, type DepositPayment,
 } from '@/lib/bank-deposits';
 import { formatMoney } from '@/lib/bank-tracking';
+import { revealSection } from '@/lib/reveal';
 
 const PATH_COPY: Record<DepositPath, { label: string; sub: string; icon: IconName }> = {
   existing: {
@@ -79,6 +80,24 @@ export default function DepositCard({
   const [classification, setClassification] = useState<DepositClassification | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Interaction rule 4: a section that appears below the fold scrolls into
+  // view. Each path opens one section (the invoice picker, the payment list,
+  // the classification chips and the line under them) and only one is ever on
+  // screen, so one ref names it. One frame after the choice gives the section
+  // a height first; 'nearest' then moves the card body's own scroller, and
+  // Reduce Motion gets an instant jump. The first render is skipped so a card
+  // that opens on a bank suggestion keeps the scroll the stack gave it.
+  const firstPass = useRef(true);
+  useEffect(() => {
+    if (firstPass.current) {
+      firstPass.current = false;
+      return;
+    }
+    const frame = requestAnimationFrame(() => { revealSection(sectionRef.current); });
+    return () => cancelAnimationFrame(frame);
+  }, [path]);
 
   const submit = path
     ? depositSubmit(deposit, {
@@ -203,28 +222,32 @@ export default function DepositCard({
         )}
 
         {path === 'invoice' && !deposit.removed && (
-          <label className="block text-[13px] font-semibold" htmlFor={`invoice-${deposit.id}`}>
-            Which invoice?
-            <select
-              id={`invoice-${deposit.id}`}
-              value={invoiceId}
-              onChange={(e) => setInvoiceId(e.target.value)}
-              className="mt-1 w-full rounded-input border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-normal"
-            >
-              <option value="">Choose an invoice</option>
-              {invoices.map((invoice) => (
-                <option key={invoice.id} value={invoice.id}>{invoiceLabel(invoice)}</option>
-              ))}
-            </select>
-          </label>
+          <div ref={sectionRef}>
+            <label className="block text-[13px] font-semibold" htmlFor={`invoice-${deposit.id}`}>
+              Which invoice?
+              <select
+                id={`invoice-${deposit.id}`}
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+                className="mt-1 w-full rounded-input border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-normal"
+              >
+                <option value="">Choose an invoice</option>
+                {invoices.map((invoice) => (
+                  <option key={invoice.id} value={invoice.id}>{invoiceLabel(invoice)}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         )}
 
         {path === 'existing' && !deposit.removed && candidates.length > 0 && (
-          <PaymentPicker candidates={candidates} selected={paymentId} onPick={setPaymentId} />
+          <div ref={sectionRef}>
+            <PaymentPicker candidates={candidates} selected={paymentId} onPick={setPaymentId} />
+          </div>
         )}
 
         {path === 'other' && !deposit.removed && (
-          <div className="flex flex-col gap-2">
+          <div ref={sectionRef} className="flex flex-col gap-2">
             <div role="radiogroup" aria-label="Other money received" className="flex flex-wrap gap-1.5">
               {OTHER_MONEY_RECEIVED.map((option) => {
                 const on = classification === option.value;

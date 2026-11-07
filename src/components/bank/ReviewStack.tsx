@@ -44,6 +44,7 @@ import {
 import {
   cardKindOf, ignoredEntries, restoreDeposit, resolveDeposit, stackEntries, type StackEntry,
 } from '@/lib/bank-stack';
+import { STACK_CARD_SLOT } from '@/lib/stack-fit';
 
 type Leaving = {
   item: BankItem;
@@ -110,6 +111,14 @@ export default function ReviewStack({
   indexRef.current = pos;
   const top = queue[pos] ?? null;
 
+  // Dots mirror the real queue: past seven cards the row windows around the
+  // current card. The old fixed slice of six left no dot matching the position
+  // from the eighth card on, so the row pointed at the wrong card
+  // (CHANGES.md · item 4).
+  const DOT_MAX = 7;
+  const dotCount = Math.min(queue.length, DOT_MAX);
+  const dotStart = Math.max(0, Math.min(pos - Math.floor(DOT_MAX / 2), queue.length - DOT_MAX));
+
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [leaving, setLeaving] = useState<Leaving | null>(null);
@@ -134,7 +143,10 @@ export default function ReviewStack({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const topCardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef(0);
-  const gesture = useRef<{ id: number; x: number; y: number; active: boolean; edge: boolean } | null>(null);
+  const gesture = useRef<{
+    id: number; x: number; y: number; active: boolean; edge: boolean;
+    captured: boolean; el: HTMLElement;
+  } | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const finishSoon = useRef(false);
   const closingRef = useRef(false);
@@ -289,7 +301,13 @@ export default function ReviewStack({
     setToast(message);
     setAnnounce(message);
     window.dispatchEvent(new Event(DEPOSITS_CHANGED));
-    setIndex((current) => Math.max(0, Math.min(current, queue.length - 2)));
+  }, [queue.length]);
+
+  // One invariant for every queue change: add, ignore, restore. Position used to
+  // be clamped only by the deposit path, so ignoring on card 4 and then
+  // restoring reopened the strip on card 5 (CHANGES.md · item 4).
+  useEffect(() => {
+    setIndex((current) => Math.min(current, Math.max(0, queue.length - 1)));
   }, [queue.length]);
 
   const run = useCallback((action: CardAction) => {
@@ -340,6 +358,8 @@ export default function ReviewStack({
       y: e.clientY,
       active: false,
       edge: e.clientX <= EDGE_CLOSE_PX,
+      captured: false,
+      el: e.currentTarget as HTMLElement,
     };
   }
   function onPointerMove(e: ReactPointerEvent) {
@@ -360,6 +380,12 @@ export default function ReviewStack({
       if (Math.abs(dx) < 10) return;
       if (Math.abs(dy) > Math.abs(dx)) { gesture.current = null; return; }
       g.active = true;
+      // Only now, once this is a sideways swipe, does the zone take the pointer.
+      // Capturing on pointerdown would swallow the card's own taps (a captured
+      // pointerup sends the click to the zone, not the button); without it a
+      // release outside the zone never reached onPointerUp and left the card
+      // parked mid-swipe (CHANGES.md · item 4).
+      try { g.el.setPointerCapture(g.id); g.captured = true; } catch { /* no capture here */ }
       setDragging(true);
     }
     const atEdge = (pos === 0 && dx > 0) || (pos >= queue.length - 1 && dx < 0);
@@ -379,6 +405,15 @@ export default function ReviewStack({
       const dir: 1 | -1 = dx < 0 ? 1 : -1;
       if (nextQueueIndex(queue.length, indexRef.current, dir) !== indexRef.current) go(dir);
     }
+    setDrag(0);
+  }
+
+  /** Capture can end without a pointerup: the card unmounts, or the OS takes the
+   *  gesture. Land the strip back on the stack instead of leaving it offset. */
+  function abandonGesture() {
+    gesture.current = null;
+    dragRef.current = 0;
+    setDragging(false);
     setDrag(0);
   }
 
@@ -446,7 +481,7 @@ export default function ReviewStack({
         data-kb-fit=""
         onKeyDown={onKeyDown}
         style={fly ? ({ '--fly-x': `${fly.x}px`, '--fly-y': `${fly.y}px` } as CSSProperties) : undefined}
-        className={`relative flex max-h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:max-h-[calc(100dvh-32px)] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
+        className={`relative flex h-[calc(100%-12px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[var(--oi-radius-sheet)] bg-background shadow-[0_-12px_30px_-8px_rgba(52,40,12,.2)] md:h-[calc(100dvh-32px)] md:max-h-[680px] md:w-[440px] md:rounded-[var(--oi-radius-sheet)] md:shadow-card-raised ${
           closing ? 'bank-sheet-fly' : 'bank-sheet-up'
         }`}
       >
@@ -511,9 +546,11 @@ export default function ReviewStack({
         {/* Page dots live in the header stack, never over the card buttons. */}
         {filter === 'review' && queue.length > 1 && (
           <div className="mb-2 flex h-[10px] shrink-0 items-center justify-center gap-1.5" aria-hidden>
-            {queue.slice(0, Math.min(queue.length, 6)).map((entry, i) => (
-              <span key={`${entry.kind}-${entry.id}`} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
+            {dotStart > 0 && <span className="h-1 w-1 rounded-full bg-outline-variant/60" />}
+            {Array.from({ length: dotCount }, (_, i) => dotStart + i).map((i) => (
+              <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === pos ? 'bg-primary-container' : 'bg-outline-variant'}`} />
             ))}
+            {dotStart + dotCount < queue.length && <span className="h-1 w-1 rounded-full bg-outline-variant/60" />}
           </div>
         )}
 
@@ -524,14 +561,23 @@ export default function ReviewStack({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onLostPointerCapture={abandonGesture}
         >
           {filter === 'ignored' ? (
-            <div className="bank-fade max-h-full overflow-y-auto rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
+            // Same height as To review: the pane owns the whole card zone and
+            // the list scrolls inside it, so switching tabs never resizes the
+            // sheet and the empty state sits in the middle of it
+            // (CHANGES.md · item 7).
+            <div className="bank-fade absolute inset-0 flex flex-col overflow-hidden rounded-[var(--oi-radius-card)] border border-outline-variant/70 bg-surface-container-lowest">
               {passed.length === 0 ? (
-                <p className="px-3.5 py-6 text-center text-sm text-on-surface-variant">
+                <p className="grid flex-1 place-items-center px-6 text-center text-sm text-on-surface-variant">
                   Nothing ignored. Cards you pass on land here.
                 </p>
-              ) : passed.map(ignoredRow)}
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  {passed.map(ignoredRow)}
+                </div>
+              )}
             </div>
           ) : pending === 0 ? (
             caught ? (
@@ -569,7 +615,7 @@ export default function ReviewStack({
                   <div
                     key={`${entry.kind}-${entry.id}`}
                     ref={isTop ? topCardRef : undefined}
-                    className={isTop ? 'relative' : 'absolute inset-0'}
+                    className={STACK_CARD_SLOT}
                     style={{
                       zIndex: 30 - depth,
                       transform: isTop ? swipeTransform(drag, reduce || !dragging) : undefined,
