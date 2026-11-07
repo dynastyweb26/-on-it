@@ -10,6 +10,14 @@ import type { UnpaidSummary } from '@/lib/tools/unpaid';
 export const FALLBACK = "I couldn't look that up just now. Ask me again in a moment.";
 export const NO_LOOKUP_REPLY = "I can't look that up yet.";
 
+/**
+ * Slice 2: the reply for an account question no tool can answer yet (spend,
+ * profit, taxes). It leads with the same line as a missed lookup so the two
+ * paths sound identical, then names the one thing that DOES work — the tool the
+ * user can ask for right now. The word is "estimate" everywhere in this app.
+ */
+export const UNSUPPORTED_REPLY = `${NO_LOOKUP_REPLY} I can tell you who hasn't paid you.`;
+
 /** Drop any sentence carrying a dollar amount: the app prints money, not the model. */
 export function withoutMoney(text: string): string {
   return text
