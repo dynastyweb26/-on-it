@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><b>4 Permission</b><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 4 · SHAPE: INLINE CARD (+ CAMERA FULL-SCREEN, TOAST) · ALL P2/P3</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Permission</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>Say what the OS needs</b> as numbered steps: the exact setting path, not prose.</div>
+      <div><b>One recovery step</b>, as a button: Type instead, Choose from photos, Open payment alerts, or long-press. Never a dead end.</div>
+      <div><b>The OS prompt is the only modal.</b> On It never draws a fake permission dialog before it.</div>
+    </div>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,560px"></dc-import>
+  </sc-for>
+
+  <div id="M2" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">M2</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Camera blocked</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#efe7da;font-size:12px;font-weight:700;display:flex;align-items:center;">P2</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-49</span></div>
+    <div style="font-size:14px;color:#3a352d;max-width:860px;line-height:1.5;">Stays a full-screen camera state (role="dialog"). It's aligned to the kit: the recovery step is gold, Try again is outline, Close is the × in the corner. Title and body come from cameraFailureCopy() (exact strings unverified). P-50's silent gallery fallback stays: no screen at all.</div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;color:#3a352d;max-width:860px;"><span style="flex:none;height:22px;padding:0 8px;border-radius:6px;background:#f2e5b9;font-family:Montserrat,sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;display:flex;align-items:center;color:#735c00;">COPY CHANGE</span><span>Adds a steps line: “Settings › On It › Camera”.</span></div>
+    <div style="width:390px;height:700px;position:relative;overflow:hidden;border-radius:36px;background:#1e1a15;box-shadow:0 0 0 8px #1e1a15;margin-left:8px;">
+      <button aria-label="Close" style="position:absolute;top:52px;right:16px;width:44px;height:44px;border-radius:50%;border:none;background:#34302a;color:#fdf8f1;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">close</span></button>
+      <div role="dialog" aria-label="Camera unavailable" style="position:absolute;left:24px;right:24px;top:180px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:#fdf8f1;">
+        <div style="width:72px;height:72px;border-radius:22px;background:#34302a;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:36px;color:#e6c65c;">no_photography</span></div>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;">Camera is off for On It</div>
+        <div style="font-size:15px;line-height:1.5;color:#e9e2d4;">Turn it on to snap receipts here.</div>
+        <div style="background:#34302a;border-radius:16px;padding:12px 16px;font-size:14px;color:#e9e2d4;">Settings › On It › Camera</div>
+      </div>
+      <div style="position:absolute;left:20px;right:20px;bottom:40px;display:flex;flex-direction:column;gap:10px;">
+        <button style="height:56px;border-radius:28px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:#1e1a15;display:flex;align-items:center;justify-content:center;gap:8px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">photo_library</span>Choose from photos</button>
+        <button style="height:52px;border-radius:26px;border:1.5px solid #4a453c;background:transparent;font-family:Inter,sans-serif;font-weight:600;font-size:15px;color:#fdf8f1;">Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">P3 · LISTED, NO FRAMES</div>
+    <div><b>P-48</b> Voice unsupported: plain bubble, verbatim “Voice isn't available in this browser. You can type instead.”</div>
+    <div><b>P-50</b> Camera silent fallback: no screen. Kept on purpose.</div>
+    <div><b>P-51</b> OS photo/file picker: native. Kept on purpose.</div>
+    <div><b>P-53</b> Clipboard blocked: shown as M4 (toast).</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const GROUPS=[
+  {id:'M1',title:'Microphone denied',tier:'P2',pids:['P-47'],comp:'inline',
+    covers:'P-47 (both platforms) and the pattern for any denied permission the browser won’t ask for again. Placement: directly above the composer, role="status", not in the transcript history.',
+    changes:['One sentence split into title “Mic access is off” + steps + one button “Type instead” (focuses the composer). Verbatim wording kept in the body.','Browser variant adds “Try again”, which re-requests where the browser allows it.'],
+    states:[
+      {state:'idle',label:'IPHONE',spec:{kind:'card',eyebrow:'MICROPHONE',eyebrowIcon:'mic_off',title:'Mic access is off',
+        text:'To use voice, turn on Microphone for On It in your iPhone Settings, or type instead.',
+        rows:[{k:'Step 1',to:'Settings › On It'},{k:'Step 2',to:'Turn on Microphone'}],
+        actions:[{label:'Type instead',kind:'gold',icon:'keyboard'}]}},
+      {state:'idle',label:'BROWSER',spec:{kind:'card',eyebrow:'MICROPHONE',eyebrowIcon:'mic_off',title:'Mic access is off',
+        text:'To use voice, allow the microphone for this site in your browser settings, or type instead.',
+        rows:[{k:'Step 1',to:'Tap the lock in the address bar'},{k:'Step 2',to:'Microphone › Allow'}],
+        actions:[{label:'Try again',kind:'gold',go:true,busyLabel:'Asking…'},{label:'Type instead',kind:'outline',icon:'keyboard'}],
+        error:{icon:'mic_off',title:'Still blocked',body:'Your browser didn’t ask again. Use the steps above, or type instead.'},retryLabel:'Try again',doneText:'Listening…'}}
+    ]},
+  {id:'M3',title:'Push notifications',tier:'P2',pids:['P-52'],comp:'inline',
+    notes:['The card closes before the OS prompt. Pending = the OS prompt is up, and the card stays locked behind it.','Copy verbatim except the error’s new action.'],
+    changes:['Error adds one recovery button: “Open payment alerts” (in-app Settings). Copy kept verbatim.'],
+    states:[
+      {state:'idle',spec:{kind:'card',eyebrow:'PAYMENT ALERTS',eyebrowIcon:'notifications',text:'Want a notification when Brandon pays online?',row:true,
+        actions:[{label:'Yes',kind:'gold',go:true,busyLabel:'Asking your phone…'},{label:'Not now',kind:'outline'}],
+        error:{icon:'notifications_off',body:'Couldn’t turn that on. You can switch payment alerts on any time in Settings.'},retryLabel:'Open payment alerts',
+        doneText:'You’re set. I’ll notify you when Brandon pays online, and again if an invoice sits unpaid for 2 days.'}},
+      {state:'pending',cap:'The OS permission prompt is on top. Our buttons stay locked until it answers.',spec:{kind:'card',eyebrow:'PAYMENT ALERTS',eyebrowIcon:'notifications',text:'Want a notification when Brandon pays online?',row:true,
+        actions:[{label:'Yes',kind:'gold',go:true,busyLabel:'Asking your phone…'},{label:'Not now',kind:'outline'}]}},
+      {state:'error',spec:{kind:'error',icon:'notifications_off',title:'Payment alerts are off',
+        text:'Couldn’t turn that on. You can switch payment alerts on any time in Settings.',
+        actions:[{label:'Open payment alerts',kind:'gold',icon:'settings'}]}}
+    ]},
+  {id:'M4',title:'Clipboard blocked',tier:'P3',pids:['P-53'],comp:'toast',
+    notes:['Info toast, 2.2 s, no action. The recovery is in the sentence.'],
+    states:[{state:'idle',spec:{icon:'content_paste_off',text:'Clipboard is blocked. Long-press the link to copy it.',ctx:'Q-0003 is live. Copy or share the link with Brandon.'}}]}
+];
+class Component extends DCLogic{renderVals(){return{groups:GROUPS};}}
+</script>
+</body>
+</html>

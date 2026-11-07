@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+@keyframes oiSpin{to{transform:rotate(360deg)}}
+@keyframes oiIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation-name:oiFade !important}}
+</style>
+</helmet>
+<div data-component="PopToast" style="width:390px;height:250px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15, 0 30px 60px -24px rgba(40,30,10,.4);font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;flex:none;">
+  <div aria-hidden="true" style="padding:18px 16px;display:flex;flex-direction:column;gap:10px;opacity:.55;">
+    <div style="align-self:flex-start;max-width:80%;padding:12px 16px;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:15px;">{{ ctx }}</div>
+  </div>
+  <div role="status" aria-live="polite" style="position:absolute;left:16px;right:16px;bottom:84px;z-index:2;background:#34302a;color:#fdf8f1;border-radius:18px;padding:0 6px 0 16px;min-height:56px;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);overflow:hidden;">
+    <span style="width:26px;height:26px;border-radius:50%;background:{{ iconBg }};display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#1e1a15;">{{ icon }}</span></span>
+    <span style="flex:1;padding:12px 0;line-height:1.35;">{{ text }}</span>
+    <sc-if value="{{ hasAction }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ act }}" disabled="{{ pending }}" aria-busy="{{ pending }}" style="height:44px;padding:0 12px;border:none;border-radius:14px;background:transparent;font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:{{ actFg }};cursor:{{ actCursor }};display:flex;align-items:center;gap:6px;flex:none;" style-active="background:#4a453c">
+        <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}"><span data-m="" style="width:14px;height:14px;border-radius:50%;border:2px solid #b9b0a0;border-top-color:transparent;box-sizing:border-box;animation:oiSpin 800ms linear infinite;"></span></sc-if>{{ actLabel }}</button>
+    </sc-if>
+    <sc-if value="{{ hasTimer }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;bottom:0;height:3px;width:62%;background:#e6c65c;"></div></sc-if>
+  </div>
+  <div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:0;height:72px;display:flex;align-items:center;gap:8px;padding:0 12px;box-sizing:border-box;border-top:1px solid #ebe2d2;background:#fdf8f1;">
+    <div style="width:46px;height:46px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div>
+    <div style="flex:1;height:50px;border:1.5px solid #e3d8c5;border-radius:25px;background:#ffffff;display:flex;align-items:center;padding:0 16px;font-size:16px;color:#8f8676;">Message On It...</div>
+    <div style="width:46px;height:46px;border-radius:50%;background:#efe7da;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;color:#8f8676;">arrow_upward</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:270},&quot;spec&quot;:{&quot;editor&quot;:null,&quot;default&quot;:{&quot;icon&quot;:&quot;delete&quot;,&quot;text&quot;:&quot;Invoice deleted.&quot;,&quot;action&quot;:{&quot;label&quot;:&quot;Undo&quot;,&quot;busyLabel&quot;:&quot;Restoring…&quot;},&quot;timer&quot;:true,&quot;doneText&quot;:&quot;INV-0007 is back.&quot;,&quot;error&quot;:{&quot;text&quot;:&quot;Couldn’t restore — you’re offline. INV-0007 stays deleted.&quot;,&quot;action&quot;:&quot;Retry&quot;}},&quot;tsType&quot;:&quot;object&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;idle&quot;,&quot;pending&quot;,&quot;error&quot;],&quot;default&quot;:&quot;idle&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic{
+  constructor(p){super(p);this.busy=false;this.state={st:p.state||'idle',attempt:p.state==='error'?1:0};}
+  componentDidUpdate(pp){if(pp.state!==this.props.state){clearTimeout(this.t);this.busy=false;this.setState({st:this.props.state||'idle',attempt:0});}}
+  componentWillUnmount(){clearTimeout(this.t);}
+  act(){
+    const s=this.props.spec||{};
+    if(this.busy||this.state.st==='pending')return;
+    if(this.state.st==='done'){this.setState({st:'idle',attempt:0});return;}
+    this.busy=true;this.setState({st:'pending'});
+    this.t=setTimeout(()=>{this.busy=false;const fail=s.error&&this.state.attempt===0&&s.failFirst;this.setState({st:fail?'error':'done',attempt:this.state.attempt+1});},1200);
+  }
+  renderVals(){
+    const s=this.props.spec||{},st=this.state.st,a=s.action;
+    const T={
+      idle:{icon:s.icon||'check',bg:'#d4af37',text:s.text,act:a&&a.label},
+      pending:{icon:s.icon||'check',bg:'#d4af37',text:s.text,act:a&&a.busyLabel||'Working…'},
+      error:{icon:'priority_high',bg:'#e6c65c',text:s.error&&s.error.text,act:s.error&&s.error.action},
+      done:{icon:'check',bg:'#d4af37',text:s.doneText||'Done.',act:'Replay'}
+    }[st];
+    return{
+      ctx:s.ctx||'Here’s INV-0007 for Brandon.',
+      icon:T.icon,iconBg:T.bg,text:T.text,
+      hasAction:!!a,actLabel:T.act,act:()=>this.act(),pending:st==='pending',
+      actFg:st==='pending'?'#b9b0a0':'#e6c65c',actCursor:st==='pending'?'default':'pointer',
+      hasTimer:!!s.timer&&st==='idle'
+    };
+  }
+}
+</script>
+</body>
+</html>

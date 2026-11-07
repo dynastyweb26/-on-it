@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+body{margin:0;background:#e9e2d4;}
+a{color:#735c00;}a:hover{color:#1e1a15;}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div style="padding:56px 56px 96px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;display:flex;flex-direction:column;gap:56px;-webkit-font-smoothing:antialiased;">
+
+  <div style="display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start;">
+    <div style="max-width:520px;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">CHAT · ANSWER CARD</div>
+      <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:40px;letter-spacing:-.6px;line-height:1.1;">Unpaid invoices</div>
+      <div style="font-size:16px;line-height:1.5;color:#5f574b;text-wrap:pretty;">Reply to “who hasn't paid me?”. Server sentence bubble, list card, thumbs. Every state below is the same component, <b>UnpaidAnswer.dc.html</b>, with different props. Rows, thumbs, reason chips and Retry are live.</div>
+    </div>
+    <div style="max-width:640px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:20px 24px;font-size:14px;line-height:1.55;color:#3a352d;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">HANDOFF NOTES</div>
+      <div>• All strings render as received. Only computed value: N in “and N more” = totalCount − rows.length (shown when &gt; 0). Rows capped at 20.</div>
+      <div>• Row = one button (min 66px tall): client 17/600, “number · Due date” 13px, balance right. Overdue gets the existing calm chip (red dot + “Overdue”); sent gets nothing. Tap calls onOpen(row).</div>
+      <div>• <span style="font-family:ui-monospace,monospace;font-size:13px;">[data-slot=row-action]</span> sits right of each row, 0px wide today. Toggle “Show action slot” in Tweaks to see its 64px footprint.</div>
+      <div>• Thumbs: 44px targets, #8f8676 until used, filled on #f2e5b9 when selected. Same thumb again clears it. Down opens optional reasons (single-select, changeable). × closes without picking; a picked reason stays as a quiet tag that reopens them.</div>
+      <div>• Retry: disabled plus an in-flight guard from the first tap until the request settles. No double-sends.</div>
+      <div>• Scrolling: a new answer scrolls so its top shows (or all of it, if it fits). Opening the reason chips scrolls just enough to show them.</div>
+      <div>• Laptop (≥1280): same component with wide=true. Thread column 760px, card max 640px.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;">Mobile · 390</div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px 44px;">
+      <sc-for list="{{ phones }}" as="p" hint-placeholder-count="11">
+        <div id="{{ p.id }}" data-screen-label="{{ p.label }}" style="display:flex;flex-direction:column;gap:18px;">
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;">
+            <span style="min-width:34px;height:28px;padding:0 8px;box-sizing:border-box;border-radius:14px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;">{{ p.n }}</span>
+            <span style="font-weight:600;font-size:16px;">{{ p.label }}</span>
+          </div>
+          <div style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:48px;background:#fdf8f1;box-shadow:0 0 0 10px #1e1a15, 0 40px 70px -24px rgba(40,30,10,.45);user-select:none;">
+            <div style="position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:6px 28px 0 38px;font-weight:600;font-size:16px;z-index:9;box-sizing:border-box;">
+              <span>7:02</span>
+              <div style="display:flex;gap:5px;align-items:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">signal_cellular_alt</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">{{ p.wifi }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;">battery_horiz_075</span></div>
+            </div>
+            <div style="position:absolute;top:47px;left:0;right:0;height:66px;display:flex;align-items:center;gap:18px;padding:0 16px 0 20px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+              <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+              <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">edit_square</span>
+              <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;">history</span>
+              <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 16px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.4px;">How On It works</div>
+            </div>
+            <div data-thread="" style="position:absolute;top:113px;left:0;right:0;bottom:156px;overflow-y:auto;padding:14px 16px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;">
+              <div style="text-align:center;font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;">TODAY</div>
+              <div style="align-self:flex-start;max-width:85%;padding:12px 16px;box-sizing:border-box;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:16px;line-height:1.4;">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div>
+              <div style="align-self:flex-end;max-width:80%;padding:12px 16px;background:#34302a;color:#fdf8f1;border-radius:20px;font-size:16px;line-height:1.4;">who hasn't paid me?</div>
+              <dc-import name="UnpaidAnswer" state="{{ p.state }}" message="{{ p.message }}" total-count="{{ p.totalCount }}" total-balance-text="{{ p.totalBalanceText }}" rows="{{ p.rows }}" error-kind="{{ p.errorKind }}" initial-feedback="{{ p.feedback }}" initial-chips-open="{{ p.chipsOpen }}" show-action-slot="{{ showActionSlot }}" on-open="{{ p.open }}" hint-size="100%,220px"></dc-import>
+            </div>
+            <div style="position:absolute;left:16px;right:16px;bottom:170px;z-index:8;background:#34302a;color:#fdf8f1;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);transform:{{ p.toastTf }};opacity:{{ p.toastOp }};transition:transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms cubic-bezier(.2,.8,.2,1);pointer-events:none;">
+              <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#e6c65c;">description</span><span>{{ p.toast }}</span>
+            </div>
+            <div style="position:absolute;left:0;right:0;bottom:84px;height:72px;display:flex;align-items:center;gap:8px;padding:0 12px;box-sizing:border-box;border-top:1px solid #ebe2d2;background:#fdf8f1;">
+              <div style="width:46px;height:46px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div>
+              <div style="flex:1;min-width:0;height:50px;border:1.5px solid #e3d8c5;border-radius:25px;background:#ffffff;display:flex;align-items:center;gap:8px;padding:0 4px 0 16px;box-sizing:border-box;">
+                <span style="flex:1;font-size:16px;color:#8f8676;white-space:nowrap;overflow:hidden;">Message On It...</span>
+                <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#3a352d;">image</span>
+                <div style="width:40px;height:40px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:21px;">photo_camera</span></div>
+              </div>
+              <div style="width:46px;height:46px;border-radius:50%;background:#efe7da;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;color:#8f8676;">arrow_upward</span></div>
+            </div>
+            <div style="position:absolute;left:0;right:0;bottom:0;height:84px;background:#fdf8f1;border-top:1px solid #ebe2d2;display:grid;grid-template-columns:repeat(5,1fr);padding-top:6px;box-sizing:border-box;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">group</span></div><span style="font-size:12px;font-weight:500;">Clients</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">description</span></div><span style="font-size:12px;font-weight:500;">Invoices</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;border-radius:17px;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;font-variation-settings:'FILL' 1;">chat</span></div><span style="font-size:12px;font-weight:700;">Chat</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">payments</span></div><span style="font-size:12px;font-weight:500;">Books</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:60px;height:34px;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">settings</span></div><span style="font-size:12px;font-weight:500;">Settings</span></div>
+            </div>
+            <div style="position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#1e1a15;z-index:9;"></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div id="laptop" data-screen-label="Laptop" style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;">Laptop · ≥1280</div>
+    <div style="width:1280px;height:800px;position:relative;overflow:hidden;border-radius:16px;background:#fdf8f1;box-shadow:0 0 0 1px #d8cdb9, 0 40px 70px -24px rgba(40,30,10,.35);">
+      <div style="position:absolute;top:0;left:0;right:0;height:66px;display:flex;align-items:center;gap:28px;padding:0 24px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;letter-spacing:-.3px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+        <div style="display:flex;gap:6px;">
+          <span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:500;">Clients</span>
+          <span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:500;">Invoices</span>
+          <span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:700;background:#d4af37;">Chat</span>
+          <span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:500;">Books</span>
+          <span style="height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:500;">Settings</span>
+        </div>
+        <div style="margin-left:auto;background:#d4af37;border-radius:999px;padding:12px 18px;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:.6px;">How On It works</div>
+      </div>
+      <div data-thread="" style="position:absolute;top:66px;left:0;right:0;bottom:96px;overflow-y:auto;box-sizing:border-box;">
+        <div style="max-width:760px;margin:0 auto;padding:20px 24px 24px;display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;">TODAY</div>
+          <div style="align-self:flex-start;max-width:70%;padding:12px 16px;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:16px;line-height:1.4;">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div>
+          <div style="align-self:flex-end;max-width:70%;padding:12px 16px;background:#34302a;color:#fdf8f1;border-radius:20px;font-size:16px;line-height:1.4;">who hasn't paid me?</div>
+          <dc-import name="UnpaidAnswer" wide="{{ true }}" state="idle" message="{{ laptop.message }}" total-count="{{ laptop.totalCount }}" total-balance-text="{{ laptop.totalBalanceText }}" rows="{{ laptop.rows }}" show-action-slot="{{ showActionSlot }}" hint-size="100%,400px"></dc-import>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:96px;border-top:1px solid #ebe2d2;background:#fdf8f1;">
+        <div style="max-width:760px;margin:0 auto;height:100%;display:flex;align-items:center;gap:10px;padding:0 24px;box-sizing:border-box;">
+          <div style="width:46px;height:46px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div>
+          <div style="flex:1;height:52px;border:1.5px solid #e3d8c5;border-radius:26px;background:#ffffff;display:flex;align-items:center;gap:10px;padding:0 6px 0 18px;box-sizing:border-box;">
+            <span style="flex:1;font-size:16px;color:#8f8676;">Message On It...</span>
+            <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#3a352d;">image</span>
+            <div style="width:40px;height:40px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:21px;">photo_camera</span></div>
+          </div>
+          <div style="width:46px;height:46px;border-radius:50%;background:#efe7da;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:24px;color:#8f8676;">arrow_upward</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showActionSlot&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Handoff&quot;}}">
+const MIXED=[
+  {number:'INV-0002',client:'Nakamura Property Group',balanceText:'$25.00',dueDate:'Oct 20',status:'overdue'},
+  {number:'INV-0003',client:'Mr. Bob',balanceText:'$40.00',dueDate:'Oct 29',status:'overdue'},
+  {number:'INV-0004',client:'Brandon',balanceText:'$15.00',dueDate:'Nov 12',status:'sent'}
+];
+const ONE=[{number:'INV-0004',client:'Brandon',balanceText:'$200.00',dueDate:'Nov 12',status:'sent'}];
+const NAMES=['Nakamura Property Group','Obianuju','Mr. Bob','Brandon','Mike Davis','Riverside Dental','Alvarez Landscaping','Priya Shah','Hollis & Co.','Greenway HOA','Tomás Reyes','Bluebird Café','Dana Whitfield','Kowalski Builders','Ellen Park','Summit Storage','Jorge Medina','Lakeview Church','Sam O\'Neill','Harbor Fitness'];
+const AMTS=['$1,200.00','$2,800.00','$650.00','$200.00','$850.00','$1,475.00','$320.00','$95.00','$2,150.00','$740.00','$410.00','$1,060.00','$275.00','$3,900.00','$180.00','$560.00','$1,320.00','$600.00','$145.00','$880.00'];
+const DUES=['Sep 2','Sep 9','Sep 14','Sep 21','Sep 28','Oct 3','Oct 8','Oct 12','Oct 17','Oct 20','Oct 24','Oct 29','Nov 2','Nov 7','Nov 9','Nov 12','Nov 14','Nov 18','Nov 21','Nov 25'];
+const TWENTY=NAMES.map((c,i)=>({number:'INV-'+String(10+i).padStart(4,'0'),client:c,balanceText:AMTS[i],dueDate:DUES[i],status:i<13?'overdue':'sent'}));
+const M_MIXED='3 invoices are still open. 2 are past due.';
+const PHONES=[
+  {id:'s1',label:'Idle · 1 row',state:'idle',message:'Just one. Brandon still owes you.',totalCount:1,totalBalanceText:'1 open · $200.00',rows:ONE},
+  {id:'s2',label:'Idle · mixed sent + overdue',state:'idle',message:M_MIXED,totalCount:3,totalBalanceText:'3 open · $80.00',rows:MIXED},
+  {id:'s3',label:'Idle · 20 rows + “and N more”',state:'idle',message:'34 invoices are open. Here are the 20 oldest.',totalCount:34,totalBalanceText:'34 open · $27,915.00',rows:TWENTY},
+  {id:'s4',label:'Pending · typing',state:'typing'},
+  {id:'s5',label:'Pending · skeleton card',state:'skeleton'},
+  {id:'s6',label:'Empty',state:'empty',message:"Nothing outstanding. Everyone's paid up."},
+  {id:'s7',label:'Error · signed out',state:'error',errorKind:'signedOut'},
+  {id:'s8',label:'Error · offline',state:'error',errorKind:'offline',wifi:'wifi_off'},
+  {id:'s9',label:'Error · server',state:'error',errorKind:'server'},
+  {id:'s10',label:'Thumbs-up selected',state:'idle',message:M_MIXED,totalCount:3,totalBalanceText:'3 open · $80.00',rows:MIXED,feedback:'up'},
+  {id:'s11',label:'Thumbs-down · reasons open',state:'idle',message:M_MIXED,totalCount:3,totalBalanceText:'3 open · $80.00',rows:MIXED,feedback:'down',chipsOpen:true}
+];
+class Component extends DCLogic{
+  state={toasts:{}};
+  t={};
+  componentWillUnmount(){Object.values(this.t).forEach(clearTimeout);}
+  toast(id,msg){clearTimeout(this.t[id]);this.setState(s=>({toasts:{...s.toasts,[id]:msg}}));
+    this.t[id]=setTimeout(()=>this.setState(s=>({toasts:{...s.toasts,[id]:null}})),1800);}
+  renderVals(){
+    const tt=this.state.toasts;
+    return{
+      showActionSlot:!!this.props.showActionSlot,
+      phones:PHONES.map((p,i)=>({wifi:'wifi',errorKind:null,feedback:null,chipsOpen:false,message:'',totalCount:0,totalBalanceText:'',rows:[],...p,n:i+1,
+        open:r=>this.toast(p.id,`Opening ${r.number}`),
+        toast:tt[p.id]||'',toastTf:tt[p.id]?'none':'translateY(16px)',toastOp:tt[p.id]?1:0})),
+      laptop:{message:'34 invoices are open. Here are the 20 oldest.',totalCount:34,totalBalanceText:'34 open · $27,915.00',rows:TWENTY}
+    };
+  }
+}
+</script>
+</body>
+</html>

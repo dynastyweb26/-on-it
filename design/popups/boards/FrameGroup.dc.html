@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div id="{{ id }}" data-screen-label="{{ id }}" style="display:flex;flex-direction:column;gap:18px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+    <span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">{{ id }}</span>
+    <span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">{{ title }}</span>
+    <span style="height:26px;padding:0 10px;border-radius:13px;background:{{ tierBg }};font-size:12px;font-weight:700;display:flex;align-items:center;">{{ tier }}</span>
+    <sc-for list="{{ pids }}" as="p" hint-placeholder-count="1"><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">{{ p }}</span></sc-for>
+  </div>
+  <sc-if value="{{ hasCovers }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#3a352d;max-width:860px;"><b>Covers:</b> {{ covers }}</div></sc-if>
+  <sc-if value="{{ hasNotes }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:4px;max-width:860px;">
+      <sc-for list="{{ notes }}" as="n" hint-placeholder-count="2"><div style="font-size:14px;line-height:1.5;color:#3a352d;display:flex;gap:8px;"><span style="color:#8f8676;">•</span><span>{{ n }}</span></div></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{ hasChanges }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:6px;max-width:860px;">
+      <sc-for list="{{ changes }}" as="c" hint-placeholder-count="1">
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;color:#3a352d;">
+          <span style="flex:none;height:22px;padding:0 8px;border-radius:6px;background:#f2e5b9;font-family:Montserrat,sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;display:flex;align-items:center;gap:4px;color:#735c00;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:13px;">edit</span>COPY CHANGE</span>
+          <span>{{ c }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <div style="display:flex;flex-wrap:wrap;gap:40px 36px;align-items:flex-start;padding:8px 8px 0;">
+    <sc-for list="{{ frames }}" as="f" hint-placeholder-count="2">
+      <div style="display:flex;flex-direction:column;gap:14px;width:{{ f.w }};">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">{{ f.label }}</div>
+        <sc-if value="{{ f.isSheet }}" hint-placeholder-val="{{ false }}"><dc-import name="PopSheet" spec="{{ f.spec }}" state="{{ f.state }}" mode="{{ f.mode }}" hint-size="390px,560px"></dc-import></sc-if>
+        <sc-if value="{{ f.isInline }}" hint-placeholder-val="{{ false }}"><dc-import name="PopInline" spec="{{ f.spec }}" state="{{ f.state }}" hint-size="390px,360px"></dc-import></sc-if>
+        <sc-if value="{{ f.isToast }}" hint-placeholder-val="{{ false }}"><dc-import name="PopToast" spec="{{ f.spec }}" state="{{ f.state }}" hint-size="390px,250px"></dc-import></sc-if>
+        <sc-if value="{{ f.hasCap }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;line-height:1.45;color:#5f574b;max-width:390px;">{{ f.cap }}</div></sc-if>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1300,&quot;height&quot;:800},&quot;g&quot;:{&quot;editor&quot;:null,&quot;default&quot;:{&quot;id&quot;:&quot;D4&quot;,&quot;title&quot;:&quot;Delete a recorded payment&quot;,&quot;tier&quot;:&quot;P1&quot;,&quot;pids&quot;:[&quot;P-09&quot;],&quot;comp&quot;:&quot;sheet&quot;,&quot;states&quot;:[&quot;idle&quot;,&quot;pending&quot;,&quot;error&quot;],&quot;spec&quot;:{&quot;icon&quot;:&quot;delete&quot;,&quot;iconTone&quot;:&quot;danger&quot;,&quot;destructive&quot;:true,&quot;title&quot;:&quot;Delete payment?&quot;,&quot;figure&quot;:{&quot;label&quot;:&quot;Zelle · Oct 26&quot;,&quot;meta&quot;:&quot;On INV-0007 · Brandon&quot;,&quot;amount&quot;:&quot;$85.00&quot;},&quot;body&quot;:&quot;INV-0007 goes back to $85.00 due.&quot;,&quot;actions&quot;:[{&quot;label&quot;:&quot;Cancel&quot;,&quot;kind&quot;:&quot;gold&quot;,&quot;safe&quot;:true},{&quot;label&quot;:&quot;Delete payment · $85.00 Zelle&quot;,&quot;kind&quot;:&quot;danger&quot;,&quot;go&quot;:true,&quot;busyLabel&quot;:&quot;Deleting…&quot;}],&quot;error&quot;:{&quot;icon&quot;:&quot;cloud_off&quot;,&quot;title&quot;:&quot;You're offline&quot;,&quot;body&quot;:&quot;The payment is still recorded.&quot;},&quot;retryLabel&quot;:&quot;Try again&quot;,&quot;doneToast&quot;:&quot;Payment deleted.&quot;}},&quot;tsType&quot;:&quot;object&quot;}}">
+const LABEL={idle:'IDLE',ready:'READY',pending:'PENDING · REPEAT-TAP LOCKED',error:'ERROR'};
+const CAP={pending:'Second tap is ignored by a synchronous ref set before the request starts, not just by state. Scrim, ×, swipe and Escape do nothing until it settles.'};
+class Component extends DCLogic{
+  renderVals(){
+    const g=this.props.g||{};
+    const st=g.states||['idle'];
+    return{
+      id:g.id,title:g.title,tier:g.tier||'P1',tierBg:g.tier==='P2'?'#efe7da':g.tier==='P3'?'#f0e8db':'#f2e5b9',
+      pids:g.pids||[],hasCovers:!!g.covers,covers:g.covers,
+      hasNotes:!!(g.notes&&g.notes.length),notes:g.notes||[],
+      hasChanges:!!(g.changes&&g.changes.length),changes:g.changes||[],
+      frames:st.map(x=>{
+        const f=typeof x==='string'?{state:x}:x;
+        const comp=f.comp||g.comp||'sheet',mode=f.mode||'phone';
+        const cap=f.cap!==undefined?f.cap:(f.state==='pending'&&comp!=='toast'?CAP.pending:'');
+        return{state:f.state||'idle',label:f.label||LABEL[f.state]||String(f.state).toUpperCase(),
+          spec:f.spec||g.spec,mode,isSheet:comp==='sheet',isInline:comp==='inline',isToast:comp==='toast',
+          w:mode==='laptop'?'1280px':'390px',hasCap:!!cap,cap};
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

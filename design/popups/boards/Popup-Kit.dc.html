@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:16px;max-width:980px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">ON IT · CHAT TAB · POPUP SYSTEM · DESIGN ONLY</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:56px;letter-spacing:-.8px;line-height:1.02;">Popup kit</div>
+    <div style="font-size:17px;line-height:1.55;color:#3a352d;max-width:820px;text-wrap:pretty;">Today's four shapes become three, plus PaywallModal as the one portal modal. Source of truth: INVENTORY.md (100 items). 28 P1 items have full state frames, the 47 P2 items have one representative frame per family variant, and the P3 items are listed. Every frame is built from three components: <b>PopInline</b>, <b>PopSheet</b>, <b>PopToast</b>.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <a href="Board-1-Destructive.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">1 Destructive</a>
+      <a href="Board-2-Decision.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">2 Decision</a>
+      <a href="Board-3-Pickers.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">3 Pickers</a>
+      <a href="Board-4-Permission.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">4 Permission</a>
+      <a href="Board-5-Limits.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">5 Limits</a>
+      <a href="Board-6-Status.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">6 Status + P-66</a>
+      <a href="Board-7-Toasts.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">7 Toasts</a>
+      <a href="Board-8-AI.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">8 AI</a>
+      <a href="Board-9-Forms.dc.html" style="height:44px;padding:0 16px;border-radius:22px;background:#ffffff;border:1px solid #e3d8c5;display:flex;align-items:center;font-weight:600;font-size:14px;text-decoration:none;">9 Forms (align)</a>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:28px;">The three shapes</div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;align-items:flex-start;">
+      <div style="display:flex;flex-direction:column;gap:12px;width:390px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">1 · Inline transcript card</div>
+        <div style="font-size:14px;line-height:1.5;color:#3a352d;">For prompts the conversation asked: change guard, which client, sign in, errors, AI replies. They scroll with the thread and stay until answered. Variants: <b>bubble</b>, <b>card</b>, <b>error card</b>, <b>error slot</b> (inside a form card).</div>
+        <dc-import name="PopInline" spec="{{ exInline }}" state="idle" hint-size="390px,420px"></dc-import>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;width:390px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">2 · Bottom sheet</div>
+        <div style="font-size:14px;line-height:1.5;color:#3a352d;">For money and destructive decisions, pickers, and P-66. Grip, icon tile, title, × (= the safe answer), figure card, consequence, actions. At ≥1280 it becomes a centered 440px modal (pickers: 560px).</div>
+        <dc-import name="PopSheet" spec="{{ exSheet }}" state="idle" hint-size="390px,560px"></dc-import>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;width:390px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">3 · Toast</div>
+        <div style="font-size:14px;line-height:1.5;color:#3a352d;">For success and undo. 12px above the composer, one at a time, role="status". Info 2.4 s, undo 6 s with a time bar.</div>
+        <dc-import name="PopToast" spec="{{ exToast }}" state="idle" hint-size="390px,250px"></dc-import>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;margin-top:18px;">+ PaywallModal</div>
+        <div style="font-size:14px;line-height:1.5;color:#3a352d;">The one portal modal. Unchanged; aligned on Board 5 (L1).</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:1240px;">
+    <sc-for list="{{ rules }}" as="r" hint-placeholder-count="8">
+      <div style="background:#fdf8f1;border:1px solid #ebe2d2;border-radius:20px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;">{{ r.t }}</div>
+        <div style="font-size:14px;line-height:1.5;color:#3a352d;">{{ r.b }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:18px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:28px;">Laptop ≥1280</div>
+    <div style="font-size:15px;color:#3a352d;max-width:860px;line-height:1.5;">Bottom sheets become a centered 440px modal (scrim, × top-right, no grip, Escape = safe answer). Inline cards stay inline in the 760px thread column (cards max 640px). Toasts center at the bottom of the column, max 440px. Each money/destructive board has its own laptop frame (D1, C4, S1).</div>
+    <div style="width:1280px;height:720px;position:relative;overflow:hidden;border-radius:16px;background:#fdf8f1;box-shadow:0 0 0 1px #d8cdb9, 0 40px 70px -24px rgba(40,30,10,.35);">
+      <div style="height:66px;display:flex;align-items:center;gap:28px;padding:0 24px;border-bottom:1px solid #ebe2d2;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+        <div style="display:flex;gap:6px;font-size:15px;font-weight:500;"><span style="padding:10px 16px;">Clients</span><span style="padding:10px 16px;">Invoices</span><span style="padding:10px 16px;border-radius:20px;background:#d4af37;font-weight:700;">Chat</span><span style="padding:10px 16px;">Books</span><span style="padding:10px 16px;">Settings</span></div>
+      </div>
+      <div style="max-width:760px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:12px;">
+        <div style="align-self:flex-end;padding:12px 16px;background:#34302a;color:#fdf8f1;border-radius:20px;font-size:16px;">actually it’s Mike Davis, deck stain x3 at 150</div>
+        <div style="max-width:640px;background:#faf3e7;border:1px solid #eedfb5;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">edit_document</span><span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">THIS WOULD CHANGE INV-0007</span></div>
+          <div style="font-size:16px;">This would change INV-0007. Update it, or start a new invoice?</div>
+          <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:16px;">
+            <div style="display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #f1e9db;"><span style="width:68px;font-size:13px;color:#5f574b;">Client</span><span style="color:#8f8676;text-decoration:line-through;">Brandon</span><span style="font-weight:600;">→ Mike Davis</span></div>
+            <div style="display:flex;gap:12px;padding:11px 14px;"><span style="width:68px;font-size:13px;color:#5f574b;">Total</span><span style="color:#8f8676;text-decoration:line-through;">$200.00</span><span style="font-weight:600;">→ $450.00</span></div>
+          </div>
+          <div style="display:flex;gap:8px;"><span style="height:48px;padding:0 18px;border-radius:24px;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;display:flex;align-items:center;">Update INV-0007</span><span style="height:48px;padding:0 18px;border-radius:24px;border:1.5px solid #e3d8c5;background:#ffffff;font-weight:700;font-size:15px;display:flex;align-items:center;">Start a new invoice</span></div>
+        </div>
+      </div>
+      <div style="position:absolute;left:50%;bottom:110px;transform:translateX(-50%);width:440px;background:#34302a;color:#fdf8f1;border-radius:18px;padding:0 6px 0 16px;min-height:56px;display:flex;align-items:center;gap:12px;font-size:15px;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);"><span style="width:26px;height:26px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:17px;color:#1e1a15;">delete</span></span><span style="flex:1;">Invoice deleted.</span><span style="height:44px;padding:0 12px;display:flex;align-items:center;font-family:Montserrat,sans-serif;font-weight:700;font-size:14px;color:#e6c65c;">Undo</span></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:96px;border-top:1px solid #ebe2d2;background:#fdf8f1;"><div style="max-width:760px;margin:0 auto;height:100%;display:flex;align-items:center;gap:10px;padding:0 24px;box-sizing:border-box;"><div style="width:46px;height:46px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div><div style="flex:1;height:52px;border:1.5px solid #e3d8c5;border-radius:26px;background:#ffffff;display:flex;align-items:center;padding:0 18px;color:#8f8676;">Message On It...</div></div></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:18px;max-width:1240px;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:28px;">Frame → P-id map</div>
+    <div style="font-size:14px;color:#3a352d;">Every P1 item has its own frame with idle, pending (repeat-tap) and error states, except where the inventory says a state doesn't exist. P2 items map to a representative frame.</div>
+    <div role="table" style="background:#ffffff;border:1px solid #ebe2d2;border-radius:20px;overflow:hidden;">
+      <div role="row" style="display:grid;grid-template-columns:80px 150px minmax(0,1fr) minmax(0,1.2fr) 70px 90px;gap:12px;padding:12px 18px;background:#faf3e7;font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.3px;color:#5f574b;">
+        <span>FRAME</span><span>BOARD</span><span>WHAT</span><span>P-IDS</span><span>TIER</span><span>SHAPE</span>
+      </div>
+      <sc-for list="{{ map }}" as="m" hint-placeholder-count="40">
+        <div role="row" style="display:grid;grid-template-columns:80px 150px minmax(0,1fr) minmax(0,1.2fr) 70px 90px;gap:12px;padding:10px 18px;border-top:1px solid #f1e9db;font-size:14px;align-items:baseline;">
+          <a href="{{ m.href }}" style="font-family:Montserrat,sans-serif;font-weight:800;">{{ m.f }}</a>
+          <span style="color:#5f574b;">{{ m.b }}</span>
+          <span>{{ m.w }}</span>
+          <span style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;">{{ m.p }}</span>
+          <span style="font-weight:700;">{{ m.t }}</span>
+          <span style="color:#5f574b;">{{ m.s }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="background:#fdf8f1;border:1px solid #ebe2d2;border-radius:20px;padding:18px 20px;font-size:14px;line-height:1.6;color:#3a352d;">
+      <b>P3, listed only:</b> P-18, P-19 (T2 undo) · P-22–P-26, P-30, P-31 (Board 3) · P-48, P-50, P-51, P-53 (Board 4) · P-57, P-64 (Board 5) · P-69, P-70, P-71, P-80 (Board 6) · P-95, P-96, P-99, P-100 (Board 7) · P-73, P-75 (Board 8, framed anyway as AI variants).<br>
+      <b>Kept as logged, not redesigned:</b> P-05 Send has no confirm · P-79 duplicate warning stays passive · P-50 camera's silent gallery fallback · P-32 RecordPaymentSheet (reference).
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const B={1:['Board-1-Destructive.dc.html','1 Destructive'],2:['Board-2-Decision.dc.html','2 Decision'],3:['Board-3-Pickers.dc.html','3 Pickers'],4:['Board-4-Permission.dc.html','4 Permission'],5:['Board-5-Limits.dc.html','5 Limits'],6:['Board-6-Status.dc.html','6 Status'],7:['Board-7-Toasts.dc.html','7 Toasts'],8:['Board-8-AI.dc.html','8 AI'],9:['Board-9-Forms.dc.html','9 Forms']};
+const M=[
+  ['D1',1,'Delete sent invoice/estimate (typed DELETE) + failed-delete error','P-06, P-93','P1','Sheet'],
+  ['D2',1,'Delete expense','P-07','P1','Sheet'],
+  ['D3',1,'Delete client','P-08','P1','Sheet'],
+  ['D4',1,'Delete recorded payment','P-09','P1','Sheet'],
+  ['D5',1,'Discard queued payment','P-13','P1','Sheet'],
+  ['D6',1,'Close unfinished template / discard expense draft','P-16, P-04','P1','Sheet'],
+  ['D7',1,'Deactivate estimate link','P-17','P2','Sheet'],
+  ['D8',1,'Remove saved attachment','P-11, P-12','P2','Sheet'],
+  ['D9',1,'Undo after delete','P-06, P-97','P1','Toast'],
+  ['C1',2,'Change guard','P-01','P1','Inline'],
+  ['C2',2,'Which client?','P-02','P1','Inline'],
+  ['C3',2,'Replace unfinished template','P-03','P1','Sheet'],
+  ['C4',2,'Convert estimate → invoice (new number + figure)','P-14','P1','Sheet'],
+  ['C5',2,'Revise a sent invoice','P-15','P1','Sheet'],
+  ['K1',3,'Picker shell: list, search/Use “q”, loading, empty, error','P-20, P-21, P-22, P-23, P-25, P-39, P-40','P2','Sheet'],
+  ['K2',3,'Keypad + free-text value sheets','P-41, P-42, P-43','P2','Sheet'],
+  ['K3',3,'Inline chips, date tiles, + menu','P-24, P-26, P-27, P-28, P-29','P2','Inline'],
+  ['K4',3,'Picker as 560 dialog (laptop)','P-20, P-21','P2','Modal'],
+  ['M1',4,'Microphone denied (iPhone / browser)','P-47','P2','Inline'],
+  ['M2',4,'Camera blocked','P-49','P2','Full-screen'],
+  ['M3',4,'Push notifications','P-52','P2','Inline'],
+  ['M4',4,'Clipboard blocked','P-53','P3','Toast'],
+  ['L1',5,'Hard wall (PaywallModal alignment)','P-54, P-55, P-59, P-64','P1','Modal'],
+  ['L2',5,'Guest wall, no auto-redirect','P-62, P-84','P1','Inline'],
+  ['L3',5,'Guest voice budget','P-63','P1','Inline'],
+  ['L4',5,'Daily limits + over-cap reply','P-60, P-61, P-56','P2','Inline'],
+  ['L5',5,'Soft prompt banner','P-58','P2','Banner'],
+  ['S1',6,'FLAGSHIP: shared but not marked sent','P-66','P1','Sheet'],
+  ['S1b',6,'P-66 persistent card after Keep as draft','P-66','P1','Inline'],
+  ['S2',6,'Send/build failure','P-65','P1','Inline'],
+  ['S3',6,'Estimate send failure','P-72','P1','Inline'],
+  ['S4',6,'Offline / connection hiccup','P-83','P1','Inline'],
+  ['S5',6,'Signed out mid-action','P-84','P1','Inline'],
+  ['S6',6,'Expense save failure (error slot)','P-85, P-38','P1','Inline'],
+  ['S7a',6,'Payment pending','P-88','P1','Inline'],
+  ['S7b',6,'Payment needs attention','P-88, P-13','P1','Inline'],
+  ['S8',6,'Invoice-detail share error','P-89','P1','Inline'],
+  ['S9',6,'Locked / duplicate / ambiguous replies','P-76, P-77, P-78, P-81','P2','Inline'],
+  ['S10',6,'In-card error slot','P-82, P-86, P-87, P-90, P-91, P-92','P2','Inline'],
+  ['S11',6,'Share sheet didn’t open → ready','P-67, P-68','P2','Inline'],
+  ['T1',7,'Invoice sent','P-94, P-96','P2','Toast'],
+  ['T2',7,'Undo after delete','P-97, P-10, P-18, P-19','P2','Toast'],
+  ['T3',7,'Bank toast','P-98','P2','Toast'],
+  ['A1',8,'Unsupported question','P-73','P3','Inline'],
+  ['A2',8,'Answer missing / lookup failed','P-74','P2','Inline'],
+  ['A3',8,'Feedback intent','P-75','P3','Inline'],
+  ['F1',9,'Record payment (reference)','P-32','P1','Sheet'],
+  ['F2',9,'Estimate signature footer','P-33','P1','Inline'],
+  ['F3',9,'Chat invoice card footer','P-35, P-05','P1','Inline'],
+  ['F4',9,'Deposit card','P-45','P1','Inline'],
+  ['F5',9,'Bank review card','P-46','P1','Inline'],
+  ['—',9,'Align only, no frames','P-34, P-36, P-37, P-44','P2','—']
+];
+const RULES=[
+  {t:'Every money confirm carries the figure',b:'In the figure card AND in the go button (“Delete payment · $85.00 Zelle”, “Convert to INV-0008 · $1,200.00”).'},
+  {t:'Every failure names its real cause',b:'From errors.ts: offline, signed-out, our-end, rate-limit… Plus what did NOT happen (“Nothing was deleted.”).'},
+  {t:'Dismiss = the safe answer',b:'Scrim, ×, swipe and Escape map to Cancel / Keep editing / Keep as draft. Inline prompts that guard data can’t be dismissed.'},
+  {t:'Busy blocks dismissal and double taps',b:'A synchronous ref set before the request, plus disabled controls, plus ignored scrim/×/swipe/Escape. Fixes C1/C2’s state-only guard.'},
+  {t:'44px targets',b:'Buttons 44–56px, chips 44px, × 44px, toast action 44px. Row taps ≥56px.'},
+  {t:'Below the fold scrolls into view',b:'New inline cards and error slots scroll the thread the minimum amount to show them (same helper as the unpaid card).'},
+  {t:'“Estimate”, never “quote”',b:'The stored kind is only shown through docNoun() / formatDocNumber().'},
+  {t:'No new tokens',b:'Colors, type, radii, shadows and the spinner/shimmer are lifted from the existing DCs and the unpaid-invoices card.'}
+];
+class Component extends DCLogic{
+  renderVals(){
+    return{
+      rules:RULES,
+      map:M.map(r=>({f:r[0],href:B[r[1]][0]+(r[0]==='—'?'':'#'+r[0]),b:B[r[1]][1],w:r[2],p:r[3],t:r[4],s:r[5]})),
+      exInline:{kind:'card',user:'actually it’s Mike Davis',eyebrow:'THIS WOULD CHANGE INV-0007',eyebrowIcon:'edit_document',text:'This would change INV-0007. Update it, or start a new invoice?',rows:[{k:'Client',from:'Brandon',to:'Mike Davis'},{k:'Total',from:'$200.00',to:'$450.00'}],actions:[{label:'Update INV-0007',kind:'gold',go:true,busyLabel:'Updating…'},{label:'Start a new invoice',kind:'outline'}],doneText:'Updated INV-0007.'},
+      exSheet:{icon:'delete',iconTone:'danger',destructive:true,title:'Delete payment?',figure:{label:'Zelle · Oct 26',meta:'On INV-0007 · Brandon',amount:'$85.00'},body:'INV-0007 goes back to $85.00 due.',actions:[{label:'Cancel',kind:'gold',safe:true},{label:'Delete payment · $85.00 Zelle',kind:'danger',go:true,busyLabel:'Deleting…'}],error:{icon:'cloud_off',title:'You’re offline',body:'Nothing was deleted. The payment is still recorded.'},retryLabel:'Try again',doneToast:'Payment deleted.'},
+      exToast:{icon:'delete',text:'Invoice deleted.',action:{label:'Undo',busyLabel:'Restoring…'},timer:true,doneText:'INV-0007 is back.'}
+    };
+  }
+}
+</script>
+</body>
+</html>

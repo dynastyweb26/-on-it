@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+@keyframes oiSpin{to{transform:rotate(360deg)}}
+@keyframes oiIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation-name:oiFade !important;animation-iteration-count:1 !important}}
+</style>
+</helmet>
+<div data-component="PopSheet" style="width:{{ stageW }};height:{{ stageH }};position:relative;overflow:hidden;border-radius:{{ stageR }};background:#fdf8f1;box-shadow:{{ stageShadow }};font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;flex:none;">
+
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ true }}">
+    <div aria-hidden="true" style="height:132px;padding:18px 16px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;">
+      <div style="align-self:flex-start;max-width:80%;padding:12px 16px;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:15px;line-height:1.4;">{{ ctxA }}</div>
+      <div style="align-self:flex-end;max-width:70%;padding:12px 16px;background:#34302a;color:#fdf8f1;border-radius:20px;font-size:15px;">{{ ctxU }}</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isLaptop }}" hint-placeholder-val="{{ false }}">
+    <div aria-hidden="true">
+      <div style="height:66px;display:flex;align-items:center;gap:28px;padding:0 24px;border-bottom:1px solid #ebe2d2;box-sizing:border-box;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;display:flex;align-items:flex-end;gap:2px;">On It<span style="width:6px;height:6px;border-radius:50%;background:#d4af37;margin-bottom:6px;"></span></div>
+        <div style="display:flex;gap:6px;font-size:15px;font-weight:500;"><span style="padding:10px 16px;">Clients</span><span style="padding:10px 16px;">Invoices</span><span style="padding:10px 16px;border-radius:20px;background:#d4af37;font-weight:700;">Chat</span><span style="padding:10px 16px;">Books</span><span style="padding:10px 16px;">Settings</span></div>
+      </div>
+      <div style="max-width:760px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:12px;">
+        <div style="align-self:flex-start;max-width:70%;padding:12px 16px;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:16px;">{{ ctxA }}</div>
+        <div style="align-self:flex-end;max-width:70%;padding:12px 16px;background:#34302a;color:#fdf8f1;border-radius:20px;font-size:16px;">{{ ctxU }}</div>
+        <div style="height:220px;border-radius:24px;background:#faf3e7;border:1px solid #eedfb5;"></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div onClick="{{ scrimTap }}" style="position:absolute;inset:0;z-index:1;background:rgba(30,24,14,.38);opacity:{{ scrimOp }};transition:opacity 260ms cubic-bezier(.2,.8,.2,1);cursor:{{ scrimCursor }};"></div>
+
+  <sc-if value="{{ showSheet }}" hint-placeholder-val="{{ true }}">
+    <div role="{{ role }}" aria-modal="true" aria-labelledby="{{ titleId }}" aria-busy="{{ pending }}" style="position:{{ sPos }};left:{{ sLeft }};top:{{ sTop }};transform:{{ sTf }};width:{{ sW }};z-index:2;box-sizing:border-box;background:#fdf8f1;border-radius:{{ sR }};padding:{{ sPad }};display:flex;flex-direction:column;gap:14px;box-shadow:{{ sShadow }};">
+      <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:center;opacity:{{ gripOp }};"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div></sc-if>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <sc-if value="{{ hasIcon }}" hint-placeholder-val="{{ true }}"><div style="width:44px;height:44px;border-radius:14px;background:{{ iconBg }};display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:{{ iconFg }};">{{ icon }}</span></div></sc-if>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:1px;">
+          <sc-if value="{{ hasEyebrow }}" hint-placeholder-val="{{ false }}"><div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#735c00;">{{ eyebrow }}</div></sc-if>
+          <div id="{{ titleId }}" style="font-family:Montserrat,sans-serif;font-weight:800;font-size:21px;line-height:1.2;text-wrap:pretty;">{{ title }}</div>
+          <sc-if value="{{ hasSub }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#5f574b;text-wrap:pretty;">{{ sub }}</div></sc-if>
+        </div>
+        <button onClick="{{ closeTap }}" aria-label="{{ safeLabel }}" disabled="{{ pending }}" style="width:44px;height:44px;margin:-4px -6px 0 0;border-radius:50%;border:none;background:#f0e8db;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1e1a15;flex:none;opacity:{{ closeOp }};transition:opacity 160ms cubic-bezier(.2,.8,.2,1);"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">close</span></button>
+      </div>
+
+      <sc-if value="{{ hasFigure }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+            <div style="font-size:16px;font-weight:600;">{{ figLabel }}</div>
+            <div style="font-size:13px;color:#5f574b;">{{ figMeta }}</div>
+          </div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;">{{ figAmount }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;overflow:hidden;">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex;align-items:baseline;gap:12px;padding:11px 16px;border-bottom:{{ r.border }};">
+              <span style="width:92px;flex:none;font-size:13px;color:#5f574b;">{{ r.k }}</span>
+              <span style="flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;">
+                <sc-if value="{{ r.hasFrom }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#8f8676;text-decoration:line-through;">{{ r.from }}</span><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;color:#8f8676;">arrow_forward</span></sc-if>
+                <span style="font-size:15px;font-weight:600;">{{ r.to }}</span>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasTruths }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <sc-for list="{{ truths }}" as="t" hint-placeholder-count="2">
+            <div style="display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:18px;background:{{ t.bg }};border:1px solid {{ t.bd }};">
+              <div style="width:32px;height:32px;border-radius:50%;background:{{ t.dotBg }};display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:{{ t.dotFg }};">{{ t.icon }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0;"><div style="font-size:15px;font-weight:600;">{{ t.title }}</div><div style="font-size:13px;line-height:1.45;color:#5f574b;">{{ t.body }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasBody }}" hint-placeholder-val="{{ false }}"><div style="font-size:15px;line-height:1.45;color:#3a352d;text-wrap:pretty;">{{ body }}</div></sc-if>
+
+      <sc-if value="{{ hasTyped }}" hint-placeholder-val="{{ false }}">
+        <label style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;">TYPE {{ typedWord }} TO CONFIRM</span>
+          <input value="{{ typed }}" onChange="{{ setTyped }}" disabled="{{ pending }}" autocapitalize="characters" style="height:52px;border:1.5px solid {{ typedBd }};border-radius:16px;padding:0 16px;background:#ffffff;font-family:Montserrat,sans-serif;font-weight:700;font-size:17px;letter-spacing:2px;color:#1e1a15;outline:none;box-sizing:border-box;">
+        </label>
+      </sc-if>
+
+      <sc-if value="{{ showAlert }}" hint-placeholder-val="{{ false }}">
+        <div data-m="" role="alert" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:16px;background:#faf3e7;border:1px solid #eedfb5;animation:oiIn 200ms cubic-bezier(.2,.8,.2,1) both;">
+          <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#c8412e;margin-top:1px;">{{ errIcon }}</span>
+          <div style="display:flex;flex-direction:column;gap:2px;"><div style="font-size:15px;font-weight:600;">{{ errTitle }}</div><div style="font-size:14px;line-height:1.45;color:#5f574b;">{{ errBody }}</div></div>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:2px;">
+        <sc-for list="{{ actions }}" as="a" hint-placeholder-count="2">
+          <button onClick="{{ a.tap }}" disabled="{{ a.disabled }}" aria-busy="{{ a.spin }}" style="height:{{ a.h }};border-radius:28px;border:{{ a.bd }};background:{{ a.bg }};color:{{ a.fg }};font-family:{{ a.ff }};font-weight:700;font-size:{{ a.fs }};cursor:{{ a.cursor }};display:flex;align-items:center;justify-content:center;gap:8px;padding:0 18px;transition:background 200ms cubic-bezier(.2,.8,.2,1), transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97)">
+            <sc-if value="{{ a.spin }}" hint-placeholder-val="{{ false }}"><span data-m="" style="width:16px;height:16px;border-radius:50%;border:2px solid #8f8676;border-top-color:transparent;box-sizing:border-box;animation:oiSpin 800ms linear infinite;"></span></sc-if>
+            <span>{{ a.label }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;line-height:1.45;color:#5f574b;text-align:center;text-wrap:pretty;">{{ note }}</div></sc-if>
+      <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:#5f574b;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:15px;">lock</span>{{ pendingNote }}</div></sc-if>
+      <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ true }}"><div style="height:4px;"></div></sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showResult }}" hint-placeholder-val="{{ false }}">
+    <div data-m="" style="position:absolute;left:16px;right:16px;bottom:24px;z-index:3;display:flex;flex-direction:column;gap:12px;align-items:stretch;animation:oiIn 240ms cubic-bezier(.2,.8,.2,1) both;max-width:440px;margin:0 auto;">
+      <div role="status" style="background:#34302a;color:#fdf8f1;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;box-shadow:0 12px 28px -10px rgba(30,24,14,.45);">
+        <span style="width:26px;height:26px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;color:#1e1a15;">{{ resultIcon }}</span></span>
+        <span style="flex:1;">{{ resultText }}</span>
+      </div>
+      <button onClick="{{ replay }}" style="align-self:center;height:44px;padding:0 18px;border-radius:22px;border:1.5px solid #e3d8c5;background:#ffffff;font-family:Inter,sans-serif;font-weight:600;font-size:14px;color:#1e1a15;cursor:pointer;display:flex;align-items:center;gap:6px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">replay</span>Replay</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:410,&quot;height&quot;:700},&quot;spec&quot;:{&quot;editor&quot;:null,&quot;default&quot;:{&quot;icon&quot;:&quot;delete&quot;,&quot;iconTone&quot;:&quot;danger&quot;,&quot;destructive&quot;:true,&quot;title&quot;:&quot;Delete payment?&quot;,&quot;figure&quot;:{&quot;label&quot;:&quot;Zelle · Oct 26&quot;,&quot;meta&quot;:&quot;On INV-0007 · Brandon&quot;,&quot;amount&quot;:&quot;$85.00&quot;},&quot;body&quot;:&quot;INV-0007 goes back to $85.00 due.&quot;,&quot;actions&quot;:[{&quot;label&quot;:&quot;Cancel&quot;,&quot;kind&quot;:&quot;gold&quot;,&quot;safe&quot;:true},{&quot;label&quot;:&quot;Delete payment · $85.00 Zelle&quot;,&quot;kind&quot;:&quot;danger&quot;,&quot;go&quot;:true,&quot;busyLabel&quot;:&quot;Deleting…&quot;}],&quot;error&quot;:{&quot;icon&quot;:&quot;cloud_off&quot;,&quot;title&quot;:&quot;You're offline&quot;,&quot;body&quot;:&quot;The payment is still recorded.&quot;},&quot;retryLabel&quot;:&quot;Try again&quot;,&quot;doneToast&quot;:&quot;Payment deleted.&quot;},&quot;tsType&quot;:&quot;object&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;idle&quot;,&quot;ready&quot;,&quot;pending&quot;,&quot;error&quot;],&quot;default&quot;:&quot;idle&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;laptop&quot;],&quot;default&quot;:&quot;phone&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const FF_M='Montserrat,sans-serif',FF_I='Inter,sans-serif';
+const BTN={
+  gold:{bg:'#d4af37',fg:'#1e1a15',bd:'none',h:'56px',ff:FF_M,fs:'16px'},
+  danger:{bg:'#ffffff',fg:'#c8412e',bd:'1.5px solid #e3d8c5',h:'52px',ff:FF_M,fs:'16px'},
+  outline:{bg:'#ffffff',fg:'#1e1a15',bd:'1.5px solid #e3d8c5',h:'52px',ff:FF_I,fs:'15px'},
+  dark:{bg:'#34302a',fg:'#fdf8f1',bd:'none',h:'56px',ff:FF_M,fs:'16px'},
+  text:{bg:'transparent',fg:'#3a352d',bd:'none',h:'44px',ff:FF_I,fs:'15px'}
+};
+const ICON_TONE={danger:['#faf3e7','#c8412e'],gold:['#f2e5b9','#1e1a15'],neutral:['#efe7da','#1e1a15']};
+let uid=0;
+class Component extends DCLogic{
+  constructor(p){super(p);this.id='ps'+(++uid);this.busy=false;this.state=this.init(p);}
+  init(p){const st=p.state||'idle';const s=p.spec||{};return{st,attempt:st==='error'?1:0,typed:st==='ready'||st==='pending'||st==='error'?(s.typed||''):''};}
+  componentDidUpdate(pp){if(pp.state!==this.props.state||pp.spec!==this.props.spec){clearTimeout(this.t);this.busy=false;this.setState(this.init(this.props));}}
+  componentWillUnmount(){clearTimeout(this.t);}
+  go(){
+    const s=this.props.spec||{};
+    if(this.busy||this.state.st==='pending')return;
+    if(s.typed&&this.state.typed.trim().toUpperCase()!==s.typed)return;
+    this.busy=true;this.setState({st:'pending'});
+    this.t=setTimeout(()=>{this.busy=false;const fail=s.error&&this.state.attempt===0;this.setState({st:fail?'error':'done',attempt:this.state.attempt+1});},1400);
+  }
+  safe(){if(this.busy||this.state.st==='pending')return;this.setState({st:'dismissed'});}
+  renderVals(){
+    const p=this.props,s=p.spec||{},st=this.state.st,laptop=p.mode==='laptop';
+    const pending=st==='pending',open=st!=='done'&&st!=='dismissed';
+    const typedOk=!s.typed||this.state.typed.trim().toUpperCase()===s.typed;
+    const acts=s.actions||[];
+    const safeA=acts.find(a=>a.safe)||{label:'Close'};
+    const tone=ICON_TONE[s.iconTone||'gold'];
+    const err=s.error||{};
+    const rows=s.rows||[];
+    return{
+      isPhone:!laptop,isLaptop:laptop,
+      stageW:laptop?'1280px':'390px',stageH:laptop?'720px':'auto',stageR:laptop?'16px':'36px',
+      stageShadow:laptop?'0 0 0 1px #d8cdb9, 0 40px 70px -24px rgba(40,30,10,.35)':'0 0 0 8px #1e1a15, 0 30px 60px -24px rgba(40,30,10,.4)',
+      ctxA:s.ctxA||'Here’s INV-0007 for Brandon.',ctxU:s.ctxU||'ok',
+      scrimOp:open?1:0,scrimCursor:pending?'default':'pointer',scrimTap:()=>this.safe(),
+      showSheet:open,role:s.destructive?'alertdialog':'dialog',titleId:this.id+'-t',pending,
+      sPos:laptop?'absolute':'relative',sLeft:laptop?'50%':'auto',sTop:laptop?'50%':'auto',sTf:laptop?'translate(-50%,-50%)':'none',
+      sW:laptop?'440px':'100%',sR:laptop?'24px':'28px 28px 0 0',sPad:laptop?'22px 24px 24px':'10px 18px 26px',
+      sShadow:laptop?'0 30px 60px -20px rgba(30,24,14,.45)':'0 -12px 30px -18px rgba(30,24,14,.35)',
+      gripOp:pending?.4:1,
+      hasIcon:!!s.icon,icon:s.icon,iconBg:tone[0],iconFg:tone[1],
+      hasEyebrow:!!s.eyebrow,eyebrow:s.eyebrow,title:s.title,hasSub:!!s.sub,sub:s.sub,
+      closeTap:()=>this.safe(),safeLabel:safeA.label,closeOp:pending?.35:1,
+      hasFigure:!!s.figure,figLabel:s.figure&&s.figure.label,figMeta:s.figure&&s.figure.meta,figAmount:s.figure&&s.figure.amount,
+      hasRows:rows.length>0,rows:rows.map((r,i)=>({...r,hasFrom:!!r.from,border:i<rows.length-1?'1px solid #f1e9db':'none'})),
+      hasTruths:!!(s.truths&&s.truths.length),
+      truths:(s.truths||[]).map(t=>({...t,icon:t.ok?'check':'priority_high',bg:t.ok?'#ffffff':'#faf3e7',bd:t.ok?'#ebe2d2':'#eedfb5',dotBg:t.ok?'#f2e5b9':'#ffffff',dotFg:t.ok?'#1e1a15':'#c8412e'})),
+      hasBody:!!s.body,body:s.body,
+      hasTyped:!!s.typed,typedWord:s.typed,typed:this.state.typed,typedBd:typedOk&&s.typed&&this.state.typed?'#d4af37':'#e3d8c5',
+      setTyped:e=>this.setState({typed:e.target.value}),
+      showAlert:st==='error'||!!s.alert,
+      errIcon:st==='error'?(err.icon||'error'):(s.alert&&s.alert.icon)||'error',
+      errTitle:st==='error'?err.title:(s.alert&&s.alert.title),
+      errBody:st==='error'?err.body:(s.alert&&s.alert.body),
+      actions:acts.map(a=>{
+        const spin=pending&&a.go;
+        const dis=pending||(a.go&&!typedOk);
+        const look=dis&&!spin?{...BTN[a.kind||'outline'],bg:a.kind==='text'?'transparent':'#efe7da',fg:'#8f8676',bd:'none'}:spin?{...BTN[a.kind||'outline'],bg:'#efe7da',fg:'#3a352d',bd:'none'}:BTN[a.kind||'outline'];
+        return{...look,label:spin?(a.busyLabel||'Working…'):(st==='error'&&a.go&&s.retryLabel)?s.retryLabel:a.label,
+          spin,disabled:dis,cursor:dis?'default':'pointer',
+          tap:()=>{if(a.go)this.go();else if(a.safe)this.safe();}};
+      }),
+      hasNote:!!s.note,note:s.note,
+      pendingNote:s.pendingNote||'Can’t be closed until this finishes',
+      showResult:!open,
+      resultIcon:st==='done'?'check':'undo',
+      resultText:st==='done'?(s.doneToast||'Done.'):`Closed = “${safeA.label}”. Nothing changed.`,
+      replay:()=>{clearTimeout(this.t);this.busy=false;this.setState({st:'idle',attempt:0,typed:''});}
+    };
+  }
+}
+</script>
+</body>
+</html>

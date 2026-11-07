@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}
+@keyframes oiShimmer{0%{transform:translateX(-100%)}40%,100%{transform:translateX(100%)}}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><b>3 Pickers</b><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 3 · SHAPE: BOTTOM SHEET (DIALOG 560 ≥1280) · ALL P2/P3</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Pickers</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>One shell.</b> Grip, title, Cancel (text, 44px) and an optional create button in the header, a search field, then the body. The same shell holds lists, a keypad and free text.</div>
+      <div><b>Picking closes it.</b> A row tap commits and closes, so a second tap has nothing to hit. Cancel, the scrim and a swipe all mean “no change”.</div>
+      <div><b>Loading, empty and error are different states.</b> A failed load no longer looks like an empty list (P-20 bug).</div>
+      <div><b>Use “q”</b> appears whenever the search matches nothing saved. It saves nothing.</div>
+    </div>
+  </div>
+
+  <div id="K1" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">K1</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Picker sheet shell</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#efe7da;font-size:12px;font-weight:700;display:flex;align-items:center;">P2</span></div>
+    <div style="font-size:14px;color:#3a352d;max-width:860px;line-height:1.5;"><b>Covers:</b> P-20 client picker, P-21 product/service picker (rows show price or “No price”), P-22 one-off “Use “q”” row, P-23 create form (opens in the same sheet with a sticky Cancel · Save bar), P-25 “Which invoice?” (replaces the native select, rows read “INV-0007 · Client · $balance”), P-39/P-40 attachment chooser (2–3 rows, no search).</div>
+    <div style="display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;color:#3a352d;max-width:860px;"><span style="flex:none;height:22px;padding:0 8px;border-radius:6px;background:#f2e5b9;font-family:Montserrat,sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;display:flex;align-items:center;color:#735c00;">COPY CHANGE</span><span>New error state: “Couldn’t load your clients. You’re offline.” + Retry. Previously a failed RPC rendered the empty copy.</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;padding:8px 8px 0;">
+      <sc-for list="{{ pickers }}" as="k" hint-placeholder-count="5">
+        <div style="display:flex;flex-direction:column;gap:14px;width:390px;">
+          <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">{{ k.label }}</div>
+          <div style="width:390px;height:640px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15, 0 30px 60px -24px rgba(40,30,10,.4);">
+            <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);"></div>
+            <div role="dialog" aria-modal="true" aria-label="Client" style="position:absolute;left:0;right:0;bottom:0;top:72px;background:#fdf8f1;border-radius:28px 28px 0 0;padding:10px 16px 0;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;">
+              <div style="display:flex;justify-content:center;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button style="height:44px;padding:0 6px;border:none;background:transparent;font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:#3a352d;">Cancel</button>
+                <div style="flex:1;text-align:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">Client</div>
+                <button style="height:44px;padding:0 14px;border-radius:22px;border:none;background:#f2e5b9;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#1e1a15;display:flex;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">add</span>New client</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;height:50px;border:1.5px solid {{ k.searchBd }};border-radius:25px;padding:0 16px;background:#ffffff;flex:none;">
+                <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#5f574b;">search</span>
+                <span style="flex:1;font-size:16px;color:{{ k.qFg }};">{{ k.qText }}</span>
+              </div>
+              <sc-if value="{{ k.showUse }}" hint-placeholder-val="{{ false }}">
+                <button style="display:flex;align-items:center;gap:12px;min-height:56px;padding:0 14px;border-radius:16px;border:1.5px dashed #e3d8c5;background:#ffffff;text-align:left;font-family:inherit;color:#1e1a15;">
+                  <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">edit</span>
+                  <span style="display:flex;flex-direction:column;gap:1px;"><span style="font-size:16px;font-weight:600;">Use “{{ k.q }}”</span><span style="font-size:13px;color:#5f574b;">Just this once. Nothing is saved.</span></span>
+                </button>
+              </sc-if>
+              <sc-if value="{{ k.showList }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px;">
+                  <sc-for list="{{ k.sections }}" as="s" hint-placeholder-count="2">
+                    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;padding:4px 4px 0;">{{ s.h }}</div>
+                    <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;overflow:hidden;flex:none;">
+                      <sc-for list="{{ s.rows }}" as="r" hint-placeholder-count="3">
+                        <div style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 14px;border-bottom:{{ r.border }};">
+                          <div style="width:38px;height:38px;border-radius:11px;background:{{ r.tile }};display:flex;align-items:center;justify-content:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;flex:none;">{{ r.ini }}</div>
+                          <div style="flex:1;min-width:0;"><div style="font-size:16px;font-weight:600;">{{ r.name }}</div><div style="font-size:13px;color:#5f574b;">{{ r.meta }}</div></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ k.showLoading }}" hint-placeholder-val="{{ false }}">
+                <div aria-hidden="true" style="position:relative;overflow:hidden;background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;">
+                  <sc-for list="{{ k.skel }}" as="x" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:12px;height:60px;padding:0 14px;border-bottom:1px solid #f1e9db;"><div style="width:38px;height:38px;border-radius:11px;background:#efe7da;"></div><div style="display:flex;flex-direction:column;gap:7px;"><div style="width:{{ x.w }};height:13px;border-radius:7px;background:#efe7da;"></div><div style="width:80px;height:10px;border-radius:5px;background:#f0e8db;"></div></div></div></sc-for>
+                  <div style="position:absolute;inset:0;background:linear-gradient(100deg, rgba(255,255,255,0) 25%, rgba(212,175,55,.16) 50%, rgba(255,255,255,0) 75%);animation:oiShimmer 1500ms cubic-bezier(.65,0,.35,1) infinite;"></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ k.showEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:28px 12px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;">
+                  <div style="width:56px;height:56px;border-radius:18px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:28px;">group</span></div>
+                  <div style="font-size:15px;line-height:1.45;color:#3a352d;max-width:260px;">Nothing saved yet. Type a name above to use it.</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ k.showError }}" hint-placeholder-val="{{ false }}">
+                <div role="alert" style="display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:18px;background:#faf3e7;border:1px solid #eedfb5;">
+                  <div style="display:flex;gap:10px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#c8412e;">cloud_off</span><div><div style="font-size:15px;font-weight:600;">Couldn’t load your clients</div><div style="font-size:14px;color:#5f574b;margin-top:2px;">You’re offline. You can still type a name above and use it.</div></div></div>
+                  <button style="height:48px;border-radius:24px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#1e1a15;">Retry</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div id="K2" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">K2</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Value sheets: keypad and free text</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#efe7da;font-size:12px;font-weight:700;display:flex;align-items:center;">P2</span></div>
+    <div style="font-size:14px;color:#3a352d;max-width:860px;line-height:1.5;"><b>Covers:</b> P-41 quantity/price keypad, P-42 Tax (same keypad, “%” suffix, title “Tax”), P-43 Extra info (text). Same shell header, with Done (gold) replacing the create button. Nothing pending: values apply locally. Closing = keep the old value.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;padding:8px 8px 0;">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">KEYPAD · PRICE (P-41) / TAX (P-42)</div>
+        <div style="width:390px;height:640px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15, 0 30px 60px -24px rgba(40,30,10,.4);">
+          <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);"></div>
+          <div role="dialog" aria-modal="true" aria-label="Price" style="position:absolute;left:0;right:0;bottom:0;background:#fdf8f1;border-radius:28px 28px 0 0;padding:10px 16px 24px;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;justify-content:center;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button style="height:44px;padding:0 6px;border:none;background:transparent;font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:#3a352d;">Cancel</button>
+              <div style="flex:1;text-align:center;"><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">Price</div><div style="font-size:13px;color:#5f574b;">Car Wash · each</div></div>
+              <button style="height:44px;padding:0 18px;border-radius:22px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#1e1a15;">Done</button>
+            </div>
+            <div style="height:72px;border-radius:18px;background:#ffffff;border:1.5px solid #d4af37;display:flex;align-items:center;justify-content:flex-end;padding:0 18px;font-family:Montserrat,sans-serif;font-weight:800;font-size:36px;">$200.00</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+              <sc-for list="{{ keys }}" as="key" hint-placeholder-count="12"><div style="height:56px;border-radius:16px;background:#ffffff;border:1px solid #ebe2d2;display:flex;align-items:center;justify-content:center;font-family:Montserrat,sans-serif;font-weight:700;font-size:22px;">{{ key }}</div></sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">FREE TEXT · EXTRA INFO (P-43)</div>
+        <div style="width:390px;height:640px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15, 0 30px 60px -24px rgba(40,30,10,.4);">
+          <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);"></div>
+          <div role="dialog" aria-modal="true" aria-label="Extra info" style="position:absolute;left:0;right:0;bottom:0;background:#fdf8f1;border-radius:28px 28px 0 0;padding:10px 16px 24px;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;justify-content:center;"><div style="width:38px;height:5px;border-radius:3px;background:#e2d8c6;"></div></div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button style="height:44px;padding:0 6px;border:none;background:transparent;font-family:Inter,sans-serif;font-size:15px;font-weight:600;color:#3a352d;">Cancel</button>
+              <div style="flex:1;text-align:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:18px;">Extra info</div>
+              <button style="height:44px;padding:0 18px;border-radius:22px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#1e1a15;">Done</button>
+            </div>
+            <div style="min-height:140px;border-radius:18px;background:#ffffff;border:1.5px solid #e3d8c5;padding:14px 16px;font-size:16px;line-height:1.45;color:#8f8676;">Due Friday, job address, notes for the client…</div>
+            <div style="font-size:13px;color:#5f574b;line-height:1.45;">Estimate placeholder: “Valid for 14 days, job address, notes for the client…”</div>
+            <div style="height:220px;border-radius:14px;background:#efe7da;display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#5f574b;">OS keyboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="K3" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">K3</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Inline choices and the + menu</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#efe7da;font-size:12px;font-weight:700;display:flex;align-items:center;">P2</span></div>
+    <div style="font-size:14px;color:#3a352d;max-width:860px;line-height:1.5;"><b>Covers:</b> P-27 expense category + date, P-28 record-payment date tiles, P-26 classification chips, P-24 payment list inside a card. These stay inline: 44px chips, selected = #f2e5b9 + #d4af37 border (Zelle pattern). P-29 the + menu keeps its rising options, aligned to the 44px rule.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;padding:8px 8px 0;">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">CHIPS + DATE TILES (P-27, P-28, P-26)</div>
+        <div style="width:390px;box-sizing:border-box;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15;padding:20px 16px;">
+          <div style="background:#faf3e7;border:1px solid #eedfb5;border-radius:24px;padding:16px;display:flex;flex-direction:column;gap:12px;">
+            <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;">CATEGORY</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <span style="height:44px;padding:0 16px;border-radius:22px;border:1px solid #d4af37;background:#f2e5b9;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">check</span>Materials</span>
+              <span style="height:44px;padding:0 16px;border-radius:22px;border:1px solid #e3d8c5;background:#ffffff;font-size:14px;font-weight:600;display:flex;align-items:center;">Fuel</span>
+              <span style="height:44px;padding:0 16px;border-radius:22px;border:1px solid #e3d8c5;background:#ffffff;font-size:14px;font-weight:600;display:flex;align-items:center;">Tools</span>
+              <span style="height:44px;padding:0 16px;border-radius:22px;border:1px solid #e3d8c5;background:#ffffff;font-size:14px;font-weight:600;display:flex;align-items:center;">Other</span>
+            </div>
+            <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;color:#5f574b;margin-top:4px;">DATE RECEIVED</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+              <span style="height:56px;border-radius:16px;border:1px solid #d4af37;background:#f2e5b9;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;">Today<span style="font-size:12px;font-weight:500;color:#5f574b;">Nov 7</span></span>
+              <span style="height:56px;border-radius:16px;border:1px solid #e3d8c5;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;">Yesterday<span style="font-size:12px;font-weight:500;color:#5f574b;">Nov 6</span></span>
+              <span style="height:56px;border-radius:16px;border:1px solid #e3d8c5;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:600;gap:2px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">calendar_month</span>Other day</span>
+            </div>
+            <div style="font-size:13px;color:#5f574b;line-height:1.45;">“Other day” keeps the native date input under the tile (OS picker, P-28).</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">+ MENU (P-29)</div>
+        <div style="width:390px;height:520px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15;">
+          <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);"></div>
+          <div role="menu" style="position:absolute;left:16px;bottom:88px;display:flex;flex-direction:column;gap:8px;width:280px;">
+            <sc-for list="{{ menu }}" as="m" hint-placeholder-count="4">
+              <div role="menuitem" style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 14px;border-radius:18px;background:#fdf8f1;box-shadow:0 8px 20px -10px rgba(30,24,14,.4);">
+                <div style="width:38px;height:38px;border-radius:11px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:21px;">{{ m.icon }}</span></div>
+                <div><div style="font-size:16px;font-weight:600;">{{ m.t }}</div><div style="font-size:13px;color:#5f574b;">{{ m.s }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:76px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fdf8f1;">
+            <div aria-label="Start something" style="width:46px;height:46px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">close</span></div>
+            <div style="flex:1;height:50px;border:1.5px solid #e3d8c5;border-radius:25px;background:#ffffff;display:flex;align-items:center;padding:0 16px;font-size:16px;color:#8f8676;">Message On It...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="K4" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">K4</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Laptop ≥1280 · picker as a 560px dialog</span></div>
+    <div style="width:1280px;height:720px;position:relative;overflow:hidden;border-radius:16px;background:#fdf8f1;box-shadow:0 0 0 1px #d8cdb9, 0 40px 70px -24px rgba(40,30,10,.35);">
+      <div style="position:absolute;inset:0;background:rgba(30,24,14,.38);"></div>
+      <div role="dialog" aria-modal="true" aria-label="Client" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-height:600px;background:#fdf8f1;border-radius:24px;padding:20px 24px 24px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box;box-shadow:0 30px 60px -20px rgba(30,24,14,.45);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;">Client</div>
+          <button style="height:44px;padding:0 14px;border-radius:22px;border:none;background:#f2e5b9;font-family:Inter,sans-serif;font-size:14px;font-weight:600;display:flex;align-items:center;gap:4px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:18px;">add</span>New client</button>
+          <button aria-label="Cancel" style="width:44px;height:44px;border-radius:50%;border:none;background:#f0e8db;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">close</span></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;height:50px;border:1.5px solid #d4af37;border-radius:25px;padding:0 16px;background:#ffffff;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:22px;color:#5f574b;">search</span><span style="font-size:16px;color:#8f8676;">Search 12 clients</span></div>
+        <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:18px;overflow:hidden;">
+          <sc-for list="{{ lapRows }}" as="r" hint-placeholder-count="5"><div style="display:flex;align-items:center;gap:12px;height:56px;padding:0 14px;border-bottom:1px solid #f1e9db;"><div style="width:36px;height:36px;border-radius:11px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;font-family:Montserrat,sans-serif;font-weight:800;font-size:13px;">{{ r.ini }}</div><div style="flex:1;font-size:16px;font-weight:600;">{{ r.name }}</div><div style="font-size:13px;color:#5f574b;">{{ r.meta }}</div></div></sc-for>
+        </div>
+        <div style="font-size:13px;color:#5f574b;">Escape or the scrim = Cancel. Arrow keys move, Enter picks.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">P3 · LISTED, NO FRAMES</div>
+    <div><b>P-22</b> Use “q” row (shown in K1). <b>P-23</b> New client/product form inside the picker. <b>P-24</b> Existing-payment list. <b>P-25</b> Which invoice? <b>P-26</b> Other-money chips. <b>P-30</b> Recent conversations (K1 shell, no search, rows show Sent/Draft). <b>P-31</b> Photo viewer: stays a full-screen viewer, not a sheet.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const SAVED=[{ini:'BL',name:'Brandon Lee',meta:'4 invoices'},{ini:'MD',name:'Mike Davis',meta:'2 invoices'},{ini:'NP',name:'Nakamura Property Group',meta:'6 invoices'},{ini:'OB',name:'Obianuju',meta:'1 invoice'}];
+const HIST=[{ini:'RD',name:'Riverside Dental',meta:'Used once · Sep 18',hist:true}];
+const rowsOf=(a)=>a.map((r,i)=>({...r,tile:r.hist?'#efe7da':'#f2e5b9',border:i<a.length-1?'1px solid #f1e9db':'none'}));
+const base={q:'',showUse:false,showList:false,showLoading:false,showEmpty:false,showError:false,sections:[],skel:[]};
+const P=[
+  {...base,label:'IDLE · LIST',showList:true,sections:[{h:'SAVED · A–Z',rows:rowsOf(SAVED)},{h:'USED BEFORE · NOT SAVED',rows:rowsOf(HIST)}]},
+  {...base,label:'SEARCH · NO MATCH → USE “Q”',q:'Brandn',showUse:true,showList:true,sections:[{h:'CLOSE MATCHES',rows:rowsOf([SAVED[0]])}]},
+  {...base,label:'PENDING · LOADING',showLoading:true,skel:[{w:'140px'},{w:'110px'},{w:'160px'},{w:'96px'}]},
+  {...base,label:'EMPTY',showEmpty:true},
+  {...base,label:'ERROR · NAMES THE CAUSE',showError:true}
+];
+class Component extends DCLogic{
+  renderVals(){
+    return{
+      pickers:P.map(k=>({...k,qText:k.q||'Search 12 clients',qFg:k.q?'#1e1a15':'#8f8676',searchBd:k.q?'#d4af37':'#e3d8c5'})),
+      keys:['1','2','3','4','5','6','7','8','9','.','0','⌫'],
+      menu:[{icon:'mic',t:'Voice',s:'Say it, On It writes it'},{icon:'description',t:'New invoice',s:'Guided template'},{icon:'request_quote',t:'New estimate',s:'Guided template'},{icon:'receipt_long',t:'Record expense',s:'Guided template'}],
+      lapRows:SAVED.concat([{ini:'TR',name:'Tomás Reyes',meta:'3 invoices'}])
+    };
+  }
+}
+</script>
+</body>
+</html>

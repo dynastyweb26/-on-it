@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}@keyframes oiSpin{to{transform:rotate(360deg)}}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><b>5 Limits</b><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 5 · SHAPES: PAYWALLMODAL (THE ONE PORTAL) + INLINE CARD + BANNER</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Limit and upgrade</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>Sales copy never takes over a blocked moment.</b> The guest wall and the daily limits say what happened and what to do next. No prices, no trial.</div>
+      <div><b>The wall opens only when something was refused</b> (Send, Save, the SQL triggers). The soft wall is an offer and has no “limit” pill.</div>
+      <div><b>The banner sits beside the composer, never over it.</b> It's a flex sibling above the composer and hides while the keyboard is open.</div>
+      <div><b>No auto-redirect.</b> Sign-in is always a tap. The draft stays put.</div>
+    </div>
+  </div>
+
+  <div id="L1" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">L1</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Hard wall: PaywallModal (alignment only)</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#f2e5b9;font-size:12px;font-weight:700;display:flex;align-items:center;">P1</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-54</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-55</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-59</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-64</span></div>
+    <div style="display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:1.5;color:#3a352d;max-width:860px;">
+      <div>• Not redesigned; the full layout is in design/laptop/paywall.html. This frame only pins the kit contract: reason pill, one CTA, a busy state that blocks, and the notice slot used for errors.</div>
+      <div>• Reason pill = REASON[variant] (“You’ve used your 3 free invoices” shown). Soft wall (P-55) and recurring (P-59) open the same modal without the limit pill.</div>
+      <div>• Pending: buyRef/restoreRef (synchronous). × , Escape and the scrim do nothing until the purchase settles. CTA labels come from ctaLabel(state) (unverified).</div>
+      <div>• Laptop: unchanged (design/laptop/paywall.html).</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;padding:8px 8px 0;">
+      <sc-for list="{{ walls }}" as="w" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#5f574b;">{{ w.label }}</div>
+          <div role="dialog" aria-modal="true" aria-busy="{{ w.pending }}" style="width:390px;height:720px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15;padding:56px 18px 24px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="height:32px;padding:0 12px;border-radius:16px;background:#f2e5b9;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">lock</span>You’ve used your 3 free invoices</span>
+              <button aria-label="Not now" style="width:44px;height:44px;border-radius:50%;border:none;background:#f0e8db;opacity:{{ w.closeOp }};display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">close</span></button>
+            </div>
+            <div style="background:#34302a;border-radius:24px;padding:22px;color:#fdf8f1;display:flex;flex-direction:column;gap:14px;">
+              <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;color:#e6c65c;">ON IT PRO</div>
+              <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;line-height:1.15;">Send every invoice. Track every dollar.</div>
+              <div style="display:flex;flex-direction:column;gap:10px;font-size:15px;color:#e9e2d4;">
+                <div style="display:flex;gap:10px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#e6c65c;">check</span>Unlimited invoices and estimates</div>
+                <div style="display:flex;gap:10px;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#e6c65c;">check</span>Bank activity in your Books</div>
+              </div>
+            </div>
+            <div style="height:58px;border-radius:18px;border:1.5px solid #d4af37;background:#ffffff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;"><span style="font-weight:600;">Monthly</span><span style="font-family:Montserrat,sans-serif;font-weight:800;">$9.99/mo</span></div>
+            <sc-if value="{{ w.error }}" hint-placeholder-val="{{ false }}"><div role="alert" style="display:flex;gap:10px;padding:12px 14px;border-radius:16px;background:#faf3e7;border:1px solid #eedfb5;font-size:14px;line-height:1.45;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#c8412e;">cloud_off</span><span>You’re offline. Nothing was charged. Try again when you’re back.</span></div></sc-if>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px;align-items:stretch;">
+              <div style="text-align:center;font-size:13px;color:#5f574b;">Nothing charged today</div>
+              <button disabled="{{ w.pending }}" style="height:56px;border-radius:28px;border:none;background:{{ w.ctaBg }};font-family:Montserrat,sans-serif;font-weight:700;font-size:16px;color:#1e1a15;display:flex;align-items:center;justify-content:center;gap:8px;"><sc-if value="{{ w.pending }}" hint-placeholder-val="{{ false }}"><span style="width:16px;height:16px;border-radius:50%;border:2px solid #8f8676;border-top-color:transparent;box-sizing:border-box;animation:oiSpin 800ms linear infinite;"></span></sc-if>{{ w.cta }}</button>
+              <div style="display:flex;justify-content:center;gap:16px;font-size:13px;color:#5f574b;"><span style="min-height:44px;display:flex;align-items:center;">Restore Purchases</span><span style="min-height:44px;display:flex;align-items:center;">Terms</span><span style="min-height:44px;display:flex;align-items:center;">Privacy</span></div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,560px"></dc-import>
+  </sc-for>
+
+  <div id="L5" style="display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;"><span style="min-width:44px;height:30px;padding:0 10px;box-sizing:border-box;border-radius:15px;background:#1e1a15;color:#fdf8f1;font-family:Montserrat,sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;">L5</span><span style="font-family:Montserrat,sans-serif;font-weight:800;font-size:22px;">Soft prompt banner</span><span style="height:26px;padding:0 10px;border-radius:13px;background:#efe7da;font-size:12px;font-weight:700;display:flex;align-items:center;">P2</span><span style="height:26px;padding:0 9px;border-radius:8px;border:1px solid #e3d8c5;background:#ffffff;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;display:flex;align-items:center;">P-58</span></div>
+    <div style="font-size:14px;color:#3a352d;max-width:860px;line-height:1.5;">A flex sibling between the thread and the composer: the thread shrinks, the composer never moves. Hidden while the keyboard is open, and during any pending send. Copy comes from the server (lib/soft-prompts, unverified). The text here is an example.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:40px 36px;padding:8px 8px 0;">
+      <div style="width:390px;height:330px;position:relative;overflow:hidden;border-radius:36px;background:#fdf8f1;box-shadow:0 0 0 8px #1e1a15;display:flex;flex-direction:column;">
+        <div style="flex:1;padding:18px 16px;"><div style="max-width:80%;padding:12px 16px;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:15px;">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div>
+        <div role="region" aria-label="Offer" style="margin:0 12px 8px;display:flex;align-items:center;gap:10px;padding:8px 6px 8px 14px;border-radius:18px;background:#faf3e7;border:1px solid #eedfb5;">
+          <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">workspace_premium</span>
+          <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;">2 of 3 free invoices used</div><div style="font-size:13px;color:#5f574b;">Pro sends as many as you need.</div></div>
+          <button style="height:44px;padding:0 14px;border-radius:22px;border:none;background:#d4af37;font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;color:#1e1a15;">See Pro</button>
+          <button aria-label="Dismiss" style="width:44px;height:44px;border-radius:50%;border:none;background:transparent;display:flex;align-items:center;justify-content:center;color:#5f574b;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">close</span></button>
+        </div>
+        <div style="height:72px;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid #ebe2d2;">
+          <div style="width:46px;height:46px;border-radius:50%;background:#f2e5b9;display:flex;align-items:center;justify-content:center;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:26px;">add</span></div>
+          <div style="flex:1;height:50px;border:1.5px solid #e3d8c5;border-radius:25px;background:#ffffff;display:flex;align-items:center;padding:0 16px;font-size:16px;color:#8f8676;">Message On It...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">P3 · LISTED, NO FRAMES</div>
+    <div><b>P-57</b> Free-tier usage meter: a quiet line under the sent card, not a popup.</div>
+    <div><b>P-64</b> Purchase/restore notices: the L1 notice slot (the error frame shows its shape).</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const GROUPS=[
+  {id:'L2',title:'Guest wall: sign in to continue',tier:'P1',pids:['P-62','P-84'],comp:'inline',states:['idle','pending','error'],
+    notes:['Replaces the 1600 ms auto-redirect with a tap. Draft and controls stay as they were until the user chooses.','Pending = navigating to /login (sendRef still blocks repeat). On return, the draft is restored and Send is ready.','P-84 signed-out mid-action uses this card: “Let’s save your work — sign in to keep this expense.”'],
+    changes:['Removed: automatic router.push(\'/login\') after 1600 ms.','Added: “Your draft stays right here.” and a “Sign in” button. Headline verbatim.'],
+    spec:{kind:'card',user:'send it',eyebrow:'SIGN IN TO SEND',eyebrowIcon:'lock',title:'Let’s save your work — sign in to send this invoice.',text:'Your draft stays right here.',
+      actions:[{label:'Sign in',kind:'gold',go:true,busyLabel:'Opening sign in…'},{label:'Keep editing',kind:'text'}],
+      error:{icon:'cloud_off',title:'You’re offline',body:'Sign in when you’re back. Your draft stays here.'},retryLabel:'Try again',doneText:'Welcome back. Your invoice for Brandon is ready to send.'}},
+  {id:'L3',title:'Guest voice budget spent',tier:'P1',pids:['P-63'],comp:'inline',states:['idle','pending'],
+    notes:['Same card. Typing still works, so “Type instead” is the second action. Server message overrides the headline if present.'],
+    changes:['Removed the auto-redirect. Added “Create free account” and “Type instead”. Headline verbatim.'],
+    spec:{kind:'card',eyebrow:'VOICE',eyebrowIcon:'mic',title:'Create your free account to keep going.',text:'Anything you said so far is kept.',
+      actions:[{label:'Create free account',kind:'gold',go:true,busyLabel:'Opening…'},{label:'Type instead',kind:'outline',icon:'keyboard'}],doneText:'Account ready. Voice is back on.'}},
+  {id:'L4',title:'Daily limit and over-cap replies',tier:'P2',pids:['P-60','P-61','P-56'],comp:'inline',
+    covers:'P-60 voice limit, P-61 receipt limit, P-56 over-cap reply (the card still shows; its Send label becomes the CTA that opens L1). Assistant bubbles, verbatim copy, no sales copy in the limit bubbles.',
+    states:[
+      {state:'idle',label:'DAILY LIMIT (P-60 / P-61)',spec:{kind:'bubble',user:'(voice note, 0:14)',text:'That’s today’s voice limit — it resets tomorrow. You can type in the meantime.'}},
+      {state:'idle',label:'OVER CAP (P-56)',spec:{kind:'bubble',user:'invoice brandon car wash 200',text:'Here’s your invoice. You’ve used your 3 free invoices, so start your free trial to send it.'}}
+    ]}
+];
+class Component extends DCLogic{
+  renderVals(){
+    const W=[{label:'IDLE',st:'idle'},{label:'PENDING · REPEAT-TAP LOCKED',st:'pending'},{label:'ERROR · NOTICE SLOT',st:'error'}];
+    return{groups:GROUPS,walls:W.map(w=>({label:w.label,pending:w.st==='pending',error:w.st==='error',
+      cta:w.st==='pending'?'One sec…':w.st==='error'?'Try again':'Start my free trial',ctaBg:w.st==='pending'?'#efe7da':'#d4af37',closeOp:w.st==='pending'?.35:1}))};
+  }
+}
+</script>
+</body>
+</html>
