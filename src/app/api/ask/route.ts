@@ -2,8 +2,10 @@
 //
 // One question in, one short answer out, from ONE read-only tool. This route
 // sits BESIDE /api/parse and shares nothing with it but the rate-limit bucket:
-// parse still owns the build-a-document conversation, and nothing here writes,
-// finalizes, renders a PDF or moves a status.
+// parse still owns the build-a-document conversation, and nothing here finalizes,
+// renders a PDF or moves a status. The one write is the chat log (question,
+// reply, tool name and row count; never the rows) through the caller's session,
+// and a logging failure never changes the answer.
 //
 // Every read runs under the caller's own session, so RLS is the boundary: there
 // is no service-role client in this file, and the single tool is a select.
@@ -30,9 +32,16 @@ import {
 } from '@/lib/tools/registry';
 import { readUnpaidInvoices, type UnpaidSummary } from '@/lib/tools/unpaid';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { conversationIdFor } from '@/lib/chat-log/rows';
+import { logTurn } from '@/lib/chat-log/write';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
-const Body = z.object({ question: z.string().trim().min(1).max(500) });
+const Body = z.object({
+  question: z.string().trim().min(1).max(500),
+  // Optional: groups the turns of one conversation in the chat log. A missing or
+  // malformed value just starts a new one.
+  conversationId: z.string().optional(),
+});
 
 function textOf(message: Anthropic.Message): string {
   return message.content
@@ -111,6 +120,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: 'Say that again?' }, { status: 400, ...NO_STORE });
   }
   const question = parsed.data.question;
+  const askedAt = new Date();
+  const conversationId = conversationIdFor(parsed.data.conversationId);
+  let tokensIn = 0;
+  let tokensOut = 0;
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
   let summary: UnpaidSummary | null = null;
@@ -130,6 +143,8 @@ export async function POST(req: NextRequest) {
         messages,
       });
       logUsage(call, message.usage, Date.now() - startedAt);
+      tokensIn += message.usage.input_tokens;
+      tokensOut += message.usage.output_tokens;
 
       const uses = message.content.filter(
         (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
@@ -183,9 +198,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: FALLBACK }, { status: 500, ...NO_STORE });
   }
 
+  const reply = replyFor({ modelText: replyText, summary, toolCalled });
+
+  // Log the turn. A logging failure is caught inside logTurn and never changes
+  // the answer; the id is only returned when the rows were actually saved. The
+  // tool is logged by name and row count, never by its rows.
+  const answeredAt = new Date();
+  const messageId = await logTurn(supabase, {
+    userId: user.id,
+    conversationId,
+    question,
+    reply,
+    route: 'ask',
+    toolName: toolCalled ? UNPAID_TOOL_NAME : null,
+    toolRowCount: summary ? summary.rows.length : null,
+    model: MODEL,
+    latencyMs: answeredAt.getTime() - askedAt.getTime(),
+    tokensIn,
+    tokensOut,
+    askedAt,
+    answeredAt,
+  });
+
   return NextResponse.json(
     {
-      reply: replyFor({ modelText: replyText, summary, toolCalled }),
+      reply,
+      // Additive: the assistant message's id (for feedback) and its conversation.
+      // messageId is null when the log write failed.
+      messageId,
+      conversationId,
       tool: summary
         ? {
           totalCount: summary.totalCount,

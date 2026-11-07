@@ -2140,6 +2140,103 @@ results(id, ok, expected, actual) as (
   -- BD5-BD6. Other income (money in, 20261103000001). SKIP until pushed.
   --     Owner SELECT only, service-role writes, and one income row per deposit.
   union all
+  -- BG1-BG4. AI chat log (20261106100000): chat_messages, chat_feedback,
+  --          help_gaps. Owner-only; written by the server routes under the
+  --          caller's own session, never the service role.
+  select 'BG1 chat_messages rls',
+    case when not exists (select 1 from applied where version = '20261106100000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.chat_messages') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_messages'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_messages'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%') = 1
+        and not exists (select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_messages'
+            and p.cmd in ('UPDATE', 'DELETE', 'ALL'))
+        and has_table_privilege('authenticated', 'public.chat_messages', 'SELECT') and has_table_privilege('authenticated', 'public.chat_messages', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.chat_messages', 'UPDATE, DELETE, TRUNCATE')
+        and not has_table_privilege('anon', 'public.chat_messages', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE') end,
+    'chat_messages: RLS on, owner SELECT + INSERT policies only, client has SELECT/INSERT and no UPDATE/DELETE/TRUNCATE',
+    case when not exists (select 1 from applied where version = '20261106100000') then 'not applied yet'
+      else 'auth_ins=' || coalesce(has_table_privilege('authenticated', 'public.chat_messages', 'INSERT')::text, 'missing')
+        || ' auth_upd_del=' || coalesce(has_table_privilege('authenticated', 'public.chat_messages', 'UPDATE, DELETE')::text, 'missing')
+        || ' anon_any=' || coalesce(has_table_privilege('anon', 'public.chat_messages', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE')::text, 'missing') end
+  union all
+  select 'BG2 chat_feedback rls and key',
+    case when not exists (select 1 from applied where version = '20261106100000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.chat_feedback') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%' and p.with_check ilike '%assistant%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'UPDATE' and p.qual ilike '%auth.uid()%' and p.with_check ilike '%assistant%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'DELETE' and p.qual ilike '%auth.uid()%') = 1
+        and not exists (select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd in ('ALL'))
+        and exists (select 1 from pg_constraint k
+          where k.conrelid = to_regclass('public.chat_feedback') and k.contype = 'u'
+            and k.conname = 'chat_feedback_user_message_key'
+            and (select array_agg(a.attname::text order by a.attname::text) from pg_attribute a
+              where a.attrelid = k.conrelid and a.attnum = any(k.conkey)) = array['message_id', 'user_id'])
+        and has_column_privilege('authenticated', 'public.chat_feedback', 'rating', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.chat_feedback', 'id', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.chat_feedback', 'created_at', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.chat_feedback', 'TRUNCATE')
+        and not has_table_privilege('anon', 'public.chat_feedback', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE') end,
+    'chat_feedback: RLS on, owner SELECT/INSERT/UPDATE/DELETE policies (writes pinned to own assistant message), plain UNIQUE (user_id, message_id), only rating/reason/user_id/message_id updatable',
+    case when not exists (select 1 from applied where version = '20261106100000') then 'not applied yet'
+      else 'unique=' || exists (select 1 from pg_constraint k
+            where k.conrelid = to_regclass('public.chat_feedback') and k.conname = 'chat_feedback_user_message_key' and k.contype = 'u')::text
+        || ' policies=' || (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'chat_feedback')::text end
+  union all
+  select 'BG3 help_gaps rls and key',
+    case when not exists (select 1 from applied where version = '20261106100000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.help_gaps') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%' and p.with_check ilike '%chat_messages%') = 1
+        and not exists (select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps'
+            and p.cmd in ('UPDATE', 'DELETE', 'ALL'))
+        and exists (select 1 from pg_constraint k
+          where k.conrelid = to_regclass('public.help_gaps') and k.contype = 'u'
+            and k.conname = 'help_gaps_message_kind_key')
+        and has_table_privilege('authenticated', 'public.help_gaps', 'SELECT') and has_table_privilege('authenticated', 'public.help_gaps', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.help_gaps', 'UPDATE, DELETE, TRUNCATE')
+        and not has_table_privilege('anon', 'public.help_gaps', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE') end,
+    'help_gaps: RLS on, owner SELECT + INSERT policies only (insert pinned to own message), UNIQUE (message_id, kind), no client UPDATE/DELETE',
+    case when not exists (select 1 from applied where version = '20261106100000') then 'not applied yet'
+      else 'auth_upd_del=' || coalesce(has_table_privilege('authenticated', 'public.help_gaps', 'UPDATE, DELETE')::text, 'missing')
+        || ' anon_any=' || coalesce(has_table_privilege('anon', 'public.help_gaps', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE')::text, 'missing') end
+  union all
+  select 'BG4 chat log grants',
+    case when not exists (select 1 from applied where version = '20261106100000') then null
+      else not exists (select 1 from (values ('public.chat_messages'), ('public.chat_feedback'), ('public.help_gaps')) t(name)
+          where has_table_privilege('anon', t.name, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+            or has_any_column_privilege('anon', t.name, 'SELECT, INSERT, UPDATE, REFERENCES')
+            or has_table_privilege('authenticated', t.name, 'TRUNCATE, REFERENCES, TRIGGER')) end,
+    'chat_messages / chat_feedback / help_gaps: anon holds nothing; authenticated holds no TRUNCATE/REFERENCES/TRIGGER',
+    case when not exists (select 1 from applied where version = '20261106100000') then 'not applied yet'
+      else coalesce((select string_agg(t.name, ', ') from (values ('public.chat_messages'), ('public.chat_feedback'), ('public.help_gaps')) t(name)
+          where has_table_privilege('anon', t.name, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+            or has_any_column_privilege('anon', t.name, 'SELECT, INSERT, UPDATE, REFERENCES')
+            or has_table_privilege('authenticated', t.name, 'TRUNCATE, REFERENCES, TRIGGER')), 'none') end
+  union all
   select 'BD5 other income rls',
     case when not exists (select 1 from applied where version = '20261103000001') then null
       else (select count(*) from pg_class c
