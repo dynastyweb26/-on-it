@@ -29,10 +29,10 @@ import {
   parseToolArgs,
 } from '@/lib/tools/registry';
 import { readUnpaidInvoices, type UnpaidSummary } from '@/lib/tools/unpaid';
+import { FALLBACK, replyFor } from '@/lib/tools/reply';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 const Body = z.object({ question: z.string().trim().min(1).max(500) });
-const FALLBACK = "I couldn't look that up just now. Ask me again in a moment.";
 
 function textOf(message: Anthropic.Message): string {
   return message.content
@@ -51,22 +51,6 @@ function assistantTurn(content: Anthropic.ContentBlock[]): Anthropic.ContentBloc
     }
     return [];
   });
-}
-
-/** Drop any sentence carrying a dollar amount: the app prints money, not the model. */
-function withoutMoney(text: string): string {
-  return text
-    .split(/(?<=[.!?])\s+/)
-    .filter((sentence) => !/\$\s?\d/.test(sentence))
-    .join(' ')
-    .trim();
-}
-
-/** Money first, so a trailing question in the model's prose stays last. */
-function composeReply(modelText: string, summary: UnpaidSummary | null): string {
-  const prose = withoutMoney(modelText);
-  if (!summary) return prose || FALLBACK;
-  return prose ? `${summary.sentence} ${prose}` : summary.sentence;
 }
 
 /**
@@ -130,6 +114,7 @@ export async function POST(req: NextRequest) {
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
   let summary: UnpaidSummary | null = null;
+  let toolCalled = false;
   let replyText = '';
 
   try {
@@ -169,6 +154,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
         if (use.name === UNPAID_TOOL_NAME) {
+          toolCalled = true;
           const found = await readUnpaidInvoices(supabase, user.id, {
             minBalance: callArgs.args.min_balance,
             cap: callArgs.args.limit,
@@ -199,7 +185,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(
     {
-      reply: composeReply(replyText, summary),
+      reply: replyFor({ modelText: replyText, summary, toolCalled }),
       tool: summary
         ? {
           totalCount: summary.totalCount,
