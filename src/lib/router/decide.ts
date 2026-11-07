@@ -50,6 +50,15 @@ export function looksLikeAnswer(text: string): boolean {
   return /\d/.test(t) || /^(?:the|a|an|for|it'?s|that one|same)\b/i.test(t);
 }
 
+/**
+ * A digit or a "$" is a job on its face. The regex gate has always applied this
+ * (`/[\d$]/` in isUnpaidQuestion); here it also has to hold *before* the model
+ * is asked, so "who owes me 50 for the fence" stays a new invoice.
+ */
+export function hasFigure(text: string): boolean {
+  return /[\d$]/.test(text);
+}
+
 export type DecisionVia = 'bypass' | 'router' | 'regex';
 
 export interface Decision {
@@ -61,6 +70,7 @@ export interface Decision {
  * The whole decision, with no I/O.
  *
  *  - bypass           → build (parse), and the model is never called
+ *  - a figure         → build, before the model is consulted
  *  - flag off         → the old path (regex; off ⇒ parse, exactly as today)
  *  - a valid answer   → that answer
  *  - null             → the old path (regex, then parse)
@@ -76,6 +86,10 @@ export function decideRoute(input: {
   text: string;
 }): Decision {
   if (input.bypass) return { route: 'build', via: 'bypass' };
+
+  // Same rule the regex gate applies, and it runs before the model is consulted:
+  // a figure or a price can never be classified into a question.
+  if (hasFigure(input.text)) return { route: 'build', via: 'regex' };
 
   const oldPath: Decision = shouldRouteToAsk({ flagOn: input.flagOn, text: input.text })
     ? { route: 'ask', via: 'regex' }

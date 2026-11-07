@@ -34,7 +34,6 @@ export const ROUTER_PHRASES: Labelled[] = [
   { text: 'change the tax to 8 percent', route: 'build' },
   { text: 'add a line for the filter, 35', route: 'build' },
   { text: 'log 60 bucks for gas at Shell', route: 'build', note: 'expense' },
-  { text: 'how much should I charge for a water heater install?', route: 'build', note: 'price advice on a job, not account data' },
   { text: 'same as last time for Bob', route: 'build', note: 'ambiguous → build' },
 
   // ── unsupported: account questions nothing can answer yet ────────────────
@@ -48,4 +47,5 @@ export const ROUTER_PHRASES: Labelled[] = [
   { text: 'how much did I make last week?', route: 'unsupported' },
   { text: 'am I actually making money on these jobs?', route: 'unsupported' },
   { text: "what's my net profit for the quarter?", route: 'unsupported' },
+  { text: 'how much should I charge for a water heater install?', route: 'unsupported', note: 'pricing advice — nothing in the app prices a job' },
 ];

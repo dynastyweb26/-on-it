@@ -19,7 +19,7 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 import { anthropicRouteCall, classify } from '@/lib/router/classify';
-import { decideRoute } from '@/lib/router/decide';
+import { decideRoute, hasFigure } from '@/lib/router/decide';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 const Body = z.object({ message: z.string().trim().min(1).max(500) });
@@ -51,15 +51,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: 'Say that again?' }, { status: 400, ...NO_STORE });
   }
 
-  // One model call. classify() is total: timeout, error and garbage are null,
-  // and decideRoute() turns null into the pre-Slice-2 regex gate + parse.
-  const classified = await classify(parsed.data.message, anthropicRouteCall());
-  const decision = decideRoute({
-    flagOn: true,
-    bypass: null,
-    classified,
-    text: parsed.data.message,
-  });
+  // A digit or a "$" is a job on its face, so it is decided without a call:
+  // the same rule the regex gate has, applied before the model is asked.
+  const { message } = parsed.data;
+  const classified = hasFigure(message) ? null : await classify(message, anthropicRouteCall());
+  const decision = decideRoute({ flagOn: true, bypass: null, classified, text: message });
 
   return NextResponse.json(
     {

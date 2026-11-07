@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bypassReason, decideRoute, looksLikeAnswer } from './decide';
+import { bypassReason, decideRoute, hasFigure, looksLikeAnswer } from './decide';
 
 // ── The five cases the slice names, plus the guard rails around them ──────
 
@@ -36,7 +36,8 @@ test('invoice ZZ Test A $50 for a repair -> build', () => {
       classified: 'build',
       text: 'invoice ZZ Test A $50 for a repair',
     }),
-    { route: 'build', via: 'router' },
+    // The $50 is decided by the figure rule, before the model is asked.
+    { route: 'build', via: 'regex' },
   );
 });
 
@@ -50,6 +51,24 @@ test("Maria hasn't paid, bill her again -> build", () => {
     }),
     { route: 'build', via: 'router' },
   );
+});
+
+test("who owes me 50 for the fence -> build, and the model is never asked", () => {
+  // classified='ask' is here on purpose: the figure rule is deterministic and
+  // runs before the model call, so no answer can turn this into a lookup.
+  assert.deepEqual(
+    decideRoute({
+      flagOn: true,
+      bypass: null,
+      classified: 'ask',
+      text: 'who owes me 50 for the fence',
+    }),
+    { route: 'build', via: 'regex' },
+  );
+  for (const t of ['who owes me 50 for the fence', '500 or best offer', '$40', 'charge 8%']) {
+    assert.equal(hasFigure(t), true, t);
+  }
+  assert.equal(hasFigure('who owes me'), false);
 });
 
 test('$40 as a clarification reply -> bypass, and no model answer can override it', () => {

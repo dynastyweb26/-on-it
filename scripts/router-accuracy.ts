@@ -9,7 +9,7 @@
 // Sends 30 short messages to Haiku-class. Costs a few cents.
 import { ROUTER_PHRASES } from '../src/lib/router/__fixtures__/phrases';
 import { anthropicRouteCall, classify, ROUTER_MODEL } from '../src/lib/router/classify';
-import type { RouterRoute } from '../src/lib/router/decide';
+import { hasFigure, type RouterRoute } from '../src/lib/router/decide';
 
 const ROUTES: RouterRoute[] = ['ask', 'build', 'unsupported'];
 
@@ -25,7 +25,9 @@ async function main() {
 
   console.log(`router accuracy · ${ROUTER_MODEL} · ${ROUTER_PHRASES.length} phrases\n`);
   for (const phrase of ROUTER_PHRASES) {
-    const got = await classify(phrase.text, call);
+    // A figure is decided without a call, exactly as /api/route does it, so the
+    // score below is what the app would do rather than the raw model's opinion.
+    const got = hasFigure(phrase.text) ? 'build' : await classify(phrase.text, call);
     rows.push({ text: phrase.text, want: phrase.route, got });
     const mark = got === phrase.route ? 'ok  ' : 'MISS';
     console.log(`${mark} want=${phrase.route.padEnd(11)} got=${String(got).padEnd(11)} ${phrase.text}`);
