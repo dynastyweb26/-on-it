@@ -7,12 +7,14 @@
 // rendered DOM and the height budget at both viewports.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DepositCard from './DepositCard';
 import ReviewCard from './ReviewCard';
 import { BANK_ITEMS } from '../../lib/bank-tracking';
-import { stackBudget, type StackCardShape } from '../../lib/stack-fit';
+import { STACK_CARD_SLOT, stackBudget, type StackCardShape } from '../../lib/stack-fit';
 import type { ApiDeposit } from '../../lib/bank-deposits';
 
 const DEPOSIT: ApiDeposit = {
@@ -55,6 +57,39 @@ test('the card body scrolls and the buttons sit outside it, pinned', () => {
     assert.ok(html.indexOf('overflow-y-auto') < bar, `${name}: the buttons are not inside the scroller`);
     assert.equal(html.indexOf('min-h-[54px]', bar) > bar, true, `${name}: the primary button is in that bar`);
   }
+});
+
+// The sheet's own two contracts — a definite height and a card slot that fills
+// the zone — live in ReviewStack's markup, and ReviewStack renders through a
+// portal, which the static renderer refuses. So these read its source. They are
+// the regression the earlier version of this file missed: every class inside the
+// card was right, while the front card was `relative` (auto height) and the
+// dialog was max-height only, so the body never had a height to scroll in and
+// the phone clipped the buttons.
+const stackSource = readFileSync(join(process.cwd(), 'src/components/bank/ReviewStack.tsx'), 'utf8');
+
+test('the front card fills the card zone like the peeks do', () => {
+  assert.equal(STACK_CARD_SLOT, 'absolute inset-0');
+  assert.ok(stackSource.includes('className={STACK_CARD_SLOT}'),
+    'every depth uses STACK_CARD_SLOT: the front card must fill the zone, not size to its content');
+  assert.equal(stackSource.includes("isTop ? 'relative' : 'absolute inset-0'"), false,
+    'a relative front card is auto-height, so its h-full body cannot resolve and the buttons fall outside the clip');
+});
+
+test('the sheet has a fixed height on phones and on desktop', () => {
+  assert.ok(stackSource.includes('h-[calc(100%-12px)]'),
+    'the phone dialog is a definite height, so the card zone has a height to give the body');
+  assert.equal(/max-h-\[calc\(100%-12px\)\]/.test(stackSource), false,
+    'max-height leaves the sheet content-sized: the card zone then has no height and the body cannot scroll');
+  assert.ok(stackSource.includes('md:h-[calc(100dvh-32px)]'),
+    'the desktop dialog is a definite height too');
+});
+
+test('the Ignored tab cannot resize the sheet', () => {
+  assert.ok(/filter === 'ignored'[\s\S]{0,600}?absolute inset-0/.test(stackSource),
+    'the Ignored pane fills the same card zone, so switching tabs changes no height');
+  assert.ok(/filter === 'ignored'[\s\S]{0,900}?grid flex-1 place-items-center/.test(stackSource),
+    'the empty Ignored state is centred inside that zone instead of collapsing it');
 });
 
 test('at 390x700 and 1280x700 the buttons stay inside the dialog', () => {

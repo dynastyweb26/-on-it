@@ -28,6 +28,11 @@ export const STACK_SHELL = {
 /** The pinned foot: two min-h buttons, their 8px gap, 12 + 18px padding. */
 export const STACK_ACTION_BAR = 54 + 46 + 8 + 30;
 
+/** Every card slot — the front one included — fills the card zone.
+ *  `relative` on the front card made it auto-height, so its h-full body never
+ *  resolved and the buttons landed outside the zone's clip. */
+export const STACK_CARD_SLOT = 'absolute inset-0';
+
 /** Roughly what the body wants to show, before it is allowed to scroll. */
 export const STACK_BODY_CONTENT: Record<StackCardShape, number> = {
   expense: 300,
