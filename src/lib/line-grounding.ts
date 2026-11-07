@@ -53,40 +53,51 @@ export function numbersInText(text: string): Set<number> {
     if (m[2]) out.add(round2(n * 1000));
   }
 
-  const tokens = lower.split(/[^a-z]+/).filter(Boolean);
-  let run: number[] = [];
-  const flush = () => {
-    if (!run.length) return;
+  for (const run of spokenRuns(lower)) {
+    out.add(round2(runTotal(run)));
     // "two fifty" reads as 250: a units word followed by a tens word is a
-    // hundreds-and-tens spoken price. Everything else sums normally.
-    let total = 0;
-    let current = 0;
-    for (let i = 0; i < run.length; i++) {
-      const v = run[i];
-      if (v === -100) current = (current || 1) * 100;
-      else if (v === -1000) { total += (current || 1) * 1000; current = 0; }
-      else current += v;
-    }
-    total += current;
-    out.add(round2(total));
+    // hundreds-and-tens spoken price.
     if (run.length === 2 && run[0] >= 1 && run[0] <= 9 && run[1] >= 10 && run[1] % 10 === 0 && run[1] < 100) {
       out.add(run[0] * 100 + run[1]);
     }
     for (const v of run) if (v > 0) out.add(v);
+  }
+  return out;
+}
+
+/** Runs of adjacent number words in lowercase text, as raw parts (hundred is
+ *  -100, thousand/grand is -1000). Shared with the reply guard. */
+export function spokenRuns(lower: string): number[][] {
+  const runs: number[][] = [];
+  let run: number[] = [];
+  const flush = () => {
+    if (run.length) runs.push(run);
     run = [];
   };
-  for (const w of tokens) {
+  for (const w of lower.split(/[^a-z]+/).filter(Boolean)) {
     if (w in UNITS) run.push(UNITS[w]);
     else if (w in TENS) run.push(TENS[w]);
     else if (w === 'hundred') run.push(-100);
     else if (w === 'thousand' || w === 'grand') run.push(-1000);
     else if (w === 'and' || w === 'a' || w === 'an') {
-      // connector: keeps a run alive only when one is already open
-      if (!run.length && (w === 'a' || w === 'an')) continue;
+      // connector: neither opens nor closes a run
     } else flush();
   }
   flush();
-  return out;
+  return runs;
+}
+
+/** The value of one spoken run: "twenty five hundred fifty" = 2550,
+ *  "six thousand one hundred" = 6100. */
+export function runTotal(run: number[]): number {
+  let total = 0;
+  let current = 0;
+  for (const v of run) {
+    if (v === -100) current = (current || 1) * 100;
+    else if (v === -1000) { total += (current || 1) * 1000; current = 0; }
+    else current += v;
+  }
+  return total + current;
 }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'its', 'her', 'his', 'their', 'our']);

@@ -71,3 +71,30 @@ test('priceless items and tax amounts do not break the allowed set', () => {
 test('an empty result stays empty so the route can fall back to the money sentence', () => {
   assert.equal(guardReplyFigures('Your total is 7500.', CYRIL), '');
 });
+
+// Preview run, Nov 7 2026 (screenshots): the model spelled the total out in words
+// and got it wrong while the card said $5,900.
+const PREVIEW_1 = { items: [{ qty: 2550, unit_price: 2 }, { qty: 1, unit_price: 800 }], total: 5900 };
+const PREVIEW_2 = { items: [{ qty: 2550, unit_price: 1.96 }, { qty: 1, unit_price: 800 }], total: 5798 };
+
+test('drops a spelled-out total that contradicts the card, keeps a spelled-out qty that matches', () => {
+  assert.equal(
+    guardReplyFigures(
+      'Reduced the flooring to twenty five hundred fifty square feet. New total is six thousand one hundred. Ready to send?',
+      PREVIEW_1,
+    ),
+    'Reduced the flooring to twenty five hundred fifty square feet. Ready to send?',
+  );
+});
+
+test('drops "sixty thousand nine hundred" against a 5,798 total', () => {
+  assert.equal(
+    guardReplyFigures('Reduced the first item by one hundred. New total is sixty thousand nine hundred. Ready to send?', PREVIEW_2),
+    'Ready to send?',
+  );
+});
+
+test('keeps a spelled-out total that matches the card', () => {
+  const reply = 'New total is five thousand nine hundred. Ready to send?';
+  assert.equal(guardReplyFigures(reply, PREVIEW_1), reply);
+});

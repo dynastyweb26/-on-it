@@ -13,8 +13,10 @@
 // words are deliberately NOT an allowed source: the failure is the model echoing
 // the target ("7500") as if it were achieved.
 //
+// Spelled-out figures ("six thousand one hundred") are checked by their whole value.
 // Pure: no I/O. Under 100 is left alone so "step 2" or "3 blinds" never trips it.
 import { calculateLineAmount } from './financials';
+import { runTotal, spokenRuns } from './line-grounding';
 
 export interface GuardItem {
   qty: number;
@@ -74,6 +76,12 @@ export function ungroundedFigures(sentence: string, allowed: Set<number>): numbe
     const n = toNumber(m);
     if (!Number.isFinite(n) || n < GUARD_MIN) continue;
     if (!allowed.has(Math.round(n * 100) / 100)) bad.push(n);
+  }
+  // The reply is written to be read aloud, so the model spells figures out
+  // ("six thousand one hundred"). Same rule for those, by their whole value.
+  for (const run of spokenRuns(scan.toLowerCase())) {
+    const n = runTotal(run);
+    if (n >= GUARD_MIN && !allowed.has(Math.round(n * 100) / 100)) bad.push(n);
   }
   return bad;
 }
