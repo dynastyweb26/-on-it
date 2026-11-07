@@ -71,7 +71,9 @@ import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expe
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
-import { IN_APP_CAMERA } from '@/lib/feature-flags';
+import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
+import { askQuestion } from '@/lib/ask-client';
+import { shouldRouteToAsk } from '@/lib/ask-intent';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
 // lazily: a flag-off build never asks for its chunk, so the composer keeps
@@ -1240,6 +1242,39 @@ export default function Chat({ active = true }: { active?: boolean }) {
         voiceFinalizeRef.current = false;
       }
       return null;
+    }
+
+    // Unpaid questions ("who owes me") skip /api/parse and go to /api/ask: no
+    // history, no draft, no card. sendRef/phase above already guard repeat taps,
+    // and the outer finally clears them on every exit. A 404 (feature off on this
+    // deployment) falls through to the normal parse path below.
+    if (shouldRouteToAsk({ flagOn: AI_TOOLS, text: trimmed })) {
+      const out = await askQuestion(trimmed);
+      if (out.kind !== 'off') {
+        if (out.kind === 'ok' || out.kind === 'signed-out') {
+          const replyMsg = aMsg(out.reply, { skipHistory: true });
+          setMessages((m) => {
+            // Keep the Q&A out of the job history parse reads later.
+            const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
+            const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
+            return emitResult(marked, replyMsg, retryId);
+          });
+          if (out.kind === 'ok' && source === 'voice') {
+            cancelSpeechRef.current?.();
+            cancelSpeechRef.current = speak(out.reply);
+          }
+          return out.kind === 'ok' ? { reply: out.reply, ready: false } : null;
+        }
+        // A failure names its cause and reuses the failed bubble: a repeat
+        // failure of a retry leaves the existing one instead of stacking another.
+        if (!retryId) setMessages((m) => [...m, aMsg(
+          out.kind === 'network'
+            ? (navigator.onLine ? "Connection hiccup — that didn't go through." : "You're offline — that didn't send.")
+            : out.reply,
+          { failed: { op: 'send', text: trimmed } },
+        )]);
+        return null;
+      }
     }
 
     try {
