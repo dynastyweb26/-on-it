@@ -1096,3 +1096,9 @@ _Money OUT only. No migration: PR1's schema already holds `bank_transactions`, `
 | Ignored rows after a reload | **Partial** | The GET returns counts only, so the Ignored tab lists nothing until a row is ignored in that session (restore is same-session). |
 | `add` atomicity | **Partial** | Two statements (no cross-table transaction without a migration): a failed link deletes the expense, and the unique tag makes a retry safe. |
 | Receipt attach on bank review card | **Open** | Reuse the invoicing receipt capture, own PR. |
+
+## Chat/list polish — logged 2026-11-06 (`fix/chat-send-polish`)
+- **Done** — Failed send showed stacked "couldn't mark it as sent" bubbles. Cause: the bubble's copy says "Tap send", and a tap on the main send button (no retryId) appended a fresh failed bubble each time. `src/lib/chat/failures.ts` (`upsertFailure` / `clearFailures`, unit-tested) keeps one bubble per failed op, refreshed in place; stale ones clear when a send lands; `retry()` has a synchronous ref guard.
+- **Done** — Empty unpaid answer was the server sentence plus model prose restating it. `replyFor` returns the sentence alone when `totalCount === 0` (`src/lib/tools/reply.ts`).
+- **Done** — Invoices Open header read "1 open · $0.00" over a draft. Rule chosen: drafts are not open money, so they count toward neither N nor $X; they are named apart ("1 draft", "2 open · $150.00 · 1 draft"). `src/lib/open-summary.ts`.
+- **Open, separate PR** — `fix/copy-guard-windows`: copy-guard test root used `URL.pathname` (breaks on Windows). Touches `src/lib/ci`; needs founder approval + `tests-approved`.
