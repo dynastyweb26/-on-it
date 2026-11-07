@@ -73,7 +73,9 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
-import { shouldRouteToAsk } from '@/lib/ask-intent';
+import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
+import { classifyTurn } from '@/lib/router/route-client';
+import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
 // lazily: a flag-off build never asks for its chunk, so the composer keeps
@@ -1244,11 +1246,47 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return null;
     }
 
-    // Unpaid questions ("who owes me") skip /api/parse and go to /api/ask: no
-    // history, no draft, no card. sendRef/phase above already guard repeat taps,
-    // and the outer finally clears them on every exit. A 404 (feature off on this
-    // deployment) falls through to the normal parse path below.
-    if (shouldRouteToAsk({ flagOn: AI_TOOLS, text: trimmed })) {
+    // ═══ Slice 2 router ═══
+    // One small model call decides what this message IS. `bypass` means it is
+    // never asked at all — a staged receipt, an answer to an open question
+    // ("$40"), a dictated follow-up inside a job — and those go straight to
+    // /api/parse exactly as before. A timeout, an error, bad output or the flag
+    // being off falls back to the pre-Slice-2 regex gate and then parse, so a
+    // broken router can only cost a question, never an invoice. 'unsupported' is
+    // answered here from the server's shared copy; it never reaches /api/parse.
+    const bypass = bypassReason({
+      // Photos never enter send(): the attachment handler posts them to
+      // /api/parse-receipt directly, so this guard is for a staged receipt only.
+      imageAttached: false,
+      clarificationOpen: clientQuestionOpen || Boolean(draft && looksLikeAnswer(trimmed)),
+      voiceFollowUp: source === 'voice' && Boolean(draft),
+    });
+    // Phase already reads "thinking" from the top of send(), so the pending state
+    // is on screen before this await; sendRef keeps a rage-tap to one request.
+    const asked = bypass || !AI_TOOLS ? null : await classifyTurn(trimmed);
+    const decision = decideRoute({
+      flagOn: AI_TOOLS,
+      bypass,
+      classified: asked?.route ?? null,
+      text: trimmed,
+    });
+    if (decision.route === 'unsupported') {
+      const reply = asked?.reply ?? UNSUPPORTED_REPLY;
+      setMessages((m) => {
+        // Account talk stays out of the job history parse reads later.
+        const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
+        const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
+        return [...marked, aMsg(reply, { skipHistory: true })];
+      });
+      if (source === 'voice') {
+        cancelSpeechRef.current?.();
+        cancelSpeechRef.current = speak(reply);
+      }
+      return null;
+    }
+    // 'ask' keeps the old block below: it owns the signed-out, rate-limited and
+    // feature-off outcomes, and a 404 still falls through to the parse path.
+    if (decision.route === 'ask') {
       const out = await askQuestion(trimmed);
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
