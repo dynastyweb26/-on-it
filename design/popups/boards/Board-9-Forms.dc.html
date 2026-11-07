@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><b>9 Forms</b></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 9 · EXISTING FORMS · ALIGNMENT ONLY, NO REDESIGN</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Form sheets and cards</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>RecordPaymentSheet (P-32) is the reference.</b> Its rules are now the kit's: the figure is in the button, it can't close while saving, it uses an idempotency key, and its error is role="alert".</div>
+      <div><b>Each other form gets three things:</b> the same error-slot block above its button, the same busy look (spinner + verb…, everything else locked), and a synchronous ref on submit.</div>
+      <div>Layouts, fields and copy are unchanged. Only the footer region is shown.</div>
+    </div>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,560px"></dc-import>
+  </sc-for>
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">P2 FORMS · ALIGN TO F2/F3 FOOTER, NO FRAMES NEEDED</div>
+    <div><b>P-34</b> Estimate approved (SuccessSheet): verbatim. Copy link → T1 toast. <b>P-36</b> Template builder: the send hint replaces Send until complete (unchanged). <b>P-37</b> Invoice detail edit card: per-field error slot. <b>P-39 / P-40</b> Attachment choosers use the K1 shell. <b>P-44</b> Bank activity stack: sheet on phone, 440px dialog ≥md (already matches the modal rule).</div>
+    <div><b>P-05</b> Send has no confirmation. Not changed.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const GROUPS=[
+  {id:'F1',title:'Record payment (reference, unchanged)',tier:'P1',pids:['P-32'],states:['idle','pending','error'],
+    notes:['Shown at its footer level to pin the contract the kit copies: amount in the label, savingRef + submittingRef, Escape/scrim/drag ignored while saving, one idempotency key per submission.','The keypad, method chips and date tiles are as built (date tiles: K3).'],
+    spec:{icon:'payments',title:'Record payment',sub:'Brandon · $200.00 balance',figure:{label:'Paid in full · Zelle',meta:'Date received: Today',amount:'$200.00'},
+      body:'Pays it off in full',
+      actions:[{label:'Mark paid · $200.00 Zelle',kind:'gold',go:true,busyLabel:'Saving…'}],
+      error:{icon:'cloud_off',title:'You’re offline',body:'Nothing was recorded. INV-0007 is still unpaid.'},retryLabel:'Mark paid · $200.00 Zelle',doneToast:'Payment recorded.',ctxA:'INV-0007 · $200.00 due',ctxU:'Record payment'}},
+  {id:'F2',title:'Estimate signature (public page)',tier:'P1',pids:['P-33'],comp:'inline',states:['idle','pending','error'],
+    notes:['SignSheet keeps its Draw/Type tabs and consent checkbox. Only the footer is aligned. The scrim is already disabled while submitting.'],
+    changes:['Error “Couldn’t approve. Please try again.” gets a cause: “You’re offline. Nothing was signed.”'],
+    spec:{kind:'slot',summary:[{k:'Estimate Q-0003 · Deck stain',v:''},{k:'Total',v:'$1,200.00',big:true}],
+      actions:[{label:'Approve estimate',kind:'gold',go:true,busyLabel:'Approving…'}],
+      error:{icon:'cloud_off',title:'You’re offline',body:'Nothing was signed. Approve again when you’re back.'},retryLabel:'Approve estimate',doneText:'Estimate approved.'}},
+  {id:'F3',title:'Chat invoice card footer',tier:'P1',pids:['P-35','P-05'],comp:'inline',states:['idle','pending'],
+    notes:['The card IS the form and stays inline (not a sheet). Send has no confirm (P-05). Busy labels in order: Preparing… → Building your PDF… → Sending…','Failures render below as S2 / S1 (Board 6). finalizingRef guards repeat taps.'],
+    spec:{kind:'slot',summary:[{k:'Subtotal',v:'$200.00'},{k:'Total due',v:'$200.00',big:true}],
+      actions:[{label:'Looks right — send it',kind:'gold',go:true,busyLabel:'Building your PDF…'},{label:'Download draft',kind:'text',icon:'download'}],doneText:'Sent! I’ll notify you if Brandon hasn’t paid in 2 days.'}},
+  {id:'F4',title:'Deposit card (money in)',tier:'P1',pids:['P-45'],comp:'inline',states:['idle','pending','error'],
+    notes:['Inside the ReviewStack. busyIds per card. depositRefusalMessage() supplies the cause (unverified); one example is shown.'],
+    spec:{kind:'slot',summary:[{k:'ZELLE FROM D NAKAMURA',v:'+$400.00',big:true},{k:'A new payment for an invoice',v:'INV-1042'}],
+      actions:[{label:'Save',kind:'gold',go:true,busyLabel:'Saving…'},{label:'Don’t add',kind:'text'}],
+      error:{icon:'error',title:'Can’t link to INV-1042',body:'It’s already paid. Pick another invoice, or choose Other money received.'},retryLabel:'Save',doneText:'Linked to INV-1042.'}},
+  {id:'F5',title:'Bank review card (money out)',tier:'P1',pids:['P-46'],comp:'inline',states:['idle','pending','error'],
+    notes:['Three actions kept: Add to record (go), Already recorded, Don’t add. shownError keeps its slot, now styled as the kit alert.'],
+    spec:{kind:'slot',summary:[{k:'HOME DEPOT #4410',v:'−$142.18',big:true},{k:'Materials · Oct 28',v:''}],
+      actions:[{label:'Add to record',kind:'gold',go:true,busyLabel:'Adding…'},{label:'Already recorded',kind:'outline'},{label:'Don’t add',kind:'text'}],
+      error:{icon:'cloud_off',title:'You’re offline',body:'Nothing was added. This charge stays in To review.'},retryLabel:'Add to record',doneText:'Added to Oct 28, totals updated.'}}
+];
+class Component extends DCLogic{renderVals(){return{groups:GROUPS};}}
+</script>
+</body>
+</html>

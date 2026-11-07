@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><b>8 AI</b><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 8 · SHAPE: ASSISTANT BUBBLE + THUMBS ROW</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">AI states</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>Reuse the unpaid-card parts.</b> Same bubble, the same thumbs row (44px, #8f8676 until used) and the same error card with Retry.</div>
+      <div><b>Thumbs go on answers, not on errors or feedback replies.</b> A thumbs-down on an AI reply opens the reason chips from the unpaid card.</div>
+      <div><b>Suggestion chips send a supported question</b> in one tap. They appear only when we can actually answer it.</div>
+    </div>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,360px"></dc-import>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const GROUPS=[
+  {id:'A1',title:'Unsupported question',tier:'P3',pids:['P-73'],comp:'inline',states:['idle'],
+    notes:['Never sent to /api/parse. Copy verbatim (UNSUPPORTED_REPLY). Thumbs: yes (it is an answer). Live: tap a thumb.'],
+    changes:['Adds one suggestion chip, “Who hasn’t paid me?”, which sends that question.'],
+    spec:{kind:'bubble',user:'what did I spend on gas this year?',text:'I can’t look that up yet. I can tell you who hasn’t paid you.',chips:['Who hasn’t paid me?'],thumbs:true}},
+  {id:'A2',title:'Answer missing or lookup failed',tier:'P2',pids:['P-74'],comp:'inline',
+    covers:'P-74: “Say that again?” (empty reply, bubble + thumbs) and “I couldn’t look that up just now. Ask me again in a moment.” (lookup failed, error card + Retry that re-sends the same question).',
+    changes:['Lookup-failed variant gets a Retry button and the title “Couldn’t look that up”. Body verbatim.'],
+    states:[
+      {state:'idle',label:'EMPTY REPLY',spec:{kind:'bubble',user:'whos late',text:'Say that again?',thumbs:true}},
+      {state:'idle',label:'LOOKUP FAILED',spec:{kind:'error',user:'who hasn’t paid me?',icon:'error',title:'Couldn’t look that up',text:'I couldn’t look that up just now. Ask me again in a moment.',actions:[{label:'Retry',kind:'gold',go:true,busyLabel:'Retrying…',icon:'refresh'}],error:{icon:'error',title:'Still not working',body:'Something broke on our end. Try again in a minute.'},retryLabel:'Retry',doneText:'3 invoices are still open. 2 are past due.'}},
+      {state:'pending',label:'PENDING · REPEAT-TAP LOCKED',spec:{kind:'error',user:'who hasn’t paid me?',icon:'error',title:'Couldn’t look that up',text:'I couldn’t look that up just now. Ask me again in a moment.',actions:[{label:'Retry',kind:'gold',go:true,busyLabel:'Retrying…',icon:'refresh'}]}}
+    ]},
+  {id:'A3',title:'Feedback intent',tier:'P3',pids:['P-75'],comp:'inline',states:['idle'],
+    notes:['FEEDBACK_REPLY text from lib/feedback-intent (unverified; example shown). Kept out of job history. No thumbs: rating a feedback reply is noise.'],
+    spec:{kind:'bubble',user:'this app is great but the pdf font is small',text:'Thanks for telling me. Want to send that to the team?',actions:[{label:'Tell us about On It',kind:'outline',icon:'chat_bubble'}]}}
+];
+class Component extends DCLogic{renderVals(){return{groups:GROUPS};}}
+</script>
+</body>
+</html>

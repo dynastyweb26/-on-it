@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><a href="Board-2-Decision.dc.html">2 Decision</a><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><b>6 Status</b><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 6 · SHAPES: ERROR CARD (INLINE) + ERROR SLOT (IN A CARD) + ONE SHEET (P-66)</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Status and error</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>Error card</b> = the unpaid-invoices error card: icon tile, cause as the title, what's safe as the body, one 44px+ Retry that locks on the first tap.</div>
+      <div><b>Error slot</b> = the same alert block inside a form card, directly above that card's button. The card keeps its data.</div>
+      <div><b>The cause comes from src/lib/errors.ts</b> (offline, signed-out, rate-limit, our-end…). “Check your connection” appears only for real network errors.</div>
+      <div><b>The flagship gets a sheet.</b> P-66 is the only status that blocks: the client already has the PDF while the invoice is still a draft.</div>
+    </div>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,760px"></dc-import>
+  </sc-for>
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">P3 + KEPT AS LOGGED</div>
+    <div><b>P-69</b> Share cancelled: silent. Kept. <b>P-70</b> No file share: silent download + bubble (verbatim). <b>P-71</b> Download draft: bubble (verbatim). <b>P-80</b> Template duplicate note: inline note above Send (verbatim).</div>
+    <div><b>P-79</b> Duplicate invoice warning stays a passive badge, “Similar invoice sent recently”. It was blocking once and caused a loop (PUNCH-LIST). Do not make it blocking.</div>
+    <div><b>P-93</b> Delete failed: D1 error state (Board 1).</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const OFF={icon:'cloud_off',title:'You’re offline'};
+const RET={label:'Retry',kind:'gold',go:true,busyLabel:'Retrying…',icon:'refresh'};
+const P66={icon:'sync_problem',iconTone:'danger',eyebrow:'INV-0007 · BRANDON · $200.00',title:'Shared, but not marked sent',
+  sub:'You went offline right after the share sheet closed.',
+  truths:[{ok:true,title:'Brandon has the PDF',body:'Shared 2:14 PM. He can see $200.00 due Nov 12.'},{ok:false,title:'INV-0007 is still a draft in On It',body:'No pay link, no payment reminders, and it’s not in your sent totals yet.'}],
+  actions:[{label:'Mark as sent',kind:'gold',go:true,busyLabel:'Marking sent…'},{label:'Retry the share',kind:'outline'},{label:'Keep as draft',kind:'text',safe:true}],
+  note:'Mark as sent saves it as sent (the client already has it). Retry the share opens the share sheet again, then marks it sent.',
+  pendingNote:'Stays open until On It confirms',
+  error:{icon:'cloud_off',title:'Still offline',body:'INV-0007 stays a draft until you’re back. Brandon’s PDF is unaffected.'},retryLabel:'Try again',
+  doneToast:'INV-0007 marked sent. Pay link is live.',ctxA:'Opening the share sheet…',ctxU:'Looks right — send it'};
+const GROUPS=[
+  {id:'S1',title:'FLAGSHIP · Shared but couldn’t mark as sent',tier:'P1',pids:['P-66'],
+    states:['idle','pending','error',{state:'idle',mode:'laptop',label:'LAPTOP ≥1280 · CENTERED MODAL 440'}],
+    notes:['Blocking sheet: the one status in the kit that interrupts. It shows both truths side by side, so nobody reads it as either sent or not sent.','Dismiss (scrim / swipe / × / Escape) = Keep as draft, the safe answer: nothing is written. S1b then stays in the transcript.','Mark as sent = retry POST /api/invoices/{id}/send only, with no re-share. Retry the share = navigator.share() again (needs a fresh tap on iOS), then the POST.','Invoice-detail variant (P-89 second line) uses the same sheet; “Retry the share” reads “Share PDF again”.','Data: share timestamp, number, client, total, due date. All local at the moment of failure.'],
+    changes:['Replaces “Your file was shared, but I couldn’t mark it as sent. Tap send to try again.” with a title, two truth rows and a cause line.','Cause is named (“You went offline right after the share sheet closed.” / server variant “Something broke on our end right after the share.”).','New actions: Mark as sent, Retry the share, Keep as draft.'],
+    spec:P66},
+  {id:'S1b',title:'After “Keep as draft”: persistent card',tier:'P1',pids:['P-66'],comp:'inline',states:['idle','pending','error'],
+    notes:['Pinned under the card in the transcript until resolved. Uses the same actions, minus Keep as draft.'],
+    spec:{kind:'error',icon:'sync_problem',title:'INV-0007 is still a draft',text:'Brandon has the PDF, but it isn’t marked sent, so there’s no pay link yet.',
+      actions:[{label:'Mark as sent',kind:'gold',go:true,busyLabel:'Marking sent…'},{label:'Retry the share',kind:'outline'}],
+      error:OFF&&{icon:'cloud_off',title:'Still offline',body:'It stays a draft until you’re back.'},retryLabel:'Try again',doneText:'INV-0007 is sent. Pay link is live.'}},
+  {id:'S2',title:'Send or build failure',tier:'P1',pids:['P-65'],comp:'inline',
+    notes:['Error card replaces today’s icon-only Retry with a labelled 48px button (aria-label kept: “Retry”). The shake + Android haptic on first show stay (MOTION-SPEC §7).','retryingRef blocks the second tap. The draft card above is untouched.','Cause → copy (verbatim): offline “You’re offline — the invoice didn’t send. Your draft is safe.” · save “Couldn’t save that invoice just now. Your draft is safe.” · changes “Couldn’t save your changes just now. Your draft is safe.” · unknown “Couldn’t finish that one. Your draft is safe.”'],
+    changes:['Adds a short cause title above each verbatim sentence (“You’re offline” / “Didn’t save”).'],
+    states:[
+      {state:'idle',spec:{kind:'error',icon:'cloud_off',title:'You’re offline',text:'You’re offline — the invoice didn’t send. Your draft is safe.',actions:[RET],error:{icon:'cloud_off',title:'Still offline',body:'Nothing sent. Retry when you have signal.'},retryLabel:'Retry',doneText:'Sent! I’ll notify you if Brandon hasn’t paid in 2 days.'}},
+      {state:'pending',spec:{kind:'error',icon:'cloud_off',title:'You’re offline',text:'You’re offline — the invoice didn’t send. Your draft is safe.',actions:[RET]}},
+      {state:'error',label:'ERROR · SECOND FAILURE',spec:{kind:'error',icon:'cloud_off',title:'You’re offline',text:'You’re offline — the invoice didn’t send. Your draft is safe.',actions:[RET],error:{icon:'cloud_off',title:'Still offline',body:'Nothing sent. Retry when you have signal.'},retryLabel:'Retry'}},
+      {state:'idle',label:'VARIANT · SAVE FAILED',spec:{kind:'error',icon:'error',title:'Didn’t save',text:'Couldn’t save that invoice just now. Your draft is safe.',actions:[RET],doneText:'Saved.'}}
+    ]},
+  {id:'S3',title:'Estimate send failure',tier:'P1',pids:['P-72'],comp:'inline',states:['idle','pending'],
+    notes:['Same error card. Body comes from requestEstimateSend’s out.message (unverified), mapped through errors.ts.'],
+    changes:['Offline variant written to match P-65: “You’re offline — the estimate didn’t send. Your draft is safe.”'],
+    spec:{kind:'error',icon:'cloud_off',title:'You’re offline',text:'You’re offline — the estimate didn’t send. Your draft is safe.',actions:[RET],doneText:'Estimate is live. Copy or share the link with Brandon.'}},
+  {id:'S4',title:'Offline or connection hiccup',tier:'P1',pids:['P-83'],comp:'inline',
+    notes:['navigator.onLine false → “You’re offline”. A fetch throw while online → “Connection hiccup”. The two are never swapped.','Message stays in the composer’s history, so Retry re-sends the same text.'],
+    states:[
+      {state:'idle',label:'OFFLINE',spec:{kind:'error',user:'who hasn’t paid me?',icon:'cloud_off',title:'You’re offline',text:'You’re offline — that didn’t send. Your work is saved.',actions:[RET],error:{icon:'cloud_off',title:'Still offline',body:'Your message is saved. Retry when you have signal.'},retryLabel:'Retry',doneText:'3 invoices are still open. 2 are past due.'}},
+      {state:'pending',label:'PENDING · REPEAT-TAP LOCKED',spec:{kind:'error',user:'who hasn’t paid me?',icon:'cloud_off',title:'You’re offline',text:'You’re offline — that didn’t send. Your work is saved.',actions:[RET]}},
+      {state:'idle',label:'ONLINE · HICCUP',spec:{kind:'error',user:'who hasn’t paid me?',icon:'wifi_tethering_error',title:'Connection hiccup',text:'Connection hiccup — that didn’t go through.',actions:[RET],doneText:'3 invoices are still open. 2 are past due.'}}
+    ]},
+  {id:'S5',title:'Signed out mid-action',tier:'P1',pids:['P-84'],comp:'inline',states:['idle','pending'],
+    notes:['Same card as L2 (Board 5). The auto-redirect is removed and sign-in is a tap. The expense card above keeps every field.'],
+    changes:['Removed the 1600 ms auto-redirect. Added the “Sign in” button and “Your expense stays right here.”'],
+    spec:{kind:'card',eyebrow:'SIGNED OUT',eyebrowIcon:'lock',title:'Let’s save your work — sign in to keep this expense.',text:'Your expense stays right here.',
+      actions:[{label:'Sign in',kind:'gold',go:true,busyLabel:'Opening sign in…'},{label:'Keep editing',kind:'text'}],doneText:'Signed in. Saving Home Depot · $142.18.'}},
+  {id:'S6',title:'Expense save failure (error slot)',tier:'P1',pids:['P-85','P-38'],comp:'inline',states:['idle','pending','error'],
+    notes:['Error slot inside the expense card, directly above Save expense. Never auto-saves (P-38 rule).','Variants (verbatim): “One sec — still loading your account. Give it a moment.” · “Couldn’t save the photo just now — your expense is still here.” · “Couldn’t save that expense just now.”'],
+    spec:{kind:'slot',summary:[{k:'Home Depot',v:'Oct 28'},{k:'Materials · Scanned from receipt',v:''},{k:'Total',v:'$142.18',big:true}],
+      actions:[{label:'Save expense',kind:'gold',go:true,busyLabel:'Saving…'},{label:'Change something',kind:'text'}],
+      error:{icon:'cloud_off',body:'Couldn’t save the photo just now — your expense is still here.'},retryLabel:'Save expense',doneText:'Saved. Home Depot · $142.18 is in your Books.'}},
+  {id:'S7a',title:'Payment pending (info)',tier:'P1',pids:['P-88'],comp:'inline',states:['idle'],
+    notes:['role="status". No actions: it resolves on its own when the queue syncs.'],
+    spec:{kind:'card',eyebrow:'PAYMENT PENDING',eyebrowIcon:'schedule',title:'Payment pending: $85.00',text:'1 payment waiting to sync. The invoice stays unpaid until the server confirms it.'}},
+  {id:'S7b',title:'Payment needs attention',tier:'P1',pids:['P-88','P-13'],comp:'inline',states:['idle','pending','error'],
+    notes:['role="alert". Shows e.reason as the cause line. Discard opens D5 (Board 1), never a one-tap drop.','Repeat-tap: add a synchronous ref on Retry (today unverified).'],
+    changes:['Adds the cause line from e.reason (data exists, unused today).'],
+    spec:{kind:'card',eyebrow:'NEEDS ATTENTION',eyebrowIcon:'error',title:'$85.00 needs attention',text:'This payment could not be recorded. Reason: INV-0007 changed on another device.',
+      actions:[{label:'Retry',kind:'gold',go:true,busyLabel:'Retrying…'},{label:'Edit',kind:'outline'},{label:'Discard',kind:'danger'}],
+      error:{icon:'cloud_off',title:'You’re offline',body:'Still queued. Nothing was recorded.'},retryLabel:'Retry',doneText:'Recorded $85.00 on INV-0007.'}},
+  {id:'S8',title:'Invoice-detail share error (error slot)',tier:'P1',pids:['P-89'],comp:'inline',states:['idle','pending'],
+    notes:['Error slot under the actions row of the detail screen. The “shared but couldn’t update” line routes to the S1 sheet.'],
+    spec:{kind:'slot',summary:[{k:'INV-0007 · Brandon',v:'Draft'},{k:'Total due',v:'$200.00',big:true}],
+      alert:{icon:'picture_as_pdf',body:'Couldn’t prepare the PDF. Tap Share PDF to try again.'},
+      actions:[{label:'Share PDF',kind:'gold',go:true,busyLabel:'Preparing…',icon:'ios_share'}],doneText:'Shared.'}},
+  {id:'S9',title:'Locked / duplicate / ambiguous replies',tier:'P2',pids:['P-76','P-77','P-78','P-81'],comp:'inline',states:['idle'],
+    covers:'P-76 editing a locked document, P-77 messaging a locked conversation (with New chat), P-78 duplicate receipt, P-81 ambiguous client on save. Assistant bubble + at most one action. Copy verbatim.',
+    spec:{kind:'bubble',user:'change it to 250',text:'INV-0007 is sent and locked. Tap Revise on the card to change it, or start a new job.',actions:[{label:'New chat',kind:'outline',icon:'edit_square'}]}},
+  {id:'S10',title:'In-card error slot',tier:'P2',pids:['P-82','P-86','P-87','P-90','P-91','P-92'],comp:'inline',states:['idle'],
+    covers:'P-82 unreadable totals (shown), P-86 receipt unreadable, P-87 voice failure, P-90 estimate action error, P-91 attachment upload, P-92 bank write refused (in the ReviewStack card). The disabled button gets its reason directly above it.',
+    changes:['P-82: “Something went wrong reading the amounts. Try rephrasing the prices.” → “I couldn’t read these prices. Say each one again, like “Car wash $200”.” (no longer blames the user).'],
+    spec:{kind:'slot',summary:[{k:'Brandon · Car Wash',v:'?'},{k:'Total due',v:'—',big:true}],
+      alert:{icon:'error',body:'I couldn’t read these prices. Say each one again, like “Car wash $200”.'},
+      actions:[{label:'Looks right — send it',kind:'gold',disabled:true}]}},
+  {id:'S11',title:'Share sheet didn’t open → ready to share',tier:'P2',pids:['P-67','P-68'],comp:'inline',states:['idle'],
+    covers:'P-67 share rejected (non-Abort), P-68 the second-tap “ready to share” state. iOS needs a fresh gesture, so the button IS the retry.',
+    changes:['P-67: drops the developer error name “(NotAllowedError)” → “Your phone didn’t open the share sheet. Your draft is safe.” Error name goes to logs only.'],
+    spec:{kind:'error',icon:'ios_share',title:'Your invoice is ready',text:'Your phone didn’t open the share sheet. Your draft is safe. Tap Share invoice to send it.',actions:[{label:'Share invoice',kind:'gold',go:true,busyLabel:'Opening…',icon:'ios_share'}],doneText:'Sent! I’ll notify you if Brandon hasn’t paid in 2 days.'}}
+];
+class Component extends DCLogic{renderVals(){return{groups:GROUPS};}}
+</script>
+</body>
+</html>

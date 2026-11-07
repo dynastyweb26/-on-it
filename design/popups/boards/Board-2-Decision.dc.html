@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>body{margin:0;background:#e9e2d4;}a{color:#735c00;}a:hover{color:#1e1a15;}</style>
+</helmet>
+<div style="padding:56px 56px 120px;display:flex;flex-direction:column;gap:64px;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:900px;">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;"><a href="Popup-Kit.dc.html">Kit</a><span>·</span><a href="Board-1-Destructive.dc.html">1 Destructive</a><span>·</span><b>2 Decision</b><span>·</span><a href="Board-3-Pickers.dc.html">3 Pickers</a><span>·</span><a href="Board-4-Permission.dc.html">4 Permission</a><span>·</span><a href="Board-5-Limits.dc.html">5 Limits</a><span>·</span><a href="Board-6-Status.dc.html">6 Status</a><span>·</span><a href="Board-7-Toasts.dc.html">7 Toasts</a><span>·</span><a href="Board-8-AI.dc.html">8 AI</a><span>·</span><a href="Board-9-Forms.dc.html">9 Forms</a></div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">BOARD 2 · SHAPES: INLINE CARD (CONVERSATIONAL) + BOTTOM SHEET (MONEY)</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.6px;line-height:1.05;">Decision</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 28px;font-size:15px;line-height:1.5;color:#3a352d;">
+      <div><b>Shows what changes.</b> A before → after row for each field that moves, plus the amount.</div>
+      <div><b>Inline when the chat asked.</b> P-01 and P-02 answer something the user just typed, so they stay in the transcript. They can't be dismissed: the question stays until it's answered.</div>
+      <div><b>Sheet when it mints or discards.</b> P-03, P-14 and P-15 create or remove a document. Here the gold button means go and Cancel is a text button. Closing = Cancel.</div>
+      <div><b>Convert names the new number</b> it will use (INV-0008) and the figure, in the button itself.</div>
+    </div>
+  </div>
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <dc-import name="FrameGroup" g="{{ g }}" hint-size="100%,760px"></dc-import>
+  </sc-for>
+  <div style="max-width:900px;background:#fdf8f1;border:1px solid #ebe2d2;border-radius:24px;padding:22px 24px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#3a352d;">
+    <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;color:#735c00;">KEPT AS LOGGED</div>
+    <div><b>P-05</b> Send has no confirmation. The OS share sheet is the decision point. Not designed here on purpose.</div>
+    <div><b>P-04</b> Discard an expense draft uses the D6 sheet (Board 1).</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const OFF={icon:'cloud_off',title:'You’re offline'};
+const GROUPS=[
+  {id:'C1',title:'Change guard',tier:'P1',pids:['P-01'],comp:'inline',states:['idle','pending','error'],
+    notes:['Inline transcript card. Not dismissible: the previous draft stays until answered.','Rows come from the pending draft vs. the linked row. Only fields that change are listed.','Estimate variant: “Update Q-0003” / “Start a new estimate”.'],
+    changes:['Adds the before → after rows and total (data already in pendingChange).','Repeat-tap: add a synchronous ref, not just phase state (CLAUDE.md rule 2).','New error state: “You’re offline. INV-0007 wasn’t changed.”'],
+    spec:{kind:'card',user:'actually it’s Mike Davis, deck stain x3 at 150',eyebrow:'THIS WOULD CHANGE INV-0007',eyebrowIcon:'edit_document',
+      text:'This would change INV-0007. Update it, or start a new invoice?',
+      rows:[{k:'Client',from:'Brandon',to:'Mike Davis'},{k:'Items',from:'Car Wash',to:'Deck stain × 3'},{k:'Total',from:'$200.00',to:'$450.00'}],
+      actions:[{label:'Update INV-0007',kind:'gold',go:true,busyLabel:'Updating…'},{label:'Start a new invoice',kind:'outline'}],
+      error:{...OFF,body:'INV-0007 wasn’t changed.'},retryLabel:'Try again',doneText:'Updated INV-0007 — Mike Davis, $450.00.'}},
+  {id:'C2',title:'Which client?',tier:'P1',pids:['P-02'],comp:'inline',states:['idle','pending','error'],
+    notes:['Inline, auto-scrolled into view (scrollToClientQuestion). Send reads “Pick a client first” until answered.','Each candidate shows a disambiguating line (count of documents).','Pending: the tapped row shows the spinner; all rows lock.'],
+    changes:['Adds a sub-line under each candidate (“4 invoices”).','Repeat-tap: add a synchronous ref (today phase state only).'],
+    spec:{kind:'card',user:'invoice brandon’ car wash 200',eyebrow:'WHICH CLIENT?',eyebrowIcon:'person_search',
+      text:'Which client is this for?',
+      choices:[{label:'Brandon Lee',sub:'4 invoices · last Oct 30'},{label:'Brandon Ortiz',sub:'1 estimate · Sep 18'},{label:'New client “Brandon’”',icon:'person_add'}],
+      error:{...OFF,body:'Nothing was saved. Pick again when you’re back.'},doneText:'Got it — Brandon Lee.'}},
+  {id:'C3',title:'Replace an unfinished template',tier:'P1',pids:['P-03'],states:['idle','pending'],
+    notes:['Title stays unfinishedTitle(saved) (exact string unverified). Shown here as an example.','Pending exists because Start new soft-deletes the draft row (discardTemplateRow).'],
+    changes:['Adds the figure card (client · items · total).','“Start new” is now styled destructive (red text), still not filled.'],
+    spec:{icon:'edit_note',title:'You have an unfinished invoice',sub:'Starting a new estimate discards it.',
+      figure:{label:'Brandon · Car Wash',meta:'Unfinished invoice',amount:'$200.00'},
+      actions:[{label:'Keep editing',kind:'gold',safe:true},{label:'Start new',kind:'danger',go:true,busyLabel:'Discarding…'}],
+      error:{...OFF,body:'Your unfinished invoice is still here.'},retryLabel:'Try again',doneToast:'Started a new estimate.',ctxA:'Morning! Snap a receipt, or tap + to start an invoice or estimate.',ctxU:'+ New estimate'}},
+  {id:'C4',title:'Convert an estimate to an invoice',tier:'P1',pids:['P-14'],states:['idle','pending','error',{state:'idle',mode:'laptop',label:'LAPTOP ≥1280 · CENTERED MODAL 440'}],
+    notes:['New data: the next invoice number from the server (preview). If it changes before commit, the done toast shows the real one.','Idempotency key convert-{id} and convertingRef unchanged.'],
+    changes:['P-14 had no confirm. New sheet: “Convert to an invoice?” and the button “Convert to INV-0008 · $1,200.00”.','Error “Couldn’t convert this estimate. Please try again.” → “You’re offline. Nothing was converted, and INV-0008 wasn’t used.”'],
+    spec:{icon:'swap_horiz',eyebrow:'SIGNED ESTIMATE',title:'Convert to an invoice?',sub:'This makes a real invoice you can send to Brandon.',
+      figure:{label:'Q-0003 · Brandon',meta:'Signed Oct 30 · Deck stain',amount:'$1,200.00'},
+      rows:[{k:'New invoice',to:'INV-0008'},{k:'Amount',to:'$1,200.00'},{k:'Q-0003',to:'Stays signed. Link unchanged.'}],
+      actions:[{label:'Convert to INV-0008 · $1,200.00',kind:'gold',go:true,busyLabel:'Converting…'},{label:'Cancel',kind:'text',safe:true}],
+      error:{...OFF,body:'Nothing was converted, and INV-0008 wasn’t used.'},retryLabel:'Try again',doneToast:'INV-0008 created from Q-0003.',ctxA:'Q-0003 · Signed by Brandon',ctxU:'Convert to Invoice'}},
+  {id:'C5',title:'Revise a sent invoice',tier:'P1',pids:['P-15'],states:['idle','pending','error'],
+    notes:['Lightest sheet in the kit: a draft is made, nothing is sent. Explanation line is verbatim.','Estimate variant sub: “Makes a new estimate you can edit. This one and its link stay as they are.”'],
+    changes:['New confirm step (today Revise acts immediately). Title “Revise INV-0007?”, button “Make an editable copy”.','New error: “Couldn’t open a copy. INV-0007 is unchanged.”'],
+    spec:{icon:'edit',title:'Revise INV-0007?',sub:'Opens an editable copy as a new invoice. The original stays as it was.',
+      figure:{label:'INV-0007 · Brandon',meta:'Sent · locked',amount:'$200.00'},
+      rows:[{k:'New copy',to:'Draft · gets a new number when saved'}],
+      actions:[{label:'Make an editable copy',kind:'gold',go:true,busyLabel:'Opening…'},{label:'Cancel',kind:'text',safe:true}],
+      error:{icon:'error',title:'Couldn’t open a copy',body:'INV-0007 is unchanged. Try again in a moment.'},retryLabel:'Try again',doneToast:'Editing a copy of INV-0007.',ctxA:'This invoice was sent, so it’s locked.',ctxU:'Revise'}}
+];
+class Component extends DCLogic{renderVals(){return{groups:GROUPS};}}
+</script>
+</body>
+</html>

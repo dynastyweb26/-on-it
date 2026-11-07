@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0" rel="stylesheet">
+<style>
+@keyframes oiIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes oiFade{from{opacity:0}to{opacity:1}}
+@keyframes oiShimmer{0%{transform:translateX(-100%)}40%,100%{transform:translateX(100%)}}
+@keyframes oiDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes oiSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){[data-m]{animation-name:oiFade !important;animation-iteration-count:1 !important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" data-component="UnpaidAnswer" style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;width:100%;font-family:Inter,system-ui,sans-serif;color:#1e1a15;-webkit-font-smoothing:antialiased;">
+
+  <sc-if value="{{ isTyping }}" hint-placeholder-val="{{ false }}">
+    <div data-m="" role="status" aria-label="On It is looking up your invoices" style="display:flex;align-items:center;gap:5px;height:46px;padding:0 18px;box-sizing:border-box;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;animation:oiIn 200ms cubic-bezier(.2,.8,.2,1) both;">
+      <span data-m="" style="width:7px;height:7px;border-radius:50%;background:#5f574b;animation:oiDot 1100ms ease-in-out 0ms infinite;"></span>
+      <span data-m="" style="width:7px;height:7px;border-radius:50%;background:#5f574b;animation:oiDot 1100ms ease-in-out 150ms infinite;"></span>
+      <span data-m="" style="width:7px;height:7px;border-radius:50%;background:#5f574b;animation:oiDot 1100ms ease-in-out 300ms infinite;"></span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasMessage }}" hint-placeholder-val="{{ true }}">
+    <div data-m="" style="max-width:85%;padding:12px 16px;box-sizing:border-box;background:#f0e8db;border:1px solid #e3d8c5;border-radius:20px;font-size:16px;line-height:1.4;text-wrap:pretty;animation:oiIn 200ms cubic-bezier(.2,.8,.2,1) both;">{{ message }}</div>
+  </sc-if>
+
+  <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+    <div data-m="" role="alert" style="max-width:88%;padding:14px 16px;box-sizing:border-box;background:#faf3e7;border:1px solid #eedfb5;border-radius:20px;display:flex;flex-direction:column;gap:12px;animation:oiIn 200ms cubic-bezier(.2,.8,.2,1) both;">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:36px;height:36px;border-radius:11px;background:#f2e5b9;display:flex;align-items:center;justify-content:center;flex:none;"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">{{ errIcon }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <div style="font-size:16px;font-weight:600;">{{ errTitle }}</div>
+          <div style="font-size:14px;line-height:1.45;color:#5f574b;text-wrap:pretty;">{{ errBody }}</div>
+        </div>
+      </div>
+      <button onClick="{{ retry }}" disabled="{{ retrying }}" aria-busy="{{ retrying }}" style="height:44px;border-radius:22px;border:none;background:{{ retryBg }};font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:#1e1a15;cursor:{{ retryCursor }};display:flex;align-items:center;justify-content:center;gap:8px;transition:background 200ms cubic-bezier(.2,.8,.2,1), transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.97)">
+        <sc-if value="{{ retrying }}" hint-placeholder-val="{{ false }}"><span data-m="" style="width:16px;height:16px;border-radius:50%;border:2px solid #8f8676;border-top-color:transparent;box-sizing:border-box;animation:oiSpin 800ms linear infinite;"></span></sc-if>
+        <span>{{ retryLabel }}</span>
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSkeleton }}" hint-placeholder-val="{{ false }}">
+    <div data-m="" aria-hidden="true" style="position:relative;overflow:hidden;width:100%;max-width:{{ cardMax }};box-sizing:border-box;background:#faf3e7;border:1px solid #eedfb5;border-radius:24px;padding:18px 14px 14px;display:flex;flex-direction:column;gap:12px;animation:oiIn 220ms cubic-bezier(.2,.8,.2,1) both;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding:0 4px;">
+        <div style="width:132px;height:12px;border-radius:6px;background:#eedfb5;"></div>
+        <div style="width:180px;height:24px;border-radius:8px;background:#eedfb5;"></div>
+      </div>
+      <div style="background:#ffffff;border:1px solid #ebe2d2;border-radius:16px;overflow:hidden;">
+        <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:12px;height:66px;padding:0 14px;border-bottom:{{ s.border }};">
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px;"><div style="width:{{ s.w }};height:14px;border-radius:7px;background:#efe7da;"></div><div style="width:120px;height:10px;border-radius:5px;background:#f0e8db;"></div></div>
+            <div style="width:64px;height:14px;border-radius:7px;background:#efe7da;"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div data-m="" style="position:absolute;inset:0;background:linear-gradient(100deg, rgba(255,255,255,0) 25%, rgba(212,175,55,.16) 50%, rgba(255,255,255,0) 75%);animation:oiShimmer 1500ms cubic-bezier(.65,0,.35,1) infinite;pointer-events:none;"></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ true }}">
+    <div data-m="" style="width:100%;max-width:{{ cardMax }};box-sizing:border-box;background:#faf3e7;border:1px solid #eedfb5;border-radius:24px;padding:16px 12px 12px;animation:oiIn 240ms cubic-bezier(.2,.8,.2,1) 60ms both;">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 6px;">
+        <span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;color:#735c00;">request_quote</span>
+        <span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:13px;letter-spacing:1.6px;color:#735c00;">UNPAID INVOICES</span>
+      </div>
+      <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.4px;margin:6px 6px 14px;">{{ totalBalanceText }}</div>
+      <div role="list" style="background:#ffffff;border:1px solid #ebe2d2;border-radius:16px;overflow:hidden;">
+        <sc-for list="{{ rowVals }}" as="r" hint-placeholder-count="3">
+          <div role="listitem" style="display:flex;align-items:stretch;border-bottom:{{ r.border }};">
+            <button onClick="{{ r.open }}" aria-label="{{ r.aria }}" style="flex:1;min-width:0;min-height:66px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:none;background:transparent;text-align:left;font-family:inherit;color:inherit;cursor:pointer;transition:background 120ms cubic-bezier(.2,.8,.2,1);" style-active="background:#faf3e7">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;">
+                <div style="font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.client }}</div>
+                <div style="font-size:13px;color:#5f574b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.meta }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;">
+                <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:16px;">{{ r.balanceText }}</div>
+                <sc-if value="{{ r.overdue }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#3a352d;background:#faf3e7;border-radius:999px;padding:3px 9px;"><span style="width:7px;height:7px;border-radius:50%;background:#c8412e;"></span>Overdue</span></sc-if>
+              </div>
+            </button>
+            <div data-slot="row-action" style="flex:none;width:{{ slotW }};display:flex;align-items:center;justify-content:center;padding-right:{{ slotPad }};">
+              <sc-if value="{{ showSlot }}" hint-placeholder-val="{{ false }}"><div style="width:56px;height:44px;border-radius:22px;border:1.5px dashed #e3d8c5;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;letter-spacing:.5px;color:#8f8676;">ACTION</div></sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ hasMore }}" hint-placeholder-val="{{ false }}">
+        <div style="min-height:44px;display:flex;align-items:center;justify-content:center;padding-top:6px;font-size:14px;font-weight:500;color:#5f574b;">and {{ moreCount }} more</div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showThumbs }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-top:-4px;">
+      <div style="display:flex;align-items:center;gap:2px;margin-left:-6px;">
+        <button onClick="{{ tapUp }}" aria-pressed="{{ upOn }}" aria-label="Good answer" style="width:44px;height:44px;border-radius:22px;border:none;background:{{ upBg }};color:{{ upColor }};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 160ms cubic-bezier(.2,.8,.2,1), color 160ms cubic-bezier(.2,.8,.2,1), transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.9)"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;font-variation-settings:'FILL' {{ upFill }};">thumb_up</span></button>
+        <button onClick="{{ tapDown }}" aria-pressed="{{ downOn }}" aria-expanded="{{ chipsOpen }}" aria-label="Bad answer" style="width:44px;height:44px;border-radius:22px;border:none;background:{{ downBg }};color:{{ downColor }};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 160ms cubic-bezier(.2,.8,.2,1), color 160ms cubic-bezier(.2,.8,.2,1), transform 120ms cubic-bezier(.2,.8,.2,1);" style-active="transform:scale(.9)"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:19px;font-variation-settings:'FILL' {{ downFill }};">thumb_down</span></button>
+        <sc-if value="{{ showReasonTag }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ reopen }}" aria-label="Change reason" style="height:44px;padding:0 10px;border:none;background:transparent;font-family:Inter,sans-serif;font-size:13px;font-weight:500;color:#5f574b;cursor:pointer;display:flex;align-items:center;gap:4px;">{{ reason }}<span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">expand_more</span></button>
+        </sc-if>
+      </div>
+      <sc-if value="{{ chipsOpen }}" hint-placeholder-val="{{ false }}">
+        <div ref="{{ chipsRef }}" data-m="" style="display:flex;flex-direction:column;gap:8px;padding-bottom:4px;animation:oiIn 200ms cubic-bezier(.2,.8,.2,1) both;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-size:14px;color:#5f574b;">What was off? Optional.</span>
+            <button onClick="{{ dismiss }}" aria-label="Close reasons" style="width:44px;height:44px;margin-right:-6px;border-radius:22px;border:none;background:transparent;color:#5f574b;display:flex;align-items:center;justify-content:center;cursor:pointer;" style-active="background:#f0e8db"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:20px;">close</span></button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+              <button onClick="{{ c.pick }}" aria-pressed="{{ c.on }}" style="height:44px;padding:0 16px;border-radius:22px;border:1px solid {{ c.bd }};background:{{ c.bg }};font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#1e1a15;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 140ms cubic-bezier(.2,.8,.2,1), border-color 140ms cubic-bezier(.2,.8,.2,1);">
+                <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Outlined';line-height:1;font-size:16px;">check</span></sc-if>{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:640},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;idle&quot;,&quot;typing&quot;,&quot;skeleton&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;idle&quot;,&quot;tsType&quot;:&quot;'idle'|'typing'|'skeleton'|'empty'|'error'&quot;},&quot;message&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;3 invoices are still open. 2 are past due.&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;totalCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;},&quot;totalBalanceText&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;3 open · $80.00&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;rows&quot;:{&quot;editor&quot;:null,&quot;default&quot;:[],&quot;tsType&quot;:&quot;{number:string,client:string,balanceText:string,dueDate:string,status:'sent'|'overdue'}[]&quot;},&quot;errorKind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;signedOut&quot;,&quot;offline&quot;,&quot;server&quot;],&quot;default&quot;:&quot;offline&quot;,&quot;tsType&quot;:&quot;'signedOut'|'offline'|'server'&quot;},&quot;wide&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;showActionSlot&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;initialFeedback&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;up&quot;,&quot;down&quot;],&quot;default&quot;:null,&quot;tsType&quot;:&quot;'up'|'down'|null&quot;},&quot;initialChipsOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;initialReason&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;string|null&quot;},&quot;onOpen&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(row)=&gt;void&quot;},&quot;onRetry&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;()=&gt;void&quot;},&quot;onFeedback&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(vote:'up'|'down'|null, reason:string|null)=&gt;void&quot;}}">
+const REASONS=['Wrong answer','Missing info','Confusing','Other'];
+const ERR={
+  signedOut:{icon:'lock',title:"You're signed out",body:"Sign in again and I'll pull up who still owes you.",label:'Sign in and retry'},
+  offline:{icon:'cloud_off',title:"You're offline",body:"I couldn't reach your invoices. Check your connection, then retry.",label:'Retry'},
+  server:{icon:'error',title:'Something broke on our end',body:'Your invoices are safe. Give it a moment, then retry.',label:'Retry'}
+};
+class Component extends DCLogic{
+  rootRef=React.createRef();chipsRef=React.createRef();
+  constructor(p){super(p);this.state={feedback:p.initialFeedback||null,chipsOpen:!!p.initialChipsOpen,reason:p.initialReason||null,retrying:false};this.busy=false;}
+  componentDidMount(){requestAnimationFrame(()=>this.revealAnswer());}
+  componentDidUpdate(pp,ps){
+    if(!ps.chipsOpen&&this.state.chipsOpen)requestAnimationFrame(()=>this.reveal(this.chipsRef.current));
+    if(pp.state!==this.props.state)requestAnimationFrame(()=>this.revealAnswer());
+  }
+  componentWillUnmount(){clearTimeout(this.rt);}
+  scroller(){const r=this.rootRef.current;return r&&r.closest('[data-thread]');}
+  // New answer: show its top; if it fits, show all of it.
+  revealAnswer(){
+    const sc=this.scroller(),el=this.rootRef.current;if(!sc||!el)return;
+    const s=sc.getBoundingClientRect(),e=el.getBoundingClientRect(),k=s.height/sc.clientHeight||1;
+    const top=(e.top-s.top)/k,h=e.height/k;
+    sc.scrollTop+= h>sc.clientHeight-24 ? top-12 : (top+h)-(sc.clientHeight-16);
+  }
+  // Anything revealed below the fold scrolls the minimum amount into view.
+  reveal(el){
+    const sc=this.scroller();if(!sc||!el)return;
+    const s=sc.getBoundingClientRect(),e=el.getBoundingClientRect(),k=s.height/sc.clientHeight||1;
+    const over=(e.bottom-s.bottom)/k+16;
+    if(over>0)sc.scrollBy({top:over,behavior:'smooth'});
+  }
+  renderVals(){
+    const p=this.props,s=this.state,st=p.state||'idle';
+    const rows=p.rows||[],total=p.totalCount??rows.length,last=rows.length-1;
+    const err=ERR[p.errorKind||'offline'];
+    const answered=st==='idle'||st==='empty';
+    const up=s.feedback==='up',down=s.feedback==='down';
+    const slot=!!p.showActionSlot;
+    return{
+      rootRef:this.rootRef,chipsRef:this.chipsRef,
+      isTyping:st==='typing'||st==='skeleton',
+      hasMessage:answered,message:p.message,
+      isError:st==='error',errIcon:err.icon,errTitle:err.title,errBody:err.body,
+      retrying:s.retrying,retryLabel:s.retrying?'Retrying…':err.label,
+      retryBg:s.retrying?'#efe7da':'#d4af37',retryCursor:s.retrying?'default':'pointer',
+      retry:()=>{if(this.busy)return;this.busy=true;this.setState({retrying:true});p.onRetry&&p.onRetry();
+        this.rt=setTimeout(()=>{this.busy=false;this.setState({retrying:false});},1800);},
+      isSkeleton:st==='skeleton',
+      skelRows:[{w:'60%'},{w:'44%'},{w:'52%'}].map((r,i)=>({...r,border:i<2?'1px solid #f1e9db':'none'})),
+      cardMax:p.wide?'640px':'100%',
+      hasCard:st==='idle'&&rows.length>0,
+      totalBalanceText:p.totalBalanceText,
+      rowVals:rows.map((r,i)=>{const od=r.status==='overdue';return{...r,overdue:od,
+        meta:`${r.number} · Due ${r.dueDate}`,border:i<last?'1px solid #f1e9db':'none',
+        aria:`${r.client}, ${r.number}, ${r.balanceText}${od?', overdue':''}. Open invoice`,
+        open:()=>p.onOpen?p.onOpen(r):null};}),
+      showSlot:slot,slotW:slot?'64px':'0px',slotPad:slot?'8px':'0px',
+      hasMore:total>rows.length,moreCount:total-rows.length,
+      showThumbs:answered,
+      upOn:up,downOn:down,chipsOpen:s.chipsOpen,
+      upBg:up?'#f2e5b9':'transparent',upColor:up?'#1e1a15':'#8f8676',upFill:up?1:0,
+      downBg:down?'#f2e5b9':'transparent',downColor:down?'#1e1a15':'#8f8676',downFill:down?1:0,
+      tapUp:()=>{const v=up?null:'up';this.setState({feedback:v,chipsOpen:false,reason:null});p.onFeedback&&p.onFeedback(v,null);},
+      tapDown:()=>{if(down){this.setState({feedback:null,chipsOpen:false,reason:null});p.onFeedback&&p.onFeedback(null,null);}
+        else{this.setState({feedback:'down',chipsOpen:true,reason:null});p.onFeedback&&p.onFeedback('down',null);}},
+      dismiss:()=>this.setState({chipsOpen:false}),
+      reopen:()=>this.setState({chipsOpen:true}),
+      showReasonTag:down&&!s.chipsOpen&&!!s.reason,reason:s.reason,
+      chips:REASONS.map(l=>{const on=s.reason===l;return{label:l,on,bg:on?'#f2e5b9':'#ffffff',bd:on?'#d4af37':'#e3d8c5',
+        pick:()=>{const v=on?null:l;this.setState({reason:v});p.onFeedback&&p.onFeedback('down',v);}};})
+    };
+  }
+}
+</script>
+</body>
+</html>
