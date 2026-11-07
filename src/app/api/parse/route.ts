@@ -12,6 +12,7 @@ import { isGenericClientName, resolveClientName } from '@/lib/client-name';
 import { normalizeClientEmail } from '@/lib/client-contact';
 import { missingContactAck } from '@/lib/contact-ack';
 import { guardReplyFigures } from '@/lib/reply-guard';
+import { groundNewLineItems, rejectedNote, type GroundItem } from '@/lib/line-grounding';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -201,6 +202,9 @@ export async function POST(req: NextRequest) {
     // read the amounts", the items were wiped, and repeating the job looped.
     let hasInvalidLineItem = false;
     let pricelessItem: string | null = null; // first item still needing a price
+    // Lines the model appended that the user never supported (lib/line-grounding);
+    // the app says so after the money sentence, so a dropped line is never silent.
+    let groundingNote = '';
     if (Array.isArray(result.line_items)) {
       type NormItem = { description: string; qty: number; unit_price: number | null; unit?: LineUnit; detail?: string };
       const normalizedItems: NormItem[] = [];
@@ -255,7 +259,25 @@ export async function POST(req: NextRequest) {
           ? 'How much did you charge? Just the number is fine, like 150.'
           : AMOUNTS_UNREADABLE;
       } else {
-        result.line_items = normalizedItems as ExtractResult['line_items'];
+        let finalItems = normalizedItems;
+        if (result.intent === 'invoice' || result.intent === 'quote') {
+          // Only the user's own turns count as a source; the model's prior
+          // replies are where an invented line first shows up.
+          const userTexts = rawHistory.slice(-12).filter((m) => m.role === 'user').map((m) => m.content);
+          const draftLinesForGround: GroundItem[] = (Array.isArray(draftLines) ? draftLines : []).map((d) => {
+            const o = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+            const price = o.unit_price == null ? null : Number(o.unit_price);
+            return { description: String(o.description ?? ''), qty: Number(o.qty ?? 1), unit_price: Number.isFinite(price) ? price : null };
+          });
+          const grounded = groundNewLineItems(normalizedItems, draftLinesForGround, userTexts);
+          if (grounded.rejected.length) {
+            finalItems = grounded.items;
+            groundingNote = rejectedNote(grounded.rejected);
+            pricelessItem = finalItems.find((i) => i.unit_price == null)?.description ?? null;
+            if (finalItems.length === 0) result.ready = false;
+          }
+        }
+        result.line_items = finalItems as ExtractResult['line_items'];
         if (pricelessItem) {
           result.ready = false;
           result.missing = Array.from(new Set([...(Array.isArray(result.missing) ? result.missing : []), 'price']));
@@ -458,6 +480,8 @@ export async function POST(req: NextRequest) {
         result.reply = stripped || moneySentence;
       }
     }
+
+    if (groundingNote) result.reply = `${(result.reply ?? '').trim()} ${groundingNote}`.trim();
 
     // Contact echo: the reply names every captured contact field, and only
     // those. The prompt asks for it; this guarantees it when the model drops
