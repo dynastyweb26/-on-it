@@ -27,6 +27,9 @@ export function replyFor(input: {
   if (!input.toolCalled) return NO_LOOKUP_REPLY;
   // The tool ran but returned nothing usable: say so, never let prose fill in.
   if (!input.summary) return FALLBACK;
+  // Nothing outstanding: the server sentence is the whole answer. Model prose
+  // here only restated it ("You're all caught up. No unpaid invoices...").
+  if (input.summary.totalCount === 0) return input.summary.sentence;
   const prose = withoutMoney(input.modelText);
   return prose ? `${input.summary.sentence} ${prose}` : input.summary.sentence;
 }
