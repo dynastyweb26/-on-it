@@ -772,6 +772,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     const prev = {
       deposit_type: inv.deposit_type,
       deposit_value: inv.deposit_value,
+      deposit_amount: inv.deposit_amount,
       subtotal: inv.subtotal,
       tax_amount: inv.tax_amount,
       total: inv.total,
@@ -780,6 +781,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       ...inv,
       deposit_type,
       deposit_value,
+      deposit_amount: totals.depositAmount > 0 ? totals.depositAmount : null,
       subtotal: totals.subtotal,
       tax_amount: totals.taxAmount,
       total: totals.total,
@@ -788,6 +790,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       .update({
         deposit_type,
         deposit_value,
+        deposit_amount: totals.depositAmount > 0 ? totals.depositAmount : null,
         subtotal: totals.subtotal,
         tax_amount: totals.taxAmount,
         total: totals.total,

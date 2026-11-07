@@ -244,3 +244,13 @@ test('deposit falls back to type + value, clamps, and is null when none', () => 
     assert.equal(out.deposit, null);
   }
 });
+
+test('a stale stored deposit_amount never wins over the current type + value', () => {
+  const out = toPublicEstimate(
+    input({
+      invoice: invoice({ deposit_type: 'percentage', deposit_value: 50, deposit_amount: '10' }),
+    }),
+  );
+  if (!('business' in out)) throw new Error('expected a payload');
+  assert.deepEqual(out.deposit, { amount: 150, balance: 150, percent: 50 });
+});

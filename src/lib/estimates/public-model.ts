@@ -89,17 +89,22 @@ export function toEstimateLineItem(li: StoredLineItem): EstimateLineItem {
   };
 }
 
-/** The deposit the owner set, from the stored figures. Prefers the stored
- *  deposit_amount (the same authoritative figure /pay shows); falls back to
- *  type + value against the total. Clamped to [0, total]; null when none. */
-export function toEstimateDeposit(invoice: PublicModelInvoice): EstimateDeposit | null {
+/** The deposit the owner set. Derived from deposit_type + deposit_value against
+ *  the stored total, because a writer that edits type/value without refreshing
+ *  deposit_amount would otherwise leave a stale figure; the stored
+ *  deposit_amount is only the fallback when there is no usable value. Clamped to
+ *  [0, total]; null when none. */
+export function toEstimateDeposit(
+  invoice: Pick<PublicModelInvoice, 'total' | 'deposit_type' | 'deposit_value' | 'deposit_amount'>,
+): EstimateDeposit | null {
   const type = invoice.deposit_type;
   if (type !== 'percentage' && type !== 'fixed') return null;
   const total = num(invoice.total);
   if (total <= 0) return null;
   const value = num(invoice.deposit_value);
-  let amount = num(invoice.deposit_amount);
-  if (amount <= 0) amount = type === 'percentage' ? (total * value) / 100 : value;
+  let amount = 0;
+  if (value > 0) amount = type === 'percentage' ? (total * value) / 100 : value;
+  else amount = num(invoice.deposit_amount);
   amount = Math.round(Math.min(Math.max(amount, 0), total) * 100) / 100;
   if (amount <= 0) return null;
   return {
