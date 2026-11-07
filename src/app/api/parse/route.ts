@@ -13,6 +13,7 @@ import { normalizeClientEmail } from '@/lib/client-contact';
 import { missingContactAck } from '@/lib/contact-ack';
 import { guardReplyFigures } from '@/lib/reply-guard';
 import { groundNewLineItems, rejectedNote, type GroundItem } from '@/lib/line-grounding';
+import { resolveTargetTotal, type TargetItem } from '@/lib/target-total';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -285,6 +286,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Target total (lib/target-total): "make sure the total is 7500". The model
+    // may not chase a number by changing prices, so on such a turn any qty/price
+    // change to an existing line the user did not state is reverted, and the app
+    // asks which line to change. The answer is applied here, in code, and the
+    // reply says exactly what changed. The reply is written here, so it is also
+    // exempt from the figure guard: every number in it was computed above.
+    let targetReply: string | null = null;
+    const targetIntent = result.intent_explicit === false && (draft as Record<string, unknown> | null)?.intent
+      ? (draft as Record<string, unknown>).intent
+      : result.intent;
+    if (!hasInvalidLineItem && Array.isArray(result.line_items) && (targetIntent === 'invoice' || targetIntent === 'quote')) {
+      const rawDraftLines = (draft as Record<string, unknown> | null)?.line_items;
+      const draftTargetItems = (Array.isArray(rawDraftLines) ? rawDraftLines : []).map((d) => {
+        const o = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+        const price = o.unit_price == null ? null : Number(o.unit_price);
+        return {
+          ...o,
+          description: String(o.description ?? ''),
+          qty: Number(o.qty ?? 1),
+          unit_price: price != null && Number.isFinite(price) ? price : null,
+        } as TargetItem & Record<string, unknown>;
+      });
+      const lastUserMsg = [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
+      const lastAssistantMsg = [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+      const draftTax = Number((draft as Record<string, unknown> | null)?.tax_rate ?? 0);
+      const resolved = resolveTargetTotal({
+        message: lastUserMsg,
+        lastAssistant: lastAssistantMsg,
+        draftItems: draftTargetItems,
+        modelItems: result.line_items as unknown as (TargetItem & Record<string, unknown>)[],
+        taxRate: Number.isFinite(Number(result.tax_rate ?? draftTax)) ? Number(result.tax_rate ?? draftTax) : 0,
+      });
+      if (resolved) {
+        result.line_items = resolved.items as unknown as ExtractResult['line_items'];
+        targetReply = resolved.reply;
+      }
+    }
+
     // Client name guard (invoice/quote). The prompt forbids placeholders, but
     // the model has still returned the literal word "client" when no name was
     // given. Enforce it in code: an empty or generic name is missing. A real
@@ -481,6 +520,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (targetReply && result.client_name) result.reply = targetReply;
     if (groundingNote) result.reply = `${(result.reply ?? '').trim()} ${groundingNote}`.trim();
 
     // Contact echo: the reply names every captured contact field, and only
