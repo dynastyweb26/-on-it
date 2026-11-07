@@ -11,6 +11,7 @@ import { applyPasteItems, applyPasteReplies, pasteContext } from '@/lib/pasted-n
 import { isGenericClientName, resolveClientName } from '@/lib/client-name';
 import { normalizeClientEmail } from '@/lib/client-contact';
 import { missingContactAck } from '@/lib/contact-ack';
+import { guardReplyFigures } from '@/lib/reply-guard';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -426,7 +427,19 @@ export async function POST(req: NextRequest) {
 
       // Split on a terminator followed by whitespace (so the decimal point in
       // "$1,500.00" never splits a number), drop any sentence with a "$" amount.
-      const stripped = (result.reply ?? '')
+      // First the reply guard (lib/reply-guard): any sentence stating a figure of
+      // 100+ the app does not hold is dropped, so the model cannot claim an
+      // outcome ("total is now 7500") the computed total contradicts.
+      const guarded = guardReplyFigures(result.reply ?? '', {
+        items: result.line_items,
+        total: totals.total,
+        subtotal: totals.subtotal,
+        taxAmount: totals.taxAmount,
+        depositAmount: totals.depositAmount,
+        taxRate: result.tax_rate,
+        contact: [result.client_phone, result.client_email, result.client_address],
+      });
+      const stripped = guarded
         .split(/(?<=[.!?])\s+/)
         .filter((s) => !/\$\s?\d/.test(s))
         .join(' ')
