@@ -4,10 +4,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { scanRepo } from './copy-repo';
 import { overBaseline, type Baseline } from './copy-scan';
 
-const root = new URL('../../../', import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows pathname is "/C:/...", which
+// doubled the drive letter when joined onto a path.
+const root = fileURLToPath(new URL('../../../', import.meta.url));
 
 test('no new user-facing "quote" copy beyond tests/copy-baseline.json', () => {
   const baseline = JSON.parse(readFileSync(`${root}tests/copy-baseline.json`, 'utf8')) as Baseline;
