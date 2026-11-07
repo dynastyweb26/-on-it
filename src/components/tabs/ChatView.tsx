@@ -24,6 +24,7 @@ import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templ
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { clearFailures, upsertFailure } from '@/lib/chat/failures';
 import { chatKey, historyKey, storageNamespace, dropLegacyChatStorage, adoptGuestChat } from '@/lib/chat-storage';
 import { getPushSubscription, subscribeToPush, pushAvailability } from '@/lib/push';
 import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskForFeedback } from '@/lib/feedback';
@@ -545,6 +546,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // retry that fails again shakes again (a success replaces the bubble).
   const restoredMsgIdsRef = useRef<Set<string>>(new Set());
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const retryingRef = useRef(false);
   const [retryShake, setRetryShake] = useState<Record<string, number>>({});
   // Failure haptic (MOTION-SPEC §7 / motion inventory "Failed action"): one
   // warning buzz per live failure, and again when a retry fails. Restored
@@ -1686,7 +1688,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // carries the link, Copy link and Share. So no confirmation bubble, no sent
     // chip, no tips; a failed-send bubble being retried is simply removed.
     const isEstimate = !!draft && docKind(draft) === 'quote';
-    const base = summary ? [...messages, summary] : messages;
+    // A stale failed-send bubble from an earlier tap is dropped once a send lands
+    // (the one being retried is replaced in place below).
+    const live = clearFailures(messages, 'finalize', retryId);
+    const base = summary ? [...live, summary] : live;
     const archived = isEstimate
       ? (retryId ? base.filter((m) => m.id !== retryId) : base)
       : emitResult(base, doneMsg, retryId);
@@ -2102,12 +2107,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
               .maybeSingle();
             if (!existing?.id) {
               console.error('invoice insert conflict but no matching row', insErr);
-              if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
+              if (!retryId && mode !== 'prepare') setMessages((m) => upsertFailure(m, aMsg(
                 navigator.onLine
                   ? "Couldn't save that invoice just now. Your draft is safe."
                   : "You're offline — the invoice didn't send. Your draft is safe.",
                 { failed: { op: 'finalize' } },
-              )]);
+              )));
               return;
             }
             newId = existing.id as string;
@@ -2126,12 +2131,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
             await supabase.from('invoices').update(draftCols).eq('id', newId);
           } else {
             console.error('invoice insert failed', insErr);
-            if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
+            if (!retryId && mode !== 'prepare') setMessages((m) => upsertFailure(m, aMsg(
               navigator.onLine
                 ? "Couldn't save that invoice just now. Your draft is safe."
                 : "You're offline — the invoice didn't send. Your draft is safe.",
               { failed: { op: 'finalize' } },
-            )]);
+            )));
             return; // outer finally clears phase; draft + ready untouched
           }
         } else {
@@ -2204,12 +2209,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
         });
         if (updErr) {
           console.error('invoice update failed', updErr);
-          if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
+          if (!retryId && mode !== 'prepare') setMessages((m) => upsertFailure(m, aMsg(
             navigator.onLine
               ? "Couldn't save your changes just now. Your draft is safe."
               : "You're offline — your changes didn't save. Your draft is safe.",
             { failed: { op: 'finalize' } },
-          )]);
+          )));
           return;
         }
       }
@@ -2348,12 +2353,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // the draft is genuinely safe and no duplicate is created. A repeat
       // failure of a retry leaves the existing failed bubble and its button.
       // A background prepare fails silently (press 2 falls back to link share).
-      if (!retryId && mode !== 'prepare') setMessages((m) => [...m, aMsg(
+      if (!retryId && mode !== 'prepare') setMessages((m) => upsertFailure(m, aMsg(
         navigator.onLine
           ? "Couldn't finish that one. Your draft is safe."
           : "You're offline — the invoice didn't send. Your draft is safe.",
         { failed: { op: 'finalize' } },
-      )]);
+      )));
     }
     } finally {
       if (mode === 'prepare') {
@@ -2394,12 +2399,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // NotAllowedError is the expected iOS outcome of a build-at-tap send: the
       // file is ready, the next tap shares it instantly. Say that calmly; only
       // a real failure gets the error bubble with Retry.
-      if (!retryId) setMessages((m) => [...m, r.name === 'NotAllowedError'
+      if (!retryId) setMessages((m) => upsertFailure(m, r.name === 'NotAllowedError'
         ? aMsg(`Your ${docNoun(docKind(draft)).toLowerCase()} is ready. Tap Share ${docNoun(docKind(draft)).toLowerCase()} to send it.`)
         : aMsg(
           `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
           { failed: { op: 'finalize' } },
-        )]);
+        )));
       return;
     }
     setShareWaiting(null);
@@ -2415,10 +2420,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
       if (sendRes) {
         console.error('invoice send failed', sendRes.status, await sendRes.text().catch(() => ''));
       }
-      if (!retryId) setMessages((m) => [...m, aMsg(
+      if (!retryId) setMessages((m) => upsertFailure(m, aMsg(
         "Your file was shared, but I couldn't mark it as sent. Tap send to try again.",
         { failed: { op: 'finalize' } },
-      )]);
+      )));
       return;
     }
     finalizeSentRef.current = true;
@@ -2522,7 +2527,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const out = await requestEstimateSend(id, asked && asked >= todayYmd ? asked : null);
     if (!out.ok) {
-      if (!retryId) setMessages((m) => [...m, aMsg(out.message, { failed: { op: 'finalize' } })]);
+      if (!retryId) setMessages((m) => upsertFailure(m, aMsg(out.message, { failed: { op: 'finalize' } })));
       return;
     }
     const token = typeof out.estimate.public_token === 'string' ? out.estimate.public_token : null;
@@ -2545,11 +2550,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // server-side 23505 read-back guarantees no duplicate invoice on a retry.
   function retry(msg: Msg) {
     if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
+    // Synchronous guard: state lags a render, so a rage-tap would re-run the op.
+    if (retryingRef.current) return;
+    retryingRef.current = true;
     setRetryingId(msg.id);
     const run: Promise<unknown> = msg.failed.op === 'send'
       ? send(msg.failed.text, 'typed', msg.id)
       : finalize(false, msg.id);
     void run.finally(() => {
+      retryingRef.current = false;
       setRetryingId(null);
       setRetryShake((s) => ({ ...s, [msg.id]: (s[msg.id] ?? 0) + 1 }));
     });

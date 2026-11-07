@@ -27,6 +27,17 @@ test('tool result with no usable prose: just the server sentence', () => {
   assert.equal(replyFor({ modelText: 'It is $5 in all.', summary, toolCalled: true }), summary.sentence);
 });
 
+test('nothing outstanding: one sentence, model prose never appended', () => {
+  const empty = {
+    sentence: 'Nothing is outstanding: every invoice you have sent is paid.',
+    totalCount: 0,
+  } as UnpaidSummary;
+  assert.equal(
+    replyFor({ modelText: "You're all caught up. No unpaid invoices right now.", summary: empty, toolCalled: true }),
+    empty.sentence,
+  );
+});
+
 test('withoutMoney keeps sentences with no dollar amount', () => {
   assert.equal(withoutMoney('Two are late. They owe $40 total. Ask them?'), 'Two are late. Ask them?');
 });

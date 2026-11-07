@@ -15,6 +15,7 @@ import { INVOICES_SORT_KEY, readListSort, sortWithinGroups, writeListSort, type 
 import { localDay } from '@/lib/tax-summary';
 import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
+import { openSummary } from '@/lib/open-summary';
 import { tagFor } from '@/lib/doc-tags';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
@@ -241,14 +242,11 @@ export default function Invoices({ active = true, selectedId = null }: { active?
     signed: rows.filter((r) => matches(r, 'signed')).length,
   };
 
-  // Open's total is the Books "Still owed" invariant: balance due over
-  // sent/overdue rows only. Drafts count toward N but never toward $X.
-  const openOwed = sorted.reduce(
-    (s, r) => s + (r.kind === 'invoice' && (r.status === 'sent' || r.status === 'overdue') ? balanceDue(r) : 0),
-    0,
-  );
+  // Open: sent/overdue invoices only (the Books "Still owed" invariant); drafts
+  // are named apart, never counted as open money (lib/open-summary).
   const n = sorted.length;
-  const summary = filter === 'open' ? `${n} open · ${money(openOwed)}`
+  const summary = filter === 'open'
+    ? openSummary(sorted.map((r) => ({ status: r.status, owed: r.kind === 'invoice' ? balanceDue(r) : 0 })), money)
     : filter === 'paid' ? `${n} paid · ${money(sorted.reduce((s, r) => s + Number(r.total), 0))}`
     : `${n} ${n === 1 ? 'estimate' : 'estimates'}`;
 
