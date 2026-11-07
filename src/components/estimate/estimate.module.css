@@ -228,6 +228,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+.depositBlock {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #d9c9a8;
+  display: grid;
+  gap: 6px;
+}
+
+.depositRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #6b6256;
+  font-variant-numeric: tabular-nums;
+}
+
+.depositRow strong {
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
 /* ── Section headers ───────────────────────────────────────────────────── */
 .sectionHead {
   display: flex;

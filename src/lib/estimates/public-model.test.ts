@@ -214,3 +214,33 @@ test('terms ride the payload trimmed; none or blank is null so no heading render
   const none = toPublicEstimate(input());
   assert.ok(none.state !== 'unavailable' && none.terms === null);
 });
+
+test('a percentage deposit reaches the public payload', () => {
+  const out = toPublicEstimate(
+    input({
+      invoice: invoice({
+        subtotal: '421.95',
+        total: '421.95',
+        deposit_type: 'percentage',
+        deposit_value: 60,
+        deposit_amount: '253.17',
+      }),
+    }),
+  );
+  if (!('business' in out)) throw new Error('expected a payload');
+  assert.deepEqual(out.deposit, { amount: 253.17, balance: 168.78, percent: 60 });
+});
+
+test('deposit falls back to type + value, clamps, and is null when none', () => {
+  const fixed = toPublicEstimate(
+    input({ invoice: invoice({ deposit_type: 'fixed', deposit_value: 500 }) }),
+  );
+  if (!('business' in fixed)) throw new Error('expected a payload');
+  assert.deepEqual(fixed.deposit, { amount: 300, balance: 0, percent: null });
+
+  for (const over of [{ deposit_type: 'none' }, { deposit_type: null }, {}]) {
+    const out = toPublicEstimate(input({ invoice: invoice(over) }));
+    if (!('business' in out)) throw new Error('expected a payload');
+    assert.equal(out.deposit, null);
+  }
+});

@@ -147,6 +147,10 @@ export function totalSubline(payload: PublicEstimate): string {
   return payload.taxAmount > 0 ? `${items} · includes ${money(payload.taxAmount)} tax` : items;
 }
 
+export function depositLabel(deposit: { percent: number | null }): string {
+  return deposit.percent != null ? `${deposit.percent}% deposit required` : 'Deposit required';
+}
+
 // ── Contact row ────────────────────────────────────────────────────────────
 
 export function telHref(phone: string): string {

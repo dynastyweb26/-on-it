@@ -20,6 +20,7 @@ import StickyBar from './StickyBar';
 import SuccessSheet from './SuccessSheet';
 import { Footer, UnavailableNotice } from './Notice';
 import {
+  depositLabel,
   estimateNumber,
   estimateTheme,
   initials,
@@ -206,6 +207,19 @@ export default function EstimateView({
           <div className={s.totalLabel}>ESTIMATE TOTAL</div>
           <div className={s.total}>{money(payload.total)}</div>
           <div className={s.subline}>{totalSubline(payload)}</div>
+
+          {payload.deposit && (
+            <div className={s.depositBlock}>
+              <div className={s.depositRow}>
+                <span>{depositLabel(payload.deposit)}</span>
+                <strong>{money(payload.deposit.amount)}</strong>
+              </div>
+              <div className={s.depositRow}>
+                <span>Balance after deposit</span>
+                <span>{money(payload.deposit.balance)}</span>
+              </div>
+            </div>
+          )}
         </section>
 
         <ItemsCard payload={payload} />

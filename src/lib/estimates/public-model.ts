@@ -8,6 +8,7 @@
 import { CONSENT_V1, CONSENT_VERSION } from './consent';
 import { estimateState, daysRemaining } from './state';
 import type {
+  EstimateDeposit,
   EstimateLineItem,
   PublicAttachment,
   PublicEstimate,
@@ -32,6 +33,9 @@ export type PublicModelInvoice = {
   tax_rate: number | string | null;
   tax_amount: number | string | null;
   total: number | string | null;
+  deposit_type?: string | null;
+  deposit_value?: number | string | null;
+  deposit_amount?: number | string | null;
   notes: string | null;
 };
 
@@ -85,6 +89,26 @@ export function toEstimateLineItem(li: StoredLineItem): EstimateLineItem {
   };
 }
 
+/** The deposit the owner set, from the stored figures. Prefers the stored
+ *  deposit_amount (the same authoritative figure /pay shows); falls back to
+ *  type + value against the total. Clamped to [0, total]; null when none. */
+export function toEstimateDeposit(invoice: PublicModelInvoice): EstimateDeposit | null {
+  const type = invoice.deposit_type;
+  if (type !== 'percentage' && type !== 'fixed') return null;
+  const total = num(invoice.total);
+  if (total <= 0) return null;
+  const value = num(invoice.deposit_value);
+  let amount = num(invoice.deposit_amount);
+  if (amount <= 0) amount = type === 'percentage' ? (total * value) / 100 : value;
+  amount = Math.round(Math.min(Math.max(amount, 0), total) * 100) / 100;
+  if (amount <= 0) return null;
+  return {
+    amount,
+    balance: Math.round((total - amount) * 100) / 100,
+    percent: type === 'percentage' && value > 0 ? value : null,
+  };
+}
+
 export function toPublicEstimate(input: PublicModelInput): PublicEstimateResult {
   const { invoice, profile, attachments, signature, converted, contentHash, now } = input;
   const facts = {
@@ -133,6 +157,7 @@ export function toPublicEstimate(input: PublicModelInput): PublicEstimateResult 
     taxRate: num(invoice.tax_rate),
     taxAmount: num(invoice.tax_amount),
     total: num(invoice.total),
+    deposit: toEstimateDeposit(invoice),
     notes: text(invoice.notes),
     terms: text(input.terms),
     validUntil: invoice.valid_until,

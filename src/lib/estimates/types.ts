@@ -60,6 +60,14 @@ export type PublicBusiness = {
   timezone: string | null;
 };
 
+export type EstimateDeposit = {
+  amount: number;
+  /** total minus amount, by subtraction so pennies never drift. */
+  balance: number;
+  /** Set only for a percentage deposit, e.g. 60. */
+  percent: number | null;
+};
+
 export type PublicEstimate = {
   state: EstimateState;
   /** Raw stored number. Session 1's shared document helper renders E-####. */
@@ -74,6 +82,8 @@ export type PublicEstimate = {
   taxRate: number;
   taxAmount: number;
   total: number;
+  /** Deposit required on approval; null when the estimate has none. */
+  deposit: EstimateDeposit | null;
   notes: string | null;
   /** Terms and conditions frozen at first send; null when none. */
   terms: string | null;
