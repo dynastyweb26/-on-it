@@ -52,7 +52,7 @@ type SignatureRow = {
 const INVOICE_COLS =
   'id, user_id, kind, public_token, invoice_number, status, deleted_at, approved_at, ' +
   'revoked_at, valid_until, client_name, client_address, title, line_items, subtotal, tax_rate, ' +
-  'tax_amount, total, notes';
+  'tax_amount, total, deposit_type, deposit_value, deposit_amount, notes';
 
 const PROFILE_COLS =
   'id, business_name, logo_url, brand_colors, background_color, website_url, slogan, ' +

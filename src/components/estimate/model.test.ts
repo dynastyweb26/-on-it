@@ -17,6 +17,7 @@ import {
   jobLine,
   lineMeta,
   longDateTime,
+  depositLabel,
   onAccentColor,
   shortDate,
   signErrorCopy,
@@ -52,6 +53,7 @@ const payload = (over: Partial<PublicEstimate> = {}): PublicEstimate => ({
   taxRate: 8.25,
   taxAmount: 24.75,
   total: 324.75,
+  deposit: null,
   notes: null,
   terms: null,
   validUntil: '2026-11-18',
@@ -199,4 +201,9 @@ test('status chips', () => {
   assert.equal(statusChip('approved')?.icon, 'verified');
   assert.equal(statusChip('expired')?.icon, 'event_busy');
   assert.equal(statusChip('unavailable'), null);
+});
+
+test('depositLabel names the percentage when there is one', () => {
+  assert.equal(depositLabel({ percent: 60 }), '60% deposit required');
+  assert.equal(depositLabel({ percent: null }), 'Deposit required');
 });

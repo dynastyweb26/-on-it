@@ -7,6 +7,7 @@
 // sending/resending goes through the estimate routes (never the invoice send
 // route). Approval is written only by the client's signature (sign_estimate) —
 // there is no owner "mark as signed" control any more.
+import { convertedDepositColumns } from '@/lib/estimates/convert';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -311,6 +312,7 @@ export default function EstimateDetail({
         tax_rate: inv.tax_rate,
         tax_amount: inv.tax_amount,
         total: inv.total,
+        ...convertedDepositColumns(inv),
         notes: inv.notes,
         status: 'draft',
         converted_from: inv.id,
