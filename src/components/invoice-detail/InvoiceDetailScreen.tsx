@@ -3,6 +3,8 @@ import { classifyError, userMessage } from '@/lib/errors';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
+import PopSheet from '@/components/popups/PopSheet';
+import { paymentDeleteConsequence } from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
 import RollMoney from '@/components/RollMoney';
@@ -167,7 +169,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     // Success tick as the stamp lands (Android; iOS ignores vibrate).
     paidTickRef.current = setTimeout(() => { try { navigator.vibrate?.(12); } catch { /* unsupported */ } }, 450);
   }
-  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  // P-09: deleting a ledger row un-pays the invoice, so it asks in the shared
+  // sheet (the two inline chips could not name the figure or report a failure).
+  const [deletePaymentAsk, setDeletePaymentAsk] = useState<{ id: string; amount: number; label: string; meta: string } | null>(null);
+  const [discardAsk, setDiscardAsk] = useState<QueuedPayment | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
   // was built from, or file=null when that build failed. The nonce forces a
@@ -633,10 +638,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   async function handleDeletePayment(paymentId: string) {
     const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
     if (error) {
+      // A destructive write that fails must say so (P-93), not clear silently.
       console.error('delete payment failed', error);
-      return;
+      throw error;
     }
-    setDeletingPaymentId(null);
     const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     if (updated) setInv(updated);
     void fetchPayments();
@@ -1105,7 +1110,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
               // delete would silently match 0 rows — so they get no delete
               // control. Refunds are handled in the seller's Stripe Dashboard.
               const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
-              const confirming = deletingPaymentId === p.id;
               return (
                 <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
                   <div className="flex min-h-touch items-center gap-3 px-3 py-2">
@@ -1121,29 +1125,23 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
                     <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
                       {money(Number(p.amount))}
                     </span>
-                    {!locked && !confirming && (
+                    {!locked && (
                       <button
                         type="button"
                         className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-error opacity-80 transition active:scale-95"
                         title="Delete payment"
                         aria-label="Delete payment"
-                        onClick={() => setDeletingPaymentId(p.id)}
+                        onClick={() => setDeletePaymentAsk({
+                          id: p.id,
+                          amount: Number(p.amount),
+                          label: ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount)),
+                          meta: new Date(p.paid_at).toLocaleDateString(),
+                        })}
                       >
                         <Icon name="delete" size={16} />
                       </button>
                     )}
                   </div>
-                  {!locked && confirming && (
-                    <div className="flex items-center justify-end gap-2 px-3 pb-2">
-                      <span className="text-xs font-semibold text-error">Delete?</span>
-                      <button className="chip border-error px-3 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
-                        Yes
-                      </button>
-                      <button className="chip px-3 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
-                        No
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -1298,7 +1296,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           entries={queue}
           onRetry={() => void retryQueued()}
           onEdit={(e) => void editQueued(e)}
-          onDiscard={(e) => void discardQueued(e)}
+          onDiscard={(e) => setDiscardAsk(e)}
         />
       )}
       {showPayBar && (
@@ -1315,6 +1313,57 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         />
       )}
 
+      {deletePaymentAsk && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title="Delete payment?"
+          figure={{
+            label: deletePaymentAsk.label,
+            meta: `On ${formatDocNumber(inv.kind, inv.invoice_number)} · ${inv.client_name}`,
+            amount: money(deletePaymentAsk.amount),
+          }}
+          body={paymentDeleteConsequence(
+            formatDocNumber(inv.kind, inv.invoice_number),
+            totals.balanceRemaining,
+            deletePaymentAsk.amount,
+          )}
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            { label: `Delete payment · ${money(deletePaymentAsk.amount)}`, kind: 'danger', go: true, busyLabel: 'Deleting…' },
+          ]}
+          onDismiss={() => setDeletePaymentAsk(null)}
+          onConfirm={async () => { await handleDeletePayment(deletePaymentAsk.id); }}
+          onSuccess={() => setDeletePaymentAsk(null)}
+          consequence="Nothing was deleted. The payment is still recorded."
+        />
+      )}
+      {discardAsk && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title="Discard this payment?"
+          sub="It never reached the server, so it isn't recorded."
+          figure={{
+            label: discardAsk.method ? `${discardAsk.method} · Today` : 'Queued payment',
+            meta: `Needs attention · ${formatDocNumber(inv.kind, inv.invoice_number)}`,
+            amount: money(discardAsk.amount),
+          }}
+          body="The invoice stays unpaid until the server confirms it."
+          actions={[
+            { label: 'Keep it', kind: 'gold', safe: true },
+            { label: `Discard ${money(discardAsk.amount)}`, kind: 'danger', go: true, busyLabel: 'Discarding…' },
+          ]}
+          onDismiss={() => setDiscardAsk(null)}
+          onConfirm={async () => { await discardQueued(discardAsk); }}
+          onSuccess={() => setDiscardAsk(null)}
+          consequence="The payment is still queued."
+        />
+      )}
       <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

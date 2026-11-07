@@ -8,6 +8,8 @@
 // route). Approval is written only by the client's signature (sign_estimate) —
 // there is no owner "mark as signed" control any more.
 import { convertedDepositColumns } from '@/lib/estimates/convert';
+import PopSheet from '@/components/popups/PopSheet';
+import { convertActionLabel } from '@/lib/popups/destructive';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -289,6 +291,9 @@ export default function EstimateDetail({
     }
   }
 
+  // P-14: converting mints a numbered invoice, so it asks first (board C4).
+  const [convertAsk, setConvertAsk] = useState(false);
+
   async function convertToInvoice() {
     if (busy || convertingRef.current || state !== 'approved') return;
     convertingRef.current = true;
@@ -464,6 +469,28 @@ export default function EstimateDetail({
 
   return (
     <div className="px-4 py-4">
+      <PopSheet
+        open={convertAsk && state === 'approved'}
+        icon="autorenew"
+        eyebrow="Signed estimate"
+        title="Convert to an invoice?"
+        sub={`This makes a real invoice you can send to ${inv.client_name || 'your client'}.`}
+        figure={{
+          label: `${estimateNumber(inv.invoice_number)} · ${inv.client_name || 'No client'}`,
+          meta: 'Signed · ready to invoice',
+          amount: money(totals.total),
+        }}
+        actions={[
+          { label: convertActionLabel(money(totals.total)), kind: 'gold', go: true, busyLabel: 'Converting…' },
+          { label: 'Cancel', kind: 'text', safe: true },
+        ]}
+        onDismiss={() => setConvertAsk(false)}
+        onConfirm={async () => {
+          setConvertAsk(false);
+          await convertToInvoice();
+        }}
+        consequence="Nothing was converted."
+      />
       <div className="card relative mb-4 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
           <span className={`status-chip ${chip.className}`}>
@@ -549,7 +576,7 @@ export default function EstimateDetail({
               title={moment.title}
               body={moment.body}
               actions={[
-                { label: moment.cta, variant: 'primary', onClick: () => void convertToInvoice() },
+                { label: moment.cta, variant: 'primary', onClick: () => setConvertAsk(true) },
                 { label: 'Not now', variant: 'secondary', onClick: () => setMoment(null) },
                 { label: 'Go Pro', variant: 'link', onClick: () => { setMoment(null); setPaywallFor('estimate'); } },
               ]}
@@ -567,7 +594,7 @@ export default function EstimateDetail({
           )}
 
           {state === 'approved' && (
-            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void convertToInvoice()}>
+            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => setConvertAsk(true)}>
               <Icon name="autorenew" size={18} />
               {busy === 'convert' ? 'Converting…' : 'Convert to Invoice'}
             </button>

@@ -68,6 +68,8 @@ import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/Com
 import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
+import PopSheet from '@/components/popups/PopSheet';
+import { templateHasContent } from '@/lib/popups/destructive';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -3228,7 +3230,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setConvoId(genId());
     setAttachments([]);
   }
+  // P-16: × asks first when something was entered (the same rule the expense
+  // card already used). An untouched template closes instantly.
+  const [closeTemplateAsk, setCloseTemplateAsk] = useState(false);
   function closeTemplate() {
+    if (templateHasContent(templateDraft) || templateHasContent(templateRestored)) {
+      setCloseTemplateAsk(true);
+      return;
+    }
+    closeTemplateNow();
+  }
+  function closeTemplateNow() {
     discardTemplateRow();
     setDraft(null);
     setReady(false);
@@ -4476,6 +4488,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
         <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
+      )}
+      {closeTemplateAsk && template && (
+        <PopSheet
+          open
+          destructive
+          icon="edit"
+          iconTone="danger"
+          title={`Discard this ${template === 'quote' ? 'estimate' : 'invoice'}?`}
+          sub="It isn't sent. Discarding removes it from this phone."
+          actions={[
+            { label: 'Keep editing', kind: 'gold', safe: true },
+            { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
+          ]}
+          onDismiss={() => setCloseTemplateAsk(false)}
+          onConfirm={() => { setCloseTemplateAsk(false); closeTemplateNow(); }}
+          consequence="Your draft is still here."
+        />
       )}
       {replaceAsk && (
         <ReplaceTemplateSheet title={replaceAsk.title}
