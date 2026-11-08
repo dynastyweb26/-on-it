@@ -52,7 +52,14 @@ import {
   validityLabel,
   type OwnerEstimateState,
 } from '@/lib/estimates/owner-view';
-import { versionChipLabel } from '@/lib/estimates/versions';
+import {
+  previousVersionCaption,
+  previousVersionOf,
+  snapshotView,
+  versionChipLabel,
+  type VersionSnapshotRow,
+} from '@/lib/estimates/versions';
+import PreviousVersionPanel from '@/components/estimates/PreviousVersionPanel';
 import EstimateAttachments from '@/components/estimates/EstimateAttachments';
 
 export type EstimateDetailRow = {
@@ -150,6 +157,10 @@ export default function EstimateDetail({
   const footerRef = useRef<HTMLDivElement>(null);
   const [footerH, setFooterH] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  // 4B-lite previous version: the owner's session reads its own snapshots (RLS
+  // select-own). The client link never reads this table.
+  const [versions, setVersions] = useState<VersionSnapshotRow[]>([]);
+  const [prevOpen, setPrevOpen] = useState(false);
 
   const id = inv.id;
   const tz = profile.timezone ?? null;
@@ -193,6 +204,29 @@ export default function EstimateDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, inv.approved_at]);
 
+  // The snapshots behind the previous-version link. Only read once the row has
+  // actually been revised past v1, and never through the service role.
+  useEffect(() => {
+    let cancelled = false;
+    const current = Number(inv.estimate_version ?? 1);
+    if (!Number.isInteger(current) || current <= 1) {
+      setVersions([]);
+      setPrevOpen(false);
+      return;
+    }
+    supabase
+      .from('estimate_versions')
+      .select('version, content, total, created_at')
+      .eq('estimate_id', id)
+      .order('version', { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (!cancelled) setVersions((data ?? []) as VersionSnapshotRow[]);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, inv.estimate_version]);
+
   const state = ownerEstimateState(
     {
       status: inv.status,
@@ -210,6 +244,9 @@ export default function EstimateDetail({
   const taxRate = Number(inv.tax_rate ?? 0);
   const chip = CHIP[state];
   const versionBadge = versionChipLabel(inv.estimate_version);
+  // The newest snapshot below the current version. Missing snapshot: no link.
+  const previousVersion = previousVersionOf(versions, inv.estimate_version);
+  const previousCaption = previousVersionCaption(inv.estimate_version, previousVersion, tz);
   const validity = validityLabel(state, inv.valid_until);
   const title = (inv.title ?? '').trim();
   const heading = title || inv.client_name || 'Estimate';
@@ -747,6 +784,19 @@ export default function EstimateDetail({
           )}
         </div>
 
+        {previousCaption && previousVersion && (
+          <div className="mt-3 flex items-center justify-between gap-2 text-[13px]">
+            <span className="text-on-surface-variant">{previousCaption}</span>
+            <button
+              type="button"
+              onClick={() => setPrevOpen(true)}
+              className="flex min-h-[44px] items-center gap-1 font-semibold text-on-surface underline decoration-outline-variant/60 decoration-dotted underline-offset-4 transition active:opacity-60"
+            >
+              <Icon name="history" size={16} /> Previous version
+            </button>
+          </div>
+        )}
+
         {actionError && <div className="mt-2 text-xs font-semibold text-error">{actionError}</div>}
       </div>
 
@@ -861,6 +911,13 @@ export default function EstimateDetail({
             </button>
           </div>
         </>
+      )}
+
+      {prevOpen && previousVersion && (
+        <PreviousVersionPanel
+          view={snapshotView(previousVersion, inv.estimate_version, tz)}
+          onClose={() => setPrevOpen(false)}
+        />
       )}
 
       {toast && (
