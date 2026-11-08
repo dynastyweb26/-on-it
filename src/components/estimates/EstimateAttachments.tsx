@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
+import PopSheet from '@/components/popups/PopSheet';
+import { ATTACHMENT_REMOVE_CONSEQUENCE, attachmentRemoveLabel, attachmentRemoveTitle } from '@/lib/popups/destructive';
 import { IN_APP_CAMERA } from '@/lib/feature-flags';
 import { createClient } from '@/lib/supabase/client';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
@@ -97,6 +99,8 @@ export default function EstimateAttachments({
   const [captionError, setCaptionError] = useState<string | null>(null);
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // D8 (P-12): removing asks first; the safe answer keeps the file.
+  const [removeAsk, setRemoveAsk] = useState<OwnerAttachment | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   // The photo the full-screen viewer is showing (null = closed). Viewing is not
   // gated on `editable`: a locked estimate is read-only, not unreadable.
@@ -231,12 +235,10 @@ export default function EstimateAttachments({
       setItems((list) => list.filter((a) => a.id !== item.id));
       if (viewerId === item.id) setViewerId(null);
     } catch (e) {
-      if (!alive.current) return;
-      setError(
-        e instanceof Error && e.message === 'locked'
-          ? 'This estimate is locked.'
-          : "Couldn't remove that file. Please try again.",
-      );
+      // The sheet names the cause; a locked estimate keeps its own sentence.
+      throw e instanceof Error && e.message === 'locked'
+        ? new Error('This estimate is locked.')
+        : e;
     } finally {
       if (alive.current) setDeletingId(null);
     }
@@ -307,7 +309,7 @@ export default function EstimateAttachments({
               deleting={deletingId === item.id}
               captionDraft={captionDrafts[item.id] ?? ''}
               onOpen={() => setViewerId(item.id)}
-              onRemove={() => void removeItem(item)}
+              onRemove={() => setRemoveAsk(item)}
               onCaptionChange={(value) => changeCaption(item, value)}
             />
           ))}
@@ -549,6 +551,29 @@ export default function EstimateAttachments({
           index={viewerIndex}
           onClose={() => setViewerId(null)}
           onIndex={(next) => setViewerId(photos[next]?.id ?? null)}
+        />
+      )}
+
+      {/* D8 (P-12): the confirm is the shared sheet; Cancel keeps the file. */}
+      {removeAsk && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title={attachmentRemoveTitle(isImageAttachment(removeAsk))}
+          retryLabel="Try again"
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            {
+              label: attachmentRemoveLabel(isImageAttachment(removeAsk)),
+              kind: 'danger', go: true, busyLabel: 'Removing…',
+            },
+          ]}
+          onDismiss={() => setRemoveAsk(null)}
+          onConfirm={async () => { await removeItem(removeAsk); }}
+          onSuccess={() => setRemoveAsk(null)}
+          consequence={ATTACHMENT_REMOVE_CONSEQUENCE}
         />
       )}
     </div>

@@ -12,6 +12,8 @@
 import { Suspense, lazy, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
+import PopSheet from '@/components/popups/PopSheet';
+import { ATTACHMENT_REMOVE_CONSEQUENCE, attachmentRemoveLabel, attachmentRemoveTitle } from '@/lib/popups/destructive';
 import { ATTACHMENT_MAX, prepareAttachment } from '@/lib/attachment';
 import { IN_APP_CAMERA } from '@/lib/feature-flags';
 
@@ -56,11 +58,13 @@ export default function AttachmentsEditor({
   editable: boolean;
   onChange: (items: EditorAttachment[]) => void;
   /** Fired for a saved attachment so the host can delete its stored file. */
-  onRemove?: (item: EditorAttachment) => void;
+  onRemove?: (item: EditorAttachment) => void | Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // D8: removing asks first; the safe answer keeps the file where it is.
+  const [removeAsk, setRemoveAsk] = useState<EditorAttachment | null>(null);
   // Flag on only: the camera / library choice, and the camera sheet itself.
   // Mounted means open; the camera's unmount is what stops its stream.
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -97,10 +101,11 @@ export default function AttachmentsEditor({
     else if (failed) setError(failed);
   }
 
-  function remove(item: EditorAttachment) {
+  async function removeNow(item: EditorAttachment) {
     setError(null);
     onChange(items.filter((a) => a.id !== item.id));
-    onRemove?.(item);
+    // The host's delete is awaited so a rejection reaches the sheet.
+    await onRemove?.(item);
   }
 
   return (
@@ -118,11 +123,13 @@ export default function AttachmentsEditor({
               {editable && (
                 <button
                   type="button"
-                  onClick={() => remove(a)}
+                  onClick={() => setRemoveAsk(a)}
                   aria-label="Remove attachment"
-                  className="absolute right-0 top-0 grid h-6 w-6 place-items-center rounded-bl-lg bg-inverse-surface/80 text-inverse-on-surface transition active:scale-90"
+                  className="absolute right-0 top-0 flex h-11 w-11 items-start justify-end transition active:scale-90"
                 >
-                  <Icon name="close" size={16} />
+                  <span className="grid h-6 w-6 place-items-center rounded-bl-lg bg-inverse-surface/80 text-inverse-on-surface">
+                    <Icon name="close" size={16} />
+                  </span>
                 </button>
               )}
             </div>
@@ -244,6 +251,26 @@ export default function AttachmentsEditor({
             onPickFromLibrary={() => { setCameraOpen(false); inputRef.current?.click(); }}
           />
         </Suspense>
+      )}
+
+      {/* D8 (P-11): the confirm is the shared sheet; Cancel keeps the file. */}
+      {removeAsk && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title={attachmentRemoveTitle(true)}
+          retryLabel="Try again"
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            { label: attachmentRemoveLabel(true), kind: 'danger', go: true, busyLabel: 'Removing…' },
+          ]}
+          onDismiss={() => setRemoveAsk(null)}
+          onConfirm={async () => { await removeNow(removeAsk); }}
+          onSuccess={() => setRemoveAsk(null)}
+          consequence={ATTACHMENT_REMOVE_CONSEQUENCE}
+        />
       )}
     </div>
   );

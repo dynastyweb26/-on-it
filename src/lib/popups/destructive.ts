@@ -71,3 +71,17 @@ export function templateHasContent(draft: Draftish | null | undefined): boolean 
   const items = Array.isArray(draft.items) ? draft.items : Array.isArray(draft.line_items) ? draft.line_items : [];
   return named || items.length > 0 || Boolean(draft.extra?.trim());
 }
+
+// ── Board 1 · D8: removing a saved attachment ──
+/** D8's title, worded for what is actually on the tile. */
+export function attachmentRemoveTitle(isImage: boolean): string {
+  return isImage ? 'Remove this photo?' : 'Remove this file?';
+}
+
+/** D8's go label: the frame's photo variant, and the file variant for a PDF. */
+export function attachmentRemoveLabel(isImage: boolean): string {
+  return isImage ? 'Remove photo' : 'Remove file';
+}
+
+/** D8 — what did NOT happen; the cause sentence is appended by popupFailure(). */
+export const ATTACHMENT_REMOVE_CONSEQUENCE = 'Couldn’t remove that file.';
