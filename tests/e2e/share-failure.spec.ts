@@ -238,14 +238,26 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sheet).toBeHidden();
 
     const s1bText = page.getByText(`${number} is still a draft`, { exact: false }).first();
-    // S1b keeps both answers. After the failed attempt the go button is
-    // relabelled "Try again" (PopInline swaps in retryLabel while an error frame
-    // is showing), so "Mark as sent" is only its idle label.
+    // S1b renders its own two answers. Unlike the sheet, the card carries no
+    // error frame, so its go button keeps the idle label "Mark as sent" and the
+    // share sits under it as "Retry the share". (#153's "Still offline" wording
+    // is PopSheet's second-failure copy, not PopInline's.)
     await expect(s1bText).toBeVisible();
     await expect(page.getByText('Brandon has the PDF', { exact: false }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mark as sent' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry the share' })).toBeVisible();
     await shot('s1b-idle');
+
+    // S1b must be readable where it landed: the whole card, and every action on
+    // it, inside the viewport rather than behind the composer.
+    const s1bCard = page.locator('[role="alert"]').filter({ hasText: `${number} is still a draft` }).first();
+    await expect(s1bCard).toBeInViewport({ ratio: 1 });
+    const s1bActions = s1bCard.getByRole('button');
+    const s1bActionCount = await s1bActions.count();
+    expect(s1bActionCount, 'S1b keeps its answers').toBeGreaterThan(1);
+    for (let i = 0; i < s1bActionCount; i += 1) {
+      await expect(s1bActions.nth(i)).toBeInViewport({ ratio: 1 });
+    }
 
     // ── Call order: Retry the share reaches navigator.share inside the tap task.
     const before = (await shares(page)).length;

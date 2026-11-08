@@ -2,7 +2,7 @@
 // from the moment of failure, so nothing here needs a round trip.
 // Numbers arrive already formatted through formatDocNumber(); "estimate" never
 // "quote".
-import { formatDate } from '@/lib/dates';
+import { shortDate } from '@/lib/estimates/owner-view';
 import { money } from '@/lib/financials';
 
 export type UnsentShare = {
@@ -23,6 +23,8 @@ export type UnsentShareCopy = {
   eyebrow: string;
   title: string;
   sub: string;
+  /** The retry frame's wording: a second failure says when it ends. */
+  retryFailure: { title: string; body: string };
   truths: Array<{ ok: boolean; title: string; body: string }>;
   note: string;
   cardTitle: string;
@@ -38,7 +40,9 @@ export function unsentShareCopy(
   const who = (u.client ?? '').trim();
   const first = who ? who.split(/\s+/)[0] : 'Your client';
   const at = new Date(u.sharedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const due = u.dueDate ? formatDate(u.dueDate) : null;
+  // Board 6 reads "Due Nov 12", the same short month the estimate and payment
+  // screens use — never the 11/12/2026 that formatDate() prints on documents.
+  const due = u.dueDate ? shortDate(u.dueDate) : null;
   const canSee = due
     ? `They can see ${money(u.total)} due ${due}.`
     : `They can see ${money(u.total)}.`;
@@ -49,6 +53,11 @@ export function unsentShareCopy(
     sub: u.offline
       ? 'You went offline right after the share sheet closed.'
       : 'Something broke on our end right after the share.',
+    // Board 6: the retry frame is about the wait, not the cause again.
+    retryFailure: {
+      title: 'Still offline',
+      body: `${u.number} stays a draft until you’re back. ${first}’s PDF is unaffected.`,
+    },
     truths: [
       { ok: true, title: `${first} has the PDF`, body: `Shared ${at}. ${canSee}` },
       {

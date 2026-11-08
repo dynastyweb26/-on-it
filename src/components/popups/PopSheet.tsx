@@ -20,6 +20,7 @@ import {
   canDismiss, matchesTypedWord, resolveSheetActions, safeActionLabel, sheetRole,
   type SheetActionKind, type SheetActionSpec,
 } from '@/lib/popups/sheet';
+import type { PopupFailure } from '@/lib/popups/failure';
 
 export type PopSheetAction = SheetActionSpec & {
   /** Non-go, non-safe actions (e.g. "Start a new invoice"). */
@@ -46,6 +47,12 @@ export interface PopSheetProps {
   typed?: string;
   /** Static failure slot, when the caller already knows the cause. */
   error?: { title?: string; body: string; icon?: IconName };
+  /**
+   * Board copy for a failure on a RETRY. The first failure keeps the cause
+   * from errors.ts; a second one says the problem is still there. Return null
+   * to keep the cause sentence for that kind.
+   */
+  retryFailure?: (failure: PopupFailure) => { title: string; body: string } | null;
   retryLabel?: string;
   note?: string;
   actions: PopSheetAction[];
@@ -91,11 +98,14 @@ export default function PopSheet(props: PopSheetProps) {
 
 function SheetBody({
   icon, iconTone = 'gold', destructive, width = 'confirm', eyebrow, title, sub, figure, rows, truths, body,
-  typed, error, retryLabel, note, actions, onDismiss, onConfirm, consequence, onSuccess,
+  typed, error, retryFailure, retryLabel, note, actions, onDismiss, onConfirm, consequence, onSuccess,
 }: Omit<PopSheetProps, 'open'>) {
   const titleId = useId();
   const [typedValue, setTypedValue] = useState('');
   const { pending, pendingRef, failure, run } = usePopupPending();
+  // A failure that lands on a retry, rather than the attempt that surfaced the
+  // problem, gets the caller's second-failure wording.
+  const [retrying, setRetrying] = useState(false);
 
   const dismiss = () => {
     if (!canDismiss(pendingRef.current)) return;
@@ -114,14 +124,19 @@ function SheetBody({
 
   const typedOk = matchesTypedWord(typedValue, typed);
   const views = resolveSheetActions(actions, { pending, error: failure !== null, typedOk, retryLabel });
-  const shownError = failure ?? error;
+  const repeatCopy = retrying && failure && retryFailure ? retryFailure(failure) : null;
+  const shownError = failure
+    ? (repeatCopy ? { ...failure, ...repeatCopy } : failure)
+    : error;
   const safeLabel = safeActionLabel(actions);
   const tone = TONE[iconTone];
 
   async function confirm() {
     if (!onConfirm) return;
+    const repeat = failure !== null;
     const ok = await run(async () => { await onConfirm(typedValue); }, consequence);
     if (ok) (onSuccess ?? onDismiss)();
+    else setRetrying(repeat);
   }
 
   function press(action: PopSheetAction, index: number) {
@@ -135,7 +150,9 @@ function SheetBody({
       // Called synchronously from the tap: run() starts the task before its first
       // await, so a share sheet opened here keeps the tap's user activation (iOS).
       const task = action.onSelect;
-      void run(async () => { await task(); }, consequence);
+      const repeat = failure !== null;
+      void run(async () => { await task(); }, consequence)
+        .then((ok) => { if (!ok) setRetrying(repeat); });
       return;
     }
     action.onSelect?.();

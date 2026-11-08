@@ -20,7 +20,7 @@ test('S1 carries the number, the client, the figure and both truths', () => {
   assert.match(copy.eyebrow, /^INV-0007 · Brandon Lee · \$200\.00$/);
   assert.equal(copy.truths[0].ok, true);
   assert.equal(copy.truths[0].title, 'Brandon has the PDF');
-  assert.match(copy.truths[0].body, /^Shared 2:14 PM\. They can see \$200\.00 due 11\/12\/2026\.$/);
+  assert.match(copy.truths[0].body, /^Shared 2:14 PM\. They can see \$200\.00 due Nov 12\.$/);
   assert.equal(copy.truths[1].ok, false);
   assert.equal(copy.truths[1].title, 'INV-0007 is still a draft in On It');
   assert.match(copy.truths[1].body, /No pay link/);
@@ -31,6 +31,19 @@ test('the cause line names offline or our end, never the other', () => {
   assert.equal(
     unsentShareCopy({ ...base, offline: false }).sub,
     'Something broke on our end right after the share.',
+  );
+});
+
+test('a second failure gets the "still offline" wording', () => {
+  const copy = unsentShareCopy(base);
+  assert.equal(copy.retryFailure.title, 'Still offline');
+  assert.equal(
+    copy.retryFailure.body,
+    'INV-0007 stays a draft until you’re back. Brandon’s PDF is unaffected.',
+  );
+  assert.equal(
+    unsentShareCopy({ ...base, client: null }).retryFailure.body,
+    'INV-0007 stays a draft until you’re back. Your client’s PDF is unaffected.',
   );
 });
 
