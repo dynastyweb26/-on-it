@@ -89,7 +89,7 @@ import { clientQuestionPending, matchOrCreateClient, updateClientContact, type C
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
-import { COMMAND_GROUPS, COMMAND_LEAD, matchCommand } from '@/lib/chat-commands';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -4525,6 +4525,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
         <Fragment key={m.id}>{feedSplit.between[m.id]?.map((e) => renderEvent(e))}{
+          // Item 12: the empty state. Three starter chips and the hint sit under
+          // the greeting and go with the first message.
+          mi === 0 && messages.length === 1 && (
+            <div className="flex flex-col gap-2 pb-1 pt-1">
+              <div className="flex flex-wrap gap-2">
+                {STARTER_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => { if (!phase) void send(chip); }}
+                    className="rounded-full border border-outline-variant bg-surface-container px-3.5 py-2 text-[13.5px] font-semibold text-on-surface transition active:scale-95 disabled:opacity-40"
+                    disabled={phase !== null}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+              <p className="px-1 text-[12.5px] leading-snug text-on-surface-variant">{COMMAND_HINT}</p>
+            </div>
+          )}{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
             <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
