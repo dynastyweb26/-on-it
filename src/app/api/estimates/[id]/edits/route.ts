@@ -7,12 +7,16 @@
 // row to its owner, and guard_locked_estimate_edits / pin_invoice_server_columns
 // apply exactly as they do for any other client write. The route adds only the
 // batch shape, the explicit ownership/state checks and the totals recomputation.
+//
+// The accepted fields are the content a chat revise can change (see
+// lib/estimates/edits): title, line items, notes, tax, deposit, due date. Client
+// identity, the number, the public token, status, kind and finalize_key are
+// refused by the schema, so a revision cannot mint a new document.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { calculateInvoiceTotals, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { isUuid } from '@/lib/estimates/owner';
+import { EditsBody, buildEditsPatch, type EditableRow } from '@/lib/estimates/edits';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -20,17 +24,9 @@ export const runtime = 'nodejs';
 const refuse = (status: number, code: string) =>
   NextResponse.json({ error: code }, { status });
 
-const EditsBody = z.object({
-  title: z.string().max(120).nullable().optional(),
-  line_items: z.array(z.record(z.string(), z.unknown())).max(200).optional(),
-}).refine((v) => v.title !== undefined || v.line_items !== undefined, {
-  message: 'nothing to save',
-});
-
-type EditableRow = {
+type EditableEstimateRow = EditableRow & {
   id: string; user_id: string; kind: string | null; deleted_at: string | null;
-  approved_at: string | null; tax_rate: number | string | null;
-  deposit_type: string | null; deposit_value: number | string | null;
+  approved_at: string | null;
 };
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -47,14 +43,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const { data, error: readError } = await supabase
     .from('invoices')
-    .select('id, user_id, kind, deleted_at, approved_at, tax_rate, deposit_type, deposit_value')
+    .select('id, user_id, kind, deleted_at, approved_at, tax_rate, deposit_type, deposit_value, line_items')
     .eq('id', params.id)
     .maybeSingle();
   if (readError) {
     console.error('estimate edits: read failed', readError.code ?? readError.message);
     return refuse(500, 'save_failed');
   }
-  const row = data as EditableRow | null;
+  const row = data as EditableEstimateRow | null;
   // RLS already hides another owner's row; naming each condition keeps the
   // contract explicit if this ever moves off the session client.
   if (!row || row.user_id !== user.id || row.kind !== 'quote' || row.deleted_at) {
@@ -74,25 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if ((convertedRows ?? []).length > 0) return refuse(409, 'locked');
 
-  const patch: Record<string, unknown> = {};
-  if (body.data.title !== undefined) {
-    // An empty or whitespace-only heading clears it; the column stays NULL.
-    patch.title = (body.data.title ?? '').trim() || null;
-  }
-  if (body.data.line_items !== undefined) {
-    const items = body.data.line_items as unknown as FinancialLineItem[];
-    // The document's own tax rate and deposit settings, never the caller's.
-    const totals = calculateInvoiceTotals(
-      items,
-      Number(row.tax_rate ?? 0),
-      ((row.deposit_type as DepositType | null) ?? 'none'),
-      row.deposit_value == null ? undefined : Number(row.deposit_value),
-    );
-    patch.line_items = items;
-    patch.subtotal = totals.subtotal;
-    patch.tax_amount = totals.taxAmount;
-    patch.total = totals.total;
-  }
+  const patch = buildEditsPatch(row, body.data);
 
   const { data: updated, error } = await supabase
     .from('invoices')
