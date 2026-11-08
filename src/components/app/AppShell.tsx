@@ -17,6 +17,7 @@ import TabDeck from '@/components/tabs/TabDeck';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import BooksReviewDot from '@/components/bank/BooksReviewDot';
 import SwipeBack from '@/components/app/SwipeBack';
+import EventToastHost from '@/components/events/EventToastHost';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { goBackOr } from '@/lib/back-nav';
