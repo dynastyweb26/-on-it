@@ -10,7 +10,8 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
-import ChatEvents from '@/components/chat/ChatEvents';
+import EventCard from '@/components/chat/EventCard';
+import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
@@ -92,6 +93,7 @@ import {
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
+import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -115,7 +117,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+interface Msg {
+  /** When this message happened (epoch ms). Saved before this field existed
+   *  means no timestamp, and no timestamp means nothing can be placed around
+   *  it — an old thread reads exactly as it did. */
+  at?: number;
+  id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
   /** Suggestion chips under an answer (A1): each sends that text as a question. */
@@ -298,9 +305,9 @@ function draftFingerprint(d: Partial<ExtractResult> | null): string {
 // stamp the id in one spot; `extra` is the seam for per-message fields.
 const genMsgId = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const aMsg = (content: string, extra?: Partial<Omit<Msg, 'id' | 'role' | 'content'>>): Msg =>
-  ({ id: genMsgId(), role: 'assistant', content, ...extra });
+  ({ id: genMsgId(), at: Date.now(), role: 'assistant', content, ...extra });
 const uMsg = (content: string, source?: Msg['source']): Msg =>
-  ({ id: genMsgId(), role: 'user', content, source });
+  ({ id: genMsgId(), at: Date.now(), role: 'user', content, source });
 
 // Append a message, or — during a retry (retryId set) — replace the failed
 // message in place by id. A successful retry leaves no dead error behind, and a
@@ -4114,6 +4121,36 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // The invoice/quote card renders INSIDE the transcript, right after its
   // anchor message (cardAfterId), so later messages land below it. A missing
   // or stale anchor (older saved chats) falls back to the last message.
+  // Alive layer: one feed, drawn where each card happened. A card sits just
+  // before the first message that came after it; cards older than the oldest
+  // timestamped message (or newer than the last) fall to the end, which is how
+  // the thread read before messages carried `at`.
+  const feedEvents = useChatEventFeed();
+  const feedSplit = splitEventsByMessage(feedEvents, messages);
+  const openDocument = (id: string) => router.push(`/invoices/${id}`);
+  const runEventAction = (e: EventRow, action: EventAction) => {
+    if (!e.invoice_id) return;
+    // Convert opens the estimate, which owns the confirm, the paywall and the
+    // idempotency key — a card never mints an invoice on one tap. Send reminder
+    // lands on the invoice, where Request balance is the existing re-share.
+    openDocument(e.invoice_id + (action === 'convert' ? '?convert=1' : ''));
+  };
+  const renderEvent = (e: EventRow) => {
+    const action = eventAction(String(e.kind));
+    return (
+      <EventCard
+        key={e.id}
+        event={e}
+        money={money}
+        onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
+        action={action ? {
+          label: action === 'convert' ? 'Convert' : 'Send reminder',
+          onClick: () => runEventAction(e, action),
+        } : undefined}
+      />
+    );
+  };
+
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
@@ -4525,7 +4562,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           />
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
-        <Fragment key={m.id}>{
+        <Fragment key={m.id}>{feedSplit.between[m.id]?.map((e) => renderEvent(e))}{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
             <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
@@ -4870,9 +4907,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </Fragment>
         ))}
 
-        {/* Alive layer: what happened that the owner didn't do. Rendered from the
-            events table, never stored in StoredChat. */}
-        <ChatEvents className="w-full" />
+        {/* Alive layer: cards that belong after the last message. */}
+        {feedSplit.trailing.map((e) => renderEvent(e))}
 
         {pendingChange && (() => {
           // Change guard (Commit A): the parse would rewrite the linked invoice.
