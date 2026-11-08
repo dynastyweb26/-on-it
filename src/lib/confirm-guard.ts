@@ -19,16 +19,3 @@ export function templateHasWork(draft: TemplateWork | null | undefined): boolean
     (l) => (l?.name ?? '').trim() !== '' || Number(l?.unit_price ?? 0) > 0,
   );
 }
-
-/**
- * The banner after a share succeeded but POST /send failed: the client has the
- * file, the row is still a draft. `noun` is already the on-screen word
- * ("invoice" / "estimate").
- */
-export function unsentShareCopy(noun: string, client?: string | null): { title: string; body: string } {
-  const who = (client ?? '').trim() || 'Your client';
-  return {
-    title: `Your ${noun} went out, but it's still a draft`,
-    body: `${who} already has the ${noun} you shared. On It couldn't mark it as sent, so it is still a draft in your list.`,
-  };
-}

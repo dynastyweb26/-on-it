@@ -57,7 +57,14 @@ import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import ConfirmSheet from '@/components/ConfirmSheet';
-import { templateHasWork, unsentShareCopy } from '@/lib/confirm-guard';
+import PopSheet from '@/lib/popups/PopSheet';
+import PopInline from '@/lib/popups/PopInline';
+import PopToast from '@/lib/popups/PopToast';
+import { TapLock } from '@/lib/popups/action-guard';
+import { popupError, type PopupError } from '@/lib/popups/error-frame';
+import { unsentShareCopy, type UnsentShare } from '@/lib/popups/unsent-share';
+import { PERMISSION_BLOCKED_MESSAGE } from '@/lib/errors';
+import { templateHasWork } from '@/lib/confirm-guard';
 import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
@@ -2461,17 +2468,28 @@ export default function Chat({ active = true }: { active?: boolean }) {
         console.error('invoice send failed', sendRes.status, await sendRes.text().catch(() => ''));
       }
       // The client already has the PDF, so this is not a normal failure bubble:
-      // it stays on screen above the composer until the row is marked sent.
+      // S1 interrupts with both truths (it went out / it is still a draft).
       setUnsentShareError(null);
       setUnsentShare({
         id: pb.id,
-        noun: draft ? docNoun(docKind(draft)).toLowerCase() : 'invoice',
-        client: draft?.client_name ?? null,
+        kind: docKind(draft),
+        number: formatDocNumber(docKind(draft), pb.no),
+        client: draft.client_name ?? null,
+        total: previewTotals.total,
+        dueDate: draft.due_date ?? defaultDueDate(),
+        sharedAt: new Date().toISOString(),
+        offline: navigator.onLine === false,
+        file: pb.file,
+        token: pb.token,
       });
+      setUnsentShareOpen(true);
       return;
     }
     finalizeSentRef.current = true;
     persistProgress();
+    // A completed send retires any earlier S1/S1b state from this conversation.
+    setUnsentShare(null);
+    setUnsentShareOpen(false);
     const firstSend = await sendRes.json().then((j: { firstSend?: unknown }) => j?.firstSend === true).catch(() => false);
     // Archive in the Vault — best-effort; a storage hiccup must not undo the send.
     try {
@@ -3124,13 +3142,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
   // × on the template with unsent work asks before it throws that work away (P-16).
   const [closeAsk, setCloseAsk] = useState(false);
-  // Share succeeded, POST /send did not (P-66): the file is with the client, the
-  // row is still a draft. A banner above the composer, not a bubble that scrolls
-  // away — with the one action that fixes it.
-  const [unsentShare, setUnsentShare] = useState<{ id: string; noun: string; client: string | null } | null>(null);
-  const [unsentShareError, setUnsentShareError] = useState<string | null>(null);
-  const [markingSent, setMarkingSent] = useState(false);
-  const markingSentRef = useRef(false);
+  // Share succeeded, POST /send did not (P-66, frames S1 + S1b): the client has
+  // the PDF and the row is still a draft. The blocking sheet says both truths;
+  // Keep as draft leaves the S1b card pinned under the document.
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File; token: string }) | null>(null);
+  const [unsentShareOpen, setUnsentShareOpen] = useState(false);
+  const [unsentShareError, setUnsentShareError] = useState<PopupError | null>(null);
+  const [unsentShareBusy, setUnsentShareBusy] = useState(false);
+  // Synchronous: a dismiss or a repeat tap in the same frame sees this, not state.
+  const unsentLock = useRef(new TapLock()).current;
+  const [sentToast, setSentToast] = useState<string | null>(null);
   const [templateDup, setTemplateDup] = useState<string | null>(null);
   const templateInit = useRef(false);
   const templateUidRef = useRef<string | null>(null);
@@ -3243,24 +3264,62 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setConvoId(genId());
     setAttachments([]);
   }
-  // The one thing that did not happen: marking the shared document sent.
-  async function retryMarkSent() {
+  // The one thing that did not happen: marking the shared document sent. The
+  // POST only — no re-share — and a failure keeps the sheet up with the cause.
+  async function postMarkSharedSent(pending: UnsentShare & { file: File; token: string }) {
+    const res = await fetch(`/api/invoices/${pending.id}/send`, { method: 'POST' }).catch(() => null);
+    if (!res?.ok) {
+      setUnsentShareError(popupError(res ?? new TypeError('Failed to fetch'), {
+        notDone: `${pending.number} is still a draft.`,
+      }));
+      return;
+    }
+    setUnsentShare(null);
+    setUnsentShareOpen(false);
+    setSentToast(unsentShareCopy(pending).done);
+  }
+
+  async function markSharedSent() {
     const pending = unsentShare;
-    if (!pending || markingSentRef.current) return;
-    markingSentRef.current = true;
-    setMarkingSent(true);
+    if (!pending || !unsentLock.tryLock()) return;
+    setUnsentShareBusy(true);
     setUnsentShareError(null);
     try {
-      const res = await fetch(`/api/invoices/${pending.id}/send`, { method: 'POST' }).catch(() => null);
-      if (!res?.ok) {
-        setUnsentShareError("Still couldn't mark it as sent. Check your connection and try again.");
+      await postMarkSharedSent(pending);
+    } finally {
+      unsentLock.unlock();
+      setUnsentShareBusy(false);
+    }
+  }
+
+  // Retry the share: sharePdf is called synchronously from the tap (iOS keeps
+  // the activation), then the same POST marks it sent.
+  async function shareSharedAgain() {
+    const pending = unsentShare;
+    if (!pending || !unsentLock.tryLock()) return;
+    setUnsentShareError(null);
+    const payUrl = pending.kind === 'invoice' && pending.token
+      ? `${window.location.origin}/pay/${pending.token}`
+      : null;
+    const shared = sharePdf(pending.file, shareText(docNoun(pending.kind), pending.client ?? 'your client', payUrl));
+    try {
+      const r = await shared;
+      if (r.status === 'cancelled') return; // a normal choice; nothing is said
+      if (r.status === 'failed') {
+        setUnsentShareError({
+          kind: 'our_end',
+          icon: 'ios_share',
+          title: 'The share sheet didn’t open',
+          body: `${pending.number} is still a draft. ${PERMISSION_BLOCKED_MESSAGE}`,
+        });
         return;
       }
-      setUnsentShare(null);
-      setMessages((m) => [...m, aMsg(`All set — your ${pending.noun} for ${pending.client ?? 'your client'} is sent.`)]);
+      if (r.status === 'unsupported') downloadFile(pending.file);
+      setUnsentShareBusy(true);
+      await postMarkSharedSent(pending);
     } finally {
-      markingSentRef.current = false;
-      setMarkingSent(false);
+      unsentLock.unlock();
+      setUnsentShareBusy(false);
     }
   }
 
@@ -4364,6 +4423,25 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
+          {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
+            // S1b: Keep as draft leaves this pinned under the document until the
+            // row is marked sent.
+            <PopInline
+              kind="error"
+              icon="sync_problem"
+              title={unsentShareCopy(unsentShare).cardTitle}
+              text={unsentShareCopy(unsentShare).cardText}
+              alert={unsentShareError}
+              retryLabel="Try again"
+              pending={unsentShareBusy}
+              guard={unsentLock}
+              actions={[
+                { id: 'sent', label: 'Mark as sent', kind: 'gold', go: true, busyLabel: 'Marking sent…' },
+                { id: 'share', label: 'Retry the share', kind: 'outline' },
+              ]}
+              onAction={(id) => { if (id === 'sent') void markSharedSent(); else void shareSharedAgain(); }}
+            />
+          )}
           {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
             <>
               {invoiceUsage.text && <LedgerUsageMeter text={invoiceUsage.text} />}
@@ -4514,25 +4592,36 @@ export default function Chat({ active = true }: { active?: boolean }) {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
-      {unsentShare && (
-        <div role="alert" className="shrink-0 border-t border-error/40 bg-error-container px-3 py-2.5">
-          <p className="text-[14px] font-bold text-error-on-container">{unsentShareCopy(unsentShare.noun, unsentShare.client).title}</p>
-          <p className="mt-0.5 text-[13px] leading-[18px] text-error-on-container/90">{unsentShareCopy(unsentShare.noun, unsentShare.client).body}</p>
-          {unsentShareError && (
-            <p className="mt-1 text-[13px] font-semibold text-error-on-container">{unsentShareError}</p>
-          )}
-          <div className="mt-2 flex gap-2">
-            <button type="button" disabled={markingSent} onClick={() => void retryMarkSent()}
-              className="min-h-touch rounded-full bg-error px-4 py-2 text-[13px] font-bold text-white transition active:scale-[0.985] disabled:opacity-60">
-              {markingSent ? 'Marking as sent…' : 'Mark as sent'}
-            </button>
-            <button type="button" disabled={markingSent}
-              onClick={() => { setUnsentShare(null); setUnsentShareError(null); }}
-              className="min-h-touch rounded-full border border-error/30 px-4 py-2 text-[13px] font-semibold text-error disabled:opacity-60">
-              Dismiss
-            </button>
-          </div>
-        </div>
+      {sentToast && <PopToast text={sentToast} icon="check" onDismiss={() => setSentToast(null)} />}
+      {unsentShare && unsentShareOpen && (
+        // S1: the one status that interrupts. Scrim, ×, swipe and Escape are
+        // Keep as draft — nothing is written — and none of them fire while the
+        // POST or the share sheet is running.
+        <PopSheet
+          icon="sync_problem"
+          iconTone="danger"
+          eyebrow={unsentShareCopy(unsentShare).eyebrow}
+          title={unsentShareCopy(unsentShare).title}
+          sub={unsentShareCopy(unsentShare).sub}
+          truths={unsentShareCopy(unsentShare).truths}
+          note={unsentShareCopy(unsentShare).note}
+          pendingNote="Stays open until On It confirms"
+          error={unsentShareError}
+          retryLabel="Try again"
+          pending={unsentShareBusy}
+          guard={unsentLock}
+          actions={[
+            { id: 'sent', label: 'Mark as sent', kind: 'gold', role: 'go', busyLabel: 'Marking sent…' },
+            { id: 'share', label: 'Retry the share', kind: 'outline', icon: 'ios_share' },
+            { id: 'keep', label: 'Keep as draft', kind: 'text', role: 'safe' },
+          ]}
+          onAction={(id) => {
+            if (id === 'sent') void markSharedSent();
+            else if (id === 'share') void shareSharedAgain();
+            else setUnsentShareOpen(false);
+          }}
+          onDismiss={() => setUnsentShareOpen(false)}
+        />
       )}
       {closeAsk && (
         <ConfirmSheet
