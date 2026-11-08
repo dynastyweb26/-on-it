@@ -1244,3 +1244,9 @@ html[data-splash=""] .onit-splash {
   .bank-alert-pulse, .bank-alert-ring { animation: none; }
   .bank-alert-pulse { box-shadow: 0 0 0 2px #efc9c1; }
 }
+
+/* Popup kit (design/popups/boards): the undo toast's time bar. It drains over
+   the toast's lifetime (6 s, set inline) so the chance to undo is visible. */
+@keyframes oi-toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.pop-toast-bar { transform-origin: left center; animation: oi-toast-drain 6000ms linear forwards; }
+@media (prefers-reduced-motion: reduce) { .pop-toast-bar { animation: none; } }

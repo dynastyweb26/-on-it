@@ -97,6 +97,8 @@ export const ICON_NAMES = [
   'summarize',
   'sync',
   'sync_problem',
+  'thumb_down',
+  'thumb_up',
   'touch_app',
   'trending_down',
   'trending_flat',
