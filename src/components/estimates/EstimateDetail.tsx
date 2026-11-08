@@ -8,6 +8,9 @@
 // route). Approval is written only by the client's signature (sign_estimate) —
 // there is no owner "mark as signed" control any more.
 import { convertedDepositColumns } from '@/lib/estimates/convert';
+import PopSheet from '@/components/popups/PopSheet';
+import { convertActionLabel } from '@/lib/popups/destructive';
+import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -232,7 +235,7 @@ export default function EstimateDetail({
       await navigator.clipboard.writeText(publicUrl);
       showToast('Link copied');
     } catch {
-      setActionError('Clipboard is blocked. Long-press the link to copy it.');
+      showToast(CLIPBOARD_BLOCKED_TEXT);
     }
   }
 
@@ -245,7 +248,7 @@ export default function EstimateDetail({
       text: estimateShareText(profile.business_name),
     });
     if (result === 'copied') showToast('Link copied');
-    if (result === 'failed') setActionError('Clipboard is blocked. Long-press the link to copy it.');
+    if (result === 'failed') showToast(CLIPBOARD_BLOCKED_TEXT);
   }
 
   async function send() {
@@ -288,6 +291,9 @@ export default function EstimateDetail({
       setBusy(null);
     }
   }
+
+  // P-14: converting mints a numbered invoice, so it asks first (board C4).
+  const [convertAsk, setConvertAsk] = useState(false);
 
   async function convertToInvoice() {
     if (busy || convertingRef.current || state !== 'approved') return;
@@ -342,15 +348,13 @@ export default function EstimateDetail({
           }
         }
         console.error('convert estimate failed', error);
-        setActionError("Couldn't convert this estimate. Please try again.");
-        return;
+        throw error;
       }
       if (!created) return;
       const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
       if (!copy.ok) {
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
-        setActionError("Couldn't copy this estimate's attachments, so nothing was converted. Please try again.");
-        return;
+        throw new Error('attachment copy failed');
       }
       router.push(`/invoices/${created.id}`);
     } finally {
@@ -464,6 +468,27 @@ export default function EstimateDetail({
 
   return (
     <div className="px-4 py-4">
+      <PopSheet
+        open={convertAsk && state === 'approved'}
+        icon="autorenew"
+        eyebrow="Signed estimate"
+        title="Convert to an invoice?"
+        sub={`This makes a real invoice you can send to ${inv.client_name || 'your client'}.`}
+        figure={{
+          label: `${estimateNumber(inv.invoice_number)} · ${inv.client_name || 'No client'}`,
+          meta: 'Signed · ready to invoice',
+          amount: money(totals.total),
+        }}
+        actions={[
+          { label: convertActionLabel(money(totals.total)), kind: 'gold', go: true, busyLabel: 'Converting…' },
+          { label: 'Cancel', kind: 'text', safe: true },
+        ]}
+        onDismiss={() => setConvertAsk(false)}
+        // The sheet stays open while converting: a failure shows its cause here
+        // with a retry, instead of closing and leaving a faint line below.
+        onConfirm={async () => { await convertToInvoice(); }}
+        consequence="Nothing was converted."
+      />
       <div className="card relative mb-4 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
           <span className={`status-chip ${chip.className}`}>
@@ -549,7 +574,7 @@ export default function EstimateDetail({
               title={moment.title}
               body={moment.body}
               actions={[
-                { label: moment.cta, variant: 'primary', onClick: () => void convertToInvoice() },
+                { label: moment.cta, variant: 'primary', onClick: () => setConvertAsk(true) },
                 { label: 'Not now', variant: 'secondary', onClick: () => setMoment(null) },
                 { label: 'Go Pro', variant: 'link', onClick: () => { setMoment(null); setPaywallFor('estimate'); } },
               ]}
@@ -567,7 +592,7 @@ export default function EstimateDetail({
           )}
 
           {state === 'approved' && (
-            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void convertToInvoice()}>
+            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => setConvertAsk(true)}>
               <Icon name="autorenew" size={18} />
               {busy === 'convert' ? 'Converting…' : 'Convert to Invoice'}
             </button>

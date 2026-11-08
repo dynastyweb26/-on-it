@@ -68,6 +68,16 @@ import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/Com
 import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
+import PopSheet from '@/components/popups/PopSheet';
+import PopInline from '@/components/popups/PopInline';
+import { failedBubbleTitle, unsupportedReplyExtras, visibleChips } from '@/lib/popups/ai';
+import { SHARE_NOT_OPENED_TEXT, UNREADABLE_PRICES_TEXT, signInCard, type SignInKind } from '@/lib/popups/status';
+import { templateHasContent } from '@/lib/popups/destructive';
+import {
+  ALERTS_FAILED_TEXT, ALERTS_SETTINGS_HREF, MIC_STILL_BLOCKED, changeGuardCopy, changeGuardRows,
+  clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
+  unfinishedFigure, type MicBlocked,
+} from '@/lib/popups/decision';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -94,6 +104,8 @@ type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
+  /** Suggestion chips under an answer (A1): each sends that text as a question. */
+  chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
   skipHistory?: true;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
@@ -283,19 +295,11 @@ const NEAR_BOTTOM_PX = 120;
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
 const FEEDBACK_PROMPT_KEY = 'onit_feedback_prompt';
 
-/** What to tell the user when the mic could not be opened. A denied permission
- *  (NotAllowedError) gets a way back in, because the browser will not ask
- *  again; any other failure (no mic, busy) keeps the plain fallback. */
-function micBlockedMessage(err: unknown): string {
-  const name = (err as { name?: string } | null)?.name;
-  if (name !== 'NotAllowedError' && name !== 'SecurityError') {
-    return "Couldn't use the mic. You can type instead.";
-  }
-  const ios = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  return ios
-    ? 'Mic access is off. To use voice, turn on Microphone for On It in your iPhone Settings, or type instead.'
-    : 'Mic access is off. To use voice, allow the microphone for this site in your browser settings, or type instead.';
-}
+/** A denied mic permission gets the steps card (micBlockedCard), because the
+ *  browser will not ask again; any other failure (no mic, busy) keeps this
+ *  plain line. */
+const MIC_FALLBACK_TEXT = "Couldn't use the mic. You can type instead.";
+const isIosDevice = () => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 // localStorage flag: the payouts nudge was dismissed — never show again.
 const PAYOUTS_NUDGE_DISMISSED_KEY = 'onit_payouts_nudge_dismissed';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
@@ -527,12 +531,12 @@ function convoTitle(messages: Msg[], draft: Partial<ExtractResult> | null): stri
 
 // One in-flight flag for the whole turn. Set synchronously at the TOP of each
 // handler before any branching (so the controls disable together) and cleared in
-// that handler's single finally — except sign-in-redirect paths, which set
-// 'redirecting' and leave it set so controls stay disabled until the redirect
-// unmounts the screen. Each value titles the one visible processing indicator.
+// that handler's single finally. The guest wall is a card (signInAsk), not a
+// phase: nothing stays locked while it waits. Each value titles the one visible
+// processing indicator.
 // Replaces the old busy / finalizing / preparing / savingExpense states and both
 // guard refs. `recording` (mic open, awaiting speech) is separate and stays.
-type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving' | 'redirecting';
+type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving';
 
 export default function Chat({ active = true }: { active?: boolean }) {
   const supabase = createClient();
@@ -679,6 +683,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
   // or 'install' (iPhone Safari tab: Home Screen hint). See showRemindersCard.
   const [reminderPrompt, setReminderPrompt] = useState<{ client: string; onlinePay: boolean } | null>(null);
+  // P-52: the OS said no (or push is unavailable). The card says so and offers
+  // the one way back: the in-app payment-alerts switch.
+  const [alertsFailed, setAlertsFailed] = useState(false);
+  // Board L2/L3/S5: the guest or signed-out wall is a card. Sign-in is a tap.
+  const [signInAsk, setSignInAsk] = useState<{ kind: SignInKind; headline?: string | null } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
@@ -728,6 +737,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Inline mic problem (denied permission, no mic, no support) — shown above the
   // field, never as a chat bubble.
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  // P-47: a denied mic is a card with steps, not a sentence. `still` is set when
+  // Try again was tapped and the browser did not ask a second time.
+  const [micBlocked, setMicBlocked] = useState<{ card: MicBlocked; still: boolean } | null>(null);
+  const micRetryRef = useRef(false);
 
   // The bank popup holds off while the mic owns the screen (CHANGES.md · item
   // 10): the shell cannot see this state, so it is mirrored onto the body.
@@ -1159,7 +1172,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, feedbackPrompt, termsPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, alertsFailed, signInAsk, feedbackPrompt, termsPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -1177,8 +1190,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const trimmed = text.trim();
     // Single in-flight guard. `phase` is state and lags a render, so a sub-frame
     // double-tap can still slip one through (accepted). It fixes the reported
-    // repeat-tap bug because it is set before ANY branch and, on redirect paths,
-    // left set. Cleared in the one outer finally below (unless 'redirecting').
+    // repeat-tap bug because it is set before ANY branch. Cleared in the one
+    // outer finally below.
     if (!trimmed || phase || sendRef.current) return null;
     sendRef.current = true;
     setPhase('thinking');
@@ -1278,7 +1291,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Account talk stays out of the job history parse reads later.
         const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
         const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
-        return [...marked, aMsg(reply, { skipHistory: true })];
+        return [...marked, aMsg(reply, unsupportedReplyExtras())];
       });
       if (source === 'voice') {
         cancelSpeechRef.current?.();
@@ -1327,9 +1340,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, aMsg(data.reply)]);
-        setPhase('redirecting'); // leave set: keep controls disabled through the redirect
-        setTimeout(() => router.push('/login'), 1600);
+        // Board L2: a card with a Sign in button, not an auto-redirect. The draft
+        // and the controls stay as they were until the user chooses.
+        setSignInAsk({ kind: 'send', headline: data.reply });
         return null;
       }
       // Point 2: the parsed result.
@@ -1559,7 +1572,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
     } finally {
       sendRef.current = false;
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -1939,9 +1952,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
       }
-      setMessages((m) => [...m, aMsg("Let's save your work — sign in to send this invoice.")]);
-      setPhase('redirecting'); // leave set: keep the card disabled through the redirect
-      setTimeout(() => router.push('/login'), 1600);
+      setSignInAsk({ kind: 'send' });
       return;
     }
 
@@ -2412,7 +2423,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setPreparing(false);
       } else {
         finalizingRef.current = false;
-        setPhase((p) => (p === 'redirecting' ? p : null));
+        setPhase(null);
       }
     }
   }
@@ -2440,7 +2451,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       if (!retryId) setMessages((m) => upsertFailure(m, r.name === 'NotAllowedError'
         ? aMsg(`Your ${docNoun(docKind(draft)).toLowerCase()} is ready. Tap Share ${docNoun(docKind(draft)).toLowerCase()} to send it.`)
         : aMsg(
-          `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
+          SHARE_NOT_OPENED_TEXT,
           { failed: { op: 'finalize' } },
         )));
       return;
@@ -2688,14 +2699,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Only promise what push can actually do for this pro: the paid-online
     // notification needs a connected payment processor.
     const onlinePay = reminderPrompt.onlinePay;
-    setReminderPrompt(null);
     try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
+    // Board M3: the card stays up, locked, while the OS prompt is on top of it
+    // (PopInline holds the pending state). It closes when the OS answers.
     const ok = await subscribeToPush();
-    setMessages((m) => [...m, aMsg(ok
-      ? onlinePay
-        ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
-        : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`
-      : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
+    setReminderPrompt(null);
+    if (!ok) { setAlertsFailed(true); return; }
+    setMessages((m) => [...m, aMsg(onlinePay
+      ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+      : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`)]);
   }
 
   function dismissReminders() {
@@ -2734,7 +2746,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Own the phase for the whole pick→prepare→dedup→read flow in ONE outer
     // finally, so there is no gap where the controls re-enable mid-flow and no
     // path (incl. an unexpected throw in findDuplicate) can leave it stuck.
-    // readReceipt advances it to 'reading' and, on the guest 401, 'redirecting'.
+    // readReceipt advances it to 'reading'.
     setPhase('preparing');
     try {
       // Over the free expense cap? Show the wall now — before the shutter, the
@@ -2782,7 +2794,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // the moment they chose the photo.
       await readReceipt(prepared);
     } finally {
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -2821,8 +2833,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   // Called only from onPickReceipt, which owns the phase lifecycle (its finally
-  // clears it). We advance the phase to 'reading' for the vision call and, on the
-  // guest 401, to 'redirecting' so the caller leaves it set through the redirect.
+  // clears it). We advance the phase to 'reading' for the vision call; the guest
+  // 401 raises the sign-in card instead.
   async function readReceipt(prepared: PreparedReceipt) {
     setPhase('reading');
     try {
@@ -2838,10 +2850,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         return;
       }
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, aMsg(data.reply)]);
+        setSignInAsk({ kind: 'receipt', headline: data.reply });
         setReceipt(null);
-        setPhase('redirecting'); // leave set through the redirect (caller keeps it)
-        setTimeout(() => router.push('/login'), 1600);
         return;
       }
       if (!res.ok) {
@@ -2889,9 +2899,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setExpenseError('One sec — still loading your account. Give it a moment.');
         return;
       }
-      setMessages((m) => [...m, aMsg("Let's save your work — sign in to keep this expense.")]);
-      setPhase('redirecting'); // leave set: keep the save button disabled through the redirect
-      setTimeout(() => router.push('/login'), 1600);
+      setSignInAsk({ kind: 'expense' });
       return;
     }
 
@@ -2992,7 +3000,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         }, () => undefined);
       }
     } finally {
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -3037,8 +3045,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return;
     }
     setVoiceError(null);
+    // A fresh start hides the card; Try again keeps it up until the mic opens.
+    if (!micRetryRef.current) setMicBlocked(null);
     try {
       const stream = await getSessionStream(); // reused across takes — one prompt per session
+      micRetryRef.current = false;
+      setMicBlocked(null);
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
       recAbortRef.current = false;
@@ -3066,9 +3078,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
-          setMessages((m) => [...m, aMsg(data.message ?? "Create your free account to keep going.")]);
-          setPhase('redirecting'); // leave set through the redirect
-          setTimeout(() => router.push('/login'), 1600);
+          setSignInAsk({ kind: 'voice', headline: data.message });
           return;
         }
         // Clear before delegating to send(), which re-claims the turn (its guard
@@ -3099,7 +3109,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // Inline above the field, not a chat bubble: the session is already over
       // and the field is the thing the user must fall back to.
       setTranscribing(false);
-      setVoiceError(micBlockedMessage(err));
+      const retried = micRetryRef.current;
+      micRetryRef.current = false;
+      if (isMicPermissionError(err)) {
+        setVoiceError(null);
+        setMicBlocked({ card: micBlockedCard(isIosDevice()), still: retried });
+      } else {
+        setMicBlocked(null);
+        setVoiceError(MIC_FALLBACK_TEXT);
+      }
     }
   }
 
@@ -3172,12 +3190,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // 2·13a: a fresh template asks first when it would replace a saved one with
   // a client or a named item (Keep editing / Start new).
-  const [replaceAsk, setReplaceAsk] = useState<{ title: string; kind: TemplateKind; client: TemplateClient | null } | null>(null);
+  const [replaceAsk, setReplaceAsk] = useState<{
+    title: string; kind: TemplateKind; client: TemplateClient | null;
+    figure: ReturnType<typeof unfinishedFigure>;
+  } | null>(null);
   function startNewTemplate(k: TemplateKind, client: TemplateClient | null = null) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
-    if (title) setReplaceAsk({ title, kind: k, client });
-    else openTemplate(k, client);
+    if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
+    else void openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
@@ -3186,14 +3207,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // delete, drafts only): while a template is saved, the live conversation is
   // that template's, so its pending row is the template's draft; after leaving
   // Chat the row comes from the template's stored link.
-  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+  async function openTemplate(k: TemplateKind, client: TemplateClient | null = null, strictRow = false) {
     // The stored link only counts when the live conversation has no row of its
     // own, or it is that same row — never a normal chat's draft.
     const row = loadTemplateRow(templateUidRef.current);
     const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
     if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
     if (template || linked || loadTemplate(templateUidRef.current)) {
-      discardTemplateRow();
+      // The sheet path awaits the delete and throws; every other caller keeps
+      // the instant, fire-and-forget cleanup it had.
+      if (strictRow) await discardTemplateRowStrict();
+      else discardTemplateRow();
       setDraft(null);
       setReady(false);
     }
@@ -3214,12 +3238,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Drop the template's unsent draft row (soft delete, drafts only) and its
   // pre-build, under a new conversation id — so the next insert can't hit the
   // old finalize_key and be handed the old row back.
-  function discardTemplateRow() {
+  // The row such a discard would soft-delete: a draft, unsent, unlocked.
+  function templateRowToDiscard() {
     const pending = pendingInvoiceRef.current;
-    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
-      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
-        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
-    }
+    return pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus) ? pending : null;
+  }
+  // Reset the link, the pre-build and the conversation id, so the next insert
+  // cannot hit the old finalize_key and be handed the old row back.
+  function resetTemplateRow() {
     pendingInvoiceRef.current = null;
     clearTemplateRow();
     preBuiltRef.current = null;
@@ -3228,8 +3254,48 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setConvoId(genId());
     setAttachments([]);
   }
+  // The instant path (an untouched template, a swap): fire-and-forget.
+  function discardTemplateRow() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    resetTemplateRow();
+  }
+  // The sheet path: awaited, and a failed soft delete throws instead of being
+  // swallowed, so PopSheet names the cause and keeps the draft. Nothing resets
+  // until the row is actually gone, so a retry targets the same row.
+  async function discardTemplateRowStrict() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft');
+      if (error) throw error;
+    }
+    resetTemplateRow();
+  }
+  // P-16: × asks first when something was entered (the same rule the expense
+  // card already used). An untouched template closes instantly.
+  const [closeTemplateAsk, setCloseTemplateAsk] = useState(false);
   function closeTemplate() {
+    if (templateHasContent(templateDraft) || templateHasContent(templateRestored)) {
+      setCloseTemplateAsk(true);
+      return;
+    }
+    closeTemplateNow();
+  }
+  function closeTemplateNow() {
     discardTemplateRow();
+    setDraft(null);
+    setReady(false);
+    dropTemplate();
+  }
+  // Close × sheet's confirm. PopSheet awaits it, so "Discarding…" shows and a
+  // failed soft delete throws instead of being swallowed: the sheet names the
+  // cause, says the draft is still here, and stays open.
+  async function discardTemplateFromSheet() {
+    await discardTemplateRowStrict();
     setDraft(null);
     setReady(false);
     dropTemplate();
@@ -3428,6 +3494,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   function endVoiceSession() {
     setVoiceSession(false); sessionRef.current = false;
     setTranscribing(false); setVoiceError(null);
+    micRetryRef.current = false; setMicBlocked(null);
     stopSpeech();
     if (recording && recorderRef.current) {
       recAbortRef.current = true;
@@ -3746,6 +3813,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       document.querySelector('[data-ledger-card]'),
     );
   }, [morphing]);
+  // P-15: Revise used to act on the first tap. It makes a second document from a
+  // locked one, so it asks first (board C5).
+  const [reviseAsk, setReviseAsk] = useState(false);
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
@@ -4002,7 +4072,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
@@ -4024,7 +4094,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         <div>
           {!isValidTotal && (
             <p className="mt-2 rounded-[10px] bg-error-container px-2.5 py-2 text-xs font-semibold text-error-on-container">
-              Something went wrong reading the amounts. Try rephrasing the prices.
+              {UNREADABLE_PRICES_TEXT}
             </p>
           )}
           <button
@@ -4191,6 +4261,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-error/40 bg-error-container px-3.5 py-2.5 text-[15px] leading-snug text-error-on-container${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
+                  {failedBubbleTitle(m.content) && (
+                    <div className="mb-0.5 text-[15px] font-semibold">{failedBubbleTitle(m.content)}</div>
+                  )}
                   {m.content}
                 </div>
                 {/* Inline Retry under the item (no modal): it keeps its width; the
@@ -4204,6 +4277,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
                   Retry
                 </button>
+              </div>
+            </div>
+          ) : visibleChips(m, mi === messages.length - 1, phase !== null).length > 0 ? (
+            // Answer + suggestion chips (Board 8, A1). A chip sends a supported
+            // question in one tap and goes away once used.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {visibleChips(m, true, phase !== null).map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      disabled={chip.disabled}
+                      onClick={() => {
+                        if (sendRef.current) return;
+                        setMessages((ms) => ms.map((x) => (x.id === m.id ? { ...x, chips: undefined } : x)));
+                        void send(chip.label, 'typed');
+                      }}
+                      className="min-h-11 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-label-lg font-semibold text-primary transition active:scale-95 disabled:opacity-40"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : m.feedbackLink ? (
@@ -4351,50 +4451,48 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </Fragment>
         ))}
 
-        {pendingChange && (
+        {pendingChange && (() => {
           // Change guard (Commit A): the parse would rewrite the linked invoice.
           // Ask before touching it — the current card above stays as it was.
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">
-              This would change {formatDocNumber(pendingChange.kind, pendingChange.no)}. Update it, or start a new invoice?
-            </p>
-            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={resolvePendingChangeUpdate}>
-              Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
-            </button>
-            <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={resolvePendingChangeNew}
-            >
-              Start a new invoice
-            </button>
-          </div>
-        )}
+          // Board C1: the rows show what moves. Not dismissible.
+          const copy = changeGuardCopy(pendingChange.kind, pendingChange.no);
+          return (
+            <PopInline
+              eyebrow={copy.eyebrow}
+              eyebrowIcon="edit"
+              text={copy.text}
+              rows={changeGuardRows(draft, pendingChange.draft)}
+              consequence={copy.consequence}
+              actions={[
+                { label: copy.updateLabel, kind: 'gold', busyLabel: copy.updateBusy, disabled: phase !== null, onSelect: resolvePendingChangeUpdate },
+                { label: copy.newLabel, kind: 'outline', disabled: phase !== null, onSelect: resolvePendingChangeNew },
+              ]}
+            />
+          );
+        })()}
 
-        {clientChoice && clientQuestionOpen && (
+        {clientChoice && clientQuestionOpen && (() => {
           // finalize() paused: the typed name is close to saved clients but not
-          // the same. Nothing is created until one of these is tapped.
-          <div ref={clientCardRef} className="card border-primary-container/50">
-            <p className="text-body-md">Which client is this for?</p>
-            {clientChoice.candidates.map((c) => (
-              <button
-                key={c.id}
-                className="btn-primary mt-3 w-full"
-                disabled={phase !== null}
-                onClick={() => pickClientChoice(c)}
-              >
-                {c.name}
-              </button>
-            ))}
-            <button
-              className="pressable mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={() => pickClientChoice('new')}
-            >
-              New client “{clientChoice.typed}”
-            </button>
-          </div>
-        )}
+          // the same. Nothing is created until one of these is tapped (board C2).
+          const copy = clientChoiceCopy(clientChoice.typed);
+          return (
+            <div ref={clientCardRef}>
+              <PopInline
+                eyebrow="Which client?"
+                eyebrowIcon="person"
+                text={copy.text}
+                consequence={copy.consequence}
+                choices={[
+                  ...clientChoice.candidates.map((c) => ({
+                    label: c.name,
+                    onSelect: () => { if (phase === null) pickClientChoice(c); },
+                  })),
+                  { label: copy.newLabel, icon: 'person_add' as const, onSelect: () => { if (phase === null) pickClientChoice('new'); } },
+                ]}
+              />
+            </div>
+          );
+        })()}
 
         {expenseDraft && !expenseTemplate && (
           // Only ever set live (never restored), so the build-in plays once per capture.
@@ -4415,17 +4513,54 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
 
         {reminderPrompt && (
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">
-              {reminderPrompt.onlinePay
-                ? `Want a notification when ${reminderPrompt.client} pays online?`
-                : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
-            </p>
-            <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60" onClick={dismissReminders}>
-              Not now
-            </button>
-          </div>
+          <PopInline
+            eyebrow="Payment alerts"
+            eyebrowIcon="notifications"
+            text={reminderPrompt.onlinePay
+              ? `Want a notification when ${reminderPrompt.client} pays online?`
+              : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
+            actions={[
+              { label: 'Yes', kind: 'gold', busyLabel: 'Asking your phone…', onSelect: enableReminders },
+              { label: 'Not now', kind: 'outline', onSelect: dismissReminders },
+            ]}
+          />
+        )}
+        {signInAsk && (() => {
+          const c = signInCard(signInAsk.kind, signInAsk.headline);
+          return (
+            <PopInline
+              eyebrow={c.eyebrow}
+              eyebrowIcon={signInAsk.kind === 'voice' ? 'mic' : 'lock'}
+              title={c.title}
+              text={c.text}
+              actions={[
+                {
+                  label: c.signInLabel,
+                  kind: 'gold',
+                  busyLabel: c.signInBusy,
+                  // Pending lasts while /login opens; a failed navigation frees the button.
+                  onSelect: async () => { router.push('/login'); await new Promise((r) => setTimeout(r, 3000)); },
+                },
+                {
+                  label: c.secondaryLabel,
+                  kind: c.secondary === 'type' ? 'outline' : 'text',
+                  onSelect: () => { setSignInAsk(null); if (c.secondary === 'type') inputRef.current?.focus(); },
+                },
+              ]}
+            />
+          );
+        })()}
+        {alertsFailed && (
+          <PopInline
+            tone="error"
+            title="Payment alerts are off"
+            text={ALERTS_FAILED_TEXT}
+            actions={[{
+              label: 'Open payment alerts',
+              kind: 'gold',
+              onSelect: () => { setAlertsFailed(false); router.push(ALERTS_SETTINGS_HREF); },
+            }]}
+          />
         )}
         {termsPrompt && (
           <div className="flex justify-start">
@@ -4477,11 +4612,76 @@ export default function Chat({ active = true }: { active?: boolean }) {
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
       )}
-      {replaceAsk && (
-        <ReplaceTemplateSheet title={replaceAsk.title}
-          onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
-          onStartNew={() => { const a = replaceAsk; setReplaceAsk(null); openTemplate(a.kind, a.client); }} />
+      {reviseAsk && draft && (() => {
+        const kind = docKind(draft);
+        const no = pendingInvoiceRef.current?.no ?? null;
+        const copy = reviseSheetCopy(kind, no);
+        const total = calculateInvoiceTotals(draft.line_items ?? [], draft.tax_rate ?? 0).total;
+        return (
+          <PopSheet
+            open
+            icon="edit"
+            title={copy.title}
+            sub={copy.sub}
+            figure={{
+              label: [no != null ? formatDocNumber(kind, no) : null, draft.client_name].filter(Boolean).join(' · ') || 'This document',
+              meta: lockBadgeText(linkedStatus, linkedAmountPaid),
+              amount: money(total),
+            }}
+            actions={[
+              { label: copy.actionLabel, kind: 'gold', go: true, busyLabel: copy.busyLabel },
+              { label: 'Cancel', kind: 'text', safe: true },
+            ]}
+            onDismiss={() => setReviseAsk(false)}
+            onConfirm={() => { reviseInvoice(); }}
+            onSuccess={() => setReviseAsk(false)}
+            consequence={copy.consequence}
+          />
+        );
+      })()}
+      {closeTemplateAsk && template && (
+        <PopSheet
+          open
+          destructive
+          icon="edit"
+          iconTone="danger"
+          title={`Discard this ${template === 'quote' ? 'estimate' : 'invoice'}?`}
+          sub="It isn't sent. Discarding removes it from this phone."
+          actions={[
+            { label: 'Keep editing', kind: 'gold', safe: true },
+            { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
+          ]}
+          onDismiss={() => setCloseTemplateAsk(false)}
+          onConfirm={() => discardTemplateFromSheet()}
+          onSuccess={() => setCloseTemplateAsk(false)}
+          consequence="Your draft is still here."
+        />
       )}
+      {replaceAsk && (() => {
+        // P-03 / board C3. Dismissal (scrim, ×, Escape, swipe) = Keep editing.
+        // Start new is destructive (red outline) and soft-deletes the draft row,
+        // so it has a pending state and a failure that says the draft is intact.
+        const copy = replaceTemplateCopy(replaceAsk.kind);
+        return (
+          <PopSheet
+            open
+            destructive
+            icon="edit"
+            iconTone="gold"
+            title={replaceAsk.title}
+            sub={copy.sub}
+            figure={replaceAsk.figure}
+            actions={[
+              { label: copy.keepLabel, kind: 'gold', safe: true },
+              { label: copy.startLabel, kind: 'danger', go: true, busyLabel: copy.startBusy },
+            ]}
+            onDismiss={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
+            onConfirm={() => openTemplate(replaceAsk.kind, replaceAsk.client, true)}
+            onSuccess={() => setReplaceAsk(null)}
+            consequence={copy.consequence}
+          />
+        );
+      })()}
       {template ? (
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
@@ -4551,6 +4751,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
             <p role="status" aria-live="polite" className="mb-2 border-l-2 border-primary-container pl-2 text-body-md text-on-surface-variant">
               {voiceError}
             </p>
+          )}
+          {micBlocked && (
+            // P-47 / board M1: directly above the composer, never in the transcript.
+            <div role="status" aria-live="polite" className="mb-2">
+              <PopInline
+                eyebrow="Microphone"
+                eyebrowIcon="mic"
+                title="Mic access is off"
+                text={micBlocked.card.text}
+                rows={micBlocked.card.steps}
+                error={micBlocked.still ? MIC_STILL_BLOCKED : undefined}
+                actions={micBlocked.card.canRetry
+                  ? [
+                      {
+                        label: 'Try again',
+                        kind: 'gold',
+                        busyLabel: 'Asking…',
+                        onSelect: async () => { micRetryRef.current = true; await startRecording(); },
+                      },
+                      { label: 'Type instead', kind: 'outline', onSelect: () => { inputRef.current?.focus(); } },
+                    ]
+                  : [{ label: 'Type instead', kind: 'gold', onSelect: () => { inputRef.current?.focus(); } }]}
+              />
+            </div>
           )}
 
           <div className="flex items-end gap-2">

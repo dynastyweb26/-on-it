@@ -82,11 +82,12 @@ export default function ProductsList({ active = true, tabs }: { active?: boolean
   async function undo() {
     if (!removed) return;
     const p = removed;
+    // Restore first and throw on failure (the toast names the cause + Retry).
+    const { error } = await supabase.from('products').update({ deleted_at: null }).eq('id', p.id);
+    if (error) throw error;
     setRemoved(null);
     setRows((rs) => [...(rs ?? []), p]);
     setFresh({ id: p.id, motion: 'expand' });
-    const { error } = await supabase.from('products').update({ deleted_at: null }).eq('id', p.id);
-    if (error) setRows((rs) => (rs ?? []).filter((r) => r.id !== p.id));
   }
 
   async function duplicate(p: Product) {
@@ -166,7 +167,7 @@ export default function ProductsList({ active = true, tabs }: { active?: boolean
           ]} />
       )}
 
-      {removed && <UndoToast message="Item deleted." onUndo={undo} onDismiss={() => setRemoved(null)} />}
+      {removed && <UndoToast message="Item deleted." consequence="The item stays deleted." onUndo={undo} onDismiss={() => setRemoved(null)} />}
     </div>
   );
 }

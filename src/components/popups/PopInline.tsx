@@ -71,7 +71,9 @@ export default function PopInline({
 }: PopInlineProps) {
   const { pending, pendingRef, failure, run } = usePopupPending();
   const shownError = failure ?? error;
-  const isError = tone === 'error' || shownError !== null;
+  // `failure ?? error` is undefined (not null) when neither is set, so this
+  // must be a loose check or every card announces itself as an alert.
+  const isError = tone === 'error' || shownError != null;
 
   function select(task: () => Promise<void> | void) {
     if (pendingRef.current) return;
