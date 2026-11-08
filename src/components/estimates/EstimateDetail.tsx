@@ -343,7 +343,7 @@ export default function EstimateDetail({
             if (existing.deleted_at) {
               await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
             }
-            router.push(`/invoices/${existing.id}`);
+              router.push(`/invoices/${existing.id}`);
             return;
           }
         }
