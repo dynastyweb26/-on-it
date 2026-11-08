@@ -17,7 +17,7 @@ export interface LineItem {
   detail?: string | null;
 }
 export interface ExtractResult {
-  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
+  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other' | 'record_payment';
   // True only when the user's message THIS turn explicitly named the document
   // type. When false, intent was re-derived by the model with no naming cue, so
   // the client keeps the in-progress draft's intent instead of letting a bare
@@ -48,6 +48,15 @@ export interface ExtractResult {
   // UI/DB spelling; 'percent' fails the DB check constraint).
   deposit_type: 'percentage' | 'fixed' | 'none' | null;
   deposit_value: number | null;     // percent (0–100) for 'percentage'; dollars for 'fixed'; null otherwise
+  // A payment the owner says they already received. A PROPOSAL only: nothing is
+  // written until the owner taps Confirm on the app's card (item 5). Independent
+  // of line_items — a payment never creates or changes an invoice.
+  payment: {
+    amount: number | null;
+    method: 'card' | 'bank' | 'zelle' | 'cashapp' | 'paypal' | 'venmo' | 'other' | null;
+    client_name: string | null;
+    paid_on: string | null;            // YYYY-MM-DD, only when stated
+  } | null;
   // The same four fields the receipt-vision route returns, so a spoken expense
   // and a photographed one land on the identical confirmation card.
   expense: {
@@ -86,6 +95,17 @@ Rules:
 - deposit: when the user explicitly asks for a deposit, down payment, money up front, or a retainer, set it as structured fields — NEVER as a line item and NEVER as note text. deposit_type is "percentage" for a percent ("40% deposit", "40 percent down" → deposit_type "percentage", deposit_value 40) or "fixed" for a dollar amount ("500 down", "half up front on a stated total is a fixed dollar figure", "$500 deposit" → deposit_type "fixed", deposit_value 500). Use exactly the spelling "percentage" (never "percent"). Set deposit_type "none" and deposit_value null ONLY when the user explicitly declines or removes a deposit ("no deposit", "actually no deposit", "remove the deposit"). When the user does not mention a deposit at all this message, set deposit_type null and deposit_value null — do NOT restate a deposit already on the draft; the app keeps it. "half up front" means deposit_type "percentage", deposit_value 50. Never invent a deposit the user didn't state.
 - client_address, client_phone and client_email: capture these ONLY if the user volunteers them ("it's at 12 Oak Street", "her number is 555-0199", "her email is deffeu@gmail.com"). Never invent or guess them; leave null if not said. They are OPTIONAL — an invoice is ready WITHOUT them, so NEVER ask for them and NEVER put them in "missing". When the user gives one later, merge it into the draft like any other field. A client_email must look like a real address (one @, a dotted domain, no spaces); if what the user said does not form one, leave it null rather than guessing.
 - Contact echo in the reply: when the client's phone, email or address is known (said this turn or already on the draft), name every one of those three in ONE short clause right after the client's name — "Car wash for Brandon (945-344-4550, deffeu@gmail.com), 2407 Neff Lane, Forney, TX." Include a field ONLY when it is known, and never mention or ask about one that is not. This clause never carries a price.
+
+PAYMENTS ALREADY RECEIVED — when the owner says someone PAID them:
+- Signals: "Maria paid me", "got 25 from Ruth", "Ruth zelled me 50", "collected 300 from the Hendersons", "she paid cash".
+- Set intent=record_payment, fill "payment", and leave line_items empty. A payment NEVER creates or changes an invoice.
+- payment.amount: what they received, as a number, or null when they did not say. Never guess an amount.
+- payment.method: exactly one of card, bank, zelle, cashapp, paypal, venmo, other. Cash and check are "other". null when they did not say.
+- payment.client_name: who paid, exactly as they said it. null when they did not say.
+- payment.paid_on: YYYY-MM-DD only when they named a day (compute "yesterday" from today's date). null otherwise.
+- reply: one short sentence naming the client, then ask for exactly ONE thing that is still missing (who paid, how much, or how). Never state a dollar figure — the app shows the amount on its card.
+- This is a proposal only: nothing is recorded until the owner taps Confirm on the app's card.
+- A message that ASKS to bill, invoice, charge or quote someone is NEVER record_payment — that is intent=invoice or quote.
 
 PASTED WORK CARDS — when the user pastes service notes (several lines: a job line, "found the following", a numbered list of findings, tech/manager names, part numbers, prices):
 - Copy item names and descriptions EXACTLY as written, part numbers included ("Hatco thermostat", "P# 02-16-039"). Do not rephrase, expand abbreviations, fix capitalization, or clean up wording.
@@ -127,7 +147,7 @@ export async function extract(
 
   const contextMsg = `Today's date: ${todayISO}. Current draft state (merge new info into this): ${JSON.stringify(currentDraft ?? {})}
 
-Schema: {"intent":"invoice|quote|expense|question|other","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"client_email":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"each|hour|sq ft|job"}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"private_notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
+Schema: {"intent":"invoice|quote|expense|question|other|record_payment","intent_explicit":boolean,"client_name":string|null,"client_address":string|null,"client_phone":string|null,"client_email":string|null,"line_items":[{"description":string,"qty":number,"unit_price":number|null,"unit":"each|hour|sq ft|job"}],"tax_rate":number|null,"due_date":string|null,"notes":string|null,"private_notes":string|null,"deposit_type":"percentage|fixed|none"|null,"deposit_value":number|null,"payment":{"amount":number|null,"method":"card|bank|zelle|cashapp|paypal|venmo|other"|null,"client_name":string|null,"paid_on":string|null}|null,"expense":{"amount":number|null,"category":${EXPENSE_CATEGORIES.map((c) => `"${c}"`).join('|')}|null,"vendor":string|null,"occurred_on":string|null}|null,"missing":string[],"reply":string,"ready":boolean}`;
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -183,6 +203,7 @@ function clarifyFallback(): ExtractResult {
     private_notes: null,
     deposit_type: null,
     deposit_value: null,
+    payment: null,
     expense: null,
     missing: [],
     reply: "Sorry, I didn't quite catch that. Could you say a little more? Like whether you paid for that, or you're charging someone for it.",

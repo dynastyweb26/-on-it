@@ -71,7 +71,13 @@ import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTem
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
 import PaymentCard from '@/components/chat/PaymentCard';
-import type { PayCard } from '@/lib/payment-card';
+import PaymentProposalCard, { type PaymentProposal, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import { buildPayCard, type PayCard } from '@/lib/payment-card';
+import { looksLikePayment, parseAmount, parseMethod, parsePaidOn, resolvePayment } from '@/lib/payment-intent';
+import { localDateString, localDateToIso, type PaymentMethod } from '@/lib/record-payment';
+import { newPaymentKey, recordPaymentOnce } from '@/lib/payment-idempotency';
+import { ledgerFrom } from '@/lib/payment-ledger-client';
+import { enqueuePayment, paymentQueueStore } from '@/lib/payment-queue';
 import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import { anchorFor, localToday } from '@/lib/recurring';
@@ -123,7 +129,11 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   payoutsNudge?: true;
   /** An owner-initiated payment moment (alive layer §04). Optional, so every
    *  entry written before this field existed still loads; no version bump. */
-  payCard?: PayCard; }
+  payCard?: PayCard;
+  /** A payment the parser proposed. Editable, and never written until Confirm. */
+  payProposal?: PaymentProposal;
+  /** A cancelled proposal, kept only so the one-line notice can offer Undo. */
+  undoProposal?: PaymentProposal; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -1353,6 +1363,81 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setTimeout(() => router.push('/login'), 1600);
         return null;
       }
+      // Paying is not a document (item 5). The parser only PROPOSES: the card
+      // below has no write path until the owner taps Confirm, and every field
+      // on it is editable. Returning here keeps a payment out of the draft, the
+      // totals and the duplicate check entirely.
+      if (data.intent === 'record_payment') {
+        const reply = typeof data.reply === 'string' && data.reply.trim() ? data.reply : 'Got it. Check this payment.';
+        setMessages((m) => emitResult(m, aMsg(reply), retryId));
+        if (source === 'voice') {
+          cancelSpeechRef.current?.();
+          cancelSpeechRef.current = speak(reply);
+        }
+        // The model's fields win only where present; the words fill the rest, so
+        // a model miss cannot invent money. The card shows the result either way.
+        const fromWords = {
+          amount: parseAmount(trimmed),
+          method: parseMethod(trimmed),
+          paidOn: parsePaidOn(trimmed, new Date()),
+          clientName: (data.payment?.client_name as string | null | undefined) ?? null,
+        };
+        const amount = typeof data.payment?.amount === 'number' ? data.payment.amount : fromWords.amount;
+        const method = (data.payment?.method as PaymentMethod | null | undefined) ?? fromWords.method;
+        if (!looksLikePayment(trimmed, { amount, method })) {
+          setMessages((m) => [...m, aMsg("Did someone pay you? Name the client and how much, and I'll set it up for you to confirm.")]);
+          return { reply, ready: false };
+        }
+        const { data: { user: payerUser } } = await getSharedUser();
+        if (!payerUser) {
+          setMessages((m) => [...m, aMsg('Sign in and I can record that payment.')]);
+          return { reply, ready: false };
+        }
+        try {
+          const { data: rows } = await supabase
+            .from('invoices')
+            .select('id, invoice_number, client_name, total, amount_paid, kind, created_at')
+            .eq('user_id', payerUser.id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+            .limit(200);
+          const openInvoices = ((rows ?? []) as Array<Record<string, unknown>>)
+            .filter((r) => String(r.kind ?? 'invoice') === 'invoice' && Number(r.amount_paid ?? 0) < Number(r.total ?? 0))
+            .map((r) => ({
+              id: String(r.id),
+              invoiceNo: r.invoice_number == null ? null : Number(r.invoice_number),
+              clientName: String(r.client_name ?? ''),
+              total: Number(r.total ?? 0),
+              amountPaid: Number(r.amount_paid ?? 0),
+              kind: 'invoice' as const,
+              createdAt: String(r.created_at ?? ''),
+            }));
+          const resolution = resolvePayment({ parsed: fromWords, invoices: openInvoices });
+          // The picker shows this client's open invoices; with no client match
+          // it falls back to what is actually open, so the owner chooses rather
+          // than us picking someone else's invoice.
+          const choices = resolution.invoiceChoices.length > 0 ? resolution.invoiceChoices : openInvoices;
+          const candidateInvoices: ProposalInvoice[] = choices.slice(0, 8).map((i) => ({
+            id: i.id, invoiceNo: i.invoiceNo, clientName: i.clientName, total: i.total, amountPaid: i.amountPaid,
+          }));
+          setMessages((m) => [...m, aMsg('Check this and confirm.', {
+            payProposal: {
+              amount,
+              method,
+              clientName: resolution.clientName ?? '',
+              paidOn: fromWords.paidOn ?? localDateString(new Date()),
+              invoiceId: resolution.invoice?.id ?? null,
+              invoices: candidateInvoices,
+              clients: resolution.clientChoices,
+            },
+          })]);
+        } catch (e) {
+          console.error('[payment] could not build the proposal', e);
+          setMessages((m) => [...m, aMsg("I couldn't line that up with an invoice. Tell me the client and the amount.")]);
+        }
+        return { reply, ready: false };
+      }
+
       // Point 2: the parsed result.
       traceTurn(turnId, 'parsed', {
         intent: data.intent ?? null,
@@ -4457,6 +4542,73 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ]}
               />
             </div>
+          ) : m.payProposal ? (
+            <PaymentProposalCard
+              key={m.id}
+              proposal={m.payProposal}
+              onCancel={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                ? { ...x, payProposal: undefined, undoProposal: m.payProposal, content: 'Payment not recorded. Nothing was saved.' }
+                : x)))}
+              onConfirm={async (input) => {
+                const { data: { user: payUser } } = await getSharedUser();
+                if (!payUser) return { ok: false as const, message: 'Sign in to record a payment.' };
+                const paidAt = localDateToIso(input.paidOn || localDateString(new Date()));
+                // One key per submission, minted at the Confirm tap (rule 6). A
+                // second tap reuses it, so the ledger can only gain one row.
+                const key = newPaymentKey(input.invoiceId);
+                let paymentId: string | null = null;
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    const store = paymentQueueStore();
+                    const queued = store
+                      ? await enqueuePayment(store, { key, invoiceId: input.invoiceId, userId: payUser.id, amount: input.amount, method: input.method, paidAt })
+                      : 'capped';
+                    if (queued !== 'queued') {
+                      return { ok: false as const, message: "You're offline and I couldn't hold that payment. Try again when you're back." };
+                    }
+                  } else {
+                    const saved = await recordPaymentOnce(ledgerFrom(supabase), {
+                      invoice_id: input.invoiceId,
+                      user_id: payUser.id,
+                      amount: input.amount,
+                      method: input.method,
+                      paid_at: paidAt,
+                      idempotency_key: key,
+                    });
+                    if (!saved.ok) {
+                      console.error('chat record payment failed', saved.error);
+                      return { ok: false as const, message: userMessage(saved.error) };
+                    }
+                    paymentId = saved.payment?.id ?? null;
+                  }
+                  const { data: row } = await supabase
+                    .from('invoices')
+                    .select('total, amount_paid, client_name, invoice_number')
+                    .eq('id', input.invoiceId)
+                    .maybeSingle();
+                  const total = Number(row?.total ?? 0);
+                  const paid = Number(row?.amount_paid ?? 0);
+                  const card = buildPayCard({
+                    invoiceId: input.invoiceId,
+                    invoiceNo: row?.invoice_number == null ? null : Number(row.invoice_number),
+                    clientName: String(row?.client_name ?? m.payProposal?.clientName ?? ''),
+                    amount: input.amount,
+                    method: input.method,
+                    paidAt,
+                    paymentId,
+                    total,
+                    left: Math.max(0, total - paid),
+                  });
+                  setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                    ? { ...x, payProposal: undefined, payCard: card, content: 'Payment recorded.' }
+                    : x)));
+                  return { ok: true as const };
+                } catch (e) {
+                  console.error('chat record payment threw', e);
+                  return { ok: false as const, message: "That didn't go through. Try again." };
+                }
+              }}
+            />
           ) : m.payCard ? (
             <PaymentCard
               key={m.id}
@@ -4517,6 +4669,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   ? m.content
                   : <StreamText text={m.content} />}
               </div>
+            </div>
+          )}
+          {m.undoProposal && (
+            <div className="mt-1 flex justify-start pl-8">
+              <button
+                type="button"
+                className="min-h-touch text-[13px] font-semibold text-primary underline transition active:opacity-60"
+                onClick={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                  ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
+                  : x)))}
+              >
+                Undo
+              </button>
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
