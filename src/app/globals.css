@@ -824,6 +824,13 @@ html[data-splash=""] .onit-splash {
   .onit-confirm-in, .onit-confirm-pop, .onit-confirm-ring { animation: none; }
 }
 
+/* ---- Paid in full: the halo around the gold disc (alive layer §04) ----------
+   One 700ms ring that scales out and fades, started with the check. It only
+   ever plays on the payment that closed the job. */
+@keyframes onit-paid-halo { 0% { transform: scale(.6); opacity: 0; } 25% { opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } }
+.onit-paid-halo { animation: onit-paid-halo 700ms cubic-bezier(.2, .9, .3, 1) 100ms both; }
+@media (prefers-reduced-motion: reduce) { .onit-paid-halo { animation: none; opacity: 0; } }
+
 /* ---- Send state: the PDF tile while it builds (alive layer §04) -------------
    A 240px gold sweep over the tile, 1.4s, so a build that takes a moment reads
    as work instead of a dead button. Reduced motion drops the sweep. */
