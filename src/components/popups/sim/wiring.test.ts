@@ -89,3 +89,22 @@ test('discard expense: dropping it is local, so there is no request to await or 
   assert.match(discard, /setDiscardAsk\(false\)/, 'the ask clears on this exit too');
   assert.match(discard, /setExpenseDraft\(null\)/);
 });
+
+// ── P-01 change guard: a parse that would rewrite a linked invoice ──
+test('change guard: both answers are in-transcript, gated on an idle turn, and say what was not changed', () => {
+  const block = chat.slice(chat.indexOf('{pendingChange && (() => {'), chat.indexOf('{clientChoice && clientQuestionOpen'));
+  assert.ok(block.length > 0, 'change guard renders');
+  assert.match(block, /<PopInline/, 'an inline card the user must answer, not a sheet');
+  assert.match(block, /onSelect: resolvePendingChangeUpdate/);
+  assert.match(block, /onSelect: resolvePendingChangeNew/);
+  assert.match(block, /disabled: phase !== null/, 'no answer while a turn is in flight');
+  assert.match(block, /consequence=\{copy\.consequence\}/, 'the caller names what did not change');
+});
+
+test('change guard: the answers are synchronous resolvers, so a second run finds no question', () => {
+  for (const name of ['function resolvePendingChangeUpdate()', 'function resolvePendingChangeNew()']) {
+    const body = fn(chat, name);
+    assert.match(body, /if \(!pendingChange\) return;/);
+    assert.match(body, /setPendingChange\(null\);/);
+  }
+});
