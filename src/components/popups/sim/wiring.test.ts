@@ -268,3 +268,27 @@ test('S1b: a restored card on a build-at-tap tier still builds its file', () => 
   assert.match(chat, /if \(skipPreBuild && !s1bNeedsFile\) return;/, 'the pre-build must not skip a restored S1b');
   assert.match(chat, /: skipPreBuild && !s1bNeedsFile \? false/, 'readiness stays false, not skipped, on that tier');
 });
+
+// ── Estimate Revise (4A): in place, one save, no new document ──
+test('estimate revise: the row, conversation and link are kept, so nothing is seeded', () => {
+  const start = chat.slice(chat.indexOf('function startEstimateRevision'), chat.indexOf('async function saveRevision'));
+  assert.ok(start.length > 0, 'the revise starter exists');
+  assert.doesNotMatch(start, /pendingInvoiceRef\.current = null/, 'the row stays linked');
+  assert.doesNotMatch(start, /setConvoId\(/, 'the conversation key stays');
+  assert.doesNotMatch(start, /Replaces /, 'no replacement note is written');
+});
+
+test('estimate revise: one edits call on confirm, never finalize or an insert', () => {
+  const save = chat.slice(chat.indexOf('async function saveRevision'), chat.indexOf('async function saveRevision') + 1400);
+  assert.match(save, /saveEstimateRevision\(pending\.id/, 'the same estimate id');
+  assert.doesNotMatch(save, /\.insert\(/, 'no insert');
+  assert.doesNotMatch(save, /finalize\(/, 'never finalize');
+  assert.match(chat, /if \(revisingEstimate\) void saveRevision\(\); else finalize\(\);/, 'the card confirm saves');
+  assert.match(chat, /if \(!invoiceId\) \{/, 'finalize still inserts only with no linked row');
+  assert.match(chat, /locked && !revisingEstimate && draftControlsOut/, 'the editor replaces the locked block');
+});
+
+test('estimate revise: the sheet opens for a quote, with in-place copy', () => {
+  assert.match(chat, /\{reviseAsk && draft && \(\(\) => \{/, 'the sheet has no kind gate');
+  assert.match(chat, /Change anything, then send\. Same link, same number\./, 'in-place copy on the card');
+});
