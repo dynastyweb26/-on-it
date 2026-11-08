@@ -19,6 +19,8 @@ import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
 import { notify } from '@/lib/notify';
+import { hourBucket } from '@/lib/events';
+import { insertEvent, logDocumentView, viewerHash } from '@/lib/events-server';
 
 export const runtime = 'nodejs';
 
@@ -54,8 +56,27 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     console.error('mark_invoice_viewed failed', error.code ?? error.message);
     return ok();
   }
+  // The durable view log (alive layer): recorded on EVERY qualifying view, so
+  // a card can say "3rd time today". mark_invoice_viewed above still owns
+  // invoices.viewed_at and stays first-view-only.
+  const hash = viewerHash(clientIp(req), req.headers.get('user-agent') ?? '');
+  await logDocumentView(token, viewer, hash);
+
   const row = (data as Array<{ invoice_id: string; user_id: string; invoice_number: number; client_name: string }> | null)?.[0];
   if (row) {
+    // The card in the thread. One per invoice per hour — the amount is
+    // deliberately left off a view.
+    await insertEvent({
+      userId: row.user_id,
+      kind: 'invoice_viewed',
+      actor: 'client',
+      invoiceId: row.invoice_id,
+      documentKind: 'invoice',
+      documentNumber: row.invoice_number ?? null,
+      clientName: row.client_name ?? null,
+      dedupeKey: `invoice_viewed:${row.invoice_id}:${hourBucket(new Date())}`,
+      meta: {},
+    });
     // Dedupe viewed:<invoice_id> — one push per invoice, ever, even if
     // viewed_at is later cleared. notify() never throws.
     await notify(row.user_id, {
