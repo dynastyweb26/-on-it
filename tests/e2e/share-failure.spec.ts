@@ -98,7 +98,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await stubShare(page);
   });
 
-  test('share succeeds → send fails offline → Mark as sent', async ({ page, context }, info) => {
+  test('share succeeds → send fails → Mark as sent', async ({ page }, info) => {
     const shot = async (name: string) =>
       page.screenshot({ path: path.join(SHOTS, `${name}.png`), animations: 'disabled' });
 
@@ -126,8 +126,12 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sendIt).toBeVisible({ timeout: 60_000 });
     await expect(sendIt).toBeEnabled({ timeout: 60_000 });
 
-    // ── 2–3. Go offline and tap: the share succeeds (stub), the POST cannot.
-    await context.setOffline(true);
+    // ── 2–3. Tap: the share succeeds (stub), the send POST cannot (the route
+    // above aborts it). The network stays up on purpose: capped accounts such as
+    // the test seller get no background pre-build, so their tap builds and saves
+    // the draft first, and that needs a live connection. The cause line is
+    // therefore the "our end" one; the offline wording is pinned by
+    // src/lib/popups/unsent-share.test.ts.
     await sendIt.click();
 
     const sheet = page.locator('[data-pop-sheet]');
@@ -145,7 +149,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sheet).toContainText(/Shared \d{1,2}:\d{2}/);
     await expect(sheet).toContainText(`${number} is still a draft in On It`);
     await expect(sheet).toContainText('No pay link, no payment reminders');
-    await expect(sheet).toContainText('You went offline right after the share sheet closed.');
+    await expect(sheet).toContainText('Something broke on our end right after the share.');
     await expect(sheet.getByRole('button', { name: 'Mark as sent' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Retry the share' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Keep as draft' })).toBeVisible();
@@ -153,7 +157,6 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await shot('s1-idle');
 
     // ── 5. Mark as sent while the POST cannot land: locked, then the failure.
-    await context.setOffline(false);
     delayMs = 2500;
     await sheet.getByRole('button', { name: 'Mark as sent' }).click();
     await expect(sheet.getByRole('button', { name: 'Marking sent…' })).toBeVisible({ timeout: 2000 });
