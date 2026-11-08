@@ -1,4 +1,6 @@
 'use client';
+import { postOwnerCard } from '@/lib/owner-cards';
+import { formatDocNumber } from '@/lib/documents';
 // ═══ Estimate detail (owner) ═══
 // Spec §3 of design/estimates/ESTIMATES-DESIGN-SPEC.md, mounted from the
 // invoice detail page for kind='quote' only. Invoices never reach this file.
@@ -342,7 +344,7 @@ export default function EstimateDetail({
         converted_from: inv.id,
         due_date: defaultDueDate(),
         finalize_key: idempotencyKey,
-      }).select('id').single();
+      }).select('id, invoice_number').single();
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
           setPaywallFor('invoice');
@@ -351,7 +353,7 @@ export default function EstimateDetail({
         if (error.code === '23505') {
           const { data: existing } = await supabase
             .from('invoices')
-            .select('id, deleted_at')
+            .select('id, deleted_at, invoice_number')
             .eq('user_id', inv.user_id)
             .eq('finalize_key', idempotencyKey)
             .maybeSingle();
@@ -361,7 +363,14 @@ export default function EstimateDetail({
             if (existing.deleted_at) {
               await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
             }
-              router.push(`/invoices/${existing.id}`);
+            setConvertAsk(false);
+            postOwnerCard({
+              title: existing.invoice_number != null
+                ? `${formatDocNumber('invoice', existing.invoice_number)} is ready`
+                : 'Your invoice is ready',
+              invoiceId: existing.id,
+            });
+            router.push(`/invoices/${existing.id}`);
             return;
           }
         }
@@ -374,6 +383,13 @@ export default function EstimateDetail({
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
         throw new Error('attachment copy failed');
       }
+      // The owner's outcome, not an event (RULES): a local card in the thread.
+      postOwnerCard({
+        title: created.invoice_number != null
+          ? `${formatDocNumber('invoice', created.invoice_number)} is ready`
+          : 'Your invoice is ready',
+        invoiceId: created.id,
+      });
       router.push(`/invoices/${created.id}`);
     } finally {
       convertingRef.current = false;

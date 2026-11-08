@@ -94,6 +94,7 @@ import {
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
 import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -122,6 +123,9 @@ interface Msg {
    *  means no timestamp, and no timestamp means nothing can be placed around
    *  it — an old thread reads exactly as it did. */
   at?: number;
+  /** An owner outcome (RULES): a local assistant card, never an event and never
+   *  a toast. Posted by the screen that finished the action. */
+  ownerCard?: { title: string; invoiceId: string };
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
@@ -4151,6 +4155,31 @@ export default function Chat({ active = true }: { active?: boolean }) {
     );
   };
 
+  // Owner outcomes come back as local cards. A screen finishes the action and
+  // posts one; here it is appended live, and anything posted while the chat was
+  // unmounted (the estimate screen navigates away) is drained after restore, so
+  // a restore can never overwrite it.
+  const ownerCardsDrained = useRef(false);
+  useEffect(() => {
+    const append = (card: OwnerCard) => {
+      if (!card?.title || !card.invoiceId) return;
+      setMessages((m) => [...m, aMsg(card.title, { ownerCard: { title: card.title, invoiceId: card.invoiceId } })]);
+    };
+    const onCard = (e: Event) => {
+      drainOwnerCards(); // the live event consumed the queue
+      append((e as CustomEvent<OwnerCard>).detail);
+    };
+    window.addEventListener(OWNER_CARD_EVENT, onCard);
+    return () => window.removeEventListener(OWNER_CARD_EVENT, onCard);
+  }, []);
+  useEffect(() => {
+    if (!hydrated || ownerCardsDrained.current) return;
+    ownerCardsDrained.current = true;
+    for (const card of drainOwnerCards()) {
+      setMessages((m) => [...m, aMsg(card.title, { ownerCard: { title: card.title, invoiceId: card.invoiceId } })]);
+    }
+  }, [hydrated]);
+
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
@@ -4636,6 +4665,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <Icon name="chat_bubble" size={18} /> Tell us about On It
                 </button>
               </div>
+            </div>
+          ) : m.ownerCard ? (
+            // The outcome of an owner action, with the one thing to do next.
+            <div className="card">
+              <p className="text-body-md">{m.ownerCard.title}</p>
+              <button
+                type="button"
+                className="btn-primary mt-3 w-full"
+                onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
+              >
+                Open
+              </button>
             </div>
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"

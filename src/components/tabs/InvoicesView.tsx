@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { openSummary } from '@/lib/open-summary';
 import { tagFor } from '@/lib/doc-tags';
+import TagChip from '@/components/invoices/TagChip';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import { registerTabFilter } from '@/lib/tab-scroll';
@@ -334,11 +335,9 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                         {partPaid && <span className="text-[13px] text-on-surface-variant">due of {money(r.total)}</span>}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-3.5">
-                        {/* Keyed by state: a sent → viewed change replaces the chip. No
-                            fade — one animation per row left 200 of them applied. */}
-                        <span key={tag.key} className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[11px] font-bold tracking-[.06em] ${tag.cls}`}>
-                          <Icon name={tag.icon} size={14} />{tag.text}
-                        </span>
+                        {/* Keyed by state: every change replaces the chip at once, except
+                            SIGNED → CONVERTED, which crossfades in 200 ms (TagChip). */}
+                        <TagChip tagKey={tag.key} text={tag.text} cls={tag.cls} icon={tag.icon} />
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-primary-on-container">
                           <Icon name="chevron_right" size={22} />
                         </span>
