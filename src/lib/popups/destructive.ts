@@ -16,6 +16,40 @@ export function paymentDeleteConsequence(
   return `${docNumber} goes back to ${money(balanceAfterDeletingPayment(balanceRemaining, paymentAmount))} due.`;
 }
 
+// ── Board 1 · D1/D2/D3: the delete confirms ──
+// The board is the spec, so its labels and its "what did not happen"
+// sentences live here: a unit test pins them instead of a screenshot.
+
+/** The go label carries the figure: "Delete invoice · $200.00" (D1/D2). */
+export function deleteActionLabel(noun: string, figure: string): string {
+  return `Delete ${noun.toLowerCase()} · ${figure}`;
+}
+
+/** D1: only a record that already left the phone needs the typed word. A
+ *  draft deletes like an expense — no field. */
+export function deleteNeedsTyped(status: string | null | undefined): boolean {
+  return status === 'sent' || status === 'paid' || status === 'overdue';
+}
+
+/** D1 — what did not happen, in the document's own words. */
+export function invoiceDeleteConsequence(docNumber: string): string {
+  return `Nothing was deleted. ${docNumber} is still in your list.`;
+}
+
+/** D2 — the cause sentence is appended by popupFailure(). */
+export const EXPENSE_DELETE_CONSEQUENCE = 'Nothing was deleted.';
+
+/** D3 — the documents survive, so the client's name says what still exists. */
+export function clientDeleteConsequence(name: string): string {
+  return `Nothing was deleted. ${name} is still in your clients.`;
+}
+
+/** D3's figure card: the documents that stay, never a dollar amount. */
+export function clientDocCountLabel(invoices: number, estimates: number): string {
+  const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  return `${count(invoices, 'invoice')} · ${count(estimates, 'estimate')} stay`;
+}
+
 /** Convert carries the figure in its button (board C4): the number cannot be
  *  previewed without a migration, so it names the amount instead. */
 export function convertActionLabel(amountText: string): string {

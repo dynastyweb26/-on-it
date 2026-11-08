@@ -10,7 +10,8 @@ import ExpensesSkeleton from '@/components/ExpensesSkeleton';
 import { RowMenu } from '@/components/lists/SavedList';
 import { useLongPress } from '@/lib/use-long-press';
 import { freshAutoLog } from '@/lib/recurring';
-import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import PopSheet from '@/components/popups/PopSheet';
+import { deleteActionLabel, EXPENSE_DELETE_CONSEQUENCE } from '@/lib/popups/destructive';
 import UndoToast from '@/components/UndoToast';
 import DateDivider from '@/components/DateDivider';
 import { SortCaption } from '@/components/SortToggle';
@@ -253,13 +254,15 @@ export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
   // A–Z: the same groups and subtotals; only the rows inside each group reorder.
   const groups = sort === 'az' ? sortWithinGroups(byPeriod, label, (e) => e.spent_on) : byPeriod;
 
+  // D2 (P-07): the shared sheet owns the confirm, so a failed delete names its
+  // cause instead of the row silently reappearing. The row hides at once and
+  // comes back only when the write fails — soft-delete semantics are unchanged.
   async function handleDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
     const target = deleteTarget;
+    setDeleting(true);
     const now = new Date().toISOString();
     setRows((r) => r.filter((e) => e.id !== target.id));
-    setDeleteTarget(null);
 
     const { error } = await supabase
       .from('expenses')
@@ -268,10 +271,11 @@ export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
 
     setDeleting(false);
     if (error) {
+      // Put it back before the sheet reports: nothing was deleted.
       setRows((r) => [...r, target]);
-    } else {
-      setUndoTarget(target);
+      throw error;
     }
+    setUndoTarget(target);
   }
 
   async function handleUndo() {
@@ -425,14 +429,29 @@ export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
           ]} />
       )}
 
-      <DeleteConfirmModal
-        isOpen={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title={deleteTarget ? `${deleteTarget.vendor || deleteTarget.description || 'Expense'} ($${deleteTarget.amount})` : ''}
-        recordType="expense"
-        busy={deleting}
-      />
+      {deleteTarget && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title="Delete expense?"
+          sub="Are you sure you want to delete this expense? It will be removed from your list and Books totals."
+          figure={{
+            label: deleteTarget.vendor || deleteTarget.description || 'Expense',
+            meta: `${categoryOf(deleteTarget)} · ${localDate(deleteTarget.spent_on).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+            amount: money(Number(deleteTarget.amount)),
+          }}
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            { label: deleteActionLabel('expense', money(Number(deleteTarget.amount))), kind: 'danger', go: true, busyLabel: 'Deleting…' },
+          ]}
+          onDismiss={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete()}
+          onSuccess={() => setDeleteTarget(null)}
+          consequence={EXPENSE_DELETE_CONSEQUENCE}
+        />
+      )}
 
       {undoTarget && (
         <UndoToast

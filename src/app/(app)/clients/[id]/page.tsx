@@ -14,7 +14,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import CountUpMoney from '@/components/CountUpMoney';
-import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import PopSheet from '@/components/popups/PopSheet';
+import { clientDeleteConsequence, clientDocCountLabel } from '@/lib/popups/destructive';
 import { createClient } from '@/lib/supabase/client';
 import { unsaveClient } from '@/lib/client-delete';
 import { money } from '@/lib/financials';
@@ -45,7 +46,7 @@ export default function ClientDetail() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
+
 
   useEffect(() => {
     (async () => {
@@ -86,21 +87,26 @@ export default function ClientDetail() {
 
   const editHref = (focus?: string) => `/clients/${client.id}/edit${focus ? `?focus=${focus}` : ''}`;
   const converted = new Set(docs.map((d) => d.converted_from).filter(Boolean) as string[]);
+  // D3's figure is what stays: the documents tied to this client, never money.
+  const docCounts = {
+    invoices: docs.filter((d) => d.kind !== 'quote').length,
+    estimates: docs.filter((d) => d.kind === 'quote').length,
+  };
   // Dial / text with digits only ("(555) 014-2290" → "5550142290"); + kept.
   const dial = (client.phone ?? '').replace(/[^\d+]/g, '');
   const invoiceHref = `/chat?template=invoice&client=${client.id}`;
 
+  // D3 (P-08): the shared sheet confirms, so a failure names its cause and says
+  // the client is still there. The documents were never touched by this call.
   async function deleteClient() {
     if (!client) return;
     setDeleting(true);
-    setDeleteError('');
     const { error } = await unsaveClient(supabase, client.id);
     setDeleting(false);
     if (error) {
-      setDeleteError('Couldn’t delete — check your connection and try again.');
-      return;
+      console.error('delete client failed', error);
+      throw error;
     }
-    setConfirmDelete(false);
     router.replace('/clients');
   }
 
@@ -178,21 +184,31 @@ export default function ClientDetail() {
       )}
 
       <div className="mt-8">
-        {deleteError && <p role="alert" className="mb-3 rounded-input bg-error-container px-4 py-2.5 text-body-md font-semibold text-error-on-container">{deleteError}</p>}
         <button type="button" onClick={() => setConfirmDelete(true)} disabled={deleting}
           className="flex h-14 w-full items-center justify-center gap-2 rounded-full border border-error/30 text-[17px] font-bold text-error transition active:scale-[0.98] disabled:opacity-40">
           <Icon name="delete" size={20} /> Delete client
         </button>
       </div>
 
-      <DeleteConfirmModal
-        isOpen={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={deleteClient}
-        title={client.name}
-        recordType="client"
-        busy={deleting}
-      />
+      {confirmDelete && (
+        <PopSheet
+          open
+          destructive
+          icon="delete_forever"
+          iconTone="danger"
+          title="Delete client?"
+          sub="Are you sure you want to remove this client from your list? Their invoices and estimates stay in your history."
+          figure={{ label: client.name, meta: clientDocCountLabel(docCounts.invoices, docCounts.estimates), amount: '' }}
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            { label: `Delete ${client.name}`, kind: 'danger', go: true, busyLabel: 'Deleting…' },
+          ]}
+          onDismiss={() => setConfirmDelete(false)}
+          onConfirm={() => deleteClient()}
+          onSuccess={() => setConfirmDelete(false)}
+          consequence={clientDeleteConsequence(client.name)}
+        />
+      )}
     </div>
   );
 }

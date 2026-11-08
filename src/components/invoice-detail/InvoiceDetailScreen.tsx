@@ -10,7 +10,9 @@ import {
   unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
   type UnsentShare, type UnsentShareRow,
 } from '@/lib/popups/unsent-share';
-import { paymentDeleteConsequence } from '@/lib/popups/destructive';
+import {
+  deleteActionLabel, deleteNeedsTyped, invoiceDeleteConsequence, paymentDeleteConsequence,
+} from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
 import RollMoney from '@/components/RollMoney';
@@ -28,7 +30,7 @@ import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
 import { invoiceStatusLabel, ledgerEntryLabel } from '@/lib/payment-methods';
-import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+// D1 (P-06/P-93): deleting a document confirms in the shared PopSheet below.
 import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -196,6 +198,15 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
   const [sentToast, setSentToast] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // D1's free-plan line is the note under the buttons, and only on the free
+  // plan (board note). Read lazily when the sheet opens, never on page load.
+  const [freePlan, setFreePlan] = useState(false);
+  function checkFreePlan() {
+    fetch('/api/access', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a) => setFreePlan(typeof a?.invoiceLimit === 'number'))
+      .catch(() => {});
+  }
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
   const [undoDelete, setUndoDelete] = useState(false);
@@ -1034,6 +1045,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // The sticky bar exists only while an invoice still has a balance to collect.
   const showPayBar = inv.kind === 'invoice' && totals.balanceRemaining > 0;
 
+  // D1 (P-06 / P-93): the figure card names the record, the button carries the
+  // amount, and a failed write reports inside the sheet — P-93 was silent.
+  // Soft-delete semantics are unchanged: deleted_at only, ledger rows untouched.
+  const deleteNoun = docNoun(inv.kind);
+  const shortDay = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+  const deleteStatusWord = inv.status === 'paid' ? 'Paid'
+    : inv.status === 'overdue' ? 'Overdue'
+    : inv.status === 'draft' ? 'Draft'
+    : 'Sent';
+  const deleteFigureMeta = [
+    `${deleteStatusWord} ${shortDay(inv.created_at) ?? ''}`.trim(),
+    inv.due_date ? `Due ${shortDay(inv.due_date)}` : null,
+  ].filter(Boolean).join(' · ');
+
   // Soft-delete this invoice/quote (sets deleted_at; ledger rows are untouched).
   async function handleDelete() {
     setDeleting(true);
@@ -1042,13 +1068,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     // A deleted row has no card left to restore.
     forgetUnsentShare(id);
     setDeleting(false);
-    setShowDeleteModal(false);
     if (error) {
-      // A destructive write that fails must say so, not close silently. Shown
-      // inline with the real cause; the document is still there.
+      // Throw into the sheet: it names the cause and says the doc is still here.
       console.error('delete invoice failed', error);
-      setShareError(`Not deleted. ${userMessage(error)}`);
-      return;
+      throw error;
     }
     setShareError(null);
     setUndoDelete(true);
@@ -1430,7 +1453,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       {/* Delete sits last, past the PDF, away from the everyday actions. */}
       <button
         type="button"
-        onClick={() => setShowDeleteModal(true)}
+        onClick={() => { setShowDeleteModal(true); checkFreePlan(); }}
         className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[16px] border border-error/40 bg-transparent text-[15px] font-semibold text-error transition active:scale-[0.985]"
       >
         <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'estimate' : 'invoice'}
@@ -1559,15 +1582,37 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           consequence="The payment is still queued."
         />
       )}
-      <DeleteConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDelete}
-        title={`${inv.client_name} (${formatDocNumber(inv.kind, inv.invoice_number)})`}
-        recordType={inv.kind === 'quote' ? 'quote' : 'invoice'}
-        status={inv.status}
-        busy={deleting}
-      />
+      {showDeleteModal && (
+        <PopSheet
+          open
+          destructive
+          icon="delete"
+          iconTone="danger"
+          title={`Delete ${deleteNoun.toLowerCase()}?`}
+          sub={`Are you sure you want to delete this ${deleteNoun.toLowerCase()}? It will be removed from your list and Books totals.`}
+          figure={{
+            label: `${formatDocNumber(inv.kind, inv.invoice_number)} · ${inv.client_name}`,
+            meta: deleteFigureMeta,
+            amount: money(Number(inv.total)),
+          }}
+          body={deleteNeedsTyped(inv.status)
+            ? 'This record has been sent. Deleting it will remove its total from your Books income totals.'
+            : undefined}
+          typed={deleteNeedsTyped(inv.status) ? 'DELETE' : undefined}
+          actions={[
+            { label: 'Cancel', kind: 'gold', safe: true },
+            { label: deleteActionLabel(deleteNoun, money(Number(inv.total))), kind: 'danger', go: true, busyLabel: 'Deleting…' },
+          ]}
+          note={freePlan
+            ? 'On the free plan this still counts toward your invoice limit — deleting it won’t free up a slot.'
+            : undefined}
+          onDismiss={() => setShowDeleteModal(false)}
+          onConfirm={() => handleDelete()}
+          onSuccess={() => setShowDeleteModal(false)}
+          retryLabel="Try again"
+          consequence={invoiceDeleteConsequence(formatDocNumber(inv.kind, inv.invoice_number))}
+        />
+      )}
 
       {undoDelete && (
         <UndoToast
