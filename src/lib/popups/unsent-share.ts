@@ -4,6 +4,7 @@
 // "quote".
 import { shortDate } from '@/lib/estimates/owner-view';
 import { money } from '@/lib/financials';
+import { formatDocNumber } from '@/lib/documents';
 
 export type UnsentShare = {
   id: string;
@@ -70,5 +71,115 @@ export function unsentShareCopy(
     cardTitle: `${u.number} is still a draft`,
     cardText: `${first} has the PDF, but it isn’t marked sent, so there’s no pay link yet.`,
     done: `${u.number} marked sent. Pay link is live.`,
+  };
+}
+
+// ── S1b, remembered ────────────────────────────────────────────────────────
+// S1b is the one popup whose job outlives the screen it appeared on: the client
+// already has the PDF, so the only thing left is marking the row sent — and that
+// can happen after the user leaves /chat. The row stays the authority (number,
+// client, total, due date, still a draft?); the key holds only what the row
+// cannot say: when the sheet closed, and whether the browser was offline at the
+// failure that opened it.
+//
+// Nothing here touches a browser global unless it is asked to. Every function
+// takes the storage it should use, so the rules are testable in node, and a
+// private-mode browser (where storage throws) simply has no memory — it still
+// gets the live card, it just doesn't survive the screen.
+
+export type UnsentShareMemory = { sharedAt: string; offline: boolean };
+
+/** The invoice fields a restore needs. */
+export type UnsentShareRow = {
+  id: string;
+  status?: string | null;
+  kind?: string | null;
+  invoice_number?: number | null;
+  client_name?: string | null;
+  total?: number | string | null;
+  due_date?: string | null;
+};
+
+export type UnsentShareStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+export function unsentShareKey(id: string): string {
+  return `onit.unsentShare.${id}`;
+}
+
+/** localStorage, or null when even reading it is refused (private mode, storage
+ *  disabled). Null means "no memory", never an error the UI must handle. */
+export function browserUnsentShareStorage(): UnsentShareStorage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const s = window.localStorage;
+    const probe = '__onit_unsent_probe__';
+    s.setItem(probe, '1');
+    s.removeItem(probe);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberUnsentShare(
+  id: string,
+  memory: UnsentShareMemory,
+  storage: UnsentShareStorage | null = browserUnsentShareStorage(),
+): void {
+  if (!storage || !id) return;
+  try {
+    storage.setItem(unsentShareKey(id), JSON.stringify({ sharedAt: memory.sharedAt, offline: memory.offline }));
+  } catch { /* quota or blocked: the card just doesn't survive the screen */ }
+}
+
+export function forgetUnsentShare(
+  id: string,
+  storage: UnsentShareStorage | null = browserUnsentShareStorage(),
+): void {
+  if (!storage || !id) return;
+  try { storage.removeItem(unsentShareKey(id)); } catch { /* nothing to do */ }
+}
+
+export function readUnsentShare(
+  id: string,
+  storage: UnsentShareStorage | null = browserUnsentShareStorage(),
+): UnsentShareMemory | null {
+  if (!storage || !id) return null;
+  try {
+    const raw = storage.getItem(unsentShareKey(id));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<UnsentShareMemory> | null;
+    if (!value || typeof value.sharedAt !== 'string' || typeof value.offline !== 'boolean') return null;
+    return { sharedAt: value.sharedAt, offline: value.offline };
+  } catch { return null; }
+}
+
+/**
+ * The card to restore, or null. The row decides everything except sharedAt and
+ * offline; a row that is gone — or has left 'draft' — clears the record, because
+ * a card must never outlive the state it describes.
+ */
+export function restoreUnsentShare(
+  id: string | null | undefined,
+  row: UnsentShareRow | null | undefined,
+  storage: UnsentShareStorage | null = browserUnsentShareStorage(),
+): UnsentShare | null {
+  if (!id) return null;
+  const memory = readUnsentShare(id, storage);
+  if (!memory) return null;
+  if (!row || row.id !== id || row.status !== 'draft') {
+    forgetUnsentShare(id, storage);
+    return null;
+  }
+  const kind = row.kind === 'quote' ? 'quote' : 'invoice';
+  return {
+    id,
+    kind,
+    number: formatDocNumber(kind, Number(row.invoice_number ?? 0)),
+    client: row.client_name ?? null,
+    total: Number(row.total ?? 0),
+    dueDate: row.due_date ?? null,
+    sharedAt: memory.sharedAt,
+    offline: memory.offline,
   };
 }

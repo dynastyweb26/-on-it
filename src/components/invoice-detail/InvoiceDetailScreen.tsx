@@ -6,7 +6,10 @@ import Icon from '@/components/Icon';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
 import PopToast from '@/components/popups/PopToast';
-import { unsentShareCopy, type UnsentShare } from '@/lib/popups/unsent-share';
+import {
+  unsentShareCopy, forgetUnsentShare, rememberUnsentShare,
+  type UnsentShare,
+} from '@/lib/popups/unsent-share';
 import { paymentDeleteConsequence } from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
@@ -707,6 +710,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           return;
         }
         // The client has the file; the row is still a draft. S1 interrupts.
+        const sharedAt = new Date().toISOString();
+        const offline = navigator.onLine === false;
         setUnsentShare({
           id: inv.id,
           // Estimates render EstimateDetail, so the PDF share path here is invoices only.
@@ -715,16 +720,18 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           client: inv.client_name ?? null,
           total: totals.total,
           dueDate: inv.due_date ?? null,
-          sharedAt: new Date().toISOString(),
-          offline: navigator.onLine === false,
+          sharedAt,
+          offline,
           file,
         });
         setUnsentShareOpen(true);
+        rememberUnsentShare(inv.id, { sharedAt, offline });
         return;
       }
       // A completed send retires any earlier S1/S1b state.
       setUnsentShare(null);
       setUnsentShareOpen(false);
+      forgetUnsentShare(inv.id);
       if (body?.invoice) setInv(body.invoice);
       const firstSend = body?.firstSend === true;
 
@@ -766,6 +773,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setSentToast(unsentShareCopy(pending).done);
     setUnsentShare(null);
     setUnsentShareOpen(false);
+    forgetUnsentShare(pending.id);
     const { data } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     if (data) setInv(data);
   }
@@ -995,6 +1003,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setDeleting(true);
     const now = new Date().toISOString();
     const { error } = await supabase.from('invoices').update({ deleted_at: now }).eq('id', id);
+    // A deleted row has no card left to restore.
+    forgetUnsentShare(id);
     setDeleting(false);
     setShowDeleteModal(false);
     if (error) {

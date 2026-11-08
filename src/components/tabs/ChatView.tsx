@@ -57,7 +57,10 @@ import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import PopToast from '@/components/popups/PopToast';
-import { unsentShareCopy, type UnsentShare } from '@/lib/popups/unsent-share';
+import {
+  unsentShareCopy, forgetUnsentShare, rememberUnsentShare,
+  type UnsentShare,
+} from '@/lib/popups/unsent-share';
 import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
@@ -2473,6 +2476,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
       }
       // The client already has the PDF, so this is not a normal failure bubble:
       // S1 interrupts with both truths (it went out / it is still a draft).
+      const sharedAt = new Date().toISOString();
+      const offline = navigator.onLine === false;
       setUnsentShare({
         id: pb.id,
         kind: docKind(draft),
@@ -2480,12 +2485,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
         client: draft.client_name ?? null,
         total: previewTotals.total,
         dueDate: draft.due_date ?? defaultDueDate(),
-        sharedAt: new Date().toISOString(),
-        offline: navigator.onLine === false,
+        sharedAt,
+        offline,
         file: pb.file,
         token: pb.token,
       });
       setUnsentShareOpen(true);
+      // The card outlives this conversation: remember it for the next visit.
+      rememberUnsentShare(pb.id, { sharedAt, offline });
       return;
     }
     finalizeSentRef.current = true;
@@ -2493,6 +2500,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // A completed send retires any earlier S1/S1b state from this conversation.
     setUnsentShare(null);
     setUnsentShareOpen(false);
+    forgetUnsentShare(pb.id);
     const firstSend = await sendRes.json().then((j: { firstSend?: unknown }) => j?.firstSend === true).catch(() => false);
     // Archive in the Vault — best-effort; a storage hiccup must not undo the send.
     try {
@@ -3288,6 +3296,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Reset the link, the pre-build and the conversation id, so the next insert
   // cannot hit the old finalize_key and be handed the old row back.
   function resetTemplateRow() {
+    // A discarded draft takes its remembered S1b with it.
+    const discarded = pendingInvoiceRef.current?.id;
+    if (discarded) forgetUnsentShare(discarded);
     pendingInvoiceRef.current = null;
     clearTemplateRow();
     preBuiltRef.current = null;
@@ -3304,6 +3315,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     if (!res?.ok) throw res ?? new TypeError('Failed to fetch');
     setUnsentShare(null);
     setUnsentShareOpen(false);
+    forgetUnsentShare(pending.id);
     setSentToast(unsentShareCopy(pending).done);
   }
 
