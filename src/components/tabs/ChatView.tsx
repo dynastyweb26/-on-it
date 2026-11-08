@@ -70,6 +70,7 @@ import { clientQuestionPending, matchOrCreateClient, updateClientContact, type C
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
+import { failedBubbleTitle, unsupportedReplyExtras, visibleChips } from '@/lib/popups/ai';
 import { SHARE_NOT_OPENED_TEXT, UNREADABLE_PRICES_TEXT, signInCard, type SignInKind } from '@/lib/popups/status';
 import { templateHasContent } from '@/lib/popups/destructive';
 import {
@@ -103,6 +104,8 @@ type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
+  /** Suggestion chips under an answer (A1): each sends that text as a question. */
+  chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
   skipHistory?: true;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
@@ -1288,7 +1291,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Account talk stays out of the job history parse reads later.
         const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
         const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
-        return [...marked, aMsg(reply, { skipHistory: true })];
+        return [...marked, aMsg(reply, unsupportedReplyExtras())];
       });
       if (source === 'voice') {
         cancelSpeechRef.current?.();
@@ -4223,6 +4226,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-error/40 bg-error-container px-3.5 py-2.5 text-[15px] leading-snug text-error-on-container${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
+                  {failedBubbleTitle(m.content) && (
+                    <div className="mb-0.5 text-[15px] font-semibold">{failedBubbleTitle(m.content)}</div>
+                  )}
                   {m.content}
                 </div>
                 {/* Inline Retry under the item (no modal): it keeps its width; the
@@ -4236,6 +4242,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
                   Retry
                 </button>
+              </div>
+            </div>
+          ) : visibleChips(m, mi === messages.length - 1, phase !== null).length > 0 ? (
+            // Answer + suggestion chips (Board 8, A1). A chip sends a supported
+            // question in one tap and goes away once used.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {visibleChips(m, true, phase !== null).map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      disabled={chip.disabled}
+                      onClick={() => {
+                        if (sendRef.current) return;
+                        setMessages((ms) => ms.map((x) => (x.id === m.id ? { ...x, chips: undefined } : x)));
+                        void send(chip.label, 'typed');
+                      }}
+                      className="min-h-11 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-label-lg font-semibold text-primary transition active:scale-95 disabled:opacity-40"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : m.feedbackLink ? (
