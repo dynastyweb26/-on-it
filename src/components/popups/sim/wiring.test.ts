@@ -198,3 +198,20 @@ test('template sheets: a row tap claims the guard before the pick, and a rejecte
   assert.match(pickerSheet, /\(out as Promise<void>\)\.catch\(\(\) => guard\.release\(\)\)/);
   assert.match(pickerSheet, /guard\.claim\(\)\) onUseName\(query\)/, '"Use this name" is guarded too');
 });
+
+// ── Mic blocked card (P-47) ──
+test('mic card: Try again is awaited so the card keeps its busy label', () => {
+  const start = chat.indexOf('{micBlocked && (');
+  const block = chat.slice(start, chat.indexOf('End voice session', start));
+  assert.ok(block.length > 0, 'mic card renders above the composer');
+  assert.match(block, /busyLabel: 'Asking…'/);
+  assert.match(block, /onSelect: async \(\) => \{ micRetryRef\.current = true; await startRecording\(\); \}/);
+  assert.match(block, /onSelect: \(\) => \{ inputRef\.current\?\.focus\(\); \}/, 'typing is always offered');
+});
+
+test('mic card: a retry that is still blocked says so instead of looping silently', () => {
+  const body = fn(chat, 'async function startRecording()');
+  assert.match(body, /if \(!micRetryRef\.current\) setMicBlocked\(null\);/);
+  assert.match(body, /setMicBlocked\(\{ card: micBlockedCard\(isIosDevice\(\)\), still: retried \}\)/);
+  assert.match(chat, /error=\{micBlocked\.still \? MIC_STILL_BLOCKED : undefined\}/);
+});
