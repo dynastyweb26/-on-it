@@ -40,10 +40,13 @@ test('payment delete: a failed delete throws so the sheet shows the cause and st
   assert.match(detail, /onConfirm=\{async \(\) => \{ await handleDeletePayment\(deletePaymentAsk\.id\); \}\}/);
 });
 
-test('invoice delete: a failed soft delete is shown with its cause, never silent', () => {
+test('invoice delete: a failed soft delete throws into the sheet, which names the cause', () => {
   const body = fn(detail, 'async function handleDelete()');
-  assert.match(body, /if \(error\) \{[\s\S]*setShareError\(`Not deleted\. \$\{userMessage\(error\)\}`\)/);
-  assert.match(body, /return;\s*\}\s*setShareError\(null\);\s*setUndoDelete\(true\)/);
+  assert.match(body, /if \(error\) \{[\s\S]*throw error;/, 'the sheet renders the cause');
+  assert.doesNotMatch(body, /Not deleted\./, 'D1 replaced the inline sentence');
+  assert.match(detail, /consequence=\{invoiceDeleteConsequence\(/, 'says what did not happen');
+  assert.match(detail, /deleteActionLabel\(deleteNoun/, 'the go button carries the figure');
+  assert.match(detail, /typed=\{deleteNeedsTyped\(inv\.status\) \? 'DELETE'/, 'typed word only on sent records');
 });
 
 test('Revise: confirms first, closes only on its own onSuccess, guarded against double run', () => {
