@@ -418,18 +418,15 @@ export default function EstimateDetail({
     }
   }
 
+  // Board D7 (P-17): the sheet owns pending and the failure slot, so this
+  // throws and lets PopSheet name the cause. A rejection keeps the link live.
   async function revoke() {
     if (busy) return;
     setBusy('revoke');
-    setActionError(null);
     try {
       const outcome = await requestEstimateRevoke(id);
-      if (!outcome.ok) {
-        setActionError(outcome.message);
-        return;
-      }
+      if (!outcome.ok) throw new Error(outcome.message);
       setInv((prev) => ({ ...prev, revoked_at: outcome.revokedAt }));
-      setConfirmRevoke(false);
       showToast('Link deactivated');
     } finally {
       setBusy(null);
@@ -659,24 +656,33 @@ export default function EstimateDetail({
           )}
 
           {confirmRevoke && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[14px] bg-error-container px-3 py-2">
-              <span className="text-[13px] font-semibold text-error">Deactivate this link?</span>
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void revoke()}
-                className="chip border-error px-3 text-xs text-error"
-              >
-                {busy === 'revoke' ? 'Deactivating…' : 'Yes, deactivate'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmRevoke(false)}
-                className="chip px-3 text-xs text-on-surface-variant"
-              >
-                Cancel
-              </button>
-            </div>
+            // Board D7: the red strip is the shared sheet. The figure is the
+            // link's own document; dismissing keeps the link live.
+            <PopSheet
+              open
+              destructive
+              icon="link_off"
+              iconTone="danger"
+              title="Deactivate this link?"
+              sub={clientFirst ? `${clientFirst} won’t be able to open or sign it.` : undefined}
+              figure={{
+                label: `${estimateNumber(inv.invoice_number)} · ${inv.client_name || 'No client'}`,
+                meta: (() => {
+                  const sent = inv.first_sent_at ?? inv.sent_at;
+                  return sent ? `Estimate link · sent ${sentOrApprovedDate(sent, tz)}` : 'Estimate link';
+                })(),
+                amount: money(totals.total),
+              }}
+              retryLabel="Try again"
+              actions={[
+                { label: 'Cancel', kind: 'gold', safe: true },
+                { label: 'Yes, deactivate', kind: 'danger', go: true, busyLabel: 'Deactivating…' },
+              ]}
+              onDismiss={() => setConfirmRevoke(false)}
+              onConfirm={() => revoke()}
+              onSuccess={() => setConfirmRevoke(false)}
+              consequence="The link still works."
+            />
           )}
 
           {state === 'converted' && convertedToId && (
