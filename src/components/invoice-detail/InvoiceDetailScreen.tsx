@@ -174,6 +174,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [paymentDeleteBusy, setPaymentDeleteBusy] = useState(false);
   const [paymentDeleteError, setPaymentDeleteError] = useState<string | null>(null);
   const paymentDeleteRef = useRef(false);
+  // The queued payment a Discard would drop (P-13): one tap, no undo, so ask.
+  const [discardAsk, setDiscardAsk] = useState<QueuedPayment | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
   // was built from, or file=null when that build failed. The nonce forces a
@@ -1303,8 +1305,20 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           entries={queue}
           onRetry={() => void retryQueued()}
           onEdit={(e) => void editQueued(e)}
-          onDiscard={(e) => void discardQueued(e)}
+          onDiscard={(e) => setDiscardAsk(e)}
         />
+      )}
+      {discardAsk && (
+        <ConfirmSheet
+          title="Discard this payment?"
+          body="It won't be recorded, and the invoice stays unpaid."
+          detail={money(discardAsk.amount)}
+          confirmLabel="Discard"
+          cancelLabel="Keep it"
+          destructive
+          pendingLabel="Discarding…"
+          onConfirm={() => { const entry = discardAsk; setDiscardAsk(null); void discardQueued(entry); }}
+          onCancel={() => setDiscardAsk(null)} />
       )}
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
