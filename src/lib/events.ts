@@ -1,7 +1,8 @@
-// ═══ Events: the feed the thread renders (alive layer items 6–8) ═══
-// Pure: what an event card says, how a writer dedupes it, and which time-based
-// events a sweep should emit. No Supabase, no React, so every rule has a test
-// and the writers (routes) only carry data.
+// ═══ Events: the feed the thread renders (alive layer items 6–10) ═══
+// Pure: what an event card says, how a writer dedupes it, which time-based
+// events a sweep may emit, and where a card sits among the messages. No
+// Supabase, no React, so every rule has a test and the writers (routes) only
+// carry data.
 //
 // The rules this file encodes:
 //   * events are only about things the owner did NOT do (client actions,
@@ -11,6 +12,17 @@
 //     cannot post the same card twice.
 
 import { asKind, formatDocNumber, type DocumentKind } from '@/lib/documents';
+
+/**
+ * Phase 5 gate (items 19 and 25). The planner KNOWS these three kinds and the
+ * card copy for them exists, but nothing may be written until Phase 5 is
+ * asked for: a stale invoice, a stale estimate and an unsent draft are the
+ * "chase them again" feed, which is not this phase's job. Flip this one
+ * constant when 19/25 open; the thresholds below are already Phase 5's
+ * (stale = 4 days, draft = 24 hours), not the 14 days / 2 days a pre-review
+ * draft of this file carried.
+ */
+export const PHASE5_TIME_EVENTS = false;
 
 export type EventKind =
   | 'estimate_signed'
@@ -77,6 +89,16 @@ const docLabel = (e: Pick<EventRow, 'document_kind' | 'document_number'>): strin
 
 const who = (e: Pick<EventRow, 'client_name'>) => (e.client_name || '').trim() || 'Your client';
 
+/** The two cards that offer a decision. Everything else is read-only. */
+export type EventAction = 'convert' | 'remind';
+
+/** Only a signed estimate and an overdue invoice ask something of the owner. */
+export function eventAction(kind: string): EventAction | null {
+  if (kind === 'estimate_signed') return 'convert';
+  if (kind === 'invoice_overdue') return 'remind';
+  return null;
+}
+
 /**
  * What the card says. One title, one detail line — no recaps, no advice, no
  * invented numbers. `money` is injected so the formatting stays the app's.
@@ -133,8 +155,9 @@ export function eventCard(
 /** How long a document may sit before the sweep speaks up. */
 export const DUE_SOON_DAYS = 3;
 export const EXPIRING_SOON_DAYS = 3;
-export const STALE_DAYS = 14;
-export const DRAFT_UNSENT_DAYS = 2;
+/** Phase 5 values (gated above): four days silent, and a draft unsent for a day. */
+export const STALE_DAYS = 4;
+export const DRAFT_UNSENT_HOURS = 24;
 
 /** The subset of a document row the sweep reads. */
 export interface SweepDoc {
@@ -172,8 +195,19 @@ const unpaid = (d: SweepDoc) => d.total > 0 && d.amountPaid < d.total;
  * Which time-based events are owed right now. Pure so the thresholds are
  * testable and the route only writes what this returns. Lateness is never
  * recomputed here: `status = 'overdue'` is the database's call.
+ *
+ * `phase5` defaults to the constant above, so the gated kinds are known,
+ * tested, and still never written.
  */
-export function decideSweep({ now, docs }: { now: Date; docs: SweepDoc[] }): SweepEvent[] {
+export function decideSweep({
+  now,
+  docs,
+  phase5 = PHASE5_TIME_EVENTS,
+}: {
+  now: Date;
+  docs: SweepDoc[];
+  phase5?: boolean;
+}): SweepEvent[] {
   const out: SweepEvent[] = [];
   const t = now.getTime();
   const base = (d: SweepDoc) => ({
@@ -208,7 +242,7 @@ export function decideSweep({ now, docs }: { now: Date; docs: SweepDoc[] }): Swe
           });
         }
       }
-      if ((d.status === 'sent' || d.status === 'overdue') && unpaid(d) && d.sentAt
+      if (phase5 && (d.status === 'sent' || d.status === 'overdue') && unpaid(d) && d.sentAt
         && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
         out.push({
           ...base(d),
@@ -229,7 +263,7 @@ export function decideSweep({ now, docs }: { now: Date; docs: SweepDoc[] }): Swe
           });
         }
       }
-      if (d.status === 'sent' && d.sentAt && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
+      if (phase5 && d.status === 'sent' && d.sentAt && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
         out.push({
           ...base(d),
           kind: 'estimate_stale',
@@ -239,7 +273,7 @@ export function decideSweep({ now, docs }: { now: Date; docs: SweepDoc[] }): Swe
       }
     }
 
-    if (d.status === 'draft' && (t - Date.parse(d.createdAt)) / DAY_MS >= DRAFT_UNSENT_DAYS) {
+    if (phase5 && d.status === 'draft' && (t - Date.parse(d.createdAt)) / HOUR_MS >= DRAFT_UNSENT_HOURS) {
       out.push({
         ...base(d),
         kind: 'draft_unsent',
@@ -250,4 +284,42 @@ export function decideSweep({ now, docs }: { now: Date; docs: SweepDoc[] }): Swe
   }
 
   return out;
+}
+
+/** A message the thread is holding, as far as ordering is concerned. Messages
+ *  saved before `at` existed carry no timestamp, and cannot place anything. */
+export interface ChatAnchor {
+  id: string;
+  at?: number;
+}
+
+/**
+ * Where each event card belongs among the messages (item 8/10).
+ *
+ * New messages carry `at` (epoch ms); a card is rendered immediately before the
+ * first timestamped message that happened at or after it. Cards older than the
+ * oldest timestamped message, and cards newer than the last message, render at
+ * the end as one group — exactly the pre-interleave behaviour, so an old
+ * thread reads the same as it did yesterday.
+ */
+export function splitEventsByMessage(
+  events: EventRow[],
+  messages: ChatAnchor[],
+): { between: Record<string, EventRow[]>; trailing: EventRow[] } {
+  const between: Record<string, EventRow[]> = {};
+  const trailing: EventRow[] = [];
+  const ascending = [...events].sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+
+  const anchors = messages.filter((m): m is ChatAnchor & { at: number } => typeof m.at === 'number');
+  if (anchors.length === 0) return { between, trailing: ascending };
+
+  const firstAt = anchors[0].at;
+  for (const e of ascending) {
+    const t = Date.parse(e.occurred_at);
+    if (!Number.isFinite(t) || t < firstAt) { trailing.push(e); continue; }
+    const anchor = anchors.find((m) => m.at >= t);
+    if (!anchor) { trailing.push(e); continue; }
+    (between[anchor.id] ??= []).push(e);
+  }
+  return { between, trailing };
 }

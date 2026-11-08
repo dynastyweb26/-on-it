@@ -1,10 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideSweep, eventCard, eventDedupeKey, eventVisibleInChat, hourBucket, periodBucket, type EventRow, type SweepDoc } from './events';
+import {
+  PHASE5_TIME_EVENTS, decideSweep, eventAction, eventCard, eventDedupeKey, eventVisibleInChat,
+  hourBucket, periodBucket, splitEventsByMessage, type EventRow, type SweepDoc,
+} from './events';
 
 const dollars = (n: number) => `$${n.toFixed(2)}`;
 const now = new Date('2026-11-08T12:00:00Z');
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86400e3).toISOString();
+const hoursAgo = (n: number) => new Date(now.getTime() - n * 3600e3).toISOString();
 const daysAhead = (n: number) => new Date(now.getTime() + n * 86400e3).toISOString().slice(0, 10);
 
 const doc = (over: Partial<SweepDoc>): SweepDoc => ({
@@ -86,6 +90,16 @@ test('a missing client name never renders as blank', () => {
   assert.equal(eventCard(row({ client_name: null }), dollars).title, 'Your client opened your invoice');
 });
 
+// ── Only two cards ask for a decision ──────────────────────────────────────
+
+test('only a signed estimate and an overdue invoice carry an action', () => {
+  assert.equal(eventAction('estimate_signed'), 'convert');
+  assert.equal(eventAction('invoice_overdue'), 'remind');
+  for (const k of ['invoice_viewed', 'payment_recorded', 'paid_in_full', 'invoice_due_soon', 'estimate_stale']) {
+    assert.equal(eventAction(k), null);
+  }
+});
+
 // ── Sweep decisions ────────────────────────────────────────────────────────
 
 test('an overdue invoice emits one overdue card keyed by its due date', () => {
@@ -111,29 +125,43 @@ test('a paid invoice is never chased', () => {
   assert.deepEqual(kindOf([doc({ amountPaid: 150, dueDate: daysAhead(1) })]), []);
 });
 
-test('an invoice unpaid for two weeks is stale, once a week', () => {
-  const stale = decideSweep({ now, docs: [doc({ sentAt: daysAgo(20), dueDate: daysAhead(30) })] }).filter((e) => e.kind === 'invoice_stale');
-  assert.equal(stale.length, 1);
-  assert.match(stale[0].dedupeKey, /^invoice_stale:d1:w\d+$/);
-  // ...and not before the window.
-  assert.ok(!kindOf([doc({ sentAt: daysAgo(3), dueDate: daysAhead(30) })]).includes('invoice_stale'));
-});
-
 test('an estimate close to its valid-until date is expiring soon', () => {
   const events = decideSweep({ now, docs: [doc({ kind: 'quote', documentNumber: 49, validUntil: daysAhead(2), sentAt: daysAgo(2) })] });
-  assert.ok(events.some((e) => e.kind === 'estimate_expiring_soon'));
-  assert.equal(events.find((e) => e.kind === 'estimate_expiring_soon')?.documentKind, 'quote');
+  const expiring = events.find((e) => e.kind === 'estimate_expiring_soon');
+  assert.ok(expiring);
+  assert.equal(expiring?.documentKind, 'quote');
 });
 
-test('an estimate that went out two weeks ago is stale', () => {
-  assert.ok(kindOf([doc({ kind: 'quote', status: 'sent', sentAt: daysAgo(20), validUntil: daysAhead(30) })]).includes('estimate_stale'));
+test('phase 5 is off: no stale or unsent-draft cards are planned', () => {
+  assert.equal(PHASE5_TIME_EVENTS, false);
+  assert.deepEqual(kindOf([doc({ sentAt: daysAgo(20), dueDate: daysAhead(30) })]), []);
+  assert.deepEqual(kindOf([doc({ kind: 'quote', sentAt: daysAgo(20), validUntil: daysAhead(30) })]), []);
+  assert.deepEqual(kindOf([doc({ status: 'draft', createdAt: daysAgo(9), sentAt: null })]), []);
 });
 
-test('an old draft that never went out is surfaced once', () => {
-  const events = decideSweep({ now, docs: [doc({ status: 'draft', createdAt: daysAgo(3), sentAt: null })] }).filter((e) => e.kind === 'draft_unsent');
-  assert.equal(events.length, 1);
-  assert.equal(events[0].dedupeKey, 'draft_unsent:d1:once');
-  assert.ok(!kindOf([doc({ status: 'draft', createdAt: daysAgo(1), sentAt: null })]).includes('draft_unsent'));
+test('the planner still knows the gated kinds, with phase 5 thresholds', () => {
+  // Stale = 4 days (not the 14 a draft of this file once carried)...
+  const stale = decideSweep({ now, docs: [doc({ sentAt: daysAgo(5), dueDate: daysAhead(30) })], phase5: true })
+    .filter((e) => e.kind === 'invoice_stale');
+  assert.equal(stale.length, 1);
+  assert.match(stale[0].dedupeKey, /^invoice_stale:d1:w\d+$/);
+  assert.deepEqual(
+    decideSweep({ now, docs: [doc({ sentAt: daysAgo(3), dueDate: daysAhead(30) })], phase5: true })
+      .filter((e) => e.kind === 'invoice_stale'),
+    [],
+  );
+
+  // ...and an estimate that went out five days ago is stale too.
+  assert.ok(decideSweep({ now, docs: [doc({ kind: 'quote', sentAt: daysAgo(5), validUntil: daysAhead(30) })], phase5: true })
+    .some((e) => e.kind === 'estimate_stale'));
+
+  // A draft is unsent after 24 HOURS, not two days.
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(25), sentAt: null })], phase5: true })
+    .filter((e) => e.kind === 'draft_unsent').length, 1);
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(20), sentAt: null })], phase5: true })
+    .filter((e) => e.kind === 'draft_unsent').length, 0);
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: daysAgo(1), sentAt: null })], phase5: true })
+    .filter((e) => e.kind === 'draft_unsent').length, 1);
 });
 
 test('a sweep over a healthy book writes nothing', () => {
@@ -142,4 +170,58 @@ test('a sweep over a healthy book writes nothing', () => {
     doc({ id: 'b', status: 'paid', amountPaid: 150, dueDate: daysAhead(-9), sentAt: daysAgo(30) }),
     doc({ id: 'c', kind: 'quote', status: 'draft', createdAt: daysAgo(1), sentAt: null }),
   ]), []);
+});
+
+// ── Interleaving ───────────────────────────────────────────────────────────
+
+const at = (n: number) => now.getTime() + n * 60_000; // minutes from `now`
+const stamp = (n: number) => new Date(at(n)).toISOString();
+const ev = (id: string, n: number) => row({ id, occurred_at: stamp(n) });
+
+test('a card sits immediately before the first message that happened after it', () => {
+  const { between, trailing } = splitEventsByMessage(
+    [ev('e1', 5)],
+    [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }],
+  );
+  assert.deepEqual(Object.keys(between), ['m2']);
+  assert.deepEqual(between.m2.map((e) => e.id), ['e1']);
+  assert.deepEqual(trailing, []);
+});
+
+test('a card older than the oldest timestamped message falls to the end', () => {
+  const { between, trailing } = splitEventsByMessage(
+    [ev('e1', -10)],
+    [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }],
+  );
+  assert.deepEqual(between, {});
+  assert.deepEqual(trailing.map((e) => e.id), ['e1']);
+});
+
+test('a card newer than the last message falls to the end', () => {
+  const { between, trailing } = splitEventsByMessage([ev('e1', 30)], [{ id: 'm1', at: at(0) }]);
+  assert.deepEqual(between, {});
+  assert.deepEqual(trailing.map((e) => e.id), ['e1']);
+});
+
+test('messages saved before `at` existed never receive a card', () => {
+  const { between, trailing } = splitEventsByMessage([ev('e1', 5)], [{ id: 'old' }]);
+  assert.deepEqual(between, {});
+  assert.deepEqual(trailing.map((e) => e.id), ['e1']);
+});
+
+test('several cards keep their order and split across messages', () => {
+  const { between, trailing } = splitEventsByMessage(
+    [ev('e3', 25), ev('e1', 3), ev('e2', 15)],
+    [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }, { id: 'm3', at: at(20) }],
+  );
+  assert.deepEqual(between.m2.map((e) => e.id), ['e1']);
+  assert.deepEqual(between.m3.map((e) => e.id), ['e2']);
+  assert.deepEqual(trailing.map((e) => e.id), ['e3']);
+});
+
+test('each card appears exactly once', () => {
+  const events = [ev('a', 3), ev('b', 12), ev('c', 19), ev('d', 40)];
+  const { between, trailing } = splitEventsByMessage(events, [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }, { id: 'm3', at: at(20) }]);
+  const seen = [...Object.values(between).flat(), ...trailing].map((e) => e.id).sort();
+  assert.deepEqual(seen, ['a', 'b', 'c', 'd']);
 });
