@@ -69,7 +69,13 @@ import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import PopSheet from '@/components/popups/PopSheet';
+import PopInline from '@/components/popups/PopInline';
 import { templateHasContent } from '@/lib/popups/destructive';
+import {
+  ALERTS_FAILED_TEXT, ALERTS_SETTINGS_HREF, MIC_STILL_BLOCKED, changeGuardCopy, changeGuardRows,
+  clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
+  unfinishedFigure, type MicBlocked,
+} from '@/lib/popups/decision';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -285,19 +291,11 @@ const NEAR_BOTTOM_PX = 120;
 const ALERTS_PROMPTED_KEY = 'onit_alerts_prompted';
 const FEEDBACK_PROMPT_KEY = 'onit_feedback_prompt';
 
-/** What to tell the user when the mic could not be opened. A denied permission
- *  (NotAllowedError) gets a way back in, because the browser will not ask
- *  again; any other failure (no mic, busy) keeps the plain fallback. */
-function micBlockedMessage(err: unknown): string {
-  const name = (err as { name?: string } | null)?.name;
-  if (name !== 'NotAllowedError' && name !== 'SecurityError') {
-    return "Couldn't use the mic. You can type instead.";
-  }
-  const ios = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  return ios
-    ? 'Mic access is off. To use voice, turn on Microphone for On It in your iPhone Settings, or type instead.'
-    : 'Mic access is off. To use voice, allow the microphone for this site in your browser settings, or type instead.';
-}
+/** A denied mic permission gets the steps card (micBlockedCard), because the
+ *  browser will not ask again; any other failure (no mic, busy) keeps this
+ *  plain line. */
+const MIC_FALLBACK_TEXT = "Couldn't use the mic. You can type instead.";
+const isIosDevice = () => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 // localStorage flag: the payouts nudge was dismissed — never show again.
 const PAYOUTS_NUDGE_DISMISSED_KEY = 'onit_payouts_nudge_dismissed';
 // Layout effect in the browser (pin before paint, no one-frame jump); plain
@@ -681,6 +679,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // One-time payment-alerts offer after a sent invoice: 'ask' (push works here)
   // or 'install' (iPhone Safari tab: Home Screen hint). See showRemindersCard.
   const [reminderPrompt, setReminderPrompt] = useState<{ client: string; onlinePay: boolean } | null>(null);
+  // P-52: the OS said no (or push is unavailable). The card says so and offers
+  // the one way back: the in-app payment-alerts switch.
+  const [alertsFailed, setAlertsFailed] = useState(false);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
@@ -730,6 +731,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Inline mic problem (denied permission, no mic, no support) — shown above the
   // field, never as a chat bubble.
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  // P-47: a denied mic is a card with steps, not a sentence. `still` is set when
+  // Try again was tapped and the browser did not ask a second time.
+  const [micBlocked, setMicBlocked] = useState<{ card: MicBlocked; still: boolean } | null>(null);
+  const micRetryRef = useRef(false);
 
   // The bank popup holds off while the mic owns the screen (CHANGES.md · item
   // 10): the shell cannot see this state, so it is mirrored onto the body.
@@ -1161,7 +1166,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, feedbackPrompt, termsPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, alertsFailed, feedbackPrompt, termsPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -2690,14 +2695,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Only promise what push can actually do for this pro: the paid-online
     // notification needs a connected payment processor.
     const onlinePay = reminderPrompt.onlinePay;
-    setReminderPrompt(null);
     try { localStorage.setItem(ALERTS_PROMPTED_KEY, '1'); } catch { /* ignore */ }
+    // Board M3: the card stays up, locked, while the OS prompt is on top of it
+    // (PopInline holds the pending state). It closes when the OS answers.
     const ok = await subscribeToPush();
-    setMessages((m) => [...m, aMsg(ok
-      ? onlinePay
-        ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
-        : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`
-      : "Couldn't turn that on. You can switch payment alerts on any time in Settings.")]);
+    setReminderPrompt(null);
+    if (!ok) { setAlertsFailed(true); return; }
+    setMessages((m) => [...m, aMsg(onlinePay
+      ? `You're set. I'll notify you when ${who} pays online, and again if an invoice sits unpaid for 2 days.`
+      : `You're set. I'll nudge you if ${who} hasn't paid in 2 days.`)]);
   }
 
   function dismissReminders() {
@@ -3039,8 +3045,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       return;
     }
     setVoiceError(null);
+    // A fresh start hides the card; Try again keeps it up until the mic opens.
+    if (!micRetryRef.current) setMicBlocked(null);
     try {
       const stream = await getSessionStream(); // reused across takes — one prompt per session
+      micRetryRef.current = false;
+      setMicBlocked(null);
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
       recAbortRef.current = false;
@@ -3101,7 +3111,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // Inline above the field, not a chat bubble: the session is already over
       // and the field is the thing the user must fall back to.
       setTranscribing(false);
-      setVoiceError(micBlockedMessage(err));
+      const retried = micRetryRef.current;
+      micRetryRef.current = false;
+      if (isMicPermissionError(err)) {
+        setVoiceError(null);
+        setMicBlocked({ card: micBlockedCard(isIosDevice()), still: retried });
+      } else {
+        setMicBlocked(null);
+        setVoiceError(MIC_FALLBACK_TEXT);
+      }
     }
   }
 
@@ -3174,11 +3192,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // 2·13a: a fresh template asks first when it would replace a saved one with
   // a client or a named item (Keep editing / Start new).
-  const [replaceAsk, setReplaceAsk] = useState<{ title: string; kind: TemplateKind; client: TemplateClient | null } | null>(null);
+  const [replaceAsk, setReplaceAsk] = useState<{
+    title: string; kind: TemplateKind; client: TemplateClient | null;
+    figure: ReturnType<typeof unfinishedFigure>;
+  } | null>(null);
   function startNewTemplate(k: TemplateKind, client: TemplateClient | null = null) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
-    if (title) setReplaceAsk({ title, kind: k, client });
+    if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
     else openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
@@ -3440,6 +3461,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   function endVoiceSession() {
     setVoiceSession(false); sessionRef.current = false;
     setTranscribing(false); setVoiceError(null);
+    micRetryRef.current = false; setMicBlocked(null);
     stopSpeech();
     if (recording && recorderRef.current) {
       recAbortRef.current = true;
@@ -3758,6 +3780,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       document.querySelector('[data-ledger-card]'),
     );
   }, [morphing]);
+  // P-15: Revise used to act on the first tap. It makes a second document from a
+  // locked one, so it asks first (board C5).
+  const [reviseAsk, setReviseAsk] = useState(false);
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
@@ -4014,7 +4039,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={reviseInvoice}>
+              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
                 <Icon name="edit" size={18} /> Revise
               </button>
               <p className="mt-1 text-center text-xs text-on-surface-variant/80">
@@ -4363,50 +4388,48 @@ export default function Chat({ active = true }: { active?: boolean }) {
         </Fragment>
         ))}
 
-        {pendingChange && (
+        {pendingChange && (() => {
           // Change guard (Commit A): the parse would rewrite the linked invoice.
           // Ask before touching it — the current card above stays as it was.
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">
-              This would change {formatDocNumber(pendingChange.kind, pendingChange.no)}. Update it, or start a new invoice?
-            </p>
-            <button className="btn-primary mt-3 w-full" disabled={phase !== null} onClick={resolvePendingChangeUpdate}>
-              Update {formatDocNumber(pendingChange.kind, pendingChange.no)}
-            </button>
-            <button
-              className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60 disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={resolvePendingChangeNew}
-            >
-              Start a new invoice
-            </button>
-          </div>
-        )}
+          // Board C1: the rows show what moves. Not dismissible.
+          const copy = changeGuardCopy(pendingChange.kind, pendingChange.no);
+          return (
+            <PopInline
+              eyebrow={copy.eyebrow}
+              eyebrowIcon="edit"
+              text={copy.text}
+              rows={changeGuardRows(draft, pendingChange.draft)}
+              consequence={copy.consequence}
+              actions={[
+                { label: copy.updateLabel, kind: 'gold', busyLabel: copy.updateBusy, disabled: phase !== null, onSelect: resolvePendingChangeUpdate },
+                { label: copy.newLabel, kind: 'outline', disabled: phase !== null, onSelect: resolvePendingChangeNew },
+              ]}
+            />
+          );
+        })()}
 
-        {clientChoice && clientQuestionOpen && (
+        {clientChoice && clientQuestionOpen && (() => {
           // finalize() paused: the typed name is close to saved clients but not
-          // the same. Nothing is created until one of these is tapped.
-          <div ref={clientCardRef} className="card border-primary-container/50">
-            <p className="text-body-md">Which client is this for?</p>
-            {clientChoice.candidates.map((c) => (
-              <button
-                key={c.id}
-                className="btn-primary mt-3 w-full"
-                disabled={phase !== null}
-                onClick={() => pickClientChoice(c)}
-              >
-                {c.name}
-              </button>
-            ))}
-            <button
-              className="pressable mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline disabled:opacity-40"
-              disabled={phase !== null}
-              onClick={() => pickClientChoice('new')}
-            >
-              New client “{clientChoice.typed}”
-            </button>
-          </div>
-        )}
+          // the same. Nothing is created until one of these is tapped (board C2).
+          const copy = clientChoiceCopy(clientChoice.typed);
+          return (
+            <div ref={clientCardRef}>
+              <PopInline
+                eyebrow="Which client?"
+                eyebrowIcon="person"
+                text={copy.text}
+                consequence={copy.consequence}
+                choices={[
+                  ...clientChoice.candidates.map((c) => ({
+                    label: c.name,
+                    onSelect: () => { if (phase === null) pickClientChoice(c); },
+                  })),
+                  { label: copy.newLabel, icon: 'person_add' as const, onSelect: () => { if (phase === null) pickClientChoice('new'); } },
+                ]}
+              />
+            </div>
+          );
+        })()}
 
         {expenseDraft && !expenseTemplate && (
           // Only ever set live (never restored), so the build-in plays once per capture.
@@ -4427,17 +4450,29 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
 
         {reminderPrompt && (
-          <div className="card border-primary-container/50">
-            <p className="text-body-md">
-              {reminderPrompt.onlinePay
-                ? `Want a notification when ${reminderPrompt.client} pays online?`
-                : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
-            </p>
-            <button className="btn-primary mt-3 w-full" onClick={enableReminders}>Yes</button>
-            <button className="mt-1 min-h-touch w-full text-center text-sm text-on-surface-variant underline transition active:opacity-60" onClick={dismissReminders}>
-              Not now
-            </button>
-          </div>
+          <PopInline
+            eyebrow="Payment alerts"
+            eyebrowIcon="notifications"
+            text={reminderPrompt.onlinePay
+              ? `Want a notification when ${reminderPrompt.client} pays online?`
+              : `Want a nudge if ${reminderPrompt.client} hasn't paid in 2 days?`}
+            actions={[
+              { label: 'Yes', kind: 'gold', busyLabel: 'Asking your phone…', onSelect: enableReminders },
+              { label: 'Not now', kind: 'outline', onSelect: dismissReminders },
+            ]}
+          />
+        )}
+        {alertsFailed && (
+          <PopInline
+            tone="error"
+            title="Payment alerts are off"
+            text={ALERTS_FAILED_TEXT}
+            actions={[{
+              label: 'Open payment alerts',
+              kind: 'gold',
+              onSelect: () => { setAlertsFailed(false); router.push(ALERTS_SETTINGS_HREF); },
+            }]}
+          />
         )}
         {termsPrompt && (
           <div className="flex justify-start">
@@ -4489,6 +4524,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
       )}
+      {reviseAsk && draft && (() => {
+        const kind = docKind(draft);
+        const no = pendingInvoiceRef.current?.no ?? null;
+        const copy = reviseSheetCopy(kind, no);
+        const total = calculateInvoiceTotals(draft.line_items ?? [], draft.tax_rate ?? 0).total;
+        return (
+          <PopSheet
+            open
+            icon="edit"
+            title={copy.title}
+            sub={copy.sub}
+            figure={{
+              label: [no != null ? formatDocNumber(kind, no) : null, draft.client_name].filter(Boolean).join(' · ') || 'This document',
+              meta: lockBadgeText(linkedStatus, linkedAmountPaid),
+              amount: money(total),
+            }}
+            actions={[
+              { label: copy.actionLabel, kind: 'gold', go: true, busyLabel: copy.busyLabel },
+              { label: 'Cancel', kind: 'text', safe: true },
+            ]}
+            onDismiss={() => setReviseAsk(false)}
+            onConfirm={() => { reviseInvoice(); }}
+            onSuccess={() => setReviseAsk(false)}
+            consequence={copy.consequence}
+          />
+        );
+      })()}
       {closeTemplateAsk && template && (
         <PopSheet
           open
@@ -4506,11 +4568,31 @@ export default function Chat({ active = true }: { active?: boolean }) {
           consequence="Your draft is still here."
         />
       )}
-      {replaceAsk && (
-        <ReplaceTemplateSheet title={replaceAsk.title}
-          onKeep={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
-          onStartNew={() => { const a = replaceAsk; setReplaceAsk(null); openTemplate(a.kind, a.client); }} />
-      )}
+      {replaceAsk && (() => {
+        // P-03 / board C3. Dismissal (scrim, ×, Escape, swipe) = Keep editing.
+        // Start new is destructive (red outline) and soft-deletes the draft row,
+        // so it has a pending state and a failure that says the draft is intact.
+        const copy = replaceTemplateCopy(replaceAsk.kind);
+        return (
+          <PopSheet
+            open
+            destructive
+            icon="edit"
+            iconTone="gold"
+            title={replaceAsk.title}
+            sub={copy.sub}
+            figure={replaceAsk.figure}
+            actions={[
+              { label: copy.keepLabel, kind: 'gold', safe: true },
+              { label: copy.startLabel, kind: 'danger', go: true, busyLabel: copy.startBusy },
+            ]}
+            onDismiss={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
+            onConfirm={() => { openTemplate(replaceAsk.kind, replaceAsk.client); }}
+            onSuccess={() => setReplaceAsk(null)}
+            consequence={copy.consequence}
+          />
+        );
+      })()}
       {template ? (
         // Capped so the card never pushes its own header off-screen on a short
         // phone: past ~85% of the chat area it scrolls inside its slot.
@@ -4580,6 +4662,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
             <p role="status" aria-live="polite" className="mb-2 border-l-2 border-primary-container pl-2 text-body-md text-on-surface-variant">
               {voiceError}
             </p>
+          )}
+          {micBlocked && (
+            // P-47 / board M1: directly above the composer, never in the transcript.
+            <div role="status" aria-live="polite" className="mb-2">
+              <PopInline
+                eyebrow="Microphone"
+                eyebrowIcon="mic"
+                title="Mic access is off"
+                text={micBlocked.card.text}
+                rows={micBlocked.card.steps}
+                error={micBlocked.still ? MIC_STILL_BLOCKED : undefined}
+                actions={micBlocked.card.canRetry
+                  ? [
+                      {
+                        label: 'Try again',
+                        kind: 'gold',
+                        busyLabel: 'Asking…',
+                        onSelect: async () => { micRetryRef.current = true; await startRecording(); },
+                      },
+                      { label: 'Type instead', kind: 'outline', onSelect: () => { inputRef.current?.focus(); } },
+                    ]
+                  : [{ label: 'Type instead', kind: 'gold', onSelect: () => { inputRef.current?.focus(); } }]}
+              />
+            </div>
           )}
 
           <div className="flex items-end gap-2">

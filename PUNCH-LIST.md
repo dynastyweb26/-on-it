@@ -1102,3 +1102,15 @@ _Money OUT only. No migration: PR1's schema already holds `bank_transactions`, `
 - **Done** — Empty unpaid answer was the server sentence plus model prose restating it. `replyFor` returns the sentence alone when `totalCount === 0` (`src/lib/tools/reply.ts`).
 - **Done** — Invoices Open header read "1 open · $0.00" over a draft. Rule chosen: drafts are not open money, so they count toward neither N nor $X; they are named apart ("1 draft", "2 open · $150.00 · 1 draft"). `src/lib/open-summary.ts`.
 - **Open, separate PR** — `fix/copy-guard-windows`: copy-guard test root used `URL.pathname` (breaks on Windows). Touches `src/lib/ci`; needs founder approval + `tests-approved`.
+
+## Popup system — logged 2026-11-07 (stacked: `feat/popup-primitives` → `feat/popups-destructive` → `feat/popups-decision-permission`)
+Built from `design/popups/boards/` (visuals) and `design/popups/INVENTORY.md` (behavior). Mobile only; nothing visually compared on a device yet. Not merged.
+| Item | Status | Evidence |
+|---|---|---|
+| PopSheet / PopInline / PopToast + pure decisions | **Built — awaiting preview** | PR #137, `src/components/popups/*`, `src/lib/popups/*` (sheet, toast, failure, pending hook). |
+| P-14 convert, P-09 delete payment, P-13 discard queued, P-16 template × | **Built — awaiting preview** | PR #138, `src/lib/popups/destructive.ts`. P-14 names the amount, not the next number (`invoice_number` is trigger-assigned; no migration). |
+| P-66 shared-not-sent | **Open** | Board S1 needs Mark as sent / Retry the share / Keep as draft plus the S1b persistent card: a send-path restructure, not a popup swap. |
+| D1–D3 still `DeleteConfirmModal`; D7/D8 still act immediately | **Open** | Rest of Board 1. |
+| P-01 change guard, P-02 which client, P-03 replace template, P-15 revise confirm | **Built — awaiting preview** | `src/lib/popups/decision.ts` (+ tests). P-15 is a new confirm; P-03 Start new is now destructive with a pending state. P-02 has no per-client document count (no query returns it today). |
+| P-47 mic denied, P-49 camera steps line, P-52 alerts failure, P-53 clipboard toast | **Built — awaiting preview** | Mic card has steps + Try again/Type instead; alerts card stays locked while the OS prompt is up and a failure offers "Open payment alerts"; board icons `mic_off`/`keyboard`/`content_paste_off`/`notifications_off` are not in the icon subset (`icons:build` needs network), so existing glyphs are used. |
+| P-53 on the public estimate page (`SuccessSheet`) | **Open** | Client-facing page uses its own icon set; left as is. |

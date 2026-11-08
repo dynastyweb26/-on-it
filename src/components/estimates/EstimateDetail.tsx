@@ -10,6 +10,7 @@
 import { convertedDepositColumns } from '@/lib/estimates/convert';
 import PopSheet from '@/components/popups/PopSheet';
 import { convertActionLabel } from '@/lib/popups/destructive';
+import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -234,7 +235,7 @@ export default function EstimateDetail({
       await navigator.clipboard.writeText(publicUrl);
       showToast('Link copied');
     } catch {
-      setActionError('Clipboard is blocked. Long-press the link to copy it.');
+      showToast(CLIPBOARD_BLOCKED_TEXT);
     }
   }
 
@@ -247,7 +248,7 @@ export default function EstimateDetail({
       text: estimateShareText(profile.business_name),
     });
     if (result === 'copied') showToast('Link copied');
-    if (result === 'failed') setActionError('Clipboard is blocked. Long-press the link to copy it.');
+    if (result === 'failed') showToast(CLIPBOARD_BLOCKED_TEXT);
   }
 
   async function send() {

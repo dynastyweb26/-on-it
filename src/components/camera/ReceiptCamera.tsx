@@ -27,6 +27,7 @@
    the default `copy`; a flow with other words passes its own. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cameraStepsLine } from '@/lib/popups/decision';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import OnItSpinner from '@/components/OnItSpinner';
@@ -413,6 +414,7 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, cop
   if (typeof document === 'undefined') return null;
 
   const words = cameraFailureCopy(failure, text.subject);
+  const steps = cameraStepsLine(failure, /iPad|iPhone|iPod/.test(navigator.userAgent));
 
   if (mode === 'blocked') {
     return createPortal(
@@ -435,6 +437,10 @@ export default function ReceiptCamera({ onClose, onPhoto, onPickFromLibrary, cop
           <Icon name="visibility_off" size={40} className="mx-auto text-primary" />
           <h2 className="mt-4 text-headline-mobile">{words.title}</h2>
           <p className="mt-2 text-body-md text-on-surface-variant">{words.body}</p>
+          {steps && (
+            // Board M2: the exact setting path, as a line the user can follow.
+            <p className="mt-3 rounded-input bg-surface-container px-3 py-2 text-label-lg font-semibold text-on-background">{steps}</p>
+          )}
           <button type="button" className="btn-primary mt-6 w-full" onClick={pickLibrary}>
             <Icon name="photo_library" size={20} /> Choose from photos
           </button>
