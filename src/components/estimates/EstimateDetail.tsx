@@ -49,6 +49,7 @@ import {
   type OwnerEstimateState,
 } from '@/lib/estimates/owner-view';
 import EstimateAttachments from '@/components/estimates/EstimateAttachments';
+import ConfirmSheet from '@/components/ConfirmSheet';
 
 export type EstimateDetailRow = {
   id: string;
@@ -127,6 +128,8 @@ export default function EstimateDetail({
   // The signed moment (lib/soft-prompts.ts): shown once per estimate.
   const [moment, setMoment] = useState<SoftPrompt | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  // Converting mints a numbered invoice, so it asks first (P-14).
+  const [confirmConvert, setConfirmConvert] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(inv.title ?? '');
   const titleCancelled = useRef(false);
@@ -289,6 +292,14 @@ export default function EstimateDetail({
     }
   }
 
+  // The confirm, not the action: opened by the Convert button and by the
+  // approved nudge's CTA, so neither can create an invoice on one tap.
+  function askConvert() {
+    if (busy || convertingRef.current || state !== 'approved') return;
+    setActionError(null);
+    setConfirmConvert(true);
+  }
+
   async function convertToInvoice() {
     if (busy || convertingRef.current || state !== 'approved') return;
     convertingRef.current = true;
@@ -321,6 +332,7 @@ export default function EstimateDetail({
       }).select('id').single();
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
+          setConfirmConvert(false);
           setPaywallFor('invoice');
           return;
         }
@@ -337,6 +349,7 @@ export default function EstimateDetail({
             if (existing.deleted_at) {
               await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
             }
+            setConfirmConvert(false);
             router.push(`/invoices/${existing.id}`);
             return;
           }
@@ -549,7 +562,7 @@ export default function EstimateDetail({
               title={moment.title}
               body={moment.body}
               actions={[
-                { label: moment.cta, variant: 'primary', onClick: () => void convertToInvoice() },
+                { label: moment.cta, variant: 'primary', onClick: askConvert },
                 { label: 'Not now', variant: 'secondary', onClick: () => setMoment(null) },
                 { label: 'Go Pro', variant: 'link', onClick: () => { setMoment(null); setPaywallFor('estimate'); } },
               ]}
@@ -567,7 +580,7 @@ export default function EstimateDetail({
           )}
 
           {state === 'approved' && (
-            <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void convertToInvoice()}>
+            <button type="button" className={primaryButton} disabled={busy !== null} onClick={askConvert}>
               <Icon name="autorenew" size={18} />
               {busy === 'convert' ? 'Converting…' : 'Convert to Invoice'}
             </button>
@@ -661,6 +674,20 @@ export default function EstimateDetail({
 
         {actionError && <div className="mt-2 text-xs font-semibold text-error">{actionError}</div>}
       </div>
+
+      {confirmConvert && (
+        <ConfirmSheet
+          title="Convert this estimate to an invoice?"
+          body={`${inv.client_name || 'No client'} · ${estimateNumber(inv.invoice_number)}. This makes a new invoice you can edit. The estimate stays as it is.`}
+          detail={money(totals.total)}
+          confirmLabel="Convert to Invoice"
+          cancelLabel="Cancel"
+          pendingLabel="Converting…"
+          pending={busy === 'convert'}
+          error={actionError}
+          onConfirm={() => void convertToInvoice()}
+          onCancel={() => setConfirmConvert(false)} />
+      )}
 
       {state === 'approved' && (
         <div className="card mb-4">

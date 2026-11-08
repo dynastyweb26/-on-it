@@ -20,6 +20,7 @@ import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
 import { invoiceStatusLabel, ledgerEntryLabel } from '@/lib/payment-methods';
+import ConfirmSheet from '@/components/ConfirmSheet';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UndoToast from '@/components/UndoToast';
 import DepositValueInput from '@/components/DepositValueInput';
@@ -168,6 +169,13 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     paidTickRef.current = setTimeout(() => { try { navigator.vibrate?.(12); } catch { /* unsupported */ } }, 450);
   }
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  // The payment-delete confirm owns its own pending/error (P-09): the sheet
+  // must not close on a failure, and a second tap must not delete twice.
+  const [paymentDeleteBusy, setPaymentDeleteBusy] = useState(false);
+  const [paymentDeleteError, setPaymentDeleteError] = useState<string | null>(null);
+  const paymentDeleteRef = useRef(false);
+  // The queued payment a Discard would drop (P-13): one tap, no undo, so ask.
+  const [discardAsk, setDiscardAsk] = useState<QueuedPayment | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
   // was built from, or file=null when that build failed. The nonce forces a
@@ -631,15 +639,26 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // Delete a ledger row (behind a confirm step). The trigger recomputes
   // invoices.amount_paid from what remains, so we refetch the invoice after.
   async function handleDeletePayment(paymentId: string) {
-    const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
-    if (error) {
-      console.error('delete payment failed', error);
-      return;
+    if (paymentDeleteRef.current) return;
+    paymentDeleteRef.current = true;
+    setPaymentDeleteBusy(true);
+    setPaymentDeleteError(null);
+    try {
+      const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+      if (error) {
+        console.error('delete payment failed', error);
+        // Stays open with the reason: the money is still on the invoice.
+        setPaymentDeleteError("Couldn't delete that payment. Try again.");
+        return;
+      }
+      setDeletingPaymentId(null);
+      const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+      if (updated) setInv(updated);
+      void fetchPayments();
+    } finally {
+      paymentDeleteRef.current = false;
+      setPaymentDeleteBusy(false);
     }
-    setDeletingPaymentId(null);
-    const { data: updated } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
-    if (updated) setInv(updated);
-    void fetchPayments();
   }
 
   // Share PDF / Request balance: the SAME one-tap send path as chat
@@ -1105,7 +1124,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
               // delete would silently match 0 rows — so they get no delete
               // control. Refunds are handled in the seller's Stripe Dashboard.
               const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
-              const confirming = deletingPaymentId === p.id;
               return (
                 <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
                   <div className="flex min-h-touch items-center gap-3 px-3 py-2">
@@ -1121,7 +1139,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
                     <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
                       {money(Number(p.amount))}
                     </span>
-                    {!locked && !confirming && (
+                    {!locked && (
                       <button
                         type="button"
                         className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-error opacity-80 transition active:scale-95"
@@ -1133,17 +1151,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
                       </button>
                     )}
                   </div>
-                  {!locked && confirming && (
-                    <div className="flex items-center justify-end gap-2 px-3 pb-2">
-                      <span className="text-xs font-semibold text-error">Delete?</span>
-                      <button className="chip border-error px-3 text-xs text-error" onClick={() => void handleDeletePayment(p.id)}>
-                        Yes
-                      </button>
-                      <button className="chip px-3 text-xs text-on-surface-variant" onClick={() => setDeletingPaymentId(null)}>
-                        No
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -1298,8 +1305,20 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           entries={queue}
           onRetry={() => void retryQueued()}
           onEdit={(e) => void editQueued(e)}
-          onDiscard={(e) => void discardQueued(e)}
+          onDiscard={(e) => setDiscardAsk(e)}
         />
+      )}
+      {discardAsk && (
+        <ConfirmSheet
+          title="Discard this payment?"
+          body="It won't be recorded, and the invoice stays unpaid."
+          detail={money(discardAsk.amount)}
+          confirmLabel="Discard"
+          cancelLabel="Keep it"
+          destructive
+          pendingLabel="Discarding…"
+          onConfirm={() => { const entry = discardAsk; setDiscardAsk(null); void discardQueued(entry); }}
+          onCancel={() => setDiscardAsk(null)} />
       )}
       {showPayBar && (
         <RecordPaymentBar amount={money(totals.balanceRemaining)} onOpen={() => setPaySheetOpen(true)} />
@@ -1314,6 +1333,29 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           onSave={recordPayment}
         />
       )}
+
+      {deletingPaymentId && (() => {
+        const p = payments.find((x) => x.id === deletingPaymentId);
+        if (!p) return null;
+        return (
+          <ConfirmSheet
+            title="Delete this payment?"
+            body={`${ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))} · ${new Date(p.paid_at).toLocaleDateString()}. The invoice goes back to unpaid by this amount.`}
+            detail={money(Number(p.amount))}
+            confirmLabel="Delete payment"
+            cancelLabel="Cancel"
+            destructive
+            pendingLabel="Deleting…"
+            pending={paymentDeleteBusy}
+            error={paymentDeleteError}
+            onConfirm={() => void handleDeletePayment(p.id)}
+            onCancel={() => {
+              if (paymentDeleteBusy) return;
+              setDeletingPaymentId(null);
+              setPaymentDeleteError(null);
+            }} />
+        );
+      })()}
 
       <DeleteConfirmModal
         isOpen={showDeleteModal}

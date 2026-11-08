@@ -56,6 +56,8 @@ import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
+import ConfirmSheet from '@/components/ConfirmSheet';
+import { templateHasWork, unsentShareCopy } from '@/lib/confirm-guard';
 import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
@@ -2458,10 +2460,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
       if (sendRes) {
         console.error('invoice send failed', sendRes.status, await sendRes.text().catch(() => ''));
       }
-      if (!retryId) setMessages((m) => upsertFailure(m, aMsg(
-        "Your file was shared, but I couldn't mark it as sent. Tap send to try again.",
-        { failed: { op: 'finalize' } },
-      )));
+      // The client already has the PDF, so this is not a normal failure bubble:
+      // it stays on screen above the composer until the row is marked sent.
+      setUnsentShareError(null);
+      setUnsentShare({
+        id: pb.id,
+        noun: draft ? docNoun(docKind(draft)).toLowerCase() : 'invoice',
+        client: draft?.client_name ?? null,
+      });
       return;
     }
     finalizeSentRef.current = true;
@@ -3116,6 +3122,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [templateRestored, setTemplateRestored] = useState<StoredTemplate | null>(null);
   // The template's sendable draft (2·12b) and the L17 duplicate note.
   const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
+  // × on the template with unsent work asks before it throws that work away (P-16).
+  const [closeAsk, setCloseAsk] = useState(false);
+  // Share succeeded, POST /send did not (P-66): the file is with the client, the
+  // row is still a draft. A banner above the composer, not a bubble that scrolls
+  // away — with the one action that fixes it.
+  const [unsentShare, setUnsentShare] = useState<{ id: string; noun: string; client: string | null } | null>(null);
+  const [unsentShareError, setUnsentShareError] = useState<string | null>(null);
+  const [markingSent, setMarkingSent] = useState(false);
+  const markingSentRef = useRef(false);
   const [templateDup, setTemplateDup] = useState<string | null>(null);
   const templateInit = useRef(false);
   const templateUidRef = useRef<string | null>(null);
@@ -3228,7 +3243,34 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setConvoId(genId());
     setAttachments([]);
   }
+  // The one thing that did not happen: marking the shared document sent.
+  async function retryMarkSent() {
+    const pending = unsentShare;
+    if (!pending || markingSentRef.current) return;
+    markingSentRef.current = true;
+    setMarkingSent(true);
+    setUnsentShareError(null);
+    try {
+      const res = await fetch(`/api/invoices/${pending.id}/send`, { method: 'POST' }).catch(() => null);
+      if (!res?.ok) {
+        setUnsentShareError("Still couldn't mark it as sent. Check your connection and try again.");
+        return;
+      }
+      setUnsentShare(null);
+      setMessages((m) => [...m, aMsg(`All set — your ${pending.noun} for ${pending.client ?? 'your client'} is sent.`)]);
+    } finally {
+      markingSentRef.current = false;
+      setMarkingSent(false);
+    }
+  }
+
   function closeTemplate() {
+    // Closing throws away the client, items and prices that were never sent, and
+    // soft-deletes the pre-built draft row. Empty builder: nothing to lose.
+    if (templateHasWork(templateDraft)) { setCloseAsk(true); return; }
+    discardTemplate();
+  }
+  function discardTemplate() {
     discardTemplateRow();
     setDraft(null);
     setReady(false);
@@ -4472,6 +4514,37 @@ export default function Chat({ active = true }: { active?: boolean }) {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
+      {unsentShare && (
+        <div role="alert" className="shrink-0 border-t border-error/40 bg-error-container px-3 py-2.5">
+          <p className="text-[14px] font-bold text-error-on-container">{unsentShareCopy(unsentShare.noun, unsentShare.client).title}</p>
+          <p className="mt-0.5 text-[13px] leading-[18px] text-error-on-container/90">{unsentShareCopy(unsentShare.noun, unsentShare.client).body}</p>
+          {unsentShareError && (
+            <p className="mt-1 text-[13px] font-semibold text-error-on-container">{unsentShareError}</p>
+          )}
+          <div className="mt-2 flex gap-2">
+            <button type="button" disabled={markingSent} onClick={() => void retryMarkSent()}
+              className="min-h-touch rounded-full bg-error px-4 py-2 text-[13px] font-bold text-white transition active:scale-[0.985] disabled:opacity-60">
+              {markingSent ? 'Marking as sent…' : 'Mark as sent'}
+            </button>
+            <button type="button" disabled={markingSent}
+              onClick={() => { setUnsentShare(null); setUnsentShareError(null); }}
+              className="min-h-touch rounded-full border border-error/30 px-4 py-2 text-[13px] font-semibold text-error disabled:opacity-60">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+      {closeAsk && (
+        <ConfirmSheet
+          title={`Discard this ${docNoun(template ?? 'invoice').toLowerCase()}?`}
+          body="The client, items and prices on this template aren't sent yet."
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          destructive
+          pendingLabel="Discarding…"
+          onConfirm={() => { setCloseAsk(false); discardTemplate(); }}
+          onCancel={() => setCloseAsk(false)} />
+      )}
       {discardAsk && expenseTemplate && (
         <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
           onKeep={() => setDiscardAsk(false)}
