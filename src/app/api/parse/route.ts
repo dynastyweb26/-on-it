@@ -182,6 +182,20 @@ export async function POST(req: NextRequest) {
     // every writer stores the same thing. Unusable → null, never a 400.
     result.client_email = normalizeClientEmail(result.client_email);
 
+    // A payment proposal never touches the draft, the totals, the money
+    // narration or the duplicate check: nothing is written until the owner taps
+    // Confirm on the card, so the only thing to return is the proposal. The
+    // client also re-derives amount/method from the words themselves
+    // (lib/payment-intent), so a model miss can't invent money.
+    if (result.intent === 'record_payment') {
+      const res = NextResponse.json({ ...result, duplicateWarning: null });
+      if (!user) {
+        const guestCount = Number(req.cookies.get('onit_guest')?.value ?? 0);
+        res.cookies.set('onit_guest', String(guestCount + 1), { httpOnly: true, sameSite: 'lax' });
+      }
+      return res;
+    }
+
     // Pasted work cards (lib/pasted-notes): on the paste turn the card's priced
     // lines become the line items, list price billed, cost price nowhere; the
     // notes are sorted into customer-facing and private. Read from the same
