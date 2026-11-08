@@ -70,6 +70,7 @@ import { clientQuestionPending, matchOrCreateClient, updateClientContact, type C
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
+import { failedBubbleTitle, unsupportedReplyExtras, visibleChips } from '@/lib/popups/ai';
 import { SHARE_NOT_OPENED_TEXT, UNREADABLE_PRICES_TEXT, signInCard, type SignInKind } from '@/lib/popups/status';
 import { templateHasContent } from '@/lib/popups/destructive';
 import {
@@ -103,6 +104,8 @@ type Failure = { op: 'send'; text: string } | { op: 'finalize' };
 interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
+  /** Suggestion chips under an answer (A1): each sends that text as a question. */
+  chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
   skipHistory?: true;
   // A quiet status line (free-tier usage): secondary small text, no bubble,
@@ -1288,7 +1291,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Account talk stays out of the job history parse reads later.
         const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
         const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
-        return [...marked, aMsg(reply, { skipHistory: true })];
+        return [...marked, aMsg(reply, unsupportedReplyExtras())];
       });
       if (source === 'voice') {
         cancelSpeechRef.current?.();
@@ -3195,7 +3198,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
     if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
-    else openTemplate(k, client);
+    else void openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
@@ -3204,14 +3207,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // delete, drafts only): while a template is saved, the live conversation is
   // that template's, so its pending row is the template's draft; after leaving
   // Chat the row comes from the template's stored link.
-  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+  async function openTemplate(k: TemplateKind, client: TemplateClient | null = null, strictRow = false) {
     // The stored link only counts when the live conversation has no row of its
     // own, or it is that same row — never a normal chat's draft.
     const row = loadTemplateRow(templateUidRef.current);
     const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
     if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
     if (template || linked || loadTemplate(templateUidRef.current)) {
-      discardTemplateRow();
+      // The sheet path awaits the delete and throws; every other caller keeps
+      // the instant, fire-and-forget cleanup it had.
+      if (strictRow) await discardTemplateRowStrict();
+      else discardTemplateRow();
       setDraft(null);
       setReady(false);
     }
@@ -3232,12 +3238,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Drop the template's unsent draft row (soft delete, drafts only) and its
   // pre-build, under a new conversation id — so the next insert can't hit the
   // old finalize_key and be handed the old row back.
-  function discardTemplateRow() {
+  // The row such a discard would soft-delete: a draft, unsent, unlocked.
+  function templateRowToDiscard() {
     const pending = pendingInvoiceRef.current;
-    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
-      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
-        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
-    }
+    return pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus) ? pending : null;
+  }
+  // Reset the link, the pre-build and the conversation id, so the next insert
+  // cannot hit the old finalize_key and be handed the old row back.
+  function resetTemplateRow() {
     pendingInvoiceRef.current = null;
     clearTemplateRow();
     preBuiltRef.current = null;
@@ -3245,6 +3253,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setPrepState(null);
     setConvoId(genId());
     setAttachments([]);
+  }
+  // The instant path (an untouched template, a swap): fire-and-forget.
+  function discardTemplateRow() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    resetTemplateRow();
+  }
+  // The sheet path: awaited, and a failed soft delete throws instead of being
+  // swallowed, so PopSheet names the cause and keeps the draft. Nothing resets
+  // until the row is actually gone, so a retry targets the same row.
+  async function discardTemplateRowStrict() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft');
+      if (error) throw error;
+    }
+    resetTemplateRow();
   }
   // P-16: × asks first when something was entered (the same rule the expense
   // card already used). An untouched template closes instantly.
@@ -3258,6 +3287,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   function closeTemplateNow() {
     discardTemplateRow();
+    setDraft(null);
+    setReady(false);
+    dropTemplate();
+  }
+  // Close × sheet's confirm. PopSheet awaits it, so "Discarding…" shows and a
+  // failed soft delete throws instead of being swallowed: the sheet names the
+  // cause, says the draft is still here, and stays open.
+  async function discardTemplateFromSheet() {
+    await discardTemplateRowStrict();
     setDraft(null);
     setReady(false);
     dropTemplate();
@@ -4223,6 +4261,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   className={`whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-error/40 bg-error-container px-3.5 py-2.5 text-[15px] leading-snug text-error-on-container${
                     (retryShake[m.id] ?? 0) > 0 || !restoredMsgIdsRef.current.has(m.id) ? ' onit-shake' : ''}`}
                 >
+                  {failedBubbleTitle(m.content) && (
+                    <div className="mb-0.5 text-[15px] font-semibold">{failedBubbleTitle(m.content)}</div>
+                  )}
                   {m.content}
                 </div>
                 {/* Inline Retry under the item (no modal): it keeps its width; the
@@ -4236,6 +4277,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <Icon name="refresh" size={20} className={retryingId === m.id ? 'onit-spin' : ''} />
                   Retry
                 </button>
+              </div>
+            </div>
+          ) : visibleChips(m, mi === messages.length - 1, phase !== null).length > 0 ? (
+            // Answer + suggestion chips (Board 8, A1). A chip sends a supported
+            // question in one tap and goes away once used.
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {visibleChips(m, true, phase !== null).map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      disabled={chip.disabled}
+                      onClick={() => {
+                        if (sendRef.current) return;
+                        setMessages((ms) => ms.map((x) => (x.id === m.id ? { ...x, chips: undefined } : x)));
+                        void send(chip.label, 'typed');
+                      }}
+                      className="min-h-11 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-label-lg font-semibold text-primary transition active:scale-95 disabled:opacity-40"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : m.feedbackLink ? (
@@ -4584,7 +4652,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
             { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
           ]}
           onDismiss={() => setCloseTemplateAsk(false)}
-          onConfirm={() => { setCloseTemplateAsk(false); closeTemplateNow(); }}
+          onConfirm={() => discardTemplateFromSheet()}
+          onSuccess={() => setCloseTemplateAsk(false)}
           consequence="Your draft is still here."
         />
       )}
@@ -4607,7 +4676,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               { label: copy.startLabel, kind: 'danger', go: true, busyLabel: copy.startBusy },
             ]}
             onDismiss={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
-            onConfirm={() => { openTemplate(replaceAsk.kind, replaceAsk.client); }}
+            onConfirm={() => openTemplate(replaceAsk.kind, replaceAsk.client, true)}
             onSuccess={() => setReplaceAsk(null)}
             consequence={copy.consequence}
           />
