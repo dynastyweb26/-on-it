@@ -33,6 +33,7 @@ import {
 } from '@/lib/bank-deposits';
 import { formatMoney } from '@/lib/bank-tracking';
 import { revealSection } from '@/lib/reveal';
+import { INVOICE_CHOICE_EMPTY } from '@/lib/popups/picker';
 
 const PATH_COPY: Record<DepositPath, { label: string; sub: string; icon: IconName }> = {
   existing: {
@@ -81,6 +82,9 @@ export default function DepositCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sectionRef = useRef<HTMLDivElement | null>(null);
+  // Board 9: a second tap in the same frame reads the pre-render closure, so the
+  // guard is a ref set before the request starts (CLAUDE.md interaction rule 2).
+  const busyRef = useRef(false);
 
   // Interaction rule 4: a section that appears below the fold scrolls into
   // view. Each path opens one section (the invoice picker, the payment list,
@@ -112,6 +116,8 @@ export default function DepositCard({
 
   async function post(action: 'record' | 'already' | 'ignored' | 'classified',
     extra: { invoice_id?: string; payment_id?: string; classification?: DepositClassification }) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -132,6 +138,7 @@ export default function DepositCard({
     } catch {
       setError(depositRefusalMessage(null));
     }
+    busyRef.current = false;
     setBusy(false);
   }
 
@@ -223,20 +230,36 @@ export default function DepositCard({
 
         {path === 'invoice' && !deposit.removed && (
           <div ref={sectionRef}>
-            <label className="block text-[13px] font-semibold" htmlFor={`invoice-${deposit.id}`}>
-              Which invoice?
-              <select
-                id={`invoice-${deposit.id}`}
-                value={invoiceId}
-                onChange={(e) => setInvoiceId(e.target.value)}
-                className="mt-1 w-full rounded-input border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-normal"
+            <div id={`invoice-${deposit.id}`} className="text-[13px] font-semibold">Which invoice?</div>
+            {invoices.length === 0 ? (
+              <p className="mt-1 text-[13px] leading-[1.45] text-on-surface-variant">{INVOICE_CHOICE_EMPTY}</p>
+            ) : (
+              <div
+                role="radiogroup"
+                aria-labelledby={`invoice-${deposit.id}`}
+                className="mt-1 flex max-h-64 flex-col divide-y divide-outline-variant/40 overflow-y-auto overscroll-contain rounded-[16px] border border-outline-variant bg-surface-container-lowest"
               >
-                <option value="">Choose an invoice</option>
-                {invoices.map((invoice) => (
-                  <option key={invoice.id} value={invoice.id}>{invoiceLabel(invoice)}</option>
-                ))}
-              </select>
-            </label>
+                {invoices.map((invoice) => {
+                  const on = invoiceId === invoice.id;
+                  return (
+                    <button
+                      key={invoice.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      disabled={busy}
+                      onClick={() => setInvoiceId(invoice.id)}
+                      className={`flex min-h-[56px] w-full items-center gap-3 px-3.5 py-2 text-left text-[15px] transition-colors active:bg-surface-container-low ${
+                        on ? 'bg-primary-soft font-semibold' : ''
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1">{invoiceLabel(invoice)}</span>
+                      {on && <Icon name="check" size={20} className="shrink-0 text-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -275,7 +298,13 @@ export default function DepositCard({
           </div>
         )}
 
-        {error && <p role="alert" className="text-sm font-semibold text-on-surface-variant">{error}</p>}
+        {error && (
+          // Board 9: the same error-slot block as the kit, above the buttons.
+          <div role="alert" className="flex items-start gap-2.5 rounded-[16px] border border-primary-container/20 bg-surface-container-low px-3.5 py-3">
+            <Icon name="error" size={20} className="mt-px shrink-0 text-error" />
+            <div className="min-w-0 text-[14px] leading-[1.45] text-on-background/90">{error}</div>
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 p-[18px] pt-3">

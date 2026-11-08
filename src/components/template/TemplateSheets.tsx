@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { initials, normalizeSummary, type ClientSummary } from '@/lib/clients';
 import { PRODUCT_COLS, normalizeProduct, priceText, productSubtitle, type Product } from '@/lib/products';
 import { clientDocsLine, splitClientHistory, usedBeforeLine, type TemplateClient } from '@/lib/template';
+import { pickerLoadFailure, type PickerFailure } from '@/lib/popups/picker';
 
 const byRecent = (a: string | null, b: string | null) => (b ?? '').localeCompare(a ?? '');
 
@@ -30,11 +31,19 @@ function useSignedIn(): boolean | null {
 
 export function ClientSheet({ onPick, onClose }: { onPick: (c: TemplateClient) => void; onClose: () => void }) {
   const [rows, setRows] = useState<ClientSummary[] | null>(null);
+  // P-20: a failed load used to set [] and render "Nothing saved yet".
+  const [loadError, setLoadError] = useState<PickerFailure | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const signedIn = useSignedIn();
   useEffect(() => {
+    setRows(null);
+    setLoadError(null);
     createClient().rpc('client_summaries')
-      .then(({ data }) => setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeSummary)), () => setRows([]));
-  }, []);
+      .then(({ data, error }) => {
+        if (error) { setLoadError(pickerLoadFailure('clients', error)); setRows([]); return; }
+        setRows(((data ?? []) as Record<string, unknown>[]).map(normalizeSummary));
+      }, (err) => { setLoadError(pickerLoadFailure('clients', err)); setRows([]); });
+  }, [attempt]);
 
   async function pickId(id: string, fallbackName: string) {
     // The stored spelling and contact on file ride along (invoice snapshot,
@@ -51,6 +60,7 @@ export function ClientSheet({ onPick, onClose }: { onPick: (c: TemplateClient) =
   return (
     <PickerSheet title="Client" searchNoun={['client', 'clients']} idPrefix="tpl-client" newLabel="New client"
       saved={saved} history={visibleHistory} hiddenHistory={hiddenHistory} loading={rows === null} onClose={onClose}
+      loadError={loadError} onRetry={() => setAttempt((n) => n + 1)}
       onPick={pick}
       onUseName={(name) => onPick({ name, id: null, address: null, phone: null })}
       renderCreate={signedIn ? ({ name, barProps, onCancel }) => (
@@ -79,18 +89,26 @@ export function ItemSheet({ onPick, onClose }: {
   onClose: () => void;
 }) {
   const [rows, setRows] = useState<ItemRow[] | null>(null);
+  const [loadError, setLoadError] = useState<PickerFailure | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const signedIn = useSignedIn();
   useEffect(() => {
+    setRows(null);
+    setLoadError(null);
     createClient().from('products').select(`${PRODUCT_COLS}, saved_at`).is('deleted_at', null).limit(500)
-      .then(({ data }) => setRows(((data ?? []) as Record<string, unknown>[])
-        .map((r) => ({ ...normalizeProduct(r), saved: r.saved_at != null }))), () => setRows([]));
-  }, []);
+      .then(({ data, error }) => {
+        if (error) { setLoadError(pickerLoadFailure('items', error)); setRows([]); return; }
+        setRows(((data ?? []) as Record<string, unknown>[])
+          .map((r) => ({ ...normalizeProduct(r), saved: r.saved_at != null })));
+      }, (err) => { setLoadError(pickerLoadFailure('items', err)); setRows([]); });
+  }, [attempt]);
 
   const saved = (rows ?? []).filter((p) => p.saved);
   const history = (rows ?? []).filter((p) => !p.saved && p.use_count > 0).sort((a, b) => byRecent(a.last_used_at, b.last_used_at));
   return (
     <PickerSheet title="Product or service" searchNoun={['item', 'items']} idPrefix="tpl-item" newLabel="New product or service"
       saved={saved} history={history} loading={rows === null} onClose={onClose}
+      loadError={loadError} onRetry={() => setAttempt((n) => n + 1)}
       onPick={(p) => onPick({ name: p.name, unit: p.unit, unit_price: p.unit_price, detail: p.detail, saved: p.saved })}
       onUseName={(name) => onPick({ name, unit: 'each', unit_price: null, detail: null, saved: false })}
       renderCreate={signedIn ? ({ name, barProps, onCancel }) => (

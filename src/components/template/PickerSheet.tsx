@@ -19,6 +19,7 @@ import { AlphaSections } from '@/components/lists/SavedList';
 import { groupByLetter, matchesQuery } from '@/lib/clients';
 import { hasExactName } from '@/lib/template';
 import { useSheetDrag } from '@/lib/use-sheet-drag';
+import { USE_NAME_SUB, createPickGuard, type PickerFailure } from '@/lib/popups/picker';
 
 export type PickRow = { id: string; name: string };
 
@@ -32,7 +33,7 @@ export type CreateArgs = {
 };
 
 export default function PickerSheet<T extends PickRow>({
-  title, searchNoun, idPrefix, saved, history, hiddenHistory = [], loading, renderRow, onPick, onUseName, newLabel, onClose, renderCreate,
+  title, searchNoun, idPrefix, saved, history, hiddenHistory = [], loading, loadError = null, onRetry, renderRow, onPick, onUseName, newLabel, onClose, renderCreate,
 }: {
   title: string;
   /** "clients" / "items" — for "Search 18 clients". */
@@ -43,6 +44,9 @@ export default function PickerSheet<T extends PickRow>({
   /** Older unsaved rows: only shown while searching. */
   hiddenHistory?: T[];
   loading: boolean;
+  /** A failed load is not an empty list: it names the cause and offers Retry (P-20). */
+  loadError?: PickerFailure | null;
+  onRetry?: () => void;
   renderRow: (row: T, kind: 'saved' | 'history') => ReactNode;
   onPick: (row: T) => void;
   onUseName: (name: string) => void;
@@ -54,6 +58,8 @@ export default function PickerSheet<T extends PickRow>({
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // A row tap commits and closes: a second tap in the same frame has nothing to hit.
+  const guard = useRef(createPickGuard()).current;
   const backToList = () => setCreating(null);
 
   // The focused field stays between the form's sticky Cancel · Save bar and
@@ -100,7 +106,11 @@ export default function PickerSheet<T extends PickRow>({
   const exact = hasExactName([...saved, ...history, ...hiddenHistory].map((r) => r.name), query);
 
   const rowButton = (r: T, kind: 'saved' | 'history') => (
-    <button key={r.id} type="button" onClick={() => onPick(r)}
+    <button key={r.id} type="button" onClick={() => {
+      if (!guard.claim()) return;
+      const out = onPick(r) as unknown;
+      if (out && typeof (out as Promise<void>).catch === 'function') (out as Promise<void>).catch(() => guard.release());
+    }}
       className="flex min-h-[60px] w-full items-center gap-3 border-b border-outline-variant/50 py-2 text-left active:bg-surface-container">
       {renderRow(r, kind)}
     </button>
@@ -149,10 +159,13 @@ export default function PickerSheet<T extends PickRow>({
           ) : (
             <>
               {query && !exact && (
-                <button type="button" onClick={() => onUseName(query)}
+                <button type="button" onClick={() => { if (guard.claim()) onUseName(query); }}
                   className="mt-1 flex min-h-[56px] w-full items-center gap-3 rounded-card bg-primary-soft px-3 text-left active:scale-[0.99]">
-                  <Icon name="add" size={22} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-[17px] font-semibold text-on-background">Use “{query}”</span>
+                  <Icon name="edit" size={22} className="shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[17px] font-semibold text-on-background">Use “{query}”</span>
+                    <span className="block truncate text-[13px] text-on-surface-variant">{USE_NAME_SUB}</span>
+                  </span>
                 </button>
               )}
               {historyShown.length > 0 && (
@@ -165,7 +178,22 @@ export default function PickerSheet<T extends PickRow>({
                 <AlphaSections groups={groups} idPrefix={idPrefix} showRail={!query && savedShown.length > 8}
                   renderRow={(r) => rowButton(r, 'saved')} />
               )}
-              {total === 0 && !query && (
+              {loadError && (
+                <div role="alert" className="mt-4 flex items-start gap-3 rounded-card border border-outline-variant/60 bg-surface-container-low px-3.5 py-3">
+                  <Icon name="error" size={22} className="mt-px shrink-0 text-error" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[16px] font-semibold text-on-background">{loadError.title}</div>
+                    <div className="mt-0.5 text-[14px] leading-[1.45] text-on-surface-variant">{loadError.body}</div>
+                    {onRetry && (
+                      <button type="button" onClick={onRetry}
+                        className="mt-2 min-h-touch rounded-full border-[1.5px] border-outline-variant bg-surface-container-lowest px-5 text-[15px] font-semibold text-on-background active:scale-[0.97]">
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {total === 0 && !query && !loadError && (
                 <p className="mt-10 text-center text-body-md text-on-surface-variant">
                   Nothing saved yet. Type a name above to use it.
                 </p>

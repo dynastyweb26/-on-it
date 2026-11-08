@@ -3,6 +3,7 @@
 // Sign sheet (design spec §2.3): bottom sheet, Draw/Type tabs, name field,
 // consent checkbox, and the one POST to /api/public/estimates/[token]/sign.
 import { useRef, useState } from 'react';
+import { signFailureMessage } from '@/lib/popups/picker';
 import { CONSENT_VERSION } from '@/lib/estimates/consent';
 import type { PublicEstimate, SignatureSummary } from '@/lib/estimates/types';
 import EstIcon from './EstIcon';
@@ -45,6 +46,8 @@ export default function SignSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const padRef = useRef<SignaturePadHandle | null>(null);
+  // Board 9 / P-33: a second tap in the same frame must not sign twice.
+  const submittingRef = useRef(false);
 
   const draft = {
     hasInk: tab === 'draw' ? drawn !== null : name.trim().length > 0,
@@ -66,7 +69,8 @@ export default function SignSheet({
   }
 
   async function submit() {
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -98,9 +102,10 @@ export default function SignSheet({
         return;
       }
       setError(mapped.message);
-    } catch {
-      setError("Couldn't approve. Please try again.");
+    } catch (err) {
+      setError(signFailureMessage(err));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
