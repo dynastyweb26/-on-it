@@ -69,3 +69,94 @@ test('no client name falls back to neutral wording', () => {
   assert.equal(copy.truths[0].title, 'Your client has the PDF');
   assert.match(copy.eyebrow, /INV-0007 · Your client ·/);
 });
+
+// ── S1b, remembered: the storage rules ─────────────────────────────────────
+import {
+  forgetUnsentShare, readUnsentShare, rememberUnsentShare, restoreUnsentShare, unsentShareKey,
+} from './unsent-share';
+
+function fakeStorage() {
+  const data = new Map<string, string>();
+  return {
+    data,
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => { data.set(k, v); },
+    removeItem: (k: string) => { data.delete(k); },
+  };
+}
+
+const row = {
+  id: 'inv-1', status: 'draft', kind: 'invoice', invoice_number: 8,
+  client_name: 'Brandon Test', total: '200.00', due_date: '2026-12-07',
+};
+const memory = { sharedAt: '2026-11-08T03:02:45.000Z', offline: true };
+
+test('the key is per invoice, so two drafts cannot collide', () => {
+  assert.equal(unsentShareKey('inv-1'), 'onit.unsentShare.inv-1');
+});
+
+test('write, read, clear', () => {
+  const s = fakeStorage();
+  rememberUnsentShare('inv-1', memory, s);
+  assert.deepEqual(readUnsentShare('inv-1', s), memory);
+  forgetUnsentShare('inv-1', s);
+  assert.equal(readUnsentShare('inv-1', s), null);
+  assert.equal(s.data.size, 0);
+});
+
+test('a stored record restores the card from the row', () => {
+  const s = fakeStorage();
+  rememberUnsentShare('inv-1', memory, s);
+  const restored = restoreUnsentShare('inv-1', row, s);
+  assert.equal(restored?.number, 'INV-0008');
+  assert.equal(restored?.client, 'Brandon Test');
+  assert.equal(restored?.total, 200);
+  assert.equal(restored?.dueDate, '2026-12-07');
+  assert.equal(restored?.sharedAt, memory.sharedAt);
+  assert.equal(restored?.offline, true);
+});
+
+test('the draft gate: a row that left draft is cleared, not restored', () => {
+  for (const status of ['sent', 'paid', 'void', null]) {
+    const s = fakeStorage();
+    rememberUnsentShare('inv-1', memory, s);
+    assert.equal(restoreUnsentShare('inv-1', { ...row, status }, s), null);
+    assert.equal(readUnsentShare('inv-1', s), null);
+  }
+});
+
+test('a missing row clears the record', () => {
+  const s = fakeStorage();
+  rememberUnsentShare('inv-1', memory, s);
+  assert.equal(restoreUnsentShare('inv-1', null, s), null);
+  assert.equal(readUnsentShare('inv-1', s), null);
+  rememberUnsentShare('inv-1', memory, s);
+  assert.equal(restoreUnsentShare('inv-1', { ...row, id: 'inv-2' }, s), null);
+  assert.equal(readUnsentShare('inv-1', s), null);
+});
+
+test('nothing stored means nothing restored, and no key invented', () => {
+  const s = fakeStorage();
+  assert.equal(restoreUnsentShare('inv-9', row, s), null);
+  assert.equal(s.data.size, 0);
+});
+
+test('private mode (storage throws) is no memory, not an error', () => {
+  const boom = {
+    getItem: () => { throw new Error('blocked'); },
+    setItem: () => { throw new Error('blocked'); },
+    removeItem: () => { throw new Error('blocked'); },
+  };
+  assert.doesNotThrow(() => rememberUnsentShare('inv-1', memory, boom));
+  assert.equal(readUnsentShare('inv-1', boom), null);
+  assert.equal(restoreUnsentShare('inv-1', row, boom), null);
+  assert.equal(restoreUnsentShare('inv-1', null, boom), null);
+});
+
+test('a corrupted record reads as no record', () => {
+  const s = fakeStorage();
+  s.setItem(unsentShareKey('inv-1'), '{not json');
+  assert.equal(readUnsentShare('inv-1', s), null);
+  s.setItem(unsentShareKey('inv-1'), JSON.stringify({ sharedAt: 5 }));
+  assert.equal(readUnsentShare('inv-1', s), null);
+});
