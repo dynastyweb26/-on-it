@@ -17,6 +17,7 @@ import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
 import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
 import { canReviseEstimate, reviseBlock, reviseBlockedLine, revisionFieldsFromDraft, saveEstimateRevision } from '@/lib/estimates/revise';
+import { versionChipLabel } from '@/lib/estimates/versions';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
@@ -4213,12 +4214,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
       setMessages((m) => [...m, aMsg(outcome.message)]);
       return;
     }
-    const label = formatDocNumber('quote', pending.no);
+    // The version the trigger just bumped. The line names it and claims only
+    // what is true: same document, same link, nothing duplicated.
+    const version = versionChipLabel(Number(outcome.estimate.estimate_version));
     setRevisingEstimate(false);
     setDraftControlsOut(true);
     setReady(true);
     playCardAnim('lock', 1200);
-    setMessages((m) => [...m, aMsg(`Updated ${label}. Same link and number — share it again if anything changed.`)]);
+    setMessages((m) => [...m, aMsg(version ? `Saved as ${version}. Same link.` : 'Saved. Same link.')]);
   }
 
   // The invoice/quote card renders INSIDE the transcript, right after its
