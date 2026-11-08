@@ -292,6 +292,17 @@ export default function EstimateDetail({
     }
   }
 
+  // A card's Convert button lands here with ?convert=1: open the SAME confirm
+  // the screen's own button opens. Nothing converts on one tap, and the param
+  // is dropped so a refresh does not reopen the sheet.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('convert') !== '1') return;
+    if (state !== 'approved') return;
+    setConfirmConvert(true);
+    router.replace(`/invoices/${inv.id}`);
+  }, [state, inv.id, router]);
+
   // The confirm, not the action: opened by the Convert button and by the
   // approved nudge's CTA, so neither can create an invoice on one tap.
   function askConvert() {
