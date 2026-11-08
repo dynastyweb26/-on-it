@@ -108,3 +108,19 @@ test('change guard: the answers are synchronous resolvers, so a second run finds
     assert.match(body, /setPendingChange\(null\);/);
   }
 });
+
+// ── P-02 which client: the typed name is close to saved clients ──
+test('client picker: no pick lands while a turn runs, and a failure says nothing was saved', () => {
+  const block = chat.slice(chat.indexOf('{clientChoice && clientQuestionOpen'), chat.indexOf('{expenseDraft && !expenseTemplate'));
+  assert.ok(block.length > 0, 'client choice card renders');
+  assert.match(block, /if \(phase === null\) pickClientChoice\(c\)/);
+  assert.match(block, /if \(phase === null\) pickClientChoice\('new'\)/);
+  assert.match(block, /consequence=\{copy\.consequence\}/, '"Nothing was saved."');
+});
+
+test('client picker: a second pick in the same frame is dropped before any work starts', () => {
+  const pick = fn(chat, 'function pickClientChoice');
+  assert.match(pick, /if \(!clientChoice \|\| phase\) return;/);
+  assert.match(pick, /setClientChoice\(null\);/);
+  assert.match(pick, /if \(choice === 'new'\)/, 'both paths go through the same guard');
+});
