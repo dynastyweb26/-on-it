@@ -18,7 +18,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
-import { eventCard, type EventRow } from '@/lib/events';
+import { eventAction, eventCard, type EventAction, type EventRow } from '@/lib/events';
 
 const HOLD_MS = 5000;
 const CATCHUP_WINDOW_MS = 24 * 3600e3;
@@ -50,10 +50,20 @@ function markToasted(userId: string, id: string): void {
   } catch { /* storage blocked — the 24h window still bounds a replay */ }
 }
 
+type ToastItem = { event: EventRow; action: EventAction | null };
+
+const toItem = (e: EventRow): ToastItem => ({ event: e, action: eventAction(String(e.kind)) });
+
+/** Append rows, never twice, capped at three. */
+const enqueue = (q: ToastItem[], rows: EventRow[]): ToastItem[] => {
+  const known = new Set(q.map((i) => i.event.id));
+  return [...q, ...rows.filter((r) => !known.has(r.id)).map(toItem)].slice(-QUEUE_MAX);
+};
+
 export default function EventToastHost() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [queue, setQueue] = useState<EventRow[]>([]);
+  const [queue, setQueue] = useState<ToastItem[]>([]);
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -90,10 +100,7 @@ export default function EventToastHost() {
           .slice(0, QUEUE_MAX);
         if (fresh.length === 0) return;
         fresh.forEach((e) => markToasted(userId, e.id));
-        setQueue((q) => {
-          const known = new Set(q.map((e) => e.id));
-          return [...q, ...fresh.filter((e) => !known.has(e.id))].slice(0, QUEUE_MAX);
-        });
+        setQueue((q) => enqueue(q, fresh));
       } catch { /* no catch-up; live toasts still work */ }
     })();
     return () => { alive = false; };
@@ -113,14 +120,15 @@ export default function EventToastHost() {
           if (!row?.id) return;
           if (readToasted(userId).has(row.id)) return;
           markToasted(userId, row.id);
-          setQueue((q) => (q.some((e) => e.id === row.id) ? q : [...q, row]).slice(-QUEUE_MAX));
+          setQueue((q) => enqueue(q, [row]));
         },
       )
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [userId]);
 
-  const current = queue[0] ?? null;
+  const item = queue[0] ?? null;
+  const current = item?.event ?? null;
 
   // Enter on the next frame so the drop is a transition, not a jump.
   useEffect(() => {
@@ -149,6 +157,16 @@ export default function EventToastHost() {
     const href = current.invoice_id ? `/invoices/${current.invoice_id}` : null;
     close();
     if (href) router.push(href);
+  };
+
+  // The toast's decision, on the same two routes the cards use: Convert reaches
+  // the estimate's own confirm sheet, Send reminder lands on the invoice that
+  // holds Request balance.
+  const runAction = (action: EventAction) => {
+    const id = current?.invoice_id;
+    close();
+    if (!id) return;
+    router.push(action === 'convert' ? `/invoices/${id}?convert=1` : `/invoices/${id}`);
   };
 
   return (
@@ -180,6 +198,15 @@ export default function EventToastHost() {
               <p className="text-[14.5px] font-semibold leading-snug text-on-surface">{card.title}</p>
               {card.detail && <p className="mt-0.5 truncate text-[12.5px] leading-snug text-on-surface-variant">{card.detail}</p>}
             </div>
+          )}
+          {item?.action && current.invoice_id && (
+            <button
+              type="button"
+              onClick={() => runAction(item.action as EventAction)}
+              className="shrink-0 rounded-full border border-primary/40 px-3 py-1.5 text-[12.5px] font-bold text-primary transition active:scale-95"
+            >
+              {item.action === 'convert' ? 'Convert' : 'Send reminder'}
+            </button>
           )}
           <button
             type="button"
