@@ -215,3 +215,20 @@ test('mic card: a retry that is still blocked says so instead of looping silentl
   assert.match(body, /setMicBlocked\(\{ card: micBlockedCard\(isIosDevice\(\)\), still: retried \}\)/);
   assert.match(chat, /error=\{micBlocked\.still \? MIC_STILL_BLOCKED : undefined\}/);
 });
+
+// ── Alerts card (P-52): push was refused or failed ──
+test('alerts card: a real cause, one way to the switch, and a card rather than a toast', () => {
+  const block = chat.slice(chat.indexOf('{alertsFailed && ('), chat.indexOf('{termsPrompt && ('));
+  assert.ok(block.length > 0, 'alerts card renders');
+  assert.match(block, /tone="error"/);
+  assert.match(block, /text=\{ALERTS_FAILED_TEXT\}/);
+  assert.match(block, /onSelect: \(\) => \{ setAlertsFailed\(false\); router\.push\(ALERTS_SETTINGS_HREF\); \}/);
+});
+
+test('alerts card: only a Yes that failed raises it; Not now is not a failure', () => {
+  const yes = chat.slice(chat.indexOf('async function enableReminders()'), chat.indexOf('function dismissReminders()'));
+  assert.match(yes, /const ok = await subscribeToPush\(\);/);
+  assert.match(yes, /if \(!ok\) \{ setAlertsFailed\(true\); return; \}/);
+  const no = chat.slice(chat.indexOf('function dismissReminders()'), chat.indexOf('// ── Receipt capture'));
+  assert.doesNotMatch(no, /alertsFailed\(/, 'declining never raises the card');
+});
