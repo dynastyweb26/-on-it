@@ -210,7 +210,7 @@ test('mic card: Try again is awaited so the card keeps its busy label', () => {
 });
 
 test('mic card: a retry that is still blocked says so instead of looping silently', () => {
-  const body = fn(chat, 'async function startRecording()');
+  const body = chat.slice(chat.indexOf('async function startRecording()'), chat.indexOf('// ── The composer'));
   assert.match(body, /if \(!micRetryRef\.current\) setMicBlocked\(null\);/);
   assert.match(body, /setMicBlocked\(\{ card: micBlockedCard\(isIosDevice\(\)\), still: retried \}\)/);
   assert.match(chat, /error=\{micBlocked\.still \? MIC_STILL_BLOCKED : undefined\}/);
