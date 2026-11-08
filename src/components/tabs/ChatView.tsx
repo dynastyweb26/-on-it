@@ -3198,7 +3198,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
     if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
-    else openTemplate(k, client);
+    else void openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
@@ -3207,14 +3207,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // delete, drafts only): while a template is saved, the live conversation is
   // that template's, so its pending row is the template's draft; after leaving
   // Chat the row comes from the template's stored link.
-  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+  async function openTemplate(k: TemplateKind, client: TemplateClient | null = null, strictRow = false) {
     // The stored link only counts when the live conversation has no row of its
     // own, or it is that same row — never a normal chat's draft.
     const row = loadTemplateRow(templateUidRef.current);
     const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
     if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
     if (template || linked || loadTemplate(templateUidRef.current)) {
-      discardTemplateRow();
+      // The sheet path awaits the delete and throws; every other caller keeps
+      // the instant, fire-and-forget cleanup it had.
+      if (strictRow) await discardTemplateRowStrict();
+      else discardTemplateRow();
       setDraft(null);
       setReady(false);
     }
@@ -4673,7 +4676,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               { label: copy.startLabel, kind: 'danger', go: true, busyLabel: copy.startBusy },
             ]}
             onDismiss={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
-            onConfirm={() => { openTemplate(replaceAsk.kind, replaceAsk.client); }}
+            onConfirm={() => openTemplate(replaceAsk.kind, replaceAsk.client, true)}
             onSuccess={() => setReplaceAsk(null)}
             consequence={copy.consequence}
           />

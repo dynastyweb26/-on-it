@@ -124,3 +124,20 @@ test('client picker: a second pick in the same frame is dropped before any work 
   assert.match(pick, /setClientChoice\(null\);/);
   assert.match(pick, /if \(choice === 'new'\)/, 'both paths go through the same guard');
 });
+
+// ── P-03 replace an unfinished template ──
+test('replace template: Start new is awaited, and a failure keeps the draft it could not discard', () => {
+  const sheet = chat.slice(chat.indexOf('{replaceAsk && (() => {'), chat.indexOf('// Capped so the card never pushes its own header'));
+  assert.ok(sheet.length > 0, 'replace sheet renders');
+  assert.match(sheet, /onConfirm=\{\(\) => openTemplate\(replaceAsk\.kind, replaceAsk\.client, true\)\}/);
+  assert.match(sheet, /onSuccess=\{\(\) => setReplaceAsk\(null\)\}/);
+  assert.match(sheet, /onDismiss=\{\(\) => \{ setReplaceAsk\(null\); resumeSavedTemplate\(\); \}\}/, 'dismissal means Keep editing');
+  assert.match(sheet, /consequence=\{copy\.consequence\}/, '"Your unfinished draft is still here."');
+});
+
+test('replace template: only the sheet path awaits and throws the soft delete', () => {
+  const open = fn(chat, 'async function openTemplate');
+  assert.match(open, /if \(strictRow\) await discardTemplateRowStrict\(\);/);
+  assert.match(open, /else discardTemplateRow\(\);/, 'every other caller keeps the instant path');
+  assert.match(chat, /else void openTemplate\(k, client\);/, 'the + menu does not await it');
+});
