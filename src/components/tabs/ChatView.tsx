@@ -92,7 +92,7 @@ import {
   ALERTS_FAILED_TEXT, ALERTS_SETTINGS_HREF, MIC_STILL_BLOCKED, changeGuardCopy, changeGuardRows,
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
-} from '@/lib/popups/decision';
+docKindOf } from '@/lib/popups/decision';
 import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
 import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
@@ -3404,13 +3404,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // 2·13a: a fresh template asks first when it would replace a saved one with
   // a client or a named item (Keep editing / Start new).
   const [replaceAsk, setReplaceAsk] = useState<{
-    title: string; kind: TemplateKind; client: TemplateClient | null;
+    title: string; kind: TemplateKind; savedKind: 'invoice' | 'quote'; client: TemplateClient | null;
     figure: ReturnType<typeof unfinishedFigure>;
   } | null>(null);
   function startNewTemplate(k: TemplateKind, client: TemplateClient | null = null) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
-    if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
+    if (saved && title) {
+      setReplaceAsk({
+        title, kind: k, client, figure: unfinishedFigure(saved),
+        savedKind: docKindOf(saved.kind),
+      });
+    }
     else void openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
@@ -5253,7 +5258,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // P-03 / board C3. Dismissal (scrim, ×, Escape, swipe) = Keep editing.
         // Start new is destructive (red outline) and soft-deletes the draft row,
         // so it has a pending state and a failure that says the draft is intact.
-        const copy = replaceTemplateCopy(replaceAsk.kind);
+        const copy = replaceTemplateCopy(replaceAsk.kind, replaceAsk.savedKind);
         return (
           <PopSheet
             open

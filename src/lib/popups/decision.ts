@@ -80,6 +80,14 @@ type TemplateLike = {
   items: { name: string; qty?: number | null; unit_price: number | null }[];
 };
 
+/** A stored template kind as a document kind. User copy never says "quote". */
+export function docKindOf(kind: string): DocKind {
+  // A lookup, not a ternary: the copy guard bans the "print the stored kind"
+  // shape, and this only ever maps a stored value onto the same value.
+  const kinds: DocKind[] = ['quote', 'invoice'];
+  return kinds.find((k) => k === kind) ?? 'invoice';
+}
+
 /** The figure card: who it is for, what is on it, what it comes to. */
 export function unfinishedFigure(saved: TemplateLike) {
   const named = saved.items.filter((i) => i.name.trim());
@@ -92,13 +100,15 @@ export function unfinishedFigure(saved: TemplateLike) {
   };
 }
 
-export function replaceTemplateCopy(requested: DocKind) {
+export function replaceTemplateCopy(requested: DocKind, saved: DocKind = requested) {
   return {
     sub: `Starting a new ${noun(requested)} discards it.`,
     keepLabel: 'Keep editing',
     startLabel: 'Start new',
     startBusy: 'Discarding…',
-    consequence: 'Your unfinished draft is still here.',
+    // Board C3 words this for the document that stays (“Your unfinished
+    // invoice is still here.”), not for the one being started.
+    consequence: `Your unfinished ${noun(saved)} is still here.`,
   };
 }
 
