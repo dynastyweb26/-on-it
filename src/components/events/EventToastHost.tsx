@@ -20,7 +20,11 @@ import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
 import { eventAction, eventCard, type EventAction, type EventRow } from '@/lib/events';
 
-const HOLD_MS = 5000;
+const DWELL_VIEW_MS = 4000;
+const DWELL_MONEY_MS = 5000;
+const DWELL_ACTION_MS = 8000;
+const SWIPE_DISMISS_PX = 32;
+const FLICK_PX_PER_MS = 0.5;
 const CATCHUP_WINDOW_MS = 24 * 3600e3;
 const QUEUE_MAX = 3;
 const TOASTED_CAP = 200;
@@ -130,32 +134,65 @@ export default function EventToastHost() {
   const item = queue[0] ?? null;
   const current = item?.event ?? null;
 
-  // Enter on the next frame so the drop is a transition, not a jump.
-  useEffect(() => {
-    if (!current) { setShown(false); return; }
-    const frame = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(frame);
-  }, [current]);
+  // Dwell by kind (spec 01): 4 s for a view, 5 s for money, 8 s when the toast is
+  // offering a decision. A finger down pauses the clock; lifting resumes it.
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedAt = useRef(0);
+  const remaining = useRef(0);
+  const gesture = useRef<{ y: number; t: number } | null>(null);
 
-  // Hold, then step to the next one. A new event never resets the clock of the
-  // toast already on screen.
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  const advance = () => {
+    clearTimer();
+    setShown(false);
+    setDragY(0);
+    setDragging(false);
+    gesture.current = null;
+    setQueue((q) => q.slice(1));
+  };
+
+  const arm = (ms: number) => {
+    clearTimer();
+    startedAt.current = Date.now();
+    remaining.current = ms;
+    timer.current = setTimeout(advance, ms);
+  };
+
   useEffect(() => {
-    if (!current) return;
-    const t = setTimeout(() => {
-      setShown(false);
-      setQueue((q) => q.slice(1));
-    }, HOLD_MS);
-    return () => clearTimeout(t);
-  }, [current]);
+    if (!item) { clearTimer(); setShown(false); return; }
+    const tone = eventCard(item.event, money).tone;
+    const dwell = item.action
+      ? DWELL_ACTION_MS
+      : tone === 'gold' || tone === 'success' ? DWELL_MONEY_MS : DWELL_VIEW_MS;
+    arm(dwell);
+    return clearTimer;
+  }, [item]);
+
+  const pause = () => {
+    if (!timer.current) return;
+    remaining.current = Math.max(800, remaining.current - (Date.now() - startedAt.current));
+    clearTimer();
+  };
+  const resume = () => {
+    if (timer.current) return;
+    arm(remaining.current || DWELL_VIEW_MS);
+  };
 
   if (!current) return null;
 
   const card = eventCard(current, money);
   const gold = card.tone === 'gold' || card.tone === 'success';
-  const close = () => { setShown(false); setQueue((q) => q.slice(1)); };
+  const waiting = queue.length - 1;
+
   const open = () => {
     const href = current.invoice_id ? `/invoices/${current.invoice_id}` : null;
-    close();
+    advance();
     if (href) router.push(href);
   };
 
@@ -163,22 +200,62 @@ export default function EventToastHost() {
   // the estimate's own confirm sheet, Send reminder lands on the invoice that
   // holds Request balance.
   const runAction = (action: EventAction) => {
-    const id = current?.invoice_id;
-    close();
+    const id = current.invoice_id;
+    advance();
     if (!id) return;
     router.push(action === 'convert' ? `/invoices/${id}?convert=1` : `/invoices/${id}`);
   };
+
+  function onPointerDown(e: React.PointerEvent) {
+    gesture.current = { y: e.clientY, t: Date.now() };
+    setDragging(true);
+    pause();
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const g = gesture.current;
+    if (!g) return;
+    const dy = Math.min(0, e.clientY - g.y);
+    if (dy < 0) setDragY(dy);
+  }
+  function onPointerUp() {
+    const g = gesture.current;
+    gesture.current = null;
+    setDragging(false);
+    if (!g) { setDragY(0); resume(); return; }
+    // Up 32px is a dismissal; so is a quick flick, even a short one.
+    const ms = Math.max(1, Date.now() - g.t);
+    if (dragY <= -SWIPE_DISMISS_PX || dragY / ms <= -FLICK_PX_PER_MS) { advance(); return; }
+    setDragY(0);
+    resume();
+  }
+
+  const offset = shown ? dragY : dragY - 12;
 
   return (
     <div
       aria-live="polite"
       role="status"
-      className="pointer-events-none fixed left-1/2 top-[72px] z-[95] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 md:top-4"
+      className="pointer-events-none fixed left-1/2 top-[72px] z-[95] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 flex-col items-end gap-1.5 md:top-4"
     >
+      {waiting > 0 && (
+        <span
+          aria-hidden
+          className="mr-2 rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-bold text-on-surface-variant shadow-card-raised"
+        >
+          +{waiting}
+        </span>
+      )}
       <div
-        className={`pointer-events-auto overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-low shadow-card-raised transition duration-200 ease-out motion-reduce:transition-none ${
-          shown ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'
-        }`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { gesture.current = null; setDragging(false); setDragY(0); resume(); }}
+        style={{
+          transform: `translateY(${offset}px)`,
+          opacity: shown ? 1 : 0,
+          transition: dragging ? 'none' : 'transform 200ms ease-out, opacity 200ms ease-out',
+        }}
+        className="pointer-events-auto w-full touch-pan-x overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-low shadow-card-raised motion-reduce:transition-none"
       >
         <div className="flex items-start gap-3 px-4 py-3">
           <span
@@ -210,7 +287,7 @@ export default function EventToastHost() {
           )}
           <button
             type="button"
-            onClick={close}
+            onClick={advance}
             aria-label="Dismiss"
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-95"
           >
