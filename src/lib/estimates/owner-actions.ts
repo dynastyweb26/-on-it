@@ -29,10 +29,6 @@ export type EstimateRevokeOutcome =
   | { ok: true; revokedAt: string }
   | { ok: false; message: string };
 
-export type EstimateTitleOutcome =
-  | { ok: true; title: string | null }
-  | { ok: false; message: string };
-
 export function sendErrorMessage(status: number, code?: string | null): string {
   if (status === 401) return 'Please sign in again.';
   if (status === 404) return "This estimate couldn't be found.";
@@ -128,33 +124,6 @@ export async function requestEstimateRevoke(id: string): Promise<EstimateRevokeO
     return { ok: true, revokedAt: body.estimate.revoked_at };
   } catch {
     return { ok: false, message: "Couldn't deactivate the link. Please try again." };
-  }
-}
-
-export async function requestEstimateTitle(
-  id: string,
-  title: string | null,
-): Promise<EstimateTitleOutcome> {
-  try {
-    const res = await fetch(`/api/estimates/${id}/title`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
-    const body = (await res.json().catch(() => null)) as
-      | { estimate?: { title?: string | null }; error?: string }
-      | null;
-    if (!res.ok || !body?.estimate) {
-      return {
-        ok: false,
-        message: res.status === 409
-          ? 'This estimate is locked.'
-          : "Couldn't save the title. Please try again.",
-      };
-    }
-    return { ok: true, title: body.estimate.title ?? null };
-  } catch {
-    return { ok: false, message: "Couldn't save the title. Please try again." };
   }
 }
 

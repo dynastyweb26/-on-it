@@ -245,7 +245,7 @@ function lockBadgeText(status: string | null, amountPaid: number, kind: 'invoice
 
 // The refusal shown when the user tries to edit a locked invoice from chat.
 function lockEditNotice(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
-  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Tap Revise on the card to make an edited copy.";
+  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Send a new estimate instead.";
   if (amountPaid > 0) {
     return status === 'paid'
       ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
@@ -4399,14 +4399,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
-                <Icon name="edit" size={18} /> Revise
-              </button>
-              <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                {docKind(draft) === 'quote'
-                  ? 'Makes a new estimate you can edit. This one and its link stay as they are.'
-                  : 'Opens an editable copy as a new invoice. The original stays as it was.'}
-              </p>
+              {/* 4A: an estimate has no revise/duplicate path; invoices keep Revise. */}
+              {docKind(draft) !== 'quote' && (
+                <>
+                  <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
+                    <Icon name="edit" size={18} /> Revise
+                  </button>
+                  <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                    Opens an editable copy as a new invoice. The original stays as it was.
+                  </p>
+                </>
+              )}
             </>
           ) : (
             <p className="text-center text-sm text-on-surface-variant">
@@ -5201,7 +5204,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
       )}
-      {reviseAsk && draft && (() => {
+      {reviseAsk && draft && docKind(draft) !== 'quote' && (() => {
         const kind = docKind(draft);
         const no = pendingInvoiceRef.current?.no ?? null;
         const copy = reviseSheetCopy(kind, no);
