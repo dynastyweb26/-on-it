@@ -3198,7 +3198,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const saved = loadTemplate(templateUidRef.current);
     const title = saved ? unfinishedTitle(saved) : null;
     if (saved && title) setReplaceAsk({ title, kind: k, client, figure: unfinishedFigure(saved) });
-    else openTemplate(k, client);
+    else void openTemplate(k, client);
   }
   // Open a fresh template (the + menu's New invoice / New quote, 2·12c; the
   // ?template= link): it replaces any saved one, and the live conversation is
@@ -3207,14 +3207,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // delete, drafts only): while a template is saved, the live conversation is
   // that template's, so its pending row is the template's draft; after leaving
   // Chat the row comes from the template's stored link.
-  function openTemplate(k: TemplateKind, client: TemplateClient | null = null) {
+  async function openTemplate(k: TemplateKind, client: TemplateClient | null = null, strictRow = false) {
     // The stored link only counts when the live conversation has no row of its
     // own, or it is that same row — never a normal chat's draft.
     const row = loadTemplateRow(templateUidRef.current);
     const linked = !!row && (!pendingInvoiceRef.current || pendingInvoiceRef.current.id === row.id);
     if (linked && !pendingInvoiceRef.current) pendingInvoiceRef.current = { id: row!.id, no: row!.no };
     if (template || linked || loadTemplate(templateUidRef.current)) {
-      discardTemplateRow();
+      // The sheet path awaits the delete and throws; every other caller keeps
+      // the instant, fire-and-forget cleanup it had.
+      if (strictRow) await discardTemplateRowStrict();
+      else discardTemplateRow();
       setDraft(null);
       setReady(false);
     }
@@ -3235,12 +3238,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Drop the template's unsent draft row (soft delete, drafts only) and its
   // pre-build, under a new conversation id — so the next insert can't hit the
   // old finalize_key and be handed the old row back.
-  function discardTemplateRow() {
+  // The row such a discard would soft-delete: a draft, unsent, unlocked.
+  function templateRowToDiscard() {
     const pending = pendingInvoiceRef.current;
-    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
-      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
-        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
-    }
+    return pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus) ? pending : null;
+  }
+  // Reset the link, the pre-build and the conversation id, so the next insert
+  // cannot hit the old finalize_key and be handed the old row back.
+  function resetTemplateRow() {
     pendingInvoiceRef.current = null;
     clearTemplateRow();
     preBuiltRef.current = null;
@@ -3248,6 +3253,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setPrepState(null);
     setConvoId(genId());
     setAttachments([]);
+  }
+  // The instant path (an untouched template, a swap): fire-and-forget.
+  function discardTemplateRow() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    resetTemplateRow();
+  }
+  // The sheet path: awaited, and a failed soft delete throws instead of being
+  // swallowed, so PopSheet names the cause and keeps the draft. Nothing resets
+  // until the row is actually gone, so a retry targets the same row.
+  async function discardTemplateRowStrict() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft');
+      if (error) throw error;
+    }
+    resetTemplateRow();
   }
   // P-16: × asks first when something was entered (the same rule the expense
   // card already used). An untouched template closes instantly.
@@ -3261,6 +3287,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   function closeTemplateNow() {
     discardTemplateRow();
+    setDraft(null);
+    setReady(false);
+    dropTemplate();
+  }
+  // Close × sheet's confirm. PopSheet awaits it, so "Discarding…" shows and a
+  // failed soft delete throws instead of being swallowed: the sheet names the
+  // cause, says the draft is still here, and stays open.
+  async function discardTemplateFromSheet() {
+    await discardTemplateRowStrict();
     setDraft(null);
     setReady(false);
     dropTemplate();
@@ -4617,7 +4652,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
             { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
           ]}
           onDismiss={() => setCloseTemplateAsk(false)}
-          onConfirm={() => { setCloseTemplateAsk(false); closeTemplateNow(); }}
+          onConfirm={() => discardTemplateFromSheet()}
+          onSuccess={() => setCloseTemplateAsk(false)}
           consequence="Your draft is still here."
         />
       )}
@@ -4640,7 +4676,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               { label: copy.startLabel, kind: 'danger', go: true, busyLabel: copy.startBusy },
             ]}
             onDismiss={() => { setReplaceAsk(null); resumeSavedTemplate(); }}
-            onConfirm={() => { openTemplate(replaceAsk.kind, replaceAsk.client); }}
+            onConfirm={() => openTemplate(replaceAsk.kind, replaceAsk.client, true)}
             onSuccess={() => setReplaceAsk(null)}
             consequence={copy.consequence}
           />
