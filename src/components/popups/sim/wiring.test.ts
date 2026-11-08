@@ -232,3 +232,22 @@ test('alerts card: only a Yes that failed raises it; Not now is not a failure', 
   const no = chat.slice(chat.indexOf('function dismissReminders()'), chat.indexOf('// ── Receipt capture'));
   assert.doesNotMatch(no, /alertsFailed\(/, 'declining never raises the card');
 });
+
+// P-66 (shared, but not marked sent): one primitive set, both screens.
+for (const [name, src] of [['chat', chat], ['invoice detail', detail]] as const) {
+  test(`P-66 ${name}: S1 sheet + S1b card are PopSheet/PopInline, mark-sent throws on failure`, () => {
+    assert.match(src, /from '@\/lib\/popups\/unsent-share'/);
+    assert.doesNotMatch(src, /@\/lib\/popups\/PopSheet|retryMarkSent/, 'no second primitive set, no old banner');
+    assert.match(src, /async function postMarkSharedSent[\s\S]{0,260}throw res \?\? new TypeError/);
+    assert.match(src, /title=\{copy\.title\}[\s\S]{0,700}runs: true/, 'retry-share runs through the pending path');
+    assert.match(src, /tone="error"[\s\S]{0,200}unsentShareCopy\(unsentShare[^)]*\)\.cardTitle/, 'S1b card');
+  });
+
+  test(`P-66 ${name}: share starts synchronously, a cancel says nothing, a completed send retires the state`, () => {
+    const i = src.indexOf('async function shareSharedAgain');
+    const body = src.slice(i, i + 900);
+    assert.match(body, /const (shared|r) = await sharePdf|const shared = sharePdf/);
+    assert.match(body, /status === 'cancelled'\) return/);
+    assert.match(src, /setUnsentShare\(null\);\s*setUnsentShareOpen\(false\);/);
+  });
+}

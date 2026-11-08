@@ -37,6 +37,8 @@ export interface PopSheetProps {
   /** The money this decision moves: label, meta line, amount. */
   figure?: { label: string; meta?: string; amount: string };
   rows?: { k: string; from?: string; to: string }[];
+  /** Two-sided status lines (done / not done), e.g. "shared, but still a draft". */
+  truths?: { ok: boolean; title: string; body: string }[];
   body?: string;
   /** Word the user types to unlock the go action, e.g. "DELETE". */
   typed?: string;
@@ -86,7 +88,7 @@ export default function PopSheet(props: PopSheetProps) {
 }
 
 function SheetBody({
-  icon, iconTone = 'gold', destructive, eyebrow, title, sub, figure, rows, body,
+  icon, iconTone = 'gold', destructive, eyebrow, title, sub, figure, rows, truths, body,
   typed, error, retryLabel, note, actions, onDismiss, onConfirm, consequence, onSuccess,
 }: Omit<PopSheetProps, 'open'>) {
   const titleId = useId();
@@ -127,11 +129,18 @@ function SheetBody({
     if (views[index]?.disabled) return;
     if (action.go) { void confirm(); return; }
     if (action.safe) { dismiss(); return; }
+    if (action.runs && action.onSelect) {
+      // Called synchronously from the tap: run() starts the task before its first
+      // await, so a share sheet opened here keeps the tap's user activation (iOS).
+      const task = action.onSelect;
+      void run(async () => { await task(); }, consequence);
+      return;
+    }
     action.onSelect?.();
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto" data-no-tab-swipe="true" data-kb-fit="">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto" data-pop-sheet="" data-no-tab-swipe="true" data-kb-fit="">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={dismiss} aria-hidden />
       <div
         role={sheetRole(destructive)}
@@ -200,6 +209,20 @@ function SheetBody({
                   )}
                   <span className="text-[15px] font-semibold text-on-background">{row.to}</span>
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {truths && truths.length > 0 && (
+          <div className="mt-3.5 flex flex-col gap-2.5">
+            {truths.map((t) => (
+              <div key={t.title} className="flex items-start gap-3 rounded-[16px] border border-outline-variant/40 bg-surface-container-lowest px-3.5 py-3">
+                <Icon name={t.ok ? 'check' : 'sync_problem'} size={20} className={`mt-px shrink-0 ${t.ok ? 'text-primary' : 'text-error'}`} />
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold text-on-background">{t.title}</div>
+                  <div className="text-[14px] leading-[1.45] text-on-surface-variant">{t.body}</div>
+                </div>
               </div>
             ))}
           </div>
