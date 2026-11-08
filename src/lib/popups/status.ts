@@ -74,3 +74,20 @@ export const UNREADABLE_PRICES_TEXT = 'I couldn’t read these prices. Say each 
  *  log, never to the screen. */
 export const SHARE_NOT_OPENED_TEXT =
   'Your phone didn’t open the share sheet. Your draft is safe. Tap send to try again.';
+
+/** L1: while a purchase or a restore is in flight, nothing may close the wall
+ *  (the ×, Escape and the scrim all do nothing). It reopens its own question
+ *  otherwise: did the charge go through? */
+export function paywallDismissible(inFlight: { busy: boolean; buying: boolean; restoring: boolean }): boolean {
+  return !(inFlight.busy || inFlight.buying || inFlight.restoring);
+}
+
+/** S3: an estimate send that failed with no connection says so. The status
+ *  failures keep their own sentences. */
+export const ESTIMATE_OFFLINE_TEXT = 'You’re offline — the estimate didn’t send. Your draft is safe.';
+
+/** S7b: the cause line on a payment that needs attention. */
+export function paymentAttentionText(reason?: string | null): string {
+  const r = (reason ?? '').trim();
+  return r ? `This payment could not be recorded. Reason: ${r}` : 'This payment could not be recorded.';
+}

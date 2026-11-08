@@ -34,3 +34,10 @@ test('ChatView attaches the chip and the failure title', () => {
   assert.ok(src.includes('failedBubbleTitle(m.content)'));
   assert.ok(src.includes('visibleChips('));
 });
+
+test('S2: a failed save gets the "Didn’t save" title; offline keeps its own', () => {
+  assert.equal(failedBubbleTitle("Couldn't save that invoice just now. Your draft is safe."), 'Didn’t save');
+  assert.equal(failedBubbleTitle('Couldn’t save your changes just now. Your draft is safe.'), 'Didn’t save');
+  assert.equal(failedBubbleTitle("You're offline — the invoice didn't send. Your draft is safe."), 'You’re offline');
+  assert.equal(failedBubbleTitle("Couldn't finish that one. Your draft is safe."), null);
+});
