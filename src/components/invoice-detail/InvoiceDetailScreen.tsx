@@ -390,6 +390,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce, attachSig });
   const shareReady = prebuilt?.sig === shareSig;
   const shareFile = shareReady ? prebuilt!.file : null;
+  // P-66 S1b, restored: the same rule as chat — until this invoice's file exists,
+  // the card waits in "Preparing…" instead of offering a tap that cannot share.
+  const s1bFileReady = !!unsentShare && !!shareFile;
+  const s1bBuildFailed = !!unsentShare && !s1bFileReady && shareReady;
   const shareLabel = (idle: string) => (busy ? 'Sending' : !shareReady ? 'Preparing' : idle);
 
   // Build the PDF for the CURRENT invoice with its attachments appended. STRICT
@@ -793,7 +797,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     const r = await sharePdf(file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
     if (r.status === 'cancelled') return;
     if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
-    if (r.status === 'unsupported') downloadFile(pending.file);
+    if (r.status === 'unsupported') downloadFile(file);
     await postMarkSharedSent(pending);
   }
 

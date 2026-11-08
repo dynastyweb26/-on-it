@@ -171,7 +171,7 @@ export function restoreUnsentShare(
     forgetUnsentShare(id, storage);
     return null;
   }
-  const kind = row.kind === 'quote' ? 'quote' : 'invoice';
+  const kind: UnsentShare['kind'] = row.kind === 'quote' ? row.kind : 'invoice';
   return {
     id,
     kind,

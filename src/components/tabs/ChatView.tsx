@@ -799,6 +799,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // ties the file to the exact draft it was built from; a mismatch (or no file)
   // makes press 2 fall back to the link share, never a download.
   const preBuiltRef = useRef<{ file: File; signature: string; token: string; id: string; no: number } | null>(null);
+  // The card outlives the conversation (P-66 S1b), so its state is declared
+  // above the pre-build effect that decides whether a build is needed.
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null; token: string | null }) | null>(null);
+  // A rebuilt card has no File in hand, so the PDF is built in the background
+  // while it waits. "Retry the share" reads "Preparing…" and stays disabled until
+  // the file for THIS invoice is ready, so the tapped share still calls
+  // navigator.share() synchronously. Mark as sent needs no file.
+  const s1bNeedsFile = !!unsentShare && !unsentShare.file;
+  const s1bFileReady = !!unsentShare && (
+    !!unsentShare.file || (prepState?.status === 'ready' && preBuiltRef.current?.id === unsentShare.id)
+  );
+  const s1bBuildFailed = !!unsentShare && !s1bFileReady && prepState?.status === 'failed';
   const preBuildIdRef = useRef(0);            // latest-wins guard across overlapping builds
   const preBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // edit debounce
   const preparingRef = useRef(false);         // a pre-build is in flight (sync guard)
@@ -3183,17 +3195,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Share succeeded, POST /send did not (P-66, frames S1 + S1b): the client has
   // the PDF and the row is still a draft. The blocking sheet says both truths;
   // Keep as draft leaves the S1b card pinned under the document.
-  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null; token: string | null }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
-  // P-66 S1b, restored: a rebuilt card has no File in hand, so the PDF is built
-  // in the background while it waits. "Retry the share" reads "Preparing…" and
-  // stays disabled until the file for THIS invoice is ready, so the tapped share
-  // still calls navigator.share() synchronously. Mark as sent needs no file.
-  const s1bNeedsFile = !!unsentShare && !unsentShare.file;
-  const s1bFileReady = !!unsentShare && (
-    !!unsentShare.file || (prepState?.status === 'ready' && preBuiltRef.current?.id === unsentShare.id)
-  );
-  const s1bBuildFailed = !!unsentShare && !s1bFileReady && prepState?.status === 'failed';
   // S1b lands under the document card, which can leave its answers behind the
   // composer. Bring the card fully into the list's own viewport with the
   // smallest scroll that does it: never scrollIntoView (it also scrolls the
@@ -3369,7 +3371,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const r = await shared;
     if (r.status === 'cancelled') return; // a normal choice; nothing is said
     if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
-    if (r.status === 'unsupported') downloadFile(pending.file);
+    if (r.status === 'unsupported') downloadFile(file);
     await postMarkSharedSent(pending);
   }
 
