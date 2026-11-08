@@ -182,20 +182,24 @@ export default function EstimateView({
 
         <section className={s.card} aria-label="Estimate summary">
           <div className={s.heroTop}>
-            {chip ? (
-              <span
-                className={`${s.chip} ${
-                  chip.tone === 'approved' ? s.chipApproved : chip.tone === 'expired' ? s.chipExpired : s.chipPending
-                }`}
-              >
-                <EstIcon name={chip.icon} size={16} />
-                {chip.label}
-              </span>
-            ) : (
-              <span />
-            )}
+            <div className={s.chipRow}>
+              {chip ? (
+                <span
+                  className={`${s.chip} ${
+                    chip.tone === 'approved' ? s.chipApproved : chip.tone === 'expired' ? s.chipExpired : s.chipPending
+                  }`}
+                >
+                  <EstIcon name={chip.icon} size={16} />
+                  {chip.label}
+                </span>
+              ) : (
+                <span />
+              )}
+              {/* The derived tag, styled as the client's red chip. No version
+                  badge and no diff line on this page. */}
+              {payload.updated === true && <span className={s.updatedChip}>Updated</span>}
+            </div>
             {validity && <span className={s.validity}>{validity}</span>}
-            {payload.updated === true && <span className={s.validity}>Updated</span>}
           </div>
 
           <p className={s.preparedFor}>

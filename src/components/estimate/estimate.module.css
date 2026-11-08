@@ -178,6 +178,28 @@
   text-align: right;
 }
 
+.chipRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The client's "Updated" tag (design 6.5): red on /e, and it never says why
+   the estimate changed. */
+.updatedChip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: #fbe4e1;
+  color: #b8202a;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .preparedFor {
   margin-top: 14px;
   font-size: 15px;
