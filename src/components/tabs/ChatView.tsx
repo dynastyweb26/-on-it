@@ -3155,6 +3155,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Keep as draft leaves the S1b card pinned under the document.
   const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File; token: string }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
+  // S1b lands under the document card, which can leave its answers behind the
+  // composer. Bring the card fully into the list's own viewport with the
+  // smallest scroll that does it: never scrollIntoView (it also scrolls the
+  // page) and never smooth (iOS swallows the next tap while one is running).
+  const s1bRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!unsentShare || unsentShareOpen) return;
+    const id = requestAnimationFrame(() => {
+      const list = listRef.current;
+      const card = s1bRef.current;
+      if (!list || !card) return;
+      const listBox = list.getBoundingClientRect();
+      const cardBox = card.getBoundingClientRect();
+      const below = cardBox.bottom - listBox.bottom;
+      const above = listBox.top - cardBox.top;
+      if (below > 0) list.scrollTop += below;
+      else if (above > 0) list.scrollTop -= above;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [unsentShare, unsentShareOpen]);
   const [sentToast, setSentToast] = useState<string | null>(null);
   const [templateDup, setTemplateDup] = useState<string | null>(null);
   const templateInit = useRef(false);
@@ -4471,18 +4491,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
             // S1b: Keep as draft leaves this pinned under the document until the
-            // row is marked sent.
-            <PopInline
-              tone="error"
-              eyebrowIcon="sync_problem"
-              title={unsentShareCopy(unsentShare).cardTitle}
-              text={unsentShareCopy(unsentShare).cardText}
-              consequence={`${unsentShare.number} is still a draft.`}
-              actions={[
-                { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
-                { label: 'Retry the share', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
-              ]}
-            />
+            // row is marked sent. The wrapper is what the reveal effect measures.
+            <div ref={s1bRef} className="w-full">
+              <PopInline
+                tone="error"
+                eyebrowIcon="sync_problem"
+                title={unsentShareCopy(unsentShare).cardTitle}
+                text={unsentShareCopy(unsentShare).cardText}
+                consequence={`${unsentShare.number} is still a draft.`}
+                actions={[
+                  { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
+                  { label: 'Retry the share', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
+                ]}
+              />
+            </div>
           )}
           {m.id === cardAnchorId && invoiceCard && invoiceUsage && invoiceUsage.id === pendingInvoiceRef.current?.id && (
             <>
