@@ -141,12 +141,28 @@ export default function EstimateDetail({
   // them together, so bump_estimate_version bumps the version once per save.
   const [itemsDraft, setItemsDraft] = useState<LineItemRow[]>((estimate.line_items ?? []) as LineItemRow[]);
   const [saving, setSaving] = useState(false);
+  // Sticky save: while changes are staged the one Save action rides a footer
+  // above the tab bar, and the content gets a gap of the footer's own height so
+  // the last fields stay tappable.
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [footerH, setFooterH] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   const id = inv.id;
   const tz = profile.timezone ?? null;
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  // The footer is allowed a short rise; a reduced-motion owner gets none.
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return;
+    const sync = () => setReducedMotion(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   function showToast(message: string) {
@@ -465,6 +481,30 @@ export default function EstimateDetail({
     }
   }
 
+  // Discard drops the staged drafts back to the saved row. Nothing is written.
+  function discardChanges() {
+    if (saving) return;
+    setTitleDraft(inv.title ?? '');
+    setItemsDraft((inv.line_items ?? []) as LineItemRow[]);
+    setEditingTitle(false);
+    setActionError(null);
+  }
+
+  const showFooter = editable && dirty;
+  // Measured, not guessed: the content's gap matches whatever "Saving…" makes
+  // the footer, so the busy state never uncovers or buries the last field.
+  useEffect(() => {
+    if (!showFooter) { setFooterH(0); return; }
+    const el = footerRef.current;
+    if (!el) return;
+    const sync = () => setFooterH(el.getBoundingClientRect().height);
+    sync();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showFooter, saving]);
+
   // Edits are staged, not written: the card's own Save changes sends them all
   // in one update. Totals stay live because they are recomputed from the draft.
   function stageLineItems(next: LineItemRow[]) {
@@ -779,18 +819,38 @@ export default function EstimateDetail({
         </div>
       </div>
 
-      {editable && dirty && (
-        <button
-          type="button"
-          onClick={() => void saveChanges()}
-          disabled={saving}
-          className={`${primaryButton} mb-4`}
-        >
-          <Icon name="check" size={18} /> {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      )}
-
       <EstimateAttachments estimateId={id} userId={inv.user_id} editable={editable} />
+
+      {/* 4A sticky save: the same button, pinned while something is staged. It
+          sticks inside the page's own scroll area, so it sits directly above the
+          tab bar (which is outside this container) and owns its safe area. */}
+      {showFooter && (
+        <>
+          <div aria-hidden style={{ height: footerH }} />
+          <div
+            ref={footerRef}
+            className="sticky bottom-0 z-30 -mx-4 -mb-4 border-t border-outline-variant/40 bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur"
+            style={reducedMotion ? undefined : { animation: 'oi-slideup 180ms ease-out' }}
+          >
+            <button
+              type="button"
+              onClick={() => void saveChanges()}
+              disabled={saving}
+              className={primaryButton}
+            >
+              <Icon name="check" size={18} /> {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              onClick={discardChanges}
+              disabled={saving}
+              className="mx-auto mt-1 flex min-h-[44px] items-center justify-center px-3 text-[13px] font-semibold text-on-surface-variant transition active:opacity-60 disabled:opacity-40"
+            >
+              Discard
+            </button>
+          </div>
+        </>
+      )}
 
       {toast && (
         <div

@@ -292,3 +292,16 @@ test('estimate revise: the sheet opens for a quote, with in-place copy', () => {
   assert.match(chat, /\{reviseAsk && draft && \(\(\) => \{/, 'the sheet has no kind gate');
   assert.match(chat, /Change anything, then send\. Same link, same number\./, 'in-place copy on the card');
 });
+
+// ── Sticky save on the estimate detail ──
+test('estimate save: the one Save rides a sticky footer, with discard, only while dirty', () => {
+  assert.match(estimate, /const showFooter = editable && dirty;/, 'shown only with staged changes');
+  assert.match(estimate, /className="sticky bottom-0[^"]*"/, 'sticky inside the page, not fixed over the tab bar');
+  assert.match(estimate, /-mb-4[^"]*pb-\[max\(0\.75rem,env\(safe-area-inset-bottom\)\)\]/, 'owns its safe area');
+  assert.doesNotMatch(estimate, /primaryButton\} mb-4/, 'the inline button is gone');
+  assert.match(estimate, /aria-hidden style=\{\{ height: footerH \}\}/, 'content gap equals the footer');
+  assert.match(estimate, /\{saving \? 'Saving…' : 'Save changes'\}/, 'busy label kept');
+  assert.match(estimate, /onClick=\{discardChanges\}/, 'discard is the second action');
+  assert.match(estimate, /setTitleDraft\(inv\.title \?\? ''\)/, 'discard restores the saved values');
+  assert.match(estimate, /prefers-reduced-motion/, 'motion can be opted out');
+});
