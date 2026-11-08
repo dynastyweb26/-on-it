@@ -4,6 +4,8 @@
 // detail screen, so the link behaves identically wherever it is shown.
 import { useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import PopToast from '@/components/popups/PopToast';
+import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { estimateShareText, shareEstimateLink } from '@/lib/estimates/owner-actions';
 
 export default function EstimateLinkActions({
@@ -16,6 +18,8 @@ export default function EstimateLinkActions({
   businessName?: string | null;
 }) {
   const [note, setNote] = useState<string | null>(null);
+  // P-53 / board M4: a blocked clipboard is a toast whose sentence is the recovery.
+  const [blocked, setBlocked] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   function flash(text: string) {
@@ -29,14 +33,14 @@ export default function EstimateLinkActions({
       await navigator.clipboard.writeText(url);
       flash('Link copied');
     } catch {
-      flash('Clipboard is blocked. Long-press the link to copy it.');
+      setBlocked(true);
     }
   }
 
   async function share() {
     const result = await shareEstimateLink({ url, title, text: estimateShareText(businessName) });
     if (result === 'copied') flash('Link copied');
-    if (result === 'failed') flash('Clipboard is blocked. Long-press the link to copy it.');
+    if (result === 'failed') setBlocked(true);
   }
 
   const tile =
@@ -53,6 +57,9 @@ export default function EstimateLinkActions({
           <Icon name="share" size={18} /> Share
         </button>
       </div>
+      {blocked && (
+        <PopToast icon="content_copy" text={CLIPBOARD_BLOCKED_TEXT} onDismiss={() => setBlocked(false)} />
+      )}
       {note && (
         <p key={note} role="status" className="onit-label-in mt-1.5 text-center text-xs text-on-surface-variant">
           {note}

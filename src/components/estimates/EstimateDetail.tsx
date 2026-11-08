@@ -10,6 +10,7 @@
 import { convertedDepositColumns } from '@/lib/estimates/convert';
 import PopSheet from '@/components/popups/PopSheet';
 import { convertActionLabel } from '@/lib/popups/destructive';
+import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -234,7 +235,7 @@ export default function EstimateDetail({
       await navigator.clipboard.writeText(publicUrl);
       showToast('Link copied');
     } catch {
-      setActionError('Clipboard is blocked. Long-press the link to copy it.');
+      showToast(CLIPBOARD_BLOCKED_TEXT);
     }
   }
 
@@ -247,7 +248,7 @@ export default function EstimateDetail({
       text: estimateShareText(profile.business_name),
     });
     if (result === 'copied') showToast('Link copied');
-    if (result === 'failed') setActionError('Clipboard is blocked. Long-press the link to copy it.');
+    if (result === 'failed') showToast(CLIPBOARD_BLOCKED_TEXT);
   }
 
   async function send() {
@@ -347,15 +348,13 @@ export default function EstimateDetail({
           }
         }
         console.error('convert estimate failed', error);
-        setActionError("Couldn't convert this estimate. Please try again.");
-        return;
+        throw error;
       }
       if (!created) return;
       const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
       if (!copy.ok) {
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
-        setActionError("Couldn't copy this estimate's attachments, so nothing was converted. Please try again.");
-        return;
+        throw new Error('attachment copy failed');
       }
       router.push(`/invoices/${created.id}`);
     } finally {
@@ -485,10 +484,9 @@ export default function EstimateDetail({
           { label: 'Cancel', kind: 'text', safe: true },
         ]}
         onDismiss={() => setConvertAsk(false)}
-        onConfirm={async () => {
-          setConvertAsk(false);
-          await convertToInvoice();
-        }}
+        // The sheet stays open while converting: a failure shows its cause here
+        // with a retry, instead of closing and leaving a faint line below.
+        onConfirm={async () => { await convertToInvoice(); }}
         consequence="Nothing was converted."
       />
       <div className="card relative mb-4 overflow-hidden">
