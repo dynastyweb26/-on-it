@@ -164,3 +164,21 @@ test('deposit card: a refusal names its cause in the card and nothing closes', (
   assert.match(post, /catch \{\s*setError\(depositRefusalMessage\(null\)\);/);
   assert.match(deposits, /role="alert"/);
 });
+
+// ── Sign sheet (public estimate) ──
+const signSheet = readFileSync('src/components/estimate/SignSheet.tsx', 'utf8');
+
+test('sign sheet: a second Approve in the same frame is dropped by a ref', () => {
+  const submit = signSheet.slice(signSheet.indexOf('async function submit()'), signSheet.indexOf('return ('));
+  assert.match(submit, /if \(!canSubmit \|\| submittingRef\.current\) return;\s*submittingRef\.current = true;/);
+});
+
+test('sign sheet: a failure names its cause, stays open, and clears pending on every exit', () => {
+  const submit = signSheet.slice(signSheet.indexOf('async function submit()'), signSheet.indexOf('return ('));
+  assert.match(submit, /setError\(signFailureMessage\(err\)\)/);
+  assert.match(submit, /setError\(mapped\.message\)/, 'a mapped server refusal keeps its own sentence');
+  assert.match(submit, /finally \{\s*submittingRef\.current = false;\s*setSubmitting\(false\);\s*\}/);
+  assert.match(signSheet, /onClick=\{submit\} disabled=\{!canSubmit\}/);
+  assert.match(signSheet, /\{submitting \? \(/, 'the busy label replaces the action');
+  assert.match(signSheet, /if \(!submitting\) onClose\(\)/, 'the scrim cannot close a signing sheet');
+});
