@@ -251,3 +251,20 @@ for (const [name, src] of [['chat', chat], ['invoice detail', detail]] as const)
     assert.match(src, /setUnsentShare\(null\);\s*setUnsentShareOpen\(false\);/);
   });
 }
+
+// ── S1b retry (spec 7b): a card with no file yet cannot share one, and a card
+// restored from the row still builds on a tier whose sends build at the tap.
+test('S1b: Retry the share is disabled until the file is ready', () => {
+  const action = chat.slice(
+    chat.indexOf("label: pdfReady ? 'Retry the share'"),
+    chat.indexOf('onSelect: () => shareSharedAgain(unsentShare)'),
+  );
+  assert.ok(action.length > 0, 'the S1b share action exists');
+  assert.match(action, /label: pdfReady \? 'Retry the share' : 'Preparing…'/, 'the label names the wait');
+  assert.match(action, /disabled: !pdfReady/, 'the tap is refused until the file exists');
+});
+
+test('S1b: a restored card on a build-at-tap tier still builds its file', () => {
+  assert.match(chat, /if \(skipPreBuild && !s1bNeedsFile\) return;/, 'the pre-build must not skip a restored S1b');
+  assert.match(chat, /: skipPreBuild && !s1bNeedsFile \? false/, 'readiness stays false, not skipped, on that tier');
+});

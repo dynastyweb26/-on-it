@@ -4,7 +4,8 @@
 
 export type DocumentKind = 'invoice' | 'quote';
 
-const asKind = (k: string | null | undefined): DocumentKind => (k === 'quote' ? 'quote' : 'invoice');
+/** The stored kind, normalized. `quote` is the only non-invoice value. */
+export const asKind = (k: string | null | undefined): DocumentKind => (k === 'quote' ? 'quote' : 'invoice');
 
 /** Title-case noun: "Estimate" / "Invoice". `quote` is the stored value. */
 export function docNoun(kind: string | null | undefined): string {

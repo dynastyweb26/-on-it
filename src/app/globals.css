@@ -809,6 +809,47 @@ html[data-splash=""] .onit-splash {
 @keyframes onit-label-in { from { opacity: 0; transform: translateY(8px); } }
 .onit-label-in { display: inline-block; animation: onit-label-in var(--motion-settle) var(--ease-settle) both; }
 
+/* ---- Copy link / Share in-place confirmation (alive layer §02) ----------------
+   The label flips in, the gold check pops, and a gold ring settles for 500ms.
+   Every one of them is a transform/opacity/box-shadow on the same element, so
+   the button never changes size. Reduced motion keeps the state change and
+   drops the travel. */
+@keyframes onit-confirm-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes onit-confirm-pop { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes onit-confirm-ring { from { box-shadow: 0 0 0 0 rgba(212, 175, 55, .55); } to { box-shadow: 0 0 0 12px rgba(212, 175, 55, 0); } }
+.onit-confirm-in { animation: onit-confirm-in 180ms var(--ease-settle) both; }
+.onit-confirm-pop { animation: onit-confirm-pop 320ms cubic-bezier(.2, .9, .3, 1.2) both; }
+.onit-confirm-ring { animation: onit-confirm-ring 500ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .onit-confirm-in, .onit-confirm-pop, .onit-confirm-ring { animation: none; }
+}
+
+/* ---- Paid in full: the halo around the gold disc (alive layer §04) ----------
+   One 700ms ring that scales out and fades, started with the check. It only
+   ever plays on the payment that closed the job. */
+@keyframes onit-paid-halo { 0% { transform: scale(.6); opacity: 0; } 25% { opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } }
+.onit-paid-halo { animation: onit-paid-halo 700ms cubic-bezier(.2, .9, .3, 1) 100ms both; }
+@media (prefers-reduced-motion: reduce) { .onit-paid-halo { animation: none; opacity: 0; } }
+
+/* ---- Send state: the PDF tile while it builds (alive layer §04) -------------
+   A 240px gold sweep over the tile, 1.4s, so a build that takes a moment reads
+   as work instead of a dead button. Reduced motion drops the sweep. */
+@keyframes onit-pdf-shimmer { from { background-position: -240px 0; } to { background-position: 240px 0; } }
+.onit-pdf-shimmer { position: relative; overflow: hidden; }
+.onit-pdf-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, .18), transparent);
+  background-size: 240px 100%;
+  background-repeat: no-repeat;
+  animation: onit-pdf-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onit-pdf-shimmer::after { animation: none; opacity: 0; }
+}
+
 /* ---- Reduced motion: the card family ----
    The global block at the bottom of this file stops every CSS animation and
    transition, but Framer Motion is JS and is not reached by it. Card components

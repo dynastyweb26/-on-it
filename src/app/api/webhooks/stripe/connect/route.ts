@@ -56,6 +56,7 @@ import {
 import { notify } from '@/lib/notify';
 import { notifyConnectProblems } from '@/lib/notify/connect';
 import { roundCurrency } from '@/lib/financials';
+import { insertEvent } from '@/lib/events-server';
 import { notifyDisputeOpened, recordDisputeFunds, syncChargeRefunds, syncRefund } from '@/lib/stripe/reversals';
 
 export const runtime = 'nodejs';
@@ -160,7 +161,10 @@ async function recordCardPayment(stripe: Stripe, event: Stripe.Event, session: S
   const paymentId = inserted?.[0]?.id ?? await ledgerRowId(admin, session.id);
   if (paymentId) {
     const pushed = await notifyPayment(admin, invoice.user_id, invoice.id, paymentId, amount, method);
-    return `${outcome}; push ${pushed}`;
+    // The card in the thread. Deduped on the ledger row, so a retried delivery
+    // can repeat the push path but never the card.
+    const event = await writePaymentEvent(admin, invoice.user_id, invoice.id, paymentId, amount, method);
+    return `${outcome}; push ${pushed}; event ${event}`;
   }
   return outcome;
 }
@@ -171,6 +175,45 @@ async function ledgerRowId(admin: ReturnType<typeof adminClient>, sessionId: str
   const { data } = await admin
     .from('invoice_payments').select('id').eq('stripe_checkout_session_id', sessionId).maybeSingle();
   return (data?.id as string | undefined) ?? null;
+}
+
+// One events row per ledger row: a client paying is the owner's news, and it
+// arrives from a server path, so it belongs in the feed. Reads the invoice AFTER
+// the ledger trigger has recomputed amount_paid/status, which is what decides
+// between a payment and "paid in full". Never throws.
+async function writePaymentEvent(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+  invoiceId: string,
+  paymentId: string,
+  amount: number,
+  method: string,
+): Promise<string> {
+  try {
+    const { data: inv } = await admin
+      .from('invoices')
+      .select('invoice_number, client_name, total, amount_paid, status')
+      .eq('id', invoiceId)
+      .maybeSingle();
+    if (!inv) return 'skipped (invoice not found)';
+    const balance = roundCurrency(Number(inv.total ?? 0) - Number(inv.amount_paid ?? 0));
+    const paidInFull = inv.status === 'paid' || balance <= 0;
+    const id = await insertEvent({
+      userId,
+      kind: paidInFull ? 'paid_in_full' : 'payment_recorded',
+      actor: 'client',
+      invoiceId,
+      documentKind: 'invoice',
+      documentNumber: (inv.invoice_number as number | null) ?? null,
+      clientName: (inv.client_name as string | null) ?? null,
+      amount,
+      meta: { method, payment_id: paymentId },
+      dedupeKey: `payment:${paymentId}`,
+    });
+    return id ? 'written' : 'already written';
+  } catch {
+    return 'failed';
+  }
 }
 
 // Build the structured payment event from the invoice AFTER the ledger trigger

@@ -8,6 +8,7 @@ import {
 } from '@/lib/estimates/public';
 import { rateLimit } from '@/lib/ratelimit';
 import EstimateView from '@/components/estimate/EstimateView';
+import EstimateViewPing from '@/components/estimate/EstimateViewPing';
 import { Notice, UnavailableNotice } from '@/components/estimate/Notice';
 import type { PublicEstimateResult } from '@/lib/estimates/types';
 import { publicDocMetadata } from '@/lib/public-page-metadata';
@@ -110,12 +111,17 @@ export default async function EstimatePage({
       {payload.state === 'unavailable' ? (
         <UnavailableNotice />
       ) : (
-        <EstimateView
-          initial={payload}
-          token={params.token}
-          preview={preview}
-          previewId={previewId}
-        />
+        <>
+          {/* A client opening a link is an event; the owner previewing their own
+              estimate is not. */}
+          {!preview && <EstimateViewPing token={params.token} />}
+          <EstimateView
+            initial={payload}
+            token={params.token}
+            preview={preview}
+            previewId={previewId}
+          />
+        </>
       )}
     </div>
   );

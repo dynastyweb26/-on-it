@@ -11,6 +11,12 @@
 // uses the ledger skin (a printed list: number, name, amount, a quiet sub-row
 // and a 40px control strip). The invoice/estimate detail screens keep the
 // default skin. No handler, aria-label or validation rule differs between them.
+//
+// Alive layer §03: BOTH skins print the same three-column grid —
+// 18px · minmax(0,1fr) · auto. The description gives up width (and clamps to
+// three lines) so the price column never wraps or clips at 390px; qty × rate
+// sits under the description, in line with it. A clamped description can be
+// tapped to read the whole line, since a sent estimate has no editor.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { m } from 'framer-motion';
 import Icon from '@/components/Icon';
@@ -39,6 +45,13 @@ const clampQty = (n: number) => Math.min(100000, Math.max(0, Math.round(n * 100)
 // price: 0..10,000,000, snapped to cents.
 const clampPrice = (n: number) => Math.min(10_000_000, Math.max(0, Math.round(n * 100) / 100));
 
+/** The one row grid (§03): number · description · price, 3px rows, 10px columns. */
+const ROW_GRID = 'grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-[10px] gap-y-[3px]';
+/** Description type: 600 14.5/1.35, pretty wrapping, three lines maximum. */
+const DESC = 'text-[14.5px] font-semibold leading-[1.35] [text-wrap:pretty]';
+/** Price type: 700 14.5, one line, tabular figures, right-aligned to line one. */
+const PRICE = 'justify-self-end whitespace-nowrap text-right font-display text-[14.5px] font-bold tabular-nums';
+
 export default function LineItemsEditor({
   items,
   editable,
@@ -53,6 +66,8 @@ export default function LineItemsEditor({
 }) {
   const [cell, setCell] = useState<{ i: number; f: Field } | null>(null);
   const [text, setText] = useState('');
+  // A read-only row that clamps to three lines opens on tap (§03).
+  const [expanded, setExpanded] = useState<number | null>(null);
   const ledger = variant === 'ledger';
   // Reorder travel (design: Up/Down moves the row, 260ms settle). FLIP: the two
   // swapped rows are measured before the change and their old tops become a
@@ -201,10 +216,10 @@ export default function LineItemsEditor({
         className={
           ledger
             ? `rounded-field border-2 border-primary-container bg-surface-container-lowest px-2 py-1 text-on-background outline-none ${
-                numeric ? 'w-24 text-right tabular-nums' : 'min-w-0 flex-1 text-[17px]'
+                numeric ? 'w-24 text-right tabular-nums' : 'w-full min-w-0 text-[14.5px] font-semibold'
               }`
             : `rounded-md border border-primary/50 bg-surface-container-lowest px-2 py-1 text-on-background outline-none focus:border-primary ${
-                numeric ? 'w-24 text-right' : 'min-w-0 flex-1 text-body-md'
+                numeric ? 'w-24 text-right' : 'w-full min-w-0 text-[14.5px] font-semibold'
               }`
         }
         value={text}
@@ -226,8 +241,8 @@ export default function LineItemsEditor({
   }
 
   const editBtnStyle = ledger
-    ? 'inline-flex items-center gap-1 border-b border-dashed border-outline-variant text-left transition active:opacity-60 min-h-[44px] py-1'
-    : 'inline-flex items-center gap-1 underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60 text-left min-h-[44px] py-1';
+    ? 'border-b border-dashed border-outline-variant text-left transition active:opacity-60 min-h-[44px] py-1'
+    : 'underline decoration-dotted decoration-outline-variant/60 underline-offset-4 transition active:opacity-60 text-left min-h-[44px] py-1';
 
   const controlBtn = `min-h-[44px] px-3 py-1.5 rounded-control border border-outline-variant/60 bg-surface-container-lowest font-semibold text-[13px] text-on-background transition active:scale-95 disabled:opacity-30 disabled:pointer-events-none`;
 
@@ -244,53 +259,71 @@ export default function LineItemsEditor({
           data-line-index={i}
           className={
             ledger
-              ? `py-3 text-[17px] ${i === items.length - 1 ? '' : 'border-b border-outline-variant/40'}`
-              : 'rounded-lg border border-outline-variant/20 bg-surface-container-lowest/50 p-2.5 text-body-md'
+              ? `${ROW_GRID} py-3 ${i === items.length - 1 ? '' : 'border-b border-outline-variant/40'}`
+              : `${ROW_GRID} rounded-lg border border-outline-variant/20 bg-surface-container-lowest/50 p-2.5`
           }
         >
-          {/* Main row: Line number + Description + Amount */}
-          <div className="flex items-center justify-between gap-2">
-            <span className={`shrink-0 font-mono text-sm font-semibold ${ledger ? 'w-[22px] text-on-surface-variant/70' : 'text-on-surface-variant/80'}`}>
-              {i + 1}.
-            </span>
+          {/* 1 · Line number */}
+          <span className="pt-0.5 font-mono text-[12.5px] font-semibold text-on-surface-variant/70">
+            {i + 1}.
+          </span>
 
-            {editingHere(i, 'description') ? (
-              cellInput('Edit line item description', false)
-            ) : editable ? (
-              <button
-                type="button"
-                className={`min-w-0 flex-1 ${editBtnStyle} ${ledger ? 'text-[17px] font-semibold' : ''}`}
-                onClick={() => start(i, 'description', li.description)}
-                aria-label={`Edit description: ${li.description || 'empty'}`}
+          {/* 2 · Description — the column that gives up width */}
+          {editingHere(i, 'description') ? (
+            cellInput('Edit line item description', false)
+          ) : editable ? (
+            <button
+              type="button"
+              className={`flex w-full min-w-0 items-start gap-1 ${DESC} ${editBtnStyle}`}
+              onClick={() => start(i, 'description', li.description)}
+              aria-label={`Edit description: ${li.description || 'empty'}`}
+            >
+              <span className="line-clamp-3 min-w-0">
+                {li.description || <span className="italic text-on-surface-variant/50">Empty description</span>}
+              </span>
+              <Icon name="edit" size={ledger ? 15 : 14} className="mt-0.5 shrink-0 text-on-surface-variant/70" />
+            </button>
+          ) : ledger ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((cur) => (cur === i ? null : i))}
+              aria-expanded={expanded === i}
+              aria-label={expanded === i ? `Show line ${i + 1} shortened` : `Show all of line ${i + 1}`}
+              className="min-w-0 text-left transition active:opacity-60"
+            >
+              <m.span
+                data-shared={`item-${i}`}
+                className={`${DESC} ${expanded === i ? '' : 'line-clamp-3'}`}
               >
-                <span className="truncate">{li.description || <span className="italic text-on-surface-variant/50">Empty description</span>}</span>
-                <Icon name="edit" size={ledger ? 15 : 14} className="shrink-0 text-on-surface-variant/70" />
-              </button>
-            ) : ledger ? (
-              <m.span data-shared={`item-${i}`} className="min-w-0 flex-1 truncate text-[17px] font-semibold">
                 {li.description}
               </m.span>
-            ) : (
-              <span className="min-w-0 flex-1 truncate">{li.description}</span>
-            )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setExpanded((cur) => (cur === i ? null : i))}
+              aria-expanded={expanded === i}
+              aria-label={expanded === i ? `Show line ${i + 1} shortened` : `Show all of line ${i + 1}`}
+              className={`min-w-0 text-left ${DESC} ${expanded === i ? '' : 'line-clamp-3'} transition active:opacity-60`}
+            >
+              {li.description}
+            </button>
+          )}
 
-            {ledger ? (
-              <m.span
-                data-shared={`price-${i}`}
-                className="shrink-0 pl-2 font-display text-[17px] font-bold tabular-nums"
-              >
-                {money(calculateLineAmount(li.qty, li.unit_price))}
-              </m.span>
-            ) : (
-              <span className="shrink-0 pl-1 font-display font-bold">
-                {money(calculateLineAmount(li.qty, li.unit_price))}
-              </span>
-            )}
-          </div>
+          {/* 3 · Amount — sizes to its content, never wraps or clips */}
+          {ledger ? (
+            <m.span data-shared={`price-${i}`} className={PRICE}>
+              {money(calculateLineAmount(li.qty, li.unit_price))}
+            </m.span>
+          ) : (
+            <span className={PRICE}>
+              {money(calculateLineAmount(li.qty, li.unit_price))}
+            </span>
+          )}
 
-          {/* Description (a saved product's "shows on invoices" text). */}
+          {/* Description (a saved product's "shows on invoices" text) */}
           {editingHere(i, 'detail') ? (
-            <div className={`mt-1 flex ${ledger ? 'pl-[30px]' : 'pl-5'}`}>
+            <div className="col-start-2 mt-1 flex">
               <input
                 autoFocus
                 className={`min-w-0 flex-1 bg-surface-container-lowest px-2 py-1 outline-none ${
@@ -312,18 +345,18 @@ export default function LineItemsEditor({
             </div>
           ) : li.detail ? (
             editable ? (
-              <button type="button" className={`${ledger ? 'ml-[30px]' : 'ml-5'} max-w-[calc(100%-1.25rem)] text-[14px] leading-snug text-on-surface-variant ${editBtnStyle} min-h-[36px]`}
+              <button type="button" className={`col-start-2 mt-0.5 min-h-[36px] max-w-full text-[12.5px] leading-snug text-on-surface-variant ${editBtnStyle}`}
                 onClick={() => start(i, 'detail', li.detail ?? '')} aria-label={`Edit line description: ${li.detail}`}>
                 <span className="line-clamp-2">{li.detail}</span>
                 <Icon name="edit" size={14} className="shrink-0 text-on-surface-variant/70" />
               </button>
             ) : (
-              <p className={`mt-0.5 text-[13px] text-on-surface-variant ${ledger ? 'pl-[30px]' : 'pl-5'}`}>{li.detail}</p>
+              <p className="col-start-2 mt-0.5 text-[12.5px] leading-snug text-on-surface-variant">{li.detail}</p>
             )
           ) : null}
 
-          {/* Sub-row: Qty x Unit price */}
-          <div className={`mt-1 flex items-center gap-1.5 text-on-surface-variant ${ledger ? 'pl-[30px] text-[15px]' : 'pl-5 text-sm'}`}>
+          {/* Sub-row: Qty x Unit price, in line with the description */}
+          <div className="col-start-2 flex flex-wrap items-center gap-1.5 text-[12.5px] text-on-surface-variant">
             {editingHere(i, 'qty') ? (
               cellInput('Edit quantity', true)
             ) : editable ? (
@@ -347,8 +380,8 @@ export default function LineItemsEditor({
                 aria-label={`Unit for line ${i + 1}`}
                 className={
                   ledger
-                    ? 'min-h-[36px] rounded-field border border-outline-variant/60 bg-surface-container-lowest px-1.5 text-[14px] text-on-background transition active:scale-95'
-                    : 'min-h-[36px] rounded-md bg-surface-container-high px-1.5 text-sm text-on-surface'
+                    ? 'min-h-[36px] rounded-field border border-outline-variant/60 bg-surface-container-lowest px-1.5 text-[12.5px] text-on-background transition active:scale-95'
+                    : 'min-h-[36px] rounded-md bg-surface-container-high px-1.5 text-[12.5px] text-on-surface'
                 }
               >
                 {LINE_UNITS.map((u) => <option key={u} value={u}>{u === 'hour' ? 'hr' : u}</option>)}
@@ -379,8 +412,8 @@ export default function LineItemsEditor({
           {/* Control row: Up, Down, Dup, Delete */}
           {editable && (
             <div className={ledger
-              ? 'mt-2 flex flex-wrap items-center gap-1.5 pl-[30px]'
-              : 'mt-2 flex flex-wrap items-center gap-1.5 pl-5 border-t border-outline-variant/15 pt-2'}>
+              ? 'col-span-3 mt-1 flex flex-wrap items-center gap-1.5'
+              : 'col-span-3 mt-2 flex flex-wrap items-center gap-1.5 border-t border-outline-variant/15 pt-2'}>
               <button
                 type="button"
                 disabled={i === 0}

@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
+import EventCard from '@/components/chat/EventCard';
+import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
@@ -66,13 +68,21 @@ import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
+import PaymentCard from '@/components/chat/PaymentCard';
+import PaymentProposalCard, { type PaymentProposal, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import { buildPayCard, type PayCard } from '@/lib/payment-card';
+import { looksLikePayment, parseAmount, parseMethod, parsePaidOn, resolvePayment } from '@/lib/payment-intent';
+import { localDateString, localDateToIso, type PaymentMethod } from '@/lib/record-payment';
+import { newPaymentKey, recordPaymentOnce } from '@/lib/payment-idempotency';
+import { ledgerFrom } from '@/lib/payment-ledger-client';
+import { enqueuePayment, paymentQueueStore } from '@/lib/payment-queue';
 import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import { anchorFor, localToday } from '@/lib/recurring';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
-import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
+import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
 import { failedBubbleTitle, unsupportedReplyExtras, visibleChips } from '@/lib/popups/ai';
@@ -83,6 +93,10 @@ import {
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
+import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import CommandCard from '@/components/chat/CommandCard';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
+import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -106,7 +120,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // place: the op, plus (for send) the user text to resend. finalize needs no
 // payload — it re-reads draft/convoId from state, reusing the same finalize_key.
 type Failure = { op: 'send'; text: string } | { op: 'finalize' };
-interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
+interface Msg {
+  /** When this message happened (epoch ms). Saved before this field existed
+   *  means no timestamp, and no timestamp means nothing can be placed around
+   *  it — an old thread reads exactly as it did. */
+  at?: number;
+  /** An owner outcome (RULES): a local assistant card, never an event and never
+   *  a toast. Posted by the screen that finished the action. */
+  ownerCard?: { title: string; invoiceId: string };
+  /** Item 11: the "What I can do" card — a local assistant message, never an
+   *  event and never anything /api/parse sees. */
+  commandCard?: true;
+  id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
   /** Suggestion chips under an answer (A1): each sends that text as a question. */
@@ -126,7 +151,14 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
   sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
-  payoutsNudge?: true; }
+  payoutsNudge?: true;
+  /** An owner-initiated payment moment (alive layer §04). Optional, so every
+   *  entry written before this field existed still loads; no version bump. */
+  payCard?: PayCard;
+  /** A payment the parser proposed. Editable, and never written until Confirm. */
+  payProposal?: PaymentProposal;
+  /** A cancelled proposal, kept only so the one-line notice can offer Undo. */
+  undoProposal?: PaymentProposal; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -213,7 +245,7 @@ function lockBadgeText(status: string | null, amountPaid: number, kind: 'invoice
 
 // The refusal shown when the user tries to edit a locked invoice from chat.
 function lockEditNotice(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
-  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Tap Revise on the card to make an edited copy.";
+  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Send a new estimate instead.";
   if (amountPaid > 0) {
     return status === 'paid'
       ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
@@ -282,9 +314,9 @@ function draftFingerprint(d: Partial<ExtractResult> | null): string {
 // stamp the id in one spot; `extra` is the seam for per-message fields.
 const genMsgId = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const aMsg = (content: string, extra?: Partial<Omit<Msg, 'id' | 'role' | 'content'>>): Msg =>
-  ({ id: genMsgId(), role: 'assistant', content, ...extra });
+  ({ id: genMsgId(), at: Date.now(), role: 'assistant', content, ...extra });
 const uMsg = (content: string, source?: Msg['source']): Msg =>
-  ({ id: genMsgId(), role: 'user', content, source });
+  ({ id: genMsgId(), at: Date.now(), role: 'user', content, source });
 
 // Append a message, or — during a retry (retryId set) — replace the failed
 // message in place by id. A successful retry leaves no dead error behind, and a
@@ -807,10 +839,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the file for THIS invoice is ready, so the tapped share still calls
   // navigator.share() synchronously. Mark as sent needs no file.
   const s1bNeedsFile = !!unsentShare && !unsentShare.file;
-  const s1bFileReady = !!unsentShare && (
-    !!unsentShare.file || (prepState?.status === 'ready' && preBuiltRef.current?.id === unsentShare.id)
-  );
-  const s1bBuildFailed = !!unsentShare && !s1bFileReady && prepState?.status === 'failed';
+  // §04 Retry: drop the failed build so the pre-build effect runs again for the
+  // current draft (the effect's only skip conditions are a matching signature
+  // and an in-flight build).
+  function retryPrebuild() {
+    preBuiltRef.current = null;
+    setPrepState(null);
+  }
   const preBuildIdRef = useRef(0);            // latest-wins guard across overlapping builds
   const preBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // edit debounce
   const preparingRef = useRef(false);         // a pre-build is in flight (sync guard)
@@ -1246,9 +1281,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Feedback talk ("I have a suggestion") gets a button to the feedback page and
     // never reaches the AI (lib/feedback-intent.ts); it stays out of job history.
     const feedbackAsk = !retryId && isFeedbackIntent(trimmed);
+    // Item 11: "?", "help" and the "what can you do" family are answered here.
+    // No AI call and no document; the question itself stays out of job history.
+    const commandAsk = !retryId && matchCommand(trimmed);
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, feedbackAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
+      : [...messages, feedbackAsk || commandAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
@@ -1259,6 +1297,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
     if (feedbackAsk) {
       setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
+    }
+
+    if (commandAsk) {
+      setMessages((m) => [...m, aMsg(COMMAND_LEAD, { commandCard: true, skipHistory: true })]);
+      if (source === 'voice') {
+        // Voice asks the same question; the answer is spoken, like any reply.
+        cancelSpeechRef.current?.();
+        cancelSpeechRef.current = speak(COMMAND_LEAD);
+      }
       return null;
     }
 
@@ -1381,6 +1429,81 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setSignInAsk({ kind: 'send', headline: data.reply });
         return null;
       }
+      // Paying is not a document (item 5). The parser only PROPOSES: the card
+      // below has no write path until the owner taps Confirm, and every field
+      // on it is editable. Returning here keeps a payment out of the draft, the
+      // totals and the duplicate check entirely.
+      if (data.intent === 'record_payment') {
+        const reply = typeof data.reply === 'string' && data.reply.trim() ? data.reply : 'Got it. Check this payment.';
+        setMessages((m) => emitResult(m, aMsg(reply), retryId));
+        if (source === 'voice') {
+          cancelSpeechRef.current?.();
+          cancelSpeechRef.current = speak(reply);
+        }
+        // The model's fields win only where present; the words fill the rest, so
+        // a model miss cannot invent money. The card shows the result either way.
+        const fromWords = {
+          amount: parseAmount(trimmed),
+          method: parseMethod(trimmed),
+          paidOn: parsePaidOn(trimmed, new Date()),
+          clientName: (data.payment?.client_name as string | null | undefined) ?? null,
+        };
+        const amount = typeof data.payment?.amount === 'number' ? data.payment.amount : fromWords.amount;
+        const method = (data.payment?.method as PaymentMethod | null | undefined) ?? fromWords.method;
+        if (!looksLikePayment(trimmed, { amount, method })) {
+          setMessages((m) => [...m, aMsg("Did someone pay you? Name the client and how much, and I'll set it up for you to confirm.")]);
+          return { reply, ready: false };
+        }
+        const { data: { user: payerUser } } = await getSharedUser();
+        if (!payerUser) {
+          setMessages((m) => [...m, aMsg('Sign in and I can record that payment.')]);
+          return { reply, ready: false };
+        }
+        try {
+          const { data: rows } = await supabase
+            .from('invoices')
+            .select('id, invoice_number, client_name, total, amount_paid, kind, created_at')
+            .eq('user_id', payerUser.id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+            .limit(200);
+          const openInvoices = ((rows ?? []) as Array<Record<string, unknown>>)
+            .filter((r) => String(r.kind ?? 'invoice') === 'invoice' && Number(r.amount_paid ?? 0) < Number(r.total ?? 0))
+            .map((r) => ({
+              id: String(r.id),
+              invoiceNo: r.invoice_number == null ? null : Number(r.invoice_number),
+              clientName: String(r.client_name ?? ''),
+              total: Number(r.total ?? 0),
+              amountPaid: Number(r.amount_paid ?? 0),
+              kind: 'invoice' as const,
+              createdAt: String(r.created_at ?? ''),
+            }));
+          const resolution = resolvePayment({ parsed: fromWords, invoices: openInvoices });
+          // The picker shows this client's open invoices; with no client match
+          // it falls back to what is actually open, so the owner chooses rather
+          // than us picking someone else's invoice.
+          const choices = resolution.invoiceChoices.length > 0 ? resolution.invoiceChoices : openInvoices;
+          const candidateInvoices: ProposalInvoice[] = choices.slice(0, 8).map((i) => ({
+            id: i.id, invoiceNo: i.invoiceNo, clientName: i.clientName, total: i.total, amountPaid: i.amountPaid,
+          }));
+          setMessages((m) => [...m, aMsg('Check this and confirm.', {
+            payProposal: {
+              amount,
+              method,
+              clientName: resolution.clientName ?? '',
+              paidOn: fromWords.paidOn ?? localDateString(new Date()),
+              invoiceId: resolution.invoice?.id ?? null,
+              invoices: candidateInvoices,
+              clients: resolution.clientChoices,
+            },
+          })]);
+        } catch (e) {
+          console.error('[payment] could not build the proposal', e);
+          setMessages((m) => [...m, aMsg("I couldn't line that up with an invoice. Tell me the client and the amount.")]);
+        }
+        return { reply, ready: false };
+      }
+
       // Point 2: the parsed result.
       traceTurn(turnId, 'parsed', {
         intent: data.intent ?? null,
@@ -1904,6 +2027,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
     if (!active || !ready || !draft || !profile) return;
+    // An estimate shares a link, so there is no PDF worth building (§04).
+    if (docKind(draft) === 'quote') return;
     // A restored S1b has nothing to share yet, so it needs a build even on a tier
     // that otherwise builds at the tap.
     if (skipPreBuild && !s1bNeedsFile) return;
@@ -1924,6 +2049,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (mode === 'prepare') {
       if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile) return;
+      // Estimates never build a PDF (they share a link), so a prepare can only
+      // be a stray call from a card that just switched kind.
+      if (draft && docKind(draft) === 'quote') return;
+      // A restored S1b has nothing to share yet, so it needs a build even on a
+      // tier that otherwise builds at the tap.
       if (skipPreBuild && !s1bNeedsFile) return;
       preparingRef.current = true;
       setPreparing(true);
@@ -3354,10 +3484,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   // Retry the share. sharePdf starts synchronously from the tap (iOS keeps the
   // tap's activation), then the same POST marks it sent.
-  function retryS1bBuild() {
-    preBuiltRef.current = null;
-    setPrepState(null); // the pre-build effect re-arms for the current draft
-  }
 
   async function shareSharedAgain(pending: UnsentShare & { file: File | null; token: string | null }) {
     const pb = preBuiltRef.current;
@@ -3701,15 +3827,24 @@ export default function Chat({ active = true }: { active?: boolean }) {
     previewDepositValue
   );
   const isValidTotal = Number.isFinite(previewTotals.total);
-  // The send button waits ("Preparing…") until the pre-build for THIS exact
-  // draft has finished, so a tap is always the synchronous share. A guest has no
-  // pre-build (the tap routes to sign-in), so it is ready once the profile
-  // lookup has resolved.
-  const sendReady = !profileLoaded ? false
-    : !profile ? true
-    // No pre-build for capped tiers: Send takes the slow path (build at tap).
-    : skipPreBuild ? !!draft
-    : !!draft && prepState?.sig === draftSignature(draft);
+  const quoteDraft = !!draft && docKind(draft) === 'quote';
+  const pdfReady = !profileLoaded ? false
+    : !profile ? false
+    // An estimate shares a link: there is no file to build or wait for.
+    : quoteDraft ? false
+    // No pre-build for capped tiers — except a restored S1b, which has no file
+    // in hand and still needs one before its tap.
+    : skipPreBuild && !s1bNeedsFile ? false
+    : !draft ? false
+    : prepState?.sig === draftSignature(draft) && prepState?.status === 'ready';
+  // A failed build only matters for the draft it was built from: an edit moves
+  // the signature and the pre-build effect retries on its own.
+  const pdfFailed = !quoteDraft && prepState?.status === 'failed'
+    && !!draft && prepState.sig === draftSignature(draft);
+  // Send is NEVER disabled while a file builds (§04): an estimate needs no file,
+  // and an invoice can always take the build-at-tap path. This flag only says
+  // the profile lookup is still in flight (the tap routes to sign-in).
+  const sendReady = !profileLoaded ? false : !profile ? true : !!draft;
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
   // The draft controls fold away when the card seals instead of vanishing: they
@@ -3940,6 +4075,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
+    // 4A: an estimate has no revise/duplicate path. An invoice keeps Revise.
+    if (docKind(draft) === 'quote') {
+      setReviseAsk(false);
+      setMessages((msgs) => [...msgs, aMsg("Estimates can't be revised. Send a new estimate instead.")]);
+      return;
+    }
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduced) { startRevision(); return; }
     revisingRef.current = true;
@@ -4008,6 +4149,61 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // The invoice/quote card renders INSIDE the transcript, right after its
   // anchor message (cardAfterId), so later messages land below it. A missing
   // or stale anchor (older saved chats) falls back to the last message.
+  // Alive layer: one feed, drawn where each card happened. A card sits just
+  // before the first message that came after it; cards older than the oldest
+  // timestamped message (or newer than the last) fall to the end, which is how
+  // the thread read before messages carried `at`.
+  const feedEvents = useChatEventFeed();
+  const feedSplit = splitEventsByMessage(feedEvents, messages);
+  const openDocument = (id: string) => router.push(`/invoices/${id}`);
+  const runEventAction = (e: EventRow, action: EventAction) => {
+    if (!e.invoice_id) return;
+    // Convert opens the estimate, which owns the confirm, the paywall and the
+    // idempotency key — a card never mints an invoice on one tap. Send reminder
+    // lands on the invoice, where Request balance is the existing re-share.
+    openDocument(e.invoice_id + (action === 'convert' ? '?convert=1' : ''));
+  };
+  const renderEvent = (e: EventRow) => {
+    const action = eventAction(String(e.kind));
+    return (
+      <EventCard
+        key={e.id}
+        event={e}
+        money={money}
+        onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
+        action={action ? {
+          label: action === 'convert' ? 'Convert' : 'Send reminder',
+          onClick: () => runEventAction(e, action),
+        } : undefined}
+      />
+    );
+  };
+
+  // Owner outcomes come back as local cards. A screen finishes the action and
+  // posts one; here it is appended live, and anything posted while the chat was
+  // unmounted (the estimate screen navigates away) is drained after restore, so
+  // a restore can never overwrite it.
+  const ownerCardsDrained = useRef(false);
+  useEffect(() => {
+    const append = (card: OwnerCard) => {
+      if (!card?.title || !card.invoiceId) return;
+      setMessages((m) => [...m, aMsg(card.title, { ownerCard: { title: card.title, invoiceId: card.invoiceId } })]);
+    };
+    const onCard = (e: Event) => {
+      drainOwnerCards(); // the live event consumed the queue
+      append((e as CustomEvent<OwnerCard>).detail);
+    };
+    window.addEventListener(OWNER_CARD_EVENT, onCard);
+    return () => window.removeEventListener(OWNER_CARD_EVENT, onCard);
+  }, []);
+  useEffect(() => {
+    if (!hydrated || ownerCardsDrained.current) return;
+    ownerCardsDrained.current = true;
+    for (const card of drainOwnerCards()) {
+      setMessages((m) => [...m, aMsg(card.title, { ownerCard: { title: card.title, invoiceId: card.invoiceId } })]);
+    }
+  }, [hydrated]);
+
   const cardAnchorId = cardAfterId && messages.some((m) => m.id === cardAfterId)
     ? cardAfterId
     : messages[messages.length - 1]?.id ?? null;
@@ -4190,17 +4386,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     url={estimateLink(linkedToken)!}
                     title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
                     businessName={profile?.business_name}
+                    onShared={() => {
+                      // §02: a share has no system confirmation, so the assistant
+                      // says it happened (and promises the first view). Once per card.
+                      const who = (draft?.client_name ?? '').trim().split(/\s+/)[0];
+                      setMessages((m) => [...m, aMsg(
+                        who
+                          ? `Shared. I'll let you know as soon as ${who} opens it.`
+                          : "Shared. I'll let you know as soon as it's opened.",
+                      )]);
+                    }}
                   />
                 </div>
               )}
-              <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
-                <Icon name="edit" size={18} /> Revise
-              </button>
-              <p className="mt-1 text-center text-xs text-on-surface-variant/80">
-                {docKind(draft) === 'quote'
-                  ? 'Makes a new estimate you can edit. This one and its link stay as they are.'
-                  : 'Opens an editable copy as a new invoice. The original stays as it was.'}
-              </p>
+              {/* 4A: an estimate has no revise/duplicate path; invoices keep Revise. */}
+              {docKind(draft) !== 'quote' && (
+                <>
+                  <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
+                    <Icon name="edit" size={18} /> Revise
+                  </button>
+                  <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                    Opens an editable copy as a new invoice. The original stays as it was.
+                  </p>
+                </>
+              )}
             </>
           ) : (
             <p className="text-center text-sm text-on-surface-variant">
@@ -4218,20 +4427,61 @@ export default function Chat({ active = true }: { active?: boolean }) {
               {UNREADABLE_PRICES_TEXT}
             </p>
           )}
+          {/* §04 PDF state. An estimate has no file, so this row is invoices only.
+              Send stays enabled in every one of these states. */}
+          {!quoteDraft && !(unsentShare && !unsentShareOpen) && (
+            <div className="mt-3">
+              {pdfFailed ? (
+                <div className="flex items-center gap-2 rounded-[12px] border border-error/40 bg-error-container/70 px-3 py-2">
+                  <Icon name="error" size={18} className="shrink-0 text-error" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-on-error-container">Couldn&apos;t build the PDF</p>
+                    <p className="text-[12px] leading-snug text-on-error-container/80">Weak signal. Your invoice is safe.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={retryPrebuild}
+                    className="min-h-touch shrink-0 rounded-button border border-error/40 bg-surface-container-lowest px-3 text-[13px] font-bold text-on-error-container transition active:scale-95"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : pdfReady ? (
+                <div className="flex items-center gap-2 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-field bg-primary-soft text-primary">
+                    <Icon name="picture_as_pdf" size={18} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold">
+                      {preBuiltRef.current?.file.name ?? 'Invoice PDF'}
+                    </p>
+                    <p className="text-[12px] text-on-surface-variant">
+                      {preBuiltRef.current ? `${Math.max(1, Math.round(preBuiltRef.current.file.size / 1024))} KB · ` : ''}attached
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="onit-pdf-shimmer flex items-center gap-2 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <OnItSpinner size={18} />
+                  <span className="flex-1 text-[13px] font-semibold text-on-surface-variant">Building PDF…</span>
+                </div>
+              )}
+            </div>
+          )}
           <button
             className={`btn-primary mt-3 w-full${cardAnim === 'enter' ? ' onit-fade-in' : ''}`}
             style={cardAnim === 'enter' ? { animationDelay: `${180 + Math.min(previewItems.length, 8) * 70 + 660}ms` } : undefined}
-            disabled={phase !== null || !isValidTotal || !sendReady}
+            disabled={phase !== null || !isValidTotal}
             onClick={() => finalize()}
           >
-            {docKind(draft) === 'quote' ? (
+            {quoteDraft ? (
               // No file to build or share: the client gets the link.
               <>
                 {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="send" size={18} />}
-                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : 'Looks right — send it'}
               </>
             ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' && !clientQuestionOpen ? (
-              // The file is built and waiting: this tap opens the share sheet.
+              // The file is built: this tap opens the share sheet synchronously.
               <>
                 <Icon name="share" size={18} />
                 {`Share ${docNoun(docKind(draft)).toLowerCase()}`}
@@ -4239,7 +4489,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ) : (
               <>
                 {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="attach_file" size={18} />}
-                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : 'Looks right — send it'}
               </>
             )}
           </button>
@@ -4368,7 +4618,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
           />
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
-        <Fragment key={m.id}>{
+        <Fragment key={m.id}>{feedSplit.between[m.id]?.map((e) => renderEvent(e))}{
+          // Item 12: the empty state. Three starter chips and the hint sit under
+          // the greeting and go with the first message.
+          mi === 0 && messages.length === 1 && (
+            <div className="flex flex-col gap-2 pb-1 pt-1">
+              <div className="flex flex-wrap gap-2">
+                {STARTER_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => { if (!phase) void send(chip); }}
+                    className="rounded-full border border-outline-variant bg-surface-container px-3.5 py-2 text-[13.5px] font-semibold text-on-surface transition active:scale-95 disabled:opacity-40"
+                    disabled={phase !== null}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+              <p className="px-1 text-[12.5px] leading-snug text-on-surface-variant">{COMMAND_HINT}</p>
+            </div>
+          )}{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
             <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
@@ -4443,6 +4713,32 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </button>
               </div>
             </div>
+          ) : m.commandCard ? (
+            <CommandCard
+              groups={COMMAND_GROUPS}
+              onPick={(phrase) => {
+                // Item 11: the row's phrase replaces the input, the caret goes to
+                // the end, and the field takes focus so the keyboard opens.
+                setInput(phrase);
+                const el = inputRef.current;
+                if (el) {
+                  el.focus();
+                  requestAnimationFrame(() => el.setSelectionRange(phrase.length, phrase.length));
+                }
+              }}
+            />
+          ) : m.ownerCard ? (
+            // The outcome of an owner action, with the one thing to do next.
+            <div className="card">
+              <p className="text-body-md">{m.ownerCard.title}</p>
+              <button
+                type="button"
+                className="btn-primary mt-3 w-full"
+                onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
+              >
+                Open
+              </button>
+            </div>
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"
             // control that fires the same reset as the header compose icon
@@ -4501,6 +4797,106 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ]}
               />
             </div>
+          ) : m.payProposal ? (
+            <PaymentProposalCard
+              key={m.id}
+              proposal={m.payProposal}
+              onCancel={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                ? { ...x, payProposal: undefined, undoProposal: m.payProposal, content: 'Payment not recorded. Nothing was saved.' }
+                : x)))}
+              onConfirm={async (input) => {
+                const { data: { user: payUser } } = await getSharedUser();
+                if (!payUser) return { ok: false as const, message: 'Sign in to record a payment.' };
+                const paidAt = localDateToIso(input.paidOn || localDateString(new Date()));
+                // One key per submission, minted at the Confirm tap (rule 6). A
+                // second tap reuses it, so the ledger can only gain one row.
+                const key = newPaymentKey(input.invoiceId);
+                let paymentId: string | null = null;
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    const store = paymentQueueStore();
+                    const queued = store
+                      ? await enqueuePayment(store, { key, invoiceId: input.invoiceId, userId: payUser.id, amount: input.amount, method: input.method, paidAt })
+                      : 'capped';
+                    if (queued !== 'queued') {
+                      return { ok: false as const, message: "You're offline and I couldn't hold that payment. Try again when you're back." };
+                    }
+                  } else {
+                    const saved = await recordPaymentOnce(ledgerFrom(supabase), {
+                      invoice_id: input.invoiceId,
+                      user_id: payUser.id,
+                      amount: input.amount,
+                      method: input.method,
+                      paid_at: paidAt,
+                      idempotency_key: key,
+                    });
+                    if (!saved.ok) {
+                      console.error('chat record payment failed', saved.error);
+                      return { ok: false as const, message: userMessage(saved.error) };
+                    }
+                    paymentId = saved.payment?.id ?? null;
+                  }
+                  const { data: row } = await supabase
+                    .from('invoices')
+                    .select('total, amount_paid, client_name, invoice_number, kind, line_items, tax_rate, deposit_type, deposit_value')
+                    .eq('id', input.invoiceId)
+                    .maybeSingle();
+                  const invRow = row as Record<string, unknown> | null;
+                  const total = Number(invRow?.total ?? 0);
+                  const paid = Number(invRow?.amount_paid ?? 0);
+                  // A deposit payment gets the deposit card (no button), not a
+                  // "payment recorded" one: the balance is collected on completion.
+                  const invTotals = calculateInvoiceTotals(
+                    (invRow?.line_items as FinancialLineItem[] | null) ?? [],
+                    Number(invRow?.tax_rate ?? 0),
+                    ((invRow?.deposit_type as DepositType | null) ?? 'none'),
+                    invRow?.deposit_value == null ? undefined : Number(invRow.deposit_value),
+                  );
+                  const card = buildPayCard({
+                    invoiceId: input.invoiceId,
+                    invoiceNo: invRow?.invoice_number == null ? null : Number(invRow.invoice_number),
+                    clientName: String(invRow?.client_name ?? m.payProposal?.clientName ?? ''),
+                    amount: input.amount,
+                    method: input.method,
+                    paidAt,
+                    paymentId,
+                    total,
+                    left: Math.max(0, total - paid),
+                    depositOnly: invTotals.depositAmount > 0
+                      && paid >= invTotals.depositAmount
+                      && paid < total,
+                  });
+                  setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                    ? { ...x, payProposal: undefined, payCard: card, content: 'Payment recorded.' }
+                    : x)));
+                  return { ok: true as const };
+                } catch (e) {
+                  console.error('chat record payment threw', e);
+                  return { ok: false as const, message: "That didn't go through. Try again." };
+                }
+              }}
+            />
+          ) : m.payCard ? (
+            <PaymentCard
+              key={m.id}
+              card={m.payCard}
+              onOpen={(invoiceId) => router.push(`/invoices/${invoiceId}`)}
+              onUndo={async (paymentId) => {
+                // Same delete as the invoice screen: the trigger recomputes
+                // amount_paid from what remains, so nothing is written here.
+                const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+                if (error) {
+                  console.error('undo payment failed', error);
+                  setMessages((msgs) => [...msgs, aMsg("Couldn't undo that payment. Try again from the invoice.")]);
+                  return;
+                }
+                setMessages((msgs) => msgs.map((x) => (
+                  x.payCard && x.payCard.paymentId === paymentId
+                    ? { ...x, payCard: undefined, content: 'Payment removed.' }
+                    : x
+                )));
+              }}
+            />
           ) : m.logged ? (
             <LoggedExpenseCard
               key={m.id}
@@ -4542,6 +4938,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           )}
+          {m.undoProposal && (
+            <div className="mt-1 flex justify-start pl-8">
+              <button
+                type="button"
+                className="min-h-touch text-[13px] font-semibold text-primary underline transition active:opacity-60"
+                onClick={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                  ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
+                  : x)))}
+              >
+                Undo
+              </button>
+            </div>
+          )}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
             // S1b: Keep as draft leaves this pinned under the document until the
@@ -4551,7 +4960,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 tone="error"
                 eyebrowIcon="sync_problem"
                 title={unsentShareCopy(unsentShare).cardTitle}
-                error={s1bBuildFailed
+                error={pdfFailed
                   ? { title: 'Couldn’t build the PDF', body: 'Weak signal. Your invoice is safe — Mark as sent still works.' }
                   : undefined}
                 text={unsentShareCopy(unsentShare).cardText}
@@ -4559,13 +4968,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 actions={[
                   { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
                   {
-                    label: s1bFileReady ? 'Retry the share' : 'Preparing…',
+                    label: pdfReady ? 'Retry the share' : 'Preparing…',
                     kind: 'outline',
-                    disabled: !s1bFileReady,
+                    disabled: !pdfReady,
                     onSelect: () => shareSharedAgain(unsentShare),
                   },
-                  ...(s1bBuildFailed
-                    ? [{ label: 'Retry the build', kind: 'text' as const, onSelect: retryS1bBuild }]
+                  ...(pdfFailed
+                    ? [{ label: 'Retry the build', kind: 'text' as const, onSelect: retryPrebuild }]
                     : []),
                 ]}
               />
@@ -4599,6 +5008,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </Fragment>
         ))}
+
+        {/* Alive layer: cards that belong after the last message. */}
+        {feedSplit.trailing.map((e) => renderEvent(e))}
 
         {pendingChange && (() => {
           // Change guard (Commit A): the parse would rewrite the linked invoice.
@@ -4792,7 +5204,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
       )}
-      {reviseAsk && draft && (() => {
+      {reviseAsk && draft && docKind(draft) !== 'quote' && (() => {
         const kind = docKind(draft);
         const no = pendingInvoiceRef.current?.no ?? null;
         const copy = reviseSheetCopy(kind, no);
@@ -4872,7 +5284,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             attachments={attachments} onAttachments={setAttachments}
             onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
-            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
+            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : 'ready'}
             onSend={() => { void finalize(); }} />
           </div>
         </div>

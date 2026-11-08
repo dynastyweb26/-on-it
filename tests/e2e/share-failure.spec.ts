@@ -169,12 +169,23 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
       await expect(sendIt).toBeEnabled({ timeout: 90_000 });
     }
 
-    // ── 2–3. Tap: the share succeeds (stub), the mark-sent POST cannot.
-    await sendIt.click();
-
     // Exactly the PopSheet: other dialogs (the paywall, the terms prompt) also
     // carry role="dialog" and must never be mistaken for S1.
     const sheet = page.locator('[data-pop-sheet]');
+
+    // ── 2. Tap 1: send is no longer gated on the PDF (#157), so when no file is
+    // ready yet this tap builds and the card hands back a deliberate second tap,
+    // "Share invoice". When the background pre-build already finished, this tap
+    // shares on the spot and the sheet is what appears.
+    const shareIt = page.getByRole('button', { name: /^Share invoice$/i }).first();
+    await sendIt.click();
+    await expect(shareIt.or(sheet).first()).toBeVisible({ timeout: 90_000 });
+    if (await shareIt.isVisible().catch(() => false)) {
+      // ── 3. Tap 2 shares: the stub succeeds, the mark-sent POST cannot.
+      await expect(shareIt).toBeEnabled({ timeout: 90_000 });
+      await shareIt.click();
+    }
+
     await expect(sheet).toBeVisible({ timeout: 45_000 });
 
     // ── 4. S1: both truths, the three answers, the offline cause line.

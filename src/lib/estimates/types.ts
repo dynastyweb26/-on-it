@@ -94,6 +94,8 @@ export type PublicEstimate = {
   signature: SignatureSummary | null;
   contentHash: string;
   consent: { text: string; version: string };
+  /** True when the current version was published after the client's last view. */
+  updated?: boolean;
 };
 
 /** Uniform response for missing, draft, revoked, deleted and converted-unsigned

@@ -195,6 +195,7 @@ export default function EstimateView({
               <span />
             )}
             {validity && <span className={s.validity}>{validity}</span>}
+            {payload.updated === true && <span className={s.validity}>Updated</span>}
           </div>
 
           <p className={s.preparedFor}>

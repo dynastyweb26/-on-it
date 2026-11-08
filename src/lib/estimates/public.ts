@@ -10,6 +10,7 @@ import { cleanTerms, readProfileTerms } from '@/lib/terms';
 import { deliverableAttachments } from './deliverable';
 import { ATTACHMENT_BUCKET, SIGNED_URL_TTL_SECONDS } from './limits';
 import { toPublicEstimate, type PublicModelInvoice, type PublicModelProfile } from './public-model';
+import { isUpdatedSinceView } from './updated';
 import type {
   PublicAttachment,
   PublicEstimateResult,
@@ -28,6 +29,7 @@ type InvoiceRow = PublicModelInvoice & {
   user_id: string;
   kind: string | null;
   public_token: string | null;
+  estimate_version: number | null;
 };
 
 type ProfileRow = PublicModelProfile & { id: string };
@@ -52,7 +54,7 @@ type SignatureRow = {
 const INVOICE_COLS =
   'id, user_id, kind, public_token, invoice_number, status, deleted_at, approved_at, ' +
   'revoked_at, valid_until, client_name, client_address, title, line_items, subtotal, tax_rate, ' +
-  'tax_amount, total, deposit_type, deposit_value, deposit_amount, notes';
+  'tax_amount, total, deposit_type, deposit_value, deposit_amount, notes, estimate_version';
 
 const PROFILE_COLS =
   'id, business_name, logo_url, brand_colors, background_color, website_url, slogan, ' +
@@ -216,7 +218,37 @@ async function shape(
     terms = null;
   }
 
-  return toPublicEstimate({
+  // "Updated": a version after v1, published after the client's last view.
+  // Owner previews never carry it; an environment without the 4A tables
+  // renders without it rather than failing the page.
+  let updated = false;
+  if (!preview) {
+    try {
+      const [versionRes, viewRes] = await Promise.all([
+        admin
+          .from('estimate_versions')
+          .select('created_at')
+          .eq('estimate_id', invoice.id)
+          .eq('version', invoice.estimate_version)
+          .maybeSingle(),
+        admin
+          .from('document_views')
+          .select('viewed_at')
+          .eq('invoice_id', invoice.id)
+          .order('viewed_at', { ascending: false })
+          .limit(50),
+      ]);
+      updated = isUpdatedSinceView({
+        version: invoice.estimate_version,
+        versionAt: (versionRes.data as { created_at?: string } | null)?.created_at ?? null,
+        views: ((viewRes.data ?? []) as { viewed_at: string }[]).map((v) => ({ viewedAt: v.viewed_at })),
+      });
+    } catch {
+      updated = false;
+    }
+  }
+
+  const result = toPublicEstimate({
     invoice,
     profile,
     attachments: signed.filter((a): a is PublicAttachment => a !== null),
@@ -227,4 +259,6 @@ async function shape(
     now: new Date(),
     preview,
   });
+  if (result.state !== 'unavailable') result.updated = updated;
+  return result;
 }

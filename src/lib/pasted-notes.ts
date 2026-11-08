@@ -241,7 +241,9 @@ const LABOR_ITEM_RE = /\b(?:labou?r|service\s+(?:call|charge|fee)|trip\s+(?:char
 
 interface GuardItem { description: string; qty: number; unit_price: number | null; unit?: LineUnit | null; detail?: string | null }
 interface GuardResult {
-  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other';
+  // record_payment never reaches the paste path (the route returns a payment
+  // proposal before any draft work), but the union must still accept it.
+  intent: 'invoice' | 'quote' | 'expense' | 'question' | 'other' | 'record_payment';
   intent_explicit: boolean;
   client_name: string | null;
   line_items: GuardItem[];

@@ -1,4 +1,6 @@
 'use client';
+import { postOwnerCard } from '@/lib/owner-cards';
+import { formatDocNumber } from '@/lib/documents';
 // ═══ Estimate detail (owner) ═══
 // Spec §3 of design/estimates/ESTIMATES-DESIGN-SPEC.md, mounted from the
 // invoice detail page for kind='quote' only. Invoices never reach this file.
@@ -28,12 +30,11 @@ import type { PublicEstimate } from '@/lib/estimates/types';
 import {
   estimateLink,
   estimateShareText,
-  requestEstimateDuplicate,
   requestEstimateExtend,
   requestEstimatePreview,
   requestEstimateRevoke,
   requestEstimateSend,
-  requestEstimateTitle,
+  requestEstimateEdits,
   shareEstimateLink,
 } from '@/lib/estimates/owner-actions';
 import {
@@ -92,7 +93,7 @@ type SignatureRow = {
   signed_at: string;
 };
 
-type Busy = 'send' | 'convert' | 'duplicate' | 'extend' | 'revoke' | 'preview' | null;
+type Busy = 'send' | 'convert' | 'extend' | 'revoke' | 'preview' | null;
 
 const CHIP: Record<OwnerEstimateState, { label: string; icon: 'edit' | 'verified' | 'schedule' | 'lock' | 'link_off' | null; className: string }> = {
   draft: { label: 'Draft', icon: 'edit', className: 'bg-draft-container text-draft' },
@@ -136,6 +137,10 @@ export default function EstimateDetail({
   const sendingRef = useRef(false);
   const [preview, setPreview] = useState<PublicEstimate | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // 4A edit-in-place: every edit is staged locally and ONE "Save changes" writes
+  // them together, so bump_estimate_version bumps the version once per save.
+  const [itemsDraft, setItemsDraft] = useState<LineItemRow[]>((estimate.line_items ?? []) as LineItemRow[]);
+  const [saving, setSaving] = useState(false);
 
   const id = inv.id;
   const tz = profile.timezone ?? null;
@@ -182,7 +187,7 @@ export default function EstimateDetail({
   );
   const editable = isOwnerEditable(state);
   const linked = isLinkLive(state);
-  const totals = calculateInvoiceTotals(inv.line_items ?? [], Number(inv.tax_rate ?? 0));
+  const totals = calculateInvoiceTotals(itemsDraft, Number(inv.tax_rate ?? 0));
   const taxRate = Number(inv.tax_rate ?? 0);
   const chip = CHIP[state];
   const validity = validityLabel(state, inv.valid_until);
@@ -294,6 +299,24 @@ export default function EstimateDetail({
 
   // P-14: converting mints a numbered invoice, so it asks first (board C4).
   const [convertAsk, setConvertAsk] = useState(false);
+  // A card's Convert button lands here with ?convert=1: open the SAME confirm
+  // the screen's own button opens. Nothing converts on one tap, and the param
+  // is dropped so a refresh does not reopen the sheet.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('convert') !== '1') return;
+    if (state !== 'approved') return;
+    setConvertAsk(true);
+    router.replace(`/invoices/${inv.id}`);
+  }, [state, inv.id, router]);
+
+  // The confirm, not the action: opened by the Convert button and by the
+  // approved nudge's CTA, so neither can create an invoice on one tap.
+  function askConvert() {
+    if (busy || convertingRef.current || state !== 'approved') return;
+    setActionError(null);
+    setConvertAsk(true);
+  }
 
   async function convertToInvoice() {
     if (busy || convertingRef.current || state !== 'approved') return;
@@ -324,7 +347,7 @@ export default function EstimateDetail({
         converted_from: inv.id,
         due_date: defaultDueDate(),
         finalize_key: idempotencyKey,
-      }).select('id').single();
+      }).select('id, invoice_number').single();
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
           setPaywallFor('invoice');
@@ -333,7 +356,7 @@ export default function EstimateDetail({
         if (error.code === '23505') {
           const { data: existing } = await supabase
             .from('invoices')
-            .select('id, deleted_at')
+            .select('id, deleted_at, invoice_number')
             .eq('user_id', inv.user_id)
             .eq('finalize_key', idempotencyKey)
             .maybeSingle();
@@ -343,7 +366,14 @@ export default function EstimateDetail({
             if (existing.deleted_at) {
               await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
             }
-              router.push(`/invoices/${existing.id}`);
+            setConvertAsk(false);
+            postOwnerCard({
+              title: existing.invoice_number != null
+                ? `${formatDocNumber('invoice', existing.invoice_number)} is ready`
+                : 'Your invoice is ready',
+              invoiceId: existing.id,
+            });
+            router.push(`/invoices/${existing.id}`);
             return;
           }
         }
@@ -356,26 +386,16 @@ export default function EstimateDetail({
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
         throw new Error('attachment copy failed');
       }
+      // The owner's outcome, not an event (RULES): a local card in the thread.
+      postOwnerCard({
+        title: created.invoice_number != null
+          ? `${formatDocNumber('invoice', created.invoice_number)} is ready`
+          : 'Your invoice is ready',
+        invoiceId: created.id,
+      });
       router.push(`/invoices/${created.id}`);
     } finally {
       convertingRef.current = false;
-      setBusy(null);
-    }
-  }
-
-  async function duplicate() {
-    if (busy || state !== 'approved') return;
-    setBusy('duplicate');
-    setActionError(null);
-    try {
-      const outcome = await requestEstimateDuplicate(id);
-      if (!outcome.ok) {
-        if (outcome.paywall) setPaywallFor('estimate');
-        else setActionError(outcome.message);
-        return;
-      }
-      router.push(`/invoices/${outcome.id}`);
-    } finally {
       setBusy(null);
     }
   }
@@ -416,47 +436,39 @@ export default function EstimateDetail({
     }
   }
 
-  async function saveTitle() {
-    setEditingTitle(false);
-    const next = titleDraft.trim().slice(0, 120);
-    if (next === (inv.title ?? '')) return;
+  const pendingTitle = titleDraft.trim().slice(0, 120);
+  const titleChanged = pendingTitle !== (inv.title ?? '');
+  const itemsChanged = JSON.stringify(itemsDraft) !== JSON.stringify((inv.line_items ?? []) as LineItemRow[]);
+  const dirty = editable && (titleChanged || itemsChanged);
+
+  // One request, one UPDATE: the title and the line items (with recomputed
+  // totals) land in the same statement, so the trigger bumps once.
+  async function saveChanges() {
+    if (!editable || !dirty || busy || saving) return;
+    setSaving(true);
     setActionError(null);
-    const outcome = await requestEstimateTitle(id, next || null);
-    if (!outcome.ok) {
-      setActionError(outcome.message);
-      return;
+    try {
+      const outcome = await requestEstimateEdits(id, {
+        title: titleChanged ? (pendingTitle || null) : undefined,
+        lineItems: itemsChanged ? itemsDraft : undefined,
+      });
+      if (!outcome.ok) {
+        setActionError(outcome.message);
+        return;
+      }
+      const saved = outcome.estimate as Partial<EstimateDetailRow>;
+      setInv((prev) => ({ ...prev, ...saved }));
+      setTitleDraft((saved.title ?? '') as string);
+      setItemsDraft((saved.line_items ?? []) as LineItemRow[]);
+    } finally {
+      setSaving(false);
     }
-    setInv((prev) => ({ ...prev, title: outcome.title }));
-    setTitleDraft(outcome.title ?? '');
   }
 
-  // Line-item edits reuse the app's existing editor and the same atomic
-  // write as the invoice page: line_items + recomputed totals together.
-  async function applyLineItems(newItems: LineItemRow[]) {
-    const prev = (inv.line_items ?? []) as LineItemRow[];
-    const merged = mergeLineItemEdits(prev, newItems);
-    const nextTotals = calculateInvoiceTotals(merged, taxRate);
-    const prevTotals = { subtotal: inv.subtotal, tax_amount: inv.tax_amount, total: inv.total };
-    setInv((prevRow) => ({
-      ...prevRow,
-      line_items: merged,
-      subtotal: nextTotals.subtotal,
-      tax_amount: nextTotals.taxAmount,
-      total: nextTotals.total,
-    }));
-    const { error } = await supabase.from('invoices')
-      .update({
-        line_items: merged,
-        subtotal: nextTotals.subtotal,
-        tax_amount: nextTotals.taxAmount,
-        total: nextTotals.total,
-      })
-      .eq('id', id);
-    if (error) {
-      console.error('estimate line item update failed', error);
-      setInv((prevRow) => ({ ...prevRow, line_items: prev, ...prevTotals }));
-      setActionError("Couldn't save that change. Please try again.");
-    }
+  // Edits are staged, not written: the card's own Save changes sends them all
+  // in one update. Totals stay live because they are recomputed from the draft.
+  function stageLineItems(next: LineItemRow[]) {
+    setItemsDraft(mergeLineItemEdits(itemsDraft, next));
   }
 
   const primaryButton =
@@ -520,7 +532,7 @@ export default function EstimateDetail({
                 titleCancelled.current = false;
                 return;
               }
-              void saveTitle();
+              setEditingTitle(false);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
@@ -735,28 +747,20 @@ export default function EstimateDetail({
         </div>
 
         {(state === 'approved' || state === 'converted') && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-surface-container px-3 py-2.5">
+          <div className="mb-3 flex items-center gap-2 rounded-[14px] bg-surface-container px-3 py-2.5">
             <Icon name="lock" size={16} className="shrink-0 text-on-surface-variant" />
             <span className="min-w-0 flex-1 text-[13px] font-semibold text-on-surface-variant">
-              Locked after approval. Duplicate to make changes
+              {state === 'approved'
+                ? 'This estimate is signed and locked.'
+                : 'This estimate was converted, so it is locked.'}
             </span>
-            {state === 'approved' && (
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void duplicate()}
-                className="chip flex items-center gap-1.5 border-primary px-3 text-xs text-primary"
-              >
-                <Icon name="content_copy" size={15} /> {busy === 'duplicate' ? 'Copying…' : 'Duplicate'}
-              </button>
-            )}
           </div>
         )}
 
         <LineItemsEditor
-          items={(inv.line_items ?? []) as LineItemRow[]}
+          items={itemsDraft}
           editable={editable}
-          onChange={(next) => void applyLineItems(next)}
+          onChange={stageLineItems}
         />
 
         <div className="mt-3 space-y-1 border-t border-outline-variant/30 pt-3 text-sm">
@@ -774,6 +778,17 @@ export default function EstimateDetail({
           </div>
         </div>
       </div>
+
+      {editable && dirty && (
+        <button
+          type="button"
+          onClick={() => void saveChanges()}
+          disabled={saving}
+          className={`${primaryButton} mb-4`}
+        >
+          <Icon name="check" size={18} /> {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      )}
 
       <EstimateAttachments estimateId={id} userId={inv.user_id} editable={editable} />
 
