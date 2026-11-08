@@ -20,12 +20,17 @@
 // task was still open; the assertion expects true.
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const EMAIL = process.env.E2E_EMAIL ?? '';
 const PASSWORD = process.env.E2E_PASSWORD ?? '';
 const SHOTS = path.join('tests', 'e2e', 'screenshots');
 const SEND = '**/api/invoices/*/send';
+
+/** The sheet's text button. The × in the corner carries the same accessible name
+ *  (it maps to the safe action), so getByRole alone matches two elements; hasText
+ *  matches visible text only, so it picks the real button. */
+const keepAsDraft = (sheet: Locator) => sheet.locator('button', { hasText: 'Keep as draft' });
 
 type ShareCall = { tap: number; tapOpen: boolean };
 
@@ -99,6 +104,9 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
   });
 
   test('share succeeds → send fails → Mark as sent', async ({ page }, info) => {
+    // Sign-in, the AI parse and a capped account's tap-time PDF build take well
+    // over the 30 s config default for a whole test. Per-test, not a config edit.
+    test.setTimeout(180_000);
     const shot = async (name: string) =>
       page.screenshot({ path: path.join(SHOTS, `${name}.png`), animations: 'disabled' });
 
@@ -152,7 +160,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sheet).toContainText('Something broke on our end right after the share.');
     await expect(sheet.getByRole('button', { name: 'Mark as sent' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Retry the share' })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Keep as draft' })).toBeVisible();
+    await expect(keepAsDraft(sheet)).toBeVisible();
     expect(attempted, 'the send POST ran and failed').toBeGreaterThan(0);
     await shot('s1-idle');
 
@@ -161,7 +169,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await sheet.getByRole('button', { name: 'Mark as sent' }).click();
     await expect(sheet.getByRole('button', { name: 'Marking sent…' })).toBeVisible({ timeout: 2000 });
     await expect(sheet.getByRole('button', { name: 'Retry the share' })).toBeDisabled();
-    await expect(sheet.getByRole('button', { name: 'Keep as draft' })).toBeDisabled();
+    await expect(keepAsDraft(sheet)).toBeDisabled();
     await shot('s1-pending');
 
     // ── 6. Dismissal is refused while it is busy: Escape and the scrim.
@@ -178,7 +186,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
 
     // ── 7. Keep as draft: closed, nothing written, S1b pinned in the transcript.
     delayMs = 0;
-    await sheet.getByRole('button', { name: 'Keep as draft' }).click();
+    await keepAsDraft(sheet).click();
     await expect(sheet).toBeHidden();
 
     const card = page.getByRole('alert').filter({ hasText: `${number} is still a draft` }).first();
@@ -209,7 +217,7 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sheet.getByRole('button', { name: 'Share PDF again' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Retry the share' })).toHaveCount(0);
     await shot('s1-detail');
-    await sheet.getByRole('button', { name: 'Keep as draft' }).click();
+    await keepAsDraft(sheet).click();
     await expect(sheet).toBeHidden();
 
     // Nothing landed while the POST was blocked.
