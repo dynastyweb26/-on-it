@@ -70,6 +70,7 @@ import { clientQuestionPending, matchOrCreateClient, updateClientContact, type C
 import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
+import { SHARE_NOT_OPENED_TEXT, UNREADABLE_PRICES_TEXT, signInCard, type SignInKind } from '@/lib/popups/status';
 import { templateHasContent } from '@/lib/popups/destructive';
 import {
   ALERTS_FAILED_TEXT, ALERTS_SETTINGS_HREF, MIC_STILL_BLOCKED, changeGuardCopy, changeGuardRows,
@@ -527,12 +528,12 @@ function convoTitle(messages: Msg[], draft: Partial<ExtractResult> | null): stri
 
 // One in-flight flag for the whole turn. Set synchronously at the TOP of each
 // handler before any branching (so the controls disable together) and cleared in
-// that handler's single finally — except sign-in-redirect paths, which set
-// 'redirecting' and leave it set so controls stay disabled until the redirect
-// unmounts the screen. Each value titles the one visible processing indicator.
+// that handler's single finally. The guest wall is a card (signInAsk), not a
+// phase: nothing stays locked while it waits. Each value titles the one visible
+// processing indicator.
 // Replaces the old busy / finalizing / preparing / savingExpense states and both
 // guard refs. `recording` (mic open, awaiting speech) is separate and stays.
-type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving' | 'redirecting';
+type Phase = null | 'thinking' | 'reading' | 'preparing' | 'building' | 'saving';
 
 export default function Chat({ active = true }: { active?: boolean }) {
   const supabase = createClient();
@@ -682,6 +683,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // P-52: the OS said no (or push is unavailable). The card says so and offers
   // the one way back: the in-app payment-alerts switch.
   const [alertsFailed, setAlertsFailed] = useState(false);
+  // Board L2/L3/S5: the guest or signed-out wall is a card. Sign-in is a tap.
+  const [signInAsk, setSignInAsk] = useState<{ kind: SignInKind; headline?: string | null } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
   // "Add your terms" tip after a first send (lib/terms-prompt.ts); see showTermsCard.
@@ -1166,7 +1169,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   // New content: messages, the card (appearing or edited), prompts, the
   // thinking row.
-  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, alertsFailed, feedbackPrompt, termsPrompt]);
+  useIsoLayoutEffect(pinToBottom, [messages, ready, draft, phase, pendingChange, expenseDraft, expenseTemplate, reminderPrompt, alertsFailed, signInAsk, feedbackPrompt, termsPrompt]);
   // The list itself shrinking (composer growing, Android keyboard) would hide
   // the latest line; stay pinned if the reader was at the bottom.
   useEffect(() => {
@@ -1184,8 +1187,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const trimmed = text.trim();
     // Single in-flight guard. `phase` is state and lags a render, so a sub-frame
     // double-tap can still slip one through (accepted). It fixes the reported
-    // repeat-tap bug because it is set before ANY branch and, on redirect paths,
-    // left set. Cleared in the one outer finally below (unless 'redirecting').
+    // repeat-tap bug because it is set before ANY branch. Cleared in the one
+    // outer finally below.
     if (!trimmed || phase || sendRef.current) return null;
     sendRef.current = true;
     setPhase('thinking');
@@ -1334,9 +1337,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       });
       const data = await res.json();
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, aMsg(data.reply)]);
-        setPhase('redirecting'); // leave set: keep controls disabled through the redirect
-        setTimeout(() => router.push('/login'), 1600);
+        // Board L2: a card with a Sign in button, not an auto-redirect. The draft
+        // and the controls stay as they were until the user chooses.
+        setSignInAsk({ kind: 'send', headline: data.reply });
         return null;
       }
       // Point 2: the parsed result.
@@ -1566,7 +1569,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
     } finally {
       sendRef.current = false;
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -1946,9 +1949,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setMessages((m) => [...m, aMsg('One sec — still loading your business info. Tap send again in a moment.')]);
         return;
       }
-      setMessages((m) => [...m, aMsg("Let's save your work — sign in to send this invoice.")]);
-      setPhase('redirecting'); // leave set: keep the card disabled through the redirect
-      setTimeout(() => router.push('/login'), 1600);
+      setSignInAsk({ kind: 'send' });
       return;
     }
 
@@ -2419,7 +2420,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setPreparing(false);
       } else {
         finalizingRef.current = false;
-        setPhase((p) => (p === 'redirecting' ? p : null));
+        setPhase(null);
       }
     }
   }
@@ -2447,7 +2448,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       if (!retryId) setMessages((m) => upsertFailure(m, r.name === 'NotAllowedError'
         ? aMsg(`Your ${docNoun(docKind(draft)).toLowerCase()} is ready. Tap Share ${docNoun(docKind(draft)).toLowerCase()} to send it.`)
         : aMsg(
-          `The share sheet didn't open (${r.name}). Your draft is safe. Tap send to try again.`,
+          SHARE_NOT_OPENED_TEXT,
           { failed: { op: 'finalize' } },
         )));
       return;
@@ -2742,7 +2743,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Own the phase for the whole pick→prepare→dedup→read flow in ONE outer
     // finally, so there is no gap where the controls re-enable mid-flow and no
     // path (incl. an unexpected throw in findDuplicate) can leave it stuck.
-    // readReceipt advances it to 'reading' and, on the guest 401, 'redirecting'.
+    // readReceipt advances it to 'reading'.
     setPhase('preparing');
     try {
       // Over the free expense cap? Show the wall now — before the shutter, the
@@ -2790,7 +2791,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // the moment they chose the photo.
       await readReceipt(prepared);
     } finally {
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -2829,8 +2830,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   // Called only from onPickReceipt, which owns the phase lifecycle (its finally
-  // clears it). We advance the phase to 'reading' for the vision call and, on the
-  // guest 401, to 'redirecting' so the caller leaves it set through the redirect.
+  // clears it). We advance the phase to 'reading' for the vision call; the guest
+  // 401 raises the sign-in card instead.
   async function readReceipt(prepared: PreparedReceipt) {
     setPhase('reading');
     try {
@@ -2846,10 +2847,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         return;
       }
       if (res.status === 401 && data.authRequired) {
-        setMessages((m) => [...m, aMsg(data.reply)]);
+        setSignInAsk({ kind: 'receipt', headline: data.reply });
         setReceipt(null);
-        setPhase('redirecting'); // leave set through the redirect (caller keeps it)
-        setTimeout(() => router.push('/login'), 1600);
         return;
       }
       if (!res.ok) {
@@ -2897,9 +2896,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         setExpenseError('One sec — still loading your account. Give it a moment.');
         return;
       }
-      setMessages((m) => [...m, aMsg("Let's save your work — sign in to keep this expense.")]);
-      setPhase('redirecting'); // leave set: keep the save button disabled through the redirect
-      setTimeout(() => router.push('/login'), 1600);
+      setSignInAsk({ kind: 'expense' });
       return;
     }
 
@@ -3000,7 +2997,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         }, () => undefined);
       }
     } finally {
-      setPhase((p) => (p === 'redirecting' ? p : null));
+      setPhase(null);
     }
   }
 
@@ -3078,9 +3075,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         // Guest voice budget spent (per-browser or global daily cap) — show the
         // signup prompt and route to login, same as /api/parse's authRequired.
         if (data.authRequired) {
-          setMessages((m) => [...m, aMsg(data.message ?? "Create your free account to keep going.")]);
-          setPhase('redirecting'); // leave set through the redirect
-          setTimeout(() => router.push('/login'), 1600);
+          setSignInAsk({ kind: 'voice', headline: data.message });
           return;
         }
         // Clear before delegating to send(), which re-claims the turn (its guard
@@ -4061,7 +4056,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         <div>
           {!isValidTotal && (
             <p className="mt-2 rounded-[10px] bg-error-container px-2.5 py-2 text-xs font-semibold text-error-on-container">
-              Something went wrong reading the amounts. Try rephrasing the prices.
+              {UNREADABLE_PRICES_TEXT}
             </p>
           )}
           <button
@@ -4462,6 +4457,31 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ]}
           />
         )}
+        {signInAsk && (() => {
+          const c = signInCard(signInAsk.kind, signInAsk.headline);
+          return (
+            <PopInline
+              eyebrow={c.eyebrow}
+              eyebrowIcon={signInAsk.kind === 'voice' ? 'mic' : 'lock'}
+              title={c.title}
+              text={c.text}
+              actions={[
+                {
+                  label: c.signInLabel,
+                  kind: 'gold',
+                  busyLabel: c.signInBusy,
+                  // Pending lasts while /login opens; a failed navigation frees the button.
+                  onSelect: async () => { router.push('/login'); await new Promise((r) => setTimeout(r, 3000)); },
+                },
+                {
+                  label: c.secondaryLabel,
+                  kind: c.secondary === 'type' ? 'outline' : 'text',
+                  onSelect: () => { setSignInAsk(null); if (c.secondary === 'type') inputRef.current?.focus(); },
+                },
+              ]}
+            />
+          );
+        })()}
         {alertsFailed && (
           <PopInline
             tone="error"
