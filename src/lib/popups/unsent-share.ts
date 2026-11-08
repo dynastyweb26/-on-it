@@ -23,6 +23,8 @@ export type UnsentShareCopy = {
   eyebrow: string;
   title: string;
   sub: string;
+  /** The retry frame's wording: a second failure says when it ends. */
+  retryFailure: { title: string; body: string };
   truths: Array<{ ok: boolean; title: string; body: string }>;
   note: string;
   cardTitle: string;
@@ -49,6 +51,11 @@ export function unsentShareCopy(
     sub: u.offline
       ? 'You went offline right after the share sheet closed.'
       : 'Something broke on our end right after the share.',
+    // Board 6: the retry frame is about the wait, not the cause again.
+    retryFailure: {
+      title: 'Still offline',
+      body: `${u.number} stays a draft until you’re back. ${first}’s PDF is unaffected.`,
+    },
     truths: [
       { ok: true, title: `${first} has the PDF`, body: `Shared ${at}. ${canSee}` },
       {

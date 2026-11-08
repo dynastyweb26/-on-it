@@ -20,6 +20,7 @@ test('popupFailure: an offline rejection reads as offline, not as our fault', ()
     assert.equal(failure.title, ERROR_TITLE.offline);
     assert.equal(failure.body, ERROR_MESSAGE.offline);
     assert.equal(failure.icon, ERROR_ICON.offline);
+    assert.equal(failure.kind, 'offline');
   } finally {
     console.error = original;
   }

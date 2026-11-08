@@ -4686,6 +4686,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             truths={copy.truths}
             note={copy.note}
             retryLabel="Try again"
+            retryFailure={(f) => (f.kind === 'offline' ? copy.retryFailure : null)}
             consequence={`${unsentShare.number} is still a draft.`}
             actions={[
               { label: 'Mark as sent', kind: 'gold', go: true, busyLabel: 'Marking sent…' },

@@ -34,6 +34,19 @@ test('the cause line names offline or our end, never the other', () => {
   );
 });
 
+test('a second failure gets the "still offline" wording', () => {
+  const copy = unsentShareCopy(base);
+  assert.equal(copy.retryFailure.title, 'Still offline');
+  assert.equal(
+    copy.retryFailure.body,
+    'INV-0007 stays a draft until you’re back. Brandon’s PDF is unaffected.',
+  );
+  assert.equal(
+    unsentShareCopy({ ...base, client: null }).retryFailure.body,
+    'INV-0007 stays a draft until you’re back. Your client’s PDF is unaffected.',
+  );
+});
+
 test('a missing due date drops the clause instead of printing one', () => {
   const copy = unsentShareCopy({ ...base, dueDate: null });
   assert.equal(copy.truths[0].body.endsWith('They can see $200.00.'), true);

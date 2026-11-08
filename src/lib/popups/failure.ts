@@ -5,6 +5,8 @@ import { classifyError, userMessage, type ErrorKind } from '../errors';
 import type { IconName } from '@/components/icon-names';
 
 export interface PopupFailure {
+  /** The cause, so a caller can word a repeat failure for that cause. */
+  kind: ErrorKind;
   title: string;
   body: string;
   icon: IconName;
@@ -43,6 +45,7 @@ export function popupFailure(error: unknown, consequence?: string): PopupFailure
   // userMessage logs the raw error; only the sentence is ever rendered.
   const sentence = userMessage(error);
   return {
+    kind,
     title: ERROR_TITLE[kind],
     body: consequence ? `${consequence} ${sentence}` : sentence,
     icon: ERROR_ICON[kind],
