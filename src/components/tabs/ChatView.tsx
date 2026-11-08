@@ -3235,12 +3235,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Drop the template's unsent draft row (soft delete, drafts only) and its
   // pre-build, under a new conversation id — so the next insert can't hit the
   // old finalize_key and be handed the old row back.
-  function discardTemplateRow() {
+  // The row such a discard would soft-delete: a draft, unsent, unlocked.
+  function templateRowToDiscard() {
     const pending = pendingInvoiceRef.current;
-    if (pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus)) {
-      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
-        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
-    }
+    return pending && !finalizeSentRef.current && !isLockedStatus(linkedStatus) ? pending : null;
+  }
+  // Reset the link, the pre-build and the conversation id, so the next insert
+  // cannot hit the old finalize_key and be handed the old row back.
+  function resetTemplateRow() {
     pendingInvoiceRef.current = null;
     clearTemplateRow();
     preBuiltRef.current = null;
@@ -3248,6 +3250,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setPrepState(null);
     setConvoId(genId());
     setAttachments([]);
+  }
+  // The instant path (an untouched template, a swap): fire-and-forget.
+  function discardTemplateRow() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      void supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft').then(() => undefined, () => undefined);
+    }
+    resetTemplateRow();
+  }
+  // The sheet path: awaited, and a failed soft delete throws instead of being
+  // swallowed, so PopSheet names the cause and keeps the draft. Nothing resets
+  // until the row is actually gone, so a retry targets the same row.
+  async function discardTemplateRowStrict() {
+    const pending = templateRowToDiscard();
+    if (pending) {
+      const { error } = await supabase.from('invoices').update({ deleted_at: new Date().toISOString() })
+        .eq('id', pending.id).eq('status', 'draft');
+      if (error) throw error;
+    }
+    resetTemplateRow();
   }
   // P-16: × asks first when something was entered (the same rule the expense
   // card already used). An untouched template closes instantly.
@@ -3261,6 +3284,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
   function closeTemplateNow() {
     discardTemplateRow();
+    setDraft(null);
+    setReady(false);
+    dropTemplate();
+  }
+  // Close × sheet's confirm. PopSheet awaits it, so "Discarding…" shows and a
+  // failed soft delete throws instead of being swallowed: the sheet names the
+  // cause, says the draft is still here, and stays open.
+  async function discardTemplateFromSheet() {
+    await discardTemplateRowStrict();
     setDraft(null);
     setReady(false);
     dropTemplate();
@@ -4617,7 +4649,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
             { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
           ]}
           onDismiss={() => setCloseTemplateAsk(false)}
-          onConfirm={() => { setCloseTemplateAsk(false); closeTemplateNow(); }}
+          onConfirm={() => discardTemplateFromSheet()}
+          onSuccess={() => setCloseTemplateAsk(false)}
           consequence="Your draft is still here."
         />
       )}

@@ -52,3 +52,23 @@ test('Revise: confirms first, closes only on its own onSuccess, guarded against 
   assert.match(sheet, /onSuccess=\{\(\) => setReviseAsk\(false\)\}/);
   assert.match(fn(chat, 'function reviseInvoice'), /revisingRef\.current\) return/);
 });
+
+// ── Close template (P-16): × on a builder that has something entered ──
+test('close template: the sheet does not close before the discard lands', () => {
+  const sheet = chat.slice(chat.indexOf('{closeTemplateAsk && template'), chat.indexOf('{replaceAsk && ('));
+  assert.ok(sheet.length > 0, 'close-template sheet exists');
+  assert.doesNotMatch(sheet, /setCloseTemplateAsk\(false\);[^\n]*closeTemplateNow/, 'must not close first');
+  assert.match(sheet, /onConfirm=\{\(\) => discardTemplateFromSheet\(\)\}/, 'PopSheet awaits the confirm');
+  assert.match(sheet, /onSuccess=\{\(\) => setCloseTemplateAsk\(false\)\}/, 'success is what closes it');
+});
+
+test('close template: a failed soft delete throws its cause instead of being swallowed', () => {
+  const strict = fn(chat, 'async function discardTemplateRowStrict');
+  assert.match(strict, /const \{ error \} = await supabase[\s\S]*\.eq\('status', 'draft'\)/);
+  assert.match(strict, /if \(error\) throw error;/);
+  assert.ok(
+    strict.indexOf('if (error) throw error;') < strict.indexOf('resetTemplateRow();'),
+    'nothing resets until the row is gone, so a retry targets the same row',
+  );
+  assert.match(fn(chat, 'async function discardTemplateFromSheet'), /await discardTemplateRowStrict\(\)/);
+});
