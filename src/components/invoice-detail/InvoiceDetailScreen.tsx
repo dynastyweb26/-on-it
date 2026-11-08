@@ -6,7 +6,10 @@ import Icon from '@/components/Icon';
 import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
 import PopToast from '@/components/popups/PopToast';
-import { unsentShareCopy, type UnsentShare } from '@/lib/popups/unsent-share';
+import {
+  unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
+  type UnsentShare, type UnsentShareRow,
+} from '@/lib/popups/unsent-share';
 import { paymentDeleteConsequence } from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
@@ -185,7 +188,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [shareError, setShareError] = useState<string | null>(null);
   // P-66 / S1 + S1b: the share went out but POST /send did not. The sheet says
   // both truths; Keep as draft leaves the card above the delete button.
-  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File }) | null>(null);
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
   const [sentToast, setSentToast] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -230,6 +233,13 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       if (!user) { router.replace('/login'); return; }
       const { data: i } = await supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
       setInv(i);
+      // P-66 S1b, restored: the row decides whether the card still applies, and a
+      // row that is gone or no longer a draft clears the record.
+      const restored = restoreUnsentShare(id, i as UnsentShareRow | null);
+      if (restored) {
+        setUnsentShare({ ...restored, file: null });
+        setUnsentShareOpen(false); // the CARD only
+      }
       if (i) {
         const { data: p } = await supabase.from('profiles').select('*').eq('id', i.user_id).maybeSingle();
         setProfile(p);
@@ -380,6 +390,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const shareSig = JSON.stringify({ shareRd, template, theme, shareFilename, prebuildNonce, attachSig });
   const shareReady = prebuilt?.sig === shareSig;
   const shareFile = shareReady ? prebuilt!.file : null;
+  // P-66 S1b, restored: the same rule as chat — until this invoice's file exists,
+  // the card waits in "Preparing…" instead of offering a tap that cannot share.
+  const s1bFileReady = !!unsentShare && !!shareFile;
+  const s1bBuildFailed = !!unsentShare && !s1bFileReady && shareReady;
   const shareLabel = (idle: string) => (busy ? 'Sending' : !shareReady ? 'Preparing' : idle);
 
   // Build the PDF for the CURRENT invoice with its attachments appended. STRICT
@@ -707,6 +721,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           return;
         }
         // The client has the file; the row is still a draft. S1 interrupts.
+        const sharedAt = new Date().toISOString();
+        const offline = navigator.onLine === false;
         setUnsentShare({
           id: inv.id,
           // Estimates render EstimateDetail, so the PDF share path here is invoices only.
@@ -715,16 +731,18 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           client: inv.client_name ?? null,
           total: totals.total,
           dueDate: inv.due_date ?? null,
-          sharedAt: new Date().toISOString(),
-          offline: navigator.onLine === false,
+          sharedAt,
+          offline,
           file,
         });
         setUnsentShareOpen(true);
+        rememberUnsentShare(inv.id, { sharedAt, offline });
         return;
       }
       // A completed send retires any earlier S1/S1b state.
       setUnsentShare(null);
       setUnsentShareOpen(false);
+      forgetUnsentShare(inv.id);
       if (body?.invoice) setInv(body.invoice);
       const firstSend = body?.firstSend === true;
 
@@ -766,17 +784,20 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setSentToast(unsentShareCopy(pending).done);
     setUnsentShare(null);
     setUnsentShareOpen(false);
+    forgetUnsentShare(pending.id);
     const { data } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
     if (data) setInv(data);
   }
 
   // Share PDF again: sharePdf starts inside the tap (iOS keeps the activation),
   // then the same POST marks it sent.
-  async function shareSharedAgain(pending: UnsentShare & { file: File }) {
-    const r = await sharePdf(pending.file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
+  async function shareSharedAgain(pending: UnsentShare & { file: File | null }) {
+    const file = pending.file ?? shareFile;
+    if (!file) return; // the card disables this until the rebuild lands
+    const r = await sharePdf(file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
     if (r.status === 'cancelled') return;
     if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
-    if (r.status === 'unsupported') downloadFile(pending.file);
+    if (r.status === 'unsupported') downloadFile(file);
     await postMarkSharedSent(pending);
   }
 
@@ -995,6 +1016,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setDeleting(true);
     const now = new Date().toISOString();
     const { error } = await supabase.from('invoices').update({ deleted_at: now }).eq('id', id);
+    // A deleted row has no card left to restore.
+    forgetUnsentShare(id);
     setDeleting(false);
     setShowDeleteModal(false);
     if (error) {
@@ -1160,10 +1183,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
               eyebrowIcon="sync_problem"
               title={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardTitle}
               text={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardText}
+              error={s1bBuildFailed
+                ? { title: 'Couldn’t build the PDF', body: 'Weak signal. Your invoice is safe — Mark as sent still works.' }
+                : undefined}
               consequence={`${unsentShare.number} is still a draft.`}
               actions={[
                 { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
-                { label: 'Share PDF again', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
+                {
+                  label: s1bFileReady ? 'Share PDF again' : 'Preparing…',
+                  kind: 'outline',
+                  disabled: !s1bFileReady,
+                  onSelect: () => shareSharedAgain(unsentShare),
+                },
+                ...(s1bBuildFailed
+                  ? [{ label: 'Retry the build', kind: 'text' as const, onSelect: () => setPrebuildNonce((n) => n + 1) }]
+                  : []),
               ]}
             />
           </div>

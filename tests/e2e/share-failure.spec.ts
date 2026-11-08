@@ -259,6 +259,29 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
       await expect(s1bActions.nth(i)).toBeInViewport({ ratio: 1 });
     }
 
+    // ── 7b. Persistence: the card outlives the screen. Leaving /chat and coming
+    // back restores it from the row (still a draft) plus the remembered key — and
+    // never reopens the sheet, because Keep as draft was already answered.
+    await page.goto('/invoices');
+    await skipTutorial(page);
+    await page.goto('/chat');
+    const restoredCard = page.locator('[role="alert"]').filter({ hasText: `${number} is still a draft` }).first();
+    await expect(restoredCard).toBeVisible({ timeout: 45_000 });
+    await expect(restoredCard).toContainText('Brandon has the PDF');
+    await expect(restoredCard.getByRole('button', { name: 'Mark as sent' })).toBeEnabled();
+    await expect(sheet).toBeHidden();
+    // #153's reveal effect runs on the restored state too, so the second visit
+    // lands on a card that is fully in view, not half behind the composer.
+    await expect(restoredCard).toBeInViewport({ ratio: 1 });
+    await shot('s1b-restored');
+    // A restored card rebuilds its PDF before offering the retry: the share has
+    // to run inside the tap, so the button waits — "Preparing…", disabled —
+    // instead of building on demand.
+    // Scoped to the card: the composer has its own "Preparing…" button.
+    await expect(restoredCard.getByRole('button', { name: 'Preparing…' })).toBeDisabled({ timeout: 10_000 });
+    await expect(restoredCard.getByRole('button', { name: 'Preparing…' })).toBeHidden({ timeout: 45_000 });
+    await expect(restoredCard.getByRole('button', { name: 'Retry the share' })).toBeEnabled({ timeout: 45_000 });
+
     // ── Call order: Retry the share reaches navigator.share inside the tap task.
     const before = (await shares(page)).length;
     await page.getByRole('button', { name: 'Retry the share' }).click();
@@ -303,9 +326,18 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     // The detail's S1b keeps the idle label here: the sheet's error frame is not
     // carried onto the card, so the go action still reads "Mark as sent".
     pass = true;
-    await page.getByRole('button', { name: 'Mark as sent' }).click();
+    // Mark as sent from the RESTORED card: the card came back from storage, so
+    // this is also the proof that a restored card is still actionable.
+    await page.goto('/chat');
+    const backCard = page.locator('[role="alert"]').filter({ hasText: `${number} is still a draft` }).first();
+    await expect(backCard).toBeVisible({ timeout: 45_000 });
+    await backCard.getByRole('button', { name: 'Mark as sent' }).click();
     const toast = page.getByRole('status').filter({ hasText: `${number} marked sent. Pay link is live.` });
     await expect(toast).toBeVisible({ timeout: 45_000 });
+    // The remembered record goes with the state it described.
+    await expect
+      .poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('onit.unsentShare.')).length))
+      .toBe(0);
     await expect(page.getByRole('button', { name: 'Mark as sent' })).toBeHidden({ timeout: 45_000 });
     await shot('s1b-done');
   });
