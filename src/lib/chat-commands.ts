@@ -21,8 +21,8 @@ export const COMMAND_GROUPS: CommandGroup[] = [
     title: 'Money',
     items: [
       { name: 'Record a payment', ex: 'Ruth paid $25 Zelle' },
-      // Hidden: no chat reminder path exists yet — "Remind Brandon about his
-      // invoice" routes to /api/parse as a new job. Phase 5 (owner reminders).
+      // Hidden until an owner reminder action exists (not planned): "Remind
+      // Brandon about his invoice" routes to /api/parse as a new job.
       // { name: 'Send a reminder', ex: 'Remind Brandon about his invoice' },
       { name: 'Who owes me', ex: 'Who owes me money?' },
     ],
