@@ -56,6 +56,8 @@ import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
+import ConfirmSheet from '@/components/ConfirmSheet';
+import { templateHasWork } from '@/lib/confirm-guard';
 import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
@@ -3116,6 +3118,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [templateRestored, setTemplateRestored] = useState<StoredTemplate | null>(null);
   // The template's sendable draft (2·12b) and the L17 duplicate note.
   const [templateDraft, setTemplateDraft] = useState<Partial<ExtractResult> | null>(null);
+  // × on the template with unsent work asks before it throws that work away (P-16).
+  const [closeAsk, setCloseAsk] = useState(false);
   const [templateDup, setTemplateDup] = useState<string | null>(null);
   const templateInit = useRef(false);
   const templateUidRef = useRef<string | null>(null);
@@ -3229,6 +3233,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setAttachments([]);
   }
   function closeTemplate() {
+    // Closing throws away the client, items and prices that were never sent, and
+    // soft-deletes the pre-built draft row. Empty builder: nothing to lose.
+    if (templateHasWork(templateDraft)) { setCloseAsk(true); return; }
+    discardTemplate();
+  }
+  function discardTemplate() {
     discardTemplateRow();
     setDraft(null);
     setReady(false);
@@ -4472,6 +4482,17 @@ export default function Chat({ active = true }: { active?: boolean }) {
           left, the "Message On It…" field with gallery + camera inside it, and
           send on the right. It sits ABOVE the bottom nav, which carries the
           safe-area inset, so no bottom padding here. */}
+      {closeAsk && (
+        <ConfirmSheet
+          title={`Discard this ${docNoun(template === 'quote' ? 'quote' : 'invoice').toLowerCase()}?`}
+          body="The client, items and prices on this template aren't sent yet."
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          destructive
+          pendingLabel="Discarding…"
+          onConfirm={() => { setCloseAsk(false); discardTemplate(); }}
+          onCancel={() => setCloseAsk(false)} />
+      )}
       {discardAsk && expenseTemplate && (
         <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
           onKeep={() => setDiscardAsk(false)}
