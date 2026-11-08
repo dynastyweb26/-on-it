@@ -52,6 +52,7 @@ import {
   validityLabel,
   type OwnerEstimateState,
 } from '@/lib/estimates/owner-view';
+import { versionChipLabel } from '@/lib/estimates/versions';
 import EstimateAttachments from '@/components/estimates/EstimateAttachments';
 
 export type EstimateDetailRow = {
@@ -78,6 +79,8 @@ export type EstimateDetailRow = {
   valid_until: string | null;
   sent_at: string | null;
   first_sent_at: string | null;
+  /** 4A revision counter; absent on older rows reads as v1. */
+  estimate_version: number | null;
 };
 
 export type EstimateProfile = {
@@ -206,6 +209,7 @@ export default function EstimateDetail({
   const totals = calculateInvoiceTotals(itemsDraft, Number(inv.tax_rate ?? 0));
   const taxRate = Number(inv.tax_rate ?? 0);
   const chip = CHIP[state];
+  const versionBadge = versionChipLabel(inv.estimate_version);
   const validity = validityLabel(state, inv.valid_until);
   const title = (inv.title ?? '').trim();
   const heading = title || inv.client_name || 'Estimate';
@@ -543,11 +547,18 @@ export default function EstimateDetail({
       />
       <div className="card relative mb-4 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
-          <span className={`status-chip ${chip.className}`}>
-            {chip.icon
-              ? <Icon name={chip.icon} size={14} />
-              : <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
-            {chip.label}
+          <span className="flex items-center gap-1.5">
+            <span className={`status-chip ${chip.className}`}>
+              {chip.icon
+                ? <Icon name={chip.icon} size={14} />
+                : <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
+              {chip.label}
+            </span>
+            {versionBadge && (
+              <span className="flex h-[22px] items-center rounded-[6px] bg-[#1E1A15] px-[7px] font-mono text-[11px] font-bold text-[#F4ECDD]">
+                {versionBadge}
+              </span>
+            )}
           </span>
           <span className="text-right">
             <span className="block font-mono text-xs font-semibold tracking-wide text-on-surface-variant">
