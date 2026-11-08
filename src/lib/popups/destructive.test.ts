@@ -83,3 +83,15 @@ test('D7 deactivate link copy: who loses access, what did not happen, the sent d
   assert.equal(revokeLinkMeta(null), 'Estimate link · sent');
   assert.equal(REVOKE_LINK_CONSEQUENCE, 'The link still works.');
 });
+
+test('D8 remove attachment copy: board wording, and the seen-by-client line only when it applies', async () => {
+  const d = await import('./destructive');
+  assert.equal(d.REMOVE_ATTACHMENT_TITLE, 'Remove this photo?');
+  assert.equal(d.REMOVE_ATTACHMENT_ACTION, 'Remove photo');
+  assert.equal(d.REMOVE_ATTACHMENT_FAILURE_TITLE, 'Couldn’t remove that file.');
+  assert.equal(d.removeAttachmentSub('Brandon', true), 'Brandon may have seen it on the estimate.');
+  assert.equal(d.removeAttachmentSub(null, true), 'Your client may have seen it on the estimate.');
+  assert.equal(d.removeAttachmentSub('Brandon', false), undefined);
+  const failure = popupFailure(new Error('Failed to fetch'), d.REMOVE_ATTACHMENT_CONSEQUENCE);
+  assert.match(failure.body, /^The file is still attached\./);
+});

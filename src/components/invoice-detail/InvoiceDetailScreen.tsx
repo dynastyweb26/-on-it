@@ -452,14 +452,16 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   async function removeAttachment(item: EditorAttachment) {
     if (!inv || !item.rowId || !item.storagePath) return;
     setAttachmentsError(null);
+    // The delete itself throws to the D8 sheet, which names the cause and keeps
+    // the file listed. Only once the file is gone is a failed renumber/reload
+    // swallowed: the removal happened, so it must not read as a failure.
+    await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
     try {
-      await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
       const rows = await listAttachmentRows(supabase, id);
       await renumberAttachments(supabase, inv.user_id, id, rows);
       setAttachments(await loadAttachmentItems(supabase, id));
     } catch {
-      setAttachmentsError("Couldn't remove that image. Please try again.");
-      setAttachments(await loadAttachmentItems(supabase, id));
+      /* removed; the list refreshes on the next load */
     }
   }
 
@@ -1445,7 +1447,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
             items={attachments}
             editable={isDraft}
             onChange={(next) => void saveAttachments(next)}
-            onRemove={(a) => { void removeAttachment(a); }}
+            onRemove={(a) => removeAttachment(a)}
           />
           {attachmentsError && <div className="mt-2 text-xs font-semibold text-error">{attachmentsError}</div>}
         </div>

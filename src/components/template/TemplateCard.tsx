@@ -86,7 +86,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
   attachments: EditorAttachment[];
   onAttachments: (items: EditorAttachment[]) => void;
   /** Fired for a SAVED attachment so the chat can delete its row + object. */
-  onRemoveAttachment?: (item: EditorAttachment) => void;
+  onRemoveAttachment?: (item: EditorAttachment) => Promise<void> | void;
 }) {
   const [extra, setExtra] = useState(() => restored?.extra ?? '');
   const [tax, setTax] = useState<number | null>(() => restored?.tax ?? null);

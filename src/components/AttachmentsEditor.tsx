@@ -12,6 +12,11 @@
 import { Suspense, lazy, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
+import PopSheet from '@/components/popups/PopSheet';
+import {
+  REMOVE_ATTACHMENT_ACTION, REMOVE_ATTACHMENT_CONSEQUENCE, REMOVE_ATTACHMENT_FAILURE_TITLE,
+  REMOVE_ATTACHMENT_TITLE,
+} from '@/lib/popups/destructive';
 import { ATTACHMENT_MAX, prepareAttachment } from '@/lib/attachment';
 import { IN_APP_CAMERA } from '@/lib/feature-flags';
 
@@ -55,12 +60,16 @@ export default function AttachmentsEditor({
   items: EditorAttachment[];
   editable: boolean;
   onChange: (items: EditorAttachment[]) => void;
-  /** Fired for a saved attachment so the host can delete its stored file. */
-  onRemove?: (item: EditorAttachment) => void;
+  /** Fired for a saved attachment so the host can delete its stored file. It runs
+   *  inside the D8 sheet: reject when the delete failed, so the file stays listed
+   *  and the sheet names the cause. */
+  onRemove?: (item: EditorAttachment) => Promise<void> | void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // D8: a SAVED attachment waits here for the user's answer (dismissal keeps it).
+  const [removeAsk, setRemoveAsk] = useState<EditorAttachment | null>(null);
   // Flag on only: the camera / library choice, and the camera sheet itself.
   // Mounted means open; the camera's unmount is what stops its stream.
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -99,8 +108,15 @@ export default function AttachmentsEditor({
 
   function remove(item: EditorAttachment) {
     setError(null);
+    // A saved file is gone for good once removed, so it asks first. A picked
+    // image that was never uploaded is only local and drops at once.
+    if (item.storagePath) { setRemoveAsk(item); return; }
     onChange(items.filter((a) => a.id !== item.id));
-    onRemove?.(item);
+  }
+
+  async function confirmRemove(item: EditorAttachment) {
+    await onRemove?.(item);
+    onChange(items.filter((a) => a.id !== item.id));
   }
 
   return (
@@ -108,6 +124,23 @@ export default function AttachmentsEditor({
     // input. A horizontal drag belongs to the tab deck; a tap still opens the
     // picker. Only real text entry (and open sheets) opts out.
     <div className="mt-1.5">
+      <PopSheet
+        open={removeAsk !== null}
+        icon="image"
+        iconTone="danger"
+        destructive
+        title={REMOVE_ATTACHMENT_TITLE}
+        actions={[
+          { label: 'Cancel', kind: 'text', safe: true },
+          { label: REMOVE_ATTACHMENT_ACTION, kind: 'danger', go: true, busyLabel: 'Removing…' },
+        ]}
+        onDismiss={() => setRemoveAsk(null)}
+        onConfirm={async () => { if (removeAsk) await confirmRemove(removeAsk); }}
+        onSuccess={() => setRemoveAsk(null)}
+        retryLabel="Try again"
+        failureTitle={REMOVE_ATTACHMENT_FAILURE_TITLE}
+        consequence={REMOVE_ATTACHMENT_CONSEQUENCE}
+      />
       {items.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-2">
           {items.map((a) => (
@@ -120,9 +153,11 @@ export default function AttachmentsEditor({
                   type="button"
                   onClick={() => remove(a)}
                   aria-label="Remove attachment"
-                  className="absolute right-0 top-0 grid h-6 w-6 place-items-center rounded-bl-lg bg-inverse-surface/80 text-inverse-on-surface transition active:scale-90"
+                  className="absolute right-0 top-0 grid h-11 w-11 place-items-center transition active:scale-90"
                 >
-                  <Icon name="close" size={16} />
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-inverse-surface/80 text-inverse-on-surface">
+                    <Icon name="close" size={16} />
+                  </span>
                 </button>
               )}
             </div>

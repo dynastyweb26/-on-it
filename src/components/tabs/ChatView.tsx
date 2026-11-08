@@ -976,13 +976,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function removeSavedAttachment(item: EditorAttachment) {
     const inv = pendingInvoiceRef.current;
     if (!inv || !item.storagePath || !profile) return;
+    // The delete throws to the D8 sheet (cause + "still attached"); once the file
+    // is gone, a failed renumber/sync is swallowed because the removal happened.
+    if (item.rowId) await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
+    else {
+      const { error } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([item.storagePath]);
+      if (error) throw error;
+    }
     try {
-      if (item.rowId) await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
-      else await supabase.storage.from(ATTACHMENT_BUCKET).remove([item.storagePath]);
       const rows = await listAttachmentRows(supabase, inv.id);
       await renumberAttachments(supabase, profile.id, inv.id, rows);
       await syncAttachments(inv.id, attachmentsRef.current.filter((a) => !a.storagePath));
-    } catch { /* the optimistic removal already took it off screen */ }
+    } catch { /* the file is already removed */ }
   }
 
   // Shared restore: re-read the namespaced store and apply it when it's newer
@@ -4238,7 +4243,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         items={attachments}
         editable={!locked}
         onChange={setAttachments}
-        onRemove={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
+        onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
       />
 
       <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
@@ -5301,7 +5306,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             attachments={attachments} onAttachments={setAttachments}
-            onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
+            onRemoveAttachment={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : 'ready'}
             onSend={() => { void finalize(); }} />
           </div>

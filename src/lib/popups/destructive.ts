@@ -87,3 +87,24 @@ export function revokeLinkSub(firstName: string | null | undefined): string {
 export function revokeLinkMeta(sentDate: string | null | undefined): string {
   return sentDate ? `Estimate link · sent ${sentDate}` : 'Estimate link · sent';
 }
+
+// ── Board 1 · D8: remove a saved attachment (P-11, P-12) ──
+
+/** D8 sheet title and go label, verbatim from the board. */
+export const REMOVE_ATTACHMENT_TITLE = 'Remove this photo?';
+export const REMOVE_ATTACHMENT_ACTION = 'Remove photo';
+/** D8 error title (board spec); the body is consequence + the cause sentence. */
+export const REMOVE_ATTACHMENT_FAILURE_TITLE = 'Couldn’t remove that file.';
+/** D8 — what did NOT happen. */
+export const REMOVE_ATTACHMENT_CONSEQUENCE = 'The file is still attached.';
+
+/** D8 sub: only a document the client may already have seen gets the line.
+ *  A draft was never shared, so it says nothing (no invented warning). */
+export function removeAttachmentSub(
+  firstName: string | null | undefined,
+  clientMayHaveSeen: boolean,
+): string | undefined {
+  if (!clientMayHaveSeen) return undefined;
+  const who = firstName?.trim() || 'Your client';
+  return `${who} may have seen it on the estimate.`;
+}

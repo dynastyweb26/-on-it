@@ -794,7 +794,7 @@ export default function EstimateDetail({
         </button>
       )}
 
-      <EstimateAttachments estimateId={id} userId={inv.user_id} editable={editable} />
+      <EstimateAttachments estimateId={id} userId={inv.user_id} editable={editable} clientFirstName={clientFirst} clientMayHaveSeen={state !== 'draft'} />
 
       {toast && (
         <div

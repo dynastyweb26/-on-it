@@ -22,7 +22,13 @@ import {
   uploadProgressLabel,
 } from '@/lib/estimates/attachments-view';
 import AttachmentTile from '@/components/estimates/AttachmentTile';
+import PopSheet from '@/components/popups/PopSheet';
+import {
+  REMOVE_ATTACHMENT_ACTION, REMOVE_ATTACHMENT_CONSEQUENCE, REMOVE_ATTACHMENT_FAILURE_TITLE,
+  REMOVE_ATTACHMENT_TITLE, removeAttachmentSub,
+} from '@/lib/popups/destructive';
 import PhotoViewer from '@/components/estimate/PhotoViewer';
+import { attachmentSizeLabel } from '@/lib/estimates/attachments-view';
 import {
   deleteEstimateAttachment,
   isImageAttachment,
@@ -85,10 +91,15 @@ export default function EstimateAttachments({
   estimateId,
   userId,
   editable,
+  clientFirstName = null,
+  clientMayHaveSeen = false,
 }: {
   estimateId: string;
   userId: string;
   editable: boolean;
+  /** D8: who "may have seen it", and whether the estimate ever left the phone. */
+  clientFirstName?: string | null;
+  clientMayHaveSeen?: boolean;
 }) {
   const [items, setItems] = useState<OwnerAttachment[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -97,6 +108,8 @@ export default function EstimateAttachments({
   const [captionError, setCaptionError] = useState<string | null>(null);
   const [captionDrafts, setCaptionDrafts] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // D8: the attachment waiting for the user's answer. Dismissal keeps it.
+  const [removeAsk, setRemoveAsk] = useState<OwnerAttachment | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   // The photo the full-screen viewer is showing (null = closed). Viewing is not
   // gated on `editable`: a locked estimate is read-only, not unreadable.
@@ -221,8 +234,9 @@ export default function EstimateAttachments({
     });
   }
 
+  // Runs inside the D8 sheet: a failure throws, so the sheet names the cause
+  // and the file stays on screen. The sheet's own ref blocks a second tap.
   async function removeItem(item: OwnerAttachment) {
-    if (deletingId) return;
     setDeletingId(item.id);
     setError(null);
     try {
@@ -230,13 +244,6 @@ export default function EstimateAttachments({
       if (!alive.current) return;
       setItems((list) => list.filter((a) => a.id !== item.id));
       if (viewerId === item.id) setViewerId(null);
-    } catch (e) {
-      if (!alive.current) return;
-      setError(
-        e instanceof Error && e.message === 'locked'
-          ? 'This estimate is locked.'
-          : "Couldn't remove that file. Please try again.",
-      );
     } finally {
       if (alive.current) setDeletingId(null);
     }
@@ -273,6 +280,29 @@ export default function EstimateAttachments({
 
   return (
     <div className="card mt-4">
+      <PopSheet
+        open={removeAsk !== null}
+        icon="image"
+        iconTone="danger"
+        destructive
+        title={REMOVE_ATTACHMENT_TITLE}
+        sub={removeAttachmentSub(clientFirstName, clientMayHaveSeen)}
+        figure={removeAsk ? {
+          label: removeAsk.caption || (isImageAttachment(removeAsk) ? 'Photo' : 'PDF'),
+          meta: attachmentSizeLabel(removeAsk.sizeBytes) || undefined,
+          amount: '',
+        } : undefined}
+        actions={[
+          { label: 'Cancel', kind: 'text', safe: true },
+          { label: REMOVE_ATTACHMENT_ACTION, kind: 'danger', go: true, busyLabel: 'Removing…' },
+        ]}
+        onDismiss={() => setRemoveAsk(null)}
+        onConfirm={async () => { if (removeAsk) await removeItem(removeAsk); }}
+        onSuccess={() => setRemoveAsk(null)}
+        retryLabel="Try again"
+        failureTitle={REMOVE_ATTACHMENT_FAILURE_TITLE}
+        consequence={REMOVE_ATTACHMENT_CONSEQUENCE}
+      />
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
           Attachments
@@ -307,7 +337,7 @@ export default function EstimateAttachments({
               deleting={deletingId === item.id}
               captionDraft={captionDrafts[item.id] ?? ''}
               onOpen={() => setViewerId(item.id)}
-              onRemove={() => void removeItem(item)}
+              onRemove={() => setRemoveAsk(item)}
               onCaptionChange={(value) => changeCaption(item, value)}
             />
           ))}
