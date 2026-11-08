@@ -70,6 +70,8 @@ import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
+import PaymentCard from '@/components/chat/PaymentCard';
+import type { PayCard } from '@/lib/payment-card';
 import { markNewEntry } from '@/lib/list-motion';
 import { clientPrompt, enqueue, productPrompts, recurringPrompt, savedLine, type SavePrompt } from '@/lib/save-prompts';
 import { anchorFor, localToday } from '@/lib/recurring';
@@ -118,7 +120,10 @@ interface Msg { id: string; role: 'user' | 'assistant'; content: string; source?
   /** Sent invoice summary card — rendered as a mini invoice chip after finalize. */
   sentCard?: { clientName: string; invoiceNo: string; amount: string; dueDate: string; kind: 'invoice' | 'quote' };
   /** Payouts nudge — shown after a sent invoice when no payment processor is connected. */
-  payoutsNudge?: true; }
+  payoutsNudge?: true;
+  /** An owner-initiated payment moment (alive layer §04). Optional, so every
+   *  entry written before this field existed still loads; no version bump. */
+  payCard?: PayCard; }
 interface SendResult { reply: string; ready: boolean; }
 interface Profile {
   id: string; business_name: string; logo_url: string | null; website_url: string | null;
@@ -4452,6 +4457,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ]}
               />
             </div>
+          ) : m.payCard ? (
+            <PaymentCard
+              key={m.id}
+              card={m.payCard}
+              onOpen={(invoiceId) => router.push(`/invoices/${invoiceId}`)}
+              onUndo={async (paymentId) => {
+                // Same delete as the invoice screen: the trigger recomputes
+                // amount_paid from what remains, so nothing is written here.
+                const { error } = await supabase.from('invoice_payments').delete().eq('id', paymentId);
+                if (error) {
+                  console.error('undo payment failed', error);
+                  setMessages((msgs) => [...msgs, aMsg("Couldn't undo that payment. Try again from the invoice.")]);
+                  return;
+                }
+                setMessages((msgs) => msgs.map((x) => (
+                  x.payCard && x.payCard.paymentId === paymentId
+                    ? { ...x, payCard: undefined, content: 'Payment removed.' }
+                    : x
+                )));
+              }}
+            />
           ) : m.logged ? (
             <LoggedExpenseCard
               key={m.id}
