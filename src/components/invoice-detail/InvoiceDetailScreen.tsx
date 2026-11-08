@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import PopSheet from '@/components/popups/PopSheet';
+import PopInline from '@/components/popups/PopInline';
+import PopToast from '@/components/popups/PopToast';
+import { unsentShareCopy, type UnsentShare } from '@/lib/popups/unsent-share';
 import { paymentDeleteConsequence } from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
 import type { IconName } from '@/components/icon-names';
@@ -180,6 +183,11 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [prebuilt, setPrebuilt] = useState<{ sig: string; file: File | null } | null>(null);
   const [prebuildNonce, setPrebuildNonce] = useState(0);
   const [shareError, setShareError] = useState<string | null>(null);
+  // P-66 / S1 + S1b: the share went out but POST /send did not. The sheet says
+  // both truths; Keep as draft leaves the card above the delete button.
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File }) | null>(null);
+  const [unsentShareOpen, setUnsentShareOpen] = useState(false);
+  const [sentToast, setSentToast] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false); // "Copy pay link" feedback
   const [deleting, setDeleting] = useState(false);
@@ -694,11 +702,29 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       const body = await sendRes?.json().catch(() => null) as
         { invoice?: Record<string, unknown>; firstSend?: boolean } | null;
       if (!sendRes?.ok) {
-        setShareError(sendRes?.status === 409
-          ? 'This invoice is void and cannot be sent.'
-          : `Your file was shared, but I couldn't update the invoice. Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        if (sendRes?.status === 409) {
+          setShareError('This invoice is void and cannot be sent.');
+          return;
+        }
+        // The client has the file; the row is still a draft. S1 interrupts.
+        setUnsentShare({
+          id: inv.id,
+          // Estimates render EstimateDetail, so the PDF share path here is invoices only.
+          kind: 'invoice',
+          number: formatDocNumber(inv.kind, inv.invoice_number),
+          client: inv.client_name ?? null,
+          total: totals.total,
+          dueDate: inv.due_date ?? null,
+          sharedAt: new Date().toISOString(),
+          offline: navigator.onLine === false,
+          file,
+        });
+        setUnsentShareOpen(true);
         return;
       }
+      // A completed send retires any earlier S1/S1b state.
+      setUnsentShare(null);
+      setUnsentShareOpen(false);
       if (body?.invoice) setInv(body.invoice);
       const firstSend = body?.firstSend === true;
 
@@ -730,6 +756,28 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       sendingRef.current = false;
       setBusy(false);
     }
+  }
+
+  // P-66: the POST alone, since the file is already with the client. A failure
+  // throws, so the sheet or card names the cause; the row stays a draft.
+  async function postMarkSharedSent(pending: UnsentShare) {
+    const res = await fetch(`/api/invoices/${pending.id}/send`, { method: 'POST' }).catch(() => null);
+    if (!res?.ok) throw res ?? new TypeError('Failed to fetch');
+    setSentToast(unsentShareCopy(pending).done);
+    setUnsentShare(null);
+    setUnsentShareOpen(false);
+    const { data } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+    if (data) setInv(data);
+  }
+
+  // Share PDF again: sharePdf starts inside the tap (iOS keeps the activation),
+  // then the same POST marks it sent.
+  async function shareSharedAgain(pending: UnsentShare & { file: File }) {
+    const r = await sharePdf(pending.file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
+    if (r.status === 'cancelled') return;
+    if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
+    if (r.status === 'unsupported') downloadFile(pending.file);
+    await postMarkSharedSent(pending);
   }
 
   // Copy the public pay link to the clipboard. Origin-relative so it matches the
@@ -1104,6 +1152,22 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         </div>
         {pdfError && <div className="mt-2 text-xs font-semibold text-error">{pdfError}</div>}
         {shareError && <div className="mt-2 text-xs font-semibold text-error">{shareError}</div>}
+        {unsentShare && !unsentShareOpen && (
+          // S1b: the persistent state after Keep as draft.
+          <div className="mt-3">
+            <PopInline
+              tone="error"
+              eyebrowIcon="sync_problem"
+              title={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardTitle}
+              text={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardText}
+              consequence={`${unsentShare.number} is still a draft.`}
+              actions={[
+                { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
+                { label: 'Share PDF again', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
+              ]}
+            />
+          </div>
+        )}
       </div>
       {payments.length > 0 && (
         <div className="card mb-4">
@@ -1276,6 +1340,33 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         <Icon name="delete" size={18} /> Delete {inv.kind === 'quote' ? 'estimate' : 'invoice'}
       </button>
 
+      {sentToast && <PopToast text={sentToast} icon="check" onDismiss={() => setSentToast(null)} />}
+      {unsentShare && unsentShareOpen && (() => {
+        const copy = unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' });
+        return (
+          // S1: same sheet as chat; the share action reads "Share PDF again".
+          <PopSheet
+            open
+            icon="sync_problem"
+            iconTone="danger"
+            eyebrow={copy.eyebrow}
+            title={copy.title}
+            sub={copy.sub}
+            truths={copy.truths}
+            note={copy.note}
+            retryLabel="Try again"
+            consequence={`${unsentShare.number} is still a draft.`}
+            actions={[
+              { label: 'Mark as sent', kind: 'gold', go: true, busyLabel: 'Marking sent…' },
+              { label: 'Share PDF again', kind: 'outline', runs: true, onSelect: () => shareSharedAgain(unsentShare) },
+              { label: 'Keep as draft', kind: 'text', safe: true },
+            ]}
+            onDismiss={() => setUnsentShareOpen(false)}
+            onConfirm={() => postMarkSharedSent(unsentShare)}
+            onSuccess={() => undefined}
+          />
+        );
+      })()}
       {/* Offscreen capture source — natural scale, no transform. Mirrors the chat
           finalize path so both produce identical clean PDFs. */}
       <div style={{ position: 'fixed', left: -9999, top: 0 }}>

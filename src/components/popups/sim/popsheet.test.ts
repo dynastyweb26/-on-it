@@ -125,3 +125,71 @@ test('a failed confirm never runs onSuccess or onDismiss', async () => {
   await settle();
   assert.equal(succeeded + dismissed, 0);
 });
+
+// P-66 / S1: "Retry the share" is a non-go action that runs async (it must start
+// inside the tap so iOS keeps the activation), locks the sheet while running,
+// reports a failure by cause, and never closes the sheet by itself.
+const s1 = {
+  open: true as const,
+  title: 'Shared, but not marked sent',
+  truths: [
+    { ok: true, title: 'Brandon has the PDF', body: 'Shared 2:14 PM.' },
+    { ok: false, title: 'INV-0007 is still a draft in On It', body: 'No pay link yet.' },
+  ],
+  consequence: 'INV-0007 is still a draft.',
+  actions: [
+    { label: 'Mark as sent', kind: 'gold' as const, go: true, busyLabel: 'Marking sent…' },
+    { label: 'Retry the share', kind: 'outline' as const, runs: true },
+    { label: 'Keep as draft', kind: 'text' as const, safe: true },
+  ],
+};
+
+test('S1: both truths render', async () => {
+  await mount(h(PopSheet, { ...s1, onDismiss() {} }));
+  assert.match(q.text(), /Brandon has the PDF/);
+  assert.match(q.text(), /INV-0007 is still a draft in On It/);
+});
+
+test('S1: a runs action starts synchronously from the tap, once, and locks the sheet', async () => {
+  let calls = 0;
+  let dismissed = 0;
+  const gate = deferred();
+  await mount(h(PopSheet, {
+    ...s1,
+    onDismiss() { dismissed += 1; },
+    onConfirm: async () => { throw new Error('should not run'); },
+    actions: s1.actions.map((a) => (a.runs ? { ...a, onSelect: async () => { calls += 1; await gate.promise; } } : a)),
+  }));
+  const btn = q.button('Retry the share') as HTMLButtonElement;
+  btn.click();                       // no await: the share must already have started
+  assert.equal(calls, 1, 'onSelect ran inside the click, before any await');
+  await rageTap(btn, 3);
+  assert.equal(calls, 1, 'repeat taps do nothing');
+  await tap(q.button(/Marking sent|Mark as sent/));
+  await pressEscape();
+  await tap(q.button('Keep as draft'));
+  assert.equal(dismissed, 0, 'nothing dismisses while the share runs');
+  gate.resolve();
+  await settle();
+  assert.equal(dismissed, 0, 'a finished share does not close the sheet by itself');
+  assert.ok(q.button('Retry the share')?.disabled === false, 'pending cleared on the success exit');
+});
+
+test('S1: a failed share shows the cause and what did not happen, and stays retryable', async () => {
+  let attempts = 0;
+  await mount(h(PopSheet, {
+    ...s1,
+    onDismiss() {},
+    actions: s1.actions.map((a) => (a.runs
+      ? { ...a, onSelect: async () => { attempts += 1; throw Object.assign(new Error('x'), { name: 'NotAllowedError' }); } }
+      : a)),
+  }));
+  await tap(q.button('Retry the share'));
+  await settle();
+  const alert = q.alert();
+  assert.match(alert?.textContent ?? '', /INV-0007 is still a draft\./);
+  assert.match(alert?.textContent ?? '', /blocked/i);
+  await tap(q.button('Retry the share'));
+  await settle();
+  assert.equal(attempts, 2);
+});

@@ -15,6 +15,12 @@ export interface SheetActionSpec {
   /** The action a dismissal maps to (scrim, ×, Escape, swipe). */
   safe?: boolean;
   busyLabel?: string;
+  /**
+   * A non-go action whose `onSelect` is async: it runs through the same pending
+   * path as the go action (locks the sheet, one run at a time) and a rejection
+   * fills the error slot. It does not close the sheet.
+   */
+  runs?: boolean;
   /** Caller-side gate (e.g. nothing selected yet). */
   disabled?: boolean;
 }
