@@ -2,7 +2,7 @@
 // from the moment of failure, so nothing here needs a round trip.
 // Numbers arrive already formatted through formatDocNumber(); "estimate" never
 // "quote".
-import { formatDate } from '@/lib/dates';
+import { shortDate } from '@/lib/estimates/owner-view';
 import { money } from '@/lib/financials';
 
 export type UnsentShare = {
@@ -40,7 +40,9 @@ export function unsentShareCopy(
   const who = (u.client ?? '').trim();
   const first = who ? who.split(/\s+/)[0] : 'Your client';
   const at = new Date(u.sharedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const due = u.dueDate ? formatDate(u.dueDate) : null;
+  // Board 6 reads "Due Nov 12", the same short month the estimate and payment
+  // screens use — never the 11/12/2026 that formatDate() prints on documents.
+  const due = u.dueDate ? shortDate(u.dueDate) : null;
   const canSee = due
     ? `They can see ${money(u.total)} due ${due}.`
     : `They can see ${money(u.total)}.`;

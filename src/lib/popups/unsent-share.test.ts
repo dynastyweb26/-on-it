@@ -20,7 +20,7 @@ test('S1 carries the number, the client, the figure and both truths', () => {
   assert.match(copy.eyebrow, /^INV-0007 · Brandon Lee · \$200\.00$/);
   assert.equal(copy.truths[0].ok, true);
   assert.equal(copy.truths[0].title, 'Brandon has the PDF');
-  assert.match(copy.truths[0].body, /^Shared 2:14 PM\. They can see \$200\.00 due 11\/12\/2026\.$/);
+  assert.match(copy.truths[0].body, /^Shared 2:14 PM\. They can see \$200\.00 due Nov 12\.$/);
   assert.equal(copy.truths[1].ok, false);
   assert.equal(copy.truths[1].title, 'INV-0007 is still a draft in On It');
   assert.match(copy.truths[1].body, /No pay link/);
