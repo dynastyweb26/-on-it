@@ -141,3 +141,26 @@ test('replace template: only the sheet path awaits and throws the soft delete', 
   assert.match(open, /else discardTemplateRow\(\);/, 'every other caller keeps the instant path');
   assert.match(chat, /else void openTemplate\(k, client\);/, 'the + menu does not await it');
 });
+
+// ── Deposit card (Books · money in) ──
+const deposits = readFileSync('src/components/bank/DepositCard.tsx', 'utf8');
+
+test('deposit card: a second tap in the same frame is dropped by a ref before any request', () => {
+  const post = deposits.slice(deposits.indexOf('async function post('), deposits.indexOf('function save()'));
+  assert.ok(post.length > 0, 'post exists');
+  assert.match(post, /if \(busyRef\.current\) return;\s*busyRef\.current = true;\s*setBusy\(true\);/);
+  assert.match(post, /busyRef\.current = false;\s*setBusy\(false\);\s*\}/, 'the failure exit clears pending');
+});
+
+test('deposit card: Save and Don\'t add lock with a busy label while the write runs', () => {
+  assert.match(deposits, /disabled=\{busy \|\| waiting \|\| !submit\}/);
+  assert.match(deposits, /\{waiting \? 'Waiting for the bank' : busy \? 'Saving…' : 'Save'\}/);
+  assert.match(deposits, /disabled=\{busy \|\| waiting\}[\s\S]*?Don&apos;t add/, 'Don\'t add locks too');
+});
+
+test('deposit card: a refusal names its cause in the card and nothing closes', () => {
+  const post = deposits.slice(deposits.indexOf('async function post('), deposits.indexOf('function save()'));
+  assert.match(post, /setError\(depositRefusalMessage\(body\?\.error\)\)/);
+  assert.match(post, /catch \{\s*setError\(depositRefusalMessage\(null\)\);/);
+  assert.match(deposits, /role="alert"/);
+});
