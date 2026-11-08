@@ -1892,7 +1892,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
     if (!active || !ready || !draft || !profile) return;
-    if (skipPreBuild) return;
+    // A restored S1b has nothing to share yet, so it needs a build even on a tier
+    // that otherwise builds at the tap.
+    if (skipPreBuild && !s1bNeedsFile) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
     if (phase !== null || preparing) return;
     if (prepState && prepState.sig === draftSignature(draft)) return;
@@ -1900,7 +1902,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     preBuildTimerRef.current = setTimeout(() => { void finalize(true, undefined, 'prepare'); }, 400);
     return () => { if (preBuildTimerRef.current) clearTimeout(preBuildTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild, attachments]);
+  }, [active, draft, ready, profile, linkedStatus, phase, preparing, prepState, skipPreBuild, attachments, s1bNeedsFile]);
 
   // mode 'prepare': the background pre-build above — it runs the SAME persist +
   // PDF build as a send but, instead of sharing, stashes the File in preBuiltRef
@@ -1909,7 +1911,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // usable); a failure just records prepState 'failed'.
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (mode === 'prepare') {
-      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile || skipPreBuild) return;
+      if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile) return;
+      if (skipPreBuild && !s1bNeedsFile) return;
       preparingRef.current = true;
       setPreparing(true);
       // The DB row is about to be rewritten from the current draft, so an older
@@ -3182,6 +3185,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Keep as draft leaves the S1b card pinned under the document.
   const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null; token: string | null }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
+  // P-66 S1b, restored: a rebuilt card has no File in hand, so the PDF is built
+  // in the background while it waits. "Retry the share" reads "Preparing…" and
+  // stays disabled until the file for THIS invoice is ready, so the tapped share
+  // still calls navigator.share() synchronously. Mark as sent needs no file.
+  const s1bNeedsFile = !!unsentShare && !unsentShare.file;
+  const s1bFileReady = !!unsentShare && (
+    !!unsentShare.file || (prepState?.status === 'ready' && preBuiltRef.current?.id === unsentShare.id)
+  );
+  const s1bBuildFailed = !!unsentShare && !s1bFileReady && prepState?.status === 'failed';
   // S1b lands under the document card, which can leave its answers behind the
   // composer. Bring the card fully into the list's own viewport with the
   // smallest scroll that does it: never scrollIntoView (it also scrolls the
@@ -3340,11 +3352,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   // Retry the share. sharePdf starts synchronously from the tap (iOS keeps the
   // tap's activation), then the same POST marks it sent.
+  function retryS1bBuild() {
+    preBuiltRef.current = null;
+    setPrepState(null); // the pre-build effect re-arms for the current draft
+  }
+
   async function shareSharedAgain(pending: UnsentShare & { file: File | null; token: string | null }) {
+    const pb = preBuiltRef.current;
+    const file = pending.file ?? (pb && pb.id === pending.id ? pb.file : null);
+    // The card disables this until the rebuild lands; never share a stale file.
+    if (!file) return;
     const payUrl = pending.kind === 'invoice' && pending.token
       ? `${window.location.origin}/pay/${pending.token}`
       : null;
-    const shared = sharePdf(pending.file, shareText(docNoun(pending.kind), pending.client ?? 'your client', payUrl));
+    const shared = sharePdf(file, shareText(docNoun(pending.kind), pending.client ?? 'your client', payUrl));
     const r = await shared;
     if (r.status === 'cancelled') return; // a normal choice; nothing is said
     if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
@@ -4528,11 +4549,22 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 tone="error"
                 eyebrowIcon="sync_problem"
                 title={unsentShareCopy(unsentShare).cardTitle}
+                error={s1bBuildFailed
+                  ? { title: 'Couldn’t build the PDF', body: 'Weak signal. Your invoice is safe — Mark as sent still works.' }
+                  : undefined}
                 text={unsentShareCopy(unsentShare).cardText}
                 consequence={`${unsentShare.number} is still a draft.`}
                 actions={[
                   { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
-                  { label: 'Retry the share', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
+                  {
+                    label: s1bFileReady ? 'Retry the share' : 'Preparing…',
+                    kind: 'outline',
+                    disabled: !s1bFileReady,
+                    onSelect: () => shareSharedAgain(unsentShare),
+                  },
+                  ...(s1bBuildFailed
+                    ? [{ label: 'Retry the build', kind: 'text' as const, onSelect: retryS1bBuild }]
+                    : []),
                 ]}
               />
             </div>

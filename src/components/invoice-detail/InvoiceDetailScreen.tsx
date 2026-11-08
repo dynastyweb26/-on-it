@@ -787,8 +787,10 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
 
   // Share PDF again: sharePdf starts inside the tap (iOS keeps the activation),
   // then the same POST marks it sent.
-  async function shareSharedAgain(pending: UnsentShare & { file: File }) {
-    const r = await sharePdf(pending.file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
+  async function shareSharedAgain(pending: UnsentShare & { file: File | null }) {
+    const file = pending.file ?? shareFile;
+    if (!file) return; // the card disables this until the rebuild lands
+    const r = await sharePdf(file, shareText(docNoun(pending.kind), pending.client ?? 'your client', shareUrl));
     if (r.status === 'cancelled') return;
     if (r.status === 'failed') throw Object.assign(new Error('share failed'), { name: r.name });
     if (r.status === 'unsupported') downloadFile(pending.file);
@@ -1177,10 +1179,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
               eyebrowIcon="sync_problem"
               title={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardTitle}
               text={unsentShareCopy(unsentShare, { retryLabel: 'Share PDF again' }).cardText}
+              error={s1bBuildFailed
+                ? { title: 'Couldn’t build the PDF', body: 'Weak signal. Your invoice is safe — Mark as sent still works.' }
+                : undefined}
               consequence={`${unsentShare.number} is still a draft.`}
               actions={[
                 { label: 'Mark as sent', kind: 'gold', busyLabel: 'Marking sent…', onSelect: () => postMarkSharedSent(unsentShare) },
-                { label: 'Share PDF again', kind: 'outline', onSelect: () => shareSharedAgain(unsentShare) },
+                {
+                  label: s1bFileReady ? 'Share PDF again' : 'Preparing…',
+                  kind: 'outline',
+                  disabled: !s1bFileReady,
+                  onSelect: () => shareSharedAgain(unsentShare),
+                },
+                ...(s1bBuildFailed
+                  ? [{ label: 'Retry the build', kind: 'text' as const, onSelect: () => setPrebuildNonce((n) => n + 1) }]
+                  : []),
               ]}
             />
           </div>
