@@ -88,6 +88,8 @@ import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
 import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import CommandCard from '@/components/chat/CommandCard';
+import { COMMAND_GROUPS, COMMAND_LEAD, matchCommand } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -120,6 +122,9 @@ interface Msg {
   /** An owner outcome (RULES): a local assistant card, never an event and never
    *  a toast. Posted by the screen that finished the action. */
   ownerCard?: { title: string; invoiceId: string };
+  /** Item 11: the "What I can do" card — a local assistant message, never an
+   *  event and never anything /api/parse sees. */
+  commandCard?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
@@ -1240,9 +1245,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Feedback talk ("I have a suggestion") gets a button to the feedback page and
     // never reaches the AI (lib/feedback-intent.ts); it stays out of job history.
     const feedbackAsk = !retryId && isFeedbackIntent(trimmed);
+    // Item 11: "?", "help" and the "what can you do" family are answered here.
+    // No AI call and no document; the question itself stays out of job history.
+    const commandAsk = !retryId && matchCommand(trimmed);
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, feedbackAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
+      : [...messages, feedbackAsk || commandAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
@@ -1253,6 +1261,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
     if (feedbackAsk) {
       setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
+    }
+
+    if (commandAsk) {
+      setMessages((m) => [...m, aMsg(COMMAND_LEAD, { commandCard: true, skipHistory: true })]);
+      if (source === 'voice') {
+        // Voice asks the same question; the answer is spoken, like any reply.
+        cancelSpeechRef.current?.();
+        cancelSpeechRef.current = speak(COMMAND_LEAD);
+      }
       return null;
     }
 
@@ -4551,6 +4569,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </button>
               </div>
             </div>
+          ) : m.commandCard ? (
+            <CommandCard
+              groups={COMMAND_GROUPS}
+              onPick={(phrase) => {
+                // Item 11: the row's phrase replaces the input, the caret goes to
+                // the end, and the field takes focus so the keyboard opens.
+                setInput(phrase);
+                const el = inputRef.current;
+                if (el) {
+                  el.focus();
+                  requestAnimationFrame(() => el.setSelectionRange(phrase.length, phrase.length));
+                }
+              }}
+            />
           ) : m.ownerCard ? (
             // The outcome of an owner action, with the one thing to do next.
             <div className="card">
