@@ -1,16 +1,17 @@
 'use client';
 
-// Item 9: the cream top-drop toast for an event that lands while the app is
-// open. Direction A only (cream, never black); PopToast/UndoToast are not
-// touched and keep their own jobs (an undo window, a bottom info pill).
+// Item 9: the cream top-drop toast for an event. Direction A only (cream,
+// never black); PopToast/UndoToast are untied from it and keep their jobs (an
+// undo window, a bottom info pill).
 //
-// It is a realtime listener, not a second source of truth: the thread is the
-// record, this is the nudge. Nothing is shown for the catch-up query, so
-// reopening the app never replays yesterday as a stack of toasts.
+// Correction 1: on app open it catches up on what happened while the owner was
+// away — unseen events from the last 24 hours, newest first, at most three.
+// Replays are prevented by a per-user localStorage set of toasted ids, NOT by
+// seen_at: the cards in the thread stamp seen_at as they render, and that race
+// must not swallow a toast (or resurrect one).
 //
-// Rules it obeys: no haptics, no recaps, reduced motion respected (no drop, a
-// plain fade), one toast at a time, and it dismisses itself. Tapping it opens
-// the document; the card in the thread stays where it is.
+// Realtime inserts still toast live. Nothing here is a source of truth: the
+// thread is the record, this is the nudge.
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
@@ -20,15 +21,40 @@ import { money } from '@/lib/financials';
 import { eventCard, type EventRow } from '@/lib/events';
 
 const HOLD_MS = 5000;
+const CATCHUP_WINDOW_MS = 24 * 3600e3;
+const QUEUE_MAX = 3;
+const TOASTED_CAP = 200;
+
 const COLUMNS =
   'id, user_id, kind, actor, invoice_id, document_kind, document_number, client_name, amount, meta, dedupe_key, seen_at, acted_at, acted_result, occurred_at';
+
+const toastedKey = (userId: string) => `onit-events-toasted:${userId}`;
+
+function readToasted(userId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(toastedKey(userId));
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((v): v is string => typeof v === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Remember one id, capped so the set cannot grow forever. */
+function markToasted(userId: string, id: string): void {
+  try {
+    const set = readToasted(userId);
+    if (set.has(id)) return;
+    const next = [...set, id].slice(-TOASTED_CAP);
+    localStorage.setItem(toastedKey(userId), JSON.stringify(next));
+  } catch { /* storage blocked — the 24h window still bounds a replay */ }
+}
 
 export default function EventToastHost() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [queue, setQueue] = useState<EventRow[]>([]);
   const [shown, setShown] = useState(false);
-  const seenIds = useRef(new Set<string>());
 
   useEffect(() => {
     let alive = true;
@@ -41,6 +67,39 @@ export default function EventToastHost() {
     return () => { alive = false; };
   }, []);
 
+  // App open: catch up on what was missed. Newest first, three at most, and
+  // only ids this device has never toasted.
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const since = new Date(Date.now() - CATCHUP_WINDOW_MS).toISOString();
+        const { data, error } = await createClient()
+          .from('events')
+          .select(COLUMNS)
+          .eq('user_id', userId)
+          .is('seen_at', null)
+          .gte('occurred_at', since)
+          .order('occurred_at', { ascending: false })
+          .limit(12);
+        if (error || !alive) return;
+        const toasted = readToasted(userId);
+        const fresh = ((data ?? []) as unknown as EventRow[])
+          .filter((e) => e?.id && !toasted.has(e.id))
+          .slice(0, QUEUE_MAX);
+        if (fresh.length === 0) return;
+        fresh.forEach((e) => markToasted(userId, e.id));
+        setQueue((q) => {
+          const known = new Set(q.map((e) => e.id));
+          return [...q, ...fresh.filter((e) => !known.has(e.id))].slice(0, QUEUE_MAX);
+        });
+      } catch { /* no catch-up; live toasts still work */ }
+    })();
+    return () => { alive = false; };
+  }, [userId]);
+
+  // Live: this user's new rows, nothing else.
   useEffect(() => {
     if (!userId) return;
     const supabase = createClient();
@@ -51,9 +110,10 @@ export default function EventToastHost() {
         { event: 'INSERT', schema: 'public', table: 'events', filter: `user_id=eq.${userId}` },
         (payload) => {
           const row = payload.new as unknown as EventRow;
-          if (!row?.id || seenIds.current.has(row.id)) return;
-          seenIds.current.add(row.id);
-          setQueue((q) => [...q, row].slice(-3));
+          if (!row?.id) return;
+          if (readToasted(userId).has(row.id)) return;
+          markToasted(userId, row.id);
+          setQueue((q) => (q.some((e) => e.id === row.id) ? q : [...q, row]).slice(-QUEUE_MAX));
         },
       )
       .subscribe();
@@ -69,8 +129,8 @@ export default function EventToastHost() {
     return () => cancelAnimationFrame(frame);
   }, [current]);
 
-  // Hold, then step to the next one. A new event does not reset the clock of
-  // the toast already on screen.
+  // Hold, then step to the next one. A new event never resets the clock of the
+  // toast already on screen.
   useEffect(() => {
     if (!current) return;
     const t = setTimeout(() => {
