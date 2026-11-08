@@ -955,11 +955,11 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   }
 
   async function handleUndo() {
-    setUndoDelete(false);
+    // Restore first and throw on failure: the toast names the cause with Retry,
+    // and the screen stays put instead of bouncing to the list.
     const { error } = await supabase.from('invoices').update({ deleted_at: null }).eq('id', id);
-    if (error) {
-      router.push('/invoices');
-    }
+    if (error) throw error;
+    setUndoDelete(false);
   }
 
   return (
@@ -1377,6 +1377,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       {undoDelete && (
         <UndoToast
           message={`${inv.kind === 'quote' ? 'Estimate' : 'Invoice'} deleted.`}
+          consequence="It stays deleted."
           onUndo={handleUndo}
           onDismiss={() => {
             setUndoDelete(false);
