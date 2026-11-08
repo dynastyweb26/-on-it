@@ -5,7 +5,8 @@
 // the message that triggers it never reaches /api/parse.
 //
 // Rows are spec 08's groups minus Recaps (recaps are out of scope for this
-// phase). Each row carries the phrase it drops into the composer.
+// phase), minus the rows whose phrase has no working path yet (2026-11-08 row
+// audit). Each row carries the phrase it drops into the composer.
 import type { CommandGroup } from '@/components/chat/CommandCard';
 
 export const COMMAND_GROUPS: CommandGroup[] = [
@@ -20,7 +21,9 @@ export const COMMAND_GROUPS: CommandGroup[] = [
     title: 'Money',
     items: [
       { name: 'Record a payment', ex: 'Ruth paid $25 Zelle' },
-      { name: 'Send a reminder', ex: 'Remind Brandon about his invoice' },
+      // Hidden: no chat reminder path exists yet — "Remind Brandon about his
+      // invoice" routes to /api/parse as a new job. Phase 5 (owner reminders).
+      // { name: 'Send a reminder', ex: 'Remind Brandon about his invoice' },
       { name: 'Who owes me', ex: 'Who owes me money?' },
     ],
   },
@@ -28,7 +31,9 @@ export const COMMAND_GROUPS: CommandGroup[] = [
     title: 'Clients',
     items: [
       { name: 'Add a client', ex: 'Add Joe Ortiz, 945-555-0134' },
-      { name: 'Look up a client', ex: "What's Ruth's balance?" },
+      // Hidden: "What's Ruth's balance?" routes to /api/parse (a new job) and
+      // /api/ask has no per-client lookup. Phase 5 item 24 unlocks it.
+      // { name: 'Look up a client', ex: "What's Ruth's balance?" },
     ],
   },
 ];
