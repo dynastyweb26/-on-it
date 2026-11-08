@@ -17,9 +17,9 @@ export type EstimatePreviewOutcome =
 
 export type EstimateLinkShare = 'shared' | 'copied' | 'cancelled' | 'failed';
 
-export type EstimateDuplicateOutcome =
-  | { ok: true; id: string }
-  | { ok: false; paywall: boolean; message: string };
+export type EstimateEditsOutcome =
+  | { ok: true; estimate: Record<string, unknown> }
+  | { ok: false; message: string };
 
 export type EstimateExtendOutcome =
   | { ok: true; validUntil: string }
@@ -158,27 +158,35 @@ export async function requestEstimateTitle(
   }
 }
 
-export async function requestEstimateDuplicate(id: string): Promise<EstimateDuplicateOutcome> {
+/** Save title + line items in ONE update. The version trigger runs once per
+ *  statement, so a batched save bumps the estimate version exactly once. */
+export async function requestEstimateEdits(
+  id: string,
+  edits: { title?: string | null; lineItems?: unknown[] },
+): Promise<EstimateEditsOutcome> {
+  const body: Record<string, unknown> = {};
+  if (edits.title !== undefined) body.title = edits.title;
+  if (edits.lineItems !== undefined) body.line_items = edits.lineItems;
   try {
-    const res = await fetch(`/api/estimates/${id}/duplicate`, { method: 'POST' });
-    const body = (await res.json().catch(() => null)) as
-      | { estimate?: { id?: string }; error?: string }
-      | null;
-    if (res.status === 402 || body?.error === 'paywall') {
-      return { ok: false, paywall: true, message: 'You have reached the free estimate limit.' };
-    }
-    if (!res.ok || !body?.estimate?.id) {
+    const res = await fetch(`/api/estimates/${id}/edits`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json().catch(() => null)) as { estimate?: Record<string, unknown> } | null;
+    if (!res.ok || !json?.estimate) {
       return {
         ok: false,
-        paywall: false,
         message: res.status === 409
-          ? 'Only an approved estimate can be duplicated.'
-          : "Couldn't duplicate this estimate. Please try again.",
+          ? 'This estimate is signed and locked.'
+          : res.status === 401
+            ? 'Please sign in again.'
+            : "Couldn't save those changes. Please try again.",
       };
     }
-    return { ok: true, id: body.estimate.id };
+    return { ok: true, estimate: json.estimate };
   } catch {
-    return { ok: false, paywall: false, message: "Couldn't duplicate this estimate. Please try again." };
+    return { ok: false, message: "Couldn't save those changes. Please try again." };
   }
 }
 

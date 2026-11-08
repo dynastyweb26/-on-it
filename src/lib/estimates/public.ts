@@ -216,7 +216,37 @@ async function shape(
     terms = null;
   }
 
-  return toPublicEstimate({
+  // "Updated": the current version was snapshotted after the client's most
+  // recent qualifying view. Owner previews never carry the tag, and an older
+  // environment without the 4A tables simply renders without it.
+  let updated = false;
+  if (!preview) {
+    try {
+      const [versionRes, viewRes] = await Promise.all([
+        admin
+          .from('estimate_versions')
+          .select('created_at')
+          .eq('estimate_id', invoice.id)
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        admin
+          .from('document_views')
+          .select('viewed_at')
+          .eq('invoice_id', invoice.id)
+          .order('viewed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const versionAt = (versionRes.data as { created_at?: string } | null)?.created_at ?? null;
+      const viewedAt = (viewRes.data as { viewed_at?: string } | null)?.viewed_at ?? null;
+      updated = Boolean(versionAt) && (!viewedAt || new Date(versionAt!) > new Date(viewedAt));
+    } catch {
+      updated = false;
+    }
+  }
+
+  const result = toPublicEstimate({
     invoice,
     profile,
     attachments: signed.filter((a): a is PublicAttachment => a !== null),
@@ -227,4 +257,6 @@ async function shape(
     now: new Date(),
     preview,
   });
+  if (result.state !== 'unavailable') result.updated = updated;
+  return result;
 }

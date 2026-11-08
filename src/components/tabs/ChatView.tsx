@@ -4075,6 +4075,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
+    // 4A: an estimate has no revise/duplicate path. An invoice keeps Revise.
+    if (docKind(draft) === 'quote') {
+      setReviseAsk(false);
+      setMessages((msgs) => [...msgs, aMsg("Estimates can't be revised. Send a new estimate instead.")]);
+      return;
+    }
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduced) { startRevision(); return; }
     revisingRef.current = true;
