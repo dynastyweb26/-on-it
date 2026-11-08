@@ -824,6 +824,25 @@ html[data-splash=""] .onit-splash {
   .onit-confirm-in, .onit-confirm-pop, .onit-confirm-ring { animation: none; }
 }
 
+/* ---- Send state: the PDF tile while it builds (alive layer §04) -------------
+   A 240px gold sweep over the tile, 1.4s, so a build that takes a moment reads
+   as work instead of a dead button. Reduced motion drops the sweep. */
+@keyframes onit-pdf-shimmer { from { background-position: -240px 0; } to { background-position: 240px 0; } }
+.onit-pdf-shimmer { position: relative; overflow: hidden; }
+.onit-pdf-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, .18), transparent);
+  background-size: 240px 100%;
+  background-repeat: no-repeat;
+  animation: onit-pdf-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onit-pdf-shimmer::after { animation: none; opacity: 0; }
+}
+
 /* ---- Reduced motion: the card family ----
    The global block at the bottom of this file stops every CSS animation and
    transition, but Framer Motion is JS and is not reached by it. Card components
