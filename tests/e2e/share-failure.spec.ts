@@ -223,8 +223,10 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     // Nothing landed while the POST was blocked.
     expect(blocked, 'still blocked through the detail variant').toBe(true);
 
-    // ── 8. Unblock, then Mark as sent from S1b in chat: toast + sent.
-    await page.goto('/chat');
+    // ── 8. Unblock, then Mark as sent from the S1b card the detail screen now
+    // shows (Keep as draft above left it pinned there): toast + sent. No reload:
+    // the card is screen state, so a full page load clears it. The draft itself
+    // stays a draft and Share PDF again recovers it.
     await expect(card).toBeVisible({ timeout: 30_000 });
     blocked = false;
     await card.getByRole('button', { name: 'Mark as sent' }).click();
