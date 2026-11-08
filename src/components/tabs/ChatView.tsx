@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
+import ChatEvents from '@/components/chat/ChatEvents';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
@@ -4744,6 +4745,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </Fragment>
         ))}
+
+        {/* Alive layer: what happened that the owner didn't do. Rendered from the
+            events table, never stored in StoredChat. */}
+        <ChatEvents className="w-full" />
 
         {pendingChange && (
           // Change guard (Commit A): the parse would rewrite the linked invoice.
