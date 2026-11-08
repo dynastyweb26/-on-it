@@ -158,6 +158,17 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     await expect(sendIt).toBeVisible({ timeout: 90_000 });
     await expect(sendIt).toBeEnabled({ timeout: 90_000 });
 
+    // The reply sometimes asks for an address or phone, and a card tap is
+    // deliberately ignored while that question is pending (clientQuestionPending).
+    // Decline it in-thread so both branches of the reply take the same path.
+    const clientAsk = page.getByText(/address or a phone|phone number|email or a phone/i).first();
+    if (await clientAsk.isVisible().catch(() => false)) {
+      await page.getByLabel('Message On It').fill('No address or phone needed — just use Brandon Test.');
+      await page.getByRole('button', { name: 'Send', exact: true }).click();
+      await expect(sendIt).toBeVisible({ timeout: 90_000 });
+      await expect(sendIt).toBeEnabled({ timeout: 90_000 });
+    }
+
     // ── 2–3. Tap: the share succeeds (stub), the mark-sent POST cannot.
     await sendIt.click();
 
@@ -187,12 +198,15 @@ test.describe('S1/S1b: shared, then the mark-sent POST failed (P-66)', () => {
     expect(attempted, 'the send POST ran and failed').toBeGreaterThan(0);
     await shot('s1-idle');
 
-    // ── 9. The same sheet at 1440x900: a centered 440px dialog, not a bottom sheet.
+        // ── 9. The laptop shape (Popup-Kit rule 8): at >=1280 the same sheet is a
+    // centered 440px dialog. [data-pop-sheet] is the full-bleed overlay, so the
+    // dialog geometry is measured on the panel inside it.
     const phone = page.viewportSize() ?? { width: 390, height: 844 };
     await page.setViewportSize({ width: 1440, height: 900 });
-    const box = await sheet.boundingBox();
-    expect(box, 'S1 is laid out').toBeTruthy();
-    expect(Math.round(box!.width), '440px dialog on a laptop').toBe(440);
+    const panel = sheet.locator('.onit-sheet-in');
+    const box = await panel.boundingBox();
+    expect(box, 'the dialog is laid out').toBeTruthy();
+    expect(Math.round(box!.width), '440px dialog at 1440').toBe(440);
     expect(Math.abs(box!.x + box!.width / 2 - 720), 'centered').toBeLessThanOrEqual(2);
     await shot('s1-laptop');
     await page.setViewportSize(phone);

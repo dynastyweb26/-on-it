@@ -31,6 +31,8 @@ export interface PopSheetProps {
   icon?: IconName;
   iconTone?: 'gold' | 'danger' | 'neutral';
   destructive?: boolean;
+  /** Pickers are 560px on a laptop; every other sheet is a 440px dialog. */
+  width?: 'confirm' | 'picker';
   eyebrow?: string;
   title: string;
   sub?: string;
@@ -88,7 +90,7 @@ export default function PopSheet(props: PopSheetProps) {
 }
 
 function SheetBody({
-  icon, iconTone = 'gold', destructive, eyebrow, title, sub, figure, rows, truths, body,
+  icon, iconTone = 'gold', destructive, width = 'confirm', eyebrow, title, sub, figure, rows, truths, body,
   typed, error, retryLabel, note, actions, onDismiss, onConfirm, consequence, onSuccess,
 }: Omit<PopSheetProps, 'open'>) {
   const titleId = useId();
@@ -140,7 +142,7 @@ function SheetBody({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto" data-pop-sheet="" data-no-tab-swipe="true" data-kb-fit="">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto xl:items-center xl:p-6" data-pop-sheet="" data-no-tab-swipe="true" data-kb-fit="">
       <div className="onit-composer-scrim absolute inset-0 bg-on-background/40" style={scrimStyle} onClick={dismiss} aria-hidden />
       <div
         role={sheetRole(destructive)}
@@ -148,9 +150,11 @@ function SheetBody({
         aria-labelledby={titleId}
         aria-busy={pending}
         style={sheetStyle}
-        className="onit-sheet-in relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-background px-[18px] pb-[max(26px,env(safe-area-inset-bottom))] pt-2.5 shadow-card-raised"
+        className={`onit-sheet-in relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-background px-[18px] pb-[max(26px,env(safe-area-inset-bottom))] pt-2.5 shadow-card-raised xl:max-w-none xl:rounded-[24px] xl:px-6 xl:pb-6 xl:pt-[22px] xl:shadow-[0_30px_60px_-20px_rgba(30,24,14,.45)] ${
+          width === 'picker' ? 'xl:w-[560px]' : 'xl:w-[440px]'
+        }`}
       >
-        <div data-sheet-handle="" className="cursor-grab select-none pb-2" {...handleProps}>
+        <div data-sheet-handle="" className="cursor-grab select-none pb-2 xl:hidden" {...handleProps}>
           <span
             aria-hidden
             className={`mx-auto mt-2 block h-[5px] w-[38px] rounded-full bg-outline-variant ${pending ? 'opacity-40' : ''}`}
