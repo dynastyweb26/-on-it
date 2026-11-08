@@ -949,9 +949,15 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     const { error } = await supabase.from('invoices').update({ deleted_at: now }).eq('id', id);
     setDeleting(false);
     setShowDeleteModal(false);
-    if (!error) {
-      setUndoDelete(true);
+    if (error) {
+      // A destructive write that fails must say so, not close silently. Shown
+      // inline with the real cause; the document is still there.
+      console.error('delete invoice failed', error);
+      setShareError(`Not deleted. ${userMessage(error)}`);
+      return;
     }
+    setShareError(null);
+    setUndoDelete(true);
   }
 
   async function handleUndo() {
