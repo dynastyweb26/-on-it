@@ -73,3 +73,13 @@ test('templateHasContent: a client, an item or extra info asks first', () => {
   assert.equal(templateHasContent({ line_items: [{ name: 'Car wash' }] }), true);
   assert.equal(templateHasContent({ extra: 'Due Friday' }), true);
 });
+
+test('D7 deactivate link copy: who loses access, what did not happen, the sent date', async () => {
+  const { revokeLinkSub, revokeLinkMeta, REVOKE_LINK_CONSEQUENCE } = await import('./destructive');
+  assert.equal(revokeLinkSub('Brandon'), 'Brandon won’t be able to open or sign it.');
+  assert.equal(revokeLinkSub(''), 'Your client won’t be able to open or sign it.');
+  assert.equal(revokeLinkSub(null), 'Your client won’t be able to open or sign it.');
+  assert.equal(revokeLinkMeta('Oct 30'), 'Estimate link · sent Oct 30');
+  assert.equal(revokeLinkMeta(null), 'Estimate link · sent');
+  assert.equal(REVOKE_LINK_CONSEQUENCE, 'The link still works.');
+});

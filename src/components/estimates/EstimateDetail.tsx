@@ -11,7 +11,9 @@ import { formatDocNumber } from '@/lib/documents';
 // there is no owner "mark as signed" control any more.
 import { convertedDepositColumns } from '@/lib/estimates/convert';
 import PopSheet from '@/components/popups/PopSheet';
-import { convertActionLabel } from '@/lib/popups/destructive';
+import {
+  convertActionLabel, REVOKE_LINK_CONSEQUENCE, revokeLinkMeta, revokeLinkSub,
+} from '@/lib/popups/destructive';
 import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
@@ -194,6 +196,9 @@ export default function EstimateDetail({
   const title = (inv.title ?? '').trim();
   const heading = title || inv.client_name || 'Estimate';
   const clientFirst = firstName(inv.client_name);
+
+  const sentRaw = inv.first_sent_at ?? inv.sent_at;
+  const sentDateText = sentRaw ? sentOrApprovedDate(sentRaw, tz) : null;
 
   const subtitle = (() => {
     if (state === 'draft') return 'Draft';
@@ -418,18 +423,16 @@ export default function EstimateDetail({
     }
   }
 
+  // Runs inside the D7 sheet: a failure throws so the sheet shows its cause
+  // ("The link still works.") and stays open for a retry. The sheet's own
+  // synchronous ref blocks a second tap.
   async function revoke() {
-    if (busy) return;
     setBusy('revoke');
     setActionError(null);
     try {
       const outcome = await requestEstimateRevoke(id);
-      if (!outcome.ok) {
-        setActionError(outcome.message);
-        return;
-      }
+      if (!outcome.ok) throw new Error(outcome.message);
       setInv((prev) => ({ ...prev, revoked_at: outcome.revokedAt }));
-      setConfirmRevoke(false);
       showToast('Link deactivated');
     } finally {
       setBusy(null);
@@ -500,6 +503,28 @@ export default function EstimateDetail({
         // with a retry, instead of closing and leaving a faint line below.
         onConfirm={async () => { await convertToInvoice(); }}
         consequence="Nothing was converted."
+      />
+      <PopSheet
+        open={confirmRevoke && state === 'sent'}
+        icon="link_off"
+        iconTone="danger"
+        destructive
+        title="Deactivate this link?"
+        sub={revokeLinkSub(clientFirst)}
+        figure={{
+          label: `${estimateNumber(inv.invoice_number)} · ${inv.client_name || 'No client'}`,
+          meta: revokeLinkMeta(sentDateText),
+          amount: money(totals.total),
+        }}
+        actions={[
+          { label: 'Cancel', kind: 'text', safe: true },
+          { label: 'Yes, deactivate', kind: 'danger', go: true, busyLabel: 'Deactivating…' },
+        ]}
+        onDismiss={() => setConfirmRevoke(false)}
+        onConfirm={async () => { await revoke(); }}
+        onSuccess={() => setConfirmRevoke(false)}
+        retryLabel="Try again"
+        consequence={REVOKE_LINK_CONSEQUENCE}
       />
       <div className="card relative mb-4 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
@@ -655,27 +680,6 @@ export default function EstimateDetail({
                   <Icon name="link_off" size={16} /> Deactivate link
                 </button>
               )}
-            </div>
-          )}
-
-          {confirmRevoke && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[14px] bg-error-container px-3 py-2">
-              <span className="text-[13px] font-semibold text-error">Deactivate this link?</span>
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void revoke()}
-                className="chip border-error px-3 text-xs text-error"
-              >
-                {busy === 'revoke' ? 'Deactivating…' : 'Yes, deactivate'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmRevoke(false)}
-                className="chip px-3 text-xs text-on-surface-variant"
-              >
-                Cancel
-              </button>
             </div>
           )}
 
