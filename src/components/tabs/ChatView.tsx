@@ -4100,6 +4100,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     url={estimateLink(linkedToken)!}
                     title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
                     businessName={profile?.business_name}
+                    onShared={() => {
+                      // §02: a share has no system confirmation, so the assistant
+                      // says it happened (and promises the first view). Once per card.
+                      const who = (draft?.client_name ?? '').trim().split(/\s+/)[0];
+                      setMessages((m) => [...m, aMsg(
+                        who
+                          ? `Shared. I'll let you know as soon as ${who} opens it.`
+                          : "Shared. I'll let you know as soon as it's opened.",
+                      )]);
+                    }}
                   />
                 </div>
               )}
