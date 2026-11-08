@@ -790,6 +790,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // ties the file to the exact draft it was built from; a mismatch (or no file)
   // makes press 2 fall back to the link share, never a download.
   const preBuiltRef = useRef<{ file: File; signature: string; token: string; id: string; no: number } | null>(null);
+  // §04 Retry: drop the failed build so the pre-build effect runs again for the
+  // current draft (the effect's only skip conditions are a matching signature
+  // and an in-flight build).
+  function retryPrebuild() {
+    preBuiltRef.current = null;
+    setPrepState(null);
+  }
   const preBuildIdRef = useRef(0);            // latest-wins guard across overlapping builds
   const preBuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // edit debounce
   const preparingRef = useRef(false);         // a pre-build is in flight (sync guard)
@@ -1864,6 +1871,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // re-fires this. Signed-in only: a guest has no row to build against.
   useEffect(() => {
     if (!active || !ready || !draft || !profile) return;
+    // An estimate shares a link, so there is no PDF worth building (§04).
+    if (docKind(draft) === 'quote') return;
     if (skipPreBuild) return;
     if (isLockedStatus(linkedStatus) || finalizeSentRef.current) return;
     if (phase !== null || preparing) return;
@@ -1882,6 +1891,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function finalize(internal = false, retryId?: string, mode: 'send' | 'download' | 'prepare' = 'send') {
     if (mode === 'prepare') {
       if (preparingRef.current || finalizeSentRef.current || isLockedStatus(linkedStatus) || !profile || skipPreBuild) return;
+      // Estimates never build a PDF (they share a link), so a prepare can only
+      // be a stray call from a card that just switched kind.
+      if (draft && docKind(draft) === 'quote') return;
       preparingRef.current = true;
       setPreparing(true);
       // The DB row is about to be rewritten from the current draft, so an older
@@ -3614,15 +3626,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
     previewDepositValue
   );
   const isValidTotal = Number.isFinite(previewTotals.total);
-  // The send button waits ("Preparing…") until the pre-build for THIS exact
-  // draft has finished, so a tap is always the synchronous share. A guest has no
-  // pre-build (the tap routes to sign-in), so it is ready once the profile
-  // lookup has resolved.
-  const sendReady = !profileLoaded ? false
-    : !profile ? true
-    // No pre-build for capped tiers: Send takes the slow path (build at tap).
-    : skipPreBuild ? !!draft
-    : !!draft && prepState?.sig === draftSignature(draft);
+  const quoteDraft = !!draft && docKind(draft) === 'quote';
+  const pdfReady = !profileLoaded ? false
+    : !profile ? false
+    // An estimate shares a link: there is no file to build or wait for.
+    : quoteDraft ? false
+    // No pre-build for capped tiers: the file is built at the tap.
+    : skipPreBuild ? false
+    : !draft ? false
+    : prepState?.sig === draftSignature(draft) && prepState?.status === 'ready';
+  // A failed build only matters for the draft it was built from: an edit moves
+  // the signature and the pre-build effect retries on its own.
+  const pdfFailed = !quoteDraft && prepState?.status === 'failed'
+    && !!draft && prepState.sig === draftSignature(draft);
+  // Send is NEVER disabled while a file builds (§04): an estimate needs no file,
+  // and an invoice can always take the build-at-tap path. This flag only says
+  // the profile lookup is still in flight (the tap routes to sign-in).
+  const sendReady = !profileLoaded ? false : !profile ? true : !!draft;
   // Commit B: the linked invoice has left 'draft' — the card is read-only.
   const locked = isLockedStatus(linkedStatus);
   // The draft controls fold away when the card seals instead of vanishing: they
@@ -4138,20 +4158,61 @@ export default function Chat({ active = true }: { active?: boolean }) {
               Something went wrong reading the amounts. Try rephrasing the prices.
             </p>
           )}
+          {/* §04 PDF state. An estimate has no file, so this row is invoices only.
+              Send stays enabled in every one of these states. */}
+          {!quoteDraft && (
+            <div className="mt-3">
+              {pdfFailed ? (
+                <div className="flex items-center gap-2 rounded-[12px] border border-error/40 bg-error-container/70 px-3 py-2">
+                  <Icon name="error" size={18} className="shrink-0 text-error" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-on-error-container">Couldn&apos;t build the PDF</p>
+                    <p className="text-[12px] leading-snug text-on-error-container/80">Weak signal. Your invoice is safe.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={retryPrebuild}
+                    className="min-h-touch shrink-0 rounded-button border border-error/40 bg-surface-container-lowest px-3 text-[13px] font-bold text-on-error-container transition active:scale-95"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : pdfReady ? (
+                <div className="flex items-center gap-2 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-field bg-primary-soft text-primary">
+                    <Icon name="picture_as_pdf" size={18} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold">
+                      {preBuiltRef.current?.file.name ?? 'Invoice PDF'}
+                    </p>
+                    <p className="text-[12px] text-on-surface-variant">
+                      {preBuiltRef.current ? `${Math.max(1, Math.round(preBuiltRef.current.file.size / 1024))} KB · ` : ''}attached
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="onit-pdf-shimmer flex items-center gap-2 rounded-[12px] border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <OnItSpinner size={18} />
+                  <span className="flex-1 text-[13px] font-semibold text-on-surface-variant">Building PDF…</span>
+                </div>
+              )}
+            </div>
+          )}
           <button
             className={`btn-primary mt-3 w-full${cardAnim === 'enter' ? ' onit-fade-in' : ''}`}
             style={cardAnim === 'enter' ? { animationDelay: `${180 + Math.min(previewItems.length, 8) * 70 + 660}ms` } : undefined}
-            disabled={phase !== null || !isValidTotal || !sendReady}
+            disabled={phase !== null || !isValidTotal}
             onClick={() => finalize()}
           >
-            {docKind(draft) === 'quote' ? (
+            {quoteDraft ? (
               // No file to build or share: the client gets the link.
               <>
                 {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="send" size={18} />}
-                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Sending…' : clientQuestionOpen ? 'Pick a client first' : 'Looks right — send it'}
               </>
-            ) : sendReady && shareWaiting === draftSignature(draft) && phase !== 'building' && !clientQuestionOpen ? (
-              // The file is built and waiting: this tap opens the share sheet.
+            ) : pdfReady && phase !== 'building' && !clientQuestionOpen ? (
+              // The file is built: this tap opens the share sheet synchronously.
               <>
                 <Icon name="share" size={18} />
                 {`Share ${docNoun(docKind(draft)).toLowerCase()}`}
@@ -4159,7 +4220,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ) : (
               <>
                 {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="attach_file" size={18} />}
-                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : !sendReady ? 'Preparing…' : 'Looks right — send it'}
+                {phase === 'building' ? 'Building your PDF…' : clientQuestionOpen ? 'Pick a client first' : 'Looks right — send it'}
               </>
             )}
           </button>
@@ -4664,7 +4725,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             attachments={attachments} onAttachments={setAttachments}
             onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
-            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : sendReady ? 'ready' : 'preparing'}
+            sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : 'ready'}
             onSend={() => { void finalize(); }} />
           </div>
         </div>
