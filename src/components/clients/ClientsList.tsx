@@ -98,11 +98,12 @@ export default function ClientsList({ active = true, tabs }: { active?: boolean;
   async function undo() {
     if (!removed) return;
     const { row, prev } = removed;
+    // Restore first and throw on failure (the toast names the cause + Retry).
+    const { error } = await supabase.from('clients').update(prev).eq('id', row.id);
+    if (error) throw error;
     setRemoved(null);
     setRows((rs) => [...(rs ?? []), row]);
     setFresh({ id: row.id, motion: 'expand' });
-    const { error } = await supabase.from('clients').update(prev).eq('id', row.id);
-    if (error) setRows((rs) => (rs ?? []).filter((r) => r.id !== row.id));
   }
 
   if (rows === null) return <>{head()}<ListSkeleton /></>;
@@ -162,7 +163,7 @@ export default function ClientsList({ active = true, tabs }: { active?: boolean;
           ]} />
       )}
 
-      {removed && <UndoToast message="Client deleted." onUndo={undo} onDismiss={() => setRemoved(null)} />}
+      {removed && <UndoToast message="Client deleted." consequence="The client stays deleted." onUndo={undo} onDismiss={() => setRemoved(null)} />}
     </div>
   );
 }

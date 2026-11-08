@@ -277,17 +277,15 @@ export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
   async function handleUndo() {
     if (!undoTarget) return;
     const target = undoTarget;
-    setUndoTarget(null);
-    setRows((r) => [...r, target]);
-
+    // Restore first and throw on failure: the toast shows the cause with Retry
+    // and the expense stays deleted, instead of vanishing again with no word.
     const { error } = await supabase
       .from('expenses')
       .update({ deleted_at: null })
       .eq('id', target.id);
-
-    if (error) {
-      setRows((r) => r.filter((e) => e.id !== target.id));
-    }
+    if (error) throw error;
+    setUndoTarget(null);
+    setRows((r) => [...r, target]);
   }
 
   const addButton = (
@@ -439,6 +437,7 @@ export default function ExpensesPane({ chrome = true }: { chrome?: boolean }) {
       {undoTarget && (
         <UndoToast
           message="Expense deleted."
+          consequence="The expense stays deleted."
           onUndo={handleUndo}
           onDismiss={() => setUndoTarget(null)}
         />

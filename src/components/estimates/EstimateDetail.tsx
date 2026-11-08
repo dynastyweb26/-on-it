@@ -348,15 +348,13 @@ export default function EstimateDetail({
           }
         }
         console.error('convert estimate failed', error);
-        setActionError("Couldn't convert this estimate. Please try again.");
-        return;
+        throw error;
       }
       if (!created) return;
       const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
       if (!copy.ok) {
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
-        setActionError("Couldn't copy this estimate's attachments, so nothing was converted. Please try again.");
-        return;
+        throw new Error('attachment copy failed');
       }
       router.push(`/invoices/${created.id}`);
     } finally {
@@ -486,10 +484,9 @@ export default function EstimateDetail({
           { label: 'Cancel', kind: 'text', safe: true },
         ]}
         onDismiss={() => setConvertAsk(false)}
-        onConfirm={async () => {
-          setConvertAsk(false);
-          await convertToInvoice();
-        }}
+        // The sheet stays open while converting: a failure shows its cause here
+        // with a retry, instead of closing and leaving a faint line below.
+        onConfirm={async () => { await convertToInvoice(); }}
         consequence="Nothing was converted."
       />
       <div className="card relative mb-4 overflow-hidden">
