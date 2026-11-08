@@ -41,7 +41,7 @@ import AttachmentsEditor, { type EditorAttachment } from '@/components/Attachmen
 import RecordPaymentBar from '@/components/invoice-detail/RecordPaymentBar';
 import RecordPaymentSheet from '@/components/invoice-detail/RecordPaymentSheet';
 import EstimateDetail, { type EstimateDetailRow } from '@/components/estimates/EstimateDetail';
-import { RecordPaymentInput, SIGNED_OUT_PAYMENT_ERROR, OFFLINE_PAYMENT_ERROR, type PaymentSaveError, type PaymentSaveResult } from '@/lib/record-payment';
+import { RecordPaymentInput, SIGNED_OUT_PAYMENT_ERROR, OFFLINE_PAYMENT_ERROR, methodLabel, type PaymentMethod, type PaymentSaveError, type PaymentSaveResult } from '@/lib/record-payment';
 import { recordPaymentOnce } from '@/lib/payment-idempotency';
 import { ledgerFrom } from '@/lib/payment-ledger-client';
 import {
@@ -175,6 +175,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     // Success tick as the stamp lands (Android; iOS ignores vibrate).
     paidTickRef.current = setTimeout(() => { try { navigator.vibrate?.(12); } catch { /* unsupported */ } }, 450);
   }
+  // §04: the payment recorded from this screen, kept while its Undo row shows.
+  const [justRecorded, setJustRecorded] = useState<{ id: string; amount: number; method: string; paidAt: string } | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   // The payment-delete confirm owns its own pending/error (P-09): the sheet
   // must not close on a failure, and a second tap must not delete twice.
@@ -624,6 +626,17 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         // The insert's own error decides the sentence (rejected row, server, signed out).
         return { ok: false, error: saved.error as PaymentSaveError };
       }
+      // §04: the row that just landed can be undone from the card. The server
+      // decides the id (the idempotency key resolved it), so read it back.
+      const savedRow = saved.payment as { id?: string; amount?: number; method?: string; paid_at?: string } | null;
+      setJustRecorded(savedRow?.id
+        ? {
+            id: String(savedRow.id),
+            amount: Number(savedRow.amount ?? 0),
+            method: String(savedRow.method ?? 'other'),
+            paidAt: String(savedRow.paid_at ?? new Date().toISOString()),
+          }
+        : null);
       // Celebrate when the balance hits zero, not on status: the ledger trigger
       // only flips status to 'paid' for sent/overdue invoices, so a draft paid in
       // full keeps its status but is still fully paid.
@@ -1113,8 +1126,13 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
             <RollMoney value={totals.dueNow} from={paidFrom} run={paidAnim} format={money} delayMs={500} durationMs={700} />
           </div>
           {fullyPaid && (
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-paid text-white">
-              <Icon name="check" size={18} />
+            // §04 Direction A: gold disc, drawn check, one halo — ~900ms, once,
+            // and only for the payment that closed the job (never on load).
+            <span aria-hidden className="relative grid h-9 w-9 shrink-0 place-items-center">
+              {paidAnim && <span className="onit-paid-halo absolute inset-0 rounded-full border-2 border-primary-container" />}
+              <span className={`grid h-9 w-9 place-items-center rounded-full bg-primary-container text-on-background${paidAnim ? ' onit-confirm-pop' : ''}`}>
+                <Icon name="check" size={20} />
+              </span>
             </span>
           )}
         </div>
@@ -1130,6 +1148,40 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
               />
             </div>
           </>
+        )}
+        {/* §04 deposit: once the deposit is covered the card says so and offers
+            nothing — the balance is collected on completion. */}
+        {inv.kind === 'invoice' && totals.depositAmount > 0
+          && amountPaid >= totals.depositAmount && !fullyPaid && (
+          <div className="mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-paid">
+            <Icon name="savings" size={16} /> Deposit&apos;s in.
+          </div>
+        )}
+        {/* §04: the payment just recorded, undoable in place. Undo deletes the
+            ledger row through the same path as a payment delete. */}
+        {justRecorded && (
+          <div className="onit-confirm-in mt-3 flex items-center gap-2.5 rounded-[12px] border border-outline-variant/60 bg-surface-container-lowest px-3 py-2">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary-container text-on-background">
+              <Icon name="check" size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-on-surface">Payment recorded</p>
+              <p className="text-[12px] text-on-surface-variant">
+                {money(justRecorded.amount)} · {methodLabel(justRecorded.method as PaymentMethod)} · {new Date(justRecorded.paidAt).toLocaleDateString()}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="min-h-touch shrink-0 px-2 text-[13px] font-semibold text-primary transition active:opacity-60"
+              onClick={() => {
+                const id = justRecorded.id;
+                setJustRecorded(null);
+                void handleDeletePayment(id);
+              }}
+            >
+              Undo
+            </button>
+          </div>
         )}
         {!partiallyPaid && totals.total !== totals.dueNow && (
           <div className="mt-1 text-xs text-on-surface-variant">Total {money(totals.total)}</div>

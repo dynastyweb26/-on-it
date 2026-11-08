@@ -13,6 +13,7 @@ export const ICON_NAMES = [
   'account_balance_wallet',
   'add',
   'add_to_home_screen',
+  'savings',
   'all_inclusive',
   'arrow_back',
   'arrow_forward',
