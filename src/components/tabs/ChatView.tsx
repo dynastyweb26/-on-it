@@ -63,7 +63,6 @@ import {
   unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
   type UnsentShare, type UnsentShareRow,
 } from '@/lib/popups/unsent-share';
-import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
@@ -5199,11 +5198,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
           />
         );
       })()}
-      {discardAsk && expenseTemplate && (
-        <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
-          onKeep={() => setDiscardAsk(false)}
-          onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
-      )}
+      {discardAsk && expenseTemplate && (() => {
+        // P-04 / board D6 expense variant. Dropping the draft is local, so there
+        // is no request to fail; scrim, ×, Escape and swipe = Keep editing.
+        const d = expenseDraft;
+        const who = d?.vendor?.trim() || d?.description?.trim() || null;
+        const figure = d && d.amount > 0 ? { label: who ?? CATEGORY_LABEL[d.category], amount: money(d.amount) } : undefined;
+        return (
+          <PopSheet
+            open
+            destructive
+            icon="edit"
+            iconTone="danger"
+            title="Discard this expense?"
+            figure={figure}
+            actions={[
+              { label: 'Keep editing', kind: 'gold', safe: true },
+              { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
+            ]}
+            onDismiss={() => setDiscardAsk(false)}
+            onConfirm={() => { discardExpense(); }}
+            onSuccess={() => undefined}
+          />
+        );
+      })()}
       {reviseAsk && draft && docKind(draft) !== 'quote' && (() => {
         const kind = docKind(draft);
         const no = pendingInvoiceRef.current?.no ?? null;

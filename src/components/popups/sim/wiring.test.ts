@@ -77,11 +77,13 @@ test('close template: a failed soft delete throws its cause instead of being swa
 });
 
 // ── Discard an expense template: empty closes at once, entered asks first ──
-test('discard expense: Start new clears the ask and the draft, Keep editing writes nothing', () => {
-  const sheet = chat.slice(chat.indexOf('{discardAsk && expenseTemplate && ('), chat.indexOf('{reviseAsk && draft && (() => {'));
+test('discard expense: Discard clears the ask and the draft, Keep editing writes nothing', () => {
+  const sheet = chat.slice(chat.indexOf('{discardAsk && expenseTemplate && (() => {'), chat.indexOf('{reviseAsk && draft && (() => {'));
   assert.ok(sheet.length > 0, 'discard-expense sheet exists');
-  assert.match(sheet, /onKeep=\{\(\) => setDiscardAsk\(false\)\}/);
-  assert.match(sheet, /onStartNew=\{\(\) => \{ setDiscardAsk\(false\); discardExpense\(\); \}\}/);
+  assert.match(sheet, /<PopSheet/);
+  assert.match(sheet, /destructive/);
+  assert.match(sheet, /onDismiss=\{\(\) => setDiscardAsk\(false\)\}/);
+  assert.match(sheet, /onConfirm=\{\(\) => \{ discardExpense\(\); \}\}/);
   assert.match(sheet, /title="Discard this expense\?"/);
 });
 
