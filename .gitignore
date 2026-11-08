@@ -19,3 +19,4 @@ shots/
 # Every env file, but keep the committed example addable on a fresh clone.
 .env*
 !.env.example
+tests/e2e/.env.local
