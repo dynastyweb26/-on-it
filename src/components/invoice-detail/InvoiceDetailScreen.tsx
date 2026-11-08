@@ -7,8 +7,8 @@ import PopSheet from '@/components/popups/PopSheet';
 import PopInline from '@/components/popups/PopInline';
 import PopToast from '@/components/popups/PopToast';
 import {
-  unsentShareCopy, forgetUnsentShare, rememberUnsentShare,
-  type UnsentShare,
+  unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
+  type UnsentShare, type UnsentShareRow,
 } from '@/lib/popups/unsent-share';
 import { paymentDeleteConsequence } from '@/lib/popups/destructive';
 import InvoicePreviewFrame from '@/components/invoice/InvoicePreviewFrame';
@@ -188,7 +188,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [shareError, setShareError] = useState<string | null>(null);
   // P-66 / S1 + S1b: the share went out but POST /send did not. The sheet says
   // both truths; Keep as draft leaves the card above the delete button.
-  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File }) | null>(null);
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
   const [sentToast, setSentToast] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -233,6 +233,13 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       if (!user) { router.replace('/login'); return; }
       const { data: i } = await supabase.from('invoices').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
       setInv(i);
+      // P-66 S1b, restored: the row decides whether the card still applies, and a
+      // row that is gone or no longer a draft clears the record.
+      const restored = restoreUnsentShare(id, i as UnsentShareRow | null);
+      if (restored) {
+        setUnsentShare({ ...restored, file: null });
+        setUnsentShareOpen(false); // the CARD only
+      }
       if (i) {
         const { data: p } = await supabase.from('profiles').select('*').eq('id', i.user_id).maybeSingle();
         setProfile(p);

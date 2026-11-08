@@ -58,8 +58,8 @@ import MicRings from '@/components/MicRings';
 import TemplateCard from '@/components/template/TemplateCard';
 import PopToast from '@/components/popups/PopToast';
 import {
-  unsentShareCopy, forgetUnsentShare, rememberUnsentShare,
-  type UnsentShare,
+  unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
+  type UnsentShare, type UnsentShareRow,
 } from '@/lib/popups/unsent-share';
 import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
@@ -840,6 +840,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // new one on the next send (prevents a duplicate with a fresh number).
     pendingInvoiceRef.current = stored.pendingInvoice ?? null;
     finalizeSentRef.current = Boolean(stored.finalizeSent);
+    void restoreS1b(stored.pendingInvoice?.id ?? null);
     setConvoId(stored.id ?? genId());
     // Restore the lock state up front (v5+) so a sent conversation shows its
     // locked card and refuses edits immediately on reload — no flash of an
@@ -875,6 +876,24 @@ export default function Chat({ active = true }: { active?: boolean }) {
     void loadLinkedAttachments(id);
   }
 
+  // P-66 S1b, restored: a returned conversation asks the row whether its card
+  // still applies. The row is the authority — a row that is gone, soft-deleted
+  // or no longer a draft clears the record and shows nothing.
+  async function restoreS1b(invoiceId: string | null) {
+    if (!invoiceId) return;
+    const { data } = await supabase
+      .from('invoices')
+      .select('id, status, kind, invoice_number, client_name, total, due_date, public_token, deleted_at')
+      .eq('id', invoiceId)
+      .maybeSingle();
+    const row = data && !data.deleted_at
+      ? (data as UnsentShareRow & { public_token?: string | null })
+      : null;
+    const restored = restoreUnsentShare(invoiceId, row);
+    if (!restored) return;
+    setUnsentShare({ ...restored, file: null, token: row?.public_token ?? null });
+    setUnsentShareOpen(false); // the CARD only — the sheet was already answered
+  }
   /** Saved rows → editor items (short-lived signed URLs). The stored order is
    *  the print order; `pending` items (still to upload) are appended after. */
   async function syncAttachments(invoiceId: string, pending: EditorAttachment[]) {
@@ -3161,7 +3180,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Share succeeded, POST /send did not (P-66, frames S1 + S1b): the client has
   // the PDF and the row is still a draft. The blocking sheet says both truths;
   // Keep as draft leaves the S1b card pinned under the document.
-  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File; token: string }) | null>(null);
+  const [unsentShare, setUnsentShare] = useState<(UnsentShare & { file: File | null; token: string | null }) | null>(null);
   const [unsentShareOpen, setUnsentShareOpen] = useState(false);
   // S1b lands under the document card, which can leave its answers behind the
   // composer. Bring the card fully into the list's own viewport with the
@@ -3321,7 +3340,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   // Retry the share. sharePdf starts synchronously from the tap (iOS keeps the
   // tap's activation), then the same POST marks it sent.
-  async function shareSharedAgain(pending: UnsentShare & { file: File; token: string }) {
+  async function shareSharedAgain(pending: UnsentShare & { file: File | null; token: string | null }) {
     const payUrl = pending.kind === 'invoice' && pending.token
       ? `${window.location.origin}/pay/${pending.token}`
       : null;
