@@ -106,11 +106,20 @@ export function replaceTemplateCopy(requested: DocKind) {
 
 export function reviseSheetCopy(kind: DocKind, no: number | null) {
   const number = no != null ? formatDocNumber(kind, no) : `this ${noun(kind)}`;
+  // An estimate is revised in place (4A): same row, number and link. An invoice
+  // Revise still opens an editable copy as a new invoice.
+  if (kind === 'quote') {
+    return {
+      title: `Revise ${number}?`,
+      sub: 'Change anything, then send. Same link, same number.',
+      actionLabel: 'Revise this estimate',
+      busyLabel: 'Opening…',
+      consequence: 'Nothing changes until you confirm.',
+    };
+  }
   return {
     title: `Revise ${number}?`,
-    sub: kind === 'quote'
-      ? 'Makes a new estimate you can edit. This one and its link stay as they are.'
-      : 'Opens an editable copy as a new invoice. The original stays as it was.',
+    sub: 'Opens an editable copy as a new invoice. The original stays as it was.',
     actionLabel: 'Make an editable copy',
     busyLabel: 'Opening…',
     consequence: `${number === `this ${noun(kind)}` ? 'The original' : number} is unchanged.`,

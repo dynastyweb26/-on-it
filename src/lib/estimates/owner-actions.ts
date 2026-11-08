@@ -131,11 +131,24 @@ export async function requestEstimateRevoke(id: string): Promise<EstimateRevokeO
  *  statement, so a batched save bumps the estimate version exactly once. */
 export async function requestEstimateEdits(
   id: string,
-  edits: { title?: string | null; lineItems?: unknown[] },
+  edits: {
+    title?: string | null;
+    lineItems?: unknown[];
+    notes?: string | null;
+    taxRate?: number;
+    depositType?: 'none' | 'fixed' | 'percentage' | null;
+    depositValue?: number | null;
+    dueDate?: string | null;
+  },
 ): Promise<EstimateEditsOutcome> {
   const body: Record<string, unknown> = {};
   if (edits.title !== undefined) body.title = edits.title;
   if (edits.lineItems !== undefined) body.line_items = edits.lineItems;
+  if (edits.notes !== undefined) body.notes = edits.notes;
+  if (edits.taxRate !== undefined) body.tax_rate = edits.taxRate;
+  if (edits.depositType !== undefined) body.deposit_type = edits.depositType;
+  if (edits.depositValue !== undefined) body.deposit_value = edits.depositValue;
+  if (edits.dueDate !== undefined) body.due_date = edits.dueDate;
   try {
     const res = await fetch(`/api/estimates/${id}/edits`, {
       method: 'PATCH',

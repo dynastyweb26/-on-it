@@ -16,6 +16,7 @@ import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
 import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
+import { canReviseEstimate, reviseBlock, reviseBlockedLine, revisionFieldsFromDraft, saveEstimateRevision } from '@/lib/estimates/revise';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
 import { holdSplash } from '@/lib/splash-gate';
 import { createClient } from '@/lib/supabase/client';
@@ -245,7 +246,7 @@ function lockBadgeText(status: string | null, amountPaid: number, kind: 'invoice
 
 // The refusal shown when the user tries to edit a locked invoice from chat.
 function lockEditNotice(status: string | null, amountPaid: number, kind: 'invoice' | 'quote' = 'invoice'): string {
-  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Send a new estimate instead.";
+  if (kind === 'quote') return "That estimate's link is ready, so I can't change it here. Tap Revise on the card to edit it.";
   if (amountPaid > 0) {
     return status === 'paid'
       ? "That invoice is paid, so it's locked. Start a new invoice (the compose button) for any changes."
@@ -676,6 +677,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // A sent estimate's public token, read from its row so the locked card can
   // offer Copy link / Share even after a reload or a reopen from history.
   const [linkedToken, setLinkedToken] = useState<string | null>(null);
+  // 4A revise: the sent estimate's own lock facts (signed / converted), and
+  // whether its card is staged for an in-place revision (same row, number, link).
+  const [estimateLock, setEstimateLock] = useState<{ approvedAt: string | null; converted: boolean } | null>(null);
+  const [revisingEstimate, setRevisingEstimate] = useState(false);
+  const savingRevisionRef = useRef(false);
   // The document's images (gold "+ Add attachment"): freshly-picked ones carry a
   // blob until the send uploads them, then the row id + storage path; ones loaded
   // from a saved invoice carry only the signed URL. Print order = list order.
@@ -3868,6 +3874,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // A locked estimate card needs its public token for Copy link / Share. Read it
   // from the row (RLS: own rows) so a reload or a reopen from history gets it too.
   const lockedQuote = locked && !!draft && docKind(draft) === 'quote';
+  // 4A: Revise is offered only on a shared, unpaid, unsigned, unconverted
+  // estimate. A signed or converted one is locked before the tap.
+  const quoteCanRevise = canReviseEstimate({
+    kind: 'quote',
+    status: linkedStatus,
+    amountPaid: linkedAmountPaid,
+    approvedAt: estimateLock?.approvedAt ?? null,
+    converted: estimateLock?.converted ?? false,
+  });
+  const quoteReviseLock = reviseBlockedLine(
+    reviseBlock({ approvedAt: estimateLock?.approvedAt, converted: estimateLock?.converted }),
+  );
   useEffect(() => {
     const id = pendingInvoiceRef.current?.id;
     if (!lockedQuote || !id) { setLinkedToken(null); return; }
@@ -3877,6 +3895,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedQuote, linkedStatus]);
+
+  // A sent estimate is locked once it is signed or converted, and the card has
+  // to know before it offers Revise — there is no copy-as-new path.
+  useEffect(() => {
+    const id = pendingInvoiceRef.current?.id;
+    if (!lockedQuote || !id) { setEstimateLock(null); return; }
+    let live = true;
+    void Promise.all([
+      supabase.from('invoices').select('approved_at').eq('id', id).maybeSingle(),
+      supabase.from('invoices').select('id').eq('converted_from', id).is('deleted_at', null).limit(1),
+    ]).then(([{ data: row }, { data: kids }]) => {
+      if (!live) return;
+      setEstimateLock({
+        approvedAt: (row?.approved_at as string | null) ?? null,
+        converted: (kids ?? []).length > 0,
+      });
+    }, () => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedQuote, linkedStatus, linkedToken, revisingEstimate]);
 
   // Apply an inline line-item edit (description, qty, or unit_price) into the
   // current draft. The edit lives on the draft only, so it flows into the PDF and
@@ -4075,10 +4113,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const revisingRef = useRef(false);
   function reviseInvoice() {
     if (!draft || revisingRef.current) return;
-    // 4A: an estimate has no revise/duplicate path. An invoice keeps Revise.
+    // 4A: an estimate is revised IN PLACE — same row, number and link. Nothing
+    // is written until the owner confirms on the card.
     if (docKind(draft) === 'quote') {
-      setReviseAsk(false);
-      setMessages((msgs) => [...msgs, aMsg("Estimates can't be revised. Send a new estimate instead.")]);
+      startEstimateRevision();
       return;
     }
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -4144,6 +4182,43 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // D4: attachments follow the line items. Seed copies of the original's
     // images; they materialize into the new invoice at the first build.
     if (sourceInvoiceId) void seedRevisionAttachments(sourceInvoiceId);
+  }
+
+  // A chat Revise on a sent estimate edits the SAME document: the row, the
+  // number, the token and the locked card all stay, and the card becomes an
+  // editor seeded with what was sent. Nothing is written while they chat.
+  function startEstimateRevision() {
+    if (!draft || docKind(draft) !== 'quote') return;
+    setReviseAsk(false);
+    setEstimateLock((lock) => lock ?? { approvedAt: null, converted: false });
+    setDraftControlsOut(true);
+    setReady(true);
+    setRevisingEstimate(true);
+    playCardAnim('enter', 900);
+  }
+
+  // Confirm on the revised card: ONE edits call for the whole revision, so the
+  // route runs one UPDATE and the version trigger bumps the estimate version
+  // once. It never goes through finalize(), so no row is inserted and no new
+  // number or link is minted.
+  async function saveRevision() {
+    const pending = pendingInvoiceRef.current;
+    if (!pending || !draft || savingRevisionRef.current) return;
+    savingRevisionRef.current = true;
+    setPhase('building');
+    const outcome = await saveEstimateRevision(pending.id, revisionFieldsFromDraft(draft));
+    savingRevisionRef.current = false;
+    setPhase(null);
+    if (!outcome.ok) {
+      setMessages((m) => [...m, aMsg(outcome.message)]);
+      return;
+    }
+    const label = formatDocNumber('quote', pending.no);
+    setRevisingEstimate(false);
+    setDraftControlsOut(true);
+    setReady(true);
+    playCardAnim('lock', 1200);
+    setMessages((m) => [...m, aMsg(`Updated ${label}. Same link and number — share it again if anything changed.`)]);
   }
 
   // The invoice/quote card renders INSIDE the transcript, right after its
@@ -4363,7 +4438,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           delayMs={180 + Math.min(previewItems.length, 8) * 70 + 60}
         />
       </LedgerTotals>
-      {locked && draftControlsOut ? (
+      {locked && !revisingEstimate && draftControlsOut ? (
         // Read-only (Commit B/C): the invoice has left 'draft'. A sent,
         // unpaid invoice offers "Revise" (opens an editable copy as a new
         // invoice — Commit C); once any payment has landed it stays fully
@@ -4399,8 +4474,24 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   />
                 </div>
               )}
-              {/* 4A: an estimate has no revise/duplicate path; invoices keep Revise. */}
-              {docKind(draft) !== 'quote' && (
+              {/* 4A: a shared, unsigned, unconverted estimate is revised in place
+                  (same row, number and link). Signed or converted: locked, no copy. */}
+              {docKind(draft) === 'quote' ? (
+                quoteCanRevise ? (
+                  <>
+                    <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
+                      <Icon name="edit" size={18} /> Revise
+                    </button>
+                    <p className="mt-1 text-center text-xs text-on-surface-variant/80">
+                      Change anything, then send. Same link, same number.
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-3 text-center text-sm text-on-surface-variant">
+                    {quoteReviseLock}
+                  </p>
+                )
+              ) : (
                 <>
                   <button className="btn-primary onit-ready-revise mt-3 w-full" disabled={phase !== null} onClick={() => setReviseAsk(true)}>
                     <Icon name="edit" size={18} /> Revise
@@ -4420,7 +4511,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       ) : (
         // Still mounted while it exits, so the seal folds the controls away
         // instead of dropping the block out from under the layout.
-        <div className={`onit-collapse${locked ? ' is-exiting' : ''}`} aria-hidden={locked || undefined}>
+        <div className={`onit-collapse${locked && !revisingEstimate ? ' is-exiting' : ''}`} aria-hidden={(locked && !revisingEstimate) || undefined}>
         <div>
           {!isValidTotal && (
             <p className="mt-2 rounded-[10px] bg-error-container px-2.5 py-2 text-xs font-semibold text-error-on-container">
@@ -4472,9 +4563,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
             className={`btn-primary mt-3 w-full${cardAnim === 'enter' ? ' onit-fade-in' : ''}`}
             style={cardAnim === 'enter' ? { animationDelay: `${180 + Math.min(previewItems.length, 8) * 70 + 660}ms` } : undefined}
             disabled={phase !== null || !isValidTotal}
-            onClick={() => finalize()}
+            onClick={() => { if (revisingEstimate) void saveRevision(); else finalize(); }}
           >
-            {quoteDraft ? (
+            {revisingEstimate ? (
+              <>
+                {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="check" size={18} />}
+                {phase === 'building' ? 'Saving…' : 'Save changes'}
+              </>
+            ) : quoteDraft ? (
               // No file to build or share: the client gets the link.
               <>
                 {phase === 'building' ? <OnItSpinner size={18} /> : <Icon name="send" size={18} />}
@@ -5204,7 +5300,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           onKeep={() => setDiscardAsk(false)}
           onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
       )}
-      {reviseAsk && draft && docKind(draft) !== 'quote' && (() => {
+      {reviseAsk && draft && (() => {
         const kind = docKind(draft);
         const no = pendingInvoiceRef.current?.no ?? null;
         const copy = reviseSheetCopy(kind, no);

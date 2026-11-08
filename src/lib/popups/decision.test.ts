@@ -88,7 +88,9 @@ test('reviseSheetCopy: Revise now asks, and says what it makes and what stays', 
   assert.equal(inv.consequence, 'INV-0007 is unchanged.');
   const est = reviseSheetCopy('quote', 3);
   assert.equal(est.title, 'Revise E-0003?');
-  assert.equal(est.sub, 'Makes a new estimate you can edit. This one and its link stay as they are.');
+  assert.equal(est.sub, 'Change anything, then send. Same link, same number.');
+  assert.equal(est.actionLabel, 'Revise this estimate');
+  assert.equal(est.consequence, 'Nothing changes until you confirm.');
   assert.equal(reviseSheetCopy('invoice', null).consequence, 'The original is unchanged.');
 });
 
