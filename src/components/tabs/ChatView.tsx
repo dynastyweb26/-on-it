@@ -15,7 +15,7 @@ import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
-import { estimateLink, requestEstimateSend } from '@/lib/estimates/owner-actions';
+import { estimateLink, estimateShareText, requestEstimateSend, shareEstimateLink } from '@/lib/estimates/owner-actions';
 import { canReviseEstimate, reviseBlock, reviseBlockedLine, revisionFieldsFromDraft, saveEstimateRevision } from '@/lib/estimates/revise';
 import { versionChipLabel } from '@/lib/estimates/versions';
 import ChatRestoreSkeleton from '@/components/ChatRestoreSkeleton';
@@ -4234,11 +4234,50 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const feedEvents = useChatEventFeed();
   const feedSplit = splitEventsByMessage(feedEvents, messages);
   const openDocument = (id: string) => router.push(`/invoices/${id}`);
+  // Item 19's card offers the Share that already exists on the estimate's own
+  // screen — called here, on the tap's user activation (a navigation would spend
+  // it), never a reminder. Nothing new is sent: the same link, through the same
+  // helper. The card then records that it acted, so it cannot ask twice.
+  async function shareStaleEstimate(e: EventRow) {
+    const id = e.invoice_id;
+    if (!id) return;
+    try {
+      const { data } = await supabase
+        .from('invoices')
+        .select('public_token, invoice_number')
+        .eq('id', id)
+        .maybeSingle();
+      const row = data as { public_token?: string | null; invoice_number?: number | null } | null;
+      const url = estimateLink(row?.public_token ?? null);
+      // No live link (draft, revoked, or the read failed): the estimate screen
+      // is the surface that can say why, so hand the tap over.
+      if (!url) { openDocument(id); return; }
+      const number = typeof row?.invoice_number === 'number' ? ` ${formatDocNumber('quote', row.invoice_number)}` : '';
+      const result = await shareEstimateLink({
+        url,
+        title: `Estimate${number}`,
+        text: estimateShareText(profile?.business_name),
+      });
+      if (result === 'shared' || result === 'copied') {
+        try {
+          await supabase
+            .from('events')
+            .update({ acted_at: new Date().toISOString(), acted_result: 'shared' })
+            .eq('id', e.id)
+            .eq('user_id', e.user_id);
+        } catch { /* the card stays actionable; the share still happened */ }
+      }
+      if (result === 'failed') openDocument(id);
+    } catch {
+      openDocument(id);
+    }
+  }
   const runEventAction = (e: EventRow, action: EventAction) => {
     if (!e.invoice_id) return;
     // Convert opens the estimate, which owns the confirm, the paywall and the
     // idempotency key — a card never mints an invoice on one tap. Send reminder
     // lands on the invoice, where Request balance is the existing re-share.
+    if (action === 'share') { void shareStaleEstimate(e); return; }
     openDocument(e.invoice_id + (action === 'convert' ? '?convert=1' : ''));
   };
   const renderEvent = (e: EventRow) => {
@@ -4249,8 +4288,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         event={e}
         money={money}
         onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
-        action={action ? {
-          label: action === 'convert' ? 'Convert' : 'Send reminder',
+        action={action && !e.acted_at ? {
+          label: action === 'convert' ? 'Convert' : action === 'share' ? 'Share' : 'Send reminder',
           onClick: () => runEventAction(e, action),
         } : undefined}
       />

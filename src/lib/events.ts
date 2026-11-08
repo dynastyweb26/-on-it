@@ -14,15 +14,17 @@
 import { asKind, formatDocNumber, type DocumentKind } from '@/lib/documents';
 
 /**
- * Phase 5 gate (items 19 and 25). The planner KNOWS these three kinds and the
- * card copy for them exists, but nothing may be written until Phase 5 is
- * asked for: a stale invoice, a stale estimate and an unsent draft are the
- * "chase them again" feed, which is not this phase's job. Flip this one
- * constant when 19/25 open; the thresholds below are already Phase 5's
- * (stale = 4 days, draft = 24 hours), not the 14 days / 2 days a pre-review
- * draft of this file carried.
+ * Phase 5 gate (items 19 and 25), PER KIND — deliberately a set, not a flag.
+ *
+ * Only `estimate_stale` is open: a sent estimate nobody answered is the card
+ * item 19 asks for. `invoice_stale` stays shut because the followups cron
+ * already pushes an unpaid invoice every 2 days (last_nudge_at), and
+ * `draft_unsent` stays shut because the draft push already fires at 24 hours —
+ * opening either here would nudge the same owner twice for one document.
+ * The planner still KNOWS all three kinds and their copy, so opening one later
+ * is a change to this set, not new code.
  */
-export const PHASE5_TIME_EVENTS = false;
+export const PHASE5_TIME_EVENTS: ReadonlySet<EventKind> = new Set<EventKind>(['estimate_stale']);
 
 export type EventKind =
   | 'estimate_signed'
@@ -90,12 +92,14 @@ const docLabel = (e: Pick<EventRow, 'document_kind' | 'document_number'>): strin
 const who = (e: Pick<EventRow, 'client_name'>) => (e.client_name || '').trim() || 'Your client';
 
 /** The two cards that offer a decision. Everything else is read-only. */
-export type EventAction = 'convert' | 'remind';
+export type EventAction = 'convert' | 'remind' | 'share';
 
-/** Only a signed estimate and an overdue invoice ask something of the owner. */
+/** Two cards open a document's own decision, and a stale estimate offers the
+ *  share that already exists on its screen. Nothing else asks for anything. */
 export function eventAction(kind: string): EventAction | null {
   if (kind === 'estimate_signed') return 'convert';
   if (kind === 'invoice_overdue') return 'remind';
+  if (kind === 'estimate_stale') return 'share';
   return null;
 }
 
@@ -141,8 +145,20 @@ export function eventCard(
       return { title: `${name}'s invoice is due soon`, detail, icon: 'schedule', tone: 'neutral' };
     case 'estimate_expiring_soon':
       return { title: `${name}'s estimate expires soon`, detail, icon: 'schedule', tone: 'overdue' };
-    case 'estimate_stale':
-      return { title: `Still no answer from ${name}`, detail, icon: 'history', tone: 'neutral' };
+    case 'estimate_stale': {
+      // Item 19's copy: the client and the silence, nothing else. `days_stale`
+      // is what the planner measured (4 at the threshold, more if the sweep
+      // first ran later); a restored card without meta still reads "4 days".
+      const days = typeof e.meta?.days_stale === 'number' && e.meta.days_stale > 0
+        ? Math.floor(e.meta.days_stale)
+        : STALE_DAYS;
+      return {
+        title: `${name}'s estimate hasn't been signed in ${days} ${days === 1 ? 'day' : 'days'}`,
+        detail,
+        icon: 'history',
+        tone: 'neutral',
+      };
+    }
     case 'invoice_stale':
       return { title: `${name}'s invoice is still unpaid`, detail, icon: 'history', tone: 'neutral' };
     case 'draft_unsent':
@@ -175,6 +191,19 @@ export interface SweepDoc {
   /** ISO timestamps. */
   createdAt: string;
   sentAt: string | null;
+  /** The FIRST send (write-once). estimate_stale counts from here, so a resend
+   *  cannot restart the clock. Null on a never-sent row. */
+  firstSentAt: string | null;
+  /** Last write to the row. A revision bumps it, which restarts the clock. */
+  updatedAt: string | null;
+  /** Signed (approved_at) — a signed estimate is never chased. */
+  approvedAt: string | null;
+  /** Soft-deleted rows are filtered in SQL; the planner refuses them too, so
+   *  the skip is testable without a database. */
+  deletedAt: string | null;
+  /** A converted estimate keeps status 'sent' (the conversion lives on the new
+   *  invoice's converted_from), so the writer reads this explicitly. */
+  converted: boolean;
 }
 
 export interface SweepEvent {
@@ -192,6 +221,25 @@ const atNoon = (ymd: string): number => Date.parse(`${ymd}T12:00:00Z`);
 const unpaid = (d: SweepDoc) => d.total > 0 && d.amountPaid < d.total;
 
 /**
+ * Item 19's predicate: a sent estimate nobody answered.
+ *
+ * Counted from first_sent_at (write-once), so a resend never restarts the
+ * clock. Signed (approved), converted, deleted and revoked rows are skipped,
+ * and so is an estimate the owner touched in the last four days — a revision
+ * is the owner acting, so the silence starts again from that edit.
+ */
+const staleEstimate = (d: SweepDoc, t: number): boolean => {
+  if (d.kind !== 'quote' || d.status !== 'sent') return false;
+  if (d.converted || d.approvedAt || d.deletedAt) return false;
+  if (!d.firstSentAt) return false;
+  const sent = Date.parse(d.firstSentAt);
+  if (!Number.isFinite(sent) || t - sent < STALE_DAYS * DAY_MS) return false;
+  if (!d.updatedAt) return true;
+  const touched = Date.parse(d.updatedAt);
+  return !Number.isFinite(touched) || t - touched >= STALE_DAYS * DAY_MS;
+};
+
+/**
  * Which time-based events are owed right now. Pure so the thresholds are
  * testable and the route only writes what this returns. Lateness is never
  * recomputed here: `status = 'overdue'` is the database's call.
@@ -206,7 +254,8 @@ export function decideSweep({
 }: {
   now: Date;
   docs: SweepDoc[];
-  phase5?: boolean;
+  /** Which gated kinds this sweep may write. Per kind on purpose (item 19). */
+  phase5?: ReadonlySet<EventKind>;
 }): SweepEvent[] {
   const out: SweepEvent[] = [];
   const t = now.getTime();
@@ -242,7 +291,7 @@ export function decideSweep({
           });
         }
       }
-      if (phase5 && (d.status === 'sent' || d.status === 'overdue') && unpaid(d) && d.sentAt
+      if (phase5.has('invoice_stale') && (d.status === 'sent' || d.status === 'overdue') && unpaid(d) && d.sentAt
         && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
         out.push({
           ...base(d),
@@ -263,17 +312,23 @@ export function decideSweep({
           });
         }
       }
-      if (phase5 && d.status === 'sent' && d.sentAt && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
+      if (phase5.has('estimate_stale') && staleEstimate(d, t)) {
+        const sent = d.firstSentAt as string;
         out.push({
           ...base(d),
           kind: 'estimate_stale',
-          dedupeKey: eventDedupeKey('estimate_stale', d.id, periodBucket(now)),
-          meta: { sent_at: d.sentAt },
+          // One card per estimate, EVER: the 4-day threshold IS the bucket, so
+          // a second sweep (or the next day's cron) writes nothing.
+          dedupeKey: eventDedupeKey('estimate_stale', d.id, `${STALE_DAYS}d`),
+          meta: {
+            first_sent_at: sent,
+            days_stale: Math.floor((t - Date.parse(sent)) / DAY_MS),
+          },
         });
       }
     }
 
-    if (phase5 && d.status === 'draft' && (t - Date.parse(d.createdAt)) / HOUR_MS >= DRAFT_UNSENT_HOURS) {
+    if (phase5.has('draft_unsent') && d.status === 'draft' && (t - Date.parse(d.createdAt)) / HOUR_MS >= DRAFT_UNSENT_HOURS) {
       out.push({
         ...base(d),
         kind: 'draft_unsent',
@@ -284,6 +339,27 @@ export function decideSweep({
   }
 
   return out;
+}
+
+/** A message the thread is holding, as far as ordering is concerned. Messages
+ *  saved before `at` existed carry no timestamp, and cannot place anything. */
+/**
+ * Item 19's rule: a time event is a card in the thread, never a toast. The
+ * toast is for something a link holder did while the owner was away; "four
+ * days passed" is not news to interrupt anyone with, and item 19's card is the
+ * whole surface. Client events keep their toast exactly as before.
+ */
+export function eventToasts(e: Pick<EventRow, 'actor' | 'kind'>): boolean {
+  return e.actor !== 'time';
+}
+
+/**
+ * Where the time sweep may run. Preview and production share one database, so a
+ * preview sweep would post real cards into real threads; this is the same rule
+ * the draft-nudge and recap cron steps use (`deployEnv() === 'production'`).
+ */
+export function sweepAllowedIn(env: 'production' | 'preview' | 'development'): boolean {
+  return env === 'production';
 }
 
 /** A message the thread is holding, as far as ordering is concerned. Messages

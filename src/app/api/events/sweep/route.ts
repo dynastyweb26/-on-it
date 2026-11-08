@@ -29,7 +29,7 @@ export async function POST() {
 
   const { data, error } = await supabase
     .from('invoices')
-    .select('id, kind, status, invoice_number, client_name, total, amount_paid, due_date, valid_until, created_at, sent_at, first_sent_at')
+    .select('id, kind, status, invoice_number, client_name, total, amount_paid, due_date, valid_until, created_at, sent_at, first_sent_at, updated_at, approved_at')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(LIMIT);
@@ -39,7 +39,31 @@ export async function POST() {
     return NextResponse.json({ error: 'read failed' }, { status: 500 });
   }
 
-  const docs: SweepDoc[] = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+
+  // A converted estimate keeps status 'sent'; the lock lives on the new
+  // invoice's converted_from, so this sweep must read it too (item 19). Batched
+  // so the query string stays small.
+  const quoteIds = rows
+    .filter((r) => asKind(typeof r.kind === 'string' ? r.kind : null) === 'quote')
+    .map((r) => String(r.id));
+  const converted = new Set<string>();
+  for (let i = 0; i < quoteIds.length; i += 100) {
+    const { data: hits, error: convErr } = await supabase
+      .from('invoices')
+      .select('converted_from')
+      .in('converted_from', quoteIds.slice(i, i + 100))
+      .is('deleted_at', null);
+    if (convErr) {
+      console.error('[sweep] converted lookup failed', convErr.code ?? convErr.message);
+      return NextResponse.json({ error: 'read failed' }, { status: 500 });
+    }
+    for (const h of hits ?? []) {
+      if (h.converted_from) converted.add(String(h.converted_from));
+    }
+  }
+
+  const docs: SweepDoc[] = rows.map((r) => ({
     id: String(r.id),
     kind: asKind(typeof r.kind === 'string' ? r.kind : null),
     status: String(r.status ?? ''),
@@ -52,6 +76,11 @@ export async function POST() {
     createdAt: typeof r.created_at === 'string' ? r.created_at : new Date().toISOString(),
     sentAt: typeof r.sent_at === 'string' ? r.sent_at
       : typeof r.first_sent_at === 'string' ? r.first_sent_at : null,
+    firstSentAt: typeof r.first_sent_at === 'string' ? r.first_sent_at : null,
+    updatedAt: typeof r.updated_at === 'string' ? r.updated_at : null,
+    approvedAt: typeof r.approved_at === 'string' ? r.approved_at : null,
+    deletedAt: null, // the query already excludes soft-deleted rows
+    converted: converted.has(String(r.id)),
   }));
 
   const planned = decideSweep({ now: new Date(), docs });

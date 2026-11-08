@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
-  PHASE5_TIME_EVENTS, decideSweep, eventAction, eventCard, eventDedupeKey, eventVisibleInChat,
-  hourBucket, periodBucket, splitEventsByMessage, type EventRow, type SweepDoc,
+  PHASE5_TIME_EVENTS, decideSweep, eventAction, eventCard, eventDedupeKey, eventToasts,
+  eventVisibleInChat, hourBucket, periodBucket, splitEventsByMessage, sweepAllowedIn,
+  type EventKind, type EventRow, type SweepDoc,
 } from './events';
 
 const dollars = (n: number) => `$${n.toFixed(2)}`;
@@ -14,10 +16,15 @@ const daysAhead = (n: number) => new Date(now.getTime() + n * 86400e3).toISOStri
 const doc = (over: Partial<SweepDoc>): SweepDoc => ({
   id: 'd1', kind: 'invoice', status: 'sent', documentNumber: 29, clientName: 'Brandon',
   total: 150, amountPaid: 0, dueDate: daysAhead(10), validUntil: null,
-  createdAt: daysAgo(5), sentAt: daysAgo(3), ...over,
+  createdAt: daysAgo(5), sentAt: daysAgo(3),
+  firstSentAt: null, updatedAt: null, approvedAt: null, deletedAt: null, converted: false,
+  ...over,
 });
 
 const kindOf = (docs: SweepDoc[]) => decideSweep({ now, docs }).map((e) => e.kind);
+// Every gated kind, for the planner's own tests. Production only opens
+// estimate_stale (PHASE5_TIME_EVENTS).
+const PHASE5_ALL = new Set<EventKind>(['invoice_stale', 'estimate_stale', 'draft_unsent']);
 
 // ── Buckets and dedupe ─────────────────────────────────────────────────────
 
@@ -95,9 +102,11 @@ test('a missing client name never renders as blank', () => {
 test('only a signed estimate and an overdue invoice carry an action', () => {
   assert.equal(eventAction('estimate_signed'), 'convert');
   assert.equal(eventAction('invoice_overdue'), 'remind');
-  for (const k of ['invoice_viewed', 'payment_recorded', 'paid_in_full', 'invoice_due_soon', 'estimate_stale']) {
+  for (const k of ['invoice_viewed', 'payment_recorded', 'paid_in_full', 'invoice_due_soon', 'invoice_stale', 'draft_unsent']) {
     assert.equal(eventAction(k), null);
   }
+  // Item 19: the stale estimate offers the existing Share, never a reminder.
+  assert.equal(eventAction('estimate_stale'), 'share');
 });
 
 // ── Sweep decisions ────────────────────────────────────────────────────────
@@ -133,7 +142,8 @@ test('an estimate close to its valid-until date is expiring soon', () => {
 });
 
 test('phase 5 is off: no stale or unsent-draft cards are planned', () => {
-  assert.equal(PHASE5_TIME_EVENTS, false);
+  // Per kind, not a blanket flip: only the estimate card item 19 asked for.
+  assert.deepEqual([...PHASE5_TIME_EVENTS], ['estimate_stale']);
   assert.deepEqual(kindOf([doc({ sentAt: daysAgo(20), dueDate: daysAhead(30) })]), []);
   assert.deepEqual(kindOf([doc({ kind: 'quote', sentAt: daysAgo(20), validUntil: daysAhead(30) })]), []);
   assert.deepEqual(kindOf([doc({ status: 'draft', createdAt: daysAgo(9), sentAt: null })]), []);
@@ -141,26 +151,28 @@ test('phase 5 is off: no stale or unsent-draft cards are planned', () => {
 
 test('the planner still knows the gated kinds, with phase 5 thresholds', () => {
   // Stale = 4 days (not the 14 a draft of this file once carried)...
-  const stale = decideSweep({ now, docs: [doc({ sentAt: daysAgo(5), dueDate: daysAhead(30) })], phase5: true })
+  const stale = decideSweep({ now, docs: [doc({ sentAt: daysAgo(5), dueDate: daysAhead(30) })], phase5: PHASE5_ALL })
     .filter((e) => e.kind === 'invoice_stale');
   assert.equal(stale.length, 1);
   assert.match(stale[0].dedupeKey, /^invoice_stale:d1:w\d+$/);
   assert.deepEqual(
-    decideSweep({ now, docs: [doc({ sentAt: daysAgo(3), dueDate: daysAhead(30) })], phase5: true })
+    decideSweep({ now, docs: [doc({ sentAt: daysAgo(3), dueDate: daysAhead(30) })], phase5: PHASE5_ALL })
       .filter((e) => e.kind === 'invoice_stale'),
     [],
   );
 
   // ...and an estimate that went out five days ago is stale too.
-  assert.ok(decideSweep({ now, docs: [doc({ kind: 'quote', sentAt: daysAgo(5), validUntil: daysAhead(30) })], phase5: true })
+  assert.ok(decideSweep({ now, docs: [doc({
+    kind: 'quote', sentAt: daysAgo(5), firstSentAt: daysAgo(5), updatedAt: daysAgo(5), validUntil: daysAhead(30),
+  })], phase5: PHASE5_ALL })
     .some((e) => e.kind === 'estimate_stale'));
 
   // A draft is unsent after 24 HOURS, not two days.
-  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(25), sentAt: null })], phase5: true })
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(25), sentAt: null })], phase5: PHASE5_ALL })
     .filter((e) => e.kind === 'draft_unsent').length, 1);
-  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(20), sentAt: null })], phase5: true })
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: hoursAgo(20), sentAt: null })], phase5: PHASE5_ALL })
     .filter((e) => e.kind === 'draft_unsent').length, 0);
-  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: daysAgo(1), sentAt: null })], phase5: true })
+  assert.equal(decideSweep({ now, docs: [doc({ status: 'draft', createdAt: daysAgo(1), sentAt: null })], phase5: PHASE5_ALL })
     .filter((e) => e.kind === 'draft_unsent').length, 1);
 });
 
@@ -224,4 +236,86 @@ test('each card appears exactly once', () => {
   const { between, trailing } = splitEventsByMessage(events, [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }, { id: 'm3', at: at(20) }]);
   const seen = [...Object.values(between).flat(), ...trailing].map((e) => e.id).sort();
   assert.deepEqual(seen, ['a', 'b', 'c', 'd']);
+});
+
+// ── Item 19: estimate_stale, the one open time event ──────────────────────
+
+const staleQuote = (over: Partial<SweepDoc> = {}) => doc({
+  id: 'q1', kind: 'quote', status: 'sent', documentNumber: 49, clientName: 'Catie',
+  total: 50, amountPaid: 0, dueDate: null, validUntil: null,
+  createdAt: daysAgo(9), sentAt: daysAgo(4), firstSentAt: daysAgo(4), updatedAt: daysAgo(4),
+  ...over,
+});
+const staleOnly = (docs: SweepDoc[]) => decideSweep({ now, docs }).filter((e) => e.kind === 'estimate_stale');
+
+test('an estimate goes stale at exactly four days, not an hour sooner', () => {
+  assert.deepEqual(staleOnly([staleQuote({ firstSentAt: hoursAgo(95) })]), [], '3d23h');
+  assert.equal(staleOnly([staleQuote({ firstSentAt: hoursAgo(96) })]).length, 1, '4d');
+});
+
+test('a resend never restarts the stale clock, and a revision does', () => {
+  // sent_at is newer than first_sent_at (a resend): still stale.
+  assert.equal(staleOnly([staleQuote({ sentAt: daysAgo(1), firstSentAt: daysAgo(6), updatedAt: daysAgo(1) })]).length, 0,
+    'revised a day ago is silent: the owner acted');
+  assert.equal(staleOnly([staleQuote({ sentAt: daysAgo(1), firstSentAt: daysAgo(6), updatedAt: daysAgo(6) })]).length, 1,
+    'a resend of an untouched estimate is still stale');
+});
+
+test('signed, converted, deleted and revised estimates are never chased', () => {
+  assert.deepEqual(staleOnly([staleQuote({ status: 'approved' })]), [], 'signed');
+  assert.deepEqual(staleOnly([staleQuote({ approvedAt: daysAgo(1) })]), [], 'approved_at');
+  assert.deepEqual(staleOnly([staleQuote({ converted: true })]), [], 'converted');
+  assert.deepEqual(staleOnly([staleQuote({ deletedAt: daysAgo(1) })]), [], 'deleted');
+  assert.deepEqual(staleOnly([staleQuote({ firstSentAt: daysAgo(12), updatedAt: daysAgo(3) })]), [], 'revised 3d ago');
+  assert.equal(staleOnly([staleQuote({ firstSentAt: daysAgo(12), updatedAt: daysAgo(4) })]).length, 1, 'quiet 4d');
+});
+
+test('a stale estimate posts once, ever, keyed on its threshold', () => {
+  const [e] = staleOnly([staleQuote()]);
+  assert.equal(e.kind, 'estimate_stale');
+  assert.equal(e.dedupeKey, 'estimate_stale:q1:4d');
+  assert.equal(e.meta.first_sent_at, daysAgo(4));
+  assert.equal(e.meta.days_stale, 4);
+  assert.equal(e.invoiceId, 'q1');
+  assert.equal(e.documentKind, 'quote');
+});
+
+test('the gate is per kind: a default sweep returns estimate_stale only', () => {
+  const events = decideSweep({ now, docs: [
+    staleQuote(),
+    doc({ id: 'i1', status: 'sent', sentAt: daysAgo(20), firstSentAt: daysAgo(20), updatedAt: daysAgo(20), dueDate: daysAhead(30) }),
+    doc({ id: 'd1', status: 'draft', createdAt: daysAgo(9), sentAt: null, firstSentAt: null, updatedAt: daysAgo(9) }),
+  ]});
+  assert.deepEqual(events.map((e) => e.kind), ['estimate_stale']);
+  assert.equal(PHASE5_TIME_EVENTS.has('invoice_stale'), false);
+  assert.equal(PHASE5_TIME_EVENTS.has('draft_unsent'), false);
+  assert.equal(PHASE5_TIME_EVENTS.has('estimate_stale'), true);
+});
+
+test('the stale card names the client and the days, and offers Share only', () => {
+  const card = eventCard(row({
+    kind: 'estimate_stale', client_name: 'Catie', document_kind: 'quote',
+    document_number: 49, amount: 50, meta: { days_stale: 4 },
+  }), dollars);
+  assert.equal(card.title, "Catie's estimate hasn't been signed in 4 days");
+  assert.equal(card.detail, 'E-0049 · $50.00');
+  assert.equal(card.tone, 'neutral');
+  assert.equal(eventAction('estimate_stale'), 'share');
+  assert.notEqual(eventAction('estimate_stale'), 'remind');
+});
+
+test('time events never toast; client events still do', () => {
+  assert.equal(eventToasts({ actor: 'time', kind: 'estimate_stale' }), false);
+  assert.equal(eventToasts({ actor: 'time', kind: 'invoice_overdue' }), false);
+  assert.equal(eventToasts({ actor: 'client', kind: 'estimate_signed' }), true);
+  assert.equal(eventToasts({ actor: 'client', kind: 'invoice_overdue' }), true);
+  // The host must apply it on BOTH paths: catch-up on open, and a live insert.
+  const src = readFileSync('src/components/events/EventToastHost.tsx', 'utf8');
+  assert.equal((src.match(/eventToasts\(/g) ?? []).length, 2);
+});
+
+test('the sweep runs in production only, so a preview cannot write to the shared DB', () => {
+  assert.equal(sweepAllowedIn('production'), true);
+  assert.equal(sweepAllowedIn('preview'), false);
+  assert.equal(sweepAllowedIn('development'), false);
 });

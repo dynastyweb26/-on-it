@@ -18,7 +18,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
-import { eventAction, eventCard, type EventAction, type EventRow } from '@/lib/events';
+import { eventAction, eventCard, eventToasts, type EventAction, type EventRow } from '@/lib/events';
 
 const DWELL_VIEW_MS = 4000;
 const DWELL_MONEY_MS = 5000;
@@ -100,7 +100,7 @@ export default function EventToastHost() {
         if (error || !alive) return;
         const toasted = readToasted(userId);
         const fresh = ((data ?? []) as unknown as EventRow[])
-          .filter((e) => e?.id && !toasted.has(e.id))
+          .filter((e) => e?.id && !toasted.has(e.id) && eventToasts(e))
           .slice(0, QUEUE_MAX);
         if (fresh.length === 0) return;
         fresh.forEach((e) => markToasted(userId, e.id));
@@ -122,6 +122,9 @@ export default function EventToastHost() {
         (payload) => {
           const row = payload.new as unknown as EventRow;
           if (!row?.id) return;
+          // Item 19: a time event ('four days passed') is a card in the thread,
+          // never a toast. Client events keep theirs.
+          if (!eventToasts(row)) return;
           if (readToasted(userId).has(row.id)) return;
           markToasted(userId, row.id);
           setQueue((q) => enqueue(q, [row]));

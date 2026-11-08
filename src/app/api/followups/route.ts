@@ -15,6 +15,7 @@ import { sendWebPush } from '@/lib/notify/webpush';
 import { runDraftNudges } from '@/lib/notify/draft-nudges';
 import { runRecaps } from '@/lib/notify/recaps';
 import { runRecurring } from '@/lib/notify/recurring';
+import { runEstimateStaleSweep } from '@/lib/events-sweep';
 import { deployEnv } from '@/lib/deploy-env';
 
 // Four steps in one invocation (Hobby: one cron entry); room for a long day.
@@ -116,5 +117,26 @@ export async function GET(req: NextRequest) {
     recurring = { skipped: 'failed' };
   }
 
-  return NextResponse.json({ checked: due?.length ?? 0, notifications: sent, drafts, recaps, recurring });
+  // Step 5: the stale-estimate sweep (lib/events-sweep, item 19). The Phase 5
+  // gate is PER KIND and only estimate_stale is open — invoice_stale and
+  // draft_unsent stay off (see PHASE5_TIME_EVENTS) — and the sweep itself
+  // refuses to run outside production, the same rule the draft-nudge and recap
+  // steps follow, because preview shares this database. Its own try/catch so a
+  // throw here never loses the steps above.
+  let staleEstimates: Awaited<ReturnType<typeof runEstimateStaleSweep>>;
+  try {
+    staleEstimates = await runEstimateStaleSweep();
+  } catch (e) {
+    console.error('followups: stale estimate step failed', (e as Error)?.message);
+    staleEstimates = { skipped: 'failed' };
+  }
+
+  return NextResponse.json({
+    checked: due?.length ?? 0,
+    notifications: sent,
+    drafts,
+    recaps,
+    recurring,
+    staleEstimates,
+  });
 }
