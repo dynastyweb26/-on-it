@@ -7,9 +7,12 @@
 import Icon from '@/components/Icon';
 import { money } from '@/lib/financials';
 import type { QueuedPayment } from '@/lib/payment-queue';
+import { paymentAttentionText } from '@/lib/popups/status';
 
-export default function PendingPaymentNotice({ entries, onRetry, onEdit, onDiscard }: {
+export default function PendingPaymentNotice({ entries, retrying = false, onRetry, onEdit, onDiscard }: {
   entries: QueuedPayment[];
+  /** A retry is running: the button says so and ignores taps. */
+  retrying?: boolean;
   onRetry: () => void;
   onEdit: (entry: QueuedPayment) => void;
   onDiscard: (entry: QueuedPayment) => void;
@@ -36,13 +39,14 @@ export default function PendingPaymentNotice({ entries, onRetry, onEdit, onDisca
         <div key={e.key} role="alert" className="mt-3 rounded-input bg-error-container px-4 py-3">
           <p className="font-semibold text-error-on-container">{money(e.amount)} needs attention</p>
           <p className="mt-0.5 text-[13px] leading-[18px] text-error-on-container/90">
-            {e.reason ?? 'This payment could not be recorded.'}
+            {paymentAttentionText(e.reason)}
           </p>
           <div className="mt-2 flex gap-2">
-            <button type="button" className="btn-outline flex-1 px-3 py-2 text-sm" onClick={onRetry}>Retry</button>
-            <button type="button" className="btn-outline flex-1 px-3 py-2 text-sm" onClick={() => onEdit(e)}>Edit</button>
+            <button type="button" disabled={retrying} className="btn-outline flex-1 px-3 py-2 text-sm disabled:opacity-60" onClick={onRetry}>{retrying ? 'Retrying…' : 'Retry'}</button>
+            <button type="button" disabled={retrying} className="btn-outline flex-1 px-3 py-2 text-sm disabled:opacity-60" onClick={() => onEdit(e)}>Edit</button>
             <button type="button"
-              className="flex-1 rounded-full border border-error/30 px-3 py-2 text-sm font-semibold text-error"
+              disabled={retrying}
+              className="flex-1 rounded-full border border-error/30 px-3 py-2 text-sm font-semibold text-error disabled:opacity-60"
               onClick={() => onDiscard(e)}>
               Discard
             </button>

@@ -180,6 +180,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const [deletePaymentAsk, setDeletePaymentAsk] = useState<{ id: string; amount: number; label: string; meta: string } | null>(null);
   const [justRecorded, setJustRecorded] = useState<{ id: string; amount: number; method: string; paidAt: string } | null>(null);
   const [discardAsk, setDiscardAsk] = useState<QueuedPayment | null>(null);
+  // Synchronous guard: a second Retry tap in the same frame must not re-queue.
+  const retryingQueueRef = useRef(false);
+  const [retryingQueue, setRetryingQueue] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   // Pre-built share PDF (see PrebuiltPdf): the file for the render signature it
   // was built from, or file=null when that build failed. The nonce forces a
@@ -552,13 +555,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   }
 
   async function retryQueued() {
+    if (retryingQueueRef.current) return;
     const store = paymentQueueStore();
     if (!store) return;
-    for (const e of queue.filter((x) => x.status === 'attention')) {
-      await store.put({ ...e, status: 'pending', reason: undefined });
+    retryingQueueRef.current = true;
+    setRetryingQueue(true);
+    try {
+      for (const e of queue.filter((x) => x.status === 'attention')) {
+        await store.put({ ...e, status: 'pending', reason: undefined });
+      }
+      await refreshQueue();
+      await runQueueSync();
+    } finally {
+      retryingQueueRef.current = false;
+      setRetryingQueue(false);
     }
-    await refreshQueue();
-    await runQueueSync();
   }
 
   async function discardQueued(entry: QueuedPayment) {
@@ -1477,6 +1488,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       {queue.length > 0 && (
         <PendingPaymentNotice
           entries={queue}
+          retrying={retryingQueue}
           onRetry={() => void retryQueued()}
           onEdit={(e) => void editQueued(e)}
           onDiscard={(e) => setDiscardAsk(e)}

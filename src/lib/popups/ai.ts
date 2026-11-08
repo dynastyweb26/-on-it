@@ -31,5 +31,7 @@ export function failedBubbleTitle(content: string): string | null {
   if (content === FALLBACK) return 'Couldn’t look that up';
   if (/^You(’|')re offline/.test(content)) return 'You’re offline';
   if (/^Connection hiccup/.test(content)) return 'Connection hiccup';
+  // S2: a save that did not land (the invoice or the edit), distinct from offline.
+  if (/^Couldn(’|')t save /.test(content)) return 'Didn’t save';
   return null;
 }

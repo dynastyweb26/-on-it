@@ -6,6 +6,7 @@
 // Estimates never use /api/invoices/[id]/send: sending and resending both go
 // to /api/estimates/[id]/send, and the client preview goes to /preview.
 import type { PublicEstimate } from './types';
+import { ESTIMATE_OFFLINE_TEXT } from '@/lib/popups/status';
 
 export type EstimateSendOutcome =
   | { ok: true; estimate: Record<string, unknown>; firstSend: boolean }
@@ -61,7 +62,9 @@ export async function requestEstimateSend(id: string, validUntil?: string | null
     }
     return { ok: true, estimate: body.estimate, firstSend: body.firstSend === true };
   } catch {
-    return { ok: false, message: "Couldn't create the link. Nothing was shared." };
+    // No connection is its own story (S3); anything else keeps the link sentence.
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    return { ok: false, message: offline ? ESTIMATE_OFFLINE_TEXT : "Couldn't create the link. Nothing was shared." };
   }
 }
 

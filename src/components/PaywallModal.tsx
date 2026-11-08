@@ -23,7 +23,8 @@
    right above the keyboard.
 
    Focus trap, Escape dismiss, body scroll lock, safe-area padding. */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { paywallDismissible } from '@/lib/popups/status';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { subscribeAccess } from '@/lib/upgrade-return';
@@ -76,6 +77,16 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const buyRef = useRef(false);
   const restoreRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  // L1: × / Escape / scrim do nothing while a purchase or restore is running.
+  // Read through refs so the single keydown listener sees the current state.
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const dismiss = useCallback(() => {
+    if (!paywallDismissible({ busy: busyRef.current, buying: buyRef.current, restoring: restoreRef.current })) return;
+    onCloseRef.current();
+  }, []);
   const [notice, setNotice] = useState('');
   const [showCode, setShowCode] = useState(false);
   // One trial per customer (lib/trial): what the page promises must match what
@@ -146,7 +157,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     page.focus({ preventScroll: true });
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { dismiss(); return; }
       if (e.key !== 'Tab') return;
       const els = focusables();
       if (!els.length) return;
@@ -157,7 +168,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [dismiss]);
 
   function toggleCode() {
     setShowCode((open) => {
@@ -230,7 +241,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
       aria-labelledby="paywall-step-title"
       tabIndex={-1}
       data-kb-fit=""
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
       className="fixed inset-0 z-[70] flex justify-center bg-background font-body text-on-background outline-none md:items-center md:bg-on-background/45 md:p-6"
       style={{ animation: 'paywall-sheet-in 420ms cubic-bezier(.32,.72,0,1)' }}
     >
@@ -249,7 +260,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             <button
               type="button"
               aria-label="Not now"
-              onClick={onClose}
+              onClick={dismiss}
               className="grid h-11 w-11 place-items-center rounded-full outline-none transition-colors hover:bg-[#f4ead9] focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Icon name="close" size={24} />

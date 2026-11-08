@@ -4661,7 +4661,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     icon spins in place while retrying. */}
                 <button
                   aria-label={retryingId === m.id ? 'Retrying' : 'Retry'}
-                  className="flex min-h-11 items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-3.5 text-label-lg font-semibold text-primary transition onit-fade-in active:scale-95 disabled:opacity-40"
+                  className="flex min-h-12 items-center gap-1.5 rounded-full border border-outline-variant bg-surface-container-lowest px-4 text-label-lg font-semibold text-primary transition onit-fade-in active:scale-95 disabled:opacity-40"
                   disabled={phase !== null}
                   onClick={() => retry(m)}
                 >

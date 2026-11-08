@@ -49,3 +49,39 @@ test('UndoToast is the kit toast with a Restoring… state', () => {
   assert.ok(src.includes("from '@/components/popups/PopToast'"));
   assert.ok(src.includes("busyLabel: 'Restoring…'"));
 });
+
+import { ESTIMATE_OFFLINE_TEXT, paymentAttentionText, paywallDismissible } from './status';
+
+test('L1: nothing closes the paywall while a purchase or restore is in flight', () => {
+  assert.equal(paywallDismissible({ busy: false, buying: false, restoring: false }), true);
+  assert.equal(paywallDismissible({ busy: true, buying: false, restoring: false }), false);
+  assert.equal(paywallDismissible({ busy: false, buying: true, restoring: false }), false);
+  assert.equal(paywallDismissible({ busy: false, buying: false, restoring: true }), false);
+});
+
+test('L1: the ×, Escape and scrim all go through the guarded dismiss', () => {
+  const src = readFileSync('src/components/PaywallModal.tsx', 'utf8');
+  assert.match(src, /Escape'\) \{ dismiss\(\)/);
+  assert.match(src, /e\.target === e\.currentTarget\) dismiss\(\)/);
+  assert.match(src, /aria-label="Not now"\s*onClick=\{dismiss\}/);
+  assert.doesNotMatch(src, /onClick=\{onClose\}/);
+});
+
+test('S7b: a payment that needs attention names the reason, and says what happened without one', () => {
+  assert.equal(paymentAttentionText('INV-0007 changed on another device.'),
+    'This payment could not be recorded. Reason: INV-0007 changed on another device.');
+  assert.equal(paymentAttentionText(undefined), 'This payment could not be recorded.');
+  assert.equal(paymentAttentionText('  '), 'This payment could not be recorded.');
+});
+
+test('S7b: Retry ignores a second tap and shows it is running', () => {
+  const screen = readFileSync('src/components/invoice-detail/InvoiceDetailScreen.tsx', 'utf8');
+  assert.match(screen, /if \(retryingQueueRef\.current\) return;/);
+  assert.match(screen, /retrying=\{retryingQueue\}/);
+  const notice = readFileSync('src/components/invoice-detail/PendingPaymentNotice.tsx', 'utf8');
+  assert.match(notice, /retrying \? 'Retrying…' : 'Retry'/);
+});
+
+test('S3: the offline estimate sentence names the estimate and keeps the draft safe', () => {
+  assert.equal(ESTIMATE_OFFLINE_TEXT, 'You’re offline — the estimate didn’t send. Your draft is safe.');
+});

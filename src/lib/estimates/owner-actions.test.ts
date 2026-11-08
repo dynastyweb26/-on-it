@@ -28,3 +28,24 @@ test('share text falls back to the product name', () => {
   assert.equal(estimateShareText('  '), 'Estimate from On It');
   assert.equal(estimateShareText(null), 'Estimate from On It');
 });
+
+import { requestEstimateSend } from './owner-actions';
+
+test('S3: a send that fails with no connection says so; online keeps the link sentence', async () => {
+  const realFetch = globalThis.fetch;
+  const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  globalThis.fetch = (async () => { throw new TypeError('Failed to fetch'); }) as typeof fetch;
+  try {
+    Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+    assert.deepEqual(await requestEstimateSend('e1'), {
+      ok: false, message: 'You’re offline — the estimate didn’t send. Your draft is safe.',
+    });
+    Object.defineProperty(globalThis, 'navigator', { value: { onLine: true }, configurable: true });
+    assert.deepEqual(await requestEstimateSend('e1'), {
+      ok: false, message: "Couldn't create the link. Nothing was shared.",
+    });
+  } finally {
+    globalThis.fetch = realFetch;
+    if (nav) Object.defineProperty(globalThis, 'navigator', nav); else delete (globalThis as { navigator?: unknown }).navigator;
+  }
+});
