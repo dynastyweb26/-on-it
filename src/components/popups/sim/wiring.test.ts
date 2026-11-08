@@ -182,3 +182,19 @@ test('sign sheet: a failure names its cause, stays open, and clears pending on e
   assert.match(signSheet, /\{submitting \? \(/, 'the busy label replaces the action');
   assert.match(signSheet, /if \(!submitting\) onClose\(\)/, 'the scrim cannot close a signing sheet');
 });
+
+// ── Template sheets: client / product pickers ──
+const templateSheets = readFileSync('src/components/template/TemplateSheets.tsx', 'utf8');
+const pickerSheet = readFileSync('src/components/template/PickerSheet.tsx', 'utf8');
+
+test('template sheets: a failed load is an error slot with Retry, never an empty list', () => {
+  assert.match(templateSheets, /if \(error\) \{ setLoadError\(pickerLoadFailure\('clients', error\)\); setRows\(\[\]\); return; \}/);
+  assert.match(templateSheets, /if \(error\) \{ setLoadError\(pickerLoadFailure\('items', error\)\); setRows\(\[\]\); return; \}/);
+  assert.match(templateSheets, /onRetry=\{\(\) => setAttempt\(\(n\) => n \+ 1\)\}/);
+});
+
+test('template sheets: a row tap claims the guard before the pick, and a rejected pick hands it back', () => {
+  assert.match(pickerSheet, /if \(!guard\.claim\(\)\) return;/);
+  assert.match(pickerSheet, /\(out as Promise<void>\)\.catch\(\(\) => guard\.release\(\)\)/);
+  assert.match(pickerSheet, /guard\.claim\(\)\) onUseName\(query\)/, '"Use this name" is guarded too');
+});
