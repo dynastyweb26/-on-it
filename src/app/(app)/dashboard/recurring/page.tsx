@@ -74,10 +74,11 @@ export default function RecurringPage() {
   async function undo() {
     if (!removed) return;
     const r = removed;
+    // Restore first and throw on failure (the toast names the cause + Retry).
+    const { error } = await supabase.from('recurring_expenses').update({ deleted_at: null }).eq('id', r.id);
+    if (error) throw error;
     setRemoved(null);
     setRows((rs) => [...(rs ?? []), r]);
-    const { error } = await supabase.from('recurring_expenses').update({ deleted_at: null }).eq('id', r.id);
-    if (error) setRows((rs) => (rs ?? []).filter((x) => x.id !== r.id));
   }
 
   const addButton = (
@@ -198,7 +199,7 @@ export default function RecurringPage() {
           ]} />
       )}
 
-      {removed && <UndoToast message={`Stopped ${removed.vendor}. Logged expenses stay.`} onUndo={undo} onDismiss={() => setRemoved(null)} />}
+      {removed && <UndoToast message={`Stopped ${removed.vendor}. Logged expenses stay.`} consequence="It stays stopped." onUndo={undo} onDismiss={() => setRemoved(null)} />}
     </div>
   );
 }
