@@ -84,7 +84,7 @@ import { anchorFor, localToday } from '@/lib/recurring';
 import ComposerMenu, { MENU_CLOSE_MS, type ComposerPick } from '@/components/ComposerMenu';
 import { clientNameKey } from '@/lib/client-name';
 import { clientQuestionPending, matchOrCreateClient, updateClientContact, type ClientRecord } from '@/lib/services/clients';
-import { calculateInvoiceTotals, money, type DepositType } from '@/lib/financials';
+import { calculateInvoiceTotals, money, type DepositType, type FinancialLineItem } from '@/lib/financials';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
@@ -4583,21 +4583,33 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   }
                   const { data: row } = await supabase
                     .from('invoices')
-                    .select('total, amount_paid, client_name, invoice_number')
+                    .select('total, amount_paid, client_name, invoice_number, kind, line_items, tax_rate, deposit_type, deposit_value')
                     .eq('id', input.invoiceId)
                     .maybeSingle();
-                  const total = Number(row?.total ?? 0);
-                  const paid = Number(row?.amount_paid ?? 0);
+                  const invRow = row as Record<string, unknown> | null;
+                  const total = Number(invRow?.total ?? 0);
+                  const paid = Number(invRow?.amount_paid ?? 0);
+                  // A deposit payment gets the deposit card (no button), not a
+                  // "payment recorded" one: the balance is collected on completion.
+                  const invTotals = calculateInvoiceTotals(
+                    (invRow?.line_items as FinancialLineItem[] | null) ?? [],
+                    Number(invRow?.tax_rate ?? 0),
+                    ((invRow?.deposit_type as DepositType | null) ?? 'none'),
+                    invRow?.deposit_value == null ? undefined : Number(invRow.deposit_value),
+                  );
                   const card = buildPayCard({
                     invoiceId: input.invoiceId,
-                    invoiceNo: row?.invoice_number == null ? null : Number(row.invoice_number),
-                    clientName: String(row?.client_name ?? m.payProposal?.clientName ?? ''),
+                    invoiceNo: invRow?.invoice_number == null ? null : Number(invRow.invoice_number),
+                    clientName: String(invRow?.client_name ?? m.payProposal?.clientName ?? ''),
                     amount: input.amount,
                     method: input.method,
                     paidAt,
                     paymentId,
                     total,
                     left: Math.max(0, total - paid),
+                    depositOnly: invTotals.depositAmount > 0
+                      && paid >= invTotals.depositAmount
+                      && paid < total,
                   });
                   setMessages((msgs) => msgs.map((x) => (x.id === m.id
                     ? { ...x, payProposal: undefined, payCard: card, content: 'Payment recorded.' }
