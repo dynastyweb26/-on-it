@@ -147,7 +147,7 @@ Marks: MATCH = values copied from the HTML and checked in code. DIFF = does not 
 
 ## 01 Toast: EventToastHost.tsx
 MATCH: surface, radius 20, shadow, padding 12/12/8, gap 10; 40px tile r12 with per-kind tints; title 15/700, detail 13; chevron or +N badge inside the card; gold Convert button h40; 36x4 grab bar; enter 380ms (.2,.9,.3,1) with the shadow over the last 120ms; exit 220ms (.4,0,1,1); dwell 8/8/5/4s; queue of 3; back cards .94/.88, y 12/22, opacity .9/.75; tap-the-stack fan-out (280ms) with "N updates / Clear all"; swipe up 32px or 500px/s, 96px clears; clock paused under a finger; 80ms stagger; tap body opens the document; button runs the action.
-DIFF: position is `safe-area + 4px` (design: 54px inside a phone mock whose status bar is simulated): UNVERIFIED against the real header. The blurred feed behind the expanded stack is a 1.5px backdrop blur over a cream wash, not the design's opacity .6 on the feed itself. The overdue toast has no button, as in the HTML, so "Send reminder" lives only on the chat card. A deposit toast has no design; it uses the chat-card wording.
+DIFF: the toast is mounted in AppShell (z 96, above sheets and the recap player, offset by --vv-top with the keyboard open). Position is `safe-area + 4px` (design: 54px inside a phone mock whose status bar is simulated): UNVERIFIED against the real header. The blurred feed behind the expanded stack is a 1.5px backdrop blur over a cream wash, not the design's opacity .6 on the feed itself. The overdue toast has no button, as in the HTML, so "Send reminder" lives only on the chat card. A deposit toast has no design; it uses the chat-card wording.
 Copy: signed, paid ("paid in full" on the detail line), partial ("paid $25.00 of $50.00 / $25.00 left" with the 5px bar), overdue, opened your estimate (+ "2nd time today", counted over the last 24 hours, not the calendar day), viewed their invoice (+ due date): MATCH apart from the pronoun.
 
 ## 07 Event cards: EventCard.tsx
@@ -181,7 +181,7 @@ MATCH: Building PDF (shimmer 240px / 1.4s, spinner 800ms) with Send live and the
 DIFF: "Text + email · 9:42 AM" reads only the time: the app does not know which channel the share sheet used. The page count counts PDF page objects and can be absent for compressed files; the line then shows size only. A send tapped during the build runs when the file lands; on iOS the share sheet may need the tap's user activation, so a second tap can be needed: UNVERIFIED on a phone.
 
 ## 07 Recap cards: RecapChatCard, lib/chat-recap
-MATCH: daily (2x2 tiles, Open Books) and weekly (seven bars with the peak in gold, Owed / Overdue / Signed). Built on app open (daily after 7:00 local, weekly on Monday), once per period per device; an empty period posts nothing; "How did today go?" and "How'd I do this week?" answer from the owner's rows.
+MATCH: daily (2x2 tiles, Open Books) and weekly (seven bars with the peak in gold, Owed / Overdue / Signed). Built on app open only SOMETIMES (lib/recap-schedule.ts: 1 in 3 per open, nothing before 7:00, one a day, weekly once a week, never two opens in a row; state per user in localStorage `onit-recap-state:<id>`); an automatic card is not saved with the thread; an empty period posts nothing; "How did today go?" and "How'd I do this week?" answer from the owner's rows.
 DIFF: "Good morning." without a name. "Best week since <month>" appears only when an earlier week in the last 14 proves it. "Once per period" is remembered in localStorage, so a second device posts its own card. Notification settings for recap times are out of scope.
 
 ## 06.5 Client page "Updated" tag: EstimateView
@@ -193,3 +193,7 @@ DIFF: the business name stands in for "Cyril". 6.6 "Signed again": NOT BUILT.
 - `updatedAt` and `change` on the public estimate (read from existing version snapshots).
 - A shared convert helper (same insert and idempotency key as the estimate screen) so the card and toast can convert in place.
 No migrations were written or applied.
+
+## Decisions after the build (owner, 2026-11-09)
+- Starter chips (08) are 3 random phrases from the full "What I can do" list, not the design's fixed three (lib/chat-commands.ts `pickStarterChips`).
+- Signed-out Chat answers any message with "You're not signed in" and a gold Sign in button (lib/chat-signed-out.ts), before any local card or AI call. No design exists for this; it reuses the assistant bubble and `.al-btn-g`.
