@@ -54,6 +54,8 @@ export interface PopSheetProps {
    */
   retryFailure?: (failure: PopupFailure) => { title: string; body: string } | null;
   retryLabel?: string;
+  /** Board title for a failure (e.g. D8 "Couldn’t remove that file."); the body keeps the cause. */
+  failureTitle?: string;
   note?: string;
   actions: PopSheetAction[];
   /** Scrim, ×, Escape, swipe. Map it to the safe action. */
@@ -98,7 +100,7 @@ export default function PopSheet(props: PopSheetProps) {
 
 function SheetBody({
   icon, iconTone = 'gold', destructive, width = 'confirm', eyebrow, title, sub, figure, rows, truths, body,
-  typed, error, retryFailure, retryLabel, note, actions, onDismiss, onConfirm, consequence, onSuccess,
+  typed, error, retryFailure, retryLabel, failureTitle, note, actions, onDismiss, onConfirm, consequence, onSuccess,
 }: Omit<PopSheetProps, 'open'>) {
   const titleId = useId();
   const [typedValue, setTypedValue] = useState('');
@@ -126,7 +128,7 @@ function SheetBody({
   const views = resolveSheetActions(actions, { pending, error: failure !== null, typedOk, retryLabel });
   const repeatCopy = retrying && failure && retryFailure ? retryFailure(failure) : null;
   const shownError = failure
-    ? (repeatCopy ? { ...failure, ...repeatCopy } : failure)
+    ? (repeatCopy ? { ...failure, ...repeatCopy } : failureTitle ? { ...failure, title: failureTitle } : failure)
     : error;
   const safeLabel = safeActionLabel(actions);
   const tone = TONE[iconTone];

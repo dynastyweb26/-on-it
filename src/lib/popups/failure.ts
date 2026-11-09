@@ -40,8 +40,33 @@ export const ERROR_ICON: Record<ErrorKind, IconName> = {
  * @param consequence what did NOT happen, in the caller's words
  *                    ("Nothing was deleted."). Prepended to the cause sentence.
  */
+/**
+ * A cause the caller names itself, for a documented state the classifier would
+ * otherwise read as a fault: a 409 on a deactivate means the estimate is
+ * already signed or converted, so nothing broke and a retry cannot work.
+ * The sentence is still ours, never the exception's.
+ */
+export class PopupCauseError extends Error {
+  readonly copy: { cause: string; title?: string; icon?: IconName };
+  constructor(copy: { cause: string; title?: string; icon?: IconName }) {
+    super(copy.cause);
+    this.name = 'PopupCauseError';
+    this.copy = copy;
+  }
+}
+
 export function popupFailure(error: unknown, consequence?: string): PopupFailure {
   const kind = classifyError(error);
+  // A named cause replaces the classifier's sentence, and skips its logging:
+  // the state is known, not an exception.
+  if (error instanceof PopupCauseError) {
+    return {
+      kind,
+      title: error.copy.title ?? ERROR_TITLE[kind],
+      body: consequence ? `${consequence} ${error.copy.cause}` : error.copy.cause,
+      icon: error.copy.icon ?? ERROR_ICON[kind],
+    };
+  }
   // userMessage logs the raw error; only the sentence is ever rendered.
   const sentence = userMessage(error);
   return {

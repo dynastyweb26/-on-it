@@ -8,6 +8,8 @@
 // cancel is silent, exactly as before.
 import { useEffect, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import PopToast from '@/components/popups/PopToast';
+import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { estimateShareText, shareEstimateLink } from '@/lib/estimates/owner-actions';
 
 type Confirmed = 'copy' | 'share' | null;
@@ -39,7 +41,9 @@ export default function EstimateLinkActions({
 }) {
   const [confirmed, setConfirmed] = useState<Confirmed>(null);
   const [sharing, setSharing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // M4 / P-53: a blocked clipboard is a toast. The counter re-keys it so a second
+  // blocked tap restarts the toast instead of finding the old one mid-timer.
+  const [blocked, setBlocked] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const sharedOnce = useRef(false);
 
@@ -52,18 +56,16 @@ export default function EstimateLinkActions({
   }
 
   async function copy() {
-    setError(null);
     try {
       await navigator.clipboard.writeText(url);
       hold('copy');
     } catch {
-      setError('Clipboard is blocked. Long-press the link to copy it.');
+      setBlocked((n) => n + 1);
     }
   }
 
   async function share() {
     if (sharing) return;
-    setError(null);
     setSharing(true);
     const result = await shareEstimateLink({ url, title, text: estimateShareText(businessName) });
     setSharing(false);
@@ -77,7 +79,7 @@ export default function EstimateLinkActions({
       // No share sheet on this platform: the helper copied the link instead.
       hold('copy');
     } else if (result === 'failed') {
-      setError('Clipboard is blocked. Long-press the link to copy it.');
+      setBlocked((n) => n + 1);
     }
     // 'cancelled' — the sheet came back without a share. Nothing changes.
   }
@@ -151,10 +153,13 @@ export default function EstimateLinkActions({
         {confirmed === 'copy' ? 'Link copied' : confirmed === 'share' ? 'Link shared' : ''}
       </span>
 
-      {error && (
-        <p role="status" className="mt-1.5 text-center text-xs text-on-surface-variant">
-          {error}
-        </p>
+      {blocked > 0 && (
+        <PopToast
+          key={blocked}
+          icon="error"
+          text={CLIPBOARD_BLOCKED_TEXT}
+          onDismiss={() => setBlocked(0)}
+        />
       )}
     </div>
   );

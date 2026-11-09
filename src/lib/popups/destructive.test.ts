@@ -5,7 +5,7 @@ import {
   deleteActionLabel, deleteNeedsTyped, EXPENSE_DELETE_CONSEQUENCE, invoiceDeleteConsequence,
   paymentDeleteConsequence, templateHasContent,
 } from './destructive';
-import { popupFailure } from './failure';
+import { popupFailure, PopupCauseError } from './failure';
 
 test('balanceAfterDeletingPayment: the amount comes back, never below zero', () => {
   assert.equal(balanceAfterDeletingPayment(0, 85), 85);
@@ -72,4 +72,34 @@ test('templateHasContent: a client, an item or extra info asks first', () => {
   assert.equal(templateHasContent({ items: [{ name: 'Car wash' }] }), true);
   assert.equal(templateHasContent({ line_items: [{ name: 'Car wash' }] }), true);
   assert.equal(templateHasContent({ extra: 'Due Friday' }), true);
+});
+
+test('D7 deactivate link copy: who loses access, what did not happen, the sent date', async () => {
+  const { revokeLinkSub, revokeLinkMeta, REVOKE_LINK_CONSEQUENCE } = await import('./destructive');
+  assert.equal(revokeLinkSub('Brandon'), 'Brandon won’t be able to open or sign it.');
+  assert.equal(revokeLinkSub(''), 'Your client won’t be able to open or sign it.');
+  assert.equal(revokeLinkSub(null), 'Your client won’t be able to open or sign it.');
+  assert.equal(revokeLinkMeta('Oct 30'), 'Estimate link · sent Oct 30');
+  assert.equal(revokeLinkMeta(null), 'Estimate link · sent');
+  assert.equal(REVOKE_LINK_CONSEQUENCE, 'The link still works.');
+});
+
+test('D7: a 409 (signed or converted) names the state, not a fault of ours', async () => {
+  const { REVOKE_CONFLICT, REVOKE_LINK_CONSEQUENCE } = await import('./destructive');
+  const failure = popupFailure(new PopupCauseError(REVOKE_CONFLICT), REVOKE_LINK_CONSEQUENCE);
+  assert.equal(failure.title, 'This link can’t be closed');
+  assert.equal(failure.body, 'The link still works. This estimate can no longer be deactivated.');
+  assert.equal(failure.icon, 'link_off');
+});
+
+test('D8 remove attachment copy: board wording, and the seen-by-client line only when it applies', async () => {
+  const d = await import('./destructive');
+  assert.equal(d.REMOVE_ATTACHMENT_TITLE, 'Remove this photo?');
+  assert.equal(d.REMOVE_ATTACHMENT_ACTION, 'Remove photo');
+  assert.equal(d.REMOVE_ATTACHMENT_FAILURE_TITLE, 'Couldn’t remove that file.');
+  assert.equal(d.removeAttachmentSub('Brandon', true), 'Brandon may have seen it on the estimate.');
+  assert.equal(d.removeAttachmentSub(null, true), 'Your client may have seen it on the estimate.');
+  assert.equal(d.removeAttachmentSub('Brandon', false), undefined);
+  const failure = popupFailure(new Error('Failed to fetch'), d.REMOVE_ATTACHMENT_CONSEQUENCE);
+  assert.match(failure.body, /^The file is still attached\./);
 });

@@ -63,7 +63,6 @@ import {
   unsentShareCopy, forgetUnsentShare, rememberUnsentShare, restoreUnsentShare,
   type UnsentShare, type UnsentShareRow,
 } from '@/lib/popups/unsent-share';
-import ReplaceTemplateSheet from '@/components/template/ReplaceTemplateSheet';
 import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
@@ -977,13 +976,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
   async function removeSavedAttachment(item: EditorAttachment) {
     const inv = pendingInvoiceRef.current;
     if (!inv || !item.storagePath || !profile) return;
+    // The delete throws to the D8 sheet (cause + "still attached"); once the file
+    // is gone, a failed renumber/sync is swallowed because the removal happened.
+    if (item.rowId) await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
+    else {
+      const { error } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([item.storagePath]);
+      if (error) throw error;
+    }
     try {
-      if (item.rowId) await deleteAttachment(supabase, { id: item.rowId, storage_path: item.storagePath, position: 0 });
-      else await supabase.storage.from(ATTACHMENT_BUCKET).remove([item.storagePath]);
       const rows = await listAttachmentRows(supabase, inv.id);
       await renumberAttachments(supabase, profile.id, inv.id, rows);
       await syncAttachments(inv.id, attachmentsRef.current.filter((a) => !a.storagePath));
-    } catch { /* the optimistic removal already took it off screen */ }
+    } catch { /* the file is already removed */ }
   }
 
   // Shared restore: re-read the namespaced store and apply it when it's newer
@@ -4239,7 +4243,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         items={attachments}
         editable={!locked}
         onChange={setAttachments}
-        onRemove={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
+        onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
       />
 
       <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
@@ -5199,11 +5203,30 @@ export default function Chat({ active = true }: { active?: boolean }) {
           />
         );
       })()}
-      {discardAsk && expenseTemplate && (
-        <ReplaceTemplateSheet title="Discard this expense?" keepLabel="Keep editing" startNewLabel="Discard"
-          onKeep={() => setDiscardAsk(false)}
-          onStartNew={() => { setDiscardAsk(false); discardExpense(); }} />
-      )}
+      {discardAsk && expenseTemplate && (() => {
+        // P-04 / board D6 expense variant. Dropping the draft is local, so there
+        // is no request to fail; scrim, ×, Escape and swipe = Keep editing.
+        const d = expenseDraft;
+        const who = d?.vendor?.trim() || d?.description?.trim() || null;
+        const figure = d && d.amount > 0 ? { label: who ?? CATEGORY_LABEL[d.category], amount: money(d.amount) } : undefined;
+        return (
+          <PopSheet
+            open
+            destructive
+            icon="edit"
+            iconTone="danger"
+            title="Discard this expense?"
+            figure={figure}
+            actions={[
+              { label: 'Keep editing', kind: 'gold', safe: true },
+              { label: 'Discard', kind: 'danger', go: true, busyLabel: 'Discarding…' },
+            ]}
+            onDismiss={() => setDiscardAsk(false)}
+            onConfirm={() => { discardExpense(); }}
+            onSuccess={() => undefined}
+          />
+        );
+      })()}
       {reviseAsk && draft && docKind(draft) !== 'quote' && (() => {
         const kind = docKind(draft);
         const no = pendingInvoiceRef.current?.no ?? null;
@@ -5283,7 +5306,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             uid={templateUid} restored={templateRestored}
             onDraft={setTemplateDraft} duplicateNote={templateDup}
             attachments={attachments} onAttachments={setAttachments}
-            onRemoveAttachment={(a) => { if (a.storagePath) void removeSavedAttachment(a); }}
+            onRemoveAttachment={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
             sendState={!templateDraft ? 'disabled' : phase === 'building' ? 'busy' : 'ready'}
             onSend={() => { void finalize(); }} />
           </div>

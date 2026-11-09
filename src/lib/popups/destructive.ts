@@ -71,3 +71,52 @@ export function templateHasContent(draft: Draftish | null | undefined): boolean 
   const items = Array.isArray(draft.items) ? draft.items : Array.isArray(draft.line_items) ? draft.line_items : [];
   return named || items.length > 0 || Boolean(draft.extra?.trim());
 }
+
+// ── Board 1 · D7: deactivate an estimate link ──
+
+/** D7 — what did not happen; the cause sentence is appended by popupFailure(). */
+export const REVOKE_LINK_CONSEQUENCE = 'The link still works.';
+
+/** D7 sub: who loses access. Falls back to "Your client" with no name. */
+export function revokeLinkSub(firstName: string | null | undefined): string {
+  const who = firstName?.trim() || 'Your client';
+  return `${who} won’t be able to open or sign it.`;
+}
+
+/** D7 figure meta: "Estimate link · sent Oct 30". */
+export function revokeLinkMeta(sentDate: string | null | undefined): string {
+  return sentDate ? `Estimate link · sent ${sentDate}` : 'Estimate link · sent';
+}
+
+/**
+ * D7 — a 409 means the estimate is signed or converted, so the deactivate is
+ * refused for good: nothing broke and a retry cannot work. The cause is the
+ * pre-bundle sentence, word for word; the board's consequence line above it
+ * ("The link still works.") still applies.
+ */
+export const REVOKE_CONFLICT = {
+  title: 'This link can’t be closed',
+  cause: 'This estimate can no longer be deactivated.',
+  icon: 'link_off',
+} as const;
+
+// ── Board 1 · D8: remove a saved attachment (P-11, P-12) ──
+
+/** D8 sheet title and go label, verbatim from the board. */
+export const REMOVE_ATTACHMENT_TITLE = 'Remove this photo?';
+export const REMOVE_ATTACHMENT_ACTION = 'Remove photo';
+/** D8 error title (board spec); the body is consequence + the cause sentence. */
+export const REMOVE_ATTACHMENT_FAILURE_TITLE = 'Couldn’t remove that file.';
+/** D8 — what did NOT happen. */
+export const REMOVE_ATTACHMENT_CONSEQUENCE = 'The file is still attached.';
+
+/** D8 sub: only a document the client may already have seen gets the line.
+ *  A draft was never shared, so it says nothing (no invented warning). */
+export function removeAttachmentSub(
+  firstName: string | null | undefined,
+  clientMayHaveSeen: boolean,
+): string | undefined {
+  if (!clientMayHaveSeen) return undefined;
+  const who = firstName?.trim() || 'Your client';
+  return `${who} may have seen it on the estimate.`;
+}
