@@ -87,22 +87,12 @@ export default function EstimateLinkActions({
   const shown = displayLink(url);
   const tile =
     'flex h-16 flex-col items-center justify-center gap-1 rounded-2xl border text-[14px] transition duration-[90ms] ease-out active:scale-[.97] disabled:opacity-55';
-  const idle = 'border-outline-variant bg-surface-container-lowest font-semibold text-on-background';
-  const done = 'border-primary-container bg-primary-soft font-bold text-on-background onit-confirm-ring';
+  const idle = 'border-[#e6dac6] bg-white font-semibold text-[#2a251f] active:bg-[#f6eedf]';
+  const done = 'border-[#d4af37] bg-[#f2e6c2] font-bold text-[#1e1a15] onit-confirm-ring';
 
   return (
     <div>
-      {/* The raw link stays available until a confirmation takes its place. */}
-      {confirmed === 'copy' ? (
-        <p key="copied-link" className="onit-confirm-in flex items-center gap-1.5 font-mono text-[12px] text-on-surface-variant">
-          <Icon name="check" size={14} className="shrink-0 text-primary" />
-          <span className="min-w-0 break-all">{shown} copied</span>
-        </p>
-      ) : (
-        <p className="break-all text-xs text-on-surface-variant">{url}</p>
-      )}
-
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           className={`${tile} ${confirmed === 'copy' ? done : idle}`}
@@ -140,12 +130,20 @@ export default function EstimateLinkActions({
             </>
           ) : (
             <>
-              <Icon name="share" size={20} />
+              <Icon name="ios_share" size={20} />
               <span>Share</span>
             </>
           )}
         </button>
       </div>
+
+      {/* Design 02: the URL that was just copied shows UNDER the buttons, only then. */}
+      {confirmed === 'copy' && (
+        <p key="copied-link" className="onit-confirm-in mt-3 flex items-center gap-1.5 font-mono text-[12px] text-[#6b6257]">
+          <Icon name="check" size={14} className="shrink-0 text-[#7a6210]" />
+          <span className="min-w-0 break-all">{shown} copied</span>
+        </p>
+      )}
 
       {/* Spoken confirmation (spec §02 · a11y). The visible flip is the sighted
           half; this is the only announcement, and it holds no layout space. */}

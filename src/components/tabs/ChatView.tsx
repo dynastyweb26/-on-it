@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import EventCard, { AssistantAvatar, AssistantLine } from '@/components/chat/EventCard';
+import ReadyEstimateCard from '@/components/chat/ReadyEstimateCard';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
@@ -676,6 +677,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // A sent estimate's public token, read from its row so the locked card can
   // offer Copy link / Share even after a reload or a reopen from history.
   const [linkedToken, setLinkedToken] = useState<string | null>(null);
+  const [linkedValidUntil, setLinkedValidUntil] = useState<string | null>(null);
   // The document's images (gold "+ Add attachment"): freshly-picked ones carry a
   // blob until the send uploads them, then the row id + storage path; ones loaded
   // from a saved invoice carry only the signed URL. Print order = list order.
@@ -3877,8 +3879,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const id = pendingInvoiceRef.current?.id;
     if (!lockedQuote || !id) { setLinkedToken(null); return; }
     let live = true;
-    void supabase.from('invoices').select('public_token').eq('id', id).maybeSingle()
-      .then(({ data }) => { if (live) setLinkedToken((data?.public_token as string) ?? null); }, () => {});
+    void supabase.from('invoices').select('public_token, valid_until').eq('id', id).maybeSingle()
+      .then(({ data }) => {
+        if (!live) return;
+        setLinkedToken((data?.public_token as string) ?? null);
+        setLinkedValidUntil((data?.valid_until as string | null) ?? null);
+      }, () => {});
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedQuote, linkedStatus]);
@@ -4218,7 +4224,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     : messages[messages.length - 1]?.id ?? null;
   // During the morph the builder is still mounted, so the card has to render
   // beside it for the shared nodes to travel.
-  const invoiceCard = ready && draft && (!template || morphing) ? (
+  const ledgerCard = ready && draft && (!template || morphing) ? (
     // Ledger sheet (docs/design/onit-chat · CardLedger): the state strip, the
     // client block and the paper are LedgerCard's; everything below is the
     // card's own controls, unchanged. Only real text entry / selects opt out
@@ -4401,8 +4407,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                       const who = (draft?.client_name ?? '').trim().split(/\s+/)[0];
                       setMessages((m) => [...m, aMsg(
                         who
-                          ? `Shared. I'll let you know as soon as ${who} opens it.`
-                          : "Shared. I'll let you know as soon as it's opened.",
+                          ? `Shared. I'll ping you as soon as ${who} opens it.`
+                          : "Shared. I'll ping you as soon as it's opened.",
                       )]);
                     }}
                   />
@@ -4561,6 +4567,46 @@ export default function Chat({ active = true }: { active?: boolean }) {
       )}
     </LedgerFrame>
   ) : null;
+
+  // Design 02/03: a sent, unpaid estimate in the thread is the "Ready to share"
+  // card. Everything else (drafts, invoices, paid) keeps the ledger card above.
+  const readyEstimateCard = lockedQuote && draft && ready && linkedStatus === 'sent' && linkedAmountPaid === 0 && linkedToken && estimateLink(linkedToken)
+    && (!template || morphing) ? (
+    <ReadyEstimateCard
+      docNumber={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
+      clientName={draft.client_name?.trim() || 'Client'}
+      items={previewItems}
+      photoCount={attachments.length}
+      validUntil={linkedValidUntil}
+      total={previewTotals.total}
+      photos={attachments.length > 0 ? (
+        <AttachmentsEditor
+          items={attachments}
+          editable={false}
+          onChange={setAttachments}
+          onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
+        />
+      ) : undefined}
+      actions={(
+        <EstimateLinkActions
+          url={estimateLink(linkedToken)!}
+          title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
+          businessName={profile?.business_name}
+          onShared={() => {
+            // §02: a share has no system confirmation, so the assistant says it
+            // happened (and promises the first view). No pronouns.
+            const who = (draft?.client_name ?? '').trim().split(/s+/)[0];
+            setMessages((m) => [...m, aMsg(
+              who ? `Shared. I'll ping you as soon as ${who} opens it.` : "Shared. I'll ping you as soon as it's opened.",
+            )]);
+          }}
+        />
+      )}
+      onPreview={() => { const url = estimateLink(linkedToken); if (url) window.open(url, '_blank', 'noopener'); }}
+      onRevise={() => { const id = pendingInvoiceRef.current?.id; if (id) router.push(`/invoices/${id}?edit=1`); }}
+    />
+  ) : null;
+  const invoiceCard = readyEstimateCard ?? ledgerCard;
 
   // Composer field: one line until it needs more, up to four 22px lines. The
   // cap has to include the field's vertical padding (the textarea is border-box),
