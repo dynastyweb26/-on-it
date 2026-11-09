@@ -15,7 +15,7 @@ import { sendWebPush } from '@/lib/notify/webpush';
 import { runDraftNudges } from '@/lib/notify/draft-nudges';
 import { runRecaps } from '@/lib/notify/recaps';
 import { runRecurring } from '@/lib/notify/recurring';
-import { runDueSoonSweep, runEstimateStaleSweep } from '@/lib/events-sweep';
+import { runDueSoonSweep, runEstimateStaleSweep, runPayPageSweep } from '@/lib/events-sweep';
 import { deployEnv } from '@/lib/deploy-env';
 
 // Four steps in one invocation (Hobby: one cron entry); room for a long day.
@@ -141,6 +141,16 @@ export async function GET(req: NextRequest) {
     dueSoon = { skipped: 'failed' };
   }
 
+  // Item 23's daily catch-up: the same pay-page card for owners who were not in
+  // the app at the twenty-minute mark. Production only, its own try/catch.
+  let payPage: Awaited<ReturnType<typeof runPayPageSweep>>;
+  try {
+    payPage = await runPayPageSweep();
+  } catch (e) {
+    console.error('followups: pay page step failed', (e as Error)?.message);
+    payPage = { skipped: 'failed' };
+  }
+
   return NextResponse.json({
     checked: due?.length ?? 0,
     notifications: sent,
@@ -149,5 +159,6 @@ export async function GET(req: NextRequest) {
     recurring,
     staleEstimates,
     dueSoon,
+    payPage,
   });
 }

@@ -121,6 +121,13 @@ const docLabel = (e: Pick<EventRow, 'document_kind' | 'document_number'>): strin
 
 const who = (e: Pick<EventRow, 'client_name'>) => (e.client_name || '').trim() || 'Your client';
 
+/** A short wait label for item 23: "20 min" under an hour, then "3 hr". */
+const minutesLabel = (ms: number): string => {
+  const minutes = Math.max(1, Math.floor(ms / 60e3));
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} hr`;
+};
+
 /** The two cards that offer a decision. Everything else is read-only. */
 export type EventAction = 'convert' | 'remind' | 'share';
 
@@ -154,8 +161,20 @@ export function eventCard(
       return { title: `${name} opened your estimate`, detail, icon: 'visibility', tone: 'neutral' };
     case 'invoice_viewed':
       return { title: `${name} opened your invoice`, detail, icon: 'visibility', tone: 'neutral' };
-    case 'pay_page_opened_unpaid':
-      return { title: `${name} opened the pay page`, detail, icon: 'visibility', tone: 'neutral' };
+    case 'pay_page_opened_unpaid': {
+      // Item 23's copy: who, which invoice, what is owed, how long the page has
+      // been open. The wait is frozen at the card's own moment, so an old card
+      // does not keep rewriting itself as it ages in the thread.
+      const at = Date.parse(e.occurred_at);
+      const viewed = typeof e.meta?.viewed_at === 'string' ? Date.parse(e.meta.viewed_at) : Number.NaN;
+      const waited = Number.isFinite(at) && Number.isFinite(viewed) ? minutesLabel(at - viewed) : null;
+      return {
+        title: `${name} opened ${doc ?? 'the pay page'} and hasn't paid yet`,
+        detail: [doc, amount, waited].filter(Boolean).join(' · '),
+        icon: 'visibility',
+        tone: 'neutral',
+      };
+    }
     case 'payment_recorded':
       return { title: `${name} paid ${amount ?? ''}`.trim(), detail: [doc, method].filter(Boolean).join(' · '), icon: 'payments', tone: 'gold' };
     case 'paid_in_full':
@@ -218,6 +237,11 @@ export const STALE_PER_RUN = 3;
  *  per owner (stale oldest first, near-due soonest first). */
 export const CAP_PER_RUN = 3;
 
+/** Item 23: the pay page counts as stuck twenty minutes after the view, and a
+ *  view older than this is no longer news (the 24h catch-up window). */
+export const PAY_PAGE_WAIT_MINUTES = 20;
+export const PAY_PAGE_MAX_HOURS = 24;
+
 /** The subset of a document row the sweep reads. */
 export interface SweepDoc {
   id: string;
@@ -250,6 +274,13 @@ export interface SweepDoc {
   /** A converted estimate keeps status 'sent' (the conversion lives on the new
    *  invoice's converted_from), so the writer reads this explicitly. */
   converted: boolean;
+  /** Item 23: the latest CLIENT view of this document from document_views.
+   *  The log already refuses the owner's own session, so a timestamp here is
+   *  always someone else's view. Null when nobody has opened the link. */
+  latestViewAt?: string | null;
+  /** The latest positive ledger payment on this invoice (invoice_payments).
+   *  Item 23 compares it with the view: money after the view is not stuck. */
+  lastPaymentAt?: string | null;
 }
 
 export interface SweepEvent {
@@ -285,6 +316,29 @@ const staleEstimate = (d: SweepDoc, t: number): boolean => {
   if (!d.updatedAt) return true;
   const touched = Date.parse(d.updatedAt);
   return !Number.isFinite(touched) || t - touched >= STALE_DAYS * DAY_MS;
+};
+
+/**
+ * Item 23's predicate: the pay page was opened and the money never moved.
+ *
+ * Only a client view counts, and document_views already refuses the owner's own
+ * session when it writes the row. The view has to be at least twenty minutes
+ * old (the case this card is for) and inside the last 24 hours (older is no
+ * longer news). A payment recorded after that view means it is not stuck.
+ */
+const payPageStuck = (d: SweepDoc, t: number): boolean => {
+  if (d.kind !== 'invoice') return false;
+  if (d.status !== 'sent' && d.status !== 'overdue') return false;
+  if (d.deletedAt || !unpaid(d)) return false;
+  if (!d.latestViewAt) return false;
+  const viewed = Date.parse(d.latestViewAt);
+  if (!Number.isFinite(viewed)) return false;
+  const age = t - viewed;
+  if (age < PAY_PAGE_WAIT_MINUTES * 60e3) return false;
+  if (age > PAY_PAGE_MAX_HOURS * HOUR_MS) return false;
+  if (!d.lastPaymentAt) return true;
+  const paid = Date.parse(d.lastPaymentAt);
+  return !Number.isFinite(paid) || paid <= viewed;
 };
 
 /**
@@ -350,6 +404,17 @@ export function decideSweep({
           });
         }
       }
+      // Item 23: the twenty-minute pay-page case, sourced from document_views.
+      if (payPageStuck(d, t)) {
+        out.push({
+          ...base(d),
+          kind: 'pay_page_opened_unpaid',
+          // One card per invoice per day: the day IS the occurrence, so the
+          // next day's still-unpaid visit can speak again.
+          dedupeKey: eventDedupeKey('pay_page_opened_unpaid', d.id, now.toISOString().slice(0, 10)),
+          meta: { viewed_at: d.latestViewAt },
+        });
+      }
       if (phase5.has('invoice_stale') && (d.status === 'sent' || d.status === 'overdue') && unpaid(d) && d.sentAt
         && (t - Date.parse(d.sentAt)) / DAY_MS >= STALE_DAYS) {
         out.push({
@@ -408,9 +473,12 @@ export function decideSweep({
     if (e.kind === 'estimate_stale') return Date.parse(String(e.meta.first_sent_at ?? ''));
     if (e.kind === 'invoice_due_soon') return Date.parse(`${String(e.meta.due_date)}T12:00:00Z`);
     if (e.kind === 'estimate_expiring_soon') return Date.parse(`${String(e.meta.valid_until)}T12:00:00Z`);
+    if (e.kind === 'pay_page_opened_unpaid') return Date.parse(String(e.meta.viewed_at ?? ''));
     return Number.NaN;
   };
-  const capped: ReadonlySet<string> = new Set(['estimate_stale', 'invoice_due_soon', 'estimate_expiring_soon']);
+  const capped: ReadonlySet<string> = new Set([
+    'estimate_stale', 'invoice_due_soon', 'estimate_expiring_soon', 'pay_page_opened_unpaid',
+  ]);
   const kept = new Set<string>();
   const perOwnerKind = new Map<string, number>();
   for (const kind of capped) {

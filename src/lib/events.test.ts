@@ -402,3 +402,74 @@ test('the near-due cron step is production-only and is wired into followups', ()
   const cron = readFileSync('src/app/api/followups/route.ts', 'utf8');
   assert.match(cron, /dueSoon = await runDueSoonSweep\(\)/);
 });
+
+// ── Item 23: the pay-page card ─────────────────────────────────────────────
+
+const minutesAgo = (n: number) => new Date(now.getTime() - n * 60e3).toISOString();
+const payPageOnly = (docs: SweepDoc[]) => decideSweep({ now, docs }).filter((e) => e.kind === 'pay_page_opened_unpaid');
+const viewedInvoice = (over: Partial<SweepDoc> = {}) => doc({
+  id: 'i1', ownerId: 'u1', clientName: 'Brandon', documentNumber: 32, total: 100, amountPaid: 0,
+  latestViewAt: minutesAgo(20), lastPaymentAt: null, ...over,
+});
+
+test('the pay page is stuck at twenty minutes, not nineteen', () => {
+  assert.deepEqual(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(19) })]), []);
+  assert.equal(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(20) })]).length, 1);
+});
+
+test('a payment after the view, or a settled invoice, is not stuck', () => {
+  assert.deepEqual(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(60), lastPaymentAt: minutesAgo(30) })]), [], 'paid after the view');
+  assert.equal(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(60), lastPaymentAt: minutesAgo(90) })]).length, 1, 'paid before the view');
+  assert.deepEqual(payPageOnly([viewedInvoice({ amountPaid: 100 })]), [], 'settled');
+  assert.deepEqual(payPageOnly([viewedInvoice({ status: 'draft' })]), [], 'not sent');
+  assert.deepEqual(payPageOnly([viewedInvoice({ deletedAt: daysAgo(1) })]), [], 'deleted');
+});
+
+test('a view older than the 24-hour window is no longer news', () => {
+  assert.equal(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(23 * 60) })]).length, 1);
+  assert.deepEqual(payPageOnly([viewedInvoice({ latestViewAt: minutesAgo(25 * 60) })]), []);
+});
+
+test('one pay-page card per invoice per day, and no view means no card', () => {
+  const [e] = payPageOnly([viewedInvoice()]);
+  assert.equal(e.dedupeKey, 'pay_page_opened_unpaid:i1:2026-11-08');
+  const tomorrow = new Date(now.getTime() + 86400e3);
+  const [next] = decideSweep({
+    now: tomorrow,
+    docs: [viewedInvoice({ latestViewAt: new Date(tomorrow.getTime() - 20 * 60e3).toISOString() })],
+  }).filter((x) => x.kind === 'pay_page_opened_unpaid');
+  assert.notEqual(next.dedupeKey, e.dedupeKey);
+  assert.deepEqual(payPageOnly([viewedInvoice({ latestViewAt: null })]), []);
+});
+
+test('one run posts at most three pay-page cards per owner, oldest view first', () => {
+  const docs = [10, 20, 30, 40].map((m, i) => viewedInvoice({
+    id: `i${i + 1}`, latestViewAt: minutesAgo(m), clientName: `C${i + 1}`,
+  }));
+  const got = payPageOnly(docs);
+  assert.equal(got.length, 3);
+  assert.deepEqual(got.map((e) => e.invoiceId).sort(), ['i2', 'i3', 'i4']);
+});
+
+test('the pay-page card reads who, which invoice, what is owed and how long', () => {
+  const card = eventCard(row({
+    kind: 'pay_page_opened_unpaid', actor: 'time', client_name: 'Brandon',
+    document_kind: 'invoice', document_number: 32, amount: 100,
+    meta: { viewed_at: minutesAgo(25) }, occurred_at: now.toISOString(),
+  }), dollars);
+  assert.equal(card.title, "Brandon opened INV-0032 and hasn't paid yet");
+  assert.equal(card.detail, 'INV-0032 · $100.00 · 25 min');
+  assert.equal(card.tone, 'neutral');
+  assert.equal(eventAction('pay_page_opened_unpaid'), null);
+  assert.equal(eventToasts({ actor: 'time', kind: 'pay_page_opened_unpaid' }), false);
+});
+
+test('only a client view counts: the log refuses the owner, and both sweeps read it', () => {
+  const sql = readFileSync('supabase/migrations/20261108120100_document_views.sql', 'utf8');
+  assert.match(sql, /p_viewer <> i\.user_id/);
+  const appOpen = readFileSync('src/app/api/events/sweep/route.ts', 'utf8');
+  assert.match(appOpen, /from\('document_views'\)/);
+  const cron = readFileSync('src/lib/events-sweep.ts', 'utf8');
+  const fn = cron.slice(cron.indexOf('export async function runPayPageSweep'));
+  assert.match(fn, /if \(!sweepAllowedIn\(env\)\) return \{ skipped: 'not production' \}/);
+});

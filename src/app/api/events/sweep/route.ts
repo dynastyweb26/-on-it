@@ -63,6 +63,42 @@ export async function POST() {
     }
   }
 
+  // Item 23's inputs: the latest client view of each invoice inside the last
+  // day (document_views refuses the owner's own session when it writes a row,
+  // so any timestamp here is someone else's view) and the latest positive
+  // ledger payment, which decides whether the page is actually stuck.
+  const dayAgo = new Date(Date.now() - 24 * 3600e3).toISOString();
+  const latestView = new Map<string, string>();
+  {
+    const { data: views, error: viewErr } = await supabase
+      .from('document_views')
+      .select('invoice_id, viewed_at')
+      .eq('document_kind', 'invoice')
+      .gte('viewed_at', dayAgo)
+      .order('viewed_at', { ascending: false })
+      .limit(1000);
+    if (viewErr) console.error('[sweep] view lookup failed', viewErr.code ?? viewErr.message);
+    for (const v of views ?? []) {
+      const id = String(v.invoice_id);
+      if (!latestView.has(id)) latestView.set(id, String(v.viewed_at));
+    }
+  }
+  const lastPayment = new Map<string, string>();
+  {
+    const { data: payments, error: payErr } = await supabase
+      .from('invoice_payments')
+      .select('invoice_id, paid_at')
+      .gt('amount', 0)
+      .gte('paid_at', dayAgo)
+      .order('paid_at', { ascending: false })
+      .limit(1000);
+    if (payErr) console.error('[sweep] payment lookup failed', payErr.code ?? payErr.message);
+    for (const p of payments ?? []) {
+      const id = String(p.invoice_id);
+      if (!lastPayment.has(id)) lastPayment.set(id, String(p.paid_at));
+    }
+  }
+
   // What already posted, so the item-19 flood cap does not re-offer the same
   // three oldest cards on every open and starve the rest. RLS lets the owner
   // read their own events, so this stays on their session.
@@ -79,6 +115,25 @@ export async function POST() {
     }
     for (const h of hits ?? []) {
       if (h.invoice_id) posted.add(String(h.invoice_id));
+    }
+  }
+
+  // Cards already posted do not take a cap slot: the near-due and pay-page
+  // cards key on a date, so the key itself says whether it posted.
+  const postedKeys = new Set<string>();
+  {
+    const { data: keys, error: keyErr } = await supabase
+      .from('events')
+      .select('dedupe_key')
+      .in('kind', ['invoice_due_soon', 'estimate_expiring_soon', 'pay_page_opened_unpaid'])
+      .not('dedupe_key', 'is', null)
+      .limit(1000);
+    if (keyErr) {
+      console.error('[sweep] posted key lookup failed', keyErr.code ?? keyErr.message);
+      return NextResponse.json({ error: 'read failed' }, { status: 500 });
+    }
+    for (const k of keys ?? []) {
+      if (k.dedupe_key) postedKeys.add(String(k.dedupe_key));
     }
   }
 
@@ -101,9 +156,11 @@ export async function POST() {
     approvedAt: typeof r.approved_at === 'string' ? r.approved_at : null,
     deletedAt: null, // the query already excludes soft-deleted rows
     converted: converted.has(String(r.id)),
+    latestViewAt: latestView.get(String(r.id)) ?? null,
+    lastPaymentAt: lastPayment.get(String(r.id)) ?? null,
   }));
 
-  const planned = decideSweep({ now: new Date(), docs, posted });
+  const planned = decideSweep({ now: new Date(), docs, posted, postedKeys });
   let written = 0;
   for (const e of planned) {
     const id = await insertEvent({
