@@ -828,6 +828,10 @@ export default function AppShell({
       </RecapProvider>
       {/* Plays once when the unlock poll sees the paid tier arrive. */}
       <ProCelebration />
+      {/* Alive layer 01 toast. Mounted here, once, so it lives on every
+          signed-in screen (Chat included): it is position:fixed at z 95,
+          below the safe-area inset, so it never takes layout space. */}
+      <EventToastHost />
     </div>
   );
 }
