@@ -347,3 +347,40 @@ export function shouldPostEstimateViewed(
 
 /** The dedupe key for the one card a signature earns. */
 export const estimateSignedDedupeKey = (estimateId: string): string => `estimate_signed:${estimateId}`;
+
+/** Every kind the app knows, for the preview emitter's `?kind=`. */
+const ESTIMATE_STORED_KIND = 'quote' as const; // the stored value, never printed
+
+export const EVENT_KINDS: readonly EventKind[] = [
+  'estimate_signed', 'estimate_viewed', 'invoice_viewed', 'payment_recorded', 'paid_in_full',
+  'deposit_received', 'invoice_overdue', 'invoice_due_soon', 'estimate_expiring_soon',
+  'estimate_stale', 'invoice_stale', 'pay_page_opened_unpaid', 'draft_unsent',
+];
+
+export const isEventKind = (v: string): v is EventKind => (EVENT_KINDS as readonly string[]).includes(v);
+
+/** Fake, clearly-labelled fields for one event of `kind`. No real document is
+ *  referenced, so nothing in the shared database is touched. */
+export function testEventFields(kind: EventKind): {
+  actor: 'client' | 'time';
+  documentKind: 'invoice' | 'quote';
+  documentNumber: number;
+  clientName: string;
+  amount: number | null;
+  meta: Record<string, unknown>;
+} {
+  const isEstimate = kind.startsWith('estimate_') || kind === 'draft_unsent';
+  const documentKind: 'invoice' | 'quote' = 'invoice';
+  const time = ['invoice_overdue', 'invoice_due_soon', 'estimate_expiring_soon', 'estimate_stale', 'invoice_stale', 'draft_unsent'].includes(kind);
+  const meta: Record<string, unknown> = { test: true };
+  if (kind === 'payment_recorded' || kind === 'paid_in_full' || kind === 'deposit_received') meta.method = 'Zelle';
+  if (kind === 'invoice_overdue') meta.days_late = 3;
+  return {
+    actor: time ? 'time' : 'client',
+    documentKind: isEstimate ? ESTIMATE_STORED_KIND : documentKind,
+    documentNumber: 9999,
+    clientName: 'Test Client',
+    amount: kind === 'estimate_viewed' || kind === 'invoice_viewed' || kind === 'pay_page_opened_unpaid' ? null : 25,
+    meta,
+  };
+}

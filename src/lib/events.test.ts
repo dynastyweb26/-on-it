@@ -252,3 +252,22 @@ test('an unknown send time does not block a view', () => {
 test('the signed card dedupes on the estimate id alone', () => {
   assert.equal(estimateSignedDedupeKey('abc-123'), 'estimate_signed:abc-123');
 });
+
+// ── Item 2: the preview emitter ────────────────────────────────────────────
+
+import { EVENT_KINDS, isEventKind, testEventFields } from './events';
+
+test('every known kind has a fixture that renders a real card, flagged as a test', () => {
+  for (const kind of EVENT_KINDS) {
+    const f = testEventFields(kind);
+    assert.equal(f.meta.test, true, kind);
+    const card = eventCard({ kind, client_name: f.clientName, amount: f.amount, document_kind: f.documentKind, document_number: f.documentNumber, meta: f.meta, occurred_at: now.toISOString() }, dollars);
+    assert.notEqual(card.title, 'Something happened', kind);
+  }
+});
+
+test('isEventKind accepts known kinds and refuses anything else', () => {
+  assert.equal(isEventKind('estimate_signed'), true);
+  assert.equal(isEventKind('drop table'), false);
+  assert.equal(isEventKind(''), false);
+});
