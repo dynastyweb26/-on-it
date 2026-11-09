@@ -11,6 +11,10 @@ import { formatDocNumber } from '@/lib/documents';
 import { postOwnerCard } from '@/lib/owner-cards';
 import type { EventRow } from '@/lib/events';
 
+/** Fired on a successful conversion so a mounted list can refresh and animate. */
+export const ESTIMATE_CONVERTED_EVENT = 'onit:estimate-converted';
+export type EstimateConverted = { estimateId: string; invoiceId: string; number: number | null };
+
 export type ConvertState =
   | { phase: 'idle' }
   | { phase: 'busy' }
@@ -56,6 +60,11 @@ export async function runConvert(e: EventRow, onPaywall: (estimateId: string) =>
     const out = await convertEstimateToInvoice(supabase, e.invoice_id);
     if (out.ok) {
       set(e.id, { phase: 'done', number: out.number });
+      try {
+        window.dispatchEvent(new CustomEvent<EstimateConverted>(ESTIMATE_CONVERTED_EVENT, {
+          detail: { estimateId: e.invoice_id, invoiceId: out.id, number: out.number },
+        }));
+      } catch { /* no window */ }
       if (!out.existed) {
         postOwnerCard({
           title: out.number != null ? `${formatDocNumber('invoice', out.number)} is ready` : 'Your invoice is ready',

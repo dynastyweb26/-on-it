@@ -463,3 +463,28 @@ export function chatStartedAtFrom(messages: ReadonlyArray<{ at?: number }>, fall
   for (const m of messages) if (typeof m.at === 'number' && m.at < oldest) oldest = m.at;
   return new Date(Number.isFinite(oldest) ? oldest : fallbackMs).toISOString();
 }
+
+/** "$150" when the cents are zero, otherwise the app's money format. */
+function wholeMoney(n: number, money: (n: number) => string): string {
+  return Number.isInteger(n) ? money(n).replace(/\.00$/, '') : money(n);
+}
+
+/**
+ * The short assistant line that sometimes sits beside a card (design 07). Only
+ * the two kinds the design shows one for; never on every card, and no pronouns
+ * (the app doesn't know how a client is addressed). null = say nothing.
+ */
+export function eventContextLine(
+  e: Pick<EventRow, 'kind' | 'client_name' | 'amount' | 'meta'>,
+  money: (n: number) => string,
+): { before: string | null; after: string | null } {
+  const name = who(e);
+  if (e.kind === 'invoice_overdue') {
+    const days = num(e.meta?.days_late);
+    if (days != null && typeof e.amount === 'number') {
+      return { before: `${name}'s ${wholeMoney(e.amount, money)} is ${days} ${days === 1 ? 'day' : 'days'} late. Want me to nudge ${name}?`, after: null };
+    }
+  }
+  if (e.kind === 'deposit_received') return { before: null, after: `${name}'s deposit is in. You're clear to schedule the job.` };
+  return { before: null, after: null };
+}

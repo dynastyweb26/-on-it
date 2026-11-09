@@ -101,3 +101,8 @@
   .al-anim { animation: none !important; }
   .al-anim-ck { stroke-dashoffset: 0 !important; }
 }
+
+/* The assistant's avatar in its lane (design .av): 28px tile, ring + gold dot. */
+.al-av { width: 28px; height: 28px; border-radius: 9px; background: #2b2620; position: relative; flex: none; margin-top: 2px; }
+.al-av::before { content: ''; position: absolute; left: 5px; top: 5px; width: 8px; height: 8px; border: 2.5px solid #fff8ec; border-radius: 50%; }
+.al-av::after { content: ''; position: absolute; right: 5px; bottom: 5px; width: 5px; height: 5px; border-radius: 50%; background: #d4af37; }

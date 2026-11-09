@@ -10,8 +10,9 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
-import EventCard from '@/components/chat/EventCard';
+import EventCard, { AssistantLine } from '@/components/chat/EventCard';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
+import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
@@ -92,7 +93,7 @@ import {
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
-import { chatStartedAtFrom, eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import { chatStartedAtFrom, eventContextLine, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
 import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
@@ -4163,24 +4164,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const openDocument = (id: string) => router.push(`/invoices/${id}`);
   const runEventAction = (e: EventRow, action: EventAction) => {
     if (!e.invoice_id) return;
-    // Convert opens the estimate, which owns the confirm, the paywall and the
-    // idempotency key — a card never mints an invoice on one tap. Send reminder
-    // lands on the invoice, where Request balance is the existing re-share.
+    // The card's Convert runs in place (renderEvent); this is the reminder path,
+    // and Convert's paywall fallback: both land on the document, where Request
+    // balance is the existing re-share and the paywall lives.
     openDocument(e.invoice_id + (action === 'convert' ? '?convert=1' : ''));
   };
   const renderEvent = (e: EventRow) => {
-    const action = eventAction(String(e.kind));
+    const line = eventContextLine(e, money);
     return (
-      <EventCard
-        key={e.id}
-        event={e}
-        money={money}
-        onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
-        action={action ? {
-          label: action === 'convert' ? 'Convert' : 'Send reminder',
-          onClick: () => runEventAction(e, action),
-        } : undefined}
-      />
+      <Fragment key={e.id}>
+        {line.before && <AssistantLine>{line.before}</AssistantLine>}
+        <EventCard
+          event={e}
+          money={money}
+          onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
+          onRemind={() => runEventAction(e, 'remind')}
+          // Convert runs here, in the card: idempotent, with its own pending and
+          // error states. The paywall lives on the estimate, so that case opens it.
+          onConvert={() => { void runConvert(e, (estimateId) => router.push(`/invoices/${estimateId}?convert=1`)); }}
+        />
+        {line.after && <AssistantLine>{line.after}</AssistantLine>}
+      </Fragment>
     );
   };
 

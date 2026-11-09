@@ -14,7 +14,7 @@ const TAG: Record<string, { cls: string; icon: IconName }> = {
   overdue: { cls: 'bg-error-container text-on-error-container', icon: 'warning' },
   draft: { cls: 'bg-draft-container text-draft', icon: 'history' },
   void: { cls: 'bg-draft-container text-draft line-through', icon: 'block' },
-  converted: { cls: 'bg-surface-container-high text-on-surface-variant', icon: 'sync' },
+  converted: { cls: 'bg-surface-container-high text-on-surface-variant', icon: 'swap_horiz' },
   signed: { cls: 'bg-paid-container text-paid', icon: 'verified' },
 };
 

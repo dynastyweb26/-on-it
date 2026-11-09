@@ -17,6 +17,8 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDocNumber } from '@/lib/documents';
 import { openSummary } from '@/lib/open-summary';
 import { tagFor } from '@/lib/doc-tags';
+import { ESTIMATE_CONVERTED_EVENT, type EstimateConverted } from '@/components/alive/useConvert';
+import '@/components/alive/alive.css';
 import TagChip from '@/components/invoices/TagChip';
 import { getSharedUser } from '@/lib/auth-client';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
@@ -147,6 +149,21 @@ export default function Invoices({ active = true, selectedId = null }: { active?
     writeListSort(INVOICES_SORT_KEY, v);
   }
 
+  // A conversion elsewhere (the chat card or toast) refreshes this list and
+  // marks the row so it can show "Now INV-0032 · open invoice" (design 07).
+  const [reloadTick, setReloadTick] = useState(0);
+  const [justConverted, setJustConverted] = useState<Record<string, { invoiceId: string; number: number | null }>>({});
+  useEffect(() => {
+    const on = (ev: Event) => {
+      const d = (ev as CustomEvent<EstimateConverted>).detail;
+      if (!d?.estimateId) return;
+      setJustConverted((m) => ({ ...m, [d.estimateId]: { invoiceId: d.invoiceId, number: d.number } }));
+      setReloadTick((n) => n + 1);
+    };
+    window.addEventListener(ESTIMATE_CONVERTED_EVENT, on);
+    return () => window.removeEventListener(ESTIMATE_CONVERTED_EVENT, on);
+  }, []);
+
   useEffect(() => {
     // Hidden deck panels must not read the route, redirect, or fetch. The
     // effect re-runs when this tab becomes active.
@@ -197,7 +214,7 @@ export default function Invoices({ active = true, selectedId = null }: { active?
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, reloadTick]);
 
   // A quote that has already become an invoice: some invoice row points back to
   // it via converted_from. Derived from the fetched rows, so no extra query.
@@ -323,7 +340,7 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                       onClick={(e) => openRow(e, r.id)}
                       style={{ WebkitTouchCallout: 'none' }}
                       onContextMenu={(e) => e.preventDefault()}
-                      className="flex h-full select-none items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-colors active:bg-surface-container-high xl:px-3.5 xl:py-3 xl:border-[1.5px] xl:aria-[current=true]:border-primary-container xl:aria-[current=true]:bg-sent-container xl:hover:bg-surface-container-high onit-row-cv">
+                      className="flex h-full select-none flex-wrap items-center justify-between gap-3 rounded-[20px] border border-outline-variant/60 bg-surface-container-low px-4 py-3.5 transition-colors active:bg-surface-container-high xl:px-3.5 xl:py-3 xl:border-[1.5px] xl:aria-[current=true]:border-primary-container xl:aria-[current=true]:bg-sent-container xl:hover:bg-surface-container-high onit-row-cv">
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate font-display text-lg font-bold leading-tight text-on-background">{r.client_name}</span>
                         <span className="text-[13.5px] text-on-surface-variant">
@@ -342,6 +359,18 @@ export default function Invoices({ active = true, selectedId = null }: { active?
                           <Icon name="chevron_right" size={22} />
                         </span>
                       </div>
+                      {justConverted[r.id] && isConvertedQuote(r) && (
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          className="al-fade-up flex w-full basis-full items-center gap-1.5 text-[13px] text-[#4a433a]"
+                          style={{ marginTop: -2, paddingTop: 10, borderTop: '1px dashed var(--al-rule)', animationDelay: '.2s' }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/invoices/${justConverted[r.id].invoiceId}`); }}
+                        >
+                          <Icon name="arrow_forward" size={16} className="text-[#7a6210]" />
+                          Now <b className="font-mono text-[12.5px]">{justConverted[r.id].number != null ? formatDocNumber('invoice', justConverted[r.id].number as number) : 'invoice'}</b> · open invoice
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

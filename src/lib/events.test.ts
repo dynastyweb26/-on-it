@@ -303,7 +303,7 @@ test('with no timestamped message the fallback is used', () => {
 
 // ── Design copy (alive layer 01 + 07) ──────────────────────────────────────
 
-import { ordinal } from './events';
+import { eventContextLine, ordinal } from './events';
 
 const mkEv = (over: Partial<EventRow>): EventRow => ({
   id: 'e1', user_id: 'u', kind: 'payment_recorded', actor: 'client', invoice_id: null,
@@ -354,4 +354,13 @@ test('an invoice view carries the due date', () => {
   assert.equal(c.title, 'Ruth viewed their invoice');
   assert.equal(c.detail, 'INV-0030 · $150.00 · due Nov 14');
   assert.equal(c.icon, 'find_in_page');
+});
+
+test('only overdue and deposit cards get an assistant line, and it avoids pronouns', () => {
+  const o = eventContextLine(mkEv({ kind: 'invoice_overdue', client_name: 'Brandon', amount: 150, meta: { days_late: 3 } }), dollars);
+  assert.equal(o.before, "Brandon's $150 is 3 days late. Want me to nudge Brandon?");
+  const d = eventContextLine(mkEv({ kind: 'deposit_received', client_name: 'Ruth', meta: {} }), dollars);
+  assert.equal(d.after, "Ruth's deposit is in. You're clear to schedule the job.");
+  assert.deepEqual(eventContextLine(mkEv({ kind: 'estimate_viewed' }), dollars), { before: null, after: null });
+  assert.deepEqual(eventContextLine(mkEv({ kind: 'estimate_signed' }), dollars), { before: null, after: null });
 });
