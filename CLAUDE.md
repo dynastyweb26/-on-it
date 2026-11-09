@@ -2,6 +2,10 @@
 
 Before any change, read ONIT-SPEC.md, SECURITY.md, and PUNCH-LIST.md.
 
+WORK SPLIT (binding): read WORK-SPLIT.md. Claude Code builds only what the user sees,
+and only from the Claude Design HTML in `design/`. Freebuff builds everything else and
+never touches UI. If no design exists for a visible part, stop and ask the founder.
+
 PUNCH-LIST.md is the current, code-verified status of known work (Done / Partial /
 Open / Unverified, with file+commit evidence). Trust it over ONIT-SPEC.md, which
 is stale; keep it current as items land.
