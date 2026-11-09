@@ -77,6 +77,12 @@ export function chooseInvoiceForClient(clientName: string, invoices: OpenInvoice
   return { kind: 'many', invoices: open };
 }
 
+/** Shown when the chosen client has no unpaid invoice. Confirm stays blocked. */
+export function noUnpaidInvoicesMessage(clientName: string): string {
+  const name = clientName.trim();
+  return `${name || 'This client'} has no unpaid invoices to apply this to.`;
+}
+
 export type PaymentCardLoad =
   | { status: 'loading' }
   | { status: 'ready' }

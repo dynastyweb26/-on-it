@@ -6,6 +6,7 @@ import {
   PAYMENT_CLIENT_LIMIT,
   chooseInvoiceForClient,
   matchTypedClient,
+  noUnpaidInvoicesMessage,
   openPaymentCardTarget,
   paymentCardLoadError,
   recentPaymentClients,
@@ -146,4 +147,10 @@ test('a tap in the same frame as the first one is ignored', () => {
 
 test('after the card is confirmed or cancelled, the next tap adds a new one', () => {
   assert.deepEqual(openPaymentCardTarget([{ id: 'g' }, { id: 'p' }], null), { action: 'add' });
+});
+
+test('no unpaid invoice says so in plain words and never asks to pick one', () => {
+  assert.equal(noUnpaidInvoicesMessage(' Ruth '), 'Ruth has no unpaid invoices to apply this to.');
+  assert.equal(noUnpaidInvoicesMessage(''), 'This client has no unpaid invoices to apply this to.');
+  assert.doesNotMatch(noUnpaidInvoicesMessage('Ruth'), /pick/i);
 });

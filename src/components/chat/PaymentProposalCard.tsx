@@ -17,6 +17,7 @@ import { money } from '@/lib/financials';
 import type { OpenInvoice } from '@/lib/payment-intent';
 import {
   OTHER_CLIENT_LABEL,
+  noUnpaidInvoicesMessage,
   chooseInvoiceForClient,
   matchTypedClient,
   recentPaymentClients,
@@ -144,7 +145,9 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
     : choice.kind === 'many' && choice.invoices.some((i) => i.id === pickedInvoiceId) ? pickedInvoiceId : null;
   const showTextClient = !picker || other || (load.status === 'ready' && recent.length === 0);
   const clientChosen = typedName.trim() !== '';
-  const showInvoice = !picker || (load.status === 'ready' && clientChosen);
+  const noInvoices = picker && load.status === 'ready' && clientChosen && choice?.kind === 'none';
+  // With no unpaid invoice there is nothing to show or pick: the footer says so.
+  const showInvoice = !picker || (load.status === 'ready' && clientChosen && !noInvoices);
   const invoice = invoices.find((i) => i.id === invoiceId) ?? null;
   const amount = Number(amountText);
   const validAmount = Number.isFinite(amount) && amount > 0;
@@ -251,7 +254,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
           <div style={{ ...ROW, padding: '9px 0', gap: 8 }}>
             <span style={LBL}>{invoices.length > 1 ? `Invoice · ${invoices.length} open` : 'Invoice'}</span>
             {invoices.length === 0 ? (
-              <span style={{ ...LBL, fontSize: 13 }}>{picker ? `${typedName.trim()} has no unpaid invoices.` : 'No open invoice found'}</span>
+              <span style={{ ...LBL, fontSize: 13 }}>No open invoice found</span>
             ) : invoices.length === 1 ? (
               <span style={{ fontWeight: 600 }}>
                 <span style={{ fontFamily: 'var(--font-plex-mono), ui-monospace, monospace', fontSize: 13 }}>{docNo(invoices[0])}</span> · {money(invoices[0].total)}
@@ -354,6 +357,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
         <div style={{ background: 'var(--al-card-bg)', padding: '10px 14px', fontSize: 13, color: 'var(--al-ink2)', borderTop: '1px solid #efe4d2' }}>
           {owesAfter != null
             ? <>After this, {firstName(clientName)} owes <b>{money(owesAfter)}</b>.</>
+            : noInvoices ? noUnpaidInvoicesMessage(typedName)
             : (!validAmount ? 'How much did they pay?' : 'Pick the invoice this pays.')}
           {owesAfter != null && !method && <div style={{ marginTop: 2, color: 'var(--al-mute)' }}>How did they pay?</div>}
         </div>
