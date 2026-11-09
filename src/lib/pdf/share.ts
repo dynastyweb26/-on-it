@@ -70,3 +70,26 @@ function failure(err: unknown): ShareResult {
   console.error('share failed', name, err);
   return { status: 'failed', name };
 }
+
+/** Share the link ALONE (the "Send link only" fallback when the PDF cannot be
+ *  built). Same contract as sharePdf: call it synchronously from the tap; it
+ *  never throws. Where the platform has no share sheet it copies the text and
+ *  says 'unsupported' so the caller can tell the owner it was copied. */
+export function shareLinkOnly(text: string, url: string): Promise<ShareResult> {
+  const data: ShareData = { text, url };
+  const can = (() => { try { return typeof navigator !== 'undefined' && (navigator.canShare ? navigator.canShare(data) : typeof navigator.share === 'function'); } catch { return false; } })();
+  if (!can) return Promise.resolve({ status: 'unsupported' });
+  let pending: Promise<void>;
+  try {
+    pending = navigator.share(data);
+  } catch (err) {
+    return Promise.resolve(failure(err));
+  }
+  return pending.then(
+    (): ShareResult => ({ status: 'shared' }),
+    (err): ShareResult => {
+      if (err instanceof DOMException && err.name === 'AbortError') return { status: 'cancelled' };
+      return failure(err);
+    },
+  );
+}

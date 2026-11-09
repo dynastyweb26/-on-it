@@ -99,56 +99,123 @@ export function eventAction(kind: string): EventAction | null {
   return null;
 }
 
+/** Tile tints from the design (01 toast, 07 cards): bg + glyph colour. */
+export type EventTint = 'signed' | 'paid' | 'partial' | 'overdue' | 'view' | 'deposit';
+
+export interface EventCardModel {
+  title: string;
+  detail: string;
+  icon: string;
+  tone: EventTone;
+  tint: EventTint;
+  /** Partial payments draw the bar: paid / total, 0..100. */
+  bar: { pct: number } | null;
+  /** The small chip some chat cards carry ("Deposit"). */
+  chip: string | null;
+  /** The mono meta line above a chat card's title ("Deposit received"). */
+  metaLabel: string | null;
+}
+
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** 2 -> "2nd", 3 -> "3rd", 11 -> "11th". */
+export function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return n + 'th';
+  return n + (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+}
+
+const dueLabel = (iso: unknown): string | null => {
+  if (typeof iso !== 'string') return null;
+  const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return 'due ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 /**
- * What the card says. One title, one detail line — no recaps, no advice, no
- * invented numbers. `money` is injected so the formatting stays the app's.
+ * What the card says: the design's copy (On_It_Alive_Layer 01 + 07), one title
+ * and one detail line. `money` is injected so the formatting stays the app's.
+ * `when` is the time text a signed card carries ("just now" on a toast, a clock
+ * time in the thread); other kinds never print a time.
  */
 export function eventCard(
   e: Pick<EventRow, 'kind' | 'client_name' | 'amount' | 'document_kind' | 'document_number' | 'meta' | 'occurred_at'>,
   money: (n: number) => string,
-): { title: string; detail: string; icon: string; tone: EventTone } {
+  opts: { when?: string } = {},
+): EventCardModel {
   const name = who(e);
   const doc = docLabel(e);
   const amount = typeof e.amount === 'number' ? money(e.amount) : null;
   const method = typeof e.meta?.method === 'string' ? e.meta.method : null;
+  const total = num(e.meta?.total);
+  const balance = num(e.meta?.balance);
+  const base = { bar: null, chip: null, metaLabel: null };
   const detail = [doc, amount, method].filter(Boolean).join(' · ');
 
   switch (e.kind) {
     case 'estimate_signed':
-      return { title: `${name} signed your estimate`, detail, icon: 'verified', tone: 'success' };
-    case 'estimate_viewed':
-      return { title: `${name} opened your estimate`, detail, icon: 'visibility', tone: 'neutral' };
-    case 'invoice_viewed':
-      return { title: `${name} opened your invoice`, detail, icon: 'visibility', tone: 'neutral' };
-    case 'pay_page_opened_unpaid':
-      return { title: `${name} opened the pay page`, detail, icon: 'visibility', tone: 'neutral' };
-    case 'payment_recorded':
-      return { title: `${name} paid ${amount ?? ''}`.trim(), detail: [doc, method].filter(Boolean).join(' · '), icon: 'payments', tone: 'gold' };
-    case 'paid_in_full':
-      return { title: `${name} paid in full`, detail, icon: 'payments', tone: 'gold' };
-    case 'deposit_received':
-      return { title: `${name}'s deposit is in`, detail, icon: 'savings', tone: 'gold' };
-    case 'invoice_overdue': {
-      const days = typeof e.meta?.days_late === 'number' ? e.meta.days_late : null;
+      return { ...base, title: `${name} signed your estimate`, detail: [doc, amount, opts.when].filter(Boolean).join(' · '), icon: 'verified', tone: 'success', tint: 'signed' };
+    case 'estimate_viewed': {
+      const nth = num(e.meta?.nth_today);
       return {
+        ...base,
+        title: `${name} opened your estimate`,
+        detail: [doc, amount, nth && nth >= 2 ? `${ordinal(nth)} time today` : null].filter(Boolean).join(' · '),
+        icon: 'visibility', tone: 'neutral', tint: 'view',
+      };
+    }
+    case 'invoice_viewed':
+      return {
+        ...base,
+        title: `${name} viewed their invoice`,
+        detail: [doc, amount, dueLabel(e.meta?.due)].filter(Boolean).join(' · '),
+        icon: 'find_in_page', tone: 'neutral', tint: 'view',
+      };
+    case 'pay_page_opened_unpaid':
+      return { ...base, title: `${name} opened the pay page`, detail, icon: 'visibility', tone: 'neutral', tint: 'view' };
+    case 'payment_recorded': {
+      if (amount && total != null && balance != null && balance > 0 && total > 0) {
+        const paid = Math.max(0, total - balance);
+        return {
+          ...base,
+          title: `${name} paid ${amount} of ${money(total)}`,
+          detail: [doc, `${money(balance)} left`].join(' · '),
+          icon: 'toll', tone: 'gold', tint: 'partial',
+          bar: { pct: Math.max(0, Math.min(100, (paid / total) * 100)) },
+        };
+      }
+      return { ...base, title: `${name} paid ${amount ?? ''}`.trim(), detail: [doc, method].filter(Boolean).join(' · '), icon: 'payments', tone: 'gold', tint: 'paid' };
+    }
+    case 'paid_in_full':
+      return { ...base, title: `${name} paid ${amount ?? ''}`.trim(), detail: [doc, method, 'paid in full'].filter(Boolean).join(' · '), icon: 'payments', tone: 'gold', tint: 'paid' };
+    case 'deposit_received':
+      return {
+        ...base,
+        title: amount ? `${amount} deposit from ${name}` : `${name}'s deposit is in`,
+        detail: [doc, balance != null && balance > 0 ? `${money(balance)} due on completion` : null].filter(Boolean).join(' · '),
+        icon: 'verified_user', tone: 'gold', tint: 'deposit', chip: 'Deposit', metaLabel: 'Deposit received',
+      };
+    case 'invoice_overdue': {
+      const days = num(e.meta?.days_late);
+      return {
+        ...base,
         title: `${name}'s invoice is overdue`,
         detail: [detail, days != null ? `${days} ${days === 1 ? 'day' : 'days'} late` : null].filter(Boolean).join(' · '),
-        icon: 'schedule',
-        tone: 'overdue',
+        icon: 'schedule', tone: 'overdue', tint: 'overdue',
       };
     }
     case 'invoice_due_soon':
-      return { title: `${name}'s invoice is due soon`, detail, icon: 'schedule', tone: 'neutral' };
+      return { ...base, title: `${name}'s invoice is due soon`, detail, icon: 'schedule', tone: 'neutral', tint: 'view' };
     case 'estimate_expiring_soon':
-      return { title: `${name}'s estimate expires soon`, detail, icon: 'schedule', tone: 'overdue' };
+      return { ...base, title: `${name}'s estimate expires soon`, detail, icon: 'schedule', tone: 'overdue', tint: 'overdue' };
     case 'estimate_stale':
-      return { title: `Still no answer from ${name}`, detail, icon: 'history', tone: 'neutral' };
+      return { ...base, title: `Still no answer from ${name}`, detail, icon: 'history', tone: 'neutral', tint: 'view' };
     case 'invoice_stale':
-      return { title: `${name}'s invoice is still unpaid`, detail, icon: 'history', tone: 'neutral' };
+      return { ...base, title: `${name}'s invoice is still unpaid`, detail, icon: 'history', tone: 'neutral', tint: 'view' };
     case 'draft_unsent':
-      return { title: `Draft for ${name} hasn't gone out`, detail, icon: 'edit', tone: 'neutral' };
+      return { ...base, title: `Draft for ${name} hasn't gone out`, detail, icon: 'edit', tone: 'neutral', tint: 'view' };
     default:
-      return { title: 'Something happened', detail, icon: 'description', tone: 'neutral' };
+      return { ...base, title: 'Something happened', detail, icon: 'description', tone: 'neutral', tint: 'view' };
   }
 }
 
@@ -322,4 +389,102 @@ export function splitEventsByMessage(
     (between[anchor.id] ??= []).push(e);
   }
   return { between, trailing };
+}
+
+/** A view this soon after the send is the owner's own test tap or a link
+ *  preview, not the client reading it. */
+export const VIEW_GRACE_MS = 2 * 60 * 1000;
+
+/**
+ * Should a client view of an estimate post an `estimate_viewed` card? Not once
+ * it is signed (the signed card says more), and not within two minutes of the
+ * send. A missing send time cannot be judged, so it does not block.
+ */
+export function shouldPostEstimateViewed(
+  e: { approvedAt: string | null; sentAt: string | null },
+  now: Date,
+): boolean {
+  if (e.approvedAt) return false;
+  if (e.sentAt) {
+    const sent = Date.parse(e.sentAt);
+    if (Number.isFinite(sent) && now.getTime() - sent < VIEW_GRACE_MS) return false;
+  }
+  return true;
+}
+
+/** The dedupe key for the one card a signature earns. */
+export const estimateSignedDedupeKey = (estimateId: string): string => `estimate_signed:${estimateId}`;
+
+/** Every kind the app knows, for the preview emitter's `?kind=`. */
+const ESTIMATE_STORED_KIND = 'quote' as const; // the stored value, never printed
+
+export const EVENT_KINDS: readonly EventKind[] = [
+  'estimate_signed', 'estimate_viewed', 'invoice_viewed', 'payment_recorded', 'paid_in_full',
+  'deposit_received', 'invoice_overdue', 'invoice_due_soon', 'estimate_expiring_soon',
+  'estimate_stale', 'invoice_stale', 'pay_page_opened_unpaid', 'draft_unsent',
+];
+
+export const isEventKind = (v: string): v is EventKind => (EVENT_KINDS as readonly string[]).includes(v);
+
+/** Fake, clearly-labelled fields for one event of `kind`. No real document is
+ *  referenced, so nothing in the shared database is touched. */
+export function testEventFields(kind: EventKind): {
+  actor: 'client' | 'time';
+  documentKind: 'invoice' | 'quote';
+  documentNumber: number;
+  clientName: string;
+  amount: number | null;
+  meta: Record<string, unknown>;
+} {
+  const isEstimate = kind.startsWith('estimate_') || kind === 'draft_unsent';
+  const documentKind: 'invoice' | 'quote' = 'invoice';
+  const time = ['invoice_overdue', 'invoice_due_soon', 'estimate_expiring_soon', 'estimate_stale', 'invoice_stale', 'draft_unsent'].includes(kind);
+  const meta: Record<string, unknown> = { test: true };
+  if (kind === 'payment_recorded' || kind === 'paid_in_full' || kind === 'deposit_received') meta.method = 'Zelle';
+  if (kind === 'invoice_overdue') meta.days_late = 3;
+  return {
+    actor: time ? 'time' : 'client',
+    documentKind: isEstimate ? ESTIMATE_STORED_KIND : documentKind,
+    documentNumber: 9999,
+    clientName: 'Test Client',
+    amount: kind === 'estimate_viewed' || kind === 'invoice_viewed' || kind === 'pay_page_opened_unpaid' ? null : 25,
+    meta,
+  };
+}
+
+/**
+ * When did THIS thread start? The oldest timestamped message it holds, so a
+ * refresh that restores the saved chat keeps the cards that landed during it.
+ * Using the moment the page mounted instead drops every seen card on reload.
+ * A thread with no timestamped message (an old save) falls back to `fallbackMs`.
+ */
+export function chatStartedAtFrom(messages: ReadonlyArray<{ at?: number }>, fallbackMs: number): string {
+  let oldest = Infinity;
+  for (const m of messages) if (typeof m.at === 'number' && m.at < oldest) oldest = m.at;
+  return new Date(Number.isFinite(oldest) ? oldest : fallbackMs).toISOString();
+}
+
+/** "$150" when the cents are zero, otherwise the app's money format. */
+function wholeMoney(n: number, money: (n: number) => string): string {
+  return Number.isInteger(n) ? money(n).replace(/\.00$/, '') : money(n);
+}
+
+/**
+ * The short assistant line that sometimes sits beside a card (design 07). Only
+ * the two kinds the design shows one for; never on every card, and no pronouns
+ * (the app doesn't know how a client is addressed). null = say nothing.
+ */
+export function eventContextLine(
+  e: Pick<EventRow, 'kind' | 'client_name' | 'amount' | 'meta'>,
+  money: (n: number) => string,
+): { before: string | null; after: string | null } {
+  const name = who(e);
+  if (e.kind === 'invoice_overdue') {
+    const days = num(e.meta?.days_late);
+    if (days != null && typeof e.amount === 'number') {
+      return { before: `${name}'s ${wholeMoney(e.amount, money)} is ${days} ${days === 1 ? 'day' : 'days'} late. Want me to nudge ${name}?`, after: null };
+    }
+  }
+  if (e.kind === 'deposit_received') return { before: null, after: `${name}'s deposit is in. You're clear to schedule the job.` };
+  return { before: null, after: null };
 }

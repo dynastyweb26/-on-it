@@ -112,6 +112,16 @@ export const ICON_NAMES = [
   'volume_up',
   'warning',
   'workspace_premium',
+  'toll',
+  'verified_user',
+  'find_in_page',
+  'swap_horiz',
+  'notifications_active',
+  'edit_document',
+  'person_search',
+  'light_mode',
+  'calendar_month',
+  'south_west',
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];

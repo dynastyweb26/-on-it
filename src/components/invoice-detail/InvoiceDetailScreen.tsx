@@ -22,9 +22,12 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, explicitColorRoles } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
-import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
+import { sharePdf, shareLinkOnly, shareText, type ShareResult } from '@/lib/pdf/share';
+import { pdfSendPhase } from '@/lib/pdf/send-state';
+import PdfSendCard from '@/components/invoice-detail/PdfSendCard';
 import type { BrandTheme } from '@/lib/colors';
 import { formatDate } from '@/lib/dates';
+import PaymentFigure, { type PaymentFigureMode } from '@/components/invoice-detail/PaymentFigure';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
@@ -190,6 +193,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // was built from, or file=null when that build failed. The nonce forces a
   // rebuild after a failure. shareError: a blocked/failed share, shown inline.
   const [prebuilt, setPrebuilt] = useState<{ sig: string; file: File | null } | null>(null);
+  // Design 04 PDF + send: Send stays live while the PDF builds and queues the send.
+  const [queuedSend, setQueuedSend] = useState(false);
+  const [justSentAt, setJustSentAt] = useState<string | null>(null);
   const [prebuildNonce, setPrebuildNonce] = useState(0);
   const [shareError, setShareError] = useState<string | null>(null);
   // P-66 / S1 + S1b: the share went out but POST /send did not. The sheet says
@@ -729,6 +735,40 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     void settleShare(sharePdf(file, shareText(lead, inv.client_name, shareUrl)), file, isBalanceRequest);
   }
 
+  // Send invoice (design 04). While the PDF builds the tap is queued, not dead:
+  // the moment the file is ready the same one-tap share runs. After a failed
+  // build the tap rebuilds, exactly as Share PDF did.
+  function sendInvoice() {
+    if (busy || queuedSend) return;
+    if (!shareReady) { setQueuedSend(true); return; }
+    resend();
+  }
+
+  // "Send link only": the fallback when the PDF cannot be built. Never blocks.
+  async function sendLinkOnly() {
+    if (busy || sendingRef.current) return;
+    if (!shareUrl) { setShareError('This invoice has no link yet, so there is nothing to send.'); return; }
+    sendingRef.current = true;
+    setBusy(true);
+    setShareError(null);
+    try {
+      const r = await shareLinkOnly(shareText(docNoun(inv.kind), inv.client_name, shareUrl), shareUrl);
+      if (r.status === 'cancelled') return;
+      if (r.status === 'failed') { setShareError(`${userMessage({ name: r.name })} Tap Send link only to try again.`); return; }
+      if (r.status === 'unsupported') {
+        try { await navigator.clipboard.writeText(shareUrl); setShareError('No share sheet here, so the link was copied. Paste it into a message.'); } catch { setShareError('Couldn\u2019t open a share sheet or copy the link.'); return; }
+      }
+      const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' }).catch(() => null);
+      const out = await res?.json().catch(() => null) as { invoice?: Record<string, unknown> } | null;
+      if (res?.ok && out?.invoice) { setInv(out.invoice); setJustSentAt(new Date().toISOString()); }
+      else if (res?.status === 409) setShareError('This invoice is void and cannot be sent.');
+      else setShareError('The link went out, but I couldn\u2019t mark the invoice sent. Check your connection and try again.');
+    } finally {
+      sendingRef.current = false;
+      setBusy(false);
+    }
+  }
+
   // After the one share call. A cancel is silent (no message, no status change;
   // a draft stays a draft). A failure says so with the error name, keeping the
   // file so the next tap re-shares it synchronously. A completed share (or a
@@ -741,7 +781,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       const r = await pending;
       if (r.status === 'cancelled') return;
       if (r.status === 'failed') {
-        setShareError(`${userMessage({ name: r.name })} Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        setShareError(`${userMessage({ name: r.name })} Tap ${isBalanceRequest ? 'Request balance' : 'Send invoice'} to try again.`);
         return;
       }
       if (r.status === 'unsupported') downloadFile(file);
@@ -780,6 +820,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       setUnsentShareOpen(false);
       forgetUnsentShare(inv.id);
       if (body?.invoice) setInv(body.invoice);
+      setJustSentAt(new Date().toISOString());
       const firstSend = body?.firstSend === true;
 
       // Archive to the Vault, the same way a chat send does (best-effort — a
@@ -1026,10 +1067,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     disabled?: boolean; tone?: 'good'; onClick: () => void;
   };
   const quickActions: QuickAction[] = [
-    {
-      key: 'share', label: shareLabel('Share PDF'), icon: 'attach_file',
-      disabled: busy || !shareReady, onClick: () => resend(),
-    },
     ...(inv.kind === 'invoice' && !isDraft && inv.public_token
       ? [{
           key: 'link', label: linkCopied ? 'Copied' : 'Pay link',
@@ -1087,11 +1124,68 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setUndoDelete(false);
   }
 
+  // Alive layer 04: the figure card for a partial, a closed and a deposit-paid
+  // invoice is the design's PaymentFigure. Everything else keeps the card below.
+  const depositCovered = inv.kind === 'invoice' && totals.depositAmount > 0
+    && amountPaid >= totals.depositAmount && !fullyPaid;
+  const momentMode: PaymentFigureMode | null =
+    inv.kind !== 'invoice' || isDraft ? null
+    : fullyPaid ? 'paid'
+    : depositCovered && amountPaid <= totals.depositAmount + 0.005 ? 'deposit'
+    : partiallyPaid ? 'partial'
+    : null;
+  const shortDate = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+  const realPayments = payments.filter((p) => !p.entry_type || p.entry_type === 'payment');
+  const latestPayment = [...realPayments].sort((a, b) => Date.parse(b.paid_at) - Date.parse(a.paid_at))[0] ?? null;
+  const sentOn = shortDate((inv as { first_sent_at?: string | null; sent_at?: string | null }).first_sent_at
+    ?? (inv as { sent_at?: string | null }).sent_at);
+  const fromEstimate = convertedFrom ? `from ${formatDocNumber('quote', convertedFrom.invoice_number)}` : null;
+  const depositLine = (() => {
+    const t = (inv as { deposit_type?: string | null }).deposit_type;
+    const v = Number((inv as { deposit_value?: number | null }).deposit_value);
+    const label = t === 'percentage' && Number.isFinite(v) && v > 0 ? `${v}% deposit` : `${money(totals.depositAmount)} deposit`;
+    return [label, fromEstimate].filter(Boolean).join(' · ');
+  })();
+
   return (
     <div className={`px-4 py-4 md:px-6${showPayBar ? ' pb-28' : ''}${embedded ? ' xl:px-0 xl:pt-0' : ''}`}>
-      <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
-        {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
+      {momentMode && (
+        <div className="mb-4">
+          <PaymentFigure
+            mode={momentMode}
+            docNumber={formatDocNumber(inv.kind, inv.invoice_number)}
+            clientName={inv.client_name}
+            subLine={momentMode === 'deposit' ? depositLine : ['Invoice', fromEstimate, sentOn ? `Sent ${sentOn}` : null].filter(Boolean).join(' · ')}
+            rightLine={momentMode === 'deposit' ? 'Balance on completion'
+              : momentMode === 'paid' ? `Closed ${shortDate(latestPayment?.paid_at) ?? ''}`.trim()
+              : `Due ${inv.due_date ? shortDate(inv.due_date as string) ?? '' : '—'}`}
+            total={totals.total}
+            amountPaid={amountPaid}
+            balance={totals.balanceRemaining}
+            depositAmount={totals.depositAmount}
+            lastPayment={latestPayment ? {
+              amount: Number(latestPayment.amount),
+              from: (inv.client_name ?? '').trim().split(/s+/)[0] || 'your client',
+              method: latestPayment.method ? methodLabel(latestPayment.method as PaymentMethod) : null,
+            } : null}
+            justRecorded={justRecorded ? {
+              amount: justRecorded.amount,
+              methodLabel: methodLabel(justRecorded.method as PaymentMethod),
+              dateLabel: shortDate(justRecorded.paidAt) ?? '',
+            } : null}
+            onUndo={() => { if (justRecorded) { const id = justRecorded.id; setJustRecorded(null); void handleDeletePayment(id); } }}
+            celebrate={paidAnim}
+            paidFrom={paidFrom}
+            format={money}
+            onViewPayments={() => document.getElementById('payments-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          />
+        </div>
+      )}
+      <div className={`card relative mb-4 overflow-hidden${paidAnim && !momentMode ? ' onit-paid-dip' : ''}`}>
+        {paidAnim && !momentMode && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 
+        {!momentMode && (<>
         {/* Receipt top: status chip + doc number, then who and what. */}
         <div className="flex items-center justify-between gap-2">
           <span className={`status-chip ${chipClass}`}>
@@ -1192,6 +1286,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         {!partiallyPaid && totals.total !== totals.dueNow && (
           <div className="mt-1 text-xs text-on-surface-variant">Total {money(totals.total)}</div>
         )}
+        </>)}
 
         {/* Due date — editable on a draft, pinned once sent
             (lock_sent_invoice_fields), so the input can never no-op. */}
@@ -1223,6 +1318,33 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
             )}
           </div>
         )}
+        {inv.kind === 'invoice' && !fullyPaid && (
+          <div className="mt-3">
+            <PdfSendCard
+              phase={pdfSendPhase({ settled: shareReady, hasFile: !!shareFile, sending: busy || queuedSend, sent: !isDraft || justSentAt != null })}
+              fileName={`${formatDocNumber(inv.kind, inv.invoice_number)}.pdf`}
+              file={shareFile}
+              queued={queuedSend}
+              ready={shareReady}
+              onQueuedReady={() => { setQueuedSend(false); if (shareFile) resend(); }}
+              clientFirst={(inv.client_name ?? '').trim().split(/\s+/)[0] || null}
+              sentLabel={(() => {
+                const raw = justSentAt ?? (inv as { sent_at?: string | null }).sent_at ?? null;
+                if (!raw) return null;
+                const d = new Date(raw);
+                if (Number.isNaN(d.getTime())) return null;
+                const t = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+                return d.toDateString() === new Date().toDateString() ? t : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${t}`;
+              })()}
+              errorSub={typeof navigator !== 'undefined' && navigator.onLine === false ? 'You\u2019re offline. Your invoice is safe.' : 'Weak signal. Your invoice is safe.'}
+              onSend={sendInvoice}
+              onRetry={() => { setShareError(null); setPrebuilt(null); setPrebuildNonce((n) => n + 1); }}
+              onLinkOnly={() => void sendLinkOnly()}
+              onPreview={() => void viewPdf()}
+            />
+          </div>
+        )}
+
         {/* Four equal quick-action tiles. */}
         <div
           className="mt-3 grid gap-2"
@@ -1291,31 +1413,24 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         )}
       </div>
       {payments.length > 0 && (
-        <div className="card mb-4">
-          <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+        <div id="payments-card" className="al-card mb-4" style={{ padding: '16px 18px' }}>
+          <div className="al-meta" style={{ color: 'var(--al-ink2)', marginBottom: 10 }}>
             Payments
           </div>
-          <div className="space-y-2">
+          <div>
             {payments.map((p) => {
               // Stripe-sourced rows (paid on the pay page) are locked by RLS — a
               // delete would silently match 0 rows — so they get no delete
               // control. Refunds are handled in the seller's Stripe Dashboard.
               const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
+              const label = ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount));
               return (
-                <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
-                  <div className="flex min-h-touch items-center gap-3 px-3 py-2">
-                    <span aria-hidden className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-surface-container text-primary">
-                      <Icon name={paymentIcon(p.method, p.entry_type)} size={18} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-on-surface">
-                        {ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}
-                      </span>
-                      <span className="block text-[13px] text-on-surface-variant">{new Date(p.paid_at).toLocaleDateString()}</span>
-                    </span>
-                    <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
-                      {money(Number(p.amount))}
-                    </span>
+                <div key={p.id} className="flex items-center justify-between" style={{ fontSize: 14, padding: '6px 0', gap: 8 }}>
+                  <span className="min-w-0 truncate">
+                    {new Date(p.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {label}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <b className="tabular-nums">{money(Number(p.amount))}</b>
                     {!locked && (
                       <button
                         type="button"
@@ -1325,21 +1440,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
                         onClick={() => setDeletePaymentAsk({
                           id: p.id,
                           amount: Number(p.amount),
-                          label: ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount)),
+                          label,
                           meta: new Date(p.paid_at).toLocaleDateString(),
                         })}
                       >
                         <Icon name="delete" size={16} />
                       </button>
                     )}
-                  </div>
+                  </span>
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center justify-between px-1 pb-0.5 pt-3 text-sm text-on-surface-variant">
-            <span>{fullyPaid ? 'Balance' : 'Still owed'}</span>
-            <span className={`font-display font-bold tabular-nums ${fullyPaid ? 'text-paid' : 'text-on-surface'}`}>
+          <div className="flex items-center justify-between text-sm" style={{ padding: '6px 0', color: '#7a7166', borderTop: '1px dashed var(--al-rule)' }}>
+            <span>{fullyPaid ? 'Balance' : 'Remaining'}</span>
+            <span className={`tabular-nums ${fullyPaid ? 'font-bold text-paid' : ''}`}>
               {money(totals.balanceRemaining)}
             </span>
           </div>

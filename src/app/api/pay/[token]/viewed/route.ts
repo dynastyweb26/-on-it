@@ -66,6 +66,10 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   if (row) {
     // The card in the thread. One per invoice per hour — the amount is
     // deliberately left off a view.
+    // Design 01/07: "INV-0030 · $150.00 · due Nov 14", so the amount and due date
+    // ride along (the card's stored copy; nothing here is authoritative).
+    const { data: doc } = await adminClient()
+      .from('invoices').select('total, due_date').eq('id', row.invoice_id).maybeSingle();
     await insertEvent({
       userId: row.user_id,
       kind: 'invoice_viewed',
@@ -74,8 +78,9 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
       documentKind: 'invoice',
       documentNumber: row.invoice_number ?? null,
       clientName: row.client_name ?? null,
+      amount: doc?.total == null ? null : Number(doc.total),
       dedupeKey: `invoice_viewed:${row.invoice_id}:${hourBucket(new Date())}`,
-      meta: {},
+      meta: { due: (doc?.due_date as string | null) ?? null },
     });
     // Dedupe viewed:<invoice_id> — one push per invoice, ever, even if
     // viewed_at is later cleared. notify() never throws.

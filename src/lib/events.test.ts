@@ -58,7 +58,7 @@ const row = (over: Partial<EventRow>): EventRow => ({
 
 test('a view card names the client and the document', () => {
   const card = eventCard(row({}), dollars);
-  assert.equal(card.title, 'Brandon opened your invoice');
+  assert.equal(card.title, 'Brandon viewed their invoice'); // design 01: "viewed … invoice"; pronoun neutral on purpose
   assert.equal(card.detail, 'INV-0029 · $150.00');
   assert.equal(card.tone, 'neutral');
 });
@@ -87,7 +87,7 @@ test('a payment card shows the amount and never invents a method', () => {
 });
 
 test('a missing client name never renders as blank', () => {
-  assert.equal(eventCard(row({ client_name: null }), dollars).title, 'Your client opened your invoice');
+  assert.equal(eventCard(row({ client_name: null }), dollars).title, 'Your client viewed their invoice');
 });
 
 // ── Only two cards ask for a decision ──────────────────────────────────────
@@ -224,4 +224,143 @@ test('each card appears exactly once', () => {
   const { between, trailing } = splitEventsByMessage(events, [{ id: 'm1', at: at(0) }, { id: 'm2', at: at(10) }, { id: 'm3', at: at(20) }]);
   const seen = [...Object.values(between).flat(), ...trailing].map((e) => e.id).sort();
   assert.deepEqual(seen, ['a', 'b', 'c', 'd']);
+});
+
+// ── Item 1: estimate_signed + the viewed rules ─────────────────────────────
+
+import { VIEW_GRACE_MS, estimateSignedDedupeKey, shouldPostEstimateViewed } from './events';
+
+test('a signed estimate never posts a viewed card', () => {
+  assert.equal(shouldPostEstimateViewed({ approvedAt: hoursAgo(1), sentAt: daysAgo(2) }, now), false);
+});
+
+test('a view inside two minutes of the send is not a client view', () => {
+  const justSent = new Date(now.getTime() - (VIEW_GRACE_MS - 1000)).toISOString();
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: justSent }, now), false);
+});
+
+test('a view at or past two minutes after the send posts', () => {
+  const exactly = new Date(now.getTime() - VIEW_GRACE_MS).toISOString();
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: exactly }, now), true);
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: daysAgo(1) }, now), true);
+});
+
+test('an unknown send time does not block a view', () => {
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: null }, now), true);
+});
+
+test('the signed card dedupes on the estimate id alone', () => {
+  assert.equal(estimateSignedDedupeKey('abc-123'), 'estimate_signed:abc-123');
+});
+
+// ── Item 2: the preview emitter ────────────────────────────────────────────
+
+import { EVENT_KINDS, isEventKind, testEventFields } from './events';
+
+test('every known kind has a fixture that renders a real card, flagged as a test', () => {
+  for (const kind of EVENT_KINDS) {
+    const f = testEventFields(kind);
+    assert.equal(f.meta.test, true, kind);
+    const card = eventCard({ kind, client_name: f.clientName, amount: f.amount, document_kind: f.documentKind, document_number: f.documentNumber, meta: f.meta, occurred_at: now.toISOString() }, dollars);
+    assert.notEqual(card.title, 'Something happened', kind);
+  }
+});
+
+test('isEventKind accepts known kinds and refuses anything else', () => {
+  assert.equal(isEventKind('estimate_signed'), true);
+  assert.equal(isEventKind('drop table'), false);
+  assert.equal(isEventKind(''), false);
+});
+
+// ── Refresh: seen cards stay in a restored thread ──────────────────────────
+
+import { chatStartedAtFrom } from './events';
+
+test('a restored thread starts at its oldest message, not at page load', () => {
+  const loadedAt = now.getTime();
+  const start = chatStartedAtFrom([{ at: loadedAt - 3 * 3600e3 }, { at: loadedAt - 1 * 3600e3 }, {}], loadedAt);
+  assert.equal(start, new Date(loadedAt - 3 * 3600e3).toISOString());
+});
+
+test('a seen card that landed during the restored thread is still shown after a refresh', () => {
+  const start = chatStartedAtFrom([{ at: now.getTime() - 2 * 3600e3 }], now.getTime());
+  const seen = { occurred_at: new Date(now.getTime() - 3600e3).toISOString(), seen_at: now.toISOString() };
+  assert.equal(eventVisibleInChat(seen, start), true);
+  // The old behaviour: the start was the mount time, which hides it.
+  assert.equal(eventVisibleInChat(seen, now.toISOString()), false);
+});
+
+test('a seen card from before the thread began stays hidden; an unseen one never is', () => {
+  const start = chatStartedAtFrom([{ at: now.getTime() - 3600e3 }], now.getTime());
+  const old = new Date(now.getTime() - 5 * 3600e3).toISOString();
+  assert.equal(eventVisibleInChat({ occurred_at: old, seen_at: old }, start), false);
+  assert.equal(eventVisibleInChat({ occurred_at: old, seen_at: null }, start), true);
+});
+
+test('with no timestamped message the fallback is used', () => {
+  assert.equal(chatStartedAtFrom([{}], 1000), new Date(1000).toISOString());
+});
+
+// ── Design copy (alive layer 01 + 07) ──────────────────────────────────────
+
+import { eventContextLine, ordinal } from './events';
+
+const mkEv = (over: Partial<EventRow>): EventRow => ({
+  id: 'e1', user_id: 'u', kind: 'payment_recorded', actor: 'client', invoice_id: null,
+  document_kind: 'invoice', document_number: 32, client_name: 'Ruth', amount: 25, meta: {},
+  dedupe_key: null, seen_at: null, acted_at: null, acted_result: null, occurred_at: now.toISOString(), ...over,
+} as EventRow);
+
+test('a partial payment says "of", what is left, and carries the bar', () => {
+  const c = eventCard(mkEv({ meta: { method: 'Zelle', total: 50, balance: 25 } }), dollars);
+  assert.equal(c.title, 'Ruth paid $25.00 of $50.00');
+  assert.equal(c.detail, 'INV-0032 · $25.00 left');
+  assert.equal(c.tint, 'partial');
+  assert.equal(c.icon, 'toll');
+  assert.equal(c.bar?.pct, 50);
+});
+
+test('paid in full reads "paid $X" with the method and "paid in full"', () => {
+  const c = eventCard(mkEv({ kind: 'paid_in_full', amount: 50, meta: { method: 'Zelle' } }), dollars);
+  assert.equal(c.title, 'Ruth paid $50.00');
+  assert.equal(c.detail, 'INV-0032 · Zelle · paid in full');
+  assert.equal(c.tint, 'paid');
+});
+
+test('a deposit reads as the chat card does, with its chip and meta label', () => {
+  const c = eventCard(mkEv({ kind: 'deposit_received', meta: { balance: 25 } }), dollars);
+  assert.equal(c.title, '$25.00 deposit from Ruth');
+  assert.equal(c.detail, 'INV-0032 · $25.00 due on completion');
+  assert.equal(c.chip, 'Deposit');
+  assert.equal(c.metaLabel, 'Deposit received');
+});
+
+test('a signed card carries the time it is given, and only that kind does', () => {
+  const s = eventCard(mkEv({ kind: 'estimate_signed', document_kind: 'quote', document_number: 49, amount: 50 }), dollars, { when: 'just now' });
+  assert.equal(s.detail, 'E-0049 · $50.00 · just now');
+  const o = eventCard(mkEv({ kind: 'invoice_overdue', document_number: 29, amount: 150, meta: { days_late: 3 } }), dollars, { when: 'just now' });
+  assert.equal(o.detail, 'INV-0029 · $150.00 · 3 days late');
+});
+
+test('a repeat estimate view says which time today', () => {
+  const c = eventCard(mkEv({ kind: 'estimate_viewed', document_kind: 'quote', document_number: 51, amount: null, meta: { nth_today: 2 } }), dollars);
+  assert.equal(c.detail, 'E-0051 · 2nd time today');
+  assert.equal(eventCard(mkEv({ kind: 'estimate_viewed', document_kind: 'quote', meta: {} }), dollars).detail.includes('time today'), false);
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd']);
+});
+
+test('an invoice view carries the due date', () => {
+  const c = eventCard(mkEv({ kind: 'invoice_viewed', document_number: 30, amount: 150, meta: { due: '2026-11-14' } }), dollars);
+  assert.equal(c.title, 'Ruth viewed their invoice');
+  assert.equal(c.detail, 'INV-0030 · $150.00 · due Nov 14');
+  assert.equal(c.icon, 'find_in_page');
+});
+
+test('only overdue and deposit cards get an assistant line, and it avoids pronouns', () => {
+  const o = eventContextLine(mkEv({ kind: 'invoice_overdue', client_name: 'Brandon', amount: 150, meta: { days_late: 3 } }), dollars);
+  assert.equal(o.before, "Brandon's $150 is 3 days late. Want me to nudge Brandon?");
+  const d = eventContextLine(mkEv({ kind: 'deposit_received', client_name: 'Ruth', meta: {} }), dollars);
+  assert.equal(d.after, "Ruth's deposit is in. You're clear to schedule the job.");
+  assert.deepEqual(eventContextLine(mkEv({ kind: 'estimate_viewed' }), dollars), { before: null, after: null });
+  assert.deepEqual(eventContextLine(mkEv({ kind: 'estimate_signed' }), dollars), { before: null, after: null });
 });

@@ -15,8 +15,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
-import { hourBucket } from '@/lib/events';
-import { insertEvent, logDocumentView, viewerHash } from '@/lib/events-server';
+import { hourBucket, shouldPostEstimateViewed } from '@/lib/events';
+import { insertEvent, logDocumentView, viewerHash, viewsInLastDay } from '@/lib/events-server';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   // Read back only what a card needs, and only for a real sent estimate.
   const { data } = await adminClient()
     .from('invoices')
-    .select('id, user_id, kind, status, invoice_number, client_name, total, amount_paid')
+    .select('id, user_id, kind, status, invoice_number, client_name, total, amount_paid, approved_at, sent_at')
     .eq('public_token', token)
     .is('deleted_at', null)
     .maybeSingle();
@@ -55,8 +55,12 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     id: string; user_id: string; kind: string; status: string;
     invoice_number: number | null; client_name: string | null;
     total: number | null; amount_paid: number | null;
+    approved_at: string | null; sent_at: string | null;
   } | null;
   if (!row || row.kind !== 'quote' || row.status === 'draft' || row.user_id === viewer) return ok();
+  // A signed estimate has its own card, and a view in the first two minutes is
+  // not the client reading it. The view itself is still logged above.
+  if (!shouldPostEstimateViewed({ approvedAt: row.approved_at, sentAt: row.sent_at }, new Date())) return ok();
 
   await insertEvent({
     userId: row.user_id,
@@ -66,9 +70,9 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     documentKind: 'quote',
     documentNumber: row.invoice_number ?? null,
     clientName: row.client_name ?? null,
-    amount: null, // a view isn't about money
+    amount: row.total == null ? null : Number(row.total), // design 01: "E-0051 · $7,500.00 · 2nd time today"
     dedupeKey: `estimate_viewed:${row.id}:${hourBucket(new Date())}`,
-    meta: {},
+    meta: { nth_today: await viewsInLastDay(row.id) },
   });
   return ok();
 }

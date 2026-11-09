@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#FCF7F0;width:100%;position:relative;z-index:1">
+<div style="height:50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px 38px;box-sizing:border-box;font:600 16px/1 'DM Sans',system-ui,sans-serif;color:#111">
+<span>{{ time }}</span>
+<span style="display:flex;gap:5px;align-items:center;font-size:17px"><i class="ti ti-antenna-bars-3"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span>
+</div>
+<div style="height:62px;display:flex;align-items:center;gap:4px;padding:0 14px 0 16px;border-bottom:1px solid #E8DCC8;box-sizing:border-box">
+<sc-if value="{{ isBack }}" hint-placeholder-val="{{ false }}"><div style="width:34px;height:36px;display:grid;place-items:center;margin-left:-6px;margin-right:6px"><i class="ti ti-arrow-left" style="font-size:24px;color:#2A251F"></i></div></sc-if>
+<div style="font:800 22px/1 Montserrat,sans-serif;color:#1E1A15;letter-spacing:-.3px">On It<span style="color:#B8961E">.</span></div>
+<sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:2px;margin-left:10px;align-items:center">
+<div style="width:36px;height:36px;display:grid;place-items:center"><i class="ti ti-edit" style="font-size:23px;color:#3A342C"></i></div>
+<div style="width:36px;height:36px;display:grid;place-items:center"><i class="ti ti-history" style="font-size:23px;color:#3A342C"></i></div>
+<div style="width:36px;height:36px;display:grid;place-items:center"><i class="ti ti-help-circle" style="font-size:24px;color:#3A342C"></i></div>
+</div>
+</sc-if>
+<div style="flex:1"></div>
+<div style="height:38px;padding:0 15px;border-radius:19px;background:#D4AF37;display:flex;align-items:center;font:600 13.5px/1 'DM Sans',sans-serif;letter-spacing:.4px;color:#2A2110;white-space:nowrap">How On It works</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:112},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;chat&quot;,&quot;plain&quot;,&quot;back&quot;],&quot;default&quot;:&quot;chat&quot;,&quot;tsType&quot;:&quot;'chat'|'plain'|'back'&quot;},&quot;time&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;7:10&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const v = this.props.variant ?? 'chat';
+    return { isChat: v === 'chat', isBack: v === 'back', time: this.props.time ?? '7:10', qActive: !!this.props.qActive, qIdle: !this.props.qActive };
+  }
+}
+</script>
+</body>
+</html>

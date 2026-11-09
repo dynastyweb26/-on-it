@@ -5,13 +5,19 @@
    Works for guests (5 free parses), saves for signed-in users.
    Text mode is silent. The gold circle is a "+": Mic starts a voice session
    (the circle is then the mic/stop button until the session ends).  */
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
-import EventCard from '@/components/chat/EventCard';
+import EventCard, { AssistantAvatar, AssistantLine } from '@/components/chat/EventCard';
+import ReadyEstimateCard from '@/components/chat/ReadyEstimateCard';
+import RecapChatCard from '@/components/chat/RecapChatCard';
+import { loadRecapRows } from '@/components/chat/recap-load';
+import { buildRecap, isEmptyRecap, matchRecap, type RecapModel } from '@/lib/chat-recap';
+import { decideAutoRecap, parseRecapState, recapStateAfterOpen, recapStateKey, type RecapState } from '@/lib/recap-schedule';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
+import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
 import AssistantMark from '@/components/chat/AssistantMark';
 import StreamText from '@/components/chat/StreamText';
@@ -33,6 +39,10 @@ import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskF
 import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { userMessage } from '@/lib/errors';
+import { isGuest, signedOutGate } from '@/lib/chat-signed-out';
+import { afterSignIn, classifySignInFailure, replayDecision, signInFailureMessage, type AskSource } from '@/lib/signed-out-replay';
+import { claimPending, clearPending, readPending, writePending } from '@/lib/signed-out-storage';
+import SignInChatButton from '@/components/chat/SignInChatButton';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
@@ -68,7 +78,9 @@ import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTem
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
 import PaymentCard from '@/components/chat/PaymentCard';
-import PaymentProposalCard, { type PaymentProposal, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import PaymentProposalCard, { type PaymentProposal, type PickerData, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import { normalizeSummary } from '@/lib/clients';
+import { openPaymentCardTarget, paymentCardLoadError } from '@/lib/payment-card-picker';
 import { buildPayCard, type PayCard } from '@/lib/payment-card';
 import { looksLikePayment, parseAmount, parseMethod, parsePaidOn, resolvePayment } from '@/lib/payment-intent';
 import { localDateString, localDateToIso, type PaymentMethod } from '@/lib/record-payment';
@@ -92,9 +104,9 @@ import {
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
-import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import { chatStartedAtFrom, eventContextLine, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
-import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, isRecordPaymentChip, matchCommand, pickStarterChips, prefillFor } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -130,9 +142,18 @@ interface Msg {
   /** Item 11: the "What I can do" card — a local assistant message, never an
    *  event and never anything /api/parse sees. */
   commandCard?: true;
+  /** A daily or weekly recap (alive layer 07): a local assistant card built from
+   *  the owner's own rows, never an event and never anything /api/parse sees. */
+  recapCard?: RecapModel;
+  /** Posted by the open-time dice, not asked for: never saved with the thread. */
+  auto?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
+  /** Signed-out answer: the bubble plus a Sign in button (lib/chat-signed-out.ts). */
+  signInLink?: true;
+  /** The guest question this prompt answered; the Sign in tap remembers the last one. */
+  question?: string;
   /** Suggestion chips under an answer (A1): each sends that text as a question. */
   chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
@@ -494,7 +515,7 @@ function withMessageIds(messages: Msg[]): Msg[] {
 const PERSIST_THUMBS = 8;
 function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
   let kept = 0;
-  const out = messages.slice();
+  const out = messages.filter((m) => !m.auto);
   for (let i = out.length - 1; i >= 0; i--) {
     const m = out[i];
     if (!m.receipt) continue;
@@ -675,6 +696,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // A sent estimate's public token, read from its row so the locked card can
   // offer Copy link / Share even after a reload or a reopen from history.
   const [linkedToken, setLinkedToken] = useState<string | null>(null);
+  const [linkedValidUntil, setLinkedValidUntil] = useState<string | null>(null);
   // The document's images (gold "+ Add attachment"): freshly-picked ones carry a
   // blob until the send uploads them, then the row id + storage path; ones loaded
   // from a saved invoice carry only the signed URL. Print order = list order.
@@ -723,6 +745,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the one way back: the in-app payment-alerts switch.
   const [alertsFailed, setAlertsFailed] = useState(false);
   // Board L2/L3/S5: the guest or signed-out wall is a card. Sign-in is a tap.
+  // Design 08 starter chips: a fresh random three from the full "What I can do"
+  // list each time a greeting starts (a new chat has a new greeting id).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const starterChips = useMemo(() => pickStarterChips(), [messages[0]?.id]);
+  // A chip or a "What I can do" row starts the message; it never sends. The input
+  // takes the text, the caret goes to the end and the field is focused inside the
+  // tap, so the keyboard opens and the owner can just type.
+  const fillComposer = (text: string) => {
+    setInput(text);
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    requestAnimationFrame(() => el.setSelectionRange(text.length, text.length));
+  };
   const [signInAsk, setSignInAsk] = useState<{ kind: SignInKind; headline?: string | null } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
@@ -1191,6 +1227,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           messages, draft, ready, cardAfterId,
         });
       }
+      clearPending(); // cancel: a new chat drops a remembered signed-out question
       setMessages([greeting()]);
       setInvoiceUsage(null);
       setDraft(null);
@@ -1258,6 +1295,84 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return () => ro.disconnect();
   }, []);
 
+  // The "Record a payment" button (chip and "What I can do" row). It adds the
+  // record-payment card; it never sends a message and never reaches /api/parse.
+  // payCardPendingRef is the synchronous guard (interaction rule 2): a second tap
+  // in the same frame, before the card is in state, adds nothing. With a card
+  // already open, a tap scrolls to it. It clears when no card is open any more
+  // (confirmed, cancelled, or removed), so the next tap starts a fresh one.
+  const payCardPendingRef = useRef<string | null>(null);
+  function openPaymentCard() {
+    const target = openPaymentCardTarget(messages, payCardPendingRef.current);
+    if (target.action === 'ignore') return;
+    if (target.action === 'scroll') {
+      const list = listRef.current;
+      const card = list?.querySelector<HTMLElement>('[data-pay-card]');
+      if (list && card) {
+        const below = card.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
+        const above = list.getBoundingClientRect().top - card.getBoundingClientRect().top;
+        if (below > 0) list.scrollTop += below;
+        else if (above > 0) list.scrollTop -= above;
+      }
+      return;
+    }
+    const msg = aMsg('Who paid you?', {
+      skipHistory: true,
+      payProposal: {
+        amount: null, method: null, clientName: '', paidOn: localDateString(new Date()),
+        invoiceId: null, invoices: [], clients: [], picker: true,
+      },
+    });
+    payCardPendingRef.current = msg.id;
+    nearBottomRef.current = true;
+    setMessages((m) => [...m, msg]);
+  }
+  useEffect(() => {
+    if (payCardPendingRef.current && !messages.some((x) => x.payProposal != null)) payCardPendingRef.current = null;
+  }, [messages]);
+
+  // What the button's card loads on arrival: the client list and the open
+  // invoices. A failure names its cause (signed out, offline, ours).
+  async function loadPaymentPicker(): Promise<PickerData> {
+    try {
+      const { data: { user: u } } = await getSharedUser();
+      if (!u) return { ok: false, message: paymentCardLoadError(null, false) };
+      const [clientsRes, invoicesRes] = await Promise.all([
+        supabase.rpc('client_summaries'),
+        supabase
+          .from('invoices')
+          .select('id, invoice_number, client_name, total, amount_paid, kind, created_at')
+          .eq('user_id', u.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .limit(200),
+      ]);
+      const failed = clientsRes.error ?? invoicesRes.error;
+      if (failed) {
+        console.error('[payment card] load failed', failed);
+        return { ok: false, message: paymentCardLoadError(failed, true) };
+      }
+      return {
+        ok: true,
+        clients: ((clientsRes.data ?? []) as Record<string, unknown>[]).map(normalizeSummary),
+        invoices: ((invoicesRes.data ?? []) as Array<Record<string, unknown>>)
+          .filter((r) => String(r.kind ?? 'invoice') === 'invoice')
+          .map((r) => ({
+            id: String(r.id),
+            invoiceNo: r.invoice_number == null ? null : Number(r.invoice_number),
+            clientName: String(r.client_name ?? ''),
+            total: Number(r.total ?? 0),
+            amountPaid: Number(r.amount_paid ?? 0),
+            kind: 'invoice' as const,
+            createdAt: String(r.created_at ?? ''),
+          })),
+      };
+    } catch (e) {
+      console.error('[payment card] load threw', e);
+      return { ok: false, message: paymentCardLoadError(e, true) };
+    }
+  }
+
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
    *  — per-message modality, so typed messages stay silent. */
@@ -1288,9 +1403,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Item 11: "?", "help" and the "what can you do" family are answered here.
     // No AI call and no document; the question itself stays out of job history.
     const commandAsk = !retryId && matchCommand(trimmed);
+    const recapAsk = !retryId && !commandAsk ? matchRecap(trimmed) : null;
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, feedbackAsk || commandAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
+      : [...messages, feedbackAsk || commandAsk || recapAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
@@ -1299,8 +1415,32 @@ export default function Chat({ active = true }: { active?: boolean }) {
       setInput('');
     }
 
+    // Signed out: one short answer with a Sign in button, before ANY local card
+    // (recap, commands, feedback) or AI call, so a guest never sees empty
+    // graphics. A retry of a failed send is never gated (it has its own bubble).
+    const gate = retryId ? ({ block: false } as const) : signedOutGate({ guest: isGuest({ profileLoaded, hasProfile: !!profile }) });
+    if (gate.block) {
+      // Remember the question (last one wins) so it runs once, after sign-in.
+      writePending(trimmed, source, Date.now());
+      setMessages((m) => [...m, aMsg(gate.reply, { signInLink: true, skipHistory: true, question: trimmed })]);
+      return null;
+    }
+
     if (feedbackAsk) {
       setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
+    }
+
+    if (recapAsk) {
+      // "How did today go?" / "How'd I do this week?": answered from the owner's
+      // own rows, no AI call. A failed read says so; it never posts a card of zeros.
+      const rows = await loadRecapRows(supabase);
+      if (!rows) {
+        setMessages((m) => [...m, aMsg('I couldn’t read your numbers just now. Check your connection and ask again.', { skipHistory: true })]);
+        return null;
+      }
+      const model = buildRecap({ now: new Date(), kind: recapAsk, mode: 'now', ...rows });
+      setMessages((m) => [...m, aMsg(model.title, { recapCard: model, skipHistory: true })]);
       return null;
     }
 
@@ -3876,8 +4016,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const id = pendingInvoiceRef.current?.id;
     if (!lockedQuote || !id) { setLinkedToken(null); return; }
     let live = true;
-    void supabase.from('invoices').select('public_token').eq('id', id).maybeSingle()
-      .then(({ data }) => { if (live) setLinkedToken((data?.public_token as string) ?? null); }, () => {});
+    void supabase.from('invoices').select('public_token, valid_until').eq('id', id).maybeSingle()
+      .then(({ data }) => {
+        if (!live) return;
+        setLinkedToken((data?.public_token as string) ?? null);
+        setLinkedValidUntil((data?.valid_until as string | null) ?? null);
+      }, () => {});
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedQuote, linkedStatus]);
@@ -4157,29 +4301,147 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // before the first message that came after it; cards older than the oldest
   // timestamped message (or newer than the last) fall to the end, which is how
   // the thread read before messages carried `at`.
-  const feedEvents = useChatEventFeed();
+  // ── Signed out → signed in ──────────────────────────────────────────────
+  // (1) The auth state is watched for the life of the screen, so signing in from
+  //     another tab or window is noticed too: the profile loads, the namespace
+  //     moves to the account, and the guest draft is adopted.
+  // (2) Once signed in and idle, the LAST remembered question is claimed (removed
+  //     from sessionStorage first: a refresh, a second render or a second tab can
+  //     never run it again) and sent exactly as if it had just been typed.
+  // (3) The "not signed in" message and its button leave with the sign-in.
+  const [replay, setReplay] = useState<{ text: string; source: AskSource } | null>(null);
+  const replayClaimRef = useRef(false); // set from the claim until send() starts
+  const profileRef = useRef<Profile | null>(null);
+  profileRef.current = profile;
+  const authWatchRef = useRef(false);
+  useEffect(() => {
+    if (authWatchRef.current) return;
+    authWatchRef.current = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user?.id;
+      // Only a sign-in that arrives while this screen still has no profile (another
+      // tab or window signed in). The mount effect owns every other open, so a tab
+      // refocus or token refresh costs no extra query.
+      if (!uid || event !== 'SIGNED_IN' || profileRef.current) return;
+      void (async () => {
+        try {
+          const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+          if (error) throw error;
+          if (!data) return; // not onboarded: the mount effect owns that redirect
+          adoptGuestChat(uid);
+          storageNsRef.current = storageNamespace(uid);
+          setProfile((p) => p ?? (data as Profile));
+          setProfileLoaded(true);
+        } catch (err) {
+          // Say what failed. The question stays remembered; Retry re-sends it.
+          const q = readPending();
+          const reason = signInFailureMessage(classifySignInFailure(err, typeof navigator !== 'undefined' && navigator.onLine === false));
+          setMessages((m) => [...m.filter((x) => !x.signInLink), aMsg(reason, q ? { failed: { op: 'send', text: q.text }, skipHistory: true } : { skipHistory: true })]);
+        }
+      })();
+    });
+    return () => { subscription.unsubscribe(); authWatchRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Signed in: drop the sign-in prompts, whether or not a question was remembered.
+  useEffect(() => {
+    if (!profile) return;
+    setMessages((m) => afterSignIn(m, null));
+  }, [profile, messages]);
+
+  // Claim and replay. The decision is pure (replayDecision); the ref is the
+  // synchronous guard behind it, and the claim removes the stored question first.
+  useEffect(() => {
+    if (!hydrated || replayClaimRef.current) return;
+    const decision = replayDecision({
+      pending: readPending(),
+      signedIn: !!profile,
+      profileReady: profileLoaded,
+      busy: phase !== null || sendRef.current,
+      now: Date.now(),
+    });
+    if (decision === 'clear') { clearPending(); return; }
+    if (decision !== 'run') return;
+    replayClaimRef.current = true;
+    const q = claimPending();
+    if (!q) { replayClaimRef.current = false; return; }
+    setMessages((m) => afterSignIn(m, q.text));
+    setReplay({ text: q.text, source: q.source });
+  }, [hydrated, profile, profileLoaded, phase, messages]);
+
+  // Run the claimed question once the thread no longer holds the prompts (this
+  // render's `send` sees the cleaned thread). Cleared on every exit: send()
+  // answers it, or leaves a failed bubble with Retry; either way it is not kept.
+  useEffect(() => {
+    if (!replay || phase !== null || sendRef.current) return;
+    if (messages.some((m) => m.signInLink)) return;
+    const r = replay;
+    setReplay(null);
+    replayClaimRef.current = false;
+    void send(r.text, r.source);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replay, phase, messages]);
+
+  // Recaps, no cron, and only sometimes: on an app open the dice (lib/recap-schedule.ts)
+  // decide whether one shows. At most one a day, the weekly at most once a week,
+  // never on two opens in a row. A recap you ask for always shows (send()). An
+  // automatic card is `auto`: it is not saved with the thread, so it never
+  // comes back on its own on the next open.
+  const recapRanRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || recapRanRef.current) return;
+    recapRanRef.current = true;
+    void (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        if (readPending()) return; // a remembered question is about to be answered: no surprise card on top
+        const key = recapStateKey(user.id);
+        const read = (): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
+        const write = (st: RecapState) => { try { localStorage.setItem(key, JSON.stringify(st)); } catch { /* storage blocked */ } };
+        const now = new Date();
+        const state = parseRecapState(read());
+        const kind = decideAutoRecap(now, state, Math.random);
+        if (!kind) { write(recapStateAfterOpen(state, now, null)); return; }
+        const rows = await loadRecapRows(supabase);
+        if (!rows) return; // try again next open; nothing was marked
+        const model = buildRecap({ now, kind, mode: 'auto', ...rows });
+        if (isEmptyRecap(model)) { write(recapStateAfterOpen(state, now, null)); return; }
+        write(recapStateAfterOpen(state, now, kind));
+        setMessages((m) => [...m, aMsg(model.title, { recapCard: model, skipHistory: true, auto: true })]);
+      } catch { /* recaps are a courtesy; the thread works without them */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  const mountedAtRef = useRef(Date.now());
+  const feedEvents = useChatEventFeed(chatStartedAtFrom(messages, mountedAtRef.current));
   const feedSplit = splitEventsByMessage(feedEvents, messages);
   const openDocument = (id: string) => router.push(`/invoices/${id}`);
   const runEventAction = (e: EventRow, action: EventAction) => {
     if (!e.invoice_id) return;
-    // Convert opens the estimate, which owns the confirm, the paywall and the
-    // idempotency key — a card never mints an invoice on one tap. Send reminder
-    // lands on the invoice, where Request balance is the existing re-share.
+    // The card's Convert runs in place (renderEvent); this is the reminder path,
+    // and Convert's paywall fallback: both land on the document, where Request
+    // balance is the existing re-share and the paywall lives.
     openDocument(e.invoice_id + (action === 'convert' ? '?convert=1' : ''));
   };
   const renderEvent = (e: EventRow) => {
-    const action = eventAction(String(e.kind));
+    const line = eventContextLine(e, money);
     return (
-      <EventCard
-        key={e.id}
-        event={e}
-        money={money}
-        onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
-        action={action ? {
-          label: action === 'convert' ? 'Convert' : 'Send reminder',
-          onClick: () => runEventAction(e, action),
-        } : undefined}
-      />
+      <Fragment key={e.id}>
+        {line.before && <AssistantLine>{line.before}</AssistantLine>}
+        <EventCard
+          event={e}
+          money={money}
+          onOpen={e.invoice_id ? () => openDocument(e.invoice_id as string) : undefined}
+          onRemind={() => runEventAction(e, 'remind')}
+          // Convert runs here, in the card: idempotent, with its own pending and
+          // error states. The paywall lives on the estimate, so that case opens it.
+          onConvert={() => { void runConvert(e, (estimateId) => router.push(`/invoices/${estimateId}?convert=1`)); }}
+        />
+        {line.after && <AssistantLine>{line.after}</AssistantLine>}
+      </Fragment>
     );
   };
 
@@ -4213,7 +4475,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     : messages[messages.length - 1]?.id ?? null;
   // During the morph the builder is still mounted, so the card has to render
   // beside it for the shared nodes to travel.
-  const invoiceCard = ready && draft && (!template || morphing) ? (
+  const ledgerCard = ready && draft && (!template || morphing) ? (
     // Ledger sheet (docs/design/onit-chat · CardLedger): the state strip, the
     // client block and the paper are LedgerCard's; everything below is the
     // card's own controls, unchanged. Only real text entry / selects opt out
@@ -4396,8 +4658,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                       const who = (draft?.client_name ?? '').trim().split(/\s+/)[0];
                       setMessages((m) => [...m, aMsg(
                         who
-                          ? `Shared. I'll let you know as soon as ${who} opens it.`
-                          : "Shared. I'll let you know as soon as it's opened.",
+                          ? `Shared. I'll ping you as soon as ${who} opens it.`
+                          : "Shared. I'll ping you as soon as it's opened.",
                       )]);
                     }}
                   />
@@ -4557,6 +4819,46 @@ export default function Chat({ active = true }: { active?: boolean }) {
     </LedgerFrame>
   ) : null;
 
+  // Design 02/03: a sent, unpaid estimate in the thread is the "Ready to share"
+  // card. Everything else (drafts, invoices, paid) keeps the ledger card above.
+  const readyEstimateCard = lockedQuote && draft && ready && linkedStatus === 'sent' && linkedAmountPaid === 0 && linkedToken && estimateLink(linkedToken)
+    && (!template || morphing) ? (
+    <ReadyEstimateCard
+      docNumber={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
+      clientName={draft.client_name?.trim() || 'Client'}
+      items={previewItems}
+      photoCount={attachments.length}
+      validUntil={linkedValidUntil}
+      total={previewTotals.total}
+      photos={attachments.length > 0 ? (
+        <AttachmentsEditor
+          items={attachments}
+          editable={false}
+          onChange={setAttachments}
+          onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
+        />
+      ) : undefined}
+      actions={(
+        <EstimateLinkActions
+          url={estimateLink(linkedToken)!}
+          title={pendingInvoiceRef.current ? formatDocNumber('quote', pendingInvoiceRef.current.no) : 'Estimate'}
+          businessName={profile?.business_name}
+          onShared={() => {
+            // §02: a share has no system confirmation, so the assistant says it
+            // happened (and promises the first view). No pronouns.
+            const who = (draft?.client_name ?? '').trim().split(/s+/)[0];
+            setMessages((m) => [...m, aMsg(
+              who ? `Shared. I'll ping you as soon as ${who} opens it.` : "Shared. I'll ping you as soon as it's opened.",
+            )]);
+          }}
+        />
+      )}
+      onPreview={() => { const url = estimateLink(linkedToken); if (url) window.open(url, '_blank', 'noopener'); }}
+      onRevise={() => { const id = pendingInvoiceRef.current?.id; if (id) router.push(`/invoices/${id}?edit=1`); }}
+    />
+  ) : null;
+  const invoiceCard = readyEstimateCard ?? ledgerCard;
+
   // Composer field: one line until it needs more, up to four 22px lines. The
   // cap has to include the field's vertical padding (the textarea is border-box),
   // so measure it from the element instead of hard-coding 88px. The same value
@@ -4623,26 +4925,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
         <Fragment key={m.id}>{feedSplit.between[m.id]?.map((e) => renderEvent(e))}{
-          // Item 12: the empty state. Three starter chips and the hint sit under
-          // the greeting and go with the first message.
-          mi === 0 && messages.length === 1 && (
-            <div className="flex flex-col gap-2 pb-1 pt-1">
-              <div className="flex flex-wrap gap-2">
-                {STARTER_CHIPS.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => { if (!phase) void send(chip); }}
-                    className="rounded-full border border-outline-variant bg-surface-container px-3.5 py-2 text-[13.5px] font-semibold text-on-surface transition active:scale-95 disabled:opacity-40"
-                    disabled={phase !== null}
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-              <p className="px-1 text-[12.5px] leading-snug text-on-surface-variant">{COMMAND_HINT}</p>
-            </div>
-          )}{
+          // (the empty-state chips render after the greeting; see below)
+          null}{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
             <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
@@ -4701,6 +4985,21 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </div>
               </div>
             </div>
+          ) : m.signInLink ? (
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <SignInChatButton
+                  onBeforeSignIn={() => {
+                    // Remember the LAST question asked while signed out (not just this bubble's).
+                    const last = [...messages].reverse().find((x) => x.signInLink && x.question);
+                    if (last?.question) writePending(last.question, 'typed', Date.now());
+                  }}
+                />
+              </div>
+            </div>
           ) : m.feedbackLink ? (
             // Feedback answer: the bubble plus a real button to the feedback page
             // (same landing as the Chat prompt card).
@@ -4717,31 +5016,36 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </button>
               </div>
             </div>
+          ) : m.recapCard ? (
+            <RecapChatCard key={m.id} model={m.recapCard} onOpenBooks={() => router.push('/dashboard')} />
           ) : m.commandCard ? (
             <CommandCard
               groups={COMMAND_GROUPS}
-              onPick={(phrase) => {
-                // Item 11: the row's phrase replaces the input, the caret goes to
-                // the end, and the field takes focus so the keyboard opens.
-                setInput(phrase);
-                const el = inputRef.current;
-                if (el) {
-                  el.focus();
-                  requestAnimationFrame(() => el.setSelectionRange(phrase.length, phrase.length));
-                }
-              }}
+              onAction={(action) => { if (action === 'record-payment') openPaymentCard(); }}
+              onPick={(label) => fillComposer(prefillFor(label))}
             />
           ) : m.ownerCard ? (
             // The outcome of an owner action, with the one thing to do next.
-            <div className="card">
-              <p className="text-body-md">{m.ownerCard.title}</p>
-              <button
-                type="button"
-                className="btn-primary mt-3 w-full"
-                onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
-              >
-                Open
-              </button>
+            <div className="al-fade-up" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <AssistantAvatar />
+              <div className="al-wcard" style={{ flex: 1, minWidth: 0, padding: '12px 14px' }}>
+                <div className="al-trow">
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--al-gold)', display: 'grid', placeItems: 'center', flex: 'none' }}>
+                    <Icon name="check" size={17} />
+                  </div>
+                  <div className="al-tt" style={{ flex: 1 }}>{m.ownerCard.title}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="al-btn-w"
+                    style={{ height: 36, fontSize: 13.5, flex: 1 }}
+                    onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
+                  >
+                    Open
+                  </button>
+                </div>
+              </div>
             </div>
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"
@@ -4801,10 +5105,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ]}
               />
             </div>
+          ) : m.undoProposal ? (
+            // Cancelled: the same card collapsed to one line with Undo (design 05).
+            <PaymentProposalCard
+              key={m.id}
+              cancelled
+              proposal={m.undoProposal}
+              onConfirm={async () => ({ ok: false as const, message: 'Undo the cancel first.' })}
+              onCancel={() => {}}
+              onUndo={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
+                : x)))}
+            />
           ) : m.payProposal ? (
             <PaymentProposalCard
               key={m.id}
               proposal={m.payProposal}
+              loadPicker={m.payProposal.picker ? loadPaymentPicker : undefined}
               onCancel={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
                 ? { ...x, payProposal: undefined, undoProposal: m.payProposal, content: 'Payment not recorded. Nothing was saved.' }
                 : x)))}
@@ -4883,6 +5200,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           ) : m.payCard ? (
             <PaymentCard
               key={m.id}
+              animate={!restoredMsgIdsRef.current.has(m.id)}
               card={m.payCard}
               onOpen={(invoiceId) => router.push(`/invoices/${invoiceId}`)}
               onUndo={async (paymentId) => {
@@ -4942,19 +5260,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           )}
-          {m.undoProposal && (
-            <div className="mt-1 flex justify-start pl-8">
-              <button
-                type="button"
-                className="min-h-touch text-[13px] font-semibold text-primary underline transition active:opacity-60"
-                onClick={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
-                  ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
-                  : x)))}
-              >
-                Undo
-              </button>
-            </div>
-          )}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
             // S1b: Keep as draft leaves this pinned under the document until the
@@ -5012,6 +5317,27 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </Fragment>
         ))}
+
+        {/* Design 08: the empty state sits AFTER the greeting, indented under the
+            avatar. A chip fills the input (never sends); chips and hint go with the
+            first message. */}
+        {hydrated && messages.length === 1 && (
+          <div className="al-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 36, alignItems: 'flex-start' }}>
+            {starterChips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                className="al-starter"
+                disabled={phase !== null}
+                onClick={() => (isRecordPaymentChip(chip) ? openPaymentCard() : fillComposer(prefillFor(chip)))}
+              >
+                <Icon name="auto_awesome" size={18} className="text-[#b8961e]" />
+                {chip}
+              </button>
+            ))}
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#7a7166' }}>{COMMAND_HINT}</p>
+          </div>
+        )}
 
         {/* Alive layer: cards that belong after the last message. */}
         {feedSplit.trailing.map((e) => renderEvent(e))}

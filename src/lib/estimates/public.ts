@@ -11,6 +11,8 @@ import { deliverableAttachments } from './deliverable';
 import { ATTACHMENT_BUCKET, SIGNED_URL_TTL_SECONDS } from './limits';
 import { toPublicEstimate, type PublicModelInvoice, type PublicModelProfile } from './public-model';
 import { isUpdatedSinceView } from './updated';
+import { describeLineChanges } from './change-note';
+import { money } from '@/lib/financials';
 import type {
   PublicAttachment,
   PublicEstimateResult,
@@ -222,6 +224,8 @@ async function shape(
   // Owner previews never carry it; an environment without the 4A tables
   // renders without it rather than failing the page.
   let updated = false;
+  let updatedAt: string | null = null;
+  let change: { previousTotal: number | null; detail: string | null } | null = null;
   if (!preview) {
     try {
       const [versionRes, viewRes] = await Promise.all([
@@ -243,6 +247,25 @@ async function shape(
         versionAt: (versionRes.data as { created_at?: string } | null)?.created_at ?? null,
         views: ((viewRes.data ?? []) as { viewed_at: string }[]).map((v) => ({ viewedAt: v.viewed_at })),
       });
+      if (updated) {
+        updatedAt = (versionRes.data as { created_at?: string } | null)?.created_at ?? null;
+        // The version the client last read is the one just below this one.
+        const prevRes = await admin
+          .from('estimate_versions')
+          .select('total, content')
+          .eq('estimate_id', invoice.id)
+          .eq('version', Number(invoice.estimate_version) - 1)
+          .maybeSingle();
+        const prev = prevRes.data as { total?: number | string | null; content?: { line_items?: unknown[] } | null } | null;
+        if (prev) {
+          const detail = describeLineChanges(
+            (prev.content?.line_items ?? []) as Parameters<typeof describeLineChanges>[0],
+            ((invoice as { line_items?: unknown[] }).line_items ?? []) as Parameters<typeof describeLineChanges>[1],
+            money,
+          );
+          change = { previousTotal: prev.total == null ? null : Number(prev.total), detail };
+        }
+      }
     } catch {
       updated = false;
     }
@@ -259,6 +282,9 @@ async function shape(
     now: new Date(),
     preview,
   });
-  if (result.state !== 'unavailable') result.updated = updated;
+  if (result.state !== 'unavailable') {
+    result.updated = updated;
+    if (updated) { result.updatedAt = updatedAt; result.change = change; }
+  }
   return result;
 }

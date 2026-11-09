@@ -17,6 +17,8 @@ import { normalizeSignature } from '@/lib/estimates/signature';
 import { isEstimateTokenShape } from '@/lib/estimates/public';
 import { SignBodySchema } from '@/lib/estimates/schemas';
 import { notifyClaimed } from '@/lib/notify';
+import { insertEvent } from '@/lib/events-server';
+import { estimateSignedDedupeKey } from '@/lib/events';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
 import type { SignatureSummary, SignatureType } from '@/lib/estimates/types';
 
@@ -126,6 +128,26 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         total: Number(result.total ?? 0),
         signerName: sig.signerName,
       });
+    }
+
+    // The chat card. Outside the notification block on purpose: a signature that
+    // claimed no notification row (push off, deduped) still earns its card.
+    // Never fails the response: the client has signed either way.
+    try {
+      await insertEvent({
+        userId: result.user_id,
+        kind: 'estimate_signed',
+        actor: 'client',
+        invoiceId: result.estimate_id,
+        documentKind: 'quote',
+        documentNumber: result.invoice_number,
+        clientName: (result.client_name ?? '').trim() || null,
+        amount: result.total == null ? null : Number(result.total),
+        dedupeKey: estimateSignedDedupeKey(result.estimate_id),
+        meta: {},
+      });
+    } catch (err) {
+      console.error('sign: estimate_signed event failed', err instanceof Error ? err.message : err);
     }
 
     return NextResponse.json(
