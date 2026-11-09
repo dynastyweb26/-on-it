@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Montserrat:wght@700;800&amp;family=JetBrains+Mono:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+body{margin:0;background:#EAE3D7;font-family:'DM Sans',system-ui,sans-serif;color:#1E1A15;-webkit-font-smoothing:antialiased}
+a{color:#7A6210}a:hover{color:#1E1A15}
+.sec{padding:64px 56px 56px;border-bottom:1px solid rgba(30,26,21,.12);scroll-margin-top:16px}
+.sec-h{display:flex;gap:22px;align-items:flex-start;margin-bottom:32px;max-width:1100px}
+.sec-n{font:800 48px/1 Montserrat,sans-serif;color:#B8961E}
+.sec-t{font:800 30px/1.1 Montserrat,sans-serif;color:#1E1A15}
+.sec-d{font:15px/1.55 'DM Sans',sans-serif;color:#5F574C;margin-top:8px;max-width:780px;text-wrap:pretty}
+.row{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;margin-bottom:48px}
+.col{display:flex;flex-direction:column;gap:14px;flex:none}
+.lbl{font:600 11px/1.3 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#5F574C;display:flex;gap:8px;align-items:center}
+.oid{font:600 10.5px 'JetBrains Mono',monospace;padding:3px 7px;background:#1E1A15;color:#F4ECDD;border-radius:5px;text-decoration:none}
+.oid:hover{color:#E2C25A}
+.spec{width:280px;background:#1E1A15;color:#EFE6D6;border-radius:16px;padding:18px;font:11.5px/1.6 'JetBrains Mono',monospace;box-sizing:border-box;flex:none}
+.spec .st{color:#E2C25A;font-weight:700;letter-spacing:.06em;margin-bottom:10px;text-transform:uppercase}
+.spec .kv{display:grid;grid-template-columns:82px 1fr;gap:4px 10px;margin-bottom:12px}
+.spec .kv span:nth-child(odd){color:#978B7A}
+.spec p{margin:0 0 8px;color:#C9BEAE}
+.phone{width:390px;border-radius:46px;background:#FCF7F0;overflow:hidden;position:relative;box-shadow:0 0 0 9px #1C1915,0 40px 70px -30px rgba(40,30,10,.45);display:flex;flex-direction:column;flex:none;margin:9px}
+.feed{flex:1;display:flex;flex-direction:column;gap:12px;padding:18px 14px;overflow:hidden;min-height:0}
+.day{align-self:center;font:600 12px 'DM Sans',sans-serif;letter-spacing:.14em;color:#7A7166}
+.arow{display:flex;gap:8px;align-items:flex-start;padding-right:34px}
+.av{width:28px;height:28px;border-radius:9px;background:#2B2620;position:relative;flex:none;margin-top:2px}
+.av::before{content:'';position:absolute;left:5px;top:5px;width:8px;height:8px;border:2.5px solid #FFF8EC;border-radius:50%}
+.av::after{content:'';position:absolute;right:5px;bottom:5px;width:5px;height:5px;border-radius:50%;background:#D4AF37}
+.ba{background:#F4EBDD;border:1px solid #E7DAC4;border-radius:18px;padding:10px 14px;font:15.5px/1.4 'DM Sans',sans-serif;color:#1E1A15;text-wrap:pretty}
+.bu{align-self:flex-end;max-width:78%;background:#39332C;color:#FBF4E8;border-radius:18px;padding:10px 14px;font:15.5px/1.4 'DM Sans',sans-serif;text-wrap:pretty}
+.ta{background:#FFFDF9;border:1px solid #E8DCC6;border-radius:20px;box-shadow:0 14px 34px -14px rgba(70,50,10,.30),0 2px 6px rgba(70,50,10,.06);padding:12px 12px 8px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
+.tb{background:#221D17;border-radius:20px;box-shadow:0 20px 40px -14px rgba(20,14,4,.6);padding:12px 12px 8px;display:flex;flex-direction:column;gap:10px;color:#FBF4E8;position:relative;overflow:hidden;box-sizing:border-box}
+.trow{display:flex;gap:12px;align-items:center}
+.tile{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;font-size:22px}
+.tt{font:700 15px/1.25 'DM Sans',sans-serif}
+.td{font:13px/1.35 'DM Sans',sans-serif;color:#6B6257;margin-top:2px}
+.tb .td{color:#BDB1A0}
+.grab{width:36px;height:4px;border-radius:2px;background:#E3D7C3;align-self:center}
+.btn-g{height:42px;border-radius:21px;background:#D4AF37;color:#231C0B;font:700 14.5px 'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 18px;cursor:pointer;box-sizing:border-box;user-select:none}
+.btn-g:active{transform:scale(.97)}
+.btn-w{height:42px;border-radius:21px;background:#fff;border:1px solid #E3D6C0;color:#2A251F;font:600 14.5px 'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 18px;cursor:pointer;box-sizing:border-box;user-select:none}
+.btn-w:active{transform:scale(.97)}
+.card{background:#F8F0E2;border:1px solid #EBDDC5;border-radius:24px}
+.wcard{background:#FFFDF9;border:1px solid #EADFCB;border-radius:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;font:700 12px 'DM Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;box-sizing:border-box}
+.mono{font-family:'JetBrains Mono',monospace}
+.h{font-family:Montserrat,sans-serif;font-weight:800}
+.meta{font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8A7F70}
+.cmp{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #EBDFCC;background:#FCF7F0;flex:none}
+.cmp-p{width:44px;height:44px;border-radius:50%;background:#F2E6C2;display:grid;place-items:center;flex:none;font-size:24px}
+.cmp-f{flex:1;height:52px;border:1.5px solid #DCCDB4;border-radius:26px;background:#fff;display:flex;align-items:center;padding:0 4px 0 16px;gap:6px;box-sizing:border-box;min-width:0}
+.cmp-c{width:42px;height:42px;border-radius:50%;background:#F2E6C2;display:grid;place-items:center;flex:none;font-size:22px}
+.cmp-s{width:40px;height:40px;border-radius:50%;background:#E9E1D4;display:grid;place-items:center;flex:none;color:#A69C8E;font-size:22px}
+.ph{background:repeating-linear-gradient(135deg,#EFE5D3 0 6px,#F6EEE0 6px 12px);border:1px solid #E6D9C3;display:grid;place-items:center;font:600 9.5px 'JetBrains Mono',monospace;color:#8A7F70;letter-spacing:.04em;text-transform:uppercase}
+.pbar{height:8px;border-radius:4px;background:#EDE2CC;overflow:hidden;position:relative}
+.pfill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:#D4AF37}
+.note{font:13px/1.5 'DM Sans',sans-serif;color:#5F574C;max-width:300px;text-wrap:pretty}
+.frame{display:flex;flex-direction:column;gap:10px;flex:none}
+@keyframes tA{0%,4%{transform:translateY(-130%);opacity:0;animation-timing-function:cubic-bezier(.2,.9,.3,1)}13%{transform:translateY(0);opacity:1}78%{transform:translateY(0);opacity:1;animation-timing-function:cubic-bezier(.4,0,1,1)}86%,100%{transform:translateY(-130%);opacity:0}}
+@keyframes tB{0%,4%{transform:translateY(-140%) scale(.94);opacity:0;animation-timing-function:cubic-bezier(.2,1,.4,1)}12%{transform:translateY(6px) scale(1.01);opacity:1}16%{transform:translateY(0) scale(1)}78%{transform:translateY(0) scale(1);opacity:1;animation-timing-function:cubic-bezier(.4,0,1,1)}86%,100%{transform:translateY(-140%) scale(.96);opacity:0}}
+@keyframes pop{0%,10%{transform:scale(0)}17%{transform:scale(1.14)}21%,100%{transform:scale(1)}}
+@keyframes tbar{0%,16%{transform:scaleX(1)}78%,100%{transform:scaleX(0)}}
+@keyframes swipe{0%,15%{transform:translateY(40px);opacity:0}25%{opacity:1}70%{transform:translateY(-36px);opacity:1}82%,100%{transform:translateY(-36px);opacity:0}}
+@keyframes lift{0%,25%{transform:translateY(0);opacity:1}70%{transform:translateY(-58px);opacity:.35}82%,100%{transform:translateY(-58px);opacity:0}}
+@keyframes popIn{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+@keyframes fadeUp{0%{transform:translateY(6px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgba(212,175,55,.55)}100%{box-shadow:0 0 0 12px rgba(212,175,55,0)}}
+@keyframes cpA{0%,30%{transform:translateY(0);opacity:1}36%,78%{transform:translateY(-14px);opacity:0}84%,100%{transform:translateY(0);opacity:1}}
+@keyframes cpB{0%,30%{transform:translateY(14px);opacity:0}36%,78%{transform:translateY(0);opacity:1}84%,100%{transform:translateY(14px);opacity:0}}
+@keyframes cpBg{0%,30%{background:#fff;border-color:#E6DAC6}36%,78%{background:#F2E6C2;border-color:#D4AF37}84%,100%{background:#fff;border-color:#E6DAC6}}
+@keyframes prog{0%,14%{width:0}46%,100%{width:50%}}
+@keyframes progF{0%,14%{width:50%}46%,100%{width:100%}}
+@keyframes ck{0%,12%{stroke-dashoffset:40}36%,100%{stroke-dashoffset:0}}
+@keyframes ring{0%,6%{transform:scale(.5);opacity:0}20%{transform:scale(1.06);opacity:1}26%,100%{transform:scale(1);opacity:1}}
+@keyframes halo{0%,8%{transform:scale(.6);opacity:0}24%{opacity:.7}50%,100%{transform:scale(1.9);opacity:0}}
+@keyframes ray{0%,16%{transform:translateY(0) scaleY(.2);opacity:0}22%{opacity:1}46%,100%{transform:translateY(-64px) scaleY(1);opacity:0}}
+@keyframes fly{0%,18%{transform:translateY(0) scale(.4) rotate(0);opacity:0}24%{opacity:1}68%,100%{transform:translateY(-104px) scale(1) rotate(200deg);opacity:0}}
+@keyframes badge{0%,30%{transform:scale(1)}36%{transform:scale(1.18)}42%,100%{transform:scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shim{0%{background-position:-240px 0}100%{background-position:240px 0}}
+@keyframes caret{50%{opacity:0}}
+@keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@keyframes chipHalo{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}35%{box-shadow:0 0 0 6px rgba(212,175,55,.35)}70%{box-shadow:0 0 0 0 rgba(212,175,55,0)}}
+@keyframes grow{from{width:0}}
+@keyframes ckOnce{from{stroke-dashoffset:40}to{stroke-dashoffset:0}}
+@keyframes ringOnce{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
+@keyframes sheetUp{0%{transform:translateY(100%)}100%{transform:translateY(0)}}
+</style>
+</helmet>
+<section class="sec" id="t0" style="background:#FCF7F0">
+<div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+<div style="max-width:560px">
+<div class="meta" style="margin-bottom:14px">On It. · design spec · Nov 2026</div>
+<div class="h" style="font-size:56px;line-height:1;letter-spacing:-1px">The alive layer<span style="color:#B8961E">.</span></div>
+<div style="font:18px/1.5 'DM Sans';color:#4A433A;margin-top:16px;text-wrap:pretty">Toasts, event cards, payment moments, revise-in-place and the command sheet, built on top of the screens you sent. The assistant is the one telling you what happened, in its own lane, every time.</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:24px">
+<a class="oid" href="#s1">01 Toasts</a><a class="oid" href="#s2">02 Copy / share</a><a class="oid" href="#s3">03 Card fixes</a><a class="oid" href="#s4">04 Payments</a><a class="oid" href="#s5">05 Record from chat</a><a class="oid" href="#s6">06 Revise in place</a><a class="oid" href="#s7">07 Event cards</a><a class="oid" href="#s8">08 ? reply and empty state</a><a class="oid" href="#s9">09 System</a>
+</div>
+</div>
+<div class="wcard" style="max-width:520px;padding:22px 24px;display:flex;flex-direction:column;gap:10px;font:14px/1.5 'DM Sans';color:#3A342C">
+<div class="meta">Assumptions</div>
+<div>Matched from your screenshots: cream <span class="mono">#FCF7F0</span>, gold <span class="mono">#D4AF37</span>, ink <span class="mono">#1E1A15</span>, Montserrat 800 headings, DM Sans body, mono for doc numbers. The icons are Tabler, the same family the app uses.</div>
+<div><b>Gold stays in the app, red stays on client pages.</b> The client estimate and pay pages keep the red CTA. That includes the "Updated" tag and the "Signed again" state.</div>
+<div>The example data comes from your account: Ruth Lawrence's E-0049 converts to INV-0032 ($50.00, 50% deposit).</div>
+<div><b>Two directions</b> for toasts and celebrations: <a class="oid" href="#1a">1a</a>/<a class="oid" href="#1c">1c</a> Subtle and <a class="oid" href="#1b">1b</a>/<a class="oid" href="#1d">1d</a> Expressive. Every other screen works with either.</div>
+<div>Animations loop so you can read the motion. Live controls: Copy link, Share, the record-payment card, the "What I can do" reply, empty-state prompts and Convert to invoice. The chat header is unchanged.</div>
+</div>
+</div>
+</section>
+<section class="sec" id="s1">
+<div class="sec-h"><div class="sec-n">01</div><div><div class="sec-t">Toast banner</div><div class="sec-d">Slides down over the header, never under it, so the chat stays readable. One anatomy for every event: tinted icon tile, bold title that names the person, one line of detail. A toast with an action (signed, overdue) stays up longer. Tapping anywhere else on it opens the document.</div></div></div>
+<div class="row">
+<div class="col" id="1a">
+<div class="lbl"><a class="oid" href="#1a">1a</a>Direction A · Subtle: cream card, quiet shadow</div>
+<div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+<div class="phone" style="height:470px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="day">TODAY</div>
+<div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div>
+<div class="bu">send Ruth her estimate</div>
+<div class="arow"><div class="av"></div><div class="ba">Sent. I'll let you know as soon as she opens it.</div></div>
+</div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5;animation:tA 5s infinite">
+<div class="ta">
+<div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00 · just now</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div>
+<div class="btn-g" style="height:40px">Convert to invoice</div>
+<div class="grab"></div>
+</div>
+</div>
+</div>
+<div class="spec">
+<div class="st">Motion · Toast A</div>
+<div class="kv"><span>enter</span><span>380ms</span><span>ease</span><span>cubic-bezier(.2,.9,.3,1)</span><span>animates</span><span>translateY −110%→0, opacity 0→1</span><span>dwell</span><span>5s · 8s if it has an action</span><span>exit</span><span>220ms cubic-bezier(.4,0,1,1), back up</span><span>haptic</span><span>light · success on signed/paid</span></div>
+<p>No bounce. The shadow comes in over the last 120ms, so the toast settles instead of landing hard.</p>
+</div>
+</div>
+</div>
+<div class="col" id="1b">
+<div class="lbl"><a class="oid" href="#1b">1b</a>Direction B · Expressive: ink card, gold pop, timer line</div>
+<div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+<div class="phone" style="height:470px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="day">TODAY</div>
+<div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div>
+<div class="bu">send Ruth her estimate</div>
+<div class="arow"><div class="av"></div><div class="ba">Sent. I'll let you know as soon as she opens it.</div></div>
+</div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5;animation:tB 5s infinite">
+<div class="tb">
+<div class="trow"><div class="tile" style="background:#D4AF37;color:#1E1A15;animation:pop 5s infinite"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · <span style="color:#E2C25A;font-weight:700">$50.00</span> · just now</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div>
+<div class="btn-g" style="height:40px">Convert to invoice</div>
+<div class="grab" style="background:#4A4238"></div>
+<div style="position:absolute;left:0;bottom:0;height:2px;width:100%;background:#D4AF37;transform-origin:left;animation:tbar 5s linear infinite"></div>
+</div>
+</div>
+</div>
+<div class="spec">
+<div class="st">Motion · Toast B</div>
+<div class="kv"><span>enter</span><span>460ms spring</span><span>ease</span><span>stiffness 380 / damping 26 (≈ cubic-bezier(.2,1.25,.4,1))</span><span>animates</span><span>translateY −120%→+6→0, scale .94→1</span><span>icon</span><span>scale 0→1.14→1, 260ms, +120ms delay</span><span>timer</span><span>2px gold line, scaleX 1→0 over dwell</span><span>exit</span><span>220ms, same as A</span><span>haptic</span><span>success (notification)</span></div>
+<p>Uses the dark surface of the user bubbles, so it stands out without adding a new color.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="row">
+<div class="col">
+<div class="lbl">A · all six variants</div>
+<div class="card" style="width:390px;padding:12px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">
+<div class="ta"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00 · just now</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="btn-g" style="height:40px">Convert to invoice</div><div class="grab"></div></div>
+<div class="ta"><div class="trow"><div class="tile" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid $50.00</div><div class="td">INV-0032 · Zelle · paid in full</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab"></div></div>
+<div class="ta"><div class="trow"><div class="tile" style="background:#F7EFD6;color:#6E580C"><i class="ti ti-coins"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid $25.00 of $50.00</div><div class="td">INV-0032 · $25.00 left</div><div class="pbar" style="height:5px;margin-top:7px"><div class="pfill" style="width:50%"></div></div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab"></div></div>
+<div class="ta"><div class="trow"><div class="tile" style="background:#F8E1D3;color:#A8461F"><i class="ti ti-clock-exclamation"></i></div><div style="flex:1;min-width:0"><div class="tt">Brandon's invoice is overdue</div><div class="td">INV-0029 · $150.00 · 3 days late</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab"></div></div>
+<div class="ta"><div class="trow"><div class="tile" style="background:#EEE7DC;color:#4A433A"><i class="ti ti-eye"></i></div><div style="flex:1;min-width:0"><div class="tt">Chenyi opened your estimate</div><div class="td">E-0051 · $7,500.00 · 2nd time today</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab"></div></div>
+<div class="ta"><div class="trow"><div class="tile" style="background:#EEE7DC;color:#4A433A"><i class="ti ti-file-search"></i></div><div style="flex:1;min-width:0"><div class="tt">Maryam viewed her invoice</div><div class="td">INV-0030 · $150.00 · due Nov 14</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab"></div></div>
+</div>
+</div>
+<div class="col">
+<div class="lbl">B · all six variants</div>
+<div class="card" style="width:390px;padding:12px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">
+<div class="tb"><div class="trow"><div class="tile" style="background:#D4AF37;color:#1E1A15"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · <span style="color:#E2C25A;font-weight:700">$50.00</span> · just now</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="btn-g" style="height:40px">Convert to invoice</div><div class="grab" style="background:#4A4238"></div></div>
+<div class="tb"><div class="trow"><div class="tile" style="background:#D4AF37;color:#1E1A15"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid <span style="color:#E2C25A">$50.00</span></div><div class="td">INV-0032 · Zelle · paid in full</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="grab" style="background:#4A4238"></div></div>
+<div class="tb"><div class="trow"><div class="tile" style="background:#3A3229;color:#E2C25A"><i class="ti ti-coins"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid <span style="color:#E2C25A">$25.00</span> of $50.00</div><div class="td">INV-0032 · $25.00 left</div><div style="height:5px;border-radius:3px;background:#3A3229;margin-top:7px;position:relative;overflow:hidden"><div class="pfill" style="width:50%"></div></div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="grab" style="background:#4A4238"></div></div>
+<div class="tb"><div class="trow"><div class="tile" style="background:#E07A4C;color:#1E1A15"><i class="ti ti-clock-exclamation"></i></div><div style="flex:1;min-width:0"><div class="tt">Brandon's invoice is overdue</div><div class="td">INV-0029 · $150.00 · 3 days late</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="grab" style="background:#4A4238"></div></div>
+<div class="tb"><div class="trow"><div class="tile" style="background:#3A3229;color:#F4ECDD"><i class="ti ti-eye"></i></div><div style="flex:1;min-width:0"><div class="tt">Chenyi opened your estimate</div><div class="td">E-0051 · $7,500.00 · 2nd time today</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="grab" style="background:#4A4238"></div></div>
+<div class="tb"><div class="trow"><div class="tile" style="background:#3A3229;color:#F4ECDD"><i class="ti ti-file-search"></i></div><div style="flex:1;min-width:0"><div class="tt">Maryam viewed her invoice</div><div class="td">INV-0030 · $150.00 · due Nov 14</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#8D8272"></i></div><div class="grab" style="background:#4A4238"></div></div>
+</div>
+</div>
+<div class="spec" style="align-self:flex-start;margin-top:26px">
+<div class="st">Rules for both</div>
+<p>Title: who did what. Name first, no exclamation marks.</p>
+<p>Detail: doc number · amount · context. Max one line, ellipsis.</p>
+<p>Tap the body to open the doc. Tap the chevron for the same thing. Tap a button to run the action without opening the doc.</p>
+<p>Only money and signatures get the success haptic. Views and overdue get a light tap.</p>
+<p>When a toast lands, the same event is also posted in chat as a card (07), so nothing is lost if you swipe it away.</p>
+</div>
+</div>
+<div class="row">
+<div class="frame">
+<div class="lbl">Queued · 2 arrive</div>
+<div class="phone" style="height:300px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed"><div class="day">TODAY</div><div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div></div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5">
+<div class="ta" style="position:absolute;left:0;right:0;top:12px;height:72px;transform:scale(.94);transform-origin:top center;opacity:.9"></div>
+<div class="ta" style="position:relative"><div class="trow"><div class="tile" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid $50.00</div><div class="td">INV-0032 · Zelle · paid in full</div></div><div class="mono" style="font-size:11px;font-weight:700;background:#1E1A15;color:#F4ECDD;border-radius:10px;padding:3px 7px">+1</div></div><div class="grab"></div></div>
+</div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">Queued · 3 arrive</div>
+<div class="phone" style="height:300px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed"><div class="day">TODAY</div><div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div></div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5">
+<div class="ta" style="position:absolute;left:0;right:0;top:22px;height:72px;transform:scale(.88);transform-origin:top center;opacity:.75"></div>
+<div class="ta" style="position:absolute;left:0;right:0;top:12px;height:72px;transform:scale(.94);transform-origin:top center;opacity:.9"></div>
+<div class="ta" style="position:relative"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00 · just now</div></div><div class="mono" style="font-size:11px;font-weight:700;background:#1E1A15;color:#F4ECDD;border-radius:10px;padding:3px 7px">+2</div></div><div class="btn-g" style="height:40px">Convert to invoice</div><div class="grab"></div></div>
+</div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">Tap the stack · expanded</div>
+<div class="phone" style="height:420px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed" style="filter:blur(1.5px);opacity:.6"><div class="day">TODAY</div><div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div></div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:0 6px"><span class="tt" style="font-size:14px">3 updates</span><span style="font:600 13px 'DM Sans';color:#7A6210">Clear all</span></div>
+<div class="ta" style="padding:10px 12px"><div class="trow"><div class="tile" style="width:34px;height:34px;font-size:19px;background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt" style="font-size:14px">Ruth signed your estimate</div><div class="td" style="font-size:12px">E-0049 · $50.00</div></div><div style="font:700 12.5px 'DM Sans';color:#6E580C;background:#F2E6C2;border-radius:14px;padding:6px 10px">Convert</div></div></div>
+<div class="ta" style="padding:10px 12px"><div class="trow"><div class="tile" style="width:34px;height:34px;font-size:19px;background:#F2E6C2;color:#6E580C"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt" style="font-size:14px">Maryam paid $150.00</div><div class="td" style="font-size:12px">INV-0030 · Cash</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div></div>
+<div class="ta" style="padding:10px 12px"><div class="trow"><div class="tile" style="width:34px;height:34px;font-size:19px;background:#EEE7DC;color:#4A433A"><i class="ti ti-eye"></i></div><div style="flex:1;min-width:0"><div class="tt" style="font-size:14px">Chenyi opened your estimate</div><div class="td" style="font-size:12px">E-0051 · $7,500.00</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div></div>
+<div class="grab" style="margin-top:2px"></div>
+</div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">Swipe up to dismiss</div>
+<div class="phone" style="height:300px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed"><div class="day">TODAY</div><div class="arow"><div class="av"></div><div class="ba">Morning! Snap a receipt, or tap + to start an invoice or estimate.</div></div></div>
+<div style="position:absolute;left:10px;right:10px;top:54px;z-index:5;animation:lift 2.6s infinite"><div class="ta"><div class="trow"><div class="tile" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid $50.00</div><div class="td">INV-0032 · Zelle · paid in full</div></div><i class="ti ti-chevron-right" style="font-size:18px;color:#A69C8E"></i></div><div class="grab" style="background:#C9B993;width:44px"></div></div></div>
+<div style="position:absolute;left:50%;top:136px;margin-left:-20px;width:40px;height:40px;border-radius:50%;background:rgba(30,26,21,.18);border:2px solid rgba(255,255,255,.8);z-index:6;animation:swipe 2.6s infinite"></div>
+<div style="position:absolute;left:0;right:0;bottom:22px;text-align:center;font:600 12px 'DM Sans';color:#7A7166;display:flex;justify-content:center;gap:6px;align-items:center"><i class="ti ti-arrow-up"></i>Still in chat if you need it</div>
+</div>
+</div>
+<div class="spec">
+<div class="st">Queue and swipe</div>
+<div class="kv"><span>visible</span><span>max 3. The newest goes on top, older ones step back</span><span>stack</span><span>back cards scale .94/.88, y +12/+22, opacity .9/.75</span><span>arrive</span><span>stagger 80ms when several arrive together</span><span>expand</span><span>tap the stack, 280ms (.2,.8,.2,1), cards fan out with 8px gaps</span><span>dismiss</span><span>drag up 32px or flick faster than 500px/s</span><span>clear</span><span>a drag past 96px clears the whole stack</span><span>dwell</span><span>paused while a finger is down</span></div>
+</div>
+</div>
+<div class="lbl" style="margin-bottom:14px">Toast lifecycle · entrance → rest → pressed → tap opens / exit</div>
+<div class="row" style="gap:20px">
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">0ms · queued</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import><div class="feed"></div><div style="position:absolute;left:10px;right:10px;top:-34px;z-index:5;opacity:.35"><div class="ta" style="border-style:dashed"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div></div></div></div></div></div>
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">180ms · sliding in</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import><div class="feed"></div><div style="position:absolute;left:10px;right:10px;top:22px;z-index:5;opacity:.8"><div class="ta"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div></div></div></div></div></div>
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">380ms · rest</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import><div class="feed"></div><div style="position:absolute;left:10px;right:10px;top:54px;z-index:5"><div class="ta"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div></div></div></div></div>
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">Pressed · scale .98</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import><div class="feed"></div><div style="position:absolute;left:10px;right:10px;top:54px;z-index:5;transform:scale(.98)"><div class="ta" style="background:#F4EBDD;box-shadow:0 6px 16px -10px rgba(70,50,10,.3)"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div></div></div></div></div>
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">Tap → opens E-0049</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import><div style="padding:16px"><div class="card" style="padding:16px;display:flex;justify-content:space-between;align-items:center"><span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed</span><span class="mono" style="font-size:14px">E-0049</span></div></div></div></div>
+<div class="frame" style="zoom:.7"><div class="lbl" style="font-size:14px">Exit · 220ms up</div><div class="phone" style="height:230px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import><div class="feed"></div><div style="position:absolute;left:10px;right:10px;top:4px;z-index:5;opacity:.4"><div class="ta"><div class="trow"><div class="tile" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div></div></div></div></div></div>
+</div>
+</section>
+<section class="sec" id="s2">
+<div class="sec-h"><div class="sec-n">02</div><div><div class="sec-t">Copy link / Share confirmation</div><div class="sec-d">The buttons on the "Ready to share" card confirm in place: the label flips, a gold check pops in, and the URL you just copied shows underneath. Share has no system confirmation, so the assistant confirms it in chat and promises to report the first view. <b>Try both buttons.</b></div></div></div>
+<div class="row">
+<div class="phone" style="height:640px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="bu">estimate for Ruth, consult, $50, 50% deposit</div>
+<div class="arow"><div class="av"></div><div class="ba">Done. Here it is. Same link works on any phone.</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start">
+<div class="av"></div>
+<div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 12px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="chip" style="background:#F2E6C2;color:#6E580C">● Ready to share</span><span class="mono" style="font-size:12px;color:#6B6257">E-0049</span></div>
+<div class="h" style="font-size:19px;margin-top:12px">Ruth Lawrence</div>
+<div style="font-size:13px;color:#6B6257;margin-top:2px">Estimate · 1 item · valid until Dec 7</div>
+<div class="h" style="font-size:30px;color:#6F5B0B;margin-top:10px">$50.00</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 14px 12px">
+<sc-if value="{{ notCopied }}" hint-placeholder-val="{{ true }}"><div onClick="{{ onCopy }}" style="height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font:600 14px 'DM Sans';color:#2A251F;user-select:none" style-active="transform:scale(.97)"><i class="ti ti-link" style="font-size:20px"></i>Copy link</div></sc-if>
+<sc-if value="{{ copied }}" hint-placeholder-val="{{ false }}"><div style="height:64px;border-radius:16px;background:#F2E6C2;border:1px solid #D4AF37;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 14px 'DM Sans';color:#1E1A15;animation:flash .5s ease-out"><div style="width:22px;height:22px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:popIn .32s cubic-bezier(.2,.9,.3,1.2)"><i class="ti ti-check" style="font-size:15px;color:#1E1A15"></i></div><span style="animation:fadeUp .2s ease-out">Copied</span></div></sc-if>
+<sc-if value="{{ notShared }}" hint-placeholder-val="{{ true }}"><div onClick="{{ onShare }}" style="height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font:600 14px 'DM Sans';color:#2A251F;user-select:none" style-active="transform:scale(.97)"><i class="ti ti-share" style="font-size:20px"></i>Share</div></sc-if>
+<sc-if value="{{ shared }}" hint-placeholder-val="{{ false }}"><div style="height:64px;border-radius:16px;background:#F2E6C2;border:1px solid #D4AF37;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 14px 'DM Sans';color:#1E1A15;animation:flash .5s ease-out"><div style="width:22px;height:22px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:popIn .32s cubic-bezier(.2,.9,.3,1.2)"><i class="ti ti-check" style="font-size:15px;color:#1E1A15"></i></div><span style="animation:fadeUp .2s ease-out">Shared</span></div></sc-if>
+</div>
+<sc-if value="{{ copied }}" hint-placeholder-val="{{ false }}"><div style="padding:0 14px 12px;font:12px 'JetBrains Mono';color:#6B6257;animation:fadeUp .22s ease-out;display:flex;gap:6px;align-items:center"><i class="ti ti-clipboard-check" style="color:#7A6210"></i>onit.dynastyweb.co/e/7Kq2 copied</div></sc-if>
+<div style="display:flex;gap:18px;padding:10px 14px 14px;border-top:1px solid #F0E6D6;font:600 13.5px 'DM Sans';color:#4A433A"><span style="display:flex;gap:5px;align-items:center"><i class="ti ti-eye"></i>Preview</span><span style="display:flex;gap:5px;align-items:center"><i class="ti ti-pencil"></i>Revise</span></div>
+</div>
+</div>
+<sc-if value="{{ shared }}" hint-placeholder-val="{{ false }}"><div class="arow" style="animation:fadeUp .3s ease-out .35s both"><div class="av"></div><div class="ba">Shared. I'll ping you as soon as Ruth opens it.</div></div></sc-if>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><span style="flex:1;color:#9A9083;font-size:16px">Message On It…</span><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></div>
+</div>
+<div class="col" style="gap:22px">
+<div class="lbl">Copy link · states</div>
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 14px 'DM Sans'"><i class="ti ti-link" style="font-size:20px"></i>Copy link</div><div class="meta">Default</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#F6EEDF;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 14px 'DM Sans';transform:scale(.97)"><i class="ti ti-link" style="font-size:20px"></i>Copy link</div><div class="meta">Pressed · 90ms</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#F2E6C2;border:1px solid #D4AF37;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 14px 'DM Sans'"><div style="width:22px;height:22px;border-radius:50%;background:#D4AF37;display:grid;place-items:center"><i class="ti ti-check" style="font-size:15px"></i></div>Copied</div><div class="meta">Copied · hold 1.6s</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 14px 'DM Sans';position:relative;overflow:hidden;animation:cpBg 3.2s infinite"><div style="position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;animation:cpA 3.2s infinite"><i class="ti ti-link" style="font-size:20px"></i>Copy link</div><div style="position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700;animation:cpB 3.2s infinite"><div style="width:22px;height:22px;border-radius:50%;background:#D4AF37;display:grid;place-items:center"><i class="ti ti-check" style="font-size:15px"></i></div>Copied</div></div><div class="meta">Loop · full cycle</div></div>
+</div>
+<div class="lbl">Share · states</div>
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 14px 'DM Sans'"><i class="ti ti-share" style="font-size:20px"></i>Share</div><div class="meta">Default</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 14px 'DM Sans';opacity:.55"><i class="ti ti-share" style="font-size:20px"></i>Share</div><div class="meta">iOS sheet open</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#F2E6C2;border:1px solid #D4AF37;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 14px 'DM Sans'"><div style="width:22px;height:22px;border-radius:50%;background:#D4AF37;display:grid;place-items:center"><i class="ti ti-check" style="font-size:15px"></i></div>Shared</div><div class="meta">Sheet returned "completed"</div></div>
+<div class="frame"><div style="width:150px;height:64px;border-radius:16px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 14px 'DM Sans'"><i class="ti ti-share" style="font-size:20px"></i>Share</div><div class="meta">Sheet cancelled · no change</div></div>
+</div>
+<div class="spec" style="width:100%;max-width:640px">
+<div class="st">Motion · copy / share confirm</div>
+<div class="kv" style="grid-template-columns:110px 1fr"><span>press</span><span>scale .97, bg #F6EEDF, 90ms ease-out</span><span>label out</span><span>"Copy link" y 0→−14, opacity 1→0, 140ms (.4,0,1,1)</span><span>label in</span><span>"Copied" y 14→0, opacity 0→1, 180ms (.2,.9,.3,1), +60ms</span><span>check</span><span>scale .6→1.12→1, 320ms spring</span><span>ring</span><span>box-shadow 0→12px gold at 55%→0, 500ms</span><span>revert</span><span>after 1.6s, the same flip in reverse</span><span>haptic</span><span>light on copy · success on share completed</span><span>a11y</span><span>announce "Link copied". Reduced motion: crossfade only</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="sec" id="s3">
+<div class="sec-h"><div class="sec-n">03</div><div><div class="sec-t">Chat estimate / invoice card fixes</div><div class="sec-d">Line items become a three-column grid: number, description and price. The description column can shrink and wraps to 3 lines max. The price column sizes to its content and never wraps or clips. Qty × rate sits under the description. The photo grid is unchanged.</div></div></div>
+<div class="row">
+<div class="frame">
+<div class="lbl" style="color:#A8461F">Before · price clipped, text cut off</div>
+<div class="wcard" style="width:330px;padding:14px;overflow:hidden;box-sizing:border-box">
+<div style="display:flex;gap:10px;align-items:baseline;white-space:nowrap"><span class="mono" style="color:#8A7F70;font-size:13px">1.</span><span style="font:600 14.5px 'DM Sans';flex:none">Laminate flooring installation, demolition and haul-off…</span><span style="font:700 14.5px 'DM Sans';flex:none">$6,300.00</span></div>
+<div style="font-size:12.5px;color:#7A7166;margin:4px 0 0 22px">3150 sq ft × $2.00</div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">After · in the chat thread</div>
+<div class="phone" style="height:1150px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="bu">Make it 3150 sqft. $2/sqft for (Laminate flooring installation + Demolishing tiles + Carpet removing)</div>
+<div class="arow"><div class="av"></div><div class="ba">Here's Chenyi's estimate. I split the demo and carpet out so she can see each one.</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start">
+<div class="av"></div>
+<div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 10px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="chip" style="background:#F2E6C2;color:#6E580C">● Ready to share</span><span class="mono" style="font-size:12px;color:#6B6257">E-0051</span></div>
+<div class="h" style="font-size:19px;margin-top:12px">Chenyi</div>
+<div style="font-size:13px;color:#6B6257;margin-top:2px">Estimate · 3 items · 6 photos</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 14px 12px">
+<div class="ph" style="aspect-ratio:1;border-radius:10px">job photo</div>
+<div class="ph" style="aspect-ratio:1;border-radius:10px">job photo</div>
+<div class="ph" style="aspect-ratio:1;border-radius:10px;position:relative">job photo<div style="position:absolute;inset:0;border-radius:10px;background:rgba(30,26,21,.55);display:grid;place-items:center;font:700 17px 'DM Sans';color:#fff">+3</div></div>
+</div>
+<div style="padding:4px 14px 6px;display:flex;justify-content:space-between"><span class="meta" style="color:#4A433A">Line items</span><span style="font-size:12.5px;color:#7A7166">3 items</span></div>
+<div style="padding:0 10px">
+<div style="display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:3px 10px;padding:10px 4px;border-bottom:1px solid #F0E6D6;align-items:start">
+<span class="mono" style="color:#8A7F70;font-size:12.5px;padding-top:2px">1.</span>
+<span style="font:600 14.5px/1.35 'DM Sans';display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty">Laminate flooring installation, demolition and haul-off, 3150 sq ft × $2.00</span>
+<span style="font:700 14.5px/1.35 'DM Sans';white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right">$6,300.00</span>
+<span></span><span style="font-size:12.5px;color:#7A7166">3150 sq ft × $2.00</span><span></span>
+</div>
+<div style="display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:3px 10px;padding:10px 4px;border-bottom:1px solid #F0E6D6;align-items:start">
+<span class="mono" style="color:#8A7F70;font-size:12.5px;padding-top:2px">2.</span>
+<span style="font:600 14.5px/1.35 'DM Sans'">Tile demolition, kitchen and hallway</span>
+<span style="font:700 14.5px/1.35 'DM Sans';white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right">$650.00</span>
+<span></span><span style="font-size:12.5px;color:#7A7166">1 job × $650.00</span><span></span>
+</div>
+<div style="display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:3px 10px;padding:10px 4px;align-items:start">
+<span class="mono" style="color:#8A7F70;font-size:12.5px;padding-top:2px">3.</span>
+<span style="font:600 14.5px/1.35 'DM Sans'">Carpet removal and disposal, 3 bedrooms</span>
+<span style="font:700 14.5px/1.35 'DM Sans';white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right">$550.00</span>
+<span></span><span style="font-size:12.5px;color:#7A7166">1 job × $550.00</span><span></span>
+</div>
+</div>
+<div style="background:#F8F0E2;padding:12px 14px;display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #EBDDC5"><span style="font:700 14px 'DM Sans'">Total</span><span class="h" style="font-size:22px;color:#6F5B0B">$7,500.00</span></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px 14px">
+<div style="height:56px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 13.5px 'DM Sans'"><i class="ti ti-link" style="font-size:19px"></i>Copy link</div>
+<div style="height:56px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 13.5px 'DM Sans'"><i class="ti ti-share" style="font-size:19px"></i>Share</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><span style="flex:1;color:#9A9083;font-size:16px">Message On It…</span><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="spec">
+<div class="st">Line-item layout</div>
+<div class="kv"><span>grid</span><span>18px · minmax(0,1fr) · auto</span><span>gap</span><span>3px row / 10px col</span><span>desc</span><span>600 14.5/1.35, line-clamp 3, text-wrap pretty</span><span>price</span><span>700 14.5, nowrap, tabular-nums, right-aligned to the first line</span><span>sub</span><span>12.5 muted, qty × rate</span><span>overflow</span><span>at 4+ lines it clamps with "…". Tap the row for the full text</span></div>
+<p>The price column always wins the width, so $10,000.00+ still fits at 390px. The description gives up the space.</p>
+<p>The same grid applies to the invoice card and the owner detail screen.</p>
+</div>
+</div>
+</section>
+<section class="sec" id="s4">
+<div class="sec-h"><div class="sec-n">04</div><div><div class="sec-t">Payment recorded moments</div><div class="sec-d">Every payment lands in three places: the toast, the invoice screen and the chat. The bigger moment is saved for the one that closes out the job. A partial payment fills the bar. Paid in full draws the check, swaps the badge to PAID and drops the balance to $0.00.</div></div></div>
+<div class="row">
+<div class="frame">
+<div class="lbl">Invoice · partial payment</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="chip" style="background:#F2E6C2;color:#6E580C">● Partial</span><div style="text-align:right"><div class="mono" style="font-size:14px;font-weight:700">INV-0032</div><div style="font-size:13px;color:#6B6257">Due Nov 21</div></div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Ruth Lawrence</div>
+<div style="font-size:14px;color:#6B6257">Invoice · from E-0049 · Sent Nov 7</div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:16px 0"></div>
+<div style="font:600 14px 'DM Sans';color:#4A433A">Balance due</div>
+<div class="h" style="font-size:44px;color:#6F5B0B;line-height:1.1">$25.00</div>
+<div class="pbar" style="margin-top:12px"><div class="pfill" style="animation:prog 4s infinite"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:13px;color:#6B6257;margin-top:6px"><span><b style="color:#1E1A15">$25.00</b> paid</span><span>of $50.00</span></div>
+<div class="wcard" style="margin-top:14px;padding:10px 12px;display:flex;gap:10px;align-items:center;animation:fadeUp .4s ease-out"><div style="width:28px;height:28px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none"><i class="ti ti-check" style="font-size:17px"></i></div><div style="flex:1"><div style="font:700 14px 'DM Sans'">Payment recorded</div><div style="font-size:12.5px;color:#6B6257">$25.00 · Zelle · Nov 7</div></div><span style="font:600 13px 'DM Sans';color:#7A6210">Undo</span></div>
+</div>
+<div class="card" style="padding:16px 18px">
+<div class="meta" style="color:#4A433A;margin-bottom:10px">Payments</div>
+<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0"><span>Nov 7 · Zelle</span><b>$25.00</b></div>
+<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:#7A7166;border-top:1px dashed #E0D2BA"><span>Remaining</span><span>$25.00</span></div>
+</div>
+</div>
+<dc-import name="OnItTabs" active="invoices" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="frame" id="1c">
+<div class="lbl"><a class="oid" href="#1c">1c</a>Paid in full · Subtle</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="chip" style="background:#DDF3E5;color:#1E7A45;animation:badge 3.2s infinite"><i class="ti ti-rosette-discount-check"></i>Paid</span><div style="text-align:right"><div class="mono" style="font-size:14px;font-weight:700">INV-0032</div><div style="font-size:13px;color:#6B6257">Closed Nov 7</div></div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Ruth Lawrence</div>
+<div style="font-size:14px;color:#6B6257">Invoice · from E-0049 · Sent Nov 7</div>
+<div style="display:flex;flex-direction:column;align-items:center;padding:22px 0 8px">
+<div style="position:relative;width:84px;height:84px">
+<div style="position:absolute;inset:0;border-radius:50%;border:2px solid #D4AF37;animation:halo 3.2s infinite"></div>
+<div style="position:absolute;inset:0;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:ring 3.2s infinite"><svg width="40" height="40" viewBox="0 0 40 40"><path d="M10 21l6.5 6.5L30 14" fill="none" stroke="#1E1A15" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" style="animation:ck 3.2s infinite"></path></svg></div>
+</div>
+<div class="h" style="font-size:24px;margin-top:14px">Paid in full</div>
+<div style="font-size:14px;color:#6B6257;margin-top:2px">$50.00 from Ruth · Zelle</div>
+</div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:14px 0"></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:600 14px 'DM Sans';color:#4A433A">Balance</span><span class="h" style="font-size:30px;color:#1E1A15">$0.00</span></div>
+<div class="pbar" style="margin-top:10px"><div class="pfill" style="animation:progF 3.2s infinite"></div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="btn-w">Send receipt</div><div class="btn-w">View payments</div></div>
+</div>
+<dc-import name="OnItTabs" active="invoices" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="frame" id="1d">
+<div class="lbl"><a class="oid" href="#1d">1d</a>Paid in full · Expressive</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="chip" style="background:#DDF3E5;color:#1E7A45;animation:badge 3.2s infinite"><i class="ti ti-rosette-discount-check"></i>Paid</span><div style="text-align:right"><div class="mono" style="font-size:14px;font-weight:700">INV-0032</div><div style="font-size:13px;color:#6B6257">Closed Nov 7</div></div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Ruth Lawrence</div>
+<div style="background:#221D17;border-radius:20px;margin-top:14px;padding:26px 16px 20px;display:flex;flex-direction:column;align-items:center;color:#FBF4E8;overflow:hidden">
+<div style="position:relative;width:88px;height:88px">
+<div style="position:absolute;left:50%;top:50%;transform:rotate(0deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(30deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(60deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(90deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(120deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(150deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(180deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(210deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(240deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(270deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(300deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(330deg)"><div style="position:absolute;left:-1.5px;top:-52px;width:3px;height:14px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(15deg)"><div style="position:absolute;left:-3px;top:-46px;width:6px;height:6px;border-radius:1px;background:#F2E6C2;animation:fly 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(75deg)"><div style="position:absolute;left:-3px;top:-46px;width:7px;height:4px;border-radius:1px;background:#D4AF37;animation:fly 3.2s infinite .05s"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(135deg)"><div style="position:absolute;left:-3px;top:-46px;width:5px;height:5px;border-radius:50%;background:#FBF4E8;animation:fly 3.2s infinite .1s"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(195deg)"><div style="position:absolute;left:-3px;top:-46px;width:6px;height:6px;border-radius:1px;background:#D4AF37;animation:fly 3.2s infinite .03s"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(255deg)"><div style="position:absolute;left:-3px;top:-46px;width:7px;height:4px;border-radius:1px;background:#F2E6C2;animation:fly 3.2s infinite .08s"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(315deg)"><div style="position:absolute;left:-3px;top:-46px;width:5px;height:5px;border-radius:50%;background:#D4AF37;animation:fly 3.2s infinite .12s"></div></div>
+<div style="position:absolute;inset:0;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:ring 3.2s infinite;box-shadow:0 0 40px rgba(212,175,55,.45)"><svg width="42" height="42" viewBox="0 0 40 40"><path d="M10 21l6.5 6.5L30 14" fill="none" stroke="#1E1A15" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" style="animation:ck 3.2s infinite"></path></svg></div>
+</div>
+<div class="h" style="font-size:26px;margin-top:18px">Paid in full</div>
+<div style="font-size:14px;color:#BDB1A0;margin-top:2px">$50.00 from Ruth · Zelle</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:16px"><span style="font:600 14px 'DM Sans';color:#4A433A">Balance</span><span class="h" style="font-size:30px">$0.00</span></div>
+<div class="pbar" style="margin-top:10px"><div class="pfill" style="animation:progF 3.2s infinite"></div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="btn-w">Send receipt</div><div class="btn-w">View payments</div></div>
+</div>
+<dc-import name="OnItTabs" active="invoices" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">Deposit received</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><span class="chip" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-shield-check"></i>Deposit paid</span><div style="text-align:right"><div class="mono" style="font-size:14px;font-weight:700">INV-0032</div><div style="font-size:13px;color:#6B6257">Balance on completion</div></div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Ruth Lawrence</div>
+<div style="font-size:14px;color:#6B6257">50% deposit · from E-0049</div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:16px 0"></div>
+<div style="font:600 14px 'DM Sans';color:#4A433A">Due when the job's done</div>
+<div class="h" style="font-size:44px;color:#6F5B0B;line-height:1.1">$25.00</div>
+<div style="position:relative;margin-top:16px">
+<div class="pbar"><div class="pfill" style="animation:prog 4s infinite"></div></div>
+<div style="position:absolute;left:50%;top:-5px;width:2px;height:18px;background:#1E1A15;border-radius:1px"></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;font-size:12.5px;color:#6B6257;margin-top:8px"><span><b style="color:#1E1A15">Deposit</b> $25.00 ✓</span><span style="text-align:right">Balance $25.00</span></div>
+<div class="wcard" style="margin-top:14px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><div class="av" style="margin-top:0"></div><div style="font-size:13.5px;line-height:1.4">Deposit's in. Mark the job done and I'll send Ruth the balance.</div></div>
+</div>
+<div class="btn-g">Mark job done</div>
+</div>
+<dc-import name="OnItTabs" active="invoices" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="spec">
+<div class="st">Celebration spec</div>
+<div class="kv"><span>0ms</span><span>haptic success · badge pulse 1→1.18→1 (180ms)</span><span>0–240</span><span>gold disc scale .5→1.06→1, (.2,.9,.3,1.2)</span><span>120–480</span><span>check stroke draws, dashoffset 40→0, ease-out</span><span>200–700</span><span><b>B only:</b> 12 rays travel 64px and fade · 6 flecks fly 104px, rotate 200°</span><span>200–900</span><span>halo ring scale .6→1.9, opacity .7→0 (A)</span><span>300–900</span><span>balance counts down to $0.00 · bar fills to 100%</span><span>total</span><span>≈ 900ms, plays once, never loops</span></div>
+<p><b>Earned:</b> paid in full only. Partial and deposit get the bar fill plus the "Payment recorded" row. No disc.</p>
+<p>Reduced motion: no rays or flecks, check shown already drawn, bar jumps to its final width.</p>
+</div>
+</div>
+<div class="lbl" style="margin-bottom:14px">Same moments, in chat</div>
+<div class="row">
+<div class="phone" style="height:890px"><dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed" style="gap:14px">
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:14px">
+<div class="meta" style="margin-bottom:8px">Deposit received · 8:02 AM</div>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tt">$25.00 deposit from Ruth</div><span class="chip" style="background:#F2E6C2;color:#6E580C;height:22px;font-size:10.5px">Deposit</span></div>
+<div style="font-size:13px;color:#6B6257;margin-top:4px">INV-0032 · $25.00 due on completion</div>
+</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:14px">
+<div class="meta" style="margin-bottom:8px">Payment recorded · 9:42 AM</div>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div class="tt">$25.00 from Maryam</div><span class="chip" style="background:#F2E6C2;color:#6E580C;height:22px;font-size:10.5px">Partial</span></div>
+<div class="pbar" style="margin-top:10px;height:6px"><div class="pfill" style="animation:prog 4s infinite"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#6B6257;margin-top:6px"><span>INV-0030 · Zelle</span><span><b style="color:#1E1A15">$25.00</b> left</span></div>
+<div style="display:flex;gap:8px;margin-top:12px"><div class="btn-w" style="height:36px;font-size:13.5px;padding:0 14px">Send receipt</div><div class="btn-w" style="height:36px;font-size:13.5px;padding:0 14px">Open invoice</div></div>
+</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center">
+<div style="position:relative;width:56px;height:56px">
+<div style="position:absolute;inset:0;border-radius:50%;border:2px solid #D4AF37;animation:halo 3.2s infinite"></div>
+<div style="position:absolute;inset:0;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:ring 3.2s infinite"><svg width="28" height="28" viewBox="0 0 40 40"><path d="M10 21l6.5 6.5L30 14" fill="none" stroke="#1E1A15" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" style="animation:ck 3.2s infinite"></path></svg></div>
+</div>
+<div class="h" style="font-size:19px;margin-top:10px">Paid in full</div>
+<div style="font-size:13px;color:#6B6257;margin-top:2px">Ruth · INV-0032 · $50.00 · balance $0.00</div>
+<span class="chip" style="background:#DDF3E5;color:#1E7A45;margin-top:10px;animation:badge 3.2s infinite"><i class="ti ti-rosette-discount-check"></i>Paid</span>
+</div></div>
+<div class="arow"><div class="av"></div><div class="ba">That job's closed out. Want me to send Ruth a thank-you with her receipt?</div></div>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><span style="flex:1;color:#9A9083;font-size:16px">Message On It…</span><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+<div class="col">
+<div class="lbl">Paid in full, chat · Expressive (<a class="oid" href="#1d">1d</a>)</div>
+<div style="display:flex;gap:8px;align-items:flex-start;width:362px"><div class="av"></div><div style="flex:1;min-width:0;background:#221D17;border-radius:18px;padding:18px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;color:#FBF4E8;overflow:hidden">
+<div style="position:relative;width:56px;height:56px">
+<div style="position:absolute;left:50%;top:50%;transform:rotate(0deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(45deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(90deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(135deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(180deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(225deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(270deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;left:50%;top:50%;transform:rotate(315deg)"><div style="position:absolute;left:-1.5px;top:-38px;width:3px;height:10px;border-radius:2px;background:#D4AF37;animation:ray 3.2s infinite"></div></div>
+<div style="position:absolute;inset:0;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:ring 3.2s infinite;box-shadow:0 0 28px rgba(212,175,55,.45)"><svg width="28" height="28" viewBox="0 0 40 40"><path d="M10 21l6.5 6.5L30 14" fill="none" stroke="#1E1A15" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" style="animation:ck 3.2s infinite"></path></svg></div>
+</div>
+<div class="h" style="font-size:20px;margin-top:14px">Paid in full</div>
+<div style="font-size:13px;color:#BDB1A0;margin-top:2px">Ruth · INV-0032 · <span style="color:#E2C25A;font-weight:700">$50.00</span></div>
+<div style="display:flex;gap:8px;margin-top:12px"><div class="btn-g" style="height:36px;font-size:13.5px">Send receipt</div></div>
+</div></div>
+<div class="lbl" style="margin-top:20px">PDF + send actions · replaces the greyed "Preparing" buttons</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;width:720px;max-width:100%">
+<div class="frame"><div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center;height:48px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;padding:0 12px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(212,175,55,.18),transparent);background-size:240px 100%;background-repeat:no-repeat;animation:shim 1.4s linear infinite"></div><div style="width:18px;height:18px;border-radius:50%;border:2.5px solid #EADFCB;border-top-color:#B8961E;animation:spin .8s linear infinite;flex:none"></div><div style="flex:1;font:600 14px 'DM Sans'">Building PDF…</div><span class="mono" style="font-size:11.5px;color:#8A7F70">INV-0032.pdf</span></div>
+<div class="btn-g">Send invoice<i class="ti ti-send"></i></div>
+<div style="font-size:12px;color:#6B6257;text-align:center">You can send now. The PDF attaches the moment it's ready.</div>
+</div><div class="meta">1 · PDF loading · send stays live</div></div>
+<div class="frame"><div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center;height:48px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;padding:0 12px"><div style="width:28px;height:28px;border-radius:8px;background:#F2E6C2;display:grid;place-items:center;color:#6E580C;flex:none;animation:popIn .3s"><i class="ti ti-file-type-pdf"></i></div><div style="flex:1;min-width:0"><div style="font:600 14px 'DM Sans'">INV-0032.pdf</div><div style="font-size:11.5px;color:#7A7166">1 page · 84 KB · attached</div></div><span style="font:600 13px 'DM Sans';color:#7A6210">Preview</span></div>
+<div class="btn-g">Send invoice<i class="ti ti-send"></i></div>
+</div><div class="meta">2 · Ready</div></div>
+<div class="frame"><div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center;height:48px;border-radius:14px;background:#FBEDE4;border:1px solid #EFCDB9;padding:0 8px 0 12px"><i class="ti ti-alert-triangle" style="font-size:20px;color:#A8461F"></i><div style="flex:1;min-width:0"><div style="font:600 14px 'DM Sans';color:#7A2F12">Couldn't build the PDF</div><div style="font-size:11.5px;color:#9A5A3E">Weak signal. Your invoice is safe.</div></div><div style="height:32px;padding:0 12px;border-radius:16px;background:#fff;border:1px solid #EFCDB9;display:flex;align-items:center;font:700 13px 'DM Sans';color:#7A2F12">Retry</div></div>
+<div class="btn-w">Send link only<i class="ti ti-link"></i></div>
+</div><div class="meta">3 · Error · retry + fallback</div></div>
+<div class="frame"><div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center;height:48px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;padding:0 12px"><div style="width:28px;height:28px;border-radius:8px;background:#F2E6C2;display:grid;place-items:center;color:#6E580C;flex:none"><i class="ti ti-file-type-pdf"></i></div><div style="flex:1"><div style="font:600 14px 'DM Sans'">INV-0032.pdf</div><div style="font-size:11.5px;color:#7A7166">1 page · attached</div></div></div>
+<div class="btn-g"><div style="width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(35,28,11,.25);border-top-color:#231C0B;animation:spin .8s linear infinite"></div>Sending…</div>
+</div><div class="meta">4 · Sending</div></div>
+<div class="frame"><div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center;height:48px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;padding:0 12px"><div style="width:28px;height:28px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none;animation:popIn .3s"><i class="ti ti-check" style="font-size:16px"></i></div><div style="flex:1"><div style="font:600 14px 'DM Sans'">Sent to Ruth</div><div style="font-size:11.5px;color:#7A7166">Text + email · 9:42 AM</div></div></div>
+<div class="btn-w">Resend</div>
+</div><div class="meta">5 · Sent</div></div>
+<div class="spec" style="width:auto">
+<div class="st">Button states</div>
+<p>Never show a dead button. While the PDF builds, Send stays tappable and queues the send.</p>
+<p>Spinner: 18px, 2.5px stroke, 800ms linear. Shimmer: 240px gold sweep, 1.4s.</p>
+<p>Ready: the file tile pops in at .6→1.12→1, 300ms. Error: rust tint and Retry. "Send link only" means you're never blocked.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="sec" id="s5">
+<div class="sec-h"><div class="sec-n">05</div><div><div class="sec-t">Record payment from chat</div><div class="sec-d">Typed or spoken, the assistant reads it back as a confirm card before anything is saved. Every field can be changed in place. Confirming reuses the moments from 04: a partial fills the bar, and the full amount gets the check. <b>Try it: change the amount to 50, switch the method, Confirm, or Cancel.</b></div></div></div>
+<div class="row">
+<div class="frame">
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="chat" hint-size="390px,112px"></dc-import>
+<div class="feed" style="gap:12px">
+<div class="day">TODAY</div>
+<div class="bu"><div style="display:flex;gap:6px;align-items:center;font-size:12px;color:#BDB1A0;margin-bottom:4px"><i class="ti ti-microphone"></i>Voice · 0:03</div>Ruth paid $25 Zelle</div>
+<div class="arow"><div class="av"></div><div class="ba">Got it. Check this before I save it.</div></div>
+<sc-if value="{{ payNotSaved }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px;align-items:flex-start">
+<div class="av"></div>
+<div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 6px;display:flex;gap:10px;align-items:center"><div class="tile" style="background:#F2E6C2;color:#6E580C;width:36px;height:36px;font-size:20px"><i class="ti ti-cash"></i></div><div><div class="tt">Record this payment?</div><div class="td">Nothing's saved until you confirm.</div></div></div>
+<div style="padding:0 14px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed #E6D9C3;font-size:14px"><span style="color:#7A7166">Client</span><span style="display:flex;gap:8px;align-items:center;font-weight:600"><span style="width:24px;height:24px;border-radius:50%;background:#F2E6C2;display:grid;place-items:center;font:700 10px 'DM Sans';color:#6E580C">RL</span>Ruth Lawrence</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed #E6D9C3;font-size:14px"><span style="color:#7A7166">Invoice</span><span style="font-weight:600"><span class="mono" style="font-size:13px">INV-0032</span> · $50.00</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed #E6D9C3;font-size:14px"><span style="color:#7A7166">Amount</span><label style="display:flex;align-items:center;gap:2px;height:38px;border-radius:12px;border:1.5px solid #D4AF37;background:#FFFBF0;padding:0 10px;box-shadow:0 0 0 3px rgba(212,175,55,.18)"><span class="h" style="font-size:18px">$</span><input value="{{ amt }}" onChange="{{ onAmt }}" inputmode="decimal" style="width:70px;border:0;outline:0;background:transparent;font:800 18px Montserrat,sans-serif;color:#1E1A15;text-align:right;padding:0"><i class="ti ti-pencil" style="color:#B8961E;margin-left:6px"></i></label></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed #E6D9C3;font-size:14px;gap:8px"><span style="color:#7A7166">Method</span><div style="display:flex;gap:5px">
+<sc-for list="{{ methods }}" as="m" hint-placeholder-count="4">
+<sc-if value="{{ m.on }}" hint-placeholder-val="{{ false }}"><div onClick="{{ m.onTap }}" style="height:30px;padding:0 10px;border-radius:15px;background:#1E1A15;color:#FBF4E8;display:flex;align-items:center;font:600 12.5px 'DM Sans';cursor:pointer">{{ m.label }}</div></sc-if>
+<sc-if value="{{ m.off }}" hint-placeholder-val="{{ true }}"><div onClick="{{ m.onTap }}" style="height:30px;padding:0 10px;border-radius:15px;background:#fff;border:1px solid #E3D6C0;display:flex;align-items:center;font:600 12.5px 'DM Sans';cursor:pointer;box-sizing:border-box">{{ m.label }}</div></sc-if>
+</sc-for>
+</div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;font-size:14px"><span style="color:#7A7166">Date</span><span style="font-weight:600;display:flex;gap:4px;align-items:center">Today, Nov 7<i class="ti ti-chevron-down" style="color:#A69C8E"></i></span></div>
+</div>
+<div style="background:#F8F0E2;padding:10px 14px;font-size:13px;color:#4A433A;border-top:1px solid #EFE4D2">After this, Ruth owes <b>{{ balFmt }}</b>.</div>
+<sc-if value="{{ payConfirm }}" hint-placeholder-val="{{ true }}"><div style="display:grid;grid-template-columns:1fr 1.5fr;gap:8px;padding:12px 14px 14px"><div class="btn-w" onClick="{{ onPayCancel }}">Cancel</div><div class="btn-g" onClick="{{ onPayConfirm }}">Confirm {{ amtFmt }}</div></div></sc-if>
+<sc-if value="{{ paySaving }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:1fr 1.5fr;gap:8px;padding:12px 14px 14px"><div class="btn-w" style="opacity:.5">Cancel</div><div class="btn-g"><div style="width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(35,28,11,.25);border-top-color:#231C0B;animation:spin .8s linear infinite"></div>Saving…</div></div></sc-if>
+<sc-if value="{{ payCancelled }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px 14px;font-size:13.5px;color:#6B6257"><span>Cancelled. Nothing saved.</span><span onClick="{{ onPayReset }}" style="font-weight:700;color:#7A6210;cursor:pointer">Undo</span></div></sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ paySaved }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ isPartial }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px;align-items:flex-start;animation:fadeUp .3s ease-out"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:14px">
+<div style="display:flex;gap:10px;align-items:center"><div style="width:28px;height:28px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none;animation:popIn .32s cubic-bezier(.2,.9,.3,1.2)"><i class="ti ti-check" style="font-size:17px"></i></div><div style="flex:1"><div class="tt">Payment recorded</div><div class="td">{{ amtFmt }} from Ruth · {{ method }} · Nov 7</div></div><span class="chip" style="background:#F2E6C2;color:#6E580C;height:22px;font-size:10.5px">Partial</span></div>
+<div class="pbar" style="margin-top:12px"><div class="pfill" style="width:{{ paidPct }};animation:grow .7s cubic-bezier(.2,.8,.2,1) .2s both"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#6B6257;margin-top:6px"><span>INV-0032</span><span><b style="color:#1E1A15">{{ balFmt }}</b> left</span></div>
+<div style="display:flex;gap:8px;margin-top:12px"><div class="btn-w" style="height:36px;font-size:13.5px;padding:0 14px">Send receipt</div><div class="btn-w" onClick="{{ onPayReset }}" style="height:36px;font-size:13.5px;padding:0 14px">Undo</div></div>
+</div></div>
+</sc-if>
+<sc-if value="{{ isFull }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:8px;align-items:flex-start;animation:fadeUp .3s ease-out"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center">
+<div style="width:56px;height:56px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;animation:ringOnce .4s cubic-bezier(.2,.9,.3,1.2) both"><svg width="28" height="28" viewBox="0 0 40 40"><path d="M10 21l6.5 6.5L30 14" fill="none" stroke="#1E1A15" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" style="animation:ckOnce .36s ease-out .12s both"></path></svg></div>
+<div class="h" style="font-size:19px;margin-top:10px">Paid in full</div>
+<div style="font-size:13px;color:#6B6257;margin-top:2px">{{ amtFmt }} from Ruth · {{ method }} · balance $0.00</div>
+<span class="chip" style="background:#DDF3E5;color:#1E7A45;margin-top:10px;animation:popIn .3s .4s both"><i class="ti ti-rosette-discount-check"></i>Paid</span>
+<div style="display:flex;gap:8px;margin-top:12px"><div class="btn-w" style="height:36px;font-size:13.5px;padding:0 14px">Send receipt</div><div class="btn-w" onClick="{{ onPayReset }}" style="height:36px;font-size:13.5px;padding:0 14px">Undo</div></div>
+</div></div>
+</sc-if>
+</sc-if>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><span style="flex:1;color:#9A9083;font-size:16px">Message On It…</span><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+<div onClick="{{ onPayReset }}" style="align-self:center;font:600 13px 'DM Sans';color:#7A6210;cursor:pointer;display:flex;gap:6px;align-items:center"><i class="ti ti-refresh"></i>Reset demo</div>
+</div>
+<div class="spec">
+<div class="st">Confirm-before-save</div>
+<div class="kv"><span>parse</span><span>client, amount, method, date. Invoice = oldest open one for that client</span><span>amount</span><span>focused by default with a gold ring. Numeric keypad</span><span>balance</span><span>the "After this" line updates live as you type</span><span>confirm</span><span>label carries the amount, e.g. "Confirm $25.00"</span><span>saving</span><span>spinner in the button, Cancel dims, 900ms</span><span>success</span><span>the card is replaced by the 04 moment, fadeUp 300ms</span><span>cancel</span><span>card collapses to one line with Undo</span><span>ambiguity</span><span>2+ Ruths or open invoices: a picker row appears instead of a guess</span></div>
+<p>If the amount covers the balance, it's the paid-in-full celebration. Otherwise the bar fill.</p>
+</div>
+</div>
+</section>
+<section class="sec" id="s6">
+<div class="sec-h"><div class="sec-n">06</div><div><div class="sec-t">Revise in place: same link, no duplicates</div><div class="sec-d">Editing happens on the owner's estimate detail screen you already have, using the inline tap-to-edit. The chat "Revise" button opens this same screen. The reassurance note sits right under the Copy link / Share buttons, where the worry about the link comes up. A signed estimate asks first. Client pages keep the red CTA.</div></div></div>
+<div class="row">
+<div class="frame">
+<div class="lbl">6.1 · Unsigned estimate · editing</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:14px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="display:flex;gap:6px;align-items:center"><span class="chip" style="background:#F2E6C2;color:#6E580C">● Sent</span><span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#1E1A15;color:#F4ECDD;font-size:11px;font-weight:700;display:flex;align-items:center">v2</span></div><div style="text-align:right"><div class="mono" style="font-size:14px;font-weight:700">E-0048</div><div style="font-size:13px;color:#6B6257">Valid until Dec 7</div></div></div>
+<div style="display:flex;gap:8px;align-items:center;margin-top:12px"><span class="h" style="font-size:28px">Maryam</span><i class="ti ti-pencil" style="color:#8A7F70"></i></div>
+<div style="font-size:14px;color:#6B6257">Estimate · Maryam · Sent Nov 7</div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:14px 0 12px"></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end"><div><div style="font:600 13.5px 'DM Sans';color:#4A433A">Estimate total</div><div class="h" style="font-size:34px;color:#6F5B0B;line-height:1.1">$100.00</div></div><div style="font-size:12.5px;color:#8A7F70;text-decoration:line-through;padding-bottom:6px">$50.00</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+<div style="height:54px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 13.5px 'DM Sans'"><i class="ti ti-link" style="font-size:18px"></i>Copy link</div>
+<div style="height:54px;border-radius:14px;background:#fff;border:1px solid #E6DAC6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 13.5px 'DM Sans'"><i class="ti ti-share" style="font-size:18px"></i>Share</div>
+</div>
+<div style="margin-top:10px;background:#F2E6C2;border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start"><i class="ti ti-link" style="font-size:18px;color:#6E580C;margin-top:1px"></i><div style="font-size:13px;line-height:1.4;color:#3A342C"><b>Same link, updated.</b> Maryam sees the new version the next time she opens it. No new estimate, no duplicate.</div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px"><span style="color:#6B6257">Editing v2 · v1 sent Nov 7</span><span style="display:flex;gap:4px;align-items:center;font-weight:600;color:#4A433A;border-bottom:1px dotted #A69C8E"><i class="ti ti-history"></i>Previous version</span></div>
+</div>
+<div class="card" style="padding:16px 14px">
+<div style="display:flex;justify-content:space-between;padding:0 4px 10px"><span class="meta" style="color:#4A433A">Line items</span><span style="font-size:12.5px;color:#7A7166">Tap a value to edit</span></div>
+<div class="wcard" style="padding:12px 14px">
+<div style="display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:4px 10px;align-items:start"><span class="mono" style="color:#8A7F70;font-size:13px">1.</span><span style="font:600 15px 'DM Sans';border-bottom:1px dotted #A69C8E;justify-self:start">Therapy Sessions</span><span style="font:700 15px 'DM Sans';display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:#D4AF37"></span>$100.00</span></div>
+<div style="display:flex;gap:8px;align-items:center;margin:10px 0 0 28px;font-size:14px"><span style="height:34px;min-width:34px;padding:0 8px;border-radius:10px;border:1.5px solid #D4AF37;background:#FFFBF0;box-shadow:0 0 0 3px rgba(212,175,55,.2);display:flex;align-items:center;font-weight:700;box-sizing:border-box">2<span style="width:1.5px;height:16px;background:#1E1A15;margin-left:2px;animation:caret 1s steps(1) infinite"></span></span><span style="height:34px;padding:0 10px;border-radius:10px;background:#F2EBDF;display:flex;align-items:center;gap:6px">hr<i class="ti ti-selector" style="font-size:14px"></i></span><span style="color:#8A7F70">×</span><span style="border-bottom:1px dotted #A69C8E">$50.00</span></div>
+</div>
+</div>
+</div>
+<div style="padding:10px 14px;background:#FCF7F0;border-top:1px solid #E8DCC8;display:flex;gap:10px;align-items:center;box-shadow:0 -10px 24px -14px rgba(60,40,0,.25)"><div style="flex:1"><div style="font:700 14px 'DM Sans'">1 change</div><div style="font-size:12px;color:#6B6257">Total $50.00 → $100.00</div></div><div style="font:600 14px 'DM Sans';color:#4A433A;padding:0 6px">Discard</div><div class="btn-g">Save changes</div></div>
+<dc-import name="OnItTabs" active="invoices" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="col">
+<div class="lbl">6.2 · Saved</div>
+<div class="phone" style="height:440px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="padding:14px 16px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="display:flex;gap:6px;align-items:center"><span class="chip" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-refresh"></i>Updated</span><span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#1E1A15;color:#F4ECDD;font-size:11px;font-weight:700;display:flex;align-items:center;animation:badge 3s infinite">v2</span></div><div class="mono" style="font-size:14px;font-weight:700">E-0048</div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Maryam</div>
+<div class="h" style="font-size:30px;color:#6F5B0B;margin-top:6px">$100.00</div>
+<div style="margin-top:12px;background:#fff;border:1px solid #E6DAC6;border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:center;animation:fadeUp .4s"><div style="width:26px;height:26px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none"><i class="ti ti-check" style="font-size:15px"></i></div><div style="flex:1;font-size:13px;line-height:1.35"><b>Saved as v2.</b> Same link. Want me to let Maryam know?</div></div>
+<div style="display:flex;gap:8px;margin-top:10px"><div class="btn-g" style="height:38px;font-size:13.5px;flex:1">Tell Maryam</div><div class="btn-w" style="height:38px;font-size:13.5px">Not now</div></div>
+</div>
+</div>
+</div>
+<div class="lbl" style="margin-top:12px">6.4 · Chat "Revise" opens 6.1</div>
+<div style="display:flex;gap:8px;align-items:flex-start;width:362px"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center"><div><div class="tt">Maryam · E-0048</div><div class="td">Sent · $50.00 · not signed yet</div></div><span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#EEE7DC;font-size:11px;font-weight:700;display:flex;align-items:center">v1</span></div>
+<div style="display:flex;gap:16px;padding:10px 14px 12px;border-top:1px solid #F0E6D6;font:600 13.5px 'DM Sans';color:#4A433A"><span style="display:flex;gap:5px;align-items:center"><i class="ti ti-eye"></i>Preview</span><span style="display:flex;gap:5px;align-items:center;background:#F2E6C2;border-radius:12px;padding:4px 10px;margin:-4px 0;color:#1E1A15;box-shadow:0 0 0 2px #D4AF37"><i class="ti ti-pencil"></i>Revise</span><span style="display:flex;gap:5px;align-items:center"><i class="ti ti-link"></i>Copy link</span></div>
+</div></div>
+<div class="note" style="margin-left:36px">Revise pushes the 6.1 screen (slide in from the right, 320ms), already in edit mode. It never creates a new draft in chat.</div>
+</div>
+<div class="frame">
+<div class="lbl">6.3 · Signed estimate · tap to edit → warning</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:14px 16px">
+<div class="card" style="padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="display:flex;gap:6px;align-items:center"><span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed</span><span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#EEE7DC;font-size:11px;font-weight:700;display:flex;align-items:center">v1</span></div><div class="mono" style="font-size:14px;font-weight:700">E-0049</div></div>
+<div class="h" style="font-size:28px;margin-top:12px">Ruth Lawrence</div>
+<div class="h" style="font-size:34px;color:#6F5B0B;margin-top:8px">$50.00</div>
+</div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(30,26,21,.42);z-index:3"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;z-index:4;background:#FCF7F0;border-radius:28px 28px 0 0;padding:10px 20px 34px;display:flex;flex-direction:column;gap:14px">
+<div class="grab" style="width:40px;height:5px;background:#D9CCB6"></div>
+<div style="width:48px;height:48px;border-radius:15px;background:#F8E1D3;color:#A8461F;display:grid;place-items:center;font-size:26px;margin-top:4px"><i class="ti ti-signature"></i></div>
+<div class="h" style="font-size:22px;line-height:1.2">Editing will require Ruth to sign again.</div>
+<div style="display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.4;color:#3A342C">
+<div style="display:flex;gap:10px"><i class="ti ti-lock" style="color:#7A6210;font-size:18px"></i><span>Her Nov 7 signature stays on v1. You can always open it.</span></div>
+<div style="display:flex;gap:10px"><i class="ti ti-link" style="color:#7A6210;font-size:18px"></i><span>Same link. She'll see "Updated" and a new Review &amp; sign.</span></div>
+<div style="display:flex;gap:10px"><i class="ti ti-bell" style="color:#7A6210;font-size:18px"></i><span>I'll tell you the moment she signs v2.</span></div>
+</div>
+<div class="btn-g" style="height:50px;border-radius:25px;font-size:15.5px">Edit and ask for a new signature</div>
+<div class="btn-w" style="height:50px;border-radius:25px;font-size:15.5px">Keep it signed</div>
+</div>
+</div>
+</div>
+<div class="spec">
+<div class="st">Revise rules</div>
+<div class="kv"><span>URL</span><span>never changes. /e/:token always serves the latest version</span><span>version</span><span>+1 on each save once the estimate has been sent. Drafts don't version</span><span>unsigned</span><span>edit freely. Status stays SENT/VIEWED, and the client page gets an "Updated" tag</span><span>signed</span><span>warning sheet → status NEEDS RE-SIGN. v1 and its signature are kept read-only</span><span>converted</span><span>edit is blocked. "Revise the invoice instead"</span><span>sheet</span><span>360ms (.2,.8,.2,1) up, scrim 0→.42</span><span>save bar</span><span>slides up 220ms on the first change</span></div>
+</div>
+</div>
+<div class="row">
+<div class="col">
+<div class="lbl">Status chips + version badge</div>
+<div class="card" style="padding:18px;display:flex;flex-direction:column;gap:16px;width:390px;box-sizing:border-box">
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<span class="chip" style="background:#EEE7DC;color:#4A433A">Draft</span>
+<span class="chip" style="background:#F2E6C2;color:#6E580C">● Sent</span>
+<span class="chip" style="background:#EEE7DC;color:#4A433A"><i class="ti ti-eye"></i>Viewed</span>
+<span class="chip" style="background:#F2E6C2;color:#6E580C"><i class="ti ti-refresh"></i>Updated</span>
+<span class="chip" style="background:#F8E1D3;color:#A8461F"><i class="ti ti-signature"></i>Needs re-sign</span>
+<span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed</span>
+<span class="chip" style="background:#EEE7DC;color:#4A433A"><i class="ti ti-transfer"></i>Converted</span>
+<span class="chip" style="background:#F1ECE4;color:#9A9083">Expired</span>
+</div>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+<span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#EEE7DC;font-size:11px;font-weight:700;display:flex;align-items:center">v1</span>
+<span class="mono" style="height:22px;padding:0 7px;border-radius:6px;background:#1E1A15;color:#F4ECDD;font-size:11px;font-weight:700;display:flex;align-items:center">v2</span>
+<span style="font-size:12.5px;color:#6B6257">Current version is ink, older ones are cream</span>
+</div>
+<div style="display:flex;gap:4px;align-items:center;font:600 13px 'DM Sans';color:#4A433A"><i class="ti ti-history"></i><span style="border-bottom:1px dotted #A69C8E">Previous version</span></div>
+</div>
+<div class="lbl" style="margin-top:8px">Previous version · read-only</div>
+<div class="phone" style="height:330px">
+<dc-import name="OnItTop" variant="back" hint-size="390px,112px"></dc-import>
+<div style="background:#1E1A15;color:#F4ECDD;padding:9px 16px;font:600 13px 'DM Sans';display:flex;justify-content:space-between"><span>Viewing v1 · Nov 7</span><span style="color:#E2C25A">Back to v2</span></div>
+<div style="padding:14px 16px"><div class="card" style="padding:18px;opacity:.85">
+<div style="display:flex;justify-content:space-between"><span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed v1</span><i class="ti ti-lock" style="color:#8A7F70"></i></div>
+<div class="h" style="font-size:26px;margin-top:12px">Ruth Lawrence</div>
+<div class="h" style="font-size:30px;color:#6F5B0B;margin-top:6px">$50.00</div>
+</div></div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl" style="color:#B8202A">6.5 · Client page · "Updated" tag (red client style)</div>
+<div class="phone" style="height:844px">
+<div style="height:50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px 38px;box-sizing:border-box;font:600 16px 'DM Sans'"><span>7:12</span><span style="display:flex;gap:5px;font-size:17px"><i class="ti ti-antenna-bars-3"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+<div style="flex:1;overflow:hidden;padding:12px 18px;display:flex;flex-direction:column;align-items:center;gap:10px">
+<div class="ph" style="width:76px;height:76px;border-radius:18px">logo</div>
+<div class="h" style="font-size:22px;text-align:center;line-height:1.15">Cyril Handyman &amp; Door LLC</div>
+<div style="font:600 12px 'DM Sans';letter-spacing:.14em;color:#5F574C">ESTIMATE E-0048</div>
+<div class="card" style="width:100%;padding:16px;box-sizing:border-box;margin-top:4px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="display:flex;gap:6px"><span style="height:28px;padding:0 10px;border-radius:14px;background:#F2E6C2;color:#6E580C;font:600 13px 'DM Sans';display:flex;align-items:center;gap:5px"><i class="ti ti-clock"></i>Pending</span><span style="height:28px;padding:0 10px;border-radius:14px;background:#FBE4E1;color:#B8202A;font:700 13px 'DM Sans';display:flex;align-items:center;gap:5px"><i class="ti ti-refresh"></i>Updated Nov 8</span></div></div>
+<div style="font-size:14px;margin-top:12px">Prepared for <b>Maryam</b></div>
+<div style="margin-top:12px;border:1px solid #F1CFCA;background:#FFF6F4;border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.45;color:#5A2620">Cyril updated this estimate. <b>Total changed from $50.00 to $100.00</b> (Therapy Sessions: 1 hr → 2 hr).</div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:14px 0"></div>
+<div style="text-align:center"><div style="font:600 12px 'DM Sans';letter-spacing:.14em;color:#5F574C">ESTIMATE TOTAL</div><div class="h" style="font-size:40px;margin-top:4px">$100.00</div><div style="font-size:13px;color:#6B6257">1 item</div></div>
+<div style="border-top:1.5px dashed #E0D2BA;margin:14px 0 10px"></div>
+<div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:#6B6257">50% deposit required</span><b>$50.00</b></div>
+</div>
+<div class="card" style="width:100%;padding:16px;box-sizing:border-box">
+<div class="h" style="font-size:18px">Ready to go ahead?</div>
+<div style="font-size:13.5px;color:#4A433A;margin-top:4px">Sign to approve this estimate. Cyril Handyman &amp; Door LLC is notified right away.</div>
+<div style="height:48px;border-radius:24px;background:#B8202A;color:#fff;font:700 15.5px 'DM Sans';display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px"><i class="ti ti-writing-sign"></i>Review &amp; sign</div>
+</div>
+</div>
+<div style="background:#1C1915;color:#fff;text-align:center;padding:12px 0 22px;font:15px 'DM Sans'">onit.dynastyweb.co</div>
+</div>
+</div>
+<div class="frame">
+<div class="lbl" style="color:#B8202A">6.6 · Client page · signed again</div>
+<div class="phone" style="height:640px">
+<div style="height:50px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 7px 38px;box-sizing:border-box;font:600 16px 'DM Sans'"><span>7:20</span><span style="display:flex;gap:5px;font-size:17px"><i class="ti ti-antenna-bars-3"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+<div style="flex:1;overflow:hidden;padding:12px 18px;display:flex;flex-direction:column;gap:12px">
+<div class="card" style="padding:16px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="height:30px;padding:0 12px;border-radius:15px;background:#DDF3E5;color:#1E7A45;font:700 14px 'DM Sans';display:flex;align-items:center;gap:6px"><i class="ti ti-rosette-discount-check"></i>Approved</span><span style="font-size:13px;color:#4A433A">Signed again Nov 8</span></div>
+<div style="font-size:14px;margin-top:12px">Prepared for <b>Ruth Lawrence</b></div>
+<div style="text-align:center;margin-top:12px"><div class="h" style="font-size:36px">$100.00</div></div>
+</div>
+<div class="card" style="padding:16px">
+<div style="display:flex;gap:10px;align-items:center;color:#1E7A45"><i class="ti ti-rosette-discount-check" style="font-size:24px"></i><span class="h" style="font-size:19px">Signed &amp; approved</span><span class="mono" style="margin-left:auto;height:22px;padding:0 7px;border-radius:6px;background:#1E1A15;color:#F4ECDD;font-size:11px;font-weight:700;display:flex;align-items:center">v2</span></div>
+<div class="ph" style="height:96px;border-radius:14px;margin-top:12px;background:#fff">signature</div>
+<div style="display:flex;justify-content:space-between;font-size:14px;padding:10px 0;border-bottom:1px dashed #E0D2BA"><span style="color:#6B6257">Signed by</span><b>Ruth Lawrence</b></div>
+<div style="display:flex;justify-content:space-between;font-size:14px;padding:10px 0;border-bottom:1px dashed #E0D2BA"><span style="color:#6B6257">Date</span><b>Nov 8, 2026 at 7:19 AM</b></div>
+<div style="font-size:12.5px;color:#6B6257;margin-top:10px;display:flex;gap:6px;align-items:center"><i class="ti ti-history"></i>Replaces the Nov 7 signature on v1.<span style="color:#B8202A;font-weight:700">See v1</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="sec" id="s7">
+<div class="sec-h"><div class="sec-n">07</div><div><div class="sec-t">In-chat event cards</div><div class="sec-d">The assistant posts these on its own, in its lane with its avatar, using the same anatomy and tints as the toasts. Every card is tappable. Only the two events that need a decision get a button: signed → Convert to invoice, overdue → Send reminder. A short assistant line sometimes adds context, but never on every card.</div></div></div>
+<div class="row">
+<div class="frame">
+<div class="lbl">Thread rhythm · tall frame (scrolled)</div>
+<div class="phone" style="height:1560px">
+<dc-import name="OnItTop" variant="chat" time="9:48" hint-size="390px,112px"></dc-import>
+<div class="feed" style="gap:12px">
+<div class="day">TODAY</div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 10px"><div class="meta">Morning recap · Fri Nov 7</div><div class="h" style="font-size:17px;margin-top:6px">Good morning, Cyril.</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #F0E6D6">
+<div style="padding:12px 14px;border-right:1px solid #F0E6D6;border-bottom:1px solid #F0E6D6"><div style="font-size:12px;color:#6B6257">Money in</div><div class="h" style="font-size:22px;color:#6F5B0B">$175.00</div></div>
+<div style="padding:12px 14px;border-bottom:1px solid #F0E6D6"><div style="font-size:12px;color:#6B6257">Owed to you</div><div class="h" style="font-size:22px">$295.00</div></div>
+<div style="padding:12px 14px;border-right:1px solid #F0E6D6"><div style="font-size:12px;color:#6B6257">Overdue</div><div class="h" style="font-size:22px;color:#A8461F">1</div></div>
+<div style="padding:12px 14px"><div style="font-size:12px;color:#6B6257">Signed estimates</div><div class="h" style="font-size:22px">2</div></div>
+</div>
+<div style="padding:10px 14px;border-top:1px solid #F0E6D6;font:600 13.5px 'DM Sans';color:#7A6210;display:flex;justify-content:space-between">Open Books<i class="ti ti-chevron-right"></i></div>
+</div></div>
+<div class="arow"><div class="av"></div><div class="ba">Brandon's $150 is 3 days late. Want me to nudge him?</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#F8E1D3;color:#A8461F;width:36px;height:36px;font-size:20px"><i class="ti ti-clock-exclamation"></i></div><div style="flex:1;min-width:0"><div class="tt">Brandon's invoice is overdue</div><div class="td">INV-0029 · $150.00 · 3 days late</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+<div style="padding:0 14px 12px"><div class="btn-g" style="height:38px;font-size:14px"><i class="ti ti-bell-ringing"></i>Send reminder</div></div>
+</div></div>
+<div class="bu">yeah send it, keep it friendly</div>
+<div class="arow"><div class="av"></div><div class="ba">Sent. Short and polite. I'll try again Tuesday if he's quiet.</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#EEE7DC;color:#4A433A;width:36px;height:36px;font-size:20px"><i class="ti ti-eye"></i></div><div style="flex:1;min-width:0"><div class="tt">Chenyi opened your estimate</div><div class="td">E-0051 · $7,500.00 · 2nd time today</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#DDF3E5;color:#1E7A45;width:36px;height:36px;font-size:20px"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00 · 9:31 AM</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+<div style="padding:0 14px 12px"><div class="btn-g" style="height:38px;font-size:14px"><i class="ti ti-transfer"></i>Convert to invoice</div></div>
+</div></div>
+<div class="bu">convert it</div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;padding:12px 14px">
+<div class="trow"><div style="width:28px;height:28px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none"><i class="ti ti-check" style="font-size:17px"></i></div><div style="flex:1"><div class="tt">INV-0032 is ready</div><div class="td">From E-0049 · $50.00 · $25.00 deposit due</div></div></div>
+<div style="display:flex;gap:8px;margin-top:10px"><div class="btn-g" style="height:36px;font-size:13.5px;flex:1">Send to Ruth</div><div class="btn-w" style="height:36px;font-size:13.5px">Open</div></div>
+</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#EEE7DC;color:#4A433A;width:36px;height:36px;font-size:20px"><i class="ti ti-file-search"></i></div><div style="flex:1;min-width:0"><div class="tt">Maryam viewed her invoice</div><div class="td">INV-0030 · $150.00 · due Nov 14</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+</div></div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#F2E6C2;color:#6E580C;width:36px;height:36px;font-size:20px"><i class="ti ti-cash"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth paid $25.00</div><div class="td">INV-0032 · Zelle · deposit covered</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+<div style="padding:0 14px 12px"><div class="pbar" style="height:6px"><div class="pfill" style="width:50%;animation:grow .8s cubic-bezier(.2,.8,.2,1)"></div></div></div>
+</div></div>
+<div class="arow"><div class="av"></div><div class="ba">Ruth's deposit is in. You're clear to schedule her.</div></div>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><span style="flex:1;color:#9A9083;font-size:16px">Message On It…</span><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="col" style="gap:18px">
+<div class="lbl">Convert to invoice · try it</div>
+<div style="display:flex;gap:8px;align-items:flex-start;width:362px"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#DDF3E5;color:#1E7A45;width:36px;height:36px;font-size:20px"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00</div></div></div>
+<div style="padding:0 14px 12px">
+<sc-if value="{{ convIdle }}" hint-placeholder-val="{{ true }}"><div class="btn-g" onClick="{{ onConvert }}" style="height:38px;font-size:14px"><i class="ti ti-transfer"></i>Convert to invoice</div></sc-if>
+<sc-if value="{{ convBusy }}" hint-placeholder-val="{{ false }}"><div class="btn-g" style="height:38px;font-size:14px"><div style="width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(35,28,11,.25);border-top-color:#231C0B;animation:spin .8s linear infinite"></div>Creating INV-0032…</div></sc-if>
+<sc-if value="{{ convDone }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:10px;align-items:center;animation:fadeUp .3s ease-out"><div style="width:28px;height:28px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none;animation:popIn .32s"><i class="ti ti-check" style="font-size:17px"></i></div><div style="flex:1;font:600 14px 'DM Sans'">INV-0032 created</div><span onClick="{{ onConvReset }}" style="font:600 13px 'DM Sans';color:#7A6210;cursor:pointer">Reset</span></div></sc-if>
+</div>
+</div></div>
+<div class="lbl">…and it lands on the estimates list</div>
+<div class="phone" style="height:470px">
+<dc-import name="OnItTop" variant="plain" hint-size="390px,112px"></dc-import>
+<div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;background:#F2EBDF;border-radius:28px;padding:5px"><div style="flex:1;height:44px;display:grid;place-items:center;font:600 15px 'DM Sans';color:#4A433A">Invoices</div><div style="flex:1;height:44px;display:grid;place-items:center;font:600 15px 'DM Sans';background:#D4AF37;border-radius:22px">Estimates</div></div>
+<div class="card" style="padding:16px 18px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div class="h" style="font-size:19px">Ruth Lawrence</div><div style="font-size:14px;color:#6B6257;margin-top:2px">E-0049 • 11/7/2026</div></div>
+<sc-if value="{{ convDone }}" hint-placeholder-val="{{ false }}"><span class="chip" style="background:#EEE7DC;color:#4A433A;animation:chipHalo 1.6s ease-out 2"><i class="ti ti-transfer"></i>Converted</span></sc-if>
+<sc-if value="{{ convIdle }}" hint-placeholder-val="{{ true }}"><span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed</span></sc-if>
+<sc-if value="{{ convBusy }}" hint-placeholder-val="{{ false }}"><span class="chip" style="background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i>Signed</span></sc-if>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><span class="h" style="font-size:26px">$50.00</span><div style="width:40px;height:40px;border-radius:50%;background:#EFE7DA;display:grid;place-items:center"><i class="ti ti-chevron-right"></i></div></div>
+<sc-if value="{{ convDone }}" hint-placeholder-val="{{ false }}"><div style="margin-top:10px;padding-top:10px;border-top:1px dashed #E0D2BA;font-size:13px;color:#4A433A;display:flex;gap:6px;align-items:center;animation:fadeUp .3s ease-out .2s both"><i class="ti ti-arrow-right" style="color:#7A6210"></i>Now <b class="mono" style="font-size:12.5px">INV-0032</b> · open invoice</div></sc-if>
+</div>
+</div>
+</div>
+<div class="spec" style="width:362px">
+<div class="st">Event cards</div>
+<div class="kv"><span>arrive</span><span>fadeUp 6px + opacity, 280ms (.2,.8,.2,1). Thread auto-scrolls only if you're already at the bottom</span><span>tap</span><span>opens the doc. Pressed: scale .98, bg #F6EEDF</span><span>action</span><span>gold button. After it runs, it turns into a check row (no reload)</span><span>dedupe</span><span>repeat views within 1h collapse into one card ("2nd time today")</span><span>recap</span><span>daily 7:00 AM, weekly Mon 7:00 AM, set in Notifications</span><span>convert</span><span>chip SIGNED → CONVERTED crossfade 200ms + 2 gold halo pulses</span></div>
+</div>
+<div class="lbl">Weekly recap variant</div>
+<div style="display:flex;gap:8px;align-items:flex-start;width:362px"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 10px"><div class="meta">Week of Nov 3</div><div class="h" style="font-size:17px;margin-top:6px">$1,240 in. Best week since August.</div></div>
+<div style="display:flex;align-items:flex-end;gap:6px;height:56px;padding:0 14px 10px">
+<div style="flex:1;height:30%;background:#EDE2CC;border-radius:4px"></div><div style="flex:1;height:55%;background:#EDE2CC;border-radius:4px"></div><div style="flex:1;height:20%;background:#EDE2CC;border-radius:4px"></div><div style="flex:1;height:80%;background:#EDE2CC;border-radius:4px"></div><div style="flex:1;height:100%;background:#D4AF37;border-radius:4px"></div><div style="flex:1;height:10%;background:#EDE2CC;border-radius:4px"></div><div style="flex:1;height:5%;background:#EDE2CC;border-radius:4px"></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #F0E6D6;font-size:12px;color:#6B6257">
+<div style="padding:10px 14px;border-right:1px solid #F0E6D6">Owed<div class="h" style="font-size:16px;color:#1E1A15">$295</div></div>
+<div style="padding:10px 14px;border-right:1px solid #F0E6D6">Overdue<div class="h" style="font-size:16px;color:#A8461F">1</div></div>
+<div style="padding:10px 14px">Signed<div class="h" style="font-size:16px;color:#1E1A15">4</div></div>
+</div>
+</div></div>
+</div>
+</div>
+</section>
+<section class="sec" id="s8">
+<div class="sec-h"><div class="sec-n">08</div><div><div class="sec-t">"?" command reply and empty state</div><div class="sec-d">The header stays as it is, and the existing "?" doesn't open a sheet or a modal. Tapping it, or sending "?", "help" or "what can you do", gets a "What I can do" card from the assistant in the thread. Tapping a row drops its phrase into the input so you can edit it and send. <b>Try it in both phones.</b></div></div></div>
+<div class="row">
+<div class="frame">
+<div class="lbl">8.1 · Empty state → tap ? (or send "?")</div>
+<div class="phone" style="height:844px">
+<dc-import name="OnItTop" variant="chat" time="7:05" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="day">TODAY</div>
+<div class="arow"><div class="av"></div><div class="ba">Evening! Snap a receipt, or tap + to start an invoice or estimate.</div></div>
+<sc-if value="{{ helpHidden }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:8px;padding-left:36px;align-items:flex-start">
+<sc-for list="{{ prompts }}" as="p" hint-placeholder-count="3">
+<div onClick="{{ p.onTap }}" style="min-height:40px;padding:9px 14px;border-radius:20px;background:#fff;border:1px solid #E3D6C0;font:600 14px/1.3 'DM Sans';color:#2A251F;cursor:pointer;display:flex;gap:8px;align-items:center;box-sizing:border-box" style-active="transform:scale(.97);background:#F2E6C2"><i class="ti ti-sparkles" style="color:#B8961E"></i>{{ p.text }}</div>
+</sc-for>
+<div style="font-size:13px;color:#7A7166;display:flex;gap:6px;align-items:center;margin-top:4px">Tap <span onClick="{{ onShowHelp }}" style="width:24px;height:24px;display:grid;place-items:center;cursor:pointer"><i class="ti ti-help-circle" style="font-size:19px;color:#3A342C"></i></span> to see everything I can do</div>
+</div>
+</sc-if>
+<sc-if value="{{ helpShown }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:8px;align-items:flex-start;animation:fadeUp .3s ease-out"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 4px;display:flex;justify-content:space-between;align-items:flex-start"><div><div class="h" style="font-size:18px">What I can do</div><div class="td">Tap one to start. Edit it, then send.</div></div><span onClick="{{ onHelpReset }}" style="font:600 12px 'DM Sans';color:#7A6210;cursor:pointer">Reset</span></div>
+<sc-for list="{{ groups2 }}" as="g" hint-placeholder-count="4">
+<div style="padding:8px 0 2px;border-top:1px solid #F3EADB"><div class="meta" style="padding:0 14px 2px">{{ g.title }}</div>
+<sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+<div onClick="{{ it.onTap }}" style="display:flex;gap:10px;align-items:center;padding:7px 14px;cursor:pointer" style-hover="background:#F8F0E2" style-active="background:#F2E6C2">
+<div class="tile" style="width:30px;height:30px;border-radius:9px;font-size:17px;background:#F2E6C2;color:#6E580C"><i class="{{ it.icon }}"></i></div>
+<div style="flex:1;min-width:0"><div style="font:600 14px 'DM Sans'">{{ it.name }}</div><div style="font-size:12.5px;color:#7A7166;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.ex }}</div></div>
+<i class="ti ti-arrow-down-left" style="color:#A69C8E"></i>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div></div>
+</sc-if>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><input value="{{ empInput }}" onChange="{{ onEmpInput }}" placeholder="Message On It…" style="flex:1;min-width:0;border:0;outline:0;background:transparent;font:16px 'DM Sans';color:#1E1A15"><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div>
+<sc-if value="{{ empHas }}" hint-placeholder-val="{{ false }}"><div onClick="{{ onEmpSend }}" style="width:40px;height:40px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none;font-size:22px;cursor:pointer;animation:popIn .25s"><i class="ti ti-arrow-up"></i></div></sc-if>
+<sc-if value="{{ empNone }}" hint-placeholder-val="{{ true }}"><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></sc-if>
+</div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="frame">
+<div class="lbl">8.2 · Mid-thread · "what can you do"</div>
+<div class="phone" style="height:1220px">
+<dc-import name="OnItTop" variant="chat" time="9:50" hint-size="390px,112px"></dc-import>
+<div class="feed">
+<div class="day">TODAY</div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0">
+<div class="trow" style="padding:12px 14px"><div class="tile" style="background:#DDF3E5;color:#1E7A45;width:36px;height:36px;font-size:20px"><i class="ti ti-rosette-discount-check"></i></div><div style="flex:1;min-width:0"><div class="tt">Ruth signed your estimate</div><div class="td">E-0049 · $50.00 · 9:31 AM</div></div><i class="ti ti-chevron-right" style="color:#A69C8E"></i></div>
+</div></div>
+<div class="bu">convert it and send</div>
+<div class="arow"><div class="av"></div><div class="ba">Done. INV-0032 is on its way to Ruth.</div></div>
+<div class="bu">what else can you do</div>
+<div style="display:flex;gap:8px;align-items:flex-start"><div class="av"></div><div class="wcard" style="flex:1;min-width:0;overflow:hidden">
+<div style="padding:14px 14px 4px"><div class="h" style="font-size:18px">What I can do</div><div class="td">Tap one to start. Edit it, then send.</div></div>
+<sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+<div style="padding:8px 0 2px;border-top:1px solid #F3EADB"><div class="meta" style="padding:0 14px 2px">{{ g.title }}</div>
+<sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+<div onClick="{{ it.onTap }}" style="display:flex;gap:10px;align-items:center;padding:7px 14px;cursor:pointer" style-hover="background:#F8F0E2" style-active="background:#F2E6C2">
+<div class="tile" style="width:30px;height:30px;border-radius:9px;font-size:17px;background:#F2E6C2;color:#6E580C"><i class="{{ it.icon }}"></i></div>
+<div style="flex:1;min-width:0"><div style="font:600 14px 'DM Sans'">{{ it.name }}</div><div style="font-size:12.5px;color:#7A7166;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.ex }}</div></div>
+<i class="ti ti-arrow-down-left" style="color:#A69C8E"></i>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div></div>
+</div>
+<div class="cmp"><div class="cmp-p"><i class="ti ti-plus"></i></div><div class="cmp-f"><input value="{{ cmdInput }}" onChange="{{ onCmdInput }}" placeholder="Message On It…" style="flex:1;min-width:0;border:0;outline:0;background:transparent;font:16px 'DM Sans';color:#1E1A15"><i class="ti ti-photo" style="font-size:22px;color:#3A342C"></i><div class="cmp-c"><i class="ti ti-camera"></i></div></div>
+<sc-if value="{{ hasCmd }}" hint-placeholder-val="{{ false }}"><div style="width:40px;height:40px;border-radius:50%;background:#D4AF37;display:grid;place-items:center;flex:none;font-size:22px;animation:popIn .25s"><i class="ti ti-arrow-up"></i></div></sc-if>
+<sc-if value="{{ noCmd }}" hint-placeholder-val="{{ true }}"><div class="cmp-s"><i class="ti ti-arrow-up"></i></div></sc-if>
+</div>
+<dc-import name="OnItTabs" active="chat" hint-size="390px,84px"></dc-import>
+</div>
+</div>
+<div class="spec">
+<div class="st">Command reply</div>
+<div class="kv"><span>triggers</span><span>header ? · "?" · "help" · "what can you do" (fuzzy). All of them get the same card</span><span>header ?</span><span>unchanged. Posts the card, never a sheet or modal</span><span>arrive</span><span>fadeUp 300ms, like any assistant message. Thread scrolls so the card's top is visible</span><span>row tap</span><span>phrase replaces the input text, caret goes to the end, keyboard opens. Send pops to gold (250ms)</span><span>pressed</span><span>row bg #F2E6C2, 90ms</span><span>empty</span><span>3 prompt chips + "Tap ? to see everything I can do". Chips disappear after the first message</span><span>voice</span><span>saying "what can you do" gets the same card</span></div>
+</div>
+</div>
+</section>
+<section class="sec" id="s9">
+<div class="sec-h"><div class="sec-n">09</div><div><div class="sec-t">System</div><div class="sec-d">Tokens for engineering. One event map drives the toast tint, chat card tint, icon and haptic, so a new event type only needs a new row in the table.</div></div></div>
+<div class="row">
+<div class="col">
+<div class="lbl">Color tokens</div>
+<div style="display:grid;grid-template-columns:repeat(4,150px);gap:12px">
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#FCF7F0;border:1px solid #E6DAC6"></div><div style="font:700 13px 'DM Sans'">surface</div><div class="mono" style="font-size:11px;color:#6B6257">#FCF7F0</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#F8F0E2;border:1px solid #EBDDC5"></div><div style="font:700 13px 'DM Sans'">card</div><div class="mono" style="font-size:11px;color:#6B6257">#F8F0E2 / line #EBDDC5</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#FFFDF9;border:1px solid #EADFCB"></div><div style="font:700 13px 'DM Sans'">card-raised</div><div class="mono" style="font-size:11px;color:#6B6257">#FFFDF9 / #EADFCB</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#F4EBDD;border:1px solid #E7DAC4"></div><div style="font:700 13px 'DM Sans'">bubble-assistant</div><div class="mono" style="font-size:11px;color:#6B6257">#F4EBDD</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#D4AF37"></div><div style="font:700 13px 'DM Sans'">gold · primary</div><div class="mono" style="font-size:11px;color:#6B6257">#D4AF37</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#F2E6C2"></div><div style="font:700 13px 'DM Sans'">gold-soft</div><div class="mono" style="font-size:11px;color:#6B6257">#F2E6C2 / text #6E580C</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#6F5B0B"></div><div style="font:700 13px 'DM Sans'">gold-ink · totals</div><div class="mono" style="font-size:11px;color:#6B6257">#6F5B0B</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#1E1A15"></div><div style="font:700 13px 'DM Sans'">ink</div><div class="mono" style="font-size:11px;color:#6B6257">#1E1A15 · toast B #221D17</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#39332C"></div><div style="font:700 13px 'DM Sans'">bubble-user</div><div class="mono" style="font-size:11px;color:#6B6257">#39332C</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#6B6257"></div><div style="font:700 13px 'DM Sans'">muted</div><div class="mono" style="font-size:11px;color:#6B6257">#6B6257</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#DDF3E5;display:grid;place-items:center;color:#1E7A45;font-size:22px"><i class="ti ti-rosette-discount-check"></i></div><div style="font:700 13px 'DM Sans'">success</div><div class="mono" style="font-size:11px;color:#6B6257">#DDF3E5 / #1E7A45</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#F8E1D3;display:grid;place-items:center;color:#A8461F;font-size:22px"><i class="ti ti-clock-exclamation"></i></div><div style="font:700 13px 'DM Sans'">overdue</div><div class="mono" style="font-size:11px;color:#6B6257">#F8E1D3 / #A8461F</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#EEE7DC;display:grid;place-items:center;color:#4A433A;font-size:22px"><i class="ti ti-eye"></i></div><div style="font:700 13px 'DM Sans'">neutral · views</div><div class="mono" style="font-size:11px;color:#6B6257">#EEE7DC / #4A433A</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#B8202A"></div><div style="font:700 13px 'DM Sans'">client-red</div><div class="mono" style="font-size:11px;color:#6B6257">#B8202A · client pages only</div></div>
+<div class="frame" style="gap:6px"><div style="height:64px;border-radius:14px;background:#FBE4E1"></div><div style="font:700 13px 'DM Sans'">client-red-soft</div><div class="mono" style="font-size:11px;color:#6B6257">#FBE4E1 · "Updated" tag</div></div>
+</div>
+</div>
+<div class="col">
+<div class="lbl">Event map · toast + chat card</div>
+<div class="wcard" style="width:620px;overflow:hidden;font-size:13px">
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;gap:0;background:#F8F0E2;font:600 10.5px 'JetBrains Mono';letter-spacing:.06em;text-transform:uppercase;color:#6B6257;padding:10px 14px"><span>Event</span><span>A</span><span>B</span><span>Icon</span><span>Dwell</span><span>Haptic / action</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Estimate signed</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#DDF3E5;color:#1E7A45"><i class="ti ti-rosette-discount-check"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#D4AF37;color:#1E1A15"><i class="ti ti-rosette-discount-check"></i></div><span class="mono" style="font-size:11px">rosette-discount-check</span><span>8s</span><span>success · Convert</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Paid in full</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#F2E6C2;color:#6E580C"><i class="ti ti-cash"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#D4AF37;color:#1E1A15"><i class="ti ti-cash"></i></div><span class="mono" style="font-size:11px">cash</span><span>5s</span><span>success</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Partial payment</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#F7EFD6;color:#6E580C"><i class="ti ti-coins"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#3A3229;color:#E2C25A"><i class="ti ti-coins"></i></div><span class="mono" style="font-size:11px">coins</span><span>5s</span><span>success</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Deposit received</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#F2E6C2;color:#6E580C"><i class="ti ti-shield-check"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#3A3229;color:#E2C25A"><i class="ti ti-shield-check"></i></div><span class="mono" style="font-size:11px">shield-check</span><span>5s</span><span>success</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Invoice overdue</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#F8E1D3;color:#A8461F"><i class="ti ti-clock-exclamation"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#E07A4C;color:#1E1A15"><i class="ti ti-clock-exclamation"></i></div><span class="mono" style="font-size:11px">clock-exclamation</span><span>8s</span><span>light · Send reminder</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Estimate viewed</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#EEE7DC;color:#4A433A"><i class="ti ti-eye"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#3A3229;color:#F4ECDD"><i class="ti ti-eye"></i></div><span class="mono" style="font-size:11px">eye</span><span>4s</span><span>light</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Invoice viewed</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#EEE7DC;color:#4A433A"><i class="ti ti-file-search"></i></div><div class="tile" style="width:30px;height:30px;font-size:17px;background:#3A3229;color:#F4ECDD"><i class="ti ti-file-search"></i></div><span class="mono" style="font-size:11px">file-search</span><span>4s</span><span>light</span></div>
+<div style="display:grid;grid-template-columns:150px 54px 54px 1fr 70px 110px;align-items:center;padding:9px 14px;border-top:1px solid #F0E6D6"><b>Recap</b><div class="tile" style="width:30px;height:30px;font-size:17px;background:#F2E6C2;color:#6E580C"><i class="ti ti-calendar-stats"></i></div><span style="color:#9A9083">no toast</span><span class="mono" style="font-size:11px">sun / calendar-stats</span><span>none</span><span>chat only</span></div>
+</div>
+</div>
+</div>
+<div class="row">
+<div class="col">
+<div class="lbl">Icon set · Tabler outline, 1.75 stroke</div>
+<div class="wcard" style="width:620px;padding:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:14px 8px;box-sizing:border-box">
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-rosette-discount-check" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">signed</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-cash" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">paid</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-coins" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">partial</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-shield-check" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">deposit</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-clock-exclamation" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">overdue</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-eye" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">est viewed</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-file-search" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">inv viewed</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-transfer" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">convert</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-bell-ringing" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">reminder</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-link" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">copy link</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-share" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">share</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-check" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">done</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-signature" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">re-sign</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-refresh" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">updated</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-history" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">prev version</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-file-pencil" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">estimate</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-file-invoice" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">invoice</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-receipt-2" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">owed</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-user-plus" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">add client</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-user-search" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">look up</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-sun" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">daily recap</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-calendar-stats" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">weekly recap</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-file-type-pdf" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">pdf</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><i class="ti ti-alert-triangle" style="font-size:24px"></i><span class="mono" style="font-size:9.5px;color:#6B6257">error</span></div>
+</div>
+</div>
+<div class="col">
+<div class="lbl">Motion tokens</div>
+<div class="spec" style="width:360px">
+<div class="kv" style="grid-template-columns:120px 1fr"><span>dur.fast</span><span>90ms · press</span><span>dur.base</span><span>240ms · crossfades, chips</span><span>dur.enter</span><span>380ms · toast A, cards 280</span><span>dur.exit</span><span>220ms</span><span>dur.sheet</span><span>360ms</span><span>dur.celebrate</span><span>900ms total, plays once</span><span>ease.out</span><span>cubic-bezier(.2,.8,.2,1)</span><span>ease.settle</span><span>cubic-bezier(.2,.9,.3,1)</span><span>ease.pop</span><span>cubic-bezier(.2,.9,.3,1.2)</span><span>ease.spring</span><span>k 380 / d 26 (toast B)</span><span>ease.exit</span><span>cubic-bezier(.4,0,1,1)</span></div>
+<p>prefers-reduced-motion: every translate/scale becomes a 150ms opacity fade. Bars jump to their final width. No rays or flecks.</p>
+</div>
+</div>
+<div class="col">
+<div class="lbl">Card patterns</div>
+<div class="spec" style="width:360px;background:#FFFDF9;color:#1E1A15;border:1px solid #EADFCB">
+<div class="kv" style="grid-template-columns:110px 1fr"><span>event card</span><span>r18 · pad 12/14 · tile 36 r10 · title 15/700 · detail 13</span><span>action card</span><span>+ gold button h38 r19, full width, pad 0/14/12</span><span>confirm card</span><span>header tile + rows (dashed #E6D9C3) + tint footer + 1fr/1.5fr buttons</span><span>recap card</span><span>meta · headline 17/800 · 2×2 hairline grid</span><span>toast</span><span>r20 · pad 12 · shadow 0 14 34 −14 rgba(70,50,10,.3) · grab 36×4</span><span>lane</span><span>avatar 28 r9 + 8 gap. Cards fill the lane, bubbles leave 34px</span><span>status chip</span><span>h26 r8 · 12/700 caps · .08em</span><span>version</span><span>h22 r6 mono 11/700 · ink = current</span></div>
+</div>
+<div class="wcard" style="width:360px;padding:14px 16px;box-sizing:border-box;font-size:13px;line-height:1.5;color:#3A342C"><b>Dark mode: not designed.</b> The app is light-only today and cream is a big part of the brand. If you add it later, toast B and the user bubble already use the ink tokens that dark mode would start from.</div>
+</div>
+</div>
+</section></x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { copied: false, shared: false, amt: '25.00', method: 'Zelle', pay: 'confirm', sheetOpen: true, cmdInput: '', slash: '/re', empInput: '', convert: 'idle' };
+  t = [];
+  componentWillUnmount() { this.t.forEach(clearTimeout); }
+  later(fn, ms) { this.t.push(setTimeout(fn, ms)); }
+  renderVals() {
+    const s = this.state;
+    const n = Math.max(0, parseFloat(s.amt) || 0);
+    const bal = Math.max(0, 50 - n);
+    const $ = v => '$' + v.toFixed(2);
+    const mk = (key, icon, name, ex) => ({ icon: 'ti ' + icon, name, ex: '"' + ex + '"', onTap: () => this.setState({ [key]: ex }) });
+    const mkGroups = key => [
+      { title: 'Create', items: [mk(key, 'ti-file-pencil', 'New estimate', 'Estimate for Ruth, deck repair, $800'), mk(key, 'ti-file-invoice', 'New invoice', 'Invoice Maryam $150 for the door install')] },
+      { title: 'Money', items: [mk(key, 'ti-cash', 'Record a payment', 'Ruth paid $25 Zelle'), mk(key, 'ti-bell-ringing', 'Send a reminder', 'Remind Brandon about his invoice'), mk(key, 'ti-receipt-2', 'Who owes me', 'Who owes me money?')] },
+      { title: 'Clients', items: [mk(key, 'ti-user-plus', 'Add a client', 'Add Joe Ortiz, 945-555-0134'), mk(key, 'ti-user-search', 'Look up a client', "What's Ruth's balance?")] },
+      { title: 'Recaps', items: [mk(key, 'ti-sun', 'Daily recap', 'How did today go?'), mk(key, 'ti-calendar-stats', 'Weekly recap', "How'd I do this week?")] }
+    ];
+    const groups = mkGroups('cmdInput');
+    const groups2 = mkGroups('empInput');
+    const cmds = [
+      ['ti-file-pencil', '/estimate', 'New estimate', 'Estimate for Ruth, deck repair, $800'],
+      ['ti-file-invoice', '/invoice', 'New invoice', 'Invoice Maryam $150 for the door install'],
+      ['ti-cash', '/record', 'Record a payment', 'Ruth paid $25 Zelle'],
+      ['ti-bell-ringing', '/remind', 'Send a reminder', 'Remind Brandon about INV-0029'],
+      ['ti-pencil', '/revise', 'Revise an estimate', 'Revise E-0048, add a second session'],
+      ['ti-user-plus', '/client', 'Add a client', 'Add Joe Ortiz, 945-555-0134'],
+      ['ti-calendar-stats', '/recap', 'Recap', 'How\'d I do this week?'],
+      ['ti-receipt-2', '/owed', 'Who owes me', 'Who owes me money?']
+    ];
+    const q = s.slash.startsWith('/') ? s.slash.slice(1).trim().toLowerCase() : null;
+    const slashList = q === null ? [] : cmds.filter(c => !q || c[1].includes(q) || c[2].toLowerCase().includes(q)).map(c => ({ icon: 'ti ' + c[0], cmd: c[1], name: c[2], ex: c[3], onTap: () => this.setState({ slash: c[3] }) }));
+    const methods = ['Zelle', 'Cash', 'Check', 'Card'].map(m => ({ label: m, on: m === s.method, off: m !== s.method, onTap: () => this.setState({ method: m }) }));
+    const prompts = ['Estimate for Ruth, deck repair, $800', 'Ruth paid $25 Zelle', 'Who owes me money?'].map(p => ({ text: p, onTap: () => this.setState({ empInput: p }) }));
+    return {
+      copied: s.copied, notCopied: !s.copied,
+      onCopy: () => { if (s.copied) return; this.setState({ copied: true }); this.later(() => this.setState({ copied: false }), 1800); },
+      shared: s.shared, notShared: !s.shared,
+      onShare: () => { if (s.shared) return; this.later(() => this.setState({ shared: true }), 350); this.later(() => this.setState({ shared: false }), 6000); },
+      amt: s.amt, onAmt: e => this.setState({ amt: e.target.value.replace(/[^0-9.]/g, '') }),
+      amtFmt: $(n), balFmt: $(bal), paidPct: Math.min(100, n / 50 * 100) + '%', isFull: n >= 50, isPartial: n < 50,
+      methods, method: s.method,
+      payConfirm: s.pay === 'confirm', paySaving: s.pay === 'saving', paySaved: s.pay === 'saved', payCancelled: s.pay === 'cancelled', payNotSaved: s.pay !== 'saved',
+      onPayConfirm: () => { if (n <= 0) return; this.setState({ pay: 'saving' }); this.later(() => this.setState({ pay: 'saved' }), 900); },
+      onPayCancel: () => this.setState({ pay: 'cancelled' }),
+      onPayReset: () => this.setState({ pay: 'confirm', amt: '25.00', method: 'Zelle' }),
+      groups, groups2,
+      cmdInput: s.cmdInput, hasCmd: !!s.cmdInput, noCmd: !s.cmdInput,
+      helpShown: s.helpShown, helpHidden: !s.helpShown,
+      onShowHelp: () => this.setState({ helpShown: true }),
+      onHelpReset: () => this.setState({ helpShown: false, empInput: '' }),
+      onEmpSend: () => { if ((s.empInput || '').trim() === '?') this.setState({ helpShown: true, empInput: '' }); },
+      onOpenSheet: () => this.setState({ sheetOpen: true, cmdInput: '' }),
+      onCmdInput: e => this.setState({ cmdInput: e.target.value }),
+      slash: s.slash, onSlash: e => this.setState({ slash: e.target.value }),
+      slashList, slashOpen: q !== null && slashList.length > 0, slashNone: q !== null && slashList.length === 0,
+      onSlashReset: () => this.setState({ slash: '/re' }),
+      prompts, empInput: s.empInput, empHas: !!s.empInput, empNone: !s.empInput,
+      onEmpInput: e => this.setState({ empInput: e.target.value }),
+      convIdle: s.convert === 'idle', convBusy: s.convert === 'busy', convDone: s.convert === 'done',
+      onConvert: () => { this.setState({ convert: 'busy' }); this.later(() => this.setState({ convert: 'done' }), 1100); },
+      onConvReset: () => this.setState({ convert: 'idle' })
+    };
+  }
+}
+</script>
+</body>
+</html>

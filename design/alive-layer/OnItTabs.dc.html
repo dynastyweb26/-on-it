@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:84px;display:flex;border-top:1px solid #E8DCC8;background:#FCF7F0;padding-top:8px;box-sizing:border-box;width:100%">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+<sc-if value="{{ t.on }}" hint-placeholder-val="{{ false }}"><div style="width:62px;height:36px;border-radius:18px;background:#D4AF37;display:grid;place-items:center"><i class="{{ t.icon }}" style="font-size:24px;color:#1E1A15"></i></div><div style="font:700 13px/1.2 'DM Sans',sans-serif;color:#1E1A15">{{ t.label }}</div></sc-if>
+<sc-if value="{{ t.soft }}" hint-placeholder-val="{{ false }}"><div style="width:62px;height:36px;border-radius:18px;background:#F2E6C2;display:grid;place-items:center"><i class="{{ t.icon }}" style="font-size:24px;color:#3A342C"></i></div><div style="font:500 13px/1.2 'DM Sans',sans-serif;color:#5A5249">{{ t.label }}</div></sc-if>
+<sc-if value="{{ t.plain }}" hint-placeholder-val="{{ true }}"><div style="width:62px;height:36px;display:grid;place-items:center"><i class="{{ t.icon }}" style="font-size:24px;color:#3A342C"></i></div><div style="font:500 13px/1.2 'DM Sans',sans-serif;color:#5A5249">{{ t.label }}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:84},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;clients&quot;,&quot;invoices&quot;,&quot;chat&quot;,&quot;books&quot;,&quot;settings&quot;],&quot;default&quot;:&quot;chat&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const a = this.props.active ?? 'chat';
+    const T = [['clients','Clients','ti-users'],['invoices','Invoices','ti-file-text'],['chat','Chat','ti-message'],['books','Books','ti-cash-banknote'],['settings','Settings','ti-settings']];
+    return { tabs: T.map(([k,l,i]) => ({ label: l, icon: 'ti ' + i, on: a === k, soft: a !== k && k === 'chat', plain: a !== k && k !== 'chat' })) };
+  }
+}
+</script>
+</body>
+</html>
