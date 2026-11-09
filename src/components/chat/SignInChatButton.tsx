@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { SIGN_IN_HREF, SIGN_IN_PENDING_MS, signInLabel, signInStep, type SignInState } from '@/lib/chat-signed-out';
 import '@/components/alive/alive.css';
 
-export default function SignInChatButton() {
+export default function SignInChatButton({ onBeforeSignIn }: { onBeforeSignIn?: () => void } = {}) {
   const router = useRouter();
   const [state, setState] = useState<SignInState>('idle');
   const stateRef = useRef<SignInState>('idle');
@@ -28,6 +28,7 @@ export default function SignInChatButton() {
     if (!step.navigate) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => apply('timeout'), SIGN_IN_PENDING_MS);
+    try { onBeforeSignIn?.(); } catch { /* remembering is best-effort; sign-in still opens */ }
     router.push(SIGN_IN_HREF);
   }
 

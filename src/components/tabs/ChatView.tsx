@@ -40,6 +40,8 @@ import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { userMessage } from '@/lib/errors';
 import { isGuest, signedOutGate } from '@/lib/chat-signed-out';
+import { afterSignIn, classifySignInFailure, replayDecision, signInFailureMessage, type AskSource } from '@/lib/signed-out-replay';
+import { claimPending, clearPending, readPending, writePending } from '@/lib/signed-out-storage';
 import SignInChatButton from '@/components/chat/SignInChatButton';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
@@ -148,6 +150,8 @@ interface Msg {
   feedbackLink?: true;
   /** Signed-out answer: the bubble plus a Sign in button (lib/chat-signed-out.ts). */
   signInLink?: true;
+  /** The guest question this prompt answered; the Sign in tap remembers the last one. */
+  question?: string;
   /** Suggestion chips under an answer (A1): each sends that text as a question. */
   chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
@@ -1221,6 +1225,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           messages, draft, ready, cardAfterId,
         });
       }
+      clearPending(); // cancel: a new chat drops a remembered signed-out question
       setMessages([greeting()]);
       setInvoiceUsage(null);
       setDraft(null);
@@ -1335,7 +1340,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // graphics. A retry of a failed send is never gated (it has its own bubble).
     const gate = retryId ? ({ block: false } as const) : signedOutGate({ guest: isGuest({ profileLoaded, hasProfile: !!profile }) });
     if (gate.block) {
-      setMessages((m) => [...m, aMsg(gate.reply, { signInLink: true, skipHistory: true })]);
+      // Remember the question (last one wins) so it runs once, after sign-in.
+      writePending(trimmed, source, Date.now());
+      setMessages((m) => [...m, aMsg(gate.reply, { signInLink: true, skipHistory: true, question: trimmed })]);
       return null;
     }
 
@@ -4214,6 +4221,88 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // before the first message that came after it; cards older than the oldest
   // timestamped message (or newer than the last) fall to the end, which is how
   // the thread read before messages carried `at`.
+  // ── Signed out → signed in ──────────────────────────────────────────────
+  // (1) The auth state is watched for the life of the screen, so signing in from
+  //     another tab or window is noticed too: the profile loads, the namespace
+  //     moves to the account, and the guest draft is adopted.
+  // (2) Once signed in and idle, the LAST remembered question is claimed (removed
+  //     from sessionStorage first: a refresh, a second render or a second tab can
+  //     never run it again) and sent exactly as if it had just been typed.
+  // (3) The "not signed in" message and its button leave with the sign-in.
+  const [replay, setReplay] = useState<{ text: string; source: AskSource } | null>(null);
+  const replayClaimRef = useRef(false); // set from the claim until send() starts
+  const profileRef = useRef<Profile | null>(null);
+  profileRef.current = profile;
+  const authWatchRef = useRef(false);
+  useEffect(() => {
+    if (authWatchRef.current) return;
+    authWatchRef.current = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user?.id;
+      // Only a sign-in that arrives while this screen still has no profile (another
+      // tab or window signed in). The mount effect owns every other open, so a tab
+      // refocus or token refresh costs no extra query.
+      if (!uid || event !== 'SIGNED_IN' || profileRef.current) return;
+      void (async () => {
+        try {
+          const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+          if (error) throw error;
+          if (!data) return; // not onboarded: the mount effect owns that redirect
+          adoptGuestChat(uid);
+          storageNsRef.current = storageNamespace(uid);
+          setProfile((p) => p ?? (data as Profile));
+          setProfileLoaded(true);
+        } catch (err) {
+          // Say what failed. The question stays remembered; Retry re-sends it.
+          const q = readPending();
+          const reason = signInFailureMessage(classifySignInFailure(err, typeof navigator !== 'undefined' && navigator.onLine === false));
+          setMessages((m) => [...m.filter((x) => !x.signInLink), aMsg(reason, q ? { failed: { op: 'send', text: q.text }, skipHistory: true } : { skipHistory: true })]);
+        }
+      })();
+    });
+    return () => { subscription.unsubscribe(); authWatchRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Signed in: drop the sign-in prompts, whether or not a question was remembered.
+  useEffect(() => {
+    if (!profile) return;
+    setMessages((m) => afterSignIn(m, null));
+  }, [profile, messages]);
+
+  // Claim and replay. The decision is pure (replayDecision); the ref is the
+  // synchronous guard behind it, and the claim removes the stored question first.
+  useEffect(() => {
+    if (!hydrated || replayClaimRef.current) return;
+    const decision = replayDecision({
+      pending: readPending(),
+      signedIn: !!profile,
+      profileReady: profileLoaded,
+      busy: phase !== null || sendRef.current,
+      now: Date.now(),
+    });
+    if (decision === 'clear') { clearPending(); return; }
+    if (decision !== 'run') return;
+    replayClaimRef.current = true;
+    const q = claimPending();
+    if (!q) { replayClaimRef.current = false; return; }
+    setMessages((m) => afterSignIn(m, q.text));
+    setReplay({ text: q.text, source: q.source });
+  }, [hydrated, profile, profileLoaded, phase, messages]);
+
+  // Run the claimed question once the thread no longer holds the prompts (this
+  // render's `send` sees the cleaned thread). Cleared on every exit: send()
+  // answers it, or leaves a failed bubble with Retry; either way it is not kept.
+  useEffect(() => {
+    if (!replay || phase !== null || sendRef.current) return;
+    if (messages.some((m) => m.signInLink)) return;
+    const r = replay;
+    setReplay(null);
+    replayClaimRef.current = false;
+    void send(r.text, r.source);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replay, phase, messages]);
+
   // Recaps, no cron, and only sometimes: on an app open the dice (lib/recap-schedule.ts)
   // decide whether one shows. At most one a day, the weekly at most once a week,
   // never on two opens in a row. A recap you ask for always shows (send()). An
@@ -4227,6 +4316,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+        if (readPending()) return; // a remembered question is about to be answered: no surprise card on top
         const key = recapStateKey(user.id);
         const read = (): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
         const write = (st: RecapState) => { try { localStorage.setItem(key, JSON.stringify(st)); } catch { /* storage blocked */ } };
@@ -4821,7 +4911,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
                   {m.content}
                 </div>
-                <SignInChatButton />
+                <SignInChatButton
+                  onBeforeSignIn={() => {
+                    // Remember the LAST question asked while signed out (not just this bubble's).
+                    const last = [...messages].reverse().find((x) => x.signInLink && x.question);
+                    if (last?.question) writePending(last.question, 'typed', Date.now());
+                  }}
+                />
               </div>
             </div>
           ) : m.feedbackLink ? (

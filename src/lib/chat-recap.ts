@@ -173,7 +173,7 @@ export function recapsDue(now: Date, last: { daily?: string | null; weekly?: str
 /** "How did today go?" and "How'd I do this week?" (and close cousins). Narrow:
  *  anything carrying a job is a normal message. */
 export function matchRecap(text: string): RecapKind | null {
-  const t = text.trim().toLowerCase().replace(/[’`]/g, "'").replace(/[?!.]+$/g, '').replace(/\s+/g, ' ');
+  const t = text.trim().toLowerCase().replace(/[’‘ʼ`]/g, "'").replace(/[?!.]+$/g, '').replace(/\s+/g, ' ');
   if (!t) return null;
   if (/^(how did today go|how's today going|how is today going|daily recap|today's recap|recap (of )?today)$/.test(t)) return 'daily';
   if (/^(how'd i do this week|how did i do this week|how's my week going|how is my week going|weekly recap|this week's recap|recap (of )?(this|the) week)$/.test(t)) return 'weekly';

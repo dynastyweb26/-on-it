@@ -16,7 +16,7 @@ test('send() gates a guest before feedback, recap, commands and /api/parse', () 
 });
 
 test('the signed-out message renders the Sign in button', () => {
-  assert.match(chat, /m\.signInLink \? \([\s\S]{0,600}<SignInChatButton \/>/);
+  assert.match(chat, /m\.signInLink \? \([\s\S]{0,600}<SignInChatButton[\s>]/);
 });
 
 test('the empty-state chips are a random pick, not a fixed list', () => {

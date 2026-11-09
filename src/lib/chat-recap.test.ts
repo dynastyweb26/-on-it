@@ -105,3 +105,20 @@ test('the recap questions are narrow', () => {
   assert.equal(matchRecap('how did today go with the Smith job'), null);
   assert.equal(matchRecap(''), null);
 });
+
+// Reported: "How'd I do this week?" showed the Morning recap. The asked question
+// maps to its own kind and builds its own card; "Morning" is only the automatic daily.
+test('an asked weekly question builds the weekly card, an asked daily the daily card', () => {
+  const input = { now: mon, payments: [], open: [], signed: [], mode: 'now' as const };
+  const weekly = buildRecap({ ...input, kind: matchRecap("How'd I do this week?")! });
+  assert.equal(weekly.kind, 'weekly');
+  assert.match(weekly.metaLabel, /^Week of /);
+  assert.notEqual(weekly.bars, null);
+  const daily = buildRecap({ ...input, kind: matchRecap('How did today go?')! });
+  assert.equal(daily.kind, 'daily');
+  assert.match(daily.metaLabel, /^Today so far/);
+  assert.doesNotMatch(daily.metaLabel + daily.title, /Morning|Good morning/);
+  // only the automatic daily is the Morning recap
+  const morning = buildRecap({ ...input, kind: 'daily', mode: 'auto' });
+  assert.match(morning.metaLabel, /^Morning recap/);
+});
