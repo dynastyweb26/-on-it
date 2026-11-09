@@ -7,6 +7,7 @@
 // to /api/estimates/[id]/send, and the client preview goes to /preview.
 import type { PublicEstimate } from './types';
 import { ESTIMATE_OFFLINE_TEXT } from '@/lib/popups/status';
+import { REVOKE_CONFLICT } from '@/lib/popups/destructive';
 
 export type EstimateSendOutcome =
   | { ok: true; estimate: Record<string, unknown>; firstSend: boolean }
@@ -28,7 +29,8 @@ export type EstimateExtendOutcome =
 
 export type EstimateRevokeOutcome =
   | { ok: true; revokedAt: string }
-  | { ok: false; message: string };
+  /** conflict: a 409 — the estimate is signed or converted (board D7). */
+  | { ok: false; message: string; conflict?: boolean };
 
 export function sendErrorMessage(status: number, code?: string | null): string {
   if (status === 401) return 'Please sign in again.';
@@ -117,11 +119,15 @@ export async function requestEstimateRevoke(id: string): Promise<EstimateRevokeO
       | { estimate?: { revoked_at?: string }; error?: string }
       | null;
     if (!res.ok || !body?.estimate?.revoked_at) {
+      const conflict = res.status === 409;
       return {
         ok: false,
-        message: res.status === 409
-          ? 'This estimate can no longer be deactivated.'
+        // A 409 is the document's state, not a fault: the sheet shows this
+        // sentence as the cause instead of "something broke on our end".
+        message: conflict
+          ? REVOKE_CONFLICT.cause
           : "Couldn't deactivate the link. Please try again.",
+        conflict,
       };
     }
     return { ok: true, revokedAt: body.estimate.revoked_at };

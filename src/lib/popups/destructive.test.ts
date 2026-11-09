@@ -5,7 +5,7 @@ import {
   deleteActionLabel, deleteNeedsTyped, EXPENSE_DELETE_CONSEQUENCE, invoiceDeleteConsequence,
   paymentDeleteConsequence, templateHasContent,
 } from './destructive';
-import { popupFailure } from './failure';
+import { popupFailure, PopupCauseError } from './failure';
 
 test('balanceAfterDeletingPayment: the amount comes back, never below zero', () => {
   assert.equal(balanceAfterDeletingPayment(0, 85), 85);
@@ -82,6 +82,14 @@ test('D7 deactivate link copy: who loses access, what did not happen, the sent d
   assert.equal(revokeLinkMeta('Oct 30'), 'Estimate link · sent Oct 30');
   assert.equal(revokeLinkMeta(null), 'Estimate link · sent');
   assert.equal(REVOKE_LINK_CONSEQUENCE, 'The link still works.');
+});
+
+test('D7: a 409 (signed or converted) names the state, not a fault of ours', async () => {
+  const { REVOKE_CONFLICT, REVOKE_LINK_CONSEQUENCE } = await import('./destructive');
+  const failure = popupFailure(new PopupCauseError(REVOKE_CONFLICT), REVOKE_LINK_CONSEQUENCE);
+  assert.equal(failure.title, 'This link can’t be closed');
+  assert.equal(failure.body, 'The link still works. This estimate can no longer be deactivated.');
+  assert.equal(failure.icon, 'link_off');
 });
 
 test('D8 remove attachment copy: board wording, and the seen-by-client line only when it applies', async () => {

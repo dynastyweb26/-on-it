@@ -88,6 +88,18 @@ export function revokeLinkMeta(sentDate: string | null | undefined): string {
   return sentDate ? `Estimate link · sent ${sentDate}` : 'Estimate link · sent';
 }
 
+/**
+ * D7 — a 409 means the estimate is signed or converted, so the deactivate is
+ * refused for good: nothing broke and a retry cannot work. The cause is the
+ * pre-bundle sentence, word for word; the board's consequence line above it
+ * ("The link still works.") still applies.
+ */
+export const REVOKE_CONFLICT = {
+  title: 'This link can’t be closed',
+  cause: 'This estimate can no longer be deactivated.',
+  icon: 'link_off',
+} as const;
+
 // ── Board 1 · D8: remove a saved attachment (P-11, P-12) ──
 
 /** D8 sheet title and go label, verbatim from the board. */

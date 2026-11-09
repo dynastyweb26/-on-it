@@ -12,8 +12,9 @@ import { formatDocNumber } from '@/lib/documents';
 import { convertedDepositColumns } from '@/lib/estimates/convert';
 import PopSheet from '@/components/popups/PopSheet';
 import {
-  convertActionLabel, REVOKE_LINK_CONSEQUENCE, revokeLinkMeta, revokeLinkSub,
+  convertActionLabel, REVOKE_CONFLICT, REVOKE_LINK_CONSEQUENCE, revokeLinkMeta, revokeLinkSub,
 } from '@/lib/popups/destructive';
+import { PopupCauseError } from '@/lib/popups/failure';
 import { CLIPBOARD_BLOCKED_TEXT } from '@/lib/popups/decision';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
@@ -431,7 +432,12 @@ export default function EstimateDetail({
     setActionError(null);
     try {
       const outcome = await requestEstimateRevoke(id);
-      if (!outcome.ok) throw new Error(outcome.message);
+      if (!outcome.ok) {
+        // A 409 means the estimate is signed or converted: nothing broke, and
+        // a retry cannot work, so the sheet names the state, not a fault.
+        if (outcome.conflict) throw new PopupCauseError(REVOKE_CONFLICT);
+        throw new Error(outcome.message);
+      }
       setInv((prev) => ({ ...prev, revoked_at: outcome.revokedAt }));
       showToast('Link deactivated');
     } finally {
