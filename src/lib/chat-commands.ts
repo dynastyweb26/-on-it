@@ -27,7 +27,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
       // In the design, hidden here until a path exists: "Send a reminder" ("Remind
       // Brandon about his invoice") routes to /api/parse as a new job. Reminders
       // reuse Request balance on the invoice, so no chat phrase can run one.
-      { name: 'Who owes me', ex: 'Who owes me money?', icon: 'receipt_long' },
+      // Restore { name: 'Who owes me', ex: 'Who owes me money?', icon: 'receipt_long' } when the assistant branch ships (nothing answers it yet; typing it still works).
     ],
   },
   {

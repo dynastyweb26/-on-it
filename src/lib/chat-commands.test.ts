@@ -171,3 +171,11 @@ test('recording a payment is one button: a row action and a chip label, never a 
   assert.ok(!STARTER_POOL.some((p) => /\bpaid\b/i.test(p)), 'no "... paid ..." phrase is suggested');
   assert.equal(matchCommand(RECORD_PAYMENT_LABEL), false);
 });
+
+test('Who owes me money? is not offered as a chip or row until the assistant branch ships', () => {
+  assert.ok(!COMMAND_GROUPS.flatMap((g) => g.items).some((i) => /owes/i.test(i.name) || /owes/i.test(i.ex ?? '')));
+  assert.ok(!STARTER_POOL.some((p) => /owes/i.test(p)));
+  for (let seed = 0; seed < 50; seed++) assert.ok(!pickStarterChips(seededRandom(seed)).some((c) => /owes/i.test(c)));
+  // Typing it is untouched: it still fills whole through the pure function.
+  assert.equal(prefillFor('Who owes me money?'), 'Who owes me money?');
+});
