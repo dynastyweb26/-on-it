@@ -510,6 +510,18 @@ export function eventToasts(e: Pick<EventRow, 'actor' | 'kind'>): boolean {
 }
 
 /**
+ * Which catch-up rows may toast.
+ *
+ * seen_at is deliberately NOT a filter: the chat's feed stamps it within a
+ * second of a realtime insert (the card was read), and a card read is not a
+ * toast. The per-device toasted set is the dedupe, and a time event never
+ * toasts (item 19).
+ */
+export function toastsToShow(rows: EventRow[], toasted: ReadonlySet<string>, max: number): EventRow[] {
+  return rows.filter((e) => e?.id && !toasted.has(e.id) && eventToasts(e)).slice(0, max);
+}
+
+/**
  * Where the time sweep may run. Preview and production share one database, so a
  * preview sweep would post real cards into real threads; this is the same rule
  * the draft-nudge and recap cron steps use (`deployEnv() === 'production'`).

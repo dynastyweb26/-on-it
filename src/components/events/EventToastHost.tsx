@@ -12,14 +12,14 @@
 //
 // Realtime inserts still toast live. Nothing here is a source of truth: the
 // thread is the record, this is the nudge.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
 import { reducedMotion } from '@/lib/list-motion';
-import { eventAction, eventCard, eventToasts, type EventAction, type EventRow } from '@/lib/events';
+import { eventAction, eventCard, eventToasts, toastsToShow, type EventAction, type EventRow } from '@/lib/events';
 
 const DWELL_VIEW_MS = 4000;
 const DWELL_MONEY_MS = 5000;
@@ -83,33 +83,38 @@ export default function EventToastHost() {
   }, []);
 
   // App open: catch up on what was missed. Newest first, three at most, and
-  // only ids this device has never toasted.
+  // only ids this device has never toasted. seen_at is deliberately NOT a
+  // filter: the chat's feed stamps it within a second of a live insert, and
+  // that must not pre-empt this query and swallow the toast.
+  const catchUp = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const since = new Date(Date.now() - CATCHUP_WINDOW_MS).toISOString();
+      const { data, error } = await createClient()
+        .from('events')
+        .select(COLUMNS)
+        .eq('user_id', userId)
+        .gte('occurred_at', since)
+        .order('occurred_at', { ascending: false })
+        .limit(12);
+      if (error) return;
+      const fresh = toastsToShow((data ?? []) as unknown as EventRow[], readToasted(userId), QUEUE_MAX);
+      if (fresh.length === 0) return;
+      fresh.forEach((e) => markToasted(userId, e.id));
+      setQueue((q) => enqueue(q, fresh));
+    } catch { /* no catch-up; live toasts still work */ }
+  }, [userId]);
+
+  // Once for the resolved user, then again whenever the tab comes back: a
+  // realtime insert missed while the tab was suspended must not lose the
+  // toast. The per-device toasted set is the only dedupe.
   useEffect(() => {
     if (!userId) return;
-    let alive = true;
-    void (async () => {
-      try {
-        const since = new Date(Date.now() - CATCHUP_WINDOW_MS).toISOString();
-        const { data, error } = await createClient()
-          .from('events')
-          .select(COLUMNS)
-          .eq('user_id', userId)
-          .is('seen_at', null)
-          .gte('occurred_at', since)
-          .order('occurred_at', { ascending: false })
-          .limit(12);
-        if (error || !alive) return;
-        const toasted = readToasted(userId);
-        const fresh = ((data ?? []) as unknown as EventRow[])
-          .filter((e) => e?.id && !toasted.has(e.id) && eventToasts(e))
-          .slice(0, QUEUE_MAX);
-        if (fresh.length === 0) return;
-        fresh.forEach((e) => markToasted(userId, e.id));
-        setQueue((q) => enqueue(q, fresh));
-      } catch { /* no catch-up; live toasts still work */ }
-    })();
-    return () => { alive = false; };
-  }, [userId]);
+    void catchUp();
+    const onVisible = () => { if (document.visibilityState === 'visible') void catchUp(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [catchUp, userId]);
 
   // Live: this user's new rows, nothing else.
   useEffect(() => {

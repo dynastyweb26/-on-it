@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   PHASE5_TIME_EVENTS, decideSweep, eventAction, eventCard, eventDedupeKey, eventToasts,
   eventVisibleInChat, hourBucket, periodBucket, splitEventsByMessage, sweepAllowedIn,
+  toastsToShow,
   type EventKind, type EventRow, type SweepDoc,
 } from './events';
 
@@ -311,7 +312,10 @@ test('time events never toast; client events still do', () => {
   assert.equal(eventToasts({ actor: 'client', kind: 'invoice_overdue' }), true);
   // The host must apply it on BOTH paths: catch-up on open, and a live insert.
   const src = readFileSync('src/components/events/EventToastHost.tsx', 'utf8');
-  assert.equal((src.match(/eventToasts\(/g) ?? []).length, 2);
+  // The live path applies it directly; the catch-up delegates to toastsToShow,
+  // which applies it (tested below).
+  assert.equal((src.match(/eventToasts\(/g) ?? []).length, 1);
+  assert.match(src, /toastsToShow\(/);
 });
 
 test('the sweep runs in production only, so a preview cannot write to the shared DB', () => {
@@ -492,4 +496,33 @@ test('the toast shows itself after enqueue, and reduced motion keeps it in place
   assert.match(src, /const reduce = reducedMotion\(\);/);
   assert.match(src, /const offset = reduce \? 0 :/);
   assert.match(src, /dragging \|\| reduce \? 'none'/);
+});
+
+// ── The catch-up selection: seen_at is not a filter ────────────────────────
+
+const toastRow = (over: Partial<EventRow> = {}): EventRow => row({ kind: 'estimate_signed', ...over });
+
+test('a row the chat already stamped seen still toasts if this device never did', () => {
+  assert.equal(toastsToShow([toastRow({ seen_at: minutesAgo(1) })], new Set<string>(), 3).length, 1);
+});
+
+test('an id this device already toasted never repeats', () => {
+  assert.deepEqual(toastsToShow([toastRow({ id: 'e1' })], new Set<string>(['e1']), 3), []);
+});
+
+test('a time-actor event never toasts, even unseen and untoasted', () => {
+  const timeEvent = toastRow({ actor: 'time', kind: 'estimate_stale', seen_at: null });
+  assert.deepEqual(toastsToShow([timeEvent], new Set<string>(), 3), []);
+});
+
+test('one catch-up shows at most three', () => {
+  const rows = ['e1', 'e2', 'e3', 'e4', 'e5'].map((id) => toastRow({ id }));
+  assert.deepEqual(toastsToShow(rows, new Set<string>(), 3).map((e) => e.id), ['e1', 'e2', 'e3']);
+});
+
+test('the app-open catch-up ignores seen_at and re-runs when the tab returns', () => {
+  const src = readFileSync('src/components/events/EventToastHost.tsx', 'utf8');
+  assert.equal(src.includes(".is('seen_at'"), false);
+  assert.match(src, /addEventListener\('visibilitychange'/);
+  assert.match(src, /toastsToShow\(/);
 });
