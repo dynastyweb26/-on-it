@@ -12,6 +12,9 @@ import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
 import EventCard, { AssistantAvatar, AssistantLine } from '@/components/chat/EventCard';
 import ReadyEstimateCard from '@/components/chat/ReadyEstimateCard';
+import RecapChatCard from '@/components/chat/RecapChatCard';
+import { loadRecapRows } from '@/components/chat/recap-load';
+import { buildRecap, dayKey, isEmptyRecap, matchRecap, recapsDue, weekKey, type RecapModel } from '@/lib/chat-recap';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
@@ -132,6 +135,9 @@ interface Msg {
   /** Item 11: the "What I can do" card — a local assistant message, never an
    *  event and never anything /api/parse sees. */
   commandCard?: true;
+  /** A daily or weekly recap (alive layer 07): a local assistant card built from
+   *  the owner's own rows, never an event and never anything /api/parse sees. */
+  recapCard?: RecapModel;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
@@ -1291,9 +1297,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // Item 11: "?", "help" and the "what can you do" family are answered here.
     // No AI call and no document; the question itself stays out of job history.
     const commandAsk = !retryId && matchCommand(trimmed);
+    const recapAsk = !retryId && !commandAsk ? matchRecap(trimmed) : null;
     const next: Msg[] = retryId
       ? messages.filter((m) => m.id !== retryId)
-      : [...messages, feedbackAsk || commandAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
+      : [...messages, feedbackAsk || commandAsk || recapAsk ? { ...uMsg(trimmed, source), skipHistory: true as const } : uMsg(trimmed, source)];
     if (!retryId) {
       // The reader just acted: follow their message and the reply to it, even
       // if they had scrolled up.
@@ -1304,6 +1311,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
     if (feedbackAsk) {
       setMessages((m) => [...m, aMsg(FEEDBACK_REPLY, { feedbackLink: true, skipHistory: true })]);
+      return null;
+    }
+
+    if (recapAsk) {
+      // "How did today go?" / "How'd I do this week?": answered from the owner's
+      // own rows, no AI call. A failed read says so; it never posts a card of zeros.
+      const rows = await loadRecapRows(supabase);
+      if (!rows) {
+        setMessages((m) => [...m, aMsg('I couldn’t read your numbers just now. Check your connection and ask again.', { skipHistory: true })]);
+        return null;
+      }
+      const model = buildRecap({ now: new Date(), kind: recapAsk, mode: 'now', ...rows });
+      setMessages((m) => [...m, aMsg(model.title, { recapCard: model, skipHistory: true })]);
       return null;
     }
 
@@ -4164,6 +4184,36 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // before the first message that came after it; cards older than the oldest
   // timestamped message (or newer than the last) fall to the end, which is how
   // the thread read before messages carried `at`.
+  // Recaps, no cron: on the first open after 7:00 local, post the daily card, and
+  // on a Monday the weekly one. Each is posted once per period (per user, per
+  // device), and a period with nothing in it posts nothing.
+  const recapRanRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || recapRanRef.current) return;
+    recapRanRef.current = true;
+    void (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const key = (k: string) => `onit-recap-last:${user.id}:${k}`;
+        const read = (k: string) => { try { return localStorage.getItem(key(k)); } catch { return null; } };
+        const now = new Date();
+        const due = recapsDue(now, { daily: read('daily'), weekly: read('weekly') });
+        if (due.length === 0) return;
+        const rows = await loadRecapRows(supabase);
+        if (!rows) return; // try again next open; nothing was marked posted
+        const posted: Msg[] = [];
+        for (const kind of due) {
+          const model = buildRecap({ now, kind, mode: 'auto', ...rows });
+          try { localStorage.setItem(key(kind), kind === 'daily' ? dayKey(now) : weekKey(now)); } catch { /* storage blocked */ }
+          if (!isEmptyRecap(model)) posted.push(aMsg(model.title, { recapCard: model, skipHistory: true }));
+        }
+        if (posted.length > 0) setMessages((m) => [...m, ...posted]);
+      } catch { /* recaps are a courtesy; the thread works without them */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
   const mountedAtRef = useRef(Date.now());
   const feedEvents = useChatEventFeed(chatStartedAtFrom(messages, mountedAtRef.current));
   const feedSplit = splitEventsByMessage(feedEvents, messages);
@@ -4750,6 +4800,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </button>
               </div>
             </div>
+          ) : m.recapCard ? (
+            <RecapChatCard key={m.id} model={m.recapCard} onOpenBooks={() => router.push('/dashboard')} />
           ) : m.commandCard ? (
             <CommandCard
               groups={COMMAND_GROUPS}
