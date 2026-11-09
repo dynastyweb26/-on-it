@@ -1,4 +1,5 @@
 # Alive Layer fidelity audit (branch feat/alive-fidelity)
+n> The tables below are the PRE-BUILD audit (what differed before the work). The result of the build, element by element, is in "Final comparison" at the end of this file.
 
 Source of truth: `design/alive-layer/On_It_Alive_Layer.dc.html`, sections 01-08. Base: `feat/alive-fidelity` merged with origin/main 9b9ec0ab (contains af5cfe21, events-server.ts, EventToastHost).
 Marks: MATCH / DIFF / UNVERIFIED. UNVERIFIED = code not opened, or not measurable without the preview. Nothing is claimed done on trust.
@@ -129,3 +130,66 @@ MISSING (add + `npm run icons:build`): toll (coins), verified_user (shield-check
 | 1 sign route writes `estimate_signed`, dedupe `estimate_signed:${estimate_id}` | absent |
 | 1 viewed route skips approved_at and views <2 min after send | absent |
 | 2 `/api/events/test?kind=` | route posts only `payment_recorded` |
+
+---
+
+# Final comparison (after the build, 2026-11-09)
+
+Marks: MATCH = values copied from the HTML and checked in code. DIFF = does not match, with the reason. UNVERIFIED = not seen running. Nothing below was viewed on a phone yet: "MATCH" means the code carries the design's values.
+
+## App-wide DIFFs that cannot match without a decision
+- **Fonts.** The design uses DM Sans and JetBrains Mono. The app loads Inter and IBM Plex Mono. I used the app's fonts everywhere. Matching needs two new webfonts: your call.
+- **Pronouns.** The design writes "viewed her invoice", "nudge him", "once she opens it". The app does not know a client's pronouns, so every one is the name or "they"/"their".
+- **Owner name.** "Good morning, Cyril." and "Cyril updated this estimate": the app has the business name, not the owner's first name, so recaps say "Good morning." and the client page says "<business name> updated this estimate."
+- **Invoice number before it exists.** "Creating INV-0032…" cannot show the number (the server assigns it on insert), so it reads "Creating invoice…" and the check row then shows "INV-0032 created".
+- **Tabler icons** are Material Symbols (the mapping you gave); a few glyphs differ in shape.
+- **Design tokens.** The design's hexes are not the app's Tailwind tokens, so they live as `--al-*` in `src/components/alive/alive.css` (design/tokens.css is a Tailwind v4 file the app does not import).
+
+## 01 Toast: EventToastHost.tsx
+MATCH: surface, radius 20, shadow, padding 12/12/8, gap 10; 40px tile r12 with per-kind tints; title 15/700, detail 13; chevron or +N badge inside the card; gold Convert button h40; 36x4 grab bar; enter 380ms (.2,.9,.3,1) with the shadow over the last 120ms; exit 220ms (.4,0,1,1); dwell 8/8/5/4s; queue of 3; back cards .94/.88, y 12/22, opacity .9/.75; tap-the-stack fan-out (280ms) with "N updates / Clear all"; swipe up 32px or 500px/s, 96px clears; clock paused under a finger; 80ms stagger; tap body opens the document; button runs the action.
+DIFF: position is `safe-area + 4px` (design: 54px inside a phone mock whose status bar is simulated): UNVERIFIED against the real header. The blurred feed behind the expanded stack is a 1.5px backdrop blur over a cream wash, not the design's opacity .6 on the feed itself. The overdue toast has no button, as in the HTML, so "Send reminder" lives only on the chat card. A deposit toast has no design; it uses the chat-card wording.
+Copy: signed, paid ("paid in full" on the detail line), partial ("paid $25.00 of $50.00 / $25.00 left" with the 5px bar), overdue, opened your estimate (+ "2nd time today", counted over the last 24 hours, not the calendar day), viewed their invoice (+ due date): MATCH apart from the pronoun.
+
+## 07 Event cards: EventCard.tsx
+MATCH: avatar lane (28px, ring + gold dot), #FFFDF9 card r18, 36px tile and tints, title/detail, chevron, gold action button (Convert to invoice / Send reminder), pressed state (scale .98, #F6EEDF), partial bar with the 6px grow, deposit card, paid in full (56px disc, ring .4s, check .36s, chip pop .3s at .4s, plays once and only for an unseen card), the Convert flow (idle / spinner / check row), idempotent, error names the cause, paywall opens the estimate; chip crossfade SIGNED to CONVERTED 200ms plus two halo pulses; "Now INV-… · open invoice" line on the estimates list; assistant lines for overdue and deposit. Cards now persist across a refresh (fixed first).
+DIFF: the estimates-list card keeps the app's own list-row styling and its 24px chip (design shows a 26px .chip); only the halo and the line were added. The thank-you line after paid in full is omitted (it offers a receipt, which is NOT BUILT).
+
+## 04 Payment moments: PaymentFigure, PaymentCard, EventCard
+MATCH: partial (Balance due 44px #6F5B0B, 8px bar, "paid / of" row, "Payment recorded" row with Undo, Payments card with Remaining); paid in full 1c (84px disc, halo, drawn check, "Paid in full" 24px, "$50.00 from Ruth · Zelle", Balance $0.00 rolling down, bar to 100%, chip pulse; once, only on the payment that closes it); deposit (shield chip, "Due when the job's done", marker on the bar, Deposit/Balance row); chat cards for deposit, partial and paid in full.
+NOT BUILT by decision: Send receipt, Mark job done and the deposit note that points at it.
+DIFF: the design loops the bar/disc animation so it can be read; the build plays once. The invoice screen still carries the app's due-date row, quick-action tiles and secondary actions under the figure card. A "View payments" button stands in for the two-button row.
+
+## 05 Record payment confirm: PaymentProposalCard.tsx
+MATCH: heading and subline copy, rows with dashed rules, initials avatar, invoice row, gold-ringed amount (1.5px #D4AF37, #FFFBF0, 3px halo), method chips in the design's chip style, date row, live "After this, X owes $Y", "Confirm $25.00", "Saving…" with spinner and dimmed Cancel, collapsed "Cancelled. Nothing saved." with Undo, picker for two clients or two invoices. Over-balance guard kept.
+DIFF: methods are the app's seven, so the chip row wraps (the design shows four). The client name is an editable field styled as text. Date opens the native picker.
+
+## 08 Empty state and "What I can do": ChatView, CommandCard
+MATCH: chips after the greeting, indented 36px, sparkle icon, the design's three phrases, a chip fills the input and does not send, chips and hint vanish after the first message, hint "Send ? to see everything I can do" (your decision; no ? icon), card in the assistant lane, 30px tile rows with the quoted phrase and a south-west arrow, pressed #F2E6C2, Recaps group.
+DIFF: "Send a reminder" and "Look up a client" are NOT shown: no path backs them (reminders reuse Request balance; there is no per-client lookup). The daily and weekly recap rows do work.
+
+## 02 / 03 Ready to share: ReadyEstimateCard, EstimateLinkActions
+MATCH: chip + number, client 19px, "Estimate · N items · N photos · valid until Dec 7", total, 3-column line items (18px / minmax(0,1fr) / auto, gap 3px 10px, 3-line clamp, tap for the full text, price nowrap), Total row, Copy link / Share tiles (h64, r16, design hexes), copied state with the gold check pop and ring, the URL under the buttons only after Copy, Preview | Revise footer, "Shared. I'll ping you as soon as <name> opens it."
+DIFF: the flip's exit half (label out, 140ms) is missing: the new label comes in, the old one just goes. The photo grid is the app's AttachmentsEditor, not the design's placeholder 3-column grid with the "+3" overlay: UNVERIFIED. Revise opens the estimate screen rather than editing in the thread.
+
+## 06 Edit in place: EstimateDetail.tsx
+MATCH: version badge (v1 cream, v2+ ink, shows the version the edits will become), chip tints, number and validity, 28px title with pencil, dashed rule, 34px total with the old total struck through, Copy link / Share tiles h54, "Same link, updated." note, "Editing v2 · v1 sent Nov 7", Previous version (read-only, "Viewing vN" + Back), save bar (220ms; "N changes", "Total $A → $B", Discard, Save changes), "Updated" chip with the badge pulse, "Saved as v2. Same link. Want me to let <name> know?" with Tell <name> (reuses Share) and Not now, Revise slides in 320ms, signed estimates stay locked.
+DIFF: inline editing of a line item is the app's LineItemsEditor, not the design's gold-ringed quantity field and unit chip: not rebuilt. The save bar is sticky inside the page, not fixed above the tab bar. The line-items card uses the design's container and header but the app's rows.
+NOT BUILT: 6.3 warning sheet, "Needs re-sign" chip, 6.6.
+
+## 04 PDF and send states: PdfSendCard
+MATCH: Building PDF (shimmer 240px / 1.4s, spinner 800ms) with Send live and the "You can send now…" line; Ready (file tile pop 300ms, size, Preview); Error (rust row, Retry, "Send link only"); Sending; Sent (check, "Sent to <name>", Resend). Estimates never wait on a PDF.
+DIFF: "Text + email · 9:42 AM" reads only the time: the app does not know which channel the share sheet used. The page count counts PDF page objects and can be absent for compressed files; the line then shows size only. A send tapped during the build runs when the file lands; on iOS the share sheet may need the tap's user activation, so a second tap can be needed: UNVERIFIED on a phone.
+
+## 07 Recap cards: RecapChatCard, lib/chat-recap
+MATCH: daily (2x2 tiles, Open Books) and weekly (seven bars with the peak in gold, Owed / Overdue / Signed). Built on app open (daily after 7:00 local, weekly on Monday), once per period per device; an empty period posts nothing; "How did today go?" and "How'd I do this week?" answer from the owner's rows.
+DIFF: "Good morning." without a name. "Best week since <month>" appears only when an earlier week in the last 14 proves it. "Once per period" is remembered in localStorage, so a second device posts its own card. Notification settings for recap times are out of scope.
+
+## 06.5 Client page "Updated" tag: EstimateView
+MATCH: red chip (#FBE4E1 / #B8202A, refresh icon, "Updated Nov 8"), notice box (#FFF6F4, #F1CFCA), "Total changed from X to Y (line: 1 hr → 2 hr)".
+DIFF: the business name stands in for "Cyril". 6.6 "Signed again": NOT BUILT.
+
+## Added beyond the prompt (data the copy needed, all additive)
+- `meta.total` and `meta.balance` on server payment events; amount and due date on invoice views; `nth_today` on estimate views.
+- `updatedAt` and `change` on the public estimate (read from existing version snapshots).
+- A shared convert helper (same insert and idempotency key as the estimate screen) so the card and toast can convert in place.
+No migrations were written or applied.
