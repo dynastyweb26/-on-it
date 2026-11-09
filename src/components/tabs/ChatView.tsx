@@ -102,7 +102,7 @@ import {
 } from '@/lib/popups/decision';
 import { chatStartedAtFrom, eventContextLine, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
-import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, matchCommand, pickStarterChips } from '@/lib/chat-commands';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, matchCommand, pickStarterChips, prefillFor } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -743,6 +743,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // list each time a greeting starts (a new chat has a new greeting id).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const starterChips = useMemo(() => pickStarterChips(), [messages[0]?.id]);
+  // A chip or a "What I can do" row starts the message; it never sends. The input
+  // takes the text, the caret goes to the end and the field is focused inside the
+  // tap, so the keyboard opens and the owner can just type.
+  const fillComposer = (text: string) => {
+    setInput(text);
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    requestAnimationFrame(() => el.setSelectionRange(text.length, text.length));
+  };
   const [signInAsk, setSignInAsk] = useState<{ kind: SignInKind; headline?: string | null } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
@@ -4835,16 +4845,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           ) : m.commandCard ? (
             <CommandCard
               groups={COMMAND_GROUPS}
-              onPick={(phrase) => {
-                // Item 11: the row's phrase replaces the input, the caret goes to
-                // the end, and the field takes focus so the keyboard opens.
-                setInput(phrase);
-                const el = inputRef.current;
-                if (el) {
-                  el.focus();
-                  requestAnimationFrame(() => el.setSelectionRange(phrase.length, phrase.length));
-                }
-              }}
+              onPick={(label) => fillComposer(prefillFor(label))}
             />
           ) : m.ownerCard ? (
             // The outcome of an owner action, with the one thing to do next.
@@ -5150,14 +5151,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 type="button"
                 className="al-starter"
                 disabled={phase !== null}
-                onClick={() => {
-                  setInput(chip);
-                  const el = inputRef.current;
-                  if (el) {
-                    el.focus();
-                    requestAnimationFrame(() => el.setSelectionRange(chip.length, chip.length));
-                  }
-                }}
+                onClick={() => fillComposer(prefillFor(chip))}
               >
                 <Icon name="auto_awesome" size={18} className="text-[#b8961e]" />
                 {chip}

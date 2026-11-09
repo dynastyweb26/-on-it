@@ -24,3 +24,17 @@ test('the empty-state chips are a random pick, not a fixed list', () => {
   assert.match(chat, /starterChips\.map\(/);
   assert.doesNotMatch(chat, /STARTER_CHIPS/);
 });
+
+test('chips and "What I can do" rows both fill the composer through prefillFor, never send', () => {
+  assert.match(chat, /onPick=\{\(label\) => fillComposer\(prefillFor\(label\)\)\}/);
+  assert.match(chat, /onClick=\{\(\) => fillComposer\(prefillFor\(chip\)\)\}/);
+  const fill = chat.slice(chat.indexOf('const fillComposer'), chat.indexOf('const [signInAsk'));
+  assert.match(fill, /setInput\(text\)/);
+  assert.match(fill, /el\.focus\(\)/);
+  assert.match(fill, /setSelectionRange\(text\.length, text\.length\)/);
+  assert.doesNotMatch(fill, /send\(/);
+});
+
+test('the chip label still shows the example', () => {
+  assert.match(chat, /<Icon name="auto_awesome"[^>]*\/>\s*\{chip\}/);
+});

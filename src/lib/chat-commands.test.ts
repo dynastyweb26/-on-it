@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COMMAND_GROUPS, STARTER_COUNT, STARTER_POOL, matchCommand, pickStarterChips, seededRandom } from './chat-commands';
+import { COMMAND_GROUPS, STARTER_COUNT, STARTER_POOL, matchCommand, pickStarterChips, prefillFor, seededRandom } from './chat-commands';
 
 // ── The command fires ──────────────────────────────────────────────────────
 
@@ -125,4 +125,34 @@ test('the pick never exceeds the pool and handles edge counts', () => {
   assert.deepEqual(pickStarterChips(seededRandom(1), 0), []);
   assert.deepEqual(pickStarterChips(seededRandom(1), 3, []), []);
   assert.deepEqual(pickStarterChips(() => 0.999999, 2, ['a', 'b', 'c']).length, 2);
+});
+
+// ── What a tap puts in the input ───────────────────────────────────────────
+
+test('examples with specifics fill only the generic lead-in', () => {
+  assert.equal(prefillFor('Estimate for Ruth, deck repair, $800'), 'Estimate for ');
+  assert.equal(prefillFor('Invoice Maryam $150 for the door install'), 'Invoice ');
+  assert.equal(prefillFor('Ruth paid $25 Zelle'), 'Record a payment from ');
+  assert.equal(prefillFor('Add Joe Ortiz, 945-555-0134'), 'Add a client: ');
+});
+
+test('complete questions fill whole', () => {
+  for (const q of ['How did today go?', 'Who owes me money?', "How'd I do this week?"]) {
+    assert.equal(prefillFor(q), q);
+  }
+});
+
+test('every phrase a chip or row can show has a rule: a question fills whole, anything else a lead-in', () => {
+  for (const label of STARTER_POOL) {
+    const fill = prefillFor(label);
+    if (label.trim().endsWith('?')) {
+      assert.equal(fill, label, `${label}: a question fills whole`);
+    } else {
+      assert.notEqual(fill, label, `${label}: an example must not fill whole (add it to LEAD_INS)`);
+      assert.ok(!/[\d$]/.test(fill), `${label}: no amounts or numbers in the lead-in`);
+      assert.match(fill, /\s$/, `${label}: ends with a space so the caret can type on`);
+      assert.ok(fill.trim().length >= 3);
+    }
+    assert.equal(matchCommand(fill), false, label);
+  }
 });

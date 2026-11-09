@@ -52,6 +52,25 @@ export const COMMAND_HINT = 'Send ? to see everything I can do';
 /** Every phrase "What I can do" offers: the one pool the starter chips draw from. */
 export const STARTER_POOL: readonly string[] = COMMAND_GROUPS.flatMap((g) => g.items.map((i) => i.ex));
 
+/**
+ * What a chip or a "What I can do" row puts in the input. The label (the example
+ * phrase) stays visible exactly as designed; the input gets only the generic
+ * lead-in, so the owner types their own names and amounts. A complete question
+ * ("Who owes me money?") has nothing to replace and fills whole.
+ * One function for both surfaces so they cannot drift. This overrides the
+ * design, which fills the whole example (owner decision 2026-11-09).
+ */
+const LEAD_INS: Readonly<Record<string, string>> = {
+  'Estimate for Ruth, deck repair, $800': 'Estimate for ',
+  'Invoice Maryam $150 for the door install': 'Invoice ',
+  'Ruth paid $25 Zelle': 'Record a payment from ',
+  'Add Joe Ortiz, 945-555-0134': 'Add a client: ',
+};
+
+export function prefillFor(label: string): string {
+  return LEAD_INS[label] ?? label;
+}
+
 /** How many sparkle chips show after the greeting. */
 export const STARTER_COUNT = 3;
 
