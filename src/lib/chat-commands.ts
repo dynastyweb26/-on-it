@@ -9,6 +9,9 @@
 // audit). Each row carries the phrase it drops into the composer.
 import type { CommandGroup } from '@/components/chat/CommandCard';
 
+/** The one label for recording a payment: the chip and the "What I can do" row. */
+export const RECORD_PAYMENT_LABEL = 'Record a payment';
+
 export const COMMAND_GROUPS: CommandGroup[] = [
   {
     title: 'Create',
@@ -20,7 +23,8 @@ export const COMMAND_GROUPS: CommandGroup[] = [
   {
     title: 'Money',
     items: [
-      { name: 'Record a payment', ex: 'Ruth paid $25 Zelle' },
+      // A button, not a phrase: it opens the record-payment card (no typed example).
+      { name: RECORD_PAYMENT_LABEL, action: 'record-payment' },
       // Hidden until an owner reminder action exists (not planned): "Remind
       // Brandon about his invoice" routes to /api/parse as a new job.
       // { name: 'Send a reminder', ex: 'Remind Brandon about his invoice' },
@@ -44,9 +48,10 @@ export const COMMAND_LEAD = 'Here’s what I can do.';
 /** Empty-state hint (item 12). */
 export const COMMAND_HINT = 'Send ? to see everything I can do';
 
-/** The three starter chips. They are phrases to SEND, not row phrases to edit,
- *  so they read as a first message rather than an example. */
-export const STARTER_CHIPS = ['Invoice a client', 'Who owes me money?', 'Record a payment'];
+/** The three starter chips. Two are phrases to SEND, not row phrases to edit,
+ *  so they read as a first message rather than an example. RECORD_PAYMENT_LABEL
+ *  is the exception: it opens the card instead of sending anything. */
+export const STARTER_CHIPS = ['Invoice a client', 'Who owes me money?', RECORD_PAYMENT_LABEL];
 
 // ── Matching ───────────────────────────────────────────────────────────────
 

@@ -9,7 +9,9 @@
 export interface CommandRow {
   name: string;
   /** The phrase the row puts in the composer, caret at the end. */
-  ex: string;
+  ex?: string;
+  /** A row that opens something instead of filling the composer. */
+  action?: 'record-payment';
 }
 
 export interface CommandGroup {
@@ -20,10 +22,12 @@ export interface CommandGroup {
 export default function CommandCard({
   groups,
   onPick,
+  onAction,
   className = '',
 }: {
   groups: CommandGroup[];
   onPick: (phrase: string) => void;
+  onAction?: (action: NonNullable<CommandRow['action']>) => void;
   className?: string;
 }) {
   return (
@@ -41,11 +45,11 @@ export default function CommandCard({
                 <button
                   key={`${group.title}:${item.name}`}
                   type="button"
-                  onClick={() => onPick(item.ex)}
+                  onClick={() => (item.action ? onAction?.(item.action) : item.ex && onPick(item.ex))}
                   className="flex flex-col items-start rounded-xl px-2 py-1.5 text-left transition active:bg-primary-container/70"
                 >
                   <span className="text-[14px] font-semibold leading-snug text-on-surface">{item.name}</span>
-                  <span className="text-[12.5px] leading-snug text-on-surface-variant">{item.ex}</span>
+                  {item.ex && <span className="text-[12.5px] leading-snug text-on-surface-variant">{item.ex}</span>}
                 </button>
               ))}
             </div>

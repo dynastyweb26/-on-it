@@ -68,7 +68,9 @@ import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTem
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
 import PaymentCard from '@/components/chat/PaymentCard';
-import PaymentProposalCard, { type PaymentProposal, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import PaymentProposalCard, { type PaymentProposal, type PickerData, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
+import { normalizeSummary } from '@/lib/clients';
+import { openPaymentCardTarget, paymentCardLoadError } from '@/lib/payment-card-picker';
 import { buildPayCard, type PayCard } from '@/lib/payment-card';
 import { looksLikePayment, parseAmount, parseMethod, parsePaidOn, resolvePayment } from '@/lib/payment-intent';
 import { localDateString, localDateToIso, type PaymentMethod } from '@/lib/record-payment';
@@ -94,7 +96,7 @@ import {
 } from '@/lib/popups/decision';
 import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
-import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, RECORD_PAYMENT_LABEL, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -1257,6 +1259,84 @@ export default function Chat({ active = true }: { active?: boolean }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // The "Record a payment" button (chip and "What I can do" row). It adds the
+  // record-payment card; it never sends a message and never reaches /api/parse.
+  // payCardPendingRef is the synchronous guard (interaction rule 2): a second tap
+  // in the same frame, before the card is in state, adds nothing. With a card
+  // already open, a tap scrolls to it. It clears when no card is open any more
+  // (confirmed, cancelled, or removed), so the next tap starts a fresh one.
+  const payCardPendingRef = useRef<string | null>(null);
+  function openPaymentCard() {
+    const target = openPaymentCardTarget(messages, payCardPendingRef.current);
+    if (target.action === 'ignore') return;
+    if (target.action === 'scroll') {
+      const list = listRef.current;
+      const card = list?.querySelector<HTMLElement>('[data-pay-card]');
+      if (list && card) {
+        const below = card.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
+        const above = list.getBoundingClientRect().top - card.getBoundingClientRect().top;
+        if (below > 0) list.scrollTop += below;
+        else if (above > 0) list.scrollTop -= above;
+      }
+      return;
+    }
+    const msg = aMsg('Who paid you?', {
+      skipHistory: true,
+      payProposal: {
+        amount: null, method: null, clientName: '', paidOn: localDateString(new Date()),
+        invoiceId: null, invoices: [], clients: [], picker: true,
+      },
+    });
+    payCardPendingRef.current = msg.id;
+    nearBottomRef.current = true;
+    setMessages((m) => [...m, msg]);
+  }
+  useEffect(() => {
+    if (payCardPendingRef.current && !messages.some((x) => x.payProposal != null)) payCardPendingRef.current = null;
+  }, [messages]);
+
+  // What the button's card loads on arrival: the client list and the open
+  // invoices. A failure names its cause (signed out, offline, ours).
+  async function loadPaymentPicker(): Promise<PickerData> {
+    try {
+      const { data: { user: u } } = await getSharedUser();
+      if (!u) return { ok: false, message: paymentCardLoadError(null, false) };
+      const [clientsRes, invoicesRes] = await Promise.all([
+        supabase.rpc('client_summaries'),
+        supabase
+          .from('invoices')
+          .select('id, invoice_number, client_name, total, amount_paid, kind, created_at')
+          .eq('user_id', u.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .limit(200),
+      ]);
+      const failed = clientsRes.error ?? invoicesRes.error;
+      if (failed) {
+        console.error('[payment card] load failed', failed);
+        return { ok: false, message: paymentCardLoadError(failed, true) };
+      }
+      return {
+        ok: true,
+        clients: ((clientsRes.data ?? []) as Record<string, unknown>[]).map(normalizeSummary),
+        invoices: ((invoicesRes.data ?? []) as Array<Record<string, unknown>>)
+          .filter((r) => String(r.kind ?? 'invoice') === 'invoice')
+          .map((r) => ({
+            id: String(r.id),
+            invoiceNo: r.invoice_number == null ? null : Number(r.invoice_number),
+            clientName: String(r.client_name ?? ''),
+            total: Number(r.total ?? 0),
+            amountPaid: Number(r.amount_paid ?? 0),
+            kind: 'invoice' as const,
+            createdAt: String(r.created_at ?? ''),
+          })),
+      };
+    } catch (e) {
+      console.error('[payment card] load threw', e);
+      return { ok: false, message: paymentCardLoadError(e, true) };
+    }
+  }
 
   /** Shared parse flow for typed and spoken input. The reply always renders as
    *  text first; it is spoken (TTS) only when THIS message was entered by voice
@@ -4632,7 +4712,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   <button
                     key={chip}
                     type="button"
-                    onClick={() => { if (!phase) void send(chip); }}
+                    onClick={() => {
+                      if (phase) return;
+                      if (chip === RECORD_PAYMENT_LABEL) openPaymentCard();
+                      else void send(chip);
+                    }}
                     className="rounded-full border border-outline-variant bg-surface-container px-3.5 py-2 text-[13.5px] font-semibold text-on-surface transition active:scale-95 disabled:opacity-40"
                     disabled={phase !== null}
                   >
@@ -4720,6 +4804,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           ) : m.commandCard ? (
             <CommandCard
               groups={COMMAND_GROUPS}
+              onAction={(action) => { if (action === 'record-payment') openPaymentCard(); }}
               onPick={(phrase) => {
                 // Item 11: the row's phrase replaces the input, the caret goes to
                 // the end, and the field takes focus so the keyboard opens.
@@ -4805,6 +4890,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             <PaymentProposalCard
               key={m.id}
               proposal={m.payProposal}
+              loadPicker={m.payProposal.picker ? loadPaymentPicker : undefined}
               onCancel={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
                 ? { ...x, payProposal: undefined, undoProposal: m.payProposal, content: 'Payment not recorded. Nothing was saved.' }
                 : x)))}

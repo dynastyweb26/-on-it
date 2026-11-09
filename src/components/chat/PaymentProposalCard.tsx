@@ -10,9 +10,18 @@
 //   - An amount over the balance shows a warning and disables Confirm. No
 //     overpayments from chat.
 //   - The button carries the amount, so the tap is unambiguous.
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '@/components/Icon';
+import type { ClientSummary } from '@/lib/clients';
 import { money } from '@/lib/financials';
+import type { OpenInvoice } from '@/lib/payment-intent';
+import {
+  OTHER_CLIENT_LABEL,
+  chooseInvoiceForClient,
+  matchTypedClient,
+  recentPaymentClients,
+  type PaymentCardLoad,
+} from '@/lib/payment-card-picker';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/record-payment';
 
 export interface ProposalInvoice {
@@ -36,7 +45,13 @@ export interface PaymentProposal {
   invoices: ProposalInvoice[];
   /** Distinct client names that matched, when the message was ambiguous. */
   clients: string[];
+  /** Opened from the "Record a payment" button: the client field is a dropdown
+   *  and the invoices are looked up from the chosen client. */
+  picker?: true;
 }
+
+/** What the button's card loads once, on arrival. */
+export type PickerData = { ok: true; clients: ClientSummary[]; invoices: OpenInvoice[] } | { ok: false; message: string };
 
 export type ProposalInput = { invoiceId: string; amount: number; method: PaymentMethod; paidOn: string };
 export type ProposalResult = { ok: true } | { ok: false; message: string };
@@ -45,13 +60,22 @@ const leftOf = (inv: ProposalInvoice) => Math.max(0, inv.total - inv.amountPaid)
 const label = (inv: ProposalInvoice) =>
   `${inv.invoiceNo ? `#${inv.invoiceNo} · ` : ''}${inv.clientName} · ${money(leftOf(inv))} left`;
 
-export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
+export default function PaymentProposalCard({ proposal, onConfirm, onCancel, loadPicker }: {
   proposal: PaymentProposal;
   onConfirm: (input: ProposalInput) => Promise<ProposalResult>;
   onCancel: () => void;
+  /** Required for a `picker` proposal; loads the client list and open invoices. */
+  loadPicker?: () => Promise<PickerData>;
 }) {
+  const picker = proposal.picker === true && Boolean(loadPicker);
   const [clientName, setClientName] = useState(proposal.clientName);
-  const [invoiceId, setInvoiceId] = useState(proposal.invoiceId);
+  const [pickedInvoiceId, setInvoiceId] = useState(proposal.invoiceId);
+  // Picker mode: the load, the "Other…" switch, and the data it brought back.
+  const [load, setLoad] = useState<PaymentCardLoad>(picker ? { status: 'loading' } : { status: 'ready' });
+  const [attempt, setAttempt] = useState(0);
+  const [allClients, setAllClients] = useState<ClientSummary[]>([]);
+  const [pool, setPool] = useState<OpenInvoice[]>([]);
+  const [other, setOther] = useState(false);
   const [amountText, setAmountText] = useState(proposal.amount != null ? String(proposal.amount) : '');
   const [method, setMethod] = useState<PaymentMethod | ''>(proposal.method ?? '');
   const [paidOn, setPaidOn] = useState(proposal.paidOn);
@@ -61,7 +85,48 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
   // and this ref makes a second tap in the same frame impossible.
   const confirming = useRef(false);
 
-  const invoice = proposal.invoices.find((i) => i.id === invoiceId) ?? null;
+  useEffect(() => {
+    if (!picker || !loadPicker) return;
+    let live = true;
+    setLoad({ status: 'loading' });
+    loadPicker()
+      .then((out) => {
+        if (!live) return;
+        if (!out.ok) { setLoad({ status: 'error', message: out.message }); return; }
+        setAllClients(out.clients);
+        setPool(out.invoices);
+        setLoad({ status: 'ready' });
+      })
+      .catch((e) => {
+        console.error('[payment card] load failed', e);
+        if (live) setLoad({ status: 'error', message: "I couldn't load your clients. Try again." });
+      });
+    return () => { live = false; };
+    // loadPicker is stable for the card's life; `attempt` is the Retry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt]);
+
+  const recent = useMemo(() => recentPaymentClients(allClients), [allClients]);
+  const linked = picker ? matchTypedClient(clientName, allClients) : null;
+  const typedName = picker && linked ? linked.name : clientName;
+  const choice = useMemo(
+    () => (picker ? chooseInvoiceForClient(typedName, pool) : null),
+    [picker, typedName, pool],
+  );
+  const toProposalInvoice = (i: OpenInvoice): ProposalInvoice => ({
+    id: i.id, invoiceNo: i.invoiceNo, clientName: i.clientName, total: i.total, amountPaid: i.amountPaid,
+  });
+  const invoices: ProposalInvoice[] = !choice
+    ? proposal.invoices
+    : choice.kind === 'one' ? [toProposalInvoice(choice.invoice)]
+    : choice.kind === 'many' ? choice.invoices.map(toProposalInvoice) : [];
+  // One unpaid invoice is used as is; several wait for the owner's pick.
+  const invoiceId = !choice ? pickedInvoiceId
+    : choice.kind === 'one' ? choice.invoice.id
+    : choice.kind === 'many' && choice.invoices.some((i) => i.id === pickedInvoiceId) ? pickedInvoiceId : null;
+  const showTextClient = !picker || other || (load.status === 'ready' && recent.length === 0);
+  const clientChosen = typedName.trim() !== '';
+  const invoice = invoices.find((i) => i.id === invoiceId) ?? null;
   const amount = Number(amountText);
   const validAmount = Number.isFinite(amount) && amount > 0;
   const overpay = invoice != null && validAmount && amount > leftOf(invoice) + 1e-9;
@@ -91,7 +156,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
   }
 
   return (
-    <div className="mt-2 w-full rounded-[18px] border border-outline-variant/50 bg-surface-container p-3.5">
+    <div data-pay-card className="mt-2 w-full rounded-[18px] border border-outline-variant/50 bg-surface-container p-3.5">
       <div className="flex items-center gap-2.5">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-container text-on-background">
           <Icon name="payments" size={18} />
@@ -101,13 +166,46 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
 
       {/* Client — editable; two matches means two buttons, never a guess. */}
       <label className="mt-3 block text-[12px] font-semibold text-on-surface-variant" htmlFor="pay-client">Client</label>
-      <input
-        id="pay-client"
-        value={clientName}
-        onChange={(e) => setClientName(e.target.value)}
-        placeholder="Who paid you?"
-        className="mt-1 min-h-touch w-full rounded-input border border-outline-variant/40 bg-surface-container-lowest px-3 text-[15px] text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
-      />
+      {!showTextClient ? (
+        // The button's dropdown: same select as Method below, last option "Other…".
+        <select
+          id="pay-client"
+          value={clientName}
+          disabled={load.status !== 'ready' || busy}
+          onChange={(e) => {
+            if (e.target.value === '__other') { setOther(true); setClientName(''); return; }
+            setClientName(e.target.value);
+          }}
+          className="mt-1 min-h-touch w-full rounded-input border border-outline-variant/40 bg-surface-container-lowest px-2 text-[14px] text-on-surface outline-none focus:ring-2 focus:ring-primary-container disabled:opacity-60"
+        >
+          <option value="">{load.status === 'loading' ? 'Loading clients…' : 'Who paid you?'}</option>
+          {recent.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          <option value="__other">{OTHER_CLIENT_LABEL}</option>
+        </select>
+      ) : (
+        <input
+          id="pay-client"
+          value={clientName}
+          onChange={(e) => setClientName(e.target.value)}
+          placeholder="Who paid you?"
+          className="mt-1 min-h-touch w-full rounded-input border border-outline-variant/40 bg-surface-container-lowest px-3 text-[15px] text-on-surface outline-none focus:ring-2 focus:ring-primary-container"
+        />
+      )}
+      {picker && load.status === 'error' && (
+        <div className="mt-1 flex items-center gap-2">
+          <p className="text-[12px] font-semibold text-error">{load.message}</p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="min-h-touch shrink-0 text-[13px] font-semibold text-primary underline transition active:opacity-60"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {picker && linked && other && (
+        <p className="mt-1 text-[12px] text-on-surface-variant">Saved client</p>
+      )}
       {proposal.clients.length > 1 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {proposal.clients.map((name) => (
@@ -128,16 +226,19 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
       )}
 
       {/* Invoice — a picker row whenever there is more than one candidate. */}
+      {(!picker || (load.status === 'ready' && clientChosen)) && (<>
       <p className="mt-3 text-[12px] font-semibold text-on-surface-variant">
-        {proposal.invoices.length > 1 ? `Invoice — ${proposal.invoices.length} open` : 'Invoice'}
+        {invoices.length > 1 ? `Invoice — ${invoices.length} open` : 'Invoice'}
       </p>
-      {proposal.invoices.length === 0 ? (
-        <p className="mt-1 text-[13px] text-on-surface-variant">No open invoice found for that client.</p>
-      ) : proposal.invoices.length === 1 ? (
-        <p className="mt-1 text-[14px] text-on-surface">{label(proposal.invoices[0])}</p>
+      {invoices.length === 0 ? (
+        <p className="mt-1 text-[13px] text-on-surface-variant">
+          {picker ? `${typedName.trim()} has no unpaid invoices.` : 'No open invoice found for that client.'}
+        </p>
+      ) : invoices.length === 1 ? (
+        <p className="mt-1 text-[14px] text-on-surface">{label(invoices[0])}</p>
       ) : (
         <div className="mt-1 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {proposal.invoices.map((inv) => (
+          {invoices.map((inv) => (
             <button
               key={inv.id}
               type="button"
@@ -154,13 +255,15 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel }: {
           ))}
         </div>
       )}
+      </>)}
 
       {/* Amount — gold ring, numeric keypad, focused on arrival. */}
       <label className="mt-3 block text-[12px] font-semibold text-on-surface-variant" htmlFor="pay-amount">Amount</label>
       <input
         id="pay-amount"
+        // The button's card opens on the client, not the keypad.
         // eslint-disable-next-line jsx-a11y/no-autofocus
-        autoFocus
+        autoFocus={!picker}
         inputMode="decimal"
         type="number"
         min="0"
