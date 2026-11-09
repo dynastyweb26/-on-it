@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { insertEvent } from '@/lib/events-server';
+import { EVENT_KINDS, isEventKind, testEventFields } from '@/lib/events';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,25 +31,32 @@ function allowed(email: string | null | undefined): boolean {
   return !!email && list.includes(email.toLowerCase());
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (!allowed(user.email)) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
+  // ?kind=<any event kind>, default payment_recorded (the original behaviour).
+  const requested = new URL(req.url).searchParams.get('kind') ?? 'payment_recorded';
+  if (!isEventKind(requested)) {
+    return NextResponse.json({ error: 'unknown kind', kinds: EVENT_KINDS }, { status: 400 });
+  }
+
   // A plausible-looking, clearly fake client. No real document is touched, so
   // no invoice_id: the card renders from the stored copy only.
+  const f = testEventFields(requested);
   const id = await insertEvent({
     userId: user.id,
-    kind: 'payment_recorded',
-    actor: 'client',
-    documentKind: 'invoice',
-    documentNumber: 9999,
-    clientName: 'Test Client',
-    amount: 25,
-    meta: { test: true, method: 'Zelle' },
+    kind: requested,
+    actor: f.actor,
+    documentKind: f.documentKind,
+    documentNumber: f.documentNumber,
+    clientName: f.clientName,
+    amount: f.amount,
+    meta: f.meta,
     dedupeKey: `test:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
   });
 
-  return NextResponse.json({ ok: true, id });
+  return NextResponse.json({ ok: true, id, kind: requested });
 }

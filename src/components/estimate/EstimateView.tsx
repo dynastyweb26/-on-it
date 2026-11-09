@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PublicAttachment, PublicEstimateResult } from '@/lib/estimates/types';
 import { money } from '@/lib/financials';
+import { updatedNotice } from '@/lib/estimates/change-note';
 import AttachmentsCard from './AttachmentsCard';
 import EstIcon from './EstIcon';
 import ItemsCard from './ItemsCard';
@@ -195,13 +196,40 @@ export default function EstimateView({
               <span />
             )}
             {validity && <span className={s.validity}>{validity}</span>}
-            {payload.updated === true && <span className={s.validity}>Updated</span>}
+            {payload.updated === true && (
+              // Design 06.5: the red client-style tag, "Updated Nov 8". Gold stays in
+              // the app; red stays on the client pages.
+              <span
+                style={{
+                  height: 28, padding: '0 10px', borderRadius: 14, background: '#fbe4e1', color: '#b8202a',
+                  font: '700 13px var(--font-inter), system-ui, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <EstIcon name="refresh" size={16} />
+                {payload.updatedAt && !Number.isNaN(Date.parse(payload.updatedAt))
+                  ? `Updated ${new Date(payload.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  : 'Updated'}
+              </span>
+            )}
           </div>
 
           <p className={s.preparedFor}>
             Prepared for <strong>{payload.clientName || 'you'}</strong>
           </p>
           {jobLine(payload) && <p className={s.jobLine}>{jobLine(payload)}</p>}
+          {payload.updated === true && payload.change && (() => {
+            const n = updatedNotice(payload.business.name || '', payload.change.previousTotal, payload.total, payload.change.detail, money);
+            return (
+              <div
+                style={{
+                  marginTop: 12, border: '1px solid #f1cfca', background: '#fff6f4', borderRadius: 14, padding: '10px 12px',
+                  font: '400 13px/1.45 var(--font-inter), system-ui, sans-serif', color: '#5a2620',
+                }}
+              >
+                {n.lead}{n.bold && <> <b>{n.bold}</b></>}{n.tail && <> {n.tail}</>}
+              </div>
+            );
+          })()}
 
           <hr className={s.dashed} />
 

@@ -207,7 +207,7 @@ async function writePaymentEvent(
       documentNumber: (inv.invoice_number as number | null) ?? null,
       clientName: (inv.client_name as string | null) ?? null,
       amount,
-      meta: { method, payment_id: paymentId },
+      meta: { method, payment_id: paymentId, total: Number(inv.total ?? 0), balance: Math.max(0, balance) },
       dedupeKey: `payment:${paymentId}`,
     });
     return id ? 'written' : 'already written';

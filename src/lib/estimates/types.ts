@@ -96,6 +96,11 @@ export type PublicEstimate = {
   consent: { text: string; version: string };
   /** True when the current version was published after the client's last view. */
   updated?: boolean;
+  /** When the current version was published (the "Updated Nov 8" chip). */
+  updatedAt?: string | null;
+  /** What the client sees under the chip: the total they last saw, and the line
+   *  that changed. Null when the earlier version is not on file. */
+  change?: { previousTotal: number | null; detail: string | null } | null;
 };
 
 /** Uniform response for missing, draft, revoked, deleted and converted-unsigned
