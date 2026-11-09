@@ -16,7 +16,7 @@
 import 'server-only';
 import { adminClient } from '@/lib/supabase/admin';
 import { deployEnv, type DeployEnv } from '@/lib/deploy-env';
-import { STALE_DAYS, decideSweep, sweepAllowedIn, type SweepDoc } from '@/lib/events';
+import { STALE_DAYS, STALE_MAX_DAYS, decideSweep, sweepAllowedIn, type SweepDoc } from '@/lib/events';
 import { insertEvent } from '@/lib/events-server';
 
 const DAY_MS = 24 * 3600e3;
@@ -35,6 +35,9 @@ export async function runEstimateStaleSweep(
 
   const admin = adminClient();
   const cutoff = new Date(now.getTime() - STALE_DAYS * DAY_MS).toISOString();
+  // The other end of the window: past this the estimate is abandoned, and the
+  // scan should not even read it.
+  const monthAgo = new Date(now.getTime() - STALE_MAX_DAYS * DAY_MS).toISOString();
 
   // Signed (approved_at), converted, deleted and freshly revised rows never
   // reach the planner: the first three are refused in SQL, the revision check
@@ -46,6 +49,7 @@ export async function runEstimateStaleSweep(
     .eq('status', 'sent')
     .is('deleted_at', null)
     .is('approved_at', null)
+    .gte('first_sent_at', monthAgo)
     .lt('first_sent_at', cutoff)
     .lt('updated_at', cutoff)
     .order('first_sent_at', { ascending: true })
@@ -79,9 +83,28 @@ export async function runEstimateStaleSweep(
     }
   }
 
+  // What already posted: the flood cap holds cards back, so without this the
+  // oldest three would win every run and the rest would never be written.
+  const posted = new Set<string>();
+  for (let i = 0; i < ids.length; i += CONVERTED_BATCH) {
+    const { data: hits, error: postedErr } = await admin
+      .from('events')
+      .select('invoice_id')
+      .eq('kind', 'estimate_stale')
+      .in('invoice_id', ids.slice(i, i + CONVERTED_BATCH));
+    if (postedErr) {
+      console.error('stale estimates: posted lookup failed', postedErr.code ?? postedErr.message);
+      return { candidates: 0, written: 0 };
+    }
+    for (const h of hits ?? []) {
+      if (h.invoice_id) posted.add(String(h.invoice_id));
+    }
+  }
+
   const owner = new Map(rows.map((r) => [String(r.id), String(r.user_id)]));
   const docs: SweepDoc[] = rows.map((r) => ({
     id: String(r.id),
+    ownerId: String(r.user_id),
     kind: 'quote',
     status: String(r.status ?? ''),
     documentNumber: typeof r.invoice_number === 'number' ? r.invoice_number : null,
@@ -101,7 +124,7 @@ export async function runEstimateStaleSweep(
 
   // Only the card this step owns. The planner also knows an expiring-soon card,
   // which the app-open sweep already posts; this cron must not double up.
-  const planned = decideSweep({ now, docs }).filter((e) => e.kind === 'estimate_stale');
+  const planned = decideSweep({ now, docs, posted }).filter((e) => e.kind === 'estimate_stale');
 
   let written = 0;
   for (const e of planned) {

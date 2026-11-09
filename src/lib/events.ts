@@ -175,9 +175,22 @@ export const EXPIRING_SOON_DAYS = 3;
 export const STALE_DAYS = 4;
 export const DRAFT_UNSENT_HOURS = 24;
 
+/**
+ * Item 19's flood cap. An estimate first sent longer ago than this is abandoned
+ * rather than stalled — nobody wants a card about a four-month-old quote — and
+ * one sweep run posts at most STALE_PER_RUN stale cards per owner, oldest
+ * first. The ones held back have no dedupe key yet (a key is only written when
+ * the row is inserted), so the next run posts them.
+ */
+export const STALE_MAX_DAYS = 30;
+export const STALE_PER_RUN = 3;
+
 /** The subset of a document row the sweep reads. */
 export interface SweepDoc {
   id: string;
+  /** The row's owner. The per-run cap counts per owner, so one large book
+   *  cannot use up another owner's three cards. */
+  ownerId?: string;
   kind: DocumentKind;
   status: string;
   documentNumber: number | null;
@@ -234,6 +247,8 @@ const staleEstimate = (d: SweepDoc, t: number): boolean => {
   if (!d.firstSentAt) return false;
   const sent = Date.parse(d.firstSentAt);
   if (!Number.isFinite(sent) || t - sent < STALE_DAYS * DAY_MS) return false;
+  // Older than the window: abandoned, not stalled. No card, ever.
+  if (t - sent > STALE_MAX_DAYS * DAY_MS) return false;
   if (!d.updatedAt) return true;
   const touched = Date.parse(d.updatedAt);
   return !Number.isFinite(touched) || t - touched >= STALE_DAYS * DAY_MS;
@@ -251,14 +266,20 @@ export function decideSweep({
   now,
   docs,
   phase5 = PHASE5_TIME_EVENTS,
+  posted,
 }: {
   now: Date;
   docs: SweepDoc[];
   /** Which gated kinds this sweep may write. Per kind on purpose (item 19). */
   phase5?: ReadonlySet<EventKind>;
+  /** Estimate ids that already have an estimate_stale card. Without this the
+   *  oldest three would win the cap on every run and the rest would never
+   *  post; the callers read it from the events table (item 19's flood cap). */
+  posted?: ReadonlySet<string>;
 }): SweepEvent[] {
   const out: SweepEvent[] = [];
   const t = now.getTime();
+  const ownerOf = new Map(docs.map((d) => [d.id, d.ownerId ?? '']));
   const base = (d: SweepDoc) => ({
     invoiceId: d.id,
     documentKind: asKind(d.kind),
@@ -312,7 +333,7 @@ export function decideSweep({
           });
         }
       }
-      if (phase5.has('estimate_stale') && staleEstimate(d, t)) {
+      if (phase5.has('estimate_stale') && !posted?.has(d.id) && staleEstimate(d, t)) {
         const sent = d.firstSentAt as string;
         out.push({
           ...base(d),
@@ -338,7 +359,23 @@ export function decideSweep({
     }
   }
 
-  return out;
+  // The flood cap (item 19): at most STALE_PER_RUN stale cards per owner per
+  // run, oldest first. Only estimate_stale is capped; the client-action and
+  // document-state cards keep their own dedupe and are all returned.
+  const stale = out
+    .filter((e) => e.kind === 'estimate_stale')
+    .sort((a, b) => Date.parse(String(a.meta.first_sent_at)) - Date.parse(String(b.meta.first_sent_at)));
+  const perOwner = new Map<string, number>();
+  const kept = new Set<string>();
+  for (const e of stale) {
+    const owner = ownerOf.get(e.invoiceId) ?? '';
+    const n = perOwner.get(owner) ?? 0;
+    if (n >= STALE_PER_RUN) continue;
+    perOwner.set(owner, n + 1);
+    kept.add(e.dedupeKey);
+  }
+
+  return out.filter((e) => e.kind !== 'estimate_stale' || kept.has(e.dedupeKey));
 }
 
 /** A message the thread is holding, as far as ordering is concerned. Messages

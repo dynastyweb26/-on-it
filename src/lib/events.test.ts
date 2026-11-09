@@ -319,3 +319,40 @@ test('the sweep runs in production only, so a preview cannot write to the shared
   assert.equal(sweepAllowedIn('preview'), false);
   assert.equal(sweepAllowedIn('development'), false);
 });
+
+// ── Item 19's flood cap ────────────────────────────────────────────────────
+
+const fiveStale = () => [5, 6, 7, 8, 9].map((d, i) => staleQuote({
+  id: `q${i + 1}`, firstSentAt: daysAgo(d), updatedAt: daysAgo(d),
+}));
+
+test('one run posts at most three stale estimates per owner, oldest first', () => {
+  // q5 (9d), q4 (8d) and q3 (7d) are the oldest; q1 (5d) and q2 (6d) wait.
+  const posted = staleOnly(fiveStale()).map((e) => e.invoiceId).sort();
+  assert.deepEqual(posted, ['q3', 'q4', 'q5']);
+  assert.equal(staleOnly(fiveStale()).length, 3);
+});
+
+test('an estimate first sent more than thirty days ago is abandoned', () => {
+  assert.deepEqual(staleOnly([staleQuote({ firstSentAt: daysAgo(31), updatedAt: daysAgo(31) })]), []);
+  assert.equal(staleOnly([staleQuote({ firstSentAt: daysAgo(30), updatedAt: daysAgo(30) })]).length, 1);
+});
+
+test('the next run posts the ones the cap held back', () => {
+  const docs = fiveStale();
+  const first = staleOnly(docs).map((e) => e.invoiceId);
+  const second = decideSweep({ now, docs, posted: new Set(first) })
+    .filter((e) => e.kind === 'estimate_stale').map((e) => e.invoiceId).sort();
+  assert.deepEqual(second, ['q1', 'q2']);
+});
+
+test('the cap is per owner, so a big book cannot crowd out a small one', () => {
+  const docs = [
+    ...[1, 2, 3, 4].map((i) => staleQuote({ id: `a${i}`, ownerId: 'u1', firstSentAt: daysAgo(4 + i), updatedAt: daysAgo(4 + i) })),
+    staleQuote({ id: 'b1', ownerId: 'u2', firstSentAt: daysAgo(5), updatedAt: daysAgo(5) }),
+  ];
+  const got = staleOnly(docs).map((e) => e.invoiceId);
+  assert.equal(got.length, 4);
+  assert.ok(got.includes('b1'));
+  assert.equal(got.filter((id) => id.startsWith('a')).length, 3);
+});

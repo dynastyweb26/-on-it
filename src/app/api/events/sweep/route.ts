@@ -63,8 +63,28 @@ export async function POST() {
     }
   }
 
+  // What already posted, so the item-19 flood cap does not re-offer the same
+  // three oldest cards on every open and starve the rest. RLS lets the owner
+  // read their own events, so this stays on their session.
+  const posted = new Set<string>();
+  for (let i = 0; i < quoteIds.length; i += 100) {
+    const { data: hits, error: postedErr } = await supabase
+      .from('events')
+      .select('invoice_id')
+      .eq('kind', 'estimate_stale')
+      .in('invoice_id', quoteIds.slice(i, i + 100));
+    if (postedErr) {
+      console.error('[sweep] posted lookup failed', postedErr.code ?? postedErr.message);
+      return NextResponse.json({ error: 'read failed' }, { status: 500 });
+    }
+    for (const h of hits ?? []) {
+      if (h.invoice_id) posted.add(String(h.invoice_id));
+    }
+  }
+
   const docs: SweepDoc[] = rows.map((r) => ({
     id: String(r.id),
+    ownerId: user.id,
     kind: asKind(typeof r.kind === 'string' ? r.kind : null),
     status: String(r.status ?? ''),
     documentNumber: typeof r.invoice_number === 'number' ? r.invoice_number : null,
@@ -83,7 +103,7 @@ export async function POST() {
     converted: converted.has(String(r.id)),
   }));
 
-  const planned = decideSweep({ now: new Date(), docs });
+  const planned = decideSweep({ now: new Date(), docs, posted });
   let written = 0;
   for (const e of planned) {
     const id = await insertEvent({
