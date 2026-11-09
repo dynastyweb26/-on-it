@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
 import { hourBucket, shouldPostEstimateViewed } from '@/lib/events';
-import { insertEvent, logDocumentView, viewerHash } from '@/lib/events-server';
+import { insertEvent, logDocumentView, viewerHash, viewsInLastDay } from '@/lib/events-server';
 
 export const runtime = 'nodejs';
 
@@ -70,9 +70,9 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     documentKind: 'quote',
     documentNumber: row.invoice_number ?? null,
     clientName: row.client_name ?? null,
-    amount: null, // a view isn't about money
+    amount: row.total == null ? null : Number(row.total), // design 01: "E-0051 · $7,500.00 · 2nd time today"
     dedupeKey: `estimate_viewed:${row.id}:${hourBucket(new Date())}`,
-    meta: {},
+    meta: { nth_today: await viewsInLastDay(row.id) },
   });
   return ok();
 }

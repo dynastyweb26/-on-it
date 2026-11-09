@@ -68,3 +68,19 @@ export async function logDocumentView(token: string, viewer: string | null, hash
   });
   if (error) console.error('[events] log_document_view failed', error.code ?? error.message);
 }
+
+/** How many qualifying views a document has had in the last 24 hours (the
+ *  "2nd time today" line). Includes the one just logged. Never throws. */
+export async function viewsInLastDay(invoiceId: string): Promise<number> {
+  try {
+    const since = new Date(Date.now() - 24 * 3600e3).toISOString();
+    const { count } = await adminClient()
+      .from('document_views')
+      .select('id', { count: 'exact', head: true })
+      .eq('invoice_id', invoiceId)
+      .gte('viewed_at', since);
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}

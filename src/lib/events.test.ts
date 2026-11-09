@@ -58,7 +58,7 @@ const row = (over: Partial<EventRow>): EventRow => ({
 
 test('a view card names the client and the document', () => {
   const card = eventCard(row({}), dollars);
-  assert.equal(card.title, 'Brandon opened your invoice');
+  assert.equal(card.title, 'Brandon viewed their invoice'); // design 01: "viewed … invoice"; pronoun neutral on purpose
   assert.equal(card.detail, 'INV-0029 · $150.00');
   assert.equal(card.tone, 'neutral');
 });
@@ -87,7 +87,7 @@ test('a payment card shows the amount and never invents a method', () => {
 });
 
 test('a missing client name never renders as blank', () => {
-  assert.equal(eventCard(row({ client_name: null }), dollars).title, 'Your client opened your invoice');
+  assert.equal(eventCard(row({ client_name: null }), dollars).title, 'Your client viewed their invoice');
 });
 
 // ── Only two cards ask for a decision ──────────────────────────────────────
@@ -299,4 +299,59 @@ test('a seen card from before the thread began stays hidden; an unseen one never
 
 test('with no timestamped message the fallback is used', () => {
   assert.equal(chatStartedAtFrom([{}], 1000), new Date(1000).toISOString());
+});
+
+// ── Design copy (alive layer 01 + 07) ──────────────────────────────────────
+
+import { ordinal } from './events';
+
+const mkEv = (over: Partial<EventRow>): EventRow => ({
+  id: 'e1', user_id: 'u', kind: 'payment_recorded', actor: 'client', invoice_id: null,
+  document_kind: 'invoice', document_number: 32, client_name: 'Ruth', amount: 25, meta: {},
+  dedupe_key: null, seen_at: null, acted_at: null, acted_result: null, occurred_at: now.toISOString(), ...over,
+} as EventRow);
+
+test('a partial payment says "of", what is left, and carries the bar', () => {
+  const c = eventCard(mkEv({ meta: { method: 'Zelle', total: 50, balance: 25 } }), dollars);
+  assert.equal(c.title, 'Ruth paid $25.00 of $50.00');
+  assert.equal(c.detail, 'INV-0032 · $25.00 left');
+  assert.equal(c.tint, 'partial');
+  assert.equal(c.icon, 'toll');
+  assert.equal(c.bar?.pct, 50);
+});
+
+test('paid in full reads "paid $X" with the method and "paid in full"', () => {
+  const c = eventCard(mkEv({ kind: 'paid_in_full', amount: 50, meta: { method: 'Zelle' } }), dollars);
+  assert.equal(c.title, 'Ruth paid $50.00');
+  assert.equal(c.detail, 'INV-0032 · Zelle · paid in full');
+  assert.equal(c.tint, 'paid');
+});
+
+test('a deposit reads as the chat card does, with its chip and meta label', () => {
+  const c = eventCard(mkEv({ kind: 'deposit_received', meta: { balance: 25 } }), dollars);
+  assert.equal(c.title, '$25.00 deposit from Ruth');
+  assert.equal(c.detail, 'INV-0032 · $25.00 due on completion');
+  assert.equal(c.chip, 'Deposit');
+  assert.equal(c.metaLabel, 'Deposit received');
+});
+
+test('a signed card carries the time it is given, and only that kind does', () => {
+  const s = eventCard(mkEv({ kind: 'estimate_signed', document_kind: 'quote', document_number: 49, amount: 50 }), dollars, { when: 'just now' });
+  assert.equal(s.detail, 'E-0049 · $50.00 · just now');
+  const o = eventCard(mkEv({ kind: 'invoice_overdue', document_number: 29, amount: 150, meta: { days_late: 3 } }), dollars, { when: 'just now' });
+  assert.equal(o.detail, 'INV-0029 · $150.00 · 3 days late');
+});
+
+test('a repeat estimate view says which time today', () => {
+  const c = eventCard(mkEv({ kind: 'estimate_viewed', document_kind: 'quote', document_number: 51, amount: null, meta: { nth_today: 2 } }), dollars);
+  assert.equal(c.detail, 'E-0051 · 2nd time today');
+  assert.equal(eventCard(mkEv({ kind: 'estimate_viewed', document_kind: 'quote', meta: {} }), dollars).detail.includes('time today'), false);
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd']);
+});
+
+test('an invoice view carries the due date', () => {
+  const c = eventCard(mkEv({ kind: 'invoice_viewed', document_number: 30, amount: 150, meta: { due: '2026-11-14' } }), dollars);
+  assert.equal(c.title, 'Ruth viewed their invoice');
+  assert.equal(c.detail, 'INV-0030 · $150.00 · due Nov 14');
+  assert.equal(c.icon, 'find_in_page');
 });

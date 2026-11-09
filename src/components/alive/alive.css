@@ -1,0 +1,103 @@
+/* Alive layer: every value below is copied from
+   design/alive-layer/On_It_Alive_Layer.dc.html (its <style> block and inline
+   styles). The design's cream/gold/ink hexes are not the app's Tailwind tokens
+   (#FFFDF9 vs surface-container-lowest, etc.), so they live here as --al-*.
+   Direction A only. Gold in-app; red stays on the client pages. */
+
+:root {
+  --al-surface: #fffdf9;        /* .ta / .wcard */
+  --al-line: #e8dcc6;           /* .ta border */
+  --al-wline: #eadfcb;          /* .wcard border */
+  --al-ink: #1e1a15;
+  --al-ink2: #4a433a;
+  --al-mute: #6b6257;
+  --al-faint: #a69c8e;
+  --al-meta: #8a7f70;
+  --al-gold: #d4af37;
+  --al-gold-deep: #b8961e;      /* sparkle, pencil */
+  --al-gold-text: #6e580c;      /* on gold-soft */
+  --al-gold-num: #6f5b0b;       /* money figures */
+  --al-gold-link: #7a6210;
+  --al-gold-soft: #f2e6c2;
+  --al-gold-soft2: #f7efd6;     /* partial tile */
+  --al-gold-wash: #fffbf0;      /* focused amount field */
+  --al-green-bg: #ddf3e5;
+  --al-green: #1e7a45;
+  --al-rust-bg: #f8e1d3;
+  --al-rust: #a8461f;
+  --al-neutral-bg: #eee7dc;
+  --al-hair: #f0e6d6;
+  --al-rule: #e0d2ba;
+  --al-card-bg: #f8f0e2;        /* .card */
+  --al-card-line: #ebddc5;
+  --al-bar: #ede2cc;
+  --al-btn-line: #e3d6c0;
+  --al-grab: #e3d7c3;
+  --al-press: #f6eedf;
+  --al-ctl-line: #e6dac6;
+  --al-cream: #fcf7f0;
+  --al-client-red: #b8202a;     /* /e and /pay only */
+  --al-client-red-bg: #fbe4e1;
+  --al-err-bg: #fbede4;
+  --al-err-line: #efcdb9;
+  --al-err-ink: #7a2f12;
+  --al-err-sub: #9a5a3e;
+  --al-ease-in: cubic-bezier(.2, .9, .3, 1);
+  --al-ease-out: cubic-bezier(.4, 0, 1, 1);
+  --al-ease-settle: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ── Keyframes (design names in comments) ── */
+@keyframes al-toast-in { from { transform: translateY(-110%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes al-toast-shadow { from { box-shadow: 0 0 0 0 rgba(70, 50, 10, 0), 0 2px 6px rgba(70, 50, 10, .06); } to { box-shadow: 0 14px 34px -14px rgba(70, 50, 10, .3), 0 2px 6px rgba(70, 50, 10, .06); } }
+@keyframes al-toast-out { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-110%); opacity: 0; } }
+@keyframes al-pop-in { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } } /* popIn */
+@keyframes al-fade-up { 0% { transform: translateY(6px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } } /* fadeUp */
+@keyframes al-flash { 0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, .55); } 100% { box-shadow: 0 0 0 12px rgba(212, 175, 55, 0); } } /* flash */
+@keyframes al-chip-halo { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); } 35% { box-shadow: 0 0 0 6px rgba(212, 175, 55, .35); } 70% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); } } /* chipHalo */
+@keyframes al-grow { from { width: 0; } } /* grow */
+@keyframes al-ck-once { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } } /* ckOnce */
+@keyframes al-ring-once { 0% { transform: scale(.5); opacity: 0; } 70% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); } } /* ringOnce */
+@keyframes al-halo-once { 0% { transform: scale(.6); opacity: 0; } 25% { opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } } /* halo, once */
+@keyframes al-badge-once { 0% { transform: scale(1); } 50% { transform: scale(1.18); } 100% { transform: scale(1); } } /* badge, 180ms */
+@keyframes al-spin { to { transform: rotate(360deg); } } /* spin */
+@keyframes al-shim { 0% { background-position: -240px 0; } 100% { background-position: 240px 0; } } /* shim */
+@keyframes al-caret { 50% { opacity: 0; } } /* caret */
+@keyframes al-sheet-up { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } } /* sheetUp */
+@keyframes al-slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } } /* Revise: 320ms */
+@keyframes al-save-bar-up { from { transform: translateY(100%); } to { transform: translateY(0); } } /* save bar: 220ms */
+@keyframes al-fan-out { from { transform: translateY(-8px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ── Shared classes ── */
+.al-ta { background: var(--al-surface); border: 1px solid var(--al-line); border-radius: 20px; box-shadow: 0 14px 34px -14px rgba(70, 50, 10, .3), 0 2px 6px rgba(70, 50, 10, .06); padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box; }
+.al-wcard { background: var(--al-surface); border: 1px solid var(--al-wline); border-radius: 18px; }
+.al-card { background: var(--al-card-bg); border: 1px solid var(--al-card-line); border-radius: 24px; }
+.al-trow { display: flex; gap: 12px; align-items: center; }
+.al-tile { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; font-size: 22px; }
+.al-tile--36 { width: 36px; height: 36px; font-size: 20px; }
+.al-tile--30 { width: 30px; height: 30px; border-radius: 9px; font-size: 17px; }
+.al-tt { font: 700 15px/1.25 var(--font-inter), system-ui, sans-serif; color: var(--al-ink); }
+.al-td { font: 400 13px/1.35 var(--font-inter), system-ui, sans-serif; color: var(--al-mute); margin-top: 2px; }
+.al-grab { width: 36px; height: 4px; border-radius: 2px; background: var(--al-grab); align-self: center; }
+.al-btn-g { height: 42px; border-radius: 21px; background: var(--al-gold); color: #231c0b; font: 700 14.5px var(--font-inter), system-ui, sans-serif; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 0 18px; cursor: pointer; box-sizing: border-box; user-select: none; border: 0; transition: transform 90ms ease-out; }
+.al-btn-g:active { transform: scale(.97); }
+.al-btn-g:disabled { cursor: default; }
+.al-btn-w { height: 42px; border-radius: 21px; background: #fff; border: 1px solid var(--al-btn-line); color: #2a251f; font: 600 14.5px var(--font-inter), system-ui, sans-serif; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 0 18px; cursor: pointer; box-sizing: border-box; user-select: none; transition: transform 90ms ease-out; }
+.al-btn-w:active { transform: scale(.97); }
+.al-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 8px; font: 700 12px var(--font-inter), system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; box-sizing: border-box; }
+.al-chip--sm { height: 22px; font-size: 10.5px; }
+.al-meta { font: 600 10.5px var(--font-plex-mono), ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--al-meta); }
+.al-h { font-family: var(--font-montserrat), system-ui, sans-serif; font-weight: 800; }
+.al-pbar { height: 8px; border-radius: 4px; background: var(--al-bar); overflow: hidden; position: relative; }
+.al-pfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--al-gold); }
+.al-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(35, 28, 11, .25); border-top-color: #231c0b; animation: al-spin .8s linear infinite; flex: none; }
+.al-press:active { transform: scale(.98); background: var(--al-press); }
+.al-fade-up { animation: al-fade-up .3s ease-out both; }
+.al-pop-in { animation: al-pop-in .32s var(--al-ease-in) both; }
+
+/* Reduced motion: crossfade only, no travel, check already drawn, bar jumps. */
+@media (prefers-reduced-motion: reduce) {
+  .al-ta, .al-fade-up, .al-pop-in, .al-btn-g, .al-btn-w { animation: none !important; transition: none !important; }
+  .al-anim { animation: none !important; }
+  .al-anim-ck { stroke-dashoffset: 0 !important; }
+}
