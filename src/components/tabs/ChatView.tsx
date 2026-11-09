@@ -14,7 +14,8 @@ import EventCard, { AssistantAvatar, AssistantLine } from '@/components/chat/Eve
 import ReadyEstimateCard from '@/components/chat/ReadyEstimateCard';
 import RecapChatCard from '@/components/chat/RecapChatCard';
 import { loadRecapRows } from '@/components/chat/recap-load';
-import { buildRecap, dayKey, isEmptyRecap, matchRecap, recapsDue, weekKey, type RecapModel } from '@/lib/chat-recap';
+import { buildRecap, isEmptyRecap, matchRecap, type RecapModel } from '@/lib/chat-recap';
+import { decideAutoRecap, parseRecapState, recapStateAfterOpen, recapStateKey, type RecapState } from '@/lib/recap-schedule';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
@@ -140,6 +141,8 @@ interface Msg {
   /** A daily or weekly recap (alive layer 07): a local assistant card built from
    *  the owner's own rows, never an event and never anything /api/parse sees. */
   recapCard?: RecapModel;
+  /** Posted by the open-time dice, not asked for: never saved with the thread. */
+  auto?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
@@ -506,7 +509,7 @@ function withMessageIds(messages: Msg[]): Msg[] {
 const PERSIST_THUMBS = 8;
 function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
   let kept = 0;
-  const out = messages.slice();
+  const out = messages.filter((m) => !m.auto);
   for (let i = out.length - 1; i >= 0; i--) {
     const m = out[i];
     if (!m.receipt) continue;
@@ -4201,9 +4204,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // before the first message that came after it; cards older than the oldest
   // timestamped message (or newer than the last) fall to the end, which is how
   // the thread read before messages carried `at`.
-  // Recaps, no cron: on the first open after 7:00 local, post the daily card, and
-  // on a Monday the weekly one. Each is posted once per period (per user, per
-  // device), and a period with nothing in it posts nothing.
+  // Recaps, no cron, and only sometimes: on an app open the dice (lib/recap-schedule.ts)
+  // decide whether one shows. At most one a day, the weekly at most once a week,
+  // never on two opens in a row. A recap you ask for always shows (send()). An
+  // automatic card is `auto`: it is not saved with the thread, so it never
+  // comes back on its own on the next open.
   const recapRanRef = useRef(false);
   useEffect(() => {
     if (!hydrated || recapRanRef.current) return;
@@ -4212,20 +4217,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        const key = (k: string) => `onit-recap-last:${user.id}:${k}`;
-        const read = (k: string) => { try { return localStorage.getItem(key(k)); } catch { return null; } };
+        const key = recapStateKey(user.id);
+        const read = (): string | null => { try { return localStorage.getItem(key); } catch { return null; } };
+        const write = (st: RecapState) => { try { localStorage.setItem(key, JSON.stringify(st)); } catch { /* storage blocked */ } };
         const now = new Date();
-        const due = recapsDue(now, { daily: read('daily'), weekly: read('weekly') });
-        if (due.length === 0) return;
+        const state = parseRecapState(read());
+        const kind = decideAutoRecap(now, state, Math.random);
+        if (!kind) { write(recapStateAfterOpen(state, now, null)); return; }
         const rows = await loadRecapRows(supabase);
-        if (!rows) return; // try again next open; nothing was marked posted
-        const posted: Msg[] = [];
-        for (const kind of due) {
-          const model = buildRecap({ now, kind, mode: 'auto', ...rows });
-          try { localStorage.setItem(key(kind), kind === 'daily' ? dayKey(now) : weekKey(now)); } catch { /* storage blocked */ }
-          if (!isEmptyRecap(model)) posted.push(aMsg(model.title, { recapCard: model, skipHistory: true }));
-        }
-        if (posted.length > 0) setMessages((m) => [...m, ...posted]);
+        if (!rows) return; // try again next open; nothing was marked
+        const model = buildRecap({ now, kind, mode: 'auto', ...rows });
+        if (isEmptyRecap(model)) { write(recapStateAfterOpen(state, now, null)); return; }
+        write(recapStateAfterOpen(state, now, kind));
+        setMessages((m) => [...m, aMsg(model.title, { recapCard: model, skipHistory: true, auto: true })]);
       } catch { /* recaps are a courtesy; the thread works without them */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
