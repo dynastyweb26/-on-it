@@ -356,3 +356,49 @@ test('the cap is per owner, so a big book cannot crowd out a small one', () => {
   assert.ok(got.includes('b1'));
   assert.equal(got.filter((id) => id.startsWith('a')).length, 3);
 });
+
+// ── Item 25: the near-due producers ────────────────────────────────────────
+
+const dueSoonOnly = (docs: SweepDoc[]) => decideSweep({ now, docs }).filter((e) => e.kind === 'invoice_due_soon');
+const expiringOnly = (docs: SweepDoc[]) => decideSweep({ now, docs }).filter((e) => e.kind === 'estimate_expiring_soon');
+const expiringQuote = (over: Partial<SweepDoc> = {}) => staleQuote({ validUntil: daysAhead(3), ...over });
+
+test('due soon starts at three days out, and a settled or deleted invoice is skipped', () => {
+  assert.equal(dueSoonOnly([doc({ id: 'i1', dueDate: daysAhead(3) })]).length, 1);
+  assert.deepEqual(dueSoonOnly([doc({ id: 'i1', dueDate: daysAhead(4) })]), [], '4 days out');
+  assert.deepEqual(dueSoonOnly([doc({ id: 'i1', dueDate: daysAhead(2), total: 100, amountPaid: 100 })]), [], 'paid');
+  assert.deepEqual(dueSoonOnly([doc({ id: 'i1', dueDate: daysAhead(2), deletedAt: daysAgo(1) })]), [], 'deleted');
+});
+
+test('expiring soon skips a signed, converted or deleted estimate', () => {
+  const [e] = expiringOnly([expiringQuote()]);
+  assert.equal(e.dedupeKey, `estimate_expiring_soon:q1:${daysAhead(3)}`);
+  assert.deepEqual(expiringOnly([expiringQuote({ validUntil: daysAhead(4) })]), [], '4 days out');
+  assert.deepEqual(expiringOnly([expiringQuote({ approvedAt: daysAgo(1) })]), [], 'signed');
+  assert.deepEqual(expiringOnly([expiringQuote({ converted: true })]), [], 'converted');
+  assert.deepEqual(expiringOnly([expiringQuote({ deletedAt: daysAgo(1) })]), [], 'deleted');
+});
+
+const fourDue = () => [0, 1, 2, 3].map((n) => doc({ id: `i${n}`, ownerId: 'u1', dueDate: daysAhead(n) }));
+
+test('one run posts at most three near-due cards per owner, soonest first', () => {
+  const got = dueSoonOnly(fourDue());
+  assert.equal(got.length, 3);
+  assert.deepEqual(got.map((e) => e.invoiceId), ['i0', 'i1', 'i2']);
+});
+
+test('a posted near-due card frees its slot for the one the cap held back', () => {
+  const docs = fourDue();
+  const postedKeys = new Set(dueSoonOnly(docs).map((e) => e.dedupeKey));
+  const second = decideSweep({ now, docs, postedKeys }).filter((e) => e.kind === 'invoice_due_soon');
+  assert.deepEqual(second.map((e) => e.invoiceId), ['i3']);
+});
+
+test('the near-due cron step is production-only and is wired into followups', () => {
+  assert.equal(sweepAllowedIn('preview'), false);
+  const src = readFileSync('src/lib/events-sweep.ts', 'utf8');
+  const fn = src.slice(src.indexOf('export async function runDueSoonSweep'));
+  assert.match(fn, /if \(!sweepAllowedIn\(env\)\) return \{ skipped: 'not production' \}/);
+  const cron = readFileSync('src/app/api/followups/route.ts', 'utf8');
+  assert.match(cron, /dueSoon = await runDueSoonSweep\(\)/);
+});

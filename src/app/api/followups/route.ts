@@ -15,7 +15,7 @@ import { sendWebPush } from '@/lib/notify/webpush';
 import { runDraftNudges } from '@/lib/notify/draft-nudges';
 import { runRecaps } from '@/lib/notify/recaps';
 import { runRecurring } from '@/lib/notify/recurring';
-import { runEstimateStaleSweep } from '@/lib/events-sweep';
+import { runDueSoonSweep, runEstimateStaleSweep } from '@/lib/events-sweep';
 import { deployEnv } from '@/lib/deploy-env';
 
 // Four steps in one invocation (Hobby: one cron entry); room for a long day.
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     recurring = { skipped: 'failed' };
   }
 
-  // Step 5: the stale-estimate sweep (lib/events-sweep, item 19). The Phase 5
+  // Step 5: the event sweeps (lib/events-sweep, items 19 and 25). The Phase 5
   // gate is PER KIND and only estimate_stale is open — invoice_stale and
   // draft_unsent stay off (see PHASE5_TIME_EVENTS) — and the sweep itself
   // refuses to run outside production, the same rule the draft-nudge and recap
@@ -131,6 +131,16 @@ export async function GET(req: NextRequest) {
     staleEstimates = { skipped: 'failed' };
   }
 
+  // Item 25: the same step also posts the near-due cards for owners who never
+  // open the app. Production only and its own try/catch, like the step above.
+  let dueSoon: Awaited<ReturnType<typeof runDueSoonSweep>>;
+  try {
+    dueSoon = await runDueSoonSweep();
+  } catch (e) {
+    console.error('followups: near-due step failed', (e as Error)?.message);
+    dueSoon = { skipped: 'failed' };
+  }
+
   return NextResponse.json({
     checked: due?.length ?? 0,
     notifications: sent,
@@ -138,5 +148,6 @@ export async function GET(req: NextRequest) {
     recaps,
     recurring,
     staleEstimates,
+    dueSoon,
   });
 }

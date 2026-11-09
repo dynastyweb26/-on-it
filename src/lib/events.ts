@@ -214,6 +214,9 @@ export const DRAFT_UNSENT_HOURS = 24;
  */
 export const STALE_MAX_DAYS = 30;
 export const STALE_PER_RUN = 3;
+/** Item 25 reuses item 19's cap: one run posts at most three of a capped kind
+ *  per owner (stale oldest first, near-due soonest first). */
+export const CAP_PER_RUN = 3;
 
 /** The subset of a document row the sweep reads. */
 export interface SweepDoc {
@@ -297,6 +300,7 @@ export function decideSweep({
   docs,
   phase5 = PHASE5_TIME_EVENTS,
   posted,
+  postedKeys,
 }: {
   now: Date;
   docs: SweepDoc[];
@@ -306,6 +310,10 @@ export function decideSweep({
    *  oldest three would win the cap on every run and the rest would never
    *  post; the callers read it from the events table (item 19's flood cap). */
   posted?: ReadonlySet<string>;
+  /** Dedupe keys that already posted, for the capped kinds that key on a date
+   *  (item 25's near-due cards). An already-posted card does not take one of
+   *  this run's three slots, so the ones held back still get their turn. */
+  postedKeys?: ReadonlySet<string>;
 }): SweepEvent[] {
   const out: SweepEvent[] = [];
   const t = now.getTime();
@@ -331,7 +339,7 @@ export function decideSweep({
             days_late: d.dueDate ? Math.max(0, Math.floor((t - atNoon(d.dueDate)) / DAY_MS)) : null,
           },
         });
-      } else if (d.status === 'sent' && unpaid(d) && d.dueDate) {
+      } else if (d.status === 'sent' && unpaid(d) && d.dueDate && !d.deletedAt) {
         const days = (atNoon(d.dueDate) - t) / DAY_MS;
         if (days >= 0 && days <= DUE_SOON_DAYS) {
           out.push({
@@ -352,7 +360,10 @@ export function decideSweep({
         });
       }
     } else {
-      if (d.status === 'sent' && d.validUntil) {
+      // Item 25: a signed, converted or deleted estimate is not expiring — the
+      // same three skips the stale predicate makes. Without these a converted
+      // estimate kept status 'sent' and could still be announced as expiring.
+      if (d.status === 'sent' && d.validUntil && !d.converted && !d.approvedAt && !d.deletedAt) {
         const days = (atNoon(d.validUntil) - t) / DAY_MS;
         if (days >= 0 && days <= EXPIRING_SOON_DAYS) {
           out.push({
@@ -389,23 +400,33 @@ export function decideSweep({
     }
   }
 
-  // The flood cap (item 19): at most STALE_PER_RUN stale cards per owner per
-  // run, oldest first. Only estimate_stale is capped; the client-action and
+  // The flood cap (item 19, reused by item 25): at most CAP_PER_RUN cards of a
+  // capped kind per owner per run — stale oldest first, near-due soonest first.
+  // Cards already posted do not take a slot. The client-action and
   // document-state cards keep their own dedupe and are all returned.
-  const stale = out
-    .filter((e) => e.kind === 'estimate_stale')
-    .sort((a, b) => Date.parse(String(a.meta.first_sent_at)) - Date.parse(String(b.meta.first_sent_at)));
-  const perOwner = new Map<string, number>();
+  const cappedAt = (e: SweepEvent): number => {
+    if (e.kind === 'estimate_stale') return Date.parse(String(e.meta.first_sent_at ?? ''));
+    if (e.kind === 'invoice_due_soon') return Date.parse(`${String(e.meta.due_date)}T12:00:00Z`);
+    if (e.kind === 'estimate_expiring_soon') return Date.parse(`${String(e.meta.valid_until)}T12:00:00Z`);
+    return Number.NaN;
+  };
+  const capped: ReadonlySet<string> = new Set(['estimate_stale', 'invoice_due_soon', 'estimate_expiring_soon']);
   const kept = new Set<string>();
-  for (const e of stale) {
-    const owner = ownerOf.get(e.invoiceId) ?? '';
-    const n = perOwner.get(owner) ?? 0;
-    if (n >= STALE_PER_RUN) continue;
-    perOwner.set(owner, n + 1);
-    kept.add(e.dedupeKey);
+  const perOwnerKind = new Map<string, number>();
+  for (const kind of capped) {
+    const rows = out
+      .filter((e) => e.kind === kind && !postedKeys?.has(e.dedupeKey))
+      .sort((a, b) => cappedAt(a) - cappedAt(b));
+    for (const e of rows) {
+      const slot = `${ownerOf.get(e.invoiceId) ?? ''}|${kind}`;
+      const n = perOwnerKind.get(slot) ?? 0;
+      if (n >= CAP_PER_RUN) continue;
+      perOwnerKind.set(slot, n + 1);
+      kept.add(e.dedupeKey);
+    }
   }
 
-  return out.filter((e) => e.kind !== 'estimate_stale' || kept.has(e.dedupeKey));
+  return out.filter((e) => !capped.has(e.kind) || kept.has(e.dedupeKey));
 }
 
 /** A message the thread is holding, as far as ordering is concerned. Messages

@@ -15,8 +15,9 @@
 // the planner needs and writes what it returns.
 import 'server-only';
 import { adminClient } from '@/lib/supabase/admin';
+import { asKind } from '@/lib/documents';
 import { deployEnv, type DeployEnv } from '@/lib/deploy-env';
-import { STALE_DAYS, STALE_MAX_DAYS, decideSweep, sweepAllowedIn, type SweepDoc } from '@/lib/events';
+import { DUE_SOON_DAYS, STALE_DAYS, STALE_MAX_DAYS, decideSweep, sweepAllowedIn, type SweepDoc } from '@/lib/events';
 import { insertEvent } from '@/lib/events-server';
 
 const DAY_MS = 24 * 3600e3;
@@ -125,6 +126,138 @@ export async function runEstimateStaleSweep(
   // Only the card this step owns. The planner also knows an expiring-soon card,
   // which the app-open sweep already posts; this cron must not double up.
   const planned = decideSweep({ now, docs, posted }).filter((e) => e.kind === 'estimate_stale');
+
+  let written = 0;
+  for (const e of planned) {
+    const userId = owner.get(e.invoiceId);
+    if (!userId) continue;
+    const id = await insertEvent({
+      userId,
+      kind: e.kind,
+      actor: 'time',
+      invoiceId: e.invoiceId,
+      documentKind: e.documentKind,
+      documentNumber: e.documentNumber,
+      clientName: e.clientName,
+      amount: e.amount,
+      meta: e.meta,
+      dedupeKey: e.dedupeKey,
+    });
+    if (id) written += 1;
+  }
+
+  return { candidates: planned.length, written };
+}
+
+// ═══ Item 25: the near-due sweep ═══
+// The app-open sweep already posts "due soon" and "expires soon", but only for
+// an owner who opens the app. This is the same two cards for everyone else, as
+// a step in the daily followups cron: invoices sent and unpaid with a due date
+// inside the next three days, and estimates sent, unsigned and unconverted with
+// a valid-until inside the same window. Same planner, same per-owner cap (three
+// per kind per run, soonest first) and the same production-only guard as item
+// 19: preview shares the database, so a preview run would post real cards.
+export type DueSoonSweepResult =
+  | { skipped: string }
+  | { candidates: number; written: number };
+
+export async function runDueSoonSweep(
+  now: Date = new Date(),
+  env: DeployEnv = deployEnv(),
+): Promise<DueSoonSweepResult> {
+  if (!sweepAllowedIn(env)) return { skipped: 'not production' };
+
+  const admin = adminClient();
+  const today = now.toISOString().slice(0, 10);
+  const horizon = new Date(now.getTime() + DUE_SOON_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const cols = 'id, user_id, kind, status, invoice_number, client_name, total, amount_paid, due_date, valid_until, created_at, sent_at, first_sent_at, updated_at, approved_at';
+
+  const [dueInvoices, expiringQuotes] = await Promise.all([
+    // Unpaid is the planner's call: PostgREST cannot compare two columns.
+    admin.from('invoices').select(cols)
+      .eq('kind', 'invoice').eq('status', 'sent')
+      .is('deleted_at', null)
+      .not('due_date', 'is', null).gte('due_date', today).lte('due_date', horizon)
+      .limit(LIMIT),
+    admin.from('invoices').select(cols)
+      .eq('kind', 'quote').eq('status', 'sent')
+      .is('deleted_at', null).is('approved_at', null)
+      .not('valid_until', 'is', null).gte('valid_until', today).lte('valid_until', horizon)
+      .limit(LIMIT),
+  ]);
+
+  if (dueInvoices.error || expiringQuotes.error) {
+    const e = dueInvoices.error ?? expiringQuotes.error;
+    console.error('near-due documents: scan failed', e?.code ?? e?.message);
+    return { candidates: 0, written: 0 };
+  }
+
+  const rows = [...(dueInvoices.data ?? []), ...(expiringQuotes.data ?? [])] as Array<Record<string, unknown>>;
+  if (!rows.length) return { candidates: 0, written: 0 };
+
+  // A converted estimate keeps status 'sent', so the lock has to be read from
+  // the new invoice's converted_from (the planner still skips it, this bounds
+  // what it is asked about).
+  const quoteIds = rows.filter((r) => r.kind === 'quote').map((r) => String(r.id));
+  const converted = new Set<string>();
+  for (let i = 0; i < quoteIds.length; i += CONVERTED_BATCH) {
+    const { data: hits, error: convErr } = await admin
+      .from('invoices')
+      .select('converted_from')
+      .in('converted_from', quoteIds.slice(i, i + CONVERTED_BATCH))
+      .is('deleted_at', null);
+    if (convErr) {
+      console.error('near-due documents: converted lookup failed', convErr.code ?? convErr.message);
+      return { candidates: 0, written: 0 };
+    }
+    for (const h of hits ?? []) {
+      if (h.converted_from) converted.add(String(h.converted_from));
+    }
+  }
+
+  // Cards already posted do not take one of this run's three slots, so the ones
+  // the cap holds back still get their turn on a later run.
+  const ids = rows.map((r) => String(r.id));
+  const postedKeys = new Set<string>();
+  for (let i = 0; i < ids.length; i += CONVERTED_BATCH) {
+    const { data: hits, error: postedErr } = await admin
+      .from('events')
+      .select('dedupe_key')
+      .in('kind', ['invoice_due_soon', 'estimate_expiring_soon'])
+      .in('invoice_id', ids.slice(i, i + CONVERTED_BATCH));
+    if (postedErr) {
+      console.error('near-due documents: posted lookup failed', postedErr.code ?? postedErr.message);
+      return { candidates: 0, written: 0 };
+    }
+    for (const h of hits ?? []) {
+      if (h.dedupe_key) postedKeys.add(String(h.dedupe_key));
+    }
+  }
+
+  const owner = new Map(rows.map((r) => [String(r.id), String(r.user_id)]));
+  const docs: SweepDoc[] = rows.map((r) => ({
+    id: String(r.id),
+    ownerId: String(r.user_id),
+    kind: asKind(typeof r.kind === 'string' ? r.kind : null),
+    status: String(r.status ?? ''),
+    documentNumber: typeof r.invoice_number === 'number' ? r.invoice_number : null,
+    clientName: typeof r.client_name === 'string' ? r.client_name : '',
+    total: Number(r.total ?? 0),
+    amountPaid: Number(r.amount_paid ?? 0),
+    dueDate: typeof r.due_date === 'string' ? r.due_date : null,
+    validUntil: typeof r.valid_until === 'string' ? r.valid_until : null,
+    createdAt: typeof r.created_at === 'string' ? r.created_at : now.toISOString(),
+    sentAt: typeof r.sent_at === 'string' ? r.sent_at : null,
+    firstSentAt: typeof r.first_sent_at === 'string' ? r.first_sent_at : null,
+    updatedAt: typeof r.updated_at === 'string' ? r.updated_at : null,
+    approvedAt: typeof r.approved_at === 'string' ? r.approved_at : null,
+    deletedAt: null, // filtered in the queries above
+    converted: converted.has(String(r.id)),
+  }));
+
+  // Only the two cards this step owns; the planner still knows the rest.
+  const planned = decideSweep({ now, docs, postedKeys })
+    .filter((e) => e.kind === 'invoice_due_soon' || e.kind === 'estimate_expiring_soon');
 
   let written = 0;
   for (const e of planned) {
