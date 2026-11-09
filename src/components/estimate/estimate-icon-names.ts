@@ -26,6 +26,7 @@ export const ESTIMATE_ICON_NAMES = [
   'keyboard',
   'link_off',
   'open_in_new',
+  'refresh',
   'restart_alt',
   'schedule',
   'sms',
