@@ -38,6 +38,8 @@ import { PROMPT_MIN_DOCS, afterDismiss, afterShown, parsePromptState, shouldAskF
 import { FEEDBACK_REPLY, isFeedbackIntent } from '@/lib/feedback-intent';
 import { defaultDueDate, formatDate } from '@/lib/dates';
 import { userMessage } from '@/lib/errors';
+import { isGuest, signedOutGate } from '@/lib/chat-signed-out';
+import SignInChatButton from '@/components/chat/SignInChatButton';
 import PaywallModal, { type PaywallVariant } from '@/components/PaywallModal';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
@@ -141,6 +143,8 @@ interface Msg {
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
   /** Answer to "I have feedback": the bubble plus a button to Tell us about On It. */
   feedbackLink?: true;
+  /** Signed-out answer: the bubble plus a Sign in button (lib/chat-signed-out.ts). */
+  signInLink?: true;
   /** Suggestion chips under an answer (A1): each sends that text as a question. */
   chips?: string[];
   /** Never sent to /api/parse as history or carried into a new chat (feedback talk is not job context). */
@@ -1307,6 +1311,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       nearBottomRef.current = true;
       setMessages(next);
       setInput('');
+    }
+
+    // Signed out: one short answer with a Sign in button, before ANY local card
+    // (recap, commands, feedback) or AI call, so a guest never sees empty
+    // graphics. A retry of a failed send is never gated (it has its own bubble).
+    const gate = retryId ? ({ block: false } as const) : signedOutGate({ guest: isGuest({ profileLoaded, hasProfile: !!profile }) });
+    if (gate.block) {
+      setMessages((m) => [...m, aMsg(gate.reply, { signInLink: true, skipHistory: true })]);
+      return null;
     }
 
     if (feedbackAsk) {
@@ -4782,6 +4795,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+          ) : m.signInLink ? (
+            <div key={m.id} className="flex justify-start">
+              <div className="flex max-w-[82%] flex-col items-start gap-2">
+                <div className="whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                  {m.content}
+                </div>
+                <SignInChatButton />
               </div>
             </div>
           ) : m.feedbackLink ? (
