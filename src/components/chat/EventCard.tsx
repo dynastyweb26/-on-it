@@ -112,6 +112,42 @@ export default function EventCard({
     );
   }
 
+  // ── Partial payment: "Payment recorded" card with the bar (04 "in chat"). Send
+  // receipt is omitted by decision; Open invoice is the one action. ──
+  if (card.tint === 'partial' && card.bar) {
+    const name = (event.client_name ?? '').trim() || 'Your client';
+    const method = typeof event.meta?.method === 'string' ? event.meta.method : null;
+    const balance = typeof event.meta?.balance === 'number' ? event.meta.balance : null;
+    return (
+      <div className={`${fresh ? 'al-fade-up' : ''} ${className}`} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <AssistantAvatar />
+        <div
+          className={`al-wcard${tappable ? ' al-press' : ''}`}
+          onClick={open}
+          style={{ flex: 1, minWidth: 0, padding: 14, cursor: tappable ? 'pointer' : undefined }}
+        >
+          <div className="al-meta" style={{ marginBottom: 8 }}>Payment recorded · {clock(event.occurred_at)}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div className="al-tt">{typeof event.amount === 'number' ? money(event.amount) : ''} from {name}</div>
+            <span className="al-chip al-chip--sm" style={{ background: 'var(--al-gold-soft)', color: 'var(--al-gold-text)' }}>Partial</span>
+          </div>
+          <div className="al-pbar" style={{ marginTop: 10, height: 6 }}>
+            <div className="al-pfill al-anim" style={{ width: `${card.bar.pct}%`, animation: fresh ? 'al-grow .8s cubic-bezier(.2,.8,.2,1)' : undefined }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', font: "400 12.5px var(--font-inter), system-ui", color: 'var(--al-mute)', marginTop: 6 }}>
+            <span>{[event.document_number != null ? formatDocNumber(event.document_kind, event.document_number) : null, method].filter(Boolean).join(' · ')}</span>
+            {balance != null && <span><b style={{ color: 'var(--al-ink)' }}>{money(balance)}</b> left</span>}
+          </div>
+          {onOpen && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" data-card-action className="al-btn-w" style={{ height: 36, fontSize: 13.5, padding: '0 14px' }} onClick={onOpen}>Open invoice</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── Deposit: meta line, title + chip, detail (04 "in chat") ──
   if (card.chip) {
     return (

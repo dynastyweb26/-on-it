@@ -25,6 +25,7 @@ import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate'
 import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
 import type { BrandTheme } from '@/lib/colors';
 import { formatDate } from '@/lib/dates';
+import PaymentFigure, { type PaymentFigureMode } from '@/components/invoice-detail/PaymentFigure';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
@@ -1087,11 +1088,68 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     setUndoDelete(false);
   }
 
+  // Alive layer 04: the figure card for a partial, a closed and a deposit-paid
+  // invoice is the design's PaymentFigure. Everything else keeps the card below.
+  const depositCovered = inv.kind === 'invoice' && totals.depositAmount > 0
+    && amountPaid >= totals.depositAmount && !fullyPaid;
+  const momentMode: PaymentFigureMode | null =
+    inv.kind !== 'invoice' || isDraft ? null
+    : fullyPaid ? 'paid'
+    : depositCovered && amountPaid <= totals.depositAmount + 0.005 ? 'deposit'
+    : partiallyPaid ? 'partial'
+    : null;
+  const shortDate = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+  const realPayments = payments.filter((p) => !p.entry_type || p.entry_type === 'payment');
+  const latestPayment = [...realPayments].sort((a, b) => Date.parse(b.paid_at) - Date.parse(a.paid_at))[0] ?? null;
+  const sentOn = shortDate((inv as { first_sent_at?: string | null; sent_at?: string | null }).first_sent_at
+    ?? (inv as { sent_at?: string | null }).sent_at);
+  const fromEstimate = convertedFrom ? `from ${formatDocNumber('quote', convertedFrom.invoice_number)}` : null;
+  const depositLine = (() => {
+    const t = (inv as { deposit_type?: string | null }).deposit_type;
+    const v = Number((inv as { deposit_value?: number | null }).deposit_value);
+    const label = t === 'percentage' && Number.isFinite(v) && v > 0 ? `${v}% deposit` : `${money(totals.depositAmount)} deposit`;
+    return [label, fromEstimate].filter(Boolean).join(' · ');
+  })();
+
   return (
     <div className={`px-4 py-4 md:px-6${showPayBar ? ' pb-28' : ''}${embedded ? ' xl:px-0 xl:pt-0' : ''}`}>
-      <div className={`card relative mb-4 overflow-hidden${paidAnim ? ' onit-paid-dip' : ''}`}>
-        {paidAnim && <span aria-hidden className="onit-paid-stamp">PAID</span>}
+      {momentMode && (
+        <div className="mb-4">
+          <PaymentFigure
+            mode={momentMode}
+            docNumber={formatDocNumber(inv.kind, inv.invoice_number)}
+            clientName={inv.client_name}
+            subLine={momentMode === 'deposit' ? depositLine : ['Invoice', fromEstimate, sentOn ? `Sent ${sentOn}` : null].filter(Boolean).join(' · ')}
+            rightLine={momentMode === 'deposit' ? 'Balance on completion'
+              : momentMode === 'paid' ? `Closed ${shortDate(latestPayment?.paid_at) ?? ''}`.trim()
+              : `Due ${inv.due_date ? shortDate(inv.due_date as string) ?? '' : '—'}`}
+            total={totals.total}
+            amountPaid={amountPaid}
+            balance={totals.balanceRemaining}
+            depositAmount={totals.depositAmount}
+            lastPayment={latestPayment ? {
+              amount: Number(latestPayment.amount),
+              from: (inv.client_name ?? '').trim().split(/s+/)[0] || 'your client',
+              method: latestPayment.method ? methodLabel(latestPayment.method as PaymentMethod) : null,
+            } : null}
+            justRecorded={justRecorded ? {
+              amount: justRecorded.amount,
+              methodLabel: methodLabel(justRecorded.method as PaymentMethod),
+              dateLabel: shortDate(justRecorded.paidAt) ?? '',
+            } : null}
+            onUndo={() => { if (justRecorded) { const id = justRecorded.id; setJustRecorded(null); void handleDeletePayment(id); } }}
+            celebrate={paidAnim}
+            paidFrom={paidFrom}
+            format={money}
+            onViewPayments={() => document.getElementById('payments-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          />
+        </div>
+      )}
+      <div className={`card relative mb-4 overflow-hidden${paidAnim && !momentMode ? ' onit-paid-dip' : ''}`}>
+        {paidAnim && !momentMode && <span aria-hidden className="onit-paid-stamp">PAID</span>}
 
+        {!momentMode && (<>
         {/* Receipt top: status chip + doc number, then who and what. */}
         <div className="flex items-center justify-between gap-2">
           <span className={`status-chip ${chipClass}`}>
@@ -1192,6 +1250,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         {!partiallyPaid && totals.total !== totals.dueNow && (
           <div className="mt-1 text-xs text-on-surface-variant">Total {money(totals.total)}</div>
         )}
+        </>)}
 
         {/* Due date — editable on a draft, pinned once sent
             (lock_sent_invoice_fields), so the input can never no-op. */}
@@ -1291,31 +1350,24 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         )}
       </div>
       {payments.length > 0 && (
-        <div className="card mb-4">
-          <div className="mb-3 text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">
+        <div id="payments-card" className="al-card mb-4" style={{ padding: '16px 18px' }}>
+          <div className="al-meta" style={{ color: 'var(--al-ink2)', marginBottom: 10 }}>
             Payments
           </div>
-          <div className="space-y-2">
+          <div>
             {payments.map((p) => {
               // Stripe-sourced rows (paid on the pay page) are locked by RLS — a
               // delete would silently match 0 rows — so they get no delete
               // control. Refunds are handled in the seller's Stripe Dashboard.
               const locked = Boolean(p.stripe_checkout_session_id || p.stripe_event_id || (p.entry_type && p.entry_type !== 'payment'));
+              const label = ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount));
               return (
-                <div key={p.id} className="rounded-[14px] bg-surface-container-lowest">
-                  <div className="flex min-h-touch items-center gap-3 px-3 py-2">
-                    <span aria-hidden className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-surface-container text-primary">
-                      <Icon name={paymentIcon(p.method, p.entry_type)} size={18} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-on-surface">
-                        {ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount))}
-                      </span>
-                      <span className="block text-[13px] text-on-surface-variant">{new Date(p.paid_at).toLocaleDateString()}</span>
-                    </span>
-                    <span className="shrink-0 font-display text-base font-bold tabular-nums text-on-surface">
-                      {money(Number(p.amount))}
-                    </span>
+                <div key={p.id} className="flex items-center justify-between" style={{ fontSize: 14, padding: '6px 0', gap: 8 }}>
+                  <span className="min-w-0 truncate">
+                    {new Date(p.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {label}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <b className="tabular-nums">{money(Number(p.amount))}</b>
                     {!locked && (
                       <button
                         type="button"
@@ -1325,21 +1377,21 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
                         onClick={() => setDeletePaymentAsk({
                           id: p.id,
                           amount: Number(p.amount),
-                          label: ledgerEntryLabel(p.entry_type, p.method, Boolean(p.stripe_checkout_session_id), Number(p.amount)),
+                          label,
                           meta: new Date(p.paid_at).toLocaleDateString(),
                         })}
                       >
                         <Icon name="delete" size={16} />
                       </button>
                     )}
-                  </div>
+                  </span>
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center justify-between px-1 pb-0.5 pt-3 text-sm text-on-surface-variant">
-            <span>{fullyPaid ? 'Balance' : 'Still owed'}</span>
-            <span className={`font-display font-bold tabular-nums ${fullyPaid ? 'text-paid' : 'text-on-surface'}`}>
+          <div className="flex items-center justify-between text-sm" style={{ padding: '6px 0', color: '#7a7166', borderTop: '1px dashed var(--al-rule)' }}>
+            <span>{fullyPaid ? 'Balance' : 'Remaining'}</span>
+            <span className={`tabular-nums ${fullyPaid ? 'font-bold text-paid' : ''}`}>
               {money(totals.balanceRemaining)}
             </span>
           </div>
