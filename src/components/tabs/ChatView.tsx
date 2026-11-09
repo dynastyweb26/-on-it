@@ -4806,6 +4806,18 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ]}
               />
             </div>
+          ) : m.undoProposal ? (
+            // Cancelled: the same card collapsed to one line with Undo (design 05).
+            <PaymentProposalCard
+              key={m.id}
+              cancelled
+              proposal={m.undoProposal}
+              onConfirm={async () => ({ ok: false as const, message: 'Undo the cancel first.' })}
+              onCancel={() => {}}
+              onUndo={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
+                : x)))}
+            />
           ) : m.payProposal ? (
             <PaymentProposalCard
               key={m.id}
@@ -4888,6 +4900,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           ) : m.payCard ? (
             <PaymentCard
               key={m.id}
+              animate={!restoredMsgIdsRef.current.has(m.id)}
               card={m.payCard}
               onOpen={(invoiceId) => router.push(`/invoices/${invoiceId}`)}
               onUndo={async (paymentId) => {
@@ -4945,19 +4958,6 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   ? m.content
                   : <StreamText text={m.content} />}
               </div>
-            </div>
-          )}
-          {m.undoProposal && (
-            <div className="mt-1 flex justify-start pl-8">
-              <button
-                type="button"
-                className="min-h-touch text-[13px] font-semibold text-primary underline transition active:opacity-60"
-                onClick={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
-                  ? { ...x, undoProposal: undefined, payProposal: m.undoProposal, content: 'Check this and confirm.' }
-                  : x)))}
-              >
-                Undo
-              </button>
             </div>
           )}
           {m.id === cardAnchorId && invoiceCard}
