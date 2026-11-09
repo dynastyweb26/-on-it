@@ -79,6 +79,36 @@ export function eventDedupeKey(kind: string, subject: string, bucket: string): s
   return `${kind}:${subject}:${bucket}`.slice(0, 200);
 }
 
+/**
+ * Item 24: the estimate_signed card.
+ *
+ * The RPC result already carries what the card needs, so no read is added to
+ * the signature path. One card per estimate, EVER: the estimate can only be
+ * signed once (`already_approved` comes back as ok:false), and the bare key
+ * without a bucket makes a retry of the same signature a duplicate.
+ */
+export interface EstimateSignedResult {
+  estimate_id: string;
+  user_id: string;
+  invoice_number: number;
+  client_name: string | null;
+  total: number | string | null;
+}
+
+export function estimateSignedEvent(r: EstimateSignedResult): SweepEvent {
+  const total = Number(r.total ?? 0);
+  return {
+    kind: 'estimate_signed',
+    invoiceId: r.estimate_id,
+    documentKind: 'quote',
+    documentNumber: typeof r.invoice_number === 'number' ? r.invoice_number : null,
+    clientName: r.client_name ?? '',
+    amount: Number.isFinite(total) && total > 0 ? total : null,
+    dedupeKey: `estimate_signed:${r.estimate_id}`,
+    meta: {},
+  };
+}
+
 /** Which events belong in the live thread: everything since this chat started,
  *  plus anything still unseen (so a chat TTL never swallows a card). */
 export function eventVisibleInChat(event: Pick<EventRow, 'occurred_at' | 'seen_at'>, chatStartedAt: string): boolean {

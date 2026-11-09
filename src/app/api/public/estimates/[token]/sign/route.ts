@@ -12,6 +12,9 @@
 //   429 rate limited
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
+import { insertEvent } from '@/lib/events-server';
+import { recordEstimateSigned } from '@/lib/events-signed';
 import { CONSENT_VERSION, CONSENT_V1 } from '@/lib/estimates/consent';
 import { normalizeSignature } from '@/lib/estimates/signature';
 import { isEstimateTokenShape } from '@/lib/estimates/public';
@@ -127,6 +130,19 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         signerName: sig.signerName,
       });
     }
+
+    // Item 24: the card in the thread. Read the session only to keep the owner's
+    // own signature out of their feed; a signed-out client is the normal case.
+    // already_approved arrives as ok:false above, so it can never reach here,
+    // and recordEstimateSigned never throws — a card failure must not fail a
+    // signature the database already committed.
+    let sessionUserId: string | null = null;
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      sessionUserId = user?.id ?? null;
+    } catch { /* signed out is normal */ }
+    await recordEstimateSigned(result, sessionUserId, insertEvent);
 
     return NextResponse.json(
       { ok: true, signature: sig, contentHash: result.content_hash },
