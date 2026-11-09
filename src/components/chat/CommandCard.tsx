@@ -1,15 +1,20 @@
 'use client';
 
-// Item 11: the "What I can do" card. A LOCAL assistant card (RULES): its rows
-// are a constant, it is never an event, and it never reaches /api/parse.
-//
-// Anatomy from spec 08: a title, one line that says what to do with it, then
-// groups of rows. A row is a name plus the phrase it will drop into the
-// composer — tapping the row is a start, never a send.
+// The "What I can do" card (alive layer 08). A LOCAL assistant card: its rows are
+// a constant, it is never an event, and it never reaches /api/parse. In the
+// assistant's lane (avatar + #FFFDF9 card r18). A row is a tinted icon tile, a
+// name, the quoted phrase it will drop into the composer, and a south-west
+// arrow: tapping a row is a start, never a send. Pressed row: #F2E6C2, 90ms.
+import Icon from '@/components/Icon';
+import type { IconName } from '@/components/icon-names';
+import { AssistantAvatar } from '@/components/chat/EventCard';
+import '@/components/alive/alive.css';
+
 export interface CommandRow {
   name: string;
   /** The phrase the row puts in the composer, caret at the end. */
   ex: string;
+  icon: IconName;
 }
 
 export interface CommandGroup {
@@ -27,28 +32,33 @@ export default function CommandCard({
   className?: string;
 }) {
   return (
-    <div className={`w-full rounded-2xl border border-outline-variant/60 bg-surface-container px-3 py-3 ${className}`}>
-      <p className="px-1 font-display text-[18px] font-extrabold leading-tight text-on-background">What I can do</p>
-      <p className="mb-2 px-1 text-[13px] leading-snug text-on-surface-variant">Tap one to start. Edit it, then send.</p>
-      <div className="flex flex-col gap-3">
+    <div className={`al-fade-up ${className}`} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <AssistantAvatar />
+      <div className="al-wcard" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 14px 4px' }}>
+          <div className="al-h" style={{ fontSize: 18 }}>What I can do</div>
+          <div className="al-td">Tap one to start. Edit it, then send.</div>
+        </div>
         {groups.map((group) => (
-          <div key={group.title}>
-            <p className="px-1 pb-1 text-[10.5px] font-bold uppercase tracking-[.08em] text-on-surface-variant/80">
-              {group.title}
-            </p>
-            <div className="flex flex-col">
-              {group.items.map((item) => (
-                <button
-                  key={`${group.title}:${item.name}`}
-                  type="button"
-                  onClick={() => onPick(item.ex)}
-                  className="flex flex-col items-start rounded-xl px-2 py-1.5 text-left transition active:bg-primary-container/70"
-                >
-                  <span className="text-[14px] font-semibold leading-snug text-on-surface">{item.name}</span>
-                  <span className="text-[12.5px] leading-snug text-on-surface-variant">{item.ex}</span>
-                </button>
-              ))}
-            </div>
+          <div key={group.title} style={{ padding: '8px 0 2px', borderTop: '1px solid #f3eadb' }}>
+            <div className="al-meta" style={{ padding: '0 14px 2px' }}>{group.title}</div>
+            {group.items.map((item) => (
+              <button
+                key={`${group.title}:${item.name}`}
+                type="button"
+                onClick={() => onPick(item.ex)}
+                className="al-row"
+              >
+                <div className="al-tile al-tile--30" style={{ background: 'var(--al-gold-soft)', color: 'var(--al-gold-text)' }}>
+                  <Icon name={item.icon} size={17} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                  <div style={{ font: '600 14px var(--font-inter), system-ui', color: 'var(--al-ink)' }}>{item.name}</div>
+                  <div style={{ fontSize: 12.5, color: '#7a7166', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>&ldquo;{item.ex}&rdquo;</div>
+                </div>
+                <span style={{ color: 'var(--al-faint)', display: 'inline-flex' }}><Icon name="south_west" size={18} /></span>
+              </button>
+            ))}
           </div>
         ))}
       </div>

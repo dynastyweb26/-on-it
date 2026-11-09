@@ -67,9 +67,22 @@ test('normal business messages are not the command', () => {
 
 // ── The card's rows ────────────────────────────────────────────────────────
 
-test('the card has spec 08 groups and no Recaps group', () => {
-  assert.deepEqual(COMMAND_GROUPS.map((g) => g.title), ['Create', 'Money', 'Clients']);
-  assert.ok(!COMMAND_GROUPS.some((g) => /recap/i.test(g.title)));
+// Recaps are in scope now (owner decision 2026-11-09), so the card has the
+// design's fourth group. Two design rows stay out because no path backs them.
+test('the card has the design groups, including Recaps', () => {
+  assert.deepEqual(COMMAND_GROUPS.map((g) => g.title), ['Create', 'Money', 'Clients', 'Recaps']);
+});
+
+test('every row has an icon and the designs phrase', () => {
+  const rows = COMMAND_GROUPS.flatMap((g) => g.items);
+  assert.ok(rows.every((r) => r.icon));
+  assert.ok(rows.some((r) => r.ex === 'Ruth paid $25 Zelle'));
+  assert.ok(rows.some((r) => r.ex === 'How did today go?'));
+  assert.ok(rows.some((r) => r.ex === "How'd I do this week?"));
+});
+
+test('the starter chips are the three design phrases', () => {
+  assert.deepEqual([...STARTER_CHIPS], ['Estimate for Ruth, deck repair, $800', 'Ruth paid $25 Zelle', 'Who owes me money?']);
 });
 
 test('every row carries a name and a phrase to drop into the input', () => {

@@ -4,36 +4,41 @@
 // assistant card (RULES): its rows are this constant, it is never an event, and
 // the message that triggers it never reaches /api/parse.
 //
-// Rows are spec 08's groups minus Recaps (recaps are out of scope for this
-// phase), minus the rows whose phrase has no working path yet (2026-11-08 row
-// audit). Each row carries the phrase it drops into the composer.
+// Rows are spec 08's groups, minus the two whose phrase has no working path yet
+// (noted inline). Each row carries the phrase it drops into the composer.
 import type { CommandGroup } from '@/components/chat/CommandCard';
 
 export const COMMAND_GROUPS: CommandGroup[] = [
   {
     title: 'Create',
     items: [
-      { name: 'New estimate', ex: 'Estimate for Ruth, deck repair, $800' },
-      { name: 'New invoice', ex: 'Invoice Maryam $150 for the door install' },
+      { name: 'New estimate', ex: 'Estimate for Ruth, deck repair, $800', icon: 'edit_document' },
+      { name: 'New invoice', ex: 'Invoice Maryam $150 for the door install', icon: 'receipt_long' },
     ],
   },
   {
     title: 'Money',
     items: [
-      { name: 'Record a payment', ex: 'Ruth paid $25 Zelle' },
-      // Hidden until an owner reminder action exists (not planned): "Remind
-      // Brandon about his invoice" routes to /api/parse as a new job.
-      // { name: 'Send a reminder', ex: 'Remind Brandon about his invoice' },
-      { name: 'Who owes me', ex: 'Who owes me money?' },
+      { name: 'Record a payment', ex: 'Ruth paid $25 Zelle', icon: 'payments' },
+      // In the design, hidden here until a path exists: "Send a reminder" ("Remind
+      // Brandon about his invoice") routes to /api/parse as a new job. Reminders
+      // reuse Request balance on the invoice, so no chat phrase can run one.
+      { name: 'Who owes me', ex: 'Who owes me money?', icon: 'receipt_long' },
     ],
   },
   {
     title: 'Clients',
     items: [
-      { name: 'Add a client', ex: 'Add Joe Ortiz, 945-555-0134' },
-      // Hidden: "What's Ruth's balance?" routes to /api/parse (a new job) and
-      // /api/ask has no per-client lookup. Phase 5 item 24 unlocks it.
-      // { name: 'Look up a client', ex: "What's Ruth's balance?" },
+      { name: 'Add a client', ex: 'Add Joe Ortiz, 945-555-0134', icon: 'person_add' },
+      // In the design, hidden here: "Look up a client" ("What's Ruth's balance?")
+      // has no per-client lookup behind it (/api/ask). Shown rows must work.
+    ],
+  },
+  {
+    title: 'Recaps',
+    items: [
+      { name: 'Daily recap', ex: 'How did today go?', icon: 'light_mode' },
+      { name: 'Weekly recap', ex: "How'd I do this week?", icon: 'calendar_month' },
     ],
   },
 ];
@@ -44,9 +49,9 @@ export const COMMAND_LEAD = 'Here’s what I can do.';
 /** Empty-state hint (item 12). */
 export const COMMAND_HINT = 'Send ? to see everything I can do';
 
-/** The three starter chips. They are phrases to SEND, not row phrases to edit,
- *  so they read as a first message rather than an example. */
-export const STARTER_CHIPS = ['Invoice a client', 'Who owes me money?', 'Record a payment'];
+/** The three starter chips (design 08). A chip FILLS the composer so it can be
+ *  edited; it never sends. */
+export const STARTER_CHIPS = ['Estimate for Ruth, deck repair, $800', 'Ruth paid $25 Zelle', 'Who owes me money?'];
 
 // ── Matching ───────────────────────────────────────────────────────────────
 

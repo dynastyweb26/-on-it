@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
 import ChatNudgeCard from '@/components/ChatNudgeCard';
-import EventCard, { AssistantLine } from '@/components/chat/EventCard';
+import EventCard, { AssistantAvatar, AssistantLine } from '@/components/chat/EventCard';
 import { useChatEventFeed } from '@/components/chat/useChatEventFeed';
 import { runConvert } from '@/components/alive/useConvert';
 import EstimateLinkActions from '@/components/estimates/EstimateLinkActions';
@@ -4628,26 +4628,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
         )}
         {!hydrated && !skeletonTimedOut ? <ChatRestoreSkeleton /> : messages.map((m, mi) => (
         <Fragment key={m.id}>{feedSplit.between[m.id]?.map((e) => renderEvent(e))}{
-          // Item 12: the empty state. Three starter chips and the hint sit under
-          // the greeting and go with the first message.
-          mi === 0 && messages.length === 1 && (
-            <div className="flex flex-col gap-2 pb-1 pt-1">
-              <div className="flex flex-wrap gap-2">
-                {STARTER_CHIPS.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => { if (!phase) void send(chip); }}
-                    className="rounded-full border border-outline-variant bg-surface-container px-3.5 py-2 text-[13.5px] font-semibold text-on-surface transition active:scale-95 disabled:opacity-40"
-                    disabled={phase !== null}
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-              <p className="px-1 text-[12.5px] leading-snug text-on-surface-variant">{COMMAND_HINT}</p>
-            </div>
-          )}{
+          // (the empty-state chips render after the greeting; see below)
+          null}{
           m.quiet ? (
             // Free-tier usage line: plain secondary text, no bubble.
             <p className="px-1 text-sm text-on-surface-variant">{m.content}</p>
@@ -4738,15 +4720,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
             />
           ) : m.ownerCard ? (
             // The outcome of an owner action, with the one thing to do next.
-            <div className="card">
-              <p className="text-body-md">{m.ownerCard.title}</p>
-              <button
-                type="button"
-                className="btn-primary mt-3 w-full"
-                onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
-              >
-                Open
-              </button>
+            <div className="al-fade-up" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <AssistantAvatar />
+              <div className="al-wcard" style={{ flex: 1, minWidth: 0, padding: '12px 14px' }}>
+                <div className="al-trow">
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--al-gold)', display: 'grid', placeItems: 'center', flex: 'none' }}>
+                    <Icon name="check" size={17} />
+                  </div>
+                  <div className="al-tt" style={{ flex: 1 }}>{m.ownerCard.title}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="al-btn-w"
+                    style={{ height: 36, fontSize: 13.5, flex: 1 }}
+                    onClick={() => router.push(`/invoices/${m.ownerCard?.invoiceId ?? ''}`)}
+                  >
+                    Open
+                  </button>
+                </div>
+              </div>
             </div>
           ) : m.action === 'new-chat' ? (
             // Locked-conversation refusal: the bubble plus a tappable "New chat"
@@ -5017,6 +5010,34 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
         </Fragment>
         ))}
+
+        {/* Design 08: the empty state sits AFTER the greeting, indented under the
+            avatar. A chip fills the input (never sends); chips and hint go with the
+            first message. */}
+        {hydrated && messages.length === 1 && (
+          <div className="al-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 36, alignItems: 'flex-start' }}>
+            {STARTER_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                className="al-starter"
+                disabled={phase !== null}
+                onClick={() => {
+                  setInput(chip);
+                  const el = inputRef.current;
+                  if (el) {
+                    el.focus();
+                    requestAnimationFrame(() => el.setSelectionRange(chip.length, chip.length));
+                  }
+                }}
+              >
+                <Icon name="auto_awesome" size={18} className="text-[#b8961e]" />
+                {chip}
+              </button>
+            ))}
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#7a7166' }}>{COMMAND_HINT}</p>
+          </div>
+        )}
 
         {/* Alive layer: cards that belong after the last message. */}
         {feedSplit.trailing.map((e) => renderEvent(e))}
