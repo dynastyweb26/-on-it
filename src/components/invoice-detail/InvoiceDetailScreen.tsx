@@ -22,7 +22,9 @@ import { createClient } from '@/lib/supabase/client';
 import { buildTheme, explicitColorRoles } from '@/lib/colors';
 import { InvoiceTemplate, TemplateKey, InvoiceRenderData } from '@/lib/pdf/templates';
 import { elementToPdf, invoiceFilename, downloadFile } from '@/lib/pdf/generate';
-import { sharePdf, shareText, type ShareResult } from '@/lib/pdf/share';
+import { sharePdf, shareLinkOnly, shareText, type ShareResult } from '@/lib/pdf/share';
+import { pdfSendPhase } from '@/lib/pdf/send-state';
+import PdfSendCard from '@/components/invoice-detail/PdfSendCard';
 import type { BrandTheme } from '@/lib/colors';
 import { formatDate } from '@/lib/dates';
 import PaymentFigure, { type PaymentFigureMode } from '@/components/invoice-detail/PaymentFigure';
@@ -191,6 +193,9 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   // was built from, or file=null when that build failed. The nonce forces a
   // rebuild after a failure. shareError: a blocked/failed share, shown inline.
   const [prebuilt, setPrebuilt] = useState<{ sig: string; file: File | null } | null>(null);
+  // Design 04 PDF + send: Send stays live while the PDF builds and queues the send.
+  const [queuedSend, setQueuedSend] = useState(false);
+  const [justSentAt, setJustSentAt] = useState<string | null>(null);
   const [prebuildNonce, setPrebuildNonce] = useState(0);
   const [shareError, setShareError] = useState<string | null>(null);
   // P-66 / S1 + S1b: the share went out but POST /send did not. The sheet says
@@ -730,6 +735,40 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     void settleShare(sharePdf(file, shareText(lead, inv.client_name, shareUrl)), file, isBalanceRequest);
   }
 
+  // Send invoice (design 04). While the PDF builds the tap is queued, not dead:
+  // the moment the file is ready the same one-tap share runs. After a failed
+  // build the tap rebuilds, exactly as Share PDF did.
+  function sendInvoice() {
+    if (busy || queuedSend) return;
+    if (!shareReady) { setQueuedSend(true); return; }
+    resend();
+  }
+
+  // "Send link only": the fallback when the PDF cannot be built. Never blocks.
+  async function sendLinkOnly() {
+    if (busy || sendingRef.current) return;
+    if (!shareUrl) { setShareError('This invoice has no link yet, so there is nothing to send.'); return; }
+    sendingRef.current = true;
+    setBusy(true);
+    setShareError(null);
+    try {
+      const r = await shareLinkOnly(shareText(docNoun(inv.kind), inv.client_name, shareUrl), shareUrl);
+      if (r.status === 'cancelled') return;
+      if (r.status === 'failed') { setShareError(`${userMessage({ name: r.name })} Tap Send link only to try again.`); return; }
+      if (r.status === 'unsupported') {
+        try { await navigator.clipboard.writeText(shareUrl); setShareError('No share sheet here, so the link was copied. Paste it into a message.'); } catch { setShareError('Couldn\u2019t open a share sheet or copy the link.'); return; }
+      }
+      const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' }).catch(() => null);
+      const out = await res?.json().catch(() => null) as { invoice?: Record<string, unknown> } | null;
+      if (res?.ok && out?.invoice) { setInv(out.invoice); setJustSentAt(new Date().toISOString()); }
+      else if (res?.status === 409) setShareError('This invoice is void and cannot be sent.');
+      else setShareError('The link went out, but I couldn\u2019t mark the invoice sent. Check your connection and try again.');
+    } finally {
+      sendingRef.current = false;
+      setBusy(false);
+    }
+  }
+
   // After the one share call. A cancel is silent (no message, no status change;
   // a draft stays a draft). A failure says so with the error name, keeping the
   // file so the next tap re-shares it synchronously. A completed share (or a
@@ -742,7 +781,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       const r = await pending;
       if (r.status === 'cancelled') return;
       if (r.status === 'failed') {
-        setShareError(`${userMessage({ name: r.name })} Tap ${isBalanceRequest ? 'Request balance' : 'Share PDF'} to try again.`);
+        setShareError(`${userMessage({ name: r.name })} Tap ${isBalanceRequest ? 'Request balance' : 'Send invoice'} to try again.`);
         return;
       }
       if (r.status === 'unsupported') downloadFile(file);
@@ -781,6 +820,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
       setUnsentShareOpen(false);
       forgetUnsentShare(inv.id);
       if (body?.invoice) setInv(body.invoice);
+      setJustSentAt(new Date().toISOString());
       const firstSend = body?.firstSend === true;
 
       // Archive to the Vault, the same way a chat send does (best-effort — a
@@ -1027,10 +1067,6 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
     disabled?: boolean; tone?: 'good'; onClick: () => void;
   };
   const quickActions: QuickAction[] = [
-    {
-      key: 'share', label: shareLabel('Share PDF'), icon: 'attach_file',
-      disabled: busy || !shareReady, onClick: () => resend(),
-    },
     ...(inv.kind === 'invoice' && !isDraft && inv.public_token
       ? [{
           key: 'link', label: linkCopied ? 'Copied' : 'Pay link',
@@ -1282,6 +1318,33 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
             )}
           </div>
         )}
+        {inv.kind === 'invoice' && !fullyPaid && (
+          <div className="mt-3">
+            <PdfSendCard
+              phase={pdfSendPhase({ settled: shareReady, hasFile: !!shareFile, sending: busy || queuedSend, sent: !isDraft || justSentAt != null })}
+              fileName={`${formatDocNumber(inv.kind, inv.invoice_number)}.pdf`}
+              file={shareFile}
+              queued={queuedSend}
+              ready={shareReady}
+              onQueuedReady={() => { setQueuedSend(false); if (shareFile) resend(); }}
+              clientFirst={(inv.client_name ?? '').trim().split(/\s+/)[0] || null}
+              sentLabel={(() => {
+                const raw = justSentAt ?? (inv as { sent_at?: string | null }).sent_at ?? null;
+                if (!raw) return null;
+                const d = new Date(raw);
+                if (Number.isNaN(d.getTime())) return null;
+                const t = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+                return d.toDateString() === new Date().toDateString() ? t : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${t}`;
+              })()}
+              errorSub={typeof navigator !== 'undefined' && navigator.onLine === false ? 'You\u2019re offline. Your invoice is safe.' : 'Weak signal. Your invoice is safe.'}
+              onSend={sendInvoice}
+              onRetry={() => { setShareError(null); setPrebuilt(null); setPrebuildNonce((n) => n + 1); }}
+              onLinkOnly={() => void sendLinkOnly()}
+              onPreview={() => void viewPdf()}
+            />
+          </div>
+        )}
+
         {/* Four equal quick-action tiles. */}
         <div
           className="mt-3 grid gap-2"
