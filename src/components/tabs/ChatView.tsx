@@ -5,7 +5,7 @@
    Works for guests (5 free parses), saves for signed-in users.
    Text mode is silent. The gold circle is a "+": Mic starts a voice session
    (the circle is then the mic/stop button until the session ends).  */
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
@@ -101,7 +101,7 @@ import {
 } from '@/lib/popups/decision';
 import { chatStartedAtFrom, eventContextLine, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
-import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
+import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, matchCommand, pickStarterChips } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expenses';
 import type { ExtractResult, LineItem } from '@/lib/ai';
@@ -736,6 +736,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // the one way back: the in-app payment-alerts switch.
   const [alertsFailed, setAlertsFailed] = useState(false);
   // Board L2/L3/S5: the guest or signed-out wall is a card. Sign-in is a tap.
+  // Design 08 starter chips: a fresh random three from the full "What I can do"
+  // list each time a greeting starts (a new chat has a new greeting id).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const starterChips = useMemo(() => pickStarterChips(), [messages[0]?.id]);
   const [signInAsk, setSignInAsk] = useState<{ kind: SignInKind; headline?: string | null } | null>(null);
   // "Got a minute?" card (FEEDBACK-SPEC.md section 4); see showFeedbackCard.
   const [feedbackPrompt, setFeedbackPrompt] = useState(false);
@@ -5136,7 +5140,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             first message. */}
         {hydrated && messages.length === 1 && (
           <div className="al-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 36, alignItems: 'flex-start' }}>
-            {STARTER_CHIPS.map((chip) => (
+            {starterChips.map((chip) => (
               <button
                 key={chip}
                 type="button"

@@ -49,9 +49,43 @@ export const COMMAND_LEAD = 'Here’s what I can do.';
 /** Empty-state hint (item 12). */
 export const COMMAND_HINT = 'Send ? to see everything I can do';
 
-/** The three starter chips (design 08). A chip FILLS the composer so it can be
- *  edited; it never sends. */
-export const STARTER_CHIPS = ['Estimate for Ruth, deck repair, $800', 'Ruth paid $25 Zelle', 'Who owes me money?'];
+/** Every phrase "What I can do" offers: the one pool the starter chips draw from. */
+export const STARTER_POOL: readonly string[] = COMMAND_GROUPS.flatMap((g) => g.items.map((i) => i.ex));
+
+/** How many sparkle chips show after the greeting. */
+export const STARTER_COUNT = 3;
+
+/** Small seedable PRNG (mulberry32), so a pick is reproducible in a test. */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * The starter chips (design 08): `count` distinct phrases drawn at random from
+ * the full "What I can do" list. A chip FILLS the composer so it can be edited;
+ * it never sends. Pass `seededRandom(n)` for a reproducible pick; the default
+ * is Math.random. Never returns duplicates or more than the pool holds.
+ */
+export function pickStarterChips(
+  rand: () => number = Math.random,
+  count: number = STARTER_COUNT,
+  pool: readonly string[] = STARTER_POOL,
+): string[] {
+  const bag = [...new Set(pool)];
+  const n = Math.max(0, Math.min(count, bag.length));
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rand() * (i + 1)));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag.slice(0, n);
+}
 
 // ── Matching ───────────────────────────────────────────────────────────────
 

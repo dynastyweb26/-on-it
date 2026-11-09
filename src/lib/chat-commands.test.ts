@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COMMAND_GROUPS, STARTER_CHIPS, matchCommand } from './chat-commands';
+import { COMMAND_GROUPS, STARTER_COUNT, STARTER_POOL, matchCommand, pickStarterChips, seededRandom } from './chat-commands';
 
 // ── The command fires ──────────────────────────────────────────────────────
 
@@ -81,10 +81,6 @@ test('every row has an icon and the designs phrase', () => {
   assert.ok(rows.some((r) => r.ex === "How'd I do this week?"));
 });
 
-test('the starter chips are the three design phrases', () => {
-  assert.deepEqual([...STARTER_CHIPS], ['Estimate for Ruth, deck repair, $800', 'Ruth paid $25 Zelle', 'Who owes me money?']);
-});
-
 test('every row carries a name and a phrase to drop into the input', () => {
   for (const group of COMMAND_GROUPS) {
     assert.ok(group.items.length > 0, group.title);
@@ -97,9 +93,36 @@ test('every row carries a name and a phrase to drop into the input', () => {
   }
 });
 
-test('there are exactly three starter chips and a hint to match', () => {
-  assert.equal(STARTER_CHIPS.length, 3);
-  for (const chip of STARTER_CHIPS) {
-    assert.equal(matchCommand(chip), false, chip);
+test('the starter pool is every "What I can do" phrase', () => {
+  assert.deepEqual([...STARTER_POOL], COMMAND_GROUPS.flatMap((g) => g.items.map((i) => i.ex)));
+  for (const chip of STARTER_POOL) assert.equal(matchCommand(chip), false, chip);
+});
+
+test('a pick is three distinct phrases from the pool', () => {
+  for (let seed = 0; seed < 50; seed++) {
+    const pick = pickStarterChips(seededRandom(seed));
+    assert.equal(pick.length, STARTER_COUNT);
+    assert.equal(new Set(pick).size, pick.length);
+    for (const c of pick) assert.ok(STARTER_POOL.includes(c), c);
   }
+});
+
+test('seeded picks repeat; different seeds vary', () => {
+  assert.deepEqual(pickStarterChips(seededRandom(7)), pickStarterChips(seededRandom(7)));
+  const seen = new Set<string>();
+  for (let seed = 0; seed < 60; seed++) seen.add(pickStarterChips(seededRandom(seed)).join('|'));
+  assert.ok(seen.size > 5, 'not the same fixed three');
+});
+
+test('over many picks every phrase in the list can appear', () => {
+  const seen = new Set<string>();
+  for (let seed = 0; seed < 200; seed++) pickStarterChips(seededRandom(seed)).forEach((c) => seen.add(c));
+  assert.equal(seen.size, STARTER_POOL.length);
+});
+
+test('the pick never exceeds the pool and handles edge counts', () => {
+  assert.equal(pickStarterChips(seededRandom(1), 99).length, STARTER_POOL.length);
+  assert.deepEqual(pickStarterChips(seededRandom(1), 0), []);
+  assert.deepEqual(pickStarterChips(seededRandom(1), 3, []), []);
+  assert.deepEqual(pickStarterChips(() => 0.999999, 2, ['a', 'b', 'c']).length, 2);
 });

@@ -18,3 +18,9 @@ test('send() gates a guest before feedback, recap, commands and /api/parse', () 
 test('the signed-out message renders the Sign in button', () => {
   assert.match(chat, /m\.signInLink \? \([\s\S]{0,600}<SignInChatButton \/>/);
 });
+
+test('the empty-state chips are a random pick, not a fixed list', () => {
+  assert.match(chat, /useMemo\(\(\) => pickStarterChips\(\)/);
+  assert.match(chat, /starterChips\.map\(/);
+  assert.doesNotMatch(chat, /STARTER_CHIPS/);
+});
