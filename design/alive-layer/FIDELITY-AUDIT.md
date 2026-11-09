@@ -1,5 +1,5 @@
 # Alive Layer fidelity audit (branch feat/alive-fidelity)
-n> The tables below are the PRE-BUILD audit (what differed before the work). The result of the build, element by element, is in "Final comparison" at the end of this file.
+> The tables below are the PRE-BUILD audit (what differed before the work). The result of the build, element by element, is in "Final comparison" at the end of this file.
 
 Source of truth: `design/alive-layer/On_It_Alive_Layer.dc.html`, sections 01-08. Base: `feat/alive-fidelity` merged with origin/main 9b9ec0ab (contains af5cfe21, events-server.ts, EventToastHost).
 Marks: MATCH / DIFF / UNVERIFIED. UNVERIFIED = code not opened, or not measurable without the preview. Nothing is claimed done on trust.
