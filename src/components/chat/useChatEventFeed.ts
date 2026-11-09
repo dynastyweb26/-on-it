@@ -11,7 +11,7 @@
 //   visibility  → catch-up query
 //   realtime    → a new row for THIS user is prepended as it lands
 //   rendered    → seen_at is stamped, so the card retires with the chat
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { eventVisibleInChat, type EventRow } from '@/lib/events';
 
@@ -22,12 +22,19 @@ const SWEEP_EVERY_MS = 6 * 3600e3;
 const COLUMNS =
   'id, user_id, kind, actor, invoice_id, document_kind, document_number, client_name, amount, meta, dedupe_key, seen_at, acted_at, acted_result, occurred_at';
 
-export function useChatEventFeed(): EventRow[] {
+export function useChatEventFeed(chatStartedAt: string): EventRow[] {
   const [userId, setUserId] = useState<string | null>(null);
-  const [events, setEvents] = useState<EventRow[]>([]);
-  // The chat's start: events before it are only kept while unseen.
-  const chatStartedAt = useRef(new Date().toISOString());
+  const [fetched, setFetched] = useState<EventRow[]>([]);
   const seenSent = useRef(new Set<string>());
+  // `chatStartedAt` is the SAVED thread's start (its oldest message), not the
+  // moment this page mounted: a refresh restores the chat, and the seen cards
+  // that landed during it must come back with it. Visibility is decided at read
+  // time, so the start moving (the restore lands after the first render) just
+  // re-filters what was already fetched.
+  const events = useMemo(
+    () => fetched.filter((e) => eventVisibleInChat(e, chatStartedAt)),
+    [fetched, chatStartedAt],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -52,8 +59,7 @@ export function useChatEventFeed(): EventRow[] {
         .order('occurred_at', { ascending: false })
         .limit(LIMIT);
       if (error) return;
-      setEvents(((data ?? []) as unknown as EventRow[])
-        .filter((e) => eventVisibleInChat(e, chatStartedAt.current)));
+      setFetched((data ?? []) as unknown as EventRow[]);
     } catch { /* offline: the next focus retries */ }
   }, [userId]);
 
@@ -88,7 +94,7 @@ export function useChatEventFeed(): EventRow[] {
         (payload) => {
           const row = payload.new as unknown as EventRow;
           if (!row?.id) return;
-          setEvents((prev) => (prev.some((e) => e.id === row.id) ? prev : [row, ...prev].slice(0, LIMIT)));
+          setFetched((prev) => (prev.some((e) => e.id === row.id) ? prev : [row, ...prev].slice(0, LIMIT)));
         },
       )
       .subscribe();

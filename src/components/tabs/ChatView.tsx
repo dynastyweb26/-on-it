@@ -92,7 +92,7 @@ import {
   clientChoiceCopy, isMicPermissionError, micBlockedCard, replaceTemplateCopy, reviseSheetCopy,
   unfinishedFigure, type MicBlocked,
 } from '@/lib/popups/decision';
-import { eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
+import { chatStartedAtFrom, eventAction, splitEventsByMessage, type EventAction, type EventRow } from '@/lib/events';
 import CommandCard from '@/components/chat/CommandCard';
 import { COMMAND_GROUPS, COMMAND_HINT, COMMAND_LEAD, STARTER_CHIPS, matchCommand } from '@/lib/chat-commands';
 import { OWNER_CARD_EVENT, drainOwnerCards, type OwnerCard } from '@/lib/owner-cards';
@@ -4157,7 +4157,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // before the first message that came after it; cards older than the oldest
   // timestamped message (or newer than the last) fall to the end, which is how
   // the thread read before messages carried `at`.
-  const feedEvents = useChatEventFeed();
+  const mountedAtRef = useRef(Date.now());
+  const feedEvents = useChatEventFeed(chatStartedAtFrom(messages, mountedAtRef.current));
   const feedSplit = splitEventsByMessage(feedEvents, messages);
   const openDocument = (id: string) => router.push(`/invoices/${id}`);
   const runEventAction = (e: EventRow, action: EventAction) => {

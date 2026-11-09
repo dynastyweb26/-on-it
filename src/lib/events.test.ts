@@ -271,3 +271,32 @@ test('isEventKind accepts known kinds and refuses anything else', () => {
   assert.equal(isEventKind('drop table'), false);
   assert.equal(isEventKind(''), false);
 });
+
+// ── Refresh: seen cards stay in a restored thread ──────────────────────────
+
+import { chatStartedAtFrom } from './events';
+
+test('a restored thread starts at its oldest message, not at page load', () => {
+  const loadedAt = now.getTime();
+  const start = chatStartedAtFrom([{ at: loadedAt - 3 * 3600e3 }, { at: loadedAt - 1 * 3600e3 }, {}], loadedAt);
+  assert.equal(start, new Date(loadedAt - 3 * 3600e3).toISOString());
+});
+
+test('a seen card that landed during the restored thread is still shown after a refresh', () => {
+  const start = chatStartedAtFrom([{ at: now.getTime() - 2 * 3600e3 }], now.getTime());
+  const seen = { occurred_at: new Date(now.getTime() - 3600e3).toISOString(), seen_at: now.toISOString() };
+  assert.equal(eventVisibleInChat(seen, start), true);
+  // The old behaviour: the start was the mount time, which hides it.
+  assert.equal(eventVisibleInChat(seen, now.toISOString()), false);
+});
+
+test('a seen card from before the thread began stays hidden; an unseen one never is', () => {
+  const start = chatStartedAtFrom([{ at: now.getTime() - 3600e3 }], now.getTime());
+  const old = new Date(now.getTime() - 5 * 3600e3).toISOString();
+  assert.equal(eventVisibleInChat({ occurred_at: old, seen_at: old }, start), false);
+  assert.equal(eventVisibleInChat({ occurred_at: old, seen_at: null }, start), true);
+});
+
+test('with no timestamped message the fallback is used', () => {
+  assert.equal(chatStartedAtFrom([{}], 1000), new Date(1000).toISOString());
+});

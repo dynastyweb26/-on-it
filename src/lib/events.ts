@@ -384,3 +384,15 @@ export function testEventFields(kind: EventKind): {
     meta,
   };
 }
+
+/**
+ * When did THIS thread start? The oldest timestamped message it holds, so a
+ * refresh that restores the saved chat keeps the cards that landed during it.
+ * Using the moment the page mounted instead drops every seen card on reload.
+ * A thread with no timestamped message (an old save) falls back to `fallbackMs`.
+ */
+export function chatStartedAtFrom(messages: ReadonlyArray<{ at?: number }>, fallbackMs: number): string {
+  let oldest = Infinity;
+  for (const m of messages) if (typeof m.at === 'number' && m.at < oldest) oldest = m.at;
+  return new Date(Number.isFinite(oldest) ? oldest : fallbackMs).toISOString();
+}
