@@ -323,3 +323,27 @@ export function splitEventsByMessage(
   }
   return { between, trailing };
 }
+
+/** A view this soon after the send is the owner's own test tap or a link
+ *  preview, not the client reading it. */
+export const VIEW_GRACE_MS = 2 * 60 * 1000;
+
+/**
+ * Should a client view of an estimate post an `estimate_viewed` card? Not once
+ * it is signed (the signed card says more), and not within two minutes of the
+ * send. A missing send time cannot be judged, so it does not block.
+ */
+export function shouldPostEstimateViewed(
+  e: { approvedAt: string | null; sentAt: string | null },
+  now: Date,
+): boolean {
+  if (e.approvedAt) return false;
+  if (e.sentAt) {
+    const sent = Date.parse(e.sentAt);
+    if (Number.isFinite(sent) && now.getTime() - sent < VIEW_GRACE_MS) return false;
+  }
+  return true;
+}
+
+/** The dedupe key for the one card a signature earns. */
+export const estimateSignedDedupeKey = (estimateId: string): string => `estimate_signed:${estimateId}`;

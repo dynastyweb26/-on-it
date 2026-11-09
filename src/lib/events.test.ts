@@ -225,3 +225,30 @@ test('each card appears exactly once', () => {
   const seen = [...Object.values(between).flat(), ...trailing].map((e) => e.id).sort();
   assert.deepEqual(seen, ['a', 'b', 'c', 'd']);
 });
+
+// ── Item 1: estimate_signed + the viewed rules ─────────────────────────────
+
+import { VIEW_GRACE_MS, estimateSignedDedupeKey, shouldPostEstimateViewed } from './events';
+
+test('a signed estimate never posts a viewed card', () => {
+  assert.equal(shouldPostEstimateViewed({ approvedAt: hoursAgo(1), sentAt: daysAgo(2) }, now), false);
+});
+
+test('a view inside two minutes of the send is not a client view', () => {
+  const justSent = new Date(now.getTime() - (VIEW_GRACE_MS - 1000)).toISOString();
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: justSent }, now), false);
+});
+
+test('a view at or past two minutes after the send posts', () => {
+  const exactly = new Date(now.getTime() - VIEW_GRACE_MS).toISOString();
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: exactly }, now), true);
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: daysAgo(1) }, now), true);
+});
+
+test('an unknown send time does not block a view', () => {
+  assert.equal(shouldPostEstimateViewed({ approvedAt: null, sentAt: null }, now), true);
+});
+
+test('the signed card dedupes on the estimate id alone', () => {
+  assert.equal(estimateSignedDedupeKey('abc-123'), 'estimate_signed:abc-123');
+});
