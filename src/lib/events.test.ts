@@ -473,3 +473,23 @@ test('only a client view counts: the log refuses the owner, and both sweeps read
   const fn = cron.slice(cron.indexOf('export async function runPayPageSweep'));
   assert.match(fn, /if \(!sweepAllowedIn\(env\)\) return \{ skipped: 'not production' \}/);
 });
+
+
+// ── The cream toast is mounted, and it comes in ────────────────────────────
+
+test('the shell renders the toast host, not just imports it', () => {
+  const shell = readFileSync('src/components/app/AppShell.tsx', 'utf8');
+  const renders = shell.match(/<EventToastHost\s*\/>/g) ?? [];
+  assert.equal(renders.length, 1, 'an unused import would leave this at zero');
+  assert.ok(shell.indexOf('<EventToastHost') > shell.lastIndexOf('</main>'), 'outside <main>, so a route change cannot unmount it');
+  assert.ok(shell.indexOf('<EventToastHost') < shell.indexOf('<ProCelebration'), 'a sibling of ProCelebration');
+});
+
+test('the toast shows itself after enqueue, and reduced motion keeps it in place', () => {
+  const src = readFileSync('src/components/events/EventToastHost.tsx', 'utf8');
+  assert.match(src, /requestAnimationFrame\(\(\) => setShown\(true\)\)/);
+  assert.match(src, /cancelAnimationFrame\(frame\)/);
+  assert.match(src, /const reduce = reducedMotion\(\);/);
+  assert.match(src, /const offset = reduce \? 0 :/);
+  assert.match(src, /dragging \|\| reduce \? 'none'/);
+});

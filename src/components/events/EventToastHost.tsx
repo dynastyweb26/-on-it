@@ -18,6 +18,7 @@ import Icon from '@/components/Icon';
 import type { IconName } from '@/components/icon-names';
 import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
+import { reducedMotion } from '@/lib/list-motion';
 import { eventAction, eventCard, eventToasts, type EventAction, type EventRow } from '@/lib/events';
 
 const DWELL_VIEW_MS = 4000;
@@ -177,6 +178,15 @@ export default function EventToastHost() {
     return clearTimer;
   }, [item]);
 
+  // Enter on the next frame: the toast mounts at opacity 0 and the transition
+  // plays on the next paint, so the drop is a movement rather than a jump.
+  // advance() sets it back to false, which is the exit.
+  useEffect(() => {
+    if (!item) { setShown(false); return; }
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [item]);
+
   const pause = () => {
     if (!timer.current) return;
     remaining.current = Math.max(800, remaining.current - (Date.now() - startedAt.current));
@@ -232,7 +242,9 @@ export default function EventToastHost() {
     resume();
   }
 
-  const offset = shown ? dragY : dragY - 12;
+  // Reduced motion: the toast appears and disappears in place, no slide.
+  const reduce = reducedMotion();
+  const offset = reduce ? 0 : shown ? dragY : dragY - 12;
 
   return (
     <div
@@ -256,7 +268,7 @@ export default function EventToastHost() {
         style={{
           transform: `translateY(${offset}px)`,
           opacity: shown ? 1 : 0,
-          transition: dragging ? 'none' : 'transform 200ms ease-out, opacity 200ms ease-out',
+          transition: dragging || reduce ? 'none' : 'transform 200ms ease-out, opacity 200ms ease-out',
         }}
         className="pointer-events-auto w-full touch-pan-x overflow-hidden rounded-[18px] border border-outline-variant/70 bg-surface-container-low shadow-card-raised motion-reduce:transition-none"
       >

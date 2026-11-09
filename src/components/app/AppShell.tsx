@@ -826,6 +826,9 @@ export default function AppShell({
         </nav>
       </div>
       </RecapProvider>
+      {/* Alive layer: the cream toast. Fixed above the header and outside
+          <main>, so a tab or route change cannot unmount it. */}
+      <EventToastHost />
       {/* Plays once when the unlock poll sees the paid tier arrive. */}
       <ProCelebration />
     </div>
