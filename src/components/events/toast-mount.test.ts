@@ -26,5 +26,5 @@ test('the signed-in layout wraps its pages in AppShell', () => {
 test('the host overlays: fixed, above the tab bar, inside the safe area', () => {
   assert.match(host, /position: 'fixed'/);
   assert.match(host, /env\(safe-area-inset-top/);
-  assert.match(host, /zIndex: 95/);
+  assert.match(host, /zIndex: TOAST_Z/);
 });

@@ -29,3 +29,13 @@ test('the queue holds three, skips repeats and drops the oldest', () => {
   const q = enqueueIds([{ id: 'a' }, { id: 'b' }], [{ id: 'b' }, { id: 'c' }, { id: 'd' }]);
   assert.deepEqual(q.map((x) => x.id), ['b', 'c', 'd']);
 });
+
+test('an expanded stack folds back when one card or none is left', async () => {
+  const { shouldCollapse, TOAST_Z } = await import('./toast-queue');
+  assert.equal(shouldCollapse(3, true), false);
+  assert.equal(shouldCollapse(2, true), false);
+  assert.equal(shouldCollapse(1, true), true);
+  assert.equal(shouldCollapse(0, true), true);
+  assert.equal(shouldCollapse(1, false), false);
+  assert.equal(TOAST_Z, 96);
+});

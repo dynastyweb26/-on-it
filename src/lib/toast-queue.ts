@@ -3,6 +3,13 @@
 import type { EventTone } from './events';
 
 export const TOAST_MAX = 3;
+/** Above sheets/modals (<=88) and the recap story player (95). Splash and the walkthrough takeover stay above. */
+export const TOAST_Z = 96;
+
+/** The fanned-out stack needs two or more cards; with fewer it folds back. */
+export function shouldCollapse(queueLength: number, expanded: boolean): boolean {
+  return expanded && queueLength <= 1;
+}
 export const ENTER_MS = 380;
 export const EXIT_MS = 220;
 export const EXPAND_MS = 280;

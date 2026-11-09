@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import { money } from '@/lib/financials';
 import { formatDocNumber } from '@/lib/documents';
 import { eventAction, eventCard, type EventRow } from '@/lib/events';
-import { dwellMs, enqueueIds, EXIT_MS, EXPAND_MS, STAGGER_MS, stackStep, swipeOutcome, TOAST_MAX } from '@/lib/toast-queue';
+import { dwellMs, enqueueIds, EXIT_MS, EXPAND_MS, shouldCollapse, STAGGER_MS, stackStep, swipeOutcome, TOAST_MAX, TOAST_Z } from '@/lib/toast-queue';
 import { EventTile, EventText } from '@/components/alive/EventParts';
 import Icon from '@/components/Icon';
 import { runConvert, useConvertState } from '@/components/alive/useConvert';
@@ -152,6 +152,12 @@ export default function EventToastHost() {
   };
   const resume = () => { if (!timer.current && front && !expanded) arm(remaining.current || 4000); };
 
+  // An expanded stack with one card left has no "N updates" to show and would
+  // sit with no clock running: fold it back to the single toast.
+  useEffect(() => {
+    if (shouldCollapse(queue.length, expanded)) setExpanded(false);
+  }, [queue.length, expanded]);
+
   useEffect(() => {
     if (!front || expanded) { if (!front) setExpanded(false); clearTimer(); return; }
     const card = eventCard(front, money);
@@ -214,8 +220,12 @@ export default function EventToastHost() {
   const waiting = queue.length - 1;
 
   const wrap: CSSProperties = {
-    position: 'fixed', left: 10, right: 10, top: 'calc(env(safe-area-inset-top, 0px) + 4px)',
-    zIndex: 95, maxWidth: 448, margin: '0 auto', pointerEvents: 'none',
+    // --vv-top: while the iOS keyboard is open the visual viewport can be scrolled
+    // down inside the layout viewport (lib/keyboard.ts); the toast follows it.
+    // z 96: above every sheet, modal and the recap story player (95); only the
+    // splash and the walkthrough takeover (1000+) sit over it.
+    position: 'fixed', left: 10, right: 10, top: 'calc(var(--vv-top, 0px) + env(safe-area-inset-top, 0px) + 4px)',
+    zIndex: TOAST_Z, maxWidth: 448, margin: '0 auto', pointerEvents: 'none',
   };
 
   return (
