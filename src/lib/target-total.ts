@@ -110,11 +110,11 @@ export function shortName(description: string): string {
   return cut || 'that line';
 }
 
-function priced<T extends TargetItem>(items: T[]): boolean {
+export function priced<T extends TargetItem>(items: T[]): boolean {
   return items.length > 0 && items.every((i) => i.unit_price != null && Number.isFinite(i.unit_price));
 }
 
-function totalOf(items: TargetItem[], taxRate: number): number {
+export function totalOf(items: TargetItem[], taxRate: number): number {
   return calculateInvoiceTotals(
     items.map((i) => ({ qty: i.qty, unit_price: i.unit_price ?? 0 })),
     taxRate,
@@ -124,7 +124,7 @@ function totalOf(items: TargetItem[], taxRate: number): number {
 /** Revert qty/price changes the model made to existing lines when the number
  *  was not stated in the user's message. New lines are left alone (grounding
  *  already vetted them). */
-function revertDerivedEdits<T extends TargetItem>(modelItems: T[], draftItems: TargetItem[], message: string): T[] {
+export function revertDerivedEdits<T extends TargetItem>(modelItems: T[], draftItems: TargetItem[], message: string): T[] {
   const stated = numbersInText(message);
   const has = (n: number) => stated.has(Math.round(n * 100) / 100);
   return modelItems.map((m, i) => {

@@ -14,6 +14,7 @@ import { missingContactAck } from '@/lib/contact-ack';
 import { guardReplyFigures } from '@/lib/reply-guard';
 import { groundNewLineItems, rejectedNote, type GroundItem } from '@/lib/line-grounding';
 import { resolveTargetTotal, type TargetItem } from '@/lib/target-total';
+import { resolveRelativeEdit } from '@/lib/relative-edit';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -325,13 +326,15 @@ export async function POST(req: NextRequest) {
       const lastUserMsg = [...rawHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
       const lastAssistantMsg = [...rawHistory].reverse().find((m) => m.role === 'assistant')?.content ?? '';
       const draftTax = Number((draft as Record<string, unknown> | null)?.tax_rate ?? 0);
-      const resolved = resolveTargetTotal({
+      const edits = {
         message: lastUserMsg,
         lastAssistant: lastAssistantMsg,
         draftItems: draftTargetItems,
         modelItems: result.line_items as unknown as (TargetItem & Record<string, unknown>)[],
         taxRate: Number.isFinite(Number(result.tax_rate ?? draftTax)) ? Number(result.tax_rate ?? draftTax) : 0,
-      });
+      };
+      // Target total first, then relative edits ("decrease the first item by 600").
+      const resolved = resolveTargetTotal(edits) ?? resolveRelativeEdit(edits);
       if (resolved) {
         result.line_items = resolved.items as unknown as ExtractResult['line_items'];
         targetReply = resolved.reply;
