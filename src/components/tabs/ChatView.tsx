@@ -3823,6 +3823,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [plusMenu, setPlusMenu] = useState<'open' | 'closing' | null>(null);
   const plusTimer = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Composer shape: a pill while the text fits one line; once it wraps it turns
+  // into a rounded box with the photo buttons on a bottom row (ChatGPT-style).
+  // It stays a box until the field is emptied, so the wider layout can't
+  // re-collapse it mid-sentence.
+  const [composerBox, setComposerBox] = useState(false);
   useEffect(() => () => clearTimeout(plusTimer.current), []);
   function closePlusMenu() {
     if (plusMenu !== 'open') return;
@@ -4876,7 +4881,51 @@ export default function Chat({ active = true }: { active?: boolean }) {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
     el.classList.toggle('is-overflowing', el.scrollHeight > maxHeight);
+    const oneLine =
+      (parseFloat(style.lineHeight) || 22) +
+      (parseFloat(style.paddingTop) || 0) +
+      (parseFloat(style.paddingBottom) || 0);
+    if (!input) setComposerBox(false);
+    else if (el.scrollHeight > oneLine + 2) setComposerBox(true);
   }, [input]);
+  const box = composerBox && !voiceSession;
+  // The + and send buttons live outside the pill, and move inside the box
+  // (bottom row) once the composer expands.
+  const plusBlock = (
+      <div className="relative shrink-0">
+        {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
+        {/* One button, two jobs: outside a voice session it's the "+" that
+            opens Voice · New invoice · New quote; during a session it's the
+            ink × that ends it. The splash's rings fly onto it on a cold
+            start (components/Splash.tsx measures it at runtime). */}
+        <button
+          aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new estimate'}
+          aria-haspopup={voiceSession ? undefined : 'menu'}
+          aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
+          data-splash-target=""
+          className={`onit-plus-btn relative z-[46] grid h-11 w-11 place-items-center rounded-full active:scale-90 disabled:opacity-40
+            ${voiceSession || plusMenu === 'open' ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-soft text-on-background'}`}
+          disabled={!voiceSession && phase !== null}
+          onClick={voiceSession ? endVoiceSession : plusTap}
+        >
+          {voiceSession && <MicRings stream={streamRef.current} active={recording} />}
+          <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
+            <Icon name="add" size={28} />
+          </span>
+        </button>
+      </div>
+  );
+  const sendBtn = (
+      <button
+        aria-label="Send"
+        className="onit-send-arrow grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-[transform,background-color,color] duration-tap ease-settle active:scale-90
+          disabled:scale-[.88] disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
+        disabled={voiceSession || !input.trim() || phase !== null}
+        onClick={() => void send(input)}
+      >
+        <Icon name="arrow_upward" size={24} />
+      </button>
+  );
 
   return (
     // xl: the design's 720px column; the composer is a child of it, so the two
@@ -5719,35 +5768,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
           )}
 
           <div className="flex items-end gap-2">
-            <div className="relative shrink-0">
-              {plusMenu && <ComposerMenu closing={plusMenu === 'closing'} onPick={pickFromPlus} onClose={closePlusMenu} />}
-              {/* One button, two jobs: outside a voice session it's the "+" that
-                  opens Voice · New invoice · New quote; during a session it's the
-                  ink × that ends it. The splash's rings fly onto it on a cold
-                  start (components/Splash.tsx measures it at runtime). */}
-              <button
-                aria-label={voiceSession ? 'End voice session' : plusMenu === 'open' ? 'Close' : 'Start something: voice, new invoice or new estimate'}
-                aria-haspopup={voiceSession ? undefined : 'menu'}
-                aria-expanded={voiceSession ? undefined : plusMenu === 'open'}
-                data-splash-target=""
-                className={`onit-plus-btn relative z-[46] grid h-11 w-11 place-items-center rounded-full active:scale-90 disabled:opacity-40
-                  ${voiceSession || plusMenu === 'open' ? 'bg-inverse-surface text-inverse-on-surface' : 'bg-primary-soft text-on-background'}`}
-                disabled={!voiceSession && phase !== null}
-                onClick={voiceSession ? endVoiceSession : plusTap}
-              >
-                {voiceSession && <MicRings stream={streamRef.current} active={recording} />}
-                <span className={`onit-plus grid place-items-center${voiceSession || plusMenu === 'open' ? ' is-open' : ''}`}>
-                  <Icon name="add" size={28} />
-                </span>
-              </button>
-            </div>
+            {!box && plusBlock}
 
             {/* One field for both modes: during a voice session it turns gold and
                 reads "Listening…", the recognised words land in this same
                 textarea, and a ring spinner takes the label while the take is
                 transcribed. The right-hand button is always the send arrow. */}
-            <div className={`flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-full border py-1 pl-4 pr-1 transition-[border-color,box-shadow] duration-settle ease-settle
-              bg-surface-container-lowest ${voiceSession ? 'border-primary-container ring-2 ring-primary-container/35' : 'border-outline-variant'}`}>
+            <div className={`flex min-h-11 min-w-0 flex-1 gap-1 border transition-[border-color,box-shadow] duration-settle ease-settle
+              bg-surface-container-lowest ${box ? 'flex-col items-stretch gap-0 rounded-[24px] px-2 pb-1.5 pt-2' : 'items-center rounded-full py-1 pl-4 pr-1'}
+              ${voiceSession ? 'border-primary-container ring-2 ring-primary-container/35' : 'border-outline-variant'}`}>
               {voiceSession && (
                 <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-primary" aria-live="polite">
                   {transcribing ? <><OnItSpinner size={14} /> Transcribing</> : recording ? 'Listening…' : 'Voice'}
@@ -5756,7 +5785,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               <textarea
                 ref={inputRef}
                 aria-label="Message On It"
-                className="onit-composer-field min-w-0 flex-1 resize-none border-0 bg-transparent py-1.5 text-[16px] leading-[22px] text-on-background outline-none placeholder:text-on-surface-variant/60"
+                className={`onit-composer-field min-w-0 resize-none border-0 ${box ? 'w-full flex-none px-2' : 'flex-1'} bg-transparent py-1.5 text-[16px] leading-[22px] text-on-background outline-none placeholder:text-on-surface-variant/60`}
                 placeholder={voiceSession ? (recording ? 'Listening…' : transcribing ? 'Writing that down…' : 'Say it, On It writes it') : 'Message On It…'}
                 value={input}
                 rows={1}
@@ -5779,7 +5808,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   {recording ? 'Done' : <><Icon name="mic" size={18} filled /> Speak</>}
                 </button>
               ) : (
-                <>
+                <div className={`flex shrink-0 items-center gap-1 ${box ? 'w-full justify-end' : ''}`}>
+                  {box && <div className="mr-auto">{plusBlock}</div>}
                   <button
                     aria-label="Upload receipt from gallery"
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-on-surface-variant transition active:scale-90 disabled:opacity-40"
@@ -5797,19 +5827,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   >
                     <Icon name="photo_camera" size={20} />
                   </button>
-                </>
+                  {box && sendBtn}
+                </div>
               )}
             </div>
 
-            <button
-              aria-label="Send"
-              className="onit-send-arrow grid h-11 w-11 shrink-0 place-items-center rounded-full bg-inverse-surface text-inverse-on-surface transition-[transform,background-color,color] duration-tap ease-settle active:scale-90
-                disabled:scale-[.88] disabled:bg-surface-container-highest disabled:text-on-surface-variant/50"
-              disabled={voiceSession || !input.trim() || phase !== null}
-              onClick={() => void send(input)}
-            >
-              <Icon name="arrow_upward" size={24} />
-            </button>
+            {!box && sendBtn}
           </div>
         </div>
       )}
