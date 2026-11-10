@@ -2251,6 +2251,26 @@ results(id, ok, expected, actual) as (
           || ' auth_exec=' || has_function_privilege('authenticated', p.oid, 'execute')
         from pg_proc p where p.oid = to_regprocedure('public.enforce_parent_ownership()')), 'function missing') end
 
+  -- BF1. profiles.tutorials_seen (20261024120000): jsonb object, not null,
+  --      default '{}'. Safe column: authenticated may UPDATE it, never INSERT.
+  union all
+  select 'BF1 profiles.tutorials_seen',
+    case when not exists (select 1 from applied where version = '20261024120000') then null
+      else coalesce((select c.data_type = 'jsonb' and c.is_nullable = 'NO' and c.column_default like '''{}''::jsonb%'
+          and has_column_privilege('authenticated', 'public.profiles', 'tutorials_seen', 'UPDATE')
+          and not has_column_privilege('authenticated', 'public.profiles', 'tutorials_seen', 'INSERT')
+          and not has_column_privilege('anon', 'public.profiles', 'tutorials_seen', 'UPDATE')
+        from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'tutorials_seen'), false) end,
+    'jsonb not null default {}; authenticated UPDATE, no INSERT; anon no UPDATE (safe column)',
+    case when not exists (select 1 from applied where version = '20261024120000') then 'not applied yet'
+      else coalesce((select c.data_type || ' nullable=' || c.is_nullable || ' default=' || coalesce(c.column_default, 'none')
+          || ' auth_upd=' || has_column_privilege('authenticated', 'public.profiles', 'tutorials_seen', 'UPDATE')
+          || ' auth_ins=' || has_column_privilege('authenticated', 'public.profiles', 'tutorials_seen', 'INSERT')
+          || ' anon_upd=' || has_column_privilege('anon', 'public.profiles', 'tutorials_seen', 'UPDATE')
+        from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'tutorials_seen'), 'missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
