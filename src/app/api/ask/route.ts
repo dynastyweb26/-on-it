@@ -33,6 +33,7 @@ import { FALLBACK, replyFor } from '@/lib/tools/reply';
 import { guardModelMoney } from '@/lib/tools/money';
 import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
+import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -54,6 +55,21 @@ export async function POST(req: NextRequest) {
   // Two gates: the build-time flag and a preview-only deployment.
   if (!AI_TOOLS || !aiToolsForEnv(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // A preview pointed at the production database must never answer: the guard
+  // names the misconfiguration in the server log instead of writing real rows.
+  const refusal = aiEnvRefusal({
+    flagOn: AI_TOOLS,
+    vercelEnv: process.env.VERCEL_ENV,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  if (refusal) {
+    logEnvRefusal(refusal, 'ask');
+    return NextResponse.json(
+      { error: refusal, reply: 'The assistant is not available on this preview.' },
+      { status: 503, ...NO_STORE },
+    );
   }
 
   const supabase = await createClient();

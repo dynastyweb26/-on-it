@@ -20,6 +20,7 @@ import { REGISTRY } from '@/lib/tools/registry';
 import { supabaseToolDb } from '@/lib/tools/db';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { confirmActions, type ConfirmFailure } from '@/lib/tools/confirm';
+import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
@@ -42,6 +43,21 @@ const FAILURE: Record<ConfirmFailure, { status: number; reply: string }> = {
 export async function POST(req: NextRequest) {
   if (!AI_TOOLS || !aiToolsForEnv(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // Same production-database guard as /api/ask: a confirm writes, so this is
+  // the route that must never run against the wrong project.
+  const refusal = aiEnvRefusal({
+    flagOn: AI_TOOLS,
+    vercelEnv: process.env.VERCEL_ENV,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  if (refusal) {
+    logEnvRefusal(refusal, 'confirm');
+    return NextResponse.json(
+      { error: refusal, reply: 'The assistant is not available on this preview.' },
+      { status: 503, ...NO_STORE },
+    );
   }
 
   const supabase = await createClient();

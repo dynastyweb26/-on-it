@@ -19,6 +19,7 @@ import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 import { createTurnBudget } from '@/lib/tools/budget';
+import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { anthropicRouteCall, classify } from '@/lib/router/classify';
 import { decideRoute, hasFigure } from '@/lib/router/decide';
 
@@ -29,6 +30,17 @@ export async function POST(req: NextRequest) {
   // Two gates, same as /api/ask: the build-time flag and a preview deployment.
   if (!AI_TOOLS || !aiToolsForEnv(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // Same production-database guard as /api/ask.
+  const refusal = aiEnvRefusal({
+    flagOn: AI_TOOLS,
+    vercelEnv: process.env.VERCEL_ENV,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  if (refusal) {
+    logEnvRefusal(refusal, 'route');
+    return NextResponse.json({ error: refusal }, { status: 503, ...NO_STORE });
   }
 
   const supabase = await createClient();
