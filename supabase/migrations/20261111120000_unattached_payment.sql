@@ -21,11 +21,14 @@
 -- repeat is read back by (user_id, key) rather than by an invoice.
 --
 -- Access model: the owner may write their own MANUAL rows (deposit_id is
--- null). A row a bank deposit decided stays server-written, because its amount
--- and its existence are that deposit's decision — the deposit guards and
--- unique indexes still count the row after a soft delete, so a client must not
--- be able to hide or reshape it. Code deletes with deleted_at; the policy
--- permits exactly that row operation and nothing broader.
+-- null), and a manual row stays an income row: an update must keep
+-- classification = 'other_income', so a client cannot re-classify one into a
+-- value that counts nowhere. A row a bank deposit decided stays server-written,
+-- because its amount and its existence are that deposit's decision — the
+-- deposit guards and unique indexes still count the row after a soft delete,
+-- so a client must not be able to hide or reshape it. Code deletes with
+-- deleted_at; the policy permits exactly that row operation and nothing
+-- broader.
 --
 -- Idempotent. Verify after applying: npm run db:privcheck — BD5, BD9.
 -- ═══════════════════════════════════════════════════════════════
@@ -68,7 +71,11 @@ drop policy if exists "own other income update" on public.other_income;
 create policy "own other income update" on public.other_income
   for update
   using (auth.uid() = user_id and deposit_id is null)
-  with check (auth.uid() = user_id and deposit_id is null);
+  with check (
+    auth.uid() = user_id
+    and deposit_id is null
+    and classification = 'other_income'
+  );
 
 drop policy if exists "own other income delete" on public.other_income;
 create policy "own other income delete" on public.other_income
@@ -82,8 +89,9 @@ revoke truncate on public.other_income from anon, authenticated;
 -- Verification — run after applying.
 --
 -- 1. RLS on; one owner SELECT policy; INSERT, UPDATE and DELETE policies that
---    all require auth.uid() = user_id and deposit_id is null; insert also
---    requires classification = 'other_income' and amount > 0 (privcheck BD5).
+--    all require auth.uid() = user_id and deposit_id is null; insert requires
+--    classification = 'other_income' and amount > 0, and update's WITH CHECK
+--    pins classification too (privcheck BD5).
 -- 2. other_income_user_idempotency_key_uidx is unique, partial, on
 --    (user_id, idempotency_key), and method exists (privcheck BD9).
 -- 3. Boundary cases (in a transaction you roll back):
@@ -91,6 +99,7 @@ revoke truncate on public.other_income from anon, authenticated;
 --    • a client inserting a row with a deposit_id            → refused (RLS)
 --    • a client inserting for another user_id                → refused (RLS)
 --    • a client inserting classification 'vendor_refund'      → refused (RLS + check)
+--    • a client updating a manual row to another classification → refused (RLS)
 --    • a client updating or deleting a deposit-linked row     → 0 rows
 --    • the same (user_id, idempotency_key) twice              → refused (23505)
 --    • two rows with a null key                               → allowed

@@ -50,7 +50,13 @@ test('the owner writes only their own manual rows', () => {
   assert.match(update, /for update/);
   // Both sides: cannot update someone else's or a deposit's row, and cannot
   // turn own row into either.
-  assert.equal((update.match(/auth\.uid\(\) = user_id and deposit_id is null/g) ?? []).length, 2);
+  assert.equal((update.match(/auth\.uid\(\) = user_id/g) ?? []).length, 2, 'USING and WITH CHECK');
+  assert.equal((update.match(/deposit_id is null/g) ?? []).length, 2, 'USING and WITH CHECK');
+  // …and the result must still be an income row: re-classifying it is refused.
+  assert.match(
+    update,
+    /with check \(\s*auth\.uid\(\) = user_id\s*and deposit_id is null\s*and classification = 'other_income'\s*\)/,
+  );
 
   const del = policy('own other income delete');
   assert.match(del, /for delete/);

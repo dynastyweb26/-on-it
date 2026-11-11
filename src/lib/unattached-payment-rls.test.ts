@@ -145,6 +145,26 @@ test('another owner cannot edit or delete a manual row', async () => {
   assert.equal(deleted.rows.length, 0);
 });
 
+test('a client cannot re-classify a manual row', async () => {
+  const { rows } = await as<{ id: string }>(A, MANUAL_INSERT, [A, 'other_income', 'class-key', null]);
+  const id = rows[0].id;
+
+  // Each of these would take the row out of Collected, so the update refuses.
+  for (const value of ['customer_payment', 'vendor_refund', 'transfer', 'unknown']) {
+    await assert.rejects(
+      as(A, `update public.other_income set classification = $1 where id = $2 returning id`, [value, id]),
+      /row-level security|policy/i,
+      value,
+    );
+  }
+
+  const { rows: after } = await db.query<{ classification: string }>(
+    `select classification from public.other_income where id = $1`,
+    [id],
+  );
+  assert.equal(after[0].classification, 'other_income', 'the row still counts');
+});
+
 test('the owner can soft-delete and restore their own manual row', async () => {
   const { rows } = await as<{ id: string }>(A, MANUAL_INSERT, [A, 'other_income', 'undo-key', null]);
   const id = rows[0].id;

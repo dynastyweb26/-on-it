@@ -2161,7 +2161,8 @@ results(id, ok, expected, actual) as (
             and p.qual ilike '%auth.uid() = user_id%'
             and p.qual ilike '%deposit_id is null%'
             and p.with_check ilike '%auth.uid() = user_id%'
-            and p.with_check ilike '%deposit_id is null%') = 1
+            and p.with_check ilike '%deposit_id is null%'
+            and p.with_check ilike '%classification = ''other_income''%') = 1
         and (select count(*) from pg_policies p
           where p.schemaname = 'public' and p.tablename = 'other_income'
             and p.cmd = 'DELETE'
