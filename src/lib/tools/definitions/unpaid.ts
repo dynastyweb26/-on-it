@@ -57,6 +57,19 @@ export const unpaidTool = defineTool({
   type: 'read',
   risk: 'low',
   defaultTemplate: { id: 'unpaid_list', props: UnpaidCardProps },
+  modelPayload: (result) => ({
+    total_count: result.totalCount,
+    total_balance: result.totalBalance,
+    total_balance_text: result.totalBalanceText,
+    invoices: result.rows.map((row) => ({
+      number: row.number,
+      client: row.client,
+      balance_text: row.balanceText,
+      due_date: row.dueDate,
+      status: row.status,
+    })),
+    note: 'Amounts are for your reasoning only. Never repeat a figure; the app prints money.',
+  }),
   handler: async (ctx, args) => {
     const found = await readUnpaidInvoices(ctx.db, ctx.userId, {
       minBalance: args.min_balance,

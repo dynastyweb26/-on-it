@@ -1,16 +1,21 @@
-// POST /api/ask — AI Smart, Slice 0.
+// POST /api/ask — AI Smart.
 //
-// One question in, one short answer out, from ONE read-only tool. This route
-// sits BESIDE /api/parse and shares nothing with it but the rate-limit bucket:
-// parse still owns the build-a-document conversation, and nothing here writes,
-// finalizes, renders a PDF or moves a status.
+// One question in, one short answer out, from the READ-ONLY tool registry. This
+// route sits BESIDE /api/parse and shares nothing with it but the rate-limit
+// bucket and the turn budget: parse still owns the build-a-document
+// conversation, and nothing here writes, finalizes, renders a PDF or moves a
+// status.
 //
 // Every read runs under the caller's own session, so RLS is the boundary: there
-// is no service-role client in this file, and the tool surface is read-only.
+// is no service-role client in this file, and no tool can reach one.
 //
 // Money rule: the model never states a figure. The server composes the money
-// line from the tool result, and model prose may only carry a figure that
-// figure already contains.
+// line from the tool result, and model prose may only carry a figure the tool
+// result already contains.
+//
+// Budget: one turn (router + this route) may spend 8 model calls together; the
+// client shares its turn id through x-turn-id. A spent turn answers in plain
+// words instead of throwing.
 //
 // Flag: needs BOTH the build-time NEXT_PUBLIC_AI_TOOLS flag and a Vercel preview
 // environment, so production and local development answer 404.
@@ -21,55 +26,15 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
-import { MAX_MODEL_CALLS, TOOLS, parseCall } from '@/lib/tools/registry';
+import { TURN_BUDGET_REPLY, createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
-import { TOOL_SYSTEM } from '@/lib/tools/prompt';
 import { supabaseToolDb } from '@/lib/tools/db';
-import type { UnpaidSummary } from '@/lib/tools/unpaid';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
+import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 const Body = z.object({ question: z.string().trim().min(1).max(500) });
-
-function textOf(message: Anthropic.Message): string {
-  return message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('')
-    .trim();
-}
-
-/** The assistant turn as the API accepts it back, without any block we don't use. */
-function assistantTurn(content: Anthropic.ContentBlock[]): Anthropic.ContentBlockParam[] {
-  return content.flatMap((block): Anthropic.ContentBlockParam[] => {
-    if (block.type === 'text') return [{ type: 'text', text: block.text }];
-    if (block.type === 'tool_use') {
-      return [{ type: 'tool_use', id: block.id, name: block.name, input: block.input }];
-    }
-    return [];
-  });
-}
-
-/**
- * What the model sees of a result. Text amounts are included (it must not repeat
- * them) and the raw per-row numbers are not, so there is nothing tempting to
- * quote; totals stay numeric so it can reason about magnitude.
- */
-function toolPayload(summary: UnpaidSummary) {
-  return {
-    total_count: summary.totalCount,
-    total_balance: summary.totalBalance,
-    total_balance_text: summary.totalBalanceText,
-    invoices: summary.rows.map((row) => ({
-      number: row.number,
-      client: row.client,
-      balance_text: row.balanceText,
-      due_date: row.dueDate,
-      status: row.status,
-    })),
-    note: 'Amounts are for your reasoning only. Never repeat a figure; the app prints money.',
-  };
-}
 
 /** One structured line per model call. Never the question: it carries PII. */
 function logUsage(call: number, usage: Anthropic.Usage, ms: number): void {
@@ -109,84 +74,51 @@ export async function POST(req: NextRequest) {
   }
   const question = parsed.data.question;
 
-  // The tool's only database surface, built from this caller's own session.
+  // The shared budget for this user turn; without the header it is per request.
+  const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
   const db = supabaseToolDb(supabase);
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
-  let summary: UnpaidSummary | null = null;
-  let toolCalled = false;
-  let replyText = '';
 
+  let result: TurnResult;
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    for (let call = 1; call <= MAX_MODEL_CALLS; call++) {
-      const startedAt = Date.now();
-      const message = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 512,
-        system: TOOL_SYSTEM,
-        tools: TOOLS,
-        messages,
-      });
-      logUsage(call, message.usage, Date.now() - startedAt);
-
-      const uses = message.content.filter(
-        (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-      );
-      if (message.stop_reason !== 'tool_use' || uses.length === 0) {
-        replyText = textOf(message);
-        break;
-      }
-
-      messages.push({ role: 'assistant', content: assistantTurn(message.content) });
-
-      const results: Anthropic.ToolResultBlockParam[] = [];
-      for (const use of uses) {
-        const callArgs = parseCall(use.name, use.input);
-        if (!callArgs.ok) {
-          results.push({
-            type: 'tool_result',
-            tool_use_id: use.id,
-            is_error: true,
-            content: callArgs.reason,
-          });
-          continue;
-        }
-        try {
-          // The output schema the definition declared is the only shape that
-          // can reach the model or the client: a handler that drifts fails here.
-          const output = callArgs.tool.output.parse(
-            await callArgs.tool.handler({ db, userId: user.id }, callArgs.args as never)
-          ) as UnpaidSummary;
-          if (callArgs.tool.name === UNPAID_TOOL_NAME) {
-            toolCalled = true;
-            summary = output;
-          }
-          results.push({
-            type: 'tool_result',
-            tool_use_id: use.id,
-            content: JSON.stringify(toolPayload(output)),
-          });
-        } catch (error) {
-          console.error('[ask] tool failed', callArgs.tool.name, (error as Error)?.message);
-          results.push({
-            type: 'tool_result',
-            tool_use_id: use.id,
-            is_error: true,
-            content: 'lookup_failed',
-          });
-        }
-      }
-      messages.push({ role: 'user', content: results });
-    }
+    let callIndex = 0;
+    result = await runToolTurn({
+      call: async ({ system, tools, messages }) => {
+        const startedAt = Date.now();
+        const message = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 512,
+          system,
+          tools,
+          messages,
+        });
+        callIndex += 1;
+        logUsage(callIndex, message.usage, Date.now() - startedAt);
+        return message;
+      },
+      db,
+      userId: user.id,
+      question,
+      budget,
+    });
   } catch (e) {
     console.error('[ask] failed', (e as Error)?.message);
     return NextResponse.json({ reply: FALLBACK }, { status: 500, ...NO_STORE });
   }
 
+  const summary = (result.toolRuns.find(
+    (run) => run.status === 'ok' && run.name === UNPAID_TOOL_NAME,
+  )?.output ?? null) as UnpaidSummary | null;
+
+  // A turn that ran out of model calls says so in plain words: the server
+  // sentence when one was composed, otherwise the reserve reply. Never an error.
+  const reply = result.budgetExhausted
+    ? summary?.sentence ?? TURN_BUDGET_REPLY
+    : replyFor({ modelText: result.replyText, summary, toolCalled: !!summary });
+
   return NextResponse.json(
     {
-      reply: replyFor({ modelText: replyText, summary, toolCalled }),
+      reply,
       tool: summary
         ? {
           totalCount: summary.totalCount,

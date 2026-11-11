@@ -2,7 +2,8 @@
 // an argument schema that refuses anything it was not designed for.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_MODEL_CALLS, REGISTRY, TOOLS, findTool, parseCall } from './registry';
+import { REGISTRY, TOOLS, findTool, parseCall } from './registry';
+import { TURN_MODEL_CALL_CAP } from './budget';
 import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 import { TOOL_SYSTEM } from './prompt';
@@ -21,8 +22,8 @@ test('exactly one tool, and it is the read-only unpaid lookup', () => {
   assert.match(tool.description ?? '', /read-only/i);
 });
 
-test('a turn may spend three model calls at most', () => {
-  assert.equal(MAX_MODEL_CALLS, 3);
+test('a turn may spend eight model calls at most, across every AI route', () => {
+  assert.equal(TURN_MODEL_CALL_CAP, 8);
 });
 
 test('arguments: nothing is fine, nonsense is refused', () => {

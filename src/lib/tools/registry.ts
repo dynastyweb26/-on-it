@@ -15,9 +15,6 @@ export const REGISTRY = buildRegistry(TOOL_DEFINITIONS);
 /** What the model is offered. Derived from each tool's own Zod input schema. */
 export const TOOLS: Anthropic.Tool[] = REGISTRY.modelTools();
 
-/** Model calls one turn may spend: pick the tool, maybe correct it, then answer. */
-export const MAX_MODEL_CALLS = 3;
-
 export function findTool(name: string): ToolDefinition | undefined {
   return REGISTRY.find(name);
 }

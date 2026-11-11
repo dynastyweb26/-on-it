@@ -67,9 +67,15 @@ export type ToolDefinition = {
   type: ToolType;
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
-  handler: (ctx: ToolContext, args: never) => Promise<unknown>;
+  handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
   /** A real, valid call and its result. Fixtures power tests, never a live turn. */
   fixture: { args: unknown; result: unknown };
+  /**
+   * What the model is shown of a result. Optional: the result itself by default.
+   * A tool that returns row-level numbers uses this to send only the figures the
+   * model may reason about, so there is nothing tempting to quote back.
+   */
+  modelPayload?: (result: never) => unknown;
 };
 
 const isZod = (value: unknown): value is z.ZodType =>
@@ -159,6 +165,7 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   defaultTemplate: ToolTemplate;
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
   fixture: { args: z.input<In>; result: z.infer<Out> };
+  modelPayload?: (result: z.infer<Out>) => unknown;
 }): ToolDefinition {
   const tool = definition as unknown as ToolDefinition;
   assertComplete(tool);

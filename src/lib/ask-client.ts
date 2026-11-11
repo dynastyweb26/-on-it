@@ -1,7 +1,10 @@
 // Browser side of POST /api/ask. Takes the fetch as an argument so the outcomes
 // (answer, signed out, rate limited, feature off, server error, no network) are
-// unit-tested with a fake. Sends the user's question text and nothing else: no
-// history, no draft.
+// unit-tested with a fake. Sends the user's question text and the turn id, and
+// nothing else: no history, no draft.
+//
+// The turn id is how the router call and this call share ONE model-call budget
+// (lib/tools/budget). A request without it still gets the per-request cap.
 
 export type AskOutcome =
   | { kind: 'ok'; reply: string }
@@ -20,12 +23,16 @@ export const ASK_COPY = {
 export async function askQuestion(
   question: string,
   fetchImpl: typeof fetch = fetch,
+  turnId?: string | null,
 ): Promise<AskOutcome> {
   let res: Response;
   try {
     res = await fetchImpl('/api/ask', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(turnId ? { 'x-turn-id': turnId } : {}),
+      },
       body: JSON.stringify({ question }),
     });
   } catch {

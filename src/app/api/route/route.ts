@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
+import { createTurnBudget } from '@/lib/tools/budget';
 import { anthropicRouteCall, classify } from '@/lib/router/classify';
 import { decideRoute, hasFigure } from '@/lib/router/decide';
 
@@ -54,7 +55,13 @@ export async function POST(req: NextRequest) {
   // A digit or a "$" is a job on its face, so it is decided without a call:
   // the same rule the regex gate has, applied before the model is asked.
   const { message } = parsed.data;
-  const classified = hasFigure(message) ? null : await classify(message, anthropicRouteCall());
+  // This call comes out of the SAME per-turn budget /api/ask spends from: the
+  // client sends one x-turn-id on both requests. A turn out of calls falls back
+  // to the deterministic rules instead of spending another one.
+  const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
+  const classified = hasFigure(message) || !(await budget.spend())
+    ? null
+    : await classify(message, anthropicRouteCall());
   const decision = decideRoute({ flagOn: true, bypass: null, classified, text: message });
 
   return NextResponse.json(
