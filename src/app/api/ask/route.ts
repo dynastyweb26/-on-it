@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
+import { sanitizeForAI } from '@/lib/sanitize';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import {
   MAX_MODEL_CALLS,
@@ -110,9 +111,12 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ reply: 'Say that again?' }, { status: 400, ...NO_STORE });
   }
-  const question = parsed.data.question;
+  // Layer 7 of the security stack (SECURITY.md): user input reaching an LLM is
+  // untrusted and could carry a prompt injection payload. Sanitize against tag
+  // breakout and wrap in <user_input> tags so the model treats it as data.
+  const question = sanitizeForAI(parsed.data.question);
 
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: `<user_input>${question}</user_input>` }];
   let summary: UnpaidSummary | null = null;
   let toolCalled = false;
   let replyText = '';
