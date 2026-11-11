@@ -1,0 +1,37 @@
+name: tools-safety
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Required on every PR. No database, no secrets, no network: the whole suite runs
+# on fixtures and in-memory Postgres (PGlite), so it is deterministic and it is
+# never skipped. 100% is the bar — this job going green is the claim that no tool
+# can reach the service role, write without a confirm token, leak another user's
+# rows, or state money the server did not compose.
+jobs:
+  tools-safety:
+    name: tools-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: No tool can reach the service role
+        run: node --import ./scripts/test-register.mjs scripts/ci/tool-imports.ts
+
+      - name: Tool safety suite (100%)
+        run: |
+          node --import ./scripts/test-register.mjs --test \
+            "src/lib/tools/**/*.test.ts" \
+            "src/lib/ci/tool-imports.test.ts" \
+            "src/lib/chat-logging-migration.test.ts"

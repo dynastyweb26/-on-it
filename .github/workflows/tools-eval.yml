@@ -1,0 +1,37 @@
+name: tools-eval
+on:
+  pull_request:
+    paths:
+      - 'src/lib/tools/**'
+      - 'src/lib/router/**'
+      - 'src/lib/ai.ts'
+      - 'src/app/api/ask/**'
+      - 'src/app/api/route/**'
+      - 'evals/**'
+      - 'scripts/evals/**'
+      - '.github/workflows/tools-eval.yml'
+
+permissions:
+  contents: read
+
+# Runs only when a tool, a prompt or an eval case changed. Cases are graded on
+# tool calls, arguments, template id and database state — never on wording — so
+# the gate is 90% overall with ZERO failures on cases tagged money or send.
+# The one secret it needs is the model key, ANTHROPIC_API_KEY.
+jobs:
+  tools-eval:
+    name: tools-eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Run the eval cases
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node --import ./scripts/test-register.mjs scripts/evals/run.ts
