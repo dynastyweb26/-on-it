@@ -15,6 +15,7 @@ import { guardReplyFigures } from '@/lib/reply-guard';
 import { groundNewLineItems, rejectedNote, type GroundItem } from '@/lib/line-grounding';
 import { resolveTargetTotal, type TargetItem } from '@/lib/target-total';
 import { resolveRelativeEdit } from '@/lib/relative-edit';
+import { withoutMoney } from '@/lib/tools/reply';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -178,6 +179,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await extract(history, (draft ?? null) as Partial<ExtractResult> | null, new Date().toISOString().slice(0, 10));
+
+    // The one money strip for model-written prose. It runs here, before any
+    // branch or early return, so the record_payment reply and the empty-line-item
+    // reply cannot skip it. Fixed copy and server-composed copy are written
+    // later and never pass through it.
+    result.reply = withoutMoney(result.reply ?? '');
 
     // An email is the one contact field with a shape: validate it once here so
     // every writer stores the same thing. Unusable → null, never a 400.
@@ -503,12 +510,10 @@ export async function POST(req: NextRequest) {
           ? `Total: ${money(totals.total)}, ${money(totals.depositAmount)} deposit due now.`
           : `Total: ${money(totals.total)}.`;
 
-      // Split on a terminator followed by whitespace (so the decimal point in
-      // "$1,500.00" never splits a number), drop any sentence with a "$" amount.
-      // First the reply guard (lib/reply-guard): any sentence stating a figure of
-      // 100+ the app does not hold is dropped, so the model cannot claim an
-      // outcome ("total is now 7500") the computed total contradicts.
-      const guarded = guardReplyFigures(result.reply ?? '', {
+      // The model's reply was stripped of dollar sentences right after extract.
+      // The reply guard still drops any bare figure it cannot ground, so the model
+      // cannot claim an outcome ("total is now 7500") the computed total contradicts.
+      const stripped = guardReplyFigures(result.reply ?? '', {
         items: result.line_items,
         total: totals.total,
         subtotal: totals.subtotal,
@@ -517,11 +522,6 @@ export async function POST(req: NextRequest) {
         taxRate: result.tax_rate,
         contact: [result.client_phone, result.client_email, result.client_address],
       });
-      const stripped = guarded
-        .split(/(?<=[.!?])\s+/)
-        .filter((s) => !/\$\s?\d/.test(s))
-        .join(' ')
-        .trim();
 
       if (changed) {
         // Money sentence FIRST so a trailing question in the prose stays last.
