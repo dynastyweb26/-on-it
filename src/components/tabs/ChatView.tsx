@@ -77,7 +77,9 @@ import type { TemplateClient, TemplateKind } from '@/lib/template';
 import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTemplateRow, unfinishedTitle, type StoredTemplate } from '@/lib/template-store';
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
-import PaymentCard from '@/components/chat/PaymentCard';
+import PaymentCard, { UnattachedPaymentCard } from '@/components/chat/PaymentCard';
+import { callUnattached } from '@/lib/unattached-client';
+import { UNATTACHED_PAYMENT_TITLE, unattachedPaymentKey } from '@/lib/unattached-payment';
 import PaymentProposalCard, { type PaymentProposal, type PickerData, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
 import { normalizeSummary } from '@/lib/clients';
 import { openPaymentCardTarget, paymentCardLoadError } from '@/lib/payment-card-picker';
@@ -175,6 +177,8 @@ interface Msg {
   /** An owner-initiated payment moment (alive layer §04). Optional, so every
    *  entry written before this field existed still loads; no version bump. */
   payCard?: PayCard;
+  /** A payment saved with no invoice behind it (POST /api/income/unattached). */
+  unattachedCard?: { id: string; title: string; amount: number; method: string; paidOn: string; removed: boolean };
   /** A payment the parser proposed. Editable, and never written until Confirm. */
   payProposal?: PaymentProposal;
   /** A cancelled proposal, kept only so the one-line notice can offer Undo. */
@@ -1302,6 +1306,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // already open, a tap scrolls to it. It clears when no card is open any more
   // (confirmed, cancelled, or removed), so the next tap starts a fresh one.
   const payCardPendingRef = useRef<string | null>(null);
+  // The no-invoice save's key per proposal message: minted at the first Confirm tap.
+  const unattachedKeysRef = useRef(new Map<string, string>());
   function openPaymentCard() {
     const target = openPaymentCardTarget(messages, payCardPendingRef.current);
     if (target.action === 'ignore') return;
@@ -5171,6 +5177,26 @@ export default function Chat({ active = true }: { active?: boolean }) {
               key={m.id}
               proposal={m.payProposal}
               loadPicker={m.payProposal.picker ? loadPaymentPicker : undefined}
+              onConfirmUnattached={async (input) => {
+                // One key per submission, minted at the first tap and reused on
+                // every retry, so a lost response can never become a second row.
+                let key = unattachedKeysRef.current.get(m.id);
+                if (!key) { key = unattachedPaymentKey(); unattachedKeysRef.current.set(m.id, key); }
+                const out = await callUnattached('POST', {
+                  amount: input.amount, method: input.method, received_on: input.paidOn, title: input.title, idempotency_key: key,
+                });
+                if (!out.ok) return out;
+                unattachedKeysRef.current.delete(m.id);
+                setMessages((msgs) => msgs.map((x) => (x.id === m.id
+                  ? {
+                    ...x,
+                    payProposal: undefined,
+                    unattachedCard: { id: out.id, title: input.title || UNATTACHED_PAYMENT_TITLE, amount: input.amount, method: input.method, paidOn: input.paidOn, removed: false },
+                    content: 'Payment recorded.',
+                  }
+                  : x)));
+                return { ok: true as const };
+              }}
               onCancel={() => setMessages((msgs) => msgs.map((x) => (x.id === m.id
                 ? { ...x, payProposal: undefined, undoProposal: m.payProposal, content: 'Payment not recorded. Nothing was saved.' }
                 : x)))}
@@ -5244,6 +5270,25 @@ export default function Chat({ active = true }: { active?: boolean }) {
                   console.error('chat record payment threw', e);
                   return { ok: false as const, message: "That didn't go through. Try again." };
                 }
+              }}
+            />
+          ) : m.unattachedCard ? (
+            <UnattachedPaymentCard
+              key={m.id}
+              animate={!restoredMsgIdsRef.current.has(m.id)}
+              card={m.unattachedCard}
+              // Undo removes the payment (DELETE); the removed state offers the way back (PATCH).
+              onUndo={async () => {
+                const out = await callUnattached('DELETE', { id: m.unattachedCard!.id });
+                if (!out.ok) { setMessages((msgs) => [...msgs, aMsg(out.message)]); return; }
+                setMessages((msgs) => msgs.map((x) => (x.id === m.id && x.unattachedCard
+                  ? { ...x, unattachedCard: { ...x.unattachedCard, removed: true }, content: 'Payment removed.' } : x)));
+              }}
+              onRestore={async () => {
+                const out = await callUnattached('PATCH', { id: m.unattachedCard!.id });
+                if (!out.ok) { setMessages((msgs) => [...msgs, aMsg(out.message)]); return; }
+                setMessages((msgs) => msgs.map((x) => (x.id === m.id && x.unattachedCard
+                  ? { ...x, unattachedCard: { ...x.unattachedCard, removed: false }, content: 'Payment recorded.' } : x)));
               }}
             />
           ) : m.payCard ? (
