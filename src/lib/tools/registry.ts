@@ -7,7 +7,7 @@
 // Adding a tool: write one file in ./definitions, add it to ./definitions/index.ts.
 // Nothing else changes here. See TOOLS.md.
 import type Anthropic from '@anthropic-ai/sdk';
-import { buildRegistry, type ToolDefinition } from './contract';
+import { buildRegistry, type Registry, type ToolDefinition } from './contract';
 import { TOOL_DEFINITIONS } from './definitions';
 
 export const REGISTRY = buildRegistry(TOOL_DEFINITIONS);
@@ -23,9 +23,13 @@ export type ParsedCall =
   | { ok: true; tool: ToolDefinition; args: unknown }
   | { ok: false; reason: 'unknown_tool' | 'invalid_args' };
 
-/** Validate a tool call before anything runs. Unknown names never execute. */
-export function parseCall(name: string, input: unknown): ParsedCall {
-  const tool = REGISTRY.find(name);
+/**
+ * Validate a tool call before anything runs. Unknown names never execute.
+ * `registry` is injectable so a synthetic registry (tests, evals) resolves its
+ * own tools; production always passes the real one.
+ */
+export function parseCall(name: string, input: unknown, registry: Registry = REGISTRY): ParsedCall {
+  const tool = registry.find(name);
   if (!tool) return { ok: false, reason: 'unknown_tool' };
   const parsed = tool.input.safeParse(input ?? {});
   return parsed.success

@@ -8,8 +8,8 @@
 // so a model that keeps calling tools stops with a plain reply instead of
 // throwing, looping forever or spending another call.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { ToolDb } from './contract';
-import { parseCall, TOOLS } from './registry';
+import type { Registry, ToolDb } from './contract';
+import { REGISTRY, parseCall, TOOLS } from './registry';
 import { TOOL_SYSTEM } from './prompt';
 import { TURN_BUDGET_REPLY, TURN_MODEL_CALL_CAP, type TurnBudget } from './budget';
 
@@ -48,6 +48,8 @@ export type TurnResult = {
   toolResults: unknown[];
   /** Proposals the client may confirm, in the order the model asked for them. */
   pending: PendingProposal[];
+  /** Tokens this turn spent, summed over its model calls (for chat_messages). */
+  usage: { inputTokens: number; outputTokens: number };
 };
 
 function textOf(message: Anthropic.Message): string {
@@ -79,6 +81,8 @@ export async function runToolTurn(input: {
   tools?: Anthropic.Tool[];
   /** Absent for a read-only turn: a write tool then fails closed. */
   pending?: PendingCreator;
+  /** Which registry resolves tool names. Defaults to the app's registry. */
+  registry?: Registry;
 }): Promise<TurnResult> {
   const { call, db, userId, budget } = input;
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: input.question }];
@@ -87,6 +91,7 @@ export async function runToolTurn(input: {
   let replyText = '';
   let calls = 0;
   let budgetExhausted = false;
+  const usage = { inputTokens: 0, outputTokens: 0 };
 
   while (true) {
     // Hard wall first: even a reserver that never says no cannot loop forever.
@@ -105,6 +110,8 @@ export async function runToolTurn(input: {
       tools: input.tools ?? TOOLS,
       messages,
     });
+    usage.inputTokens += message.usage?.input_tokens ?? 0;
+    usage.outputTokens += message.usage?.output_tokens ?? 0;
 
     const uses = message.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
@@ -118,7 +125,7 @@ export async function runToolTurn(input: {
 
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const use of uses) {
-      const parsed = parseCall(use.name, use.input);
+      const parsed = parseCall(use.name, use.input, input.registry ?? REGISTRY);
       if (!parsed.ok) {
         toolRuns.push({
           name: use.name,
@@ -197,5 +204,6 @@ export async function runToolTurn(input: {
     toolRuns,
     toolResults: toolRuns.flatMap((run) => (run.status === 'ok' ? [run.output] : [])),
     pending,
+    usage,
   };
 }
