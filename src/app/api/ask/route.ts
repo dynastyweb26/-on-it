@@ -30,6 +30,7 @@ import { TURN_BUDGET_REPLY, createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { guardModelMoney } from '@/lib/tools/money';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -110,11 +111,18 @@ export async function POST(req: NextRequest) {
     (run) => run.status === 'ok' && run.name === UNPAID_TOOL_NAME,
   )?.output ?? null) as UnpaidSummary | null;
 
+  // Money guard: a dollar figure the model states must already exist in this
+  // turn's tool results. A sentence carrying one that does not is dropped.
+  const moneyGuard = guardModelMoney(result.replyText, result.toolResults);
+  if (!moneyGuard.ok) {
+    console.error('[ask] dropped model money with no tool source', moneyGuard.offending);
+  }
+
   // A turn that ran out of model calls says so in plain words: the server
   // sentence when one was composed, otherwise the reserve reply. Never an error.
   const reply = result.budgetExhausted
     ? summary?.sentence ?? TURN_BUDGET_REPLY
-    : replyFor({ modelText: result.replyText, summary, toolCalled: !!summary });
+    : replyFor({ modelText: moneyGuard.text, summary, toolCalled: !!summary });
 
   return NextResponse.json(
     {

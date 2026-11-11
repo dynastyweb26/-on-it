@@ -16,6 +16,7 @@ import { groundNewLineItems, rejectedNote, type GroundItem } from '@/lib/line-gr
 import { resolveTargetTotal, type TargetItem } from '@/lib/target-total';
 import { resolveRelativeEdit } from '@/lib/relative-edit';
 import { withoutMoney } from '@/lib/tools/reply';
+import { guardModelMoney, moneyField } from '@/lib/tools/money';
 
 // Bound structure AND size: chat messages capped, history bounded so a crafted
 // payload can't inflate the Anthropic token bill.
@@ -523,17 +524,33 @@ export async function POST(req: NextRequest) {
         contact: [result.client_phone, result.client_email, result.client_address],
       });
 
+      // The dollar guard (lib/tools/money). A "$" figure is allowed only when
+      // this turn computed it, so the model cannot narrate a total the server
+      // does not hold — even one it invented out of thin air. Sentences carrying
+      // a foreign figure are dropped, not shown and corrected.
+      const moneyGuard = guardModelMoney(stripped, [
+        moneyField(totals.subtotal),
+        moneyField(totals.taxAmount),
+        moneyField(totals.total),
+        moneyField(totals.depositAmount),
+        ...result.line_items.map((item) => moneyField(item.qty * item.unit_price)),
+      ]);
+      if (!moneyGuard.ok) {
+        console.error('[parse] dropped model money with no server source', moneyGuard.offending);
+      }
+      const safeReply = moneyGuard.text;
+
       if (changed) {
         // Money sentence FIRST so a trailing question in the prose stays last.
         // ...except a first-turn "On it!", which always opens the reply.
-        const opener = /^\s*on it!\s*/i.exec(stripped);
+        const opener = /^\s*on it!\s*/i.exec(safeReply);
         result.reply = opener
-          ? `On it! ${moneySentence}${stripped.slice(opener[0].length) ? ` ${stripped.slice(opener[0].length)}` : ''}`
-          : stripped ? `${moneySentence} ${stripped}` : moneySentence;
+          ? `On it! ${moneySentence}${safeReply.slice(opener[0].length) ? ` ${safeReply.slice(opener[0].length)}` : ''}`
+          : safeReply ? `${moneySentence} ${safeReply}` : moneySentence;
       } else {
         // No change: keep the prose. Fall back to the money sentence only if
         // stripping emptied the reply, so we never emit an empty bubble.
-        result.reply = stripped || moneySentence;
+        result.reply = safeReply || moneySentence;
       }
     }
 
