@@ -27,7 +27,7 @@ import {
   TOOLS,
   UNPAID_TOOL_NAME,
   parseToolArgs,
-} from '@/lib/tools/registry';
+} from '@/lib/tools/unpaid-legacy';
 import { readUnpaidInvoices, type UnpaidSummary } from '@/lib/tools/unpaid';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
 

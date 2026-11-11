@@ -8,7 +8,7 @@ import {
   TOOL_SYSTEM,
   UNPAID_TOOL_NAME,
   parseToolArgs,
-} from './registry';
+} from './unpaid-legacy';
 import { UNPAID_ROW_CAP } from './unpaid';
 
 test('exactly one tool, and it is the read-only unpaid lookup', () => {
