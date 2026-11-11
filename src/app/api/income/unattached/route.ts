@@ -20,10 +20,14 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import {
+  isDifferentUnattachedPayment,
   isUnattachedIdempotencyConflict,
   parseUnattachedPayment,
+  saveUnattachedPaymentOnce,
   unattachedInsertRow,
   unattachedPaymentKey,
+  type UnattachedPaymentIO,
+  type UnattachedPaymentRow,
 } from '@/lib/unattached-payment';
 
 export const runtime = 'nodejs';
@@ -37,6 +41,10 @@ const Body = z.object({
 });
 
 const fail = (code: string, status = 400) => NextResponse.json({ error: code }, { status });
+
+/** The error code a failed save carries, whichever layer produced it. */
+const codeOf = (error: unknown): string =>
+  error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -53,21 +61,74 @@ export async function POST(req: NextRequest) {
   if (!input.ok) return fail(input.code);
 
   const key = parsed.data.idempotency_key ?? unattachedPaymentKey();
-  const { data, error } = await supabase
-    .from('other_income')
-    .insert(unattachedInsertRow(user.id, input.value, key))
-    .select('id')
-    .maybeSingle();
+  const row = unattachedInsertRow(user.id, input.value, key);
 
-  if (error) {
-    if (isUnattachedIdempotencyConflict(error)) return fail('duplicate_submission', 409);
-    console.error('[income/unattached] insert failed', error.code);
-    if (error.code === '23514') return fail('invalid_request');
+  /** The original for this key, if it exists and the owner may read it. */
+  const findByKey = async (userId: string, k: string): Promise<UnattachedPaymentRow | null> => {
+    const { data, error } = await supabase
+      .from('other_income')
+      .select('id, amount, received_on, method, idempotency_key')
+      .eq('user_id', userId)
+      .eq('idempotency_key', k)
+      .maybeSingle();
+    if (error) {
+      console.error('[income/unattached] read-back failed', error.code);
+      return null;
+    }
+    return (data as UnattachedPaymentRow | null) ?? null;
+  };
+
+  const io: UnattachedPaymentIO = {
+    insertOnce: async (pending) => {
+      // A plain insert, never an upsert: the rule is a PARTIAL unique index
+      // (key is not null), which PostgREST cannot address with ON CONFLICT. A
+      // repeat arrives here as 23505 on that index instead.
+      const { error } = await supabase.from('other_income').insert(pending);
+      if (!error) return { error: null };
+      if (!isUnattachedIdempotencyConflict(error)) return { error };
+
+      // The key is already spent. It is this submission only if the row it
+      // produced is the same money.
+      const existing = await findByKey(pending.user_id, pending.idempotency_key);
+      if (!existing) {
+        // Recorded, but not readable for this key: never report success on a
+        // reason we cannot see, and never blame the user for it.
+        return {
+          error: {
+            status: 500,
+            code: 'PAYMENT_READBACK_MISSING',
+            message: 'payment exists for key but could not be read back',
+          },
+          fatal: true,
+        };
+      }
+      if (isDifferentUnattachedPayment(existing, pending)) {
+        return {
+          error: {
+            status: 409,
+            code: 'PAYMENT_KEY_REUSED',
+            message: 'idempotency key already recorded a different payment',
+          },
+          fatal: true,
+        };
+      }
+      return { error: null };
+    },
+    findByKey,
+  };
+
+  const saved = await saveUnattachedPaymentOnce(io, row);
+  if (!saved.ok) {
+    const code = codeOf(saved.error);
+    console.error('[income/unattached] insert failed', code || saved.error);
+    if (code === '23514') return fail('invalid_request');
     // RLS refused it: a deposit-linked row, another owner's id, or a non-income
     // classification. Nothing the user can fix by retrying the same body.
-    if (error.code === '42501') return fail('not_allowed', 403);
+    if (code === '42501') return fail('not_allowed', 403);
+    if (code === 'PAYMENT_KEY_REUSED') return fail('duplicate_submission', 409);
+    if (code === 'PAYMENT_READBACK_MISSING') return fail('db_insert_failed', 500);
     return fail('db_insert_failed', 500);
   }
 
-  return NextResponse.json({ ok: true, id: (data as { id?: string } | null)?.id ?? null });
+  return NextResponse.json({ ok: true, id: saved.payment.id });
 }

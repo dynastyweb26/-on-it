@@ -150,3 +150,55 @@ export function isUnattachedIdempotencyConflict(error: unknown): boolean {
   if (String(e.code ?? '') !== '23505') return false;
   return `${e.message ?? ''} ${e.details ?? ''}`.includes(UNATTACHED_INCOME_IDEMPOTENCY_CONSTRAINT);
 }
+
+// ── The write, once per key ────────────────────────────────────────────────
+// A tap can become two requests: a double tap, a second tab, or a retry after
+// a lost response. The button guard alone cannot close that window, so the key
+// and the unique index decide instead. The sequence below is the invoice
+// ledger's, with the invoice comparison replaced by amount + day.
+
+export interface UnattachedPaymentIO {
+  /**
+   * Insert unless (user_id, idempotency_key) already exists. A repeat of the
+   * same payment must be a no-op that reports no error; `fatal` marks a repeat
+   * that must not be forgiven (the key already owns different money).
+   */
+  insertOnce: (
+    row: ReturnType<typeof unattachedInsertRow>,
+  ) => Promise<{ error: unknown; fatal?: boolean }>;
+  /** Read the row for this key — the original, whether we just wrote it or not. */
+  findByKey: (userId: string, key: string) => Promise<UnattachedPaymentRow | null>;
+}
+
+export type SaveUnattachedResult =
+  | { ok: true; payment: UnattachedPaymentRow }
+  | { ok: false; payment: null; error: unknown };
+
+/**
+ * Write the payment once, then return the row that key owns.
+ *
+ * A repeat never inserts: the database raises the unique violation, the adapter
+ * reads the original row back, and the caller returns the same result rather
+ * than a second payment. An error is only recoverable when no row exists for the
+ * key (a real failure, not a repeat whose response was lost) and the adapter has
+ * not marked it fatal.
+ */
+export async function saveUnattachedPaymentOnce(
+  io: UnattachedPaymentIO,
+  row: ReturnType<typeof unattachedInsertRow>,
+): Promise<SaveUnattachedResult> {
+  const { error, fatal } = await io.insertOnce(row);
+  if (error) {
+    if (fatal) return { ok: false, payment: null, error };
+    // The insert may have landed and only the response been lost: the key
+    // decides. A row for this key means the money is recorded exactly once.
+    const existing = await io.findByKey(row.user_id, row.idempotency_key);
+    if (existing) return { ok: true, payment: existing };
+    return { ok: false, payment: null, error };
+  }
+  const saved = await io.findByKey(row.user_id, row.idempotency_key);
+  if (!saved) {
+    return { ok: false, payment: null, error: new Error('payment row missing after insert') };
+  }
+  return { ok: true, payment: saved };
+}

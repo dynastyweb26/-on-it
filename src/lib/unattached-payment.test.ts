@@ -130,6 +130,6 @@ test('the route runs on the session and RLS: no service role, no invoice', () =>
 });
 
 test('a client cannot be told a write succeeded when RLS refused it', () => {
-  assert.match(ROUTE, /error\.code === '42501'/);
+  assert.match(ROUTE, /code === '42501'/);
   assert.match(ROUTE, /fail\('not_allowed', 403\)/);
 });
