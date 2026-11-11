@@ -34,6 +34,8 @@ import { guardModelMoney } from '@/lib/tools/money';
 import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
+import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
+import { REGISTRY } from '@/lib/tools/registry';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -151,6 +153,21 @@ export async function POST(req: NextRequest) {
   const reply = result.budgetExhausted
     ? summary?.sentence ?? TURN_BUDGET_REPLY
     : replyFor({ modelText: moneyGuard.text, summary, toolCalled: !!summary });
+
+  // Chat logging: one row per turn, under the caller's session. Best effort —
+  // a failed log never fails the answer the user is waiting for.
+  const loggedRun = result.toolRuns.find((run) => run.status === 'ok');
+  await logTurn(supabaseChatLog(supabase), {
+    userId: user.id,
+    sessionId: sessionFrom(req.headers),
+    turn: turnIndexFrom(req.headers),
+    toolsCalled: result.toolRuns.map((run) => run.name),
+    templateId: loggedRun
+      ? REGISTRY.find(loggedRun.name)?.defaultTemplate.id ?? null
+      : null,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+  });
 
   return NextResponse.json(
     {
