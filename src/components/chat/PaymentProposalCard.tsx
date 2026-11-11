@@ -57,7 +57,9 @@ export interface PaymentProposal {
 export type PickerData = { ok: true; clients: ClientSummary[]; invoices: OpenInvoice[] } | { ok: false; message: string };
 
 export type ProposalInput = { invoiceId: string; amount: number; method: PaymentMethod; paidOn: string };
-export type ProposalResult = { ok: true } | { ok: false; message: string };
+/** The no-invoice path: money in that no invoice explains. */
+export type UnattachedProposalInput = { amount: number; method: PaymentMethod; paidOn: string };
+export type ProposalResult ={ ok: true } | { ok: false; message: string };
 
 const leftOf = (inv: ProposalInvoice) => Math.max(0, inv.total - inv.amountPaid);
 const docNo = (inv: ProposalInvoice) => (inv.invoiceNo ? `INV-${String(inv.invoiceNo).padStart(4, '0')}` : 'Invoice');
@@ -76,7 +78,7 @@ const ROW = { display: 'flex', justifyContent: 'space-between', alignItems: 'cen
 const LBL = { color: '#7a7166' } as const;
 const body = (css: string) => `${css} var(--font-inter), system-ui, sans-serif`;
 
-export default function PaymentProposalCard({ proposal, onConfirm, onCancel, cancelled = false, onUndo, loadPicker }: {
+export default function PaymentProposalCard({ proposal, onConfirm, onCancel, cancelled = false, onUndo, loadPicker, onConfirmUnattached }: {
   proposal: PaymentProposal;
   onConfirm: (input: ProposalInput) => Promise<ProposalResult>;
   onCancel: () => void;
@@ -85,6 +87,8 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
   onUndo?: () => void;
   /** Required for a `picker` proposal; loads the client list and open invoices. */
   loadPicker?: () => Promise<PickerData>;
+  /** Present when this card may record a payment with no invoice behind it. */
+  onConfirmUnattached?: (input: UnattachedProposalInput) => Promise<ProposalResult>;
 }) {
   const picker = proposal.picker === true && Boolean(loadPicker);
   const [clientName, setClientName] = useState(proposal.clientName);
@@ -98,6 +102,8 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
   const [amountText, setAmountText] = useState(proposal.amount != null ? String(proposal.amount) : '');
   const [method, setMethod] = useState<PaymentMethod | ''>(proposal.method ?? '');
   const [paidOn, setPaidOn] = useState(proposal.paidOn);
+  // "Not tied to an invoice": saved on its own, with no invoice behind it.
+  const [noInvoice, setNoInvoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // One tap, one submission: the caller mints the idempotency key at Confirm,
@@ -148,11 +154,11 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
   const noInvoices = picker && load.status === 'ready' && clientChosen && choice?.kind === 'none';
   // With no unpaid invoice there is nothing to show or pick: the footer says so.
   const showInvoice = !picker || (load.status === 'ready' && clientChosen && !noInvoices);
-  const invoice = invoices.find((i) => i.id === invoiceId) ?? null;
+  const invoice = noInvoice ? null : invoices.find((i) => i.id === invoiceId) ?? null;
   const amount = Number(amountText);
   const validAmount = Number.isFinite(amount) && amount > 0;
   const overpay = invoice != null && validAmount && amount > leftOf(invoice) + 1e-9;
-  const canConfirm = Boolean(invoiceId) && validAmount && Boolean(method) && !overpay && !busy;
+  const canConfirm = (noInvoice || Boolean(invoiceId)) && validAmount && Boolean(method) && !overpay && !busy;
   const owesAfter = invoice ? Math.max(0, leftOf(invoice) - (validAmount ? amount : 0)) : null;
 
   async function confirm() {
@@ -161,7 +167,9 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
     setBusy(true);
     setError('');
     try {
-      const out = await onConfirm({ invoiceId: invoiceId as string, amount, method: method as PaymentMethod, paidOn });
+      const out = noInvoice && onConfirmUnattached
+        ? await onConfirmUnattached({ amount, method: method as PaymentMethod, paidOn })
+        : await onConfirm({ invoiceId: invoiceId as string, amount, method: method as PaymentMethod, paidOn });
       if (!out.ok) { setError(out.message); setBusy(false); }
       // On success the caller replaces this card with the recorded one.
     } catch (e) {
@@ -268,13 +276,27 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
                 <button
                   key={inv.id}
                   type="button"
-                  aria-pressed={invoiceId === inv.id}
-                  onClick={() => setInvoiceId(inv.id)}
-                  style={{ ...chip(invoiceId === inv.id), flex: 'none' }}
+                  aria-pressed={!noInvoice && invoiceId === inv.id}
+                  onClick={() => { setNoInvoice(false); setInvoiceId(inv.id); }}
+                  style={{ ...chip(!noInvoice && invoiceId === inv.id), flex: 'none' }}
                 >
                   {label(inv)}
                 </button>
               ))}
+            </div>
+          )}
+          {/* The last option: money in that no invoice explains. */}
+          {onConfirmUnattached && (!picker || load.status === 'ready') && (
+            <div style={{ display: 'flex', gap: 5, overflowX: 'auto', padding: '8px 0', borderBottom: '1px dashed #e6d9c3' }}>
+              <button
+                type="button"
+                aria-pressed={noInvoice}
+                disabled={cancelled || busy}
+                onClick={() => setNoInvoice((v) => !v)}
+                style={{ ...chip(noInvoice), flex: 'none' }}
+              >
+                Not tied to an invoice
+              </button>
             </div>
           )}
 
@@ -355,7 +377,9 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
         </div>
 
         <div style={{ background: 'var(--al-card-bg)', padding: '10px 14px', fontSize: 13, color: 'var(--al-ink2)', borderTop: '1px solid #efe4d2' }}>
-          {owesAfter != null
+          {noInvoice
+            ? (!validAmount ? 'How much did they pay?' : 'Saved as income, not tied to an invoice.')
+            : owesAfter != null
             ? <>After this, {firstName(clientName)} owes <b>{money(owesAfter)}</b>.</>
             : noInvoices ? noUnpaidInvoicesMessage(typedName)
             : (!validAmount ? 'How much did they pay?' : 'Pick the invoice this pays.')}
