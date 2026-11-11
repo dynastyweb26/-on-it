@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return fail('unauthorized', 401);
-  if (!(await rateLimit('income-unattached', rateIdentifier(req, user.id)))) {
+  if (!(await rateLimit('income_unattached', rateIdentifier(req, user.id)))) {
     return fail('rate_limited', 429);
   }
 
@@ -131,4 +131,68 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, id: saved.payment.id });
+}
+
+// ── Undo ───────────────────────────────────────────────────────────────────
+// Delete is a soft delete, exactly like the Income form's: the row stops
+// counting in Collected but never leaves the table, so Undo can put it back.
+// The RLS policies already bound both calls to the owner's own manual rows; the
+// filters repeat the boundary so a deposit-linked row is reported as not found
+// rather than silently untouched.
+
+const IdBody = z.object({ id: z.string().uuid() });
+
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return fail('unauthorized', 401);
+  if (!(await rateLimit('income_unattached', rateIdentifier(req, user.id)))) {
+    return fail('rate_limited', 429);
+  }
+
+  const parsed = IdBody.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return fail('invalid_request');
+
+  const { data, error } = await supabase
+    .from('other_income')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', parsed.data.id)
+    .eq('user_id', user.id)
+    .is('deposit_id', null)
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    console.error('[income/unattached] delete failed', error.code);
+    return fail('db_update_failed', 500);
+  }
+  if (!data) return fail('not_found', 404);
+  return NextResponse.json({ ok: true, id: parsed.data.id });
+}
+
+/** Undo a delete. Restoring a row that is already live is a no-op, not an error. */
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return fail('unauthorized', 401);
+  if (!(await rateLimit('income_unattached', rateIdentifier(req, user.id)))) {
+    return fail('rate_limited', 429);
+  }
+
+  const parsed = IdBody.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return fail('invalid_request');
+
+  const { data, error } = await supabase
+    .from('other_income')
+    .update({ deleted_at: null })
+    .eq('id', parsed.data.id)
+    .eq('user_id', user.id)
+    .is('deposit_id', null)
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    console.error('[income/unattached] restore failed', error.code);
+    return fail('db_update_failed', 500);
+  }
+  if (!data) return fail('not_found', 404);
+  return NextResponse.json({ ok: true, id: parsed.data.id });
 }

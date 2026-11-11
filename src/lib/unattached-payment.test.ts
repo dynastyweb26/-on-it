@@ -125,7 +125,7 @@ test('the route runs on the session and RLS: no service role, no invoice', () =>
   // The session owns the row, never the body.
   assert.match(ROUTE, /unattachedInsertRow\(user\.id/);
   assert.match(ROUTE, /getUser\(\)/);
-  assert.match(ROUTE, /rateLimit\('income-unattached'/);
+  assert.match(ROUTE, /rateLimit\('income_unattached'/);
   assert.match(ROUTE, /idempotency_key/);
 });
 
