@@ -16,9 +16,9 @@
 // 'sent' or 'overdue', balance > 0. Partials are included, and a deposit already
 // recorded counts toward amount_paid because that column is the ledger total the
 // invoice_payments trigger maintains (migration 20260918000000).
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { money, roundCurrency } from '@/lib/financials';
 import { formatDocNumber } from '@/lib/documents';
+import type { ToolDb } from '@/lib/tools/contract';
 
 /** Rows one answer may carry. */
 export const UNPAID_ROW_CAP = 20;
@@ -157,20 +157,19 @@ export function summarizeUnpaid(
  * explicit user_id filter is belt and braces, never a privilege escalation.
  */
 export async function readUnpaidInvoices(
-  supabase: SupabaseClient,
+  db: ToolDb,
   userId: string,
   opts: UnpaidOptions = {}
 ): Promise<UnpaidResult> {
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, client_name, total, amount_paid, due_date, status')
-    .eq('user_id', userId)
-    .eq('kind', 'invoice')
-    .is('deleted_at', null)
-    .in('status', ['sent', 'overdue'])
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .limit(UNPAID_SCAN_LIMIT);
+  const { data, error } = await db.select<UnpaidInvoiceRow>('invoices', {
+    columns: 'id, invoice_number, client_name, total, amount_paid, due_date, status',
+    eq: { user_id: userId, kind: 'invoice' },
+    is: { deleted_at: null },
+    in: { status: ['sent', 'overdue'] },
+    order: { column: 'due_date', ascending: true },
+    limit: UNPAID_SCAN_LIMIT,
+  });
 
   if (error) return { ok: false, error: error.message };
-  return { ok: true, ...summarizeUnpaid((data ?? []) as UnpaidInvoiceRow[], opts) };
+  return { ok: true, ...summarizeUnpaid(data ?? [], opts) };
 }

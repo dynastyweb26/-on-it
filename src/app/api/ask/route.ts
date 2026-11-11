@@ -6,11 +6,11 @@
 // finalizes, renders a PDF or moves a status.
 //
 // Every read runs under the caller's own session, so RLS is the boundary: there
-// is no service-role client in this file, and the single tool is a select.
+// is no service-role client in this file, and the tool surface is read-only.
 //
-// Money rule, same as parse: the model never states a figure. The server
-// composes the money line from the tool result, and any sentence the model
-// writes that carries a "$" amount is dropped before it is shown.
+// Money rule: the model never states a figure. The server composes the money
+// line from the tool result, and model prose may only carry a figure that
+// figure already contains.
 //
 // Flag: needs BOTH the build-time NEXT_PUBLIC_AI_TOOLS flag and a Vercel preview
 // environment, so production and local development answer 404.
@@ -21,14 +21,11 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
-import {
-  MAX_MODEL_CALLS,
-  TOOL_SYSTEM,
-  TOOLS,
-  UNPAID_TOOL_NAME,
-  parseToolArgs,
-} from '@/lib/tools/unpaid-legacy';
-import { readUnpaidInvoices, type UnpaidSummary } from '@/lib/tools/unpaid';
+import { MAX_MODEL_CALLS, TOOLS, parseCall } from '@/lib/tools/registry';
+import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
+import { TOOL_SYSTEM } from '@/lib/tools/prompt';
+import { supabaseToolDb } from '@/lib/tools/db';
+import type { UnpaidSummary } from '@/lib/tools/unpaid';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
@@ -112,6 +109,8 @@ export async function POST(req: NextRequest) {
   }
   const question = parsed.data.question;
 
+  // The tool's only database surface, built from this caller's own session.
+  const db = supabaseToolDb(supabase);
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
   let summary: UnpaidSummary | null = null;
   let toolCalled = false;
@@ -143,7 +142,7 @@ export async function POST(req: NextRequest) {
 
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const use of uses) {
-        const callArgs = parseToolArgs(use.name, use.input);
+        const callArgs = parseCall(use.name, use.input);
         if (!callArgs.ok) {
           results.push({
             type: 'tool_result',
@@ -153,26 +152,28 @@ export async function POST(req: NextRequest) {
           });
           continue;
         }
-        if (use.name === UNPAID_TOOL_NAME) {
-          toolCalled = true;
-          const found = await readUnpaidInvoices(supabase, user.id, {
-            minBalance: callArgs.args.min_balance,
-            cap: callArgs.args.limit,
-          });
-          if (!found.ok) {
-            results.push({
-              type: 'tool_result',
-              tool_use_id: use.id,
-              is_error: true,
-              content: 'lookup_failed',
-            });
-            continue;
+        try {
+          // The output schema the definition declared is the only shape that
+          // can reach the model or the client: a handler that drifts fails here.
+          const output = callArgs.tool.output.parse(
+            await callArgs.tool.handler({ db, userId: user.id }, callArgs.args as never)
+          ) as UnpaidSummary;
+          if (callArgs.tool.name === UNPAID_TOOL_NAME) {
+            toolCalled = true;
+            summary = output;
           }
-          summary = found;
           results.push({
             type: 'tool_result',
             tool_use_id: use.id,
-            content: JSON.stringify(toolPayload(found)),
+            content: JSON.stringify(toolPayload(output)),
+          });
+        } catch (error) {
+          console.error('[ask] tool failed', callArgs.tool.name, (error as Error)?.message);
+          results.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            is_error: true,
+            content: 'lookup_failed',
           });
         }
       }
