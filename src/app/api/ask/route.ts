@@ -31,6 +31,8 @@ import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
 import { guardModelMoney } from '@/lib/tools/money';
+import { createPendingAction } from '@/lib/tools/confirm';
+import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -101,6 +103,16 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       question,
       budget,
+      // A write tool proposed here stays pending until /api/ai/confirm runs it.
+      pending: async ({ tool, args }) => {
+        const created = await createPendingAction({
+          userId: user.id,
+          tool,
+          args,
+          store: supabasePendingStore(supabase, user.id),
+        });
+        return { actionId: created.id, token: created.token, expiresAt: created.expiresAt, tool };
+      },
     });
   } catch (e) {
     console.error('[ask] failed', (e as Error)?.message);
@@ -135,6 +147,7 @@ export async function POST(req: NextRequest) {
           rows: summary.rows,
         }
         : null,
+      pending: result.pending,
     },
     NO_STORE
   );

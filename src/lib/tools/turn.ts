@@ -22,9 +22,20 @@ export type ModelCall = (request: {
 export type ToolRun = {
   name: string;
   args: unknown;
-  status: 'ok' | 'error' | 'invalid' | 'unknown';
+  /** pending: a write/send proposal waiting for the owner's confirm token. */
+  status: 'ok' | 'error' | 'invalid' | 'unknown' | 'pending';
   output?: unknown;
 };
+
+/** What a write or send tool hands to the client instead of writing. */
+export type PendingProposal = {
+  tool: string;
+  actionId: string;
+  token: string;
+  expiresAt: string;
+};
+
+export type PendingCreator = (input: { tool: string; args: unknown }) => Promise<PendingProposal>;
 
 export type TurnResult = {
   /** What the model said last, or the reserve reply for an exhausted turn. */
@@ -35,6 +46,8 @@ export type TurnResult = {
   toolRuns: ToolRun[];
   /** The outputs of every successful tool run: the only figures a reply may state. */
   toolResults: unknown[];
+  /** Proposals the client may confirm, in the order the model asked for them. */
+  pending: PendingProposal[];
 };
 
 function textOf(message: Anthropic.Message): string {
@@ -64,10 +77,13 @@ export async function runToolTurn(input: {
   budget: TurnBudget;
   system?: string;
   tools?: Anthropic.Tool[];
+  /** Absent for a read-only turn: a write tool then fails closed. */
+  pending?: PendingCreator;
 }): Promise<TurnResult> {
   const { call, db, userId, budget } = input;
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: input.question }];
   const toolRuns: ToolRun[] = [];
+  const pending: PendingProposal[] = [];
   let replyText = '';
   let calls = 0;
   let budgetExhausted = false;
@@ -118,6 +134,34 @@ export async function runToolTurn(input: {
         continue;
       }
 
+      // A write or send tool NEVER runs inside the model turn: it becomes a
+      // pending action with a confirm token, and /api/ai/confirm executes it.
+      if (parsed.tool.type === 'write' || parsed.tool.type === 'send') {
+        if (!input.pending) {
+          toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'error' });
+          results.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            is_error: true,
+            content: 'confirmation_unavailable',
+          });
+          continue;
+        }
+        const proposal = await input.pending({ tool: parsed.tool.name, args: parsed.args });
+        pending.push({ ...proposal, tool: parsed.tool.name });
+        toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'pending' });
+        results.push({
+          type: 'tool_result',
+          tool_use_id: use.id,
+          content: JSON.stringify({
+            status: 'awaiting_confirmation',
+            tool: parsed.tool.name,
+            note: 'The owner must confirm. Tell them what is ready; never say it is done.',
+          }),
+        });
+        continue;
+      }
+
       try {
         const raw = await parsed.tool.handler({ db, userId }, parsed.args as never);
         // The declared output schema is the only shape allowed out of a tool.
@@ -152,5 +196,6 @@ export async function runToolTurn(input: {
     budgetExhausted,
     toolRuns,
     toolResults: toolRuns.flatMap((run) => (run.status === 'ok' ? [run.output] : [])),
+    pending,
   };
 }
