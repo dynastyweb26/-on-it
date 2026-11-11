@@ -58,7 +58,7 @@ export type PickerData = { ok: true; clients: ClientSummary[]; invoices: OpenInv
 
 export type ProposalInput = { invoiceId: string; amount: number; method: PaymentMethod; paidOn: string };
 /** The no-invoice path: money in that no invoice explains. */
-export type UnattachedProposalInput = { amount: number; method: PaymentMethod; paidOn: string };
+export type UnattachedProposalInput = { amount: number; method: PaymentMethod; paidOn: string; title: string };
 export type ProposalResult ={ ok: true } | { ok: false; message: string };
 
 const leftOf = (inv: ProposalInvoice) => Math.max(0, inv.total - inv.amountPaid);
@@ -104,6 +104,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
   const [paidOn, setPaidOn] = useState(proposal.paidOn);
   // "Not tied to an invoice": saved on its own, with no invoice behind it.
   const [noInvoice, setNoInvoice] = useState(false);
+  const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // One tap, one submission: the caller mints the idempotency key at Confirm,
@@ -168,7 +169,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
     setError('');
     try {
       const out = noInvoice && onConfirmUnattached
-        ? await onConfirmUnattached({ amount, method: method as PaymentMethod, paidOn })
+        ? await onConfirmUnattached({ amount, method: method as PaymentMethod, paidOn, title: title.trim() })
         : await onConfirm({ invoiceId: invoiceId as string, amount, method: method as PaymentMethod, paidOn });
       if (!out.ok) { setError(out.message); setBusy(false); }
       // On success the caller replaces this card with the recorded one.
@@ -297,6 +298,20 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
               >
                 Not tied to an invoice
               </button>
+            </div>
+          )}
+
+          {noInvoice && (
+            <div style={{ ...ROW, padding: '9px 0', gap: 8 }}>
+              <label htmlFor="pay-title" style={LBL}>What was it for?</label>
+              <input
+                id="pay-title"
+                value={title}
+                maxLength={200}
+                disabled={cancelled || busy}
+                onChange={(e) => setTitle(e.target.value)}
+                style={{ border: 0, outline: 0, background: 'transparent', font: body('600 14px'), color: 'var(--al-ink)', minWidth: 0, flex: 1, textAlign: 'right', padding: 0 }}
+              />
             </div>
           )}
 
