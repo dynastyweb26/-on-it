@@ -1333,3 +1333,13 @@ html[data-splash=""] .onit-splash {
   --tpl-fail-ink: #7e2f1c;
   --tpl-fail-line: #efd3c8;
 }
+
+/* ---- AI chat template tokens, round 3 (Feedback, CheckIn) ---- */
+:root {
+  --tpl-thumb-on: #322c25;
+  --tpl-thumb-off: #9a9083;
+  --tpl-field-border: #e8ddcb;
+  --tpl-chip-on-fg: #fcf6ee;
+  --tpl-send-off-fg: #8c7a45;
+  --tpl-seg: #efe7db;
+}

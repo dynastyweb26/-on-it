@@ -13,6 +13,7 @@ import CantDo from '@/components/chat/templates/CantDo';
 import TrendChart from '@/components/chat/templates/TrendChart';
 import Breakdown from '@/components/chat/templates/Breakdown';
 import ConfirmBatch from '@/components/chat/templates/ConfirmBatch';
+import FeedbackThumbs from '@/components/chat/templates/FeedbackThumbs';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -30,10 +31,11 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'chart.trend': TrendChart,
   'chart.breakdown': Breakdown,
   'confirm.batch': ConfirmBatch,
+  'feedback.thumbs': FeedbackThumbs,
 };
 
 // Sample text a design file carries that is not in the typed props yet (the design's emptyTitle default).
-const EXTRAS = (t: TemplateId, s: string): object => (t === 'nav.link' ? { emptyTitle: 'INV-0069 is gone' } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
+const EXTRAS = (t: TemplateId, s: string): object => (t === 'nav.link' ? { emptyTitle: 'INV-0069 is gone' } : t === 'feedback.thumbs' && (s === 'openFilled' || s === 'error') ? { initial: { reasons: ['Wrong number'], note: 'It used last month, not this one.' } } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
