@@ -1285,3 +1285,40 @@ html[data-splash=""] .onit-splash {
   .bank-alert-pulse, .bank-alert-ring { animation: none; }
   .bank-alert-pulse { box-shadow: 0 0 0 2px #efc9c1; }
 }
+
+/* ---- AI chat template tokens (design/ai-templates, RULES.md §3) ----
+   Exact hexes from the design files. None of these exist in tailwind.config.ts
+   or design/tokens.css, so none is borrowed from a near neighbour. Scoped to
+   src/components/chat/templates; do not use app-wide. */
+:root {
+  --tpl-ink: #221d18;
+  --tpl-muted: #6e655a;
+  --tpl-muted-2: #5f574d;
+  --tpl-eyebrow: #857b6e;
+  --tpl-icon-muted: #8c8275;
+  --tpl-chevron: #a39888;
+  --tpl-dots: #b5aa9a;
+  --tpl-card: #fffcf7;
+  --tpl-card-border: #ece2d0;
+  --tpl-nav-card: #fffdf9;
+  --tpl-nav-border: #e6dccb;
+  --tpl-bubble: #f4ecdf;
+  --tpl-bubble-border: #e6dbc7;
+  --tpl-white: #ffffff;
+  --tpl-line: #efe6d8;
+  --tpl-skel: #f1e9dc;
+  --tpl-skel-light: #f5efe5;
+  --tpl-total-bg: #f7f0e4;
+  --tpl-hover: #fbf5ea;
+  --tpl-press: #f5eddf;
+  --tpl-btn-border: #e2d6c2;
+  --tpl-gold: #d4af37;
+  --tpl-gold-soft: #f2e6bf;
+  --tpl-gold-ink: #7a5e00;
+  --tpl-avatar-ink: #5e4700;
+  --tpl-red: #a8432a;
+  --tpl-red-soft: #f8e3dc;
+  --tpl-green: #2d6b3e;
+  --tpl-paid: #2b7a4b;
+  --tpl-paid-soft: #e3f1e6;
+}

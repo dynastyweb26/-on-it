@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { AssistantAvatar } from '@/components/chat/EventCard';
+import RankedList from '@/components/chat/templates/RankedList';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -15,7 +16,9 @@ export const dynamic = 'force-dynamic';
 // Built templates only; an id that is not here is listed as NOT BUILT, never
 // drawn as a stand-in (RULES.md §1).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {};
+const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
+  'list.ranked': RankedList,
+};
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();

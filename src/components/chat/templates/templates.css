@@ -1,0 +1,7 @@
+/* Hover, pressed and motion for the AI chat templates (design/ai-templates). */
+@keyframes onitPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-template],[data-template] *{animation:none !important;transition:none !important}}
+.tpl-tap{cursor:pointer}
+.tpl-hover:hover{background:var(--tpl-hover)}
+.tpl-press:hover{background:var(--tpl-hover)}
+.tpl-press:active{background:var(--tpl-press)}
