@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureDb } from '../fixture-db';
 import { booksTotals } from '@/lib/books-totals';
+import { booksDay, inBooksPeriod } from '@/lib/books-period';
 import { weekBounds } from '@/lib/recap/dates';
 import { resolveReportRange, runReportTool } from './run_report';
 
@@ -88,6 +89,18 @@ const run = (rows: Rows, args: unknown) =>
 
 const OCT = { period: 'custom', from: '2026-10-01', to: '2026-10-31' };
 const SEP_OCT = { period: 'custom', from: '2026-09-01', to: '2026-10-31' };
+const booksRange = (range: { start: string; end: string }) => ({ ...range, granularity: 'range' });
+
+/** The same period rule Books uses, over the fixture rows. */
+const booksRows = (rows: Rows, range: { start: string; end: string }, tz = 'UTC') => ({
+  payments: (rows.invoice_payments ?? []).filter((row) =>
+    inBooksPeriod(booksDay('payment', row.paid_at as string, tz), booksRange(range))),
+  otherIncome: (rows.other_income ?? []).filter((row) =>
+    inBooksPeriod(booksDay('other_income', row.received_on as string, tz), booksRange(range))),
+  expenses: (rows.expenses ?? []).filter((row) =>
+    inBooksPeriod(booksDay('expense', row.spent_on as string), booksRange(range))),
+  invoices: rows.invoices ?? [],
+});
 
 test('collected equals the Books calculation for the same rows', async () => {
   const rows = baseFixture();
@@ -100,6 +113,51 @@ test('collected equals the Books calculation for the same rows', async () => {
   });
   assert.equal(out.value.amount, books.collected);
   assert.equal(out.value.amount, 1850);
+});
+
+test('spent, net and outstanding equal the Books calculation too', async () => {
+  const rows = baseFixture();
+  const books = booksTotals(booksRows(rows, { start: OCT.from, end: OCT.to }) as never);
+
+  const spent = await run(rows, { metric: 'spent', ...OCT });
+  assert.equal(spent.value.amount, -books.spent);
+
+  const net = await run(rows, { metric: 'net', ...OCT });
+  assert.equal(net.value.amount, books.net);
+
+  const outstanding = await run(rows, { metric: 'outstanding', ...OCT });
+  assert.equal(outstanding.value.amount, books.outstanding);
+});
+
+test('a month includes its first and last local day, not the minute after midnight', async () => {
+  const rows: Rows = {
+    profiles: [{ id: OWNER, timezone: 'America/Chicago' }],
+    invoices: [1, 2, 3, 4].map((n) => invoice({ id: `inv-${n}`, status: 'paid', total: 10 })),
+    invoice_payments: [
+      payment({ id: 'p1', invoice_id: 'inv-1', amount: 10, paid_at: '2026-10-01T04:59:00Z' }),
+      payment({ id: 'p2', invoice_id: 'inv-2', amount: 20, paid_at: '2026-10-01T05:01:00Z' }),
+      payment({ id: 'p3', invoice_id: 'inv-3', amount: 30, paid_at: '2026-11-01T04:59:00Z' }),
+      payment({ id: 'p4', invoice_id: 'inv-4', amount: 40, paid_at: '2026-11-01T05:01:00Z' }),
+    ],
+    other_income: [{
+      id: 'o1', user_id: OWNER, amount: 5, title: 'Side job', client_name: null,
+      received_on: '2026-10-01', classification: 'other_income', deposit_id: null, deleted_at: null,
+    }],
+    expenses: [
+      expense({ id: 'e1', amount: 1, spent_on: '2026-09-30' }),
+      expense({ id: 'e2', amount: 7, spent_on: '2026-10-01' }),
+      expense({ id: 'e3', amount: 9, spent_on: '2026-10-31' }),
+      expense({ id: 'e4', amount: 11, spent_on: '2026-11-01' }),
+    ],
+  };
+
+  const out = await run(rows, { metric: 'net', ...OCT });
+  // 20 + 30 + 5, with the 23:59 Sep 30 and 00:01 Nov 1 rows outside October.
+  assert.equal(out.value.amount, 55 - 16);
+  assert.equal(out.period.timezone, 'America/Chicago');
+
+  const books = booksTotals(booksRows(rows, { start: OCT.from, end: OCT.to }, 'America/Chicago') as never);
+  assert.equal(out.value.amount, books.net);
 });
 
 test('a category word narrows spending: gas means fuel', async () => {

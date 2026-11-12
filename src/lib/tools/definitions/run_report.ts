@@ -25,6 +25,7 @@ import { breakdownView } from '@/lib/templates/breakdown';
 import { trendChartProps } from '@/lib/templates/trend';
 import { rankedView } from '@/lib/templates/ranked';
 import { booksTotals } from '@/lib/books-totals';
+import { booksDay, inBooksPeriod } from '@/lib/books-period';
 import { countsAsIncome, type OtherIncomeRow } from '@/lib/other-income';
 import { CATEGORY_LABEL, isExpenseCategory } from '@/lib/expenses';
 import {
@@ -278,7 +279,7 @@ const dayOf = (value: unknown, tz: string): string => {
 };
 
 const inRange = (day: string, range: { start: string; end: string }) =>
-  day !== '' && day >= range.start && day <= range.end;
+  inBooksPeriod(day, range);
 
 export type ReportData = {
   payments: Payment[];
@@ -663,7 +664,7 @@ export const runReportTool = defineTool({
     for (const raw of payRes.data ?? []) {
       const invoice = invoiceById.get(raw.invoice_id);
       if (!invoice || invoice.deleted || invoice.kind !== 'invoice') continue;
-      const day = dayOf(raw.paid_at, tz);
+      const day = booksDay('payment', raw.paid_at, tz);
       if (!day) continue;
       payments.push({ clientName: invoice.clientName, amount: num(raw.amount), day });
     }
@@ -673,7 +674,7 @@ export const runReportTool = defineTool({
       .map((raw) => ({
         clientName: (raw.client_name ?? '').trim() || (raw.title ?? '').trim() || 'Other income',
         amount: num(raw.amount),
-        day: (toIso(raw.received_on) ?? '').slice(0, 10),
+        day: booksDay('other_income', raw.received_on, tz),
       }));
 
     const expenses: Expense[] = (expRes.data ?? [])
@@ -684,7 +685,7 @@ export const runReportTool = defineTool({
           clientName: linked && !linked.deleted && linked.kind === 'invoice' ? linked.clientName : 'No client',
           amount: num(raw.amount),
           category: isExpenseCategory(raw.category) ? raw.category : 'other',
-          day: dayOf(raw.spent_on, tz),
+          day: booksDay('expense', raw.spent_on),
         };
       });
 
