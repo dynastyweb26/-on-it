@@ -2310,6 +2310,155 @@ results(id, ok, expected, actual) as (
         from information_schema.columns c
         where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'tutorials_seen'), 'missing') end
 
+  -- BG1-BG3. AI chat logging (20261111180000). SKIP until pushed. The turn log
+  --     is owner insert + read only; feedback can be changed (three columns) or
+  --     cleared; help gaps are owner insert + read. No anon access anywhere.
+  union all
+  select 'BG1 chat messages log policy',
+    case when not exists (select 1 from applied where version = '20261111180000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.chat_messages') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_messages'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_messages'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%') = 1
+        and has_table_privilege('authenticated', 'public.chat_messages', 'SELECT')
+        and has_table_privilege('authenticated', 'public.chat_messages', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.chat_messages', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.chat_messages', 'DELETE')
+        and has_column_privilege('authenticated', 'public.chat_messages', 'user_text', 'INSERT')
+        and not has_column_privilege('authenticated', 'public.chat_messages', 'user_text', 'UPDATE')
+        and not has_table_privilege('anon', 'public.chat_messages', 'SELECT') end,
+    'chat_messages: RLS on, owner insert + read only, question and reply stored, no client UPDATE/DELETE',
+    case when not exists (select 1 from applied where version = '20261111180000') then 'not applied yet'
+      else 'auth_insert=' || has_table_privilege('authenticated', 'public.chat_messages', 'INSERT')::text
+        || ' auth_update=' || has_table_privilege('authenticated', 'public.chat_messages', 'UPDATE')::text
+        || ' anon_select=' || has_table_privilege('anon', 'public.chat_messages', 'SELECT')::text end
+  union all
+  select 'BG2 chat feedback change and clear',
+    case when not exists (select 1 from applied where version = '20261111180000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.chat_feedback') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'INSERT'
+            and p.with_check ilike '%auth.uid()%'
+            and p.with_check ilike '%chat_messages%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'UPDATE'
+            and p.qual ilike '%auth.uid()%'
+            and p.with_check ilike '%auth.uid()%'
+            and p.with_check ilike '%chat_messages%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'chat_feedback'
+            and p.cmd = 'DELETE' and p.qual ilike '%auth.uid()%') = 1
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'chat_feedback_user_message_uidx'
+            and indexdef ilike '%unique%'
+            and indexdef ilike '%user_id, message_id%')
+        and has_table_privilege('authenticated', 'public.chat_feedback', 'SELECT')
+        and has_table_privilege('authenticated', 'public.chat_feedback', 'INSERT')
+        and has_table_privilege('authenticated', 'public.chat_feedback', 'DELETE')
+        and not has_table_privilege('authenticated', 'public.chat_feedback', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.chat_feedback', 'thumb', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.chat_feedback', 'reasons', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.chat_feedback', 'note', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.chat_feedback', 'message_id', 'UPDATE')
+        and not has_table_privilege('anon', 'public.chat_feedback', 'SELECT') end,
+    'chat_feedback: one row per (user_id, message_id), own-row UPDATE of thumb/reasons/note only, own-row DELETE, no anon',
+    case when not exists (select 1 from applied where version = '20261111180000') then 'not applied yet'
+      else 'auth_delete=' || has_table_privilege('authenticated', 'public.chat_feedback', 'DELETE')::text
+        || ' table_update=' || has_table_privilege('authenticated', 'public.chat_feedback', 'UPDATE')::text
+        || ' message_update=' || has_column_privilege('authenticated', 'public.chat_feedback', 'message_id', 'UPDATE')::text end
+  union all
+  select 'BG3 help gaps policy',
+    case when not exists (select 1 from applied where version = '20261111180000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.help_gaps') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%') = 1
+        and has_table_privilege('authenticated', 'public.help_gaps', 'SELECT')
+        and has_table_privilege('authenticated', 'public.help_gaps', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.help_gaps', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.help_gaps', 'DELETE')
+        and not has_table_privilege('anon', 'public.help_gaps', 'SELECT') end,
+    'help_gaps: RLS on, owner insert + read only, no client UPDATE/DELETE, no anon',
+    case when not exists (select 1 from applied where version = '20261111180000') then 'not applied yet'
+      else 'auth_insert=' || has_table_privilege('authenticated', 'public.help_gaps', 'INSERT')::text
+        || ' auth_delete=' || has_table_privilege('authenticated', 'public.help_gaps', 'DELETE')::text
+        || ' anon_select=' || has_table_privilege('anon', 'public.help_gaps', 'SELECT')::text end
+
+  -- BH1-BH2. AI pending actions (20261111170000). SKIP until pushed. A proposal
+  --     is write-once: the only column a browser session may UPDATE is
+  --     executed_at, and only on its own row. Commit records are insert + read.
+  union all
+  select 'BH1 pending actions latch only',
+    case when not exists (select 1 from applied where version = '20261111170000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.tool_pending_actions') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'tool_pending_actions'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'tool_pending_actions'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'tool_pending_actions'
+            and p.cmd = 'UPDATE'
+            and p.qual ilike '%auth.uid()%'
+            and p.with_check ilike '%auth.uid()%') = 1
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'tool_pending_user_token_uidx'
+            and indexdef ilike '%unique%' and indexdef ilike '%user_id, token_hash%')
+        and has_table_privilege('authenticated', 'public.tool_pending_actions', 'SELECT')
+        and has_table_privilege('authenticated', 'public.tool_pending_actions', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.tool_pending_actions', 'UPDATE')
+        and has_column_privilege('authenticated', 'public.tool_pending_actions', 'executed_at', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.tool_pending_actions', 'args', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.tool_pending_actions', 'tool', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.tool_pending_actions', 'token_hash', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.tool_pending_actions', 'expires_at', 'UPDATE')
+        and not has_table_privilege('anon', 'public.tool_pending_actions', 'SELECT') end,
+    'tool_pending_actions: write-once proposal, own-row UPDATE of executed_at only, one token per (user, hash), no anon',
+    case when not exists (select 1 from applied where version = '20261111170000') then 'not applied yet'
+      else 'table_update=' || has_table_privilege('authenticated', 'public.tool_pending_actions', 'UPDATE')::text
+        || ' args_update=' || has_column_privilege('authenticated', 'public.tool_pending_actions', 'args', 'UPDATE')::text
+        || ' executed_update=' || has_column_privilege('authenticated', 'public.tool_pending_actions', 'executed_at', 'UPDATE')::text end
+  union all
+  select 'BH2 tool commit records',
+    case when not exists (select 1 from applied where version = '20261111170000') then null
+      else (select count(*) from pg_class c
+        where c.oid = to_regclass('public.tool_action_commits') and c.relrowsecurity) = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'tool_action_commits'
+            and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'tool_action_commits'
+            and p.cmd = 'INSERT' and p.with_check ilike '%auth.uid()%') = 1
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'tool_action_commits_user_key_uidx'
+            and indexdef ilike '%unique%' and indexdef ilike '%user_id, idempotency_key%')
+        and has_table_privilege('authenticated', 'public.tool_action_commits', 'SELECT')
+        and has_table_privilege('authenticated', 'public.tool_action_commits', 'INSERT')
+        and not has_table_privilege('authenticated', 'public.tool_action_commits', 'UPDATE')
+        and not has_table_privilege('authenticated', 'public.tool_action_commits', 'DELETE')
+        and not has_table_privilege('anon', 'public.tool_action_commits', 'SELECT') end,
+    'tool_action_commits: one row per (user_id, idempotency_key), owner insert + read only, no anon',
+    case when not exists (select 1 from applied where version = '20261111170000') then 'not applied yet'
+      else 'auth_insert=' || has_table_privilege('authenticated', 'public.tool_action_commits', 'INSERT')::text
+        || ' auth_update=' || has_table_privilege('authenticated', 'public.tool_action_commits', 'UPDATE')::text
+        || ' anon_select=' || has_table_privilege('anon', 'public.tool_action_commits', 'SELECT')::text end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,

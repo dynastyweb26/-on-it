@@ -1512,7 +1512,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     });
     // Phase already reads "thinking" from the top of send(), so the pending state
     // is on screen before this await; sendRef keeps a rage-tap to one request.
-    const asked = bypass || !AI_TOOLS ? null : await classifyTurn(trimmed);
+    const asked = bypass || !AI_TOOLS ? null : await classifyTurn(trimmed, turnId);
     const decision = decideRoute({
       flagOn: AI_TOOLS,
       bypass,
@@ -1536,7 +1536,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // 'ask' keeps the old block below: it owns the signed-out, rate-limited and
     // feature-off outcomes, and a 404 still falls through to the parse path.
     if (decision.route === 'ask') {
-      const out = await askQuestion(trimmed);
+      const out = await askQuestion(trimmed, fetch, turnId);
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
           const replyMsg = aMsg(out.reply, { skipHistory: true });

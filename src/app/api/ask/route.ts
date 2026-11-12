@@ -1,16 +1,21 @@
-// POST /api/ask — AI Smart, Slice 0.
+// POST /api/ask — AI Smart.
 //
-// One question in, one short answer out, from ONE read-only tool. This route
-// sits BESIDE /api/parse and shares nothing with it but the rate-limit bucket:
-// parse still owns the build-a-document conversation, and nothing here writes,
-// finalizes, renders a PDF or moves a status.
+// One question in, one short answer out, from the READ-ONLY tool registry. This
+// route sits BESIDE /api/parse and shares nothing with it but the rate-limit
+// bucket and the turn budget: parse still owns the build-a-document
+// conversation, and nothing here writes, finalizes, renders a PDF or moves a
+// status.
 //
 // Every read runs under the caller's own session, so RLS is the boundary: there
-// is no service-role client in this file, and the single tool is a select.
+// is no service-role client in this file, and no tool can reach one.
 //
-// Money rule, same as parse: the model never states a figure. The server
-// composes the money line from the tool result, and any sentence the model
-// writes that carries a "$" amount is dropped before it is shown.
+// Money rule: the model never states a figure. The server composes the money
+// line from the tool result, and model prose may only carry a figure the tool
+// result already contains.
+//
+// Budget: one turn (router + this route) may spend 8 model calls together; the
+// client shares its turn id through x-turn-id. A spent turn answers in plain
+// words instead of throwing.
 //
 // Flag: needs BOTH the build-time NEXT_PUBLIC_AI_TOOLS flag and a Vercel preview
 // environment, so production and local development answer 404.
@@ -21,58 +26,21 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
-import {
-  MAX_MODEL_CALLS,
-  TOOL_SYSTEM,
-  TOOLS,
-  UNPAID_TOOL_NAME,
-  parseToolArgs,
-} from '@/lib/tools/registry';
-import { readUnpaidInvoices, type UnpaidSummary } from '@/lib/tools/unpaid';
+import { TURN_BUDGET_REPLY, createTurnBudget } from '@/lib/tools/budget';
+import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
+import { supabaseToolDb } from '@/lib/tools/db';
 import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { guardModelMoney } from '@/lib/tools/money';
+import { createPendingAction } from '@/lib/tools/confirm';
+import { supabasePendingStore } from '@/lib/tools/pending-store';
+import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
+import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
+import { REGISTRY, cardFor } from '@/lib/tools/registry';
+import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
+import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 const Body = z.object({ question: z.string().trim().min(1).max(500) });
-
-function textOf(message: Anthropic.Message): string {
-  return message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('')
-    .trim();
-}
-
-/** The assistant turn as the API accepts it back, without any block we don't use. */
-function assistantTurn(content: Anthropic.ContentBlock[]): Anthropic.ContentBlockParam[] {
-  return content.flatMap((block): Anthropic.ContentBlockParam[] => {
-    if (block.type === 'text') return [{ type: 'text', text: block.text }];
-    if (block.type === 'tool_use') {
-      return [{ type: 'tool_use', id: block.id, name: block.name, input: block.input }];
-    }
-    return [];
-  });
-}
-
-/**
- * What the model sees of a result. Text amounts are included (it must not repeat
- * them) and the raw per-row numbers are not, so there is nothing tempting to
- * quote; totals stay numeric so it can reason about magnitude.
- */
-function toolPayload(summary: UnpaidSummary) {
-  return {
-    total_count: summary.totalCount,
-    total_balance: summary.totalBalance,
-    total_balance_text: summary.totalBalanceText,
-    invoices: summary.rows.map((row) => ({
-      number: row.number,
-      client: row.client,
-      balance_text: row.balanceText,
-      due_date: row.dueDate,
-      status: row.status,
-    })),
-    note: 'Amounts are for your reasoning only. Never repeat a figure; the app prints money.',
-  };
-}
 
 /** One structured line per model call. Never the question: it carries PII. */
 function logUsage(call: number, usage: Anthropic.Usage, ms: number): void {
@@ -89,6 +57,21 @@ export async function POST(req: NextRequest) {
   // Two gates: the build-time flag and a preview-only deployment.
   if (!AI_TOOLS || !aiToolsForEnv(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // A preview pointed at the production database must never answer: the guard
+  // names the misconfiguration in the server log instead of writing real rows.
+  const refusal = aiEnvRefusal({
+    flagOn: AI_TOOLS,
+    vercelEnv: process.env.VERCEL_ENV,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  if (refusal) {
+    logEnvRefusal(refusal, 'ask');
+    return NextResponse.json(
+      { error: refusal, reply: 'The assistant is not available on this preview.' },
+      { status: 503, ...NO_STORE },
+    );
   }
 
   const supabase = await createClient();
@@ -112,80 +95,95 @@ export async function POST(req: NextRequest) {
   }
   const question = parsed.data.question;
 
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: question }];
-  let summary: UnpaidSummary | null = null;
-  let toolCalled = false;
-  let replyText = '';
+  // The shared budget for this user turn; without the header it is per request.
+  const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
+  const db = supabaseToolDb(supabase);
 
+  let result: TurnResult;
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    for (let call = 1; call <= MAX_MODEL_CALLS; call++) {
-      const startedAt = Date.now();
-      const message = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 512,
-        system: TOOL_SYSTEM,
-        tools: TOOLS,
-        messages,
-      });
-      logUsage(call, message.usage, Date.now() - startedAt);
-
-      const uses = message.content.filter(
-        (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-      );
-      if (message.stop_reason !== 'tool_use' || uses.length === 0) {
-        replyText = textOf(message);
-        break;
-      }
-
-      messages.push({ role: 'assistant', content: assistantTurn(message.content) });
-
-      const results: Anthropic.ToolResultBlockParam[] = [];
-      for (const use of uses) {
-        const callArgs = parseToolArgs(use.name, use.input);
-        if (!callArgs.ok) {
-          results.push({
-            type: 'tool_result',
-            tool_use_id: use.id,
-            is_error: true,
-            content: callArgs.reason,
-          });
-          continue;
-        }
-        if (use.name === UNPAID_TOOL_NAME) {
-          toolCalled = true;
-          const found = await readUnpaidInvoices(supabase, user.id, {
-            minBalance: callArgs.args.min_balance,
-            cap: callArgs.args.limit,
-          });
-          if (!found.ok) {
-            results.push({
-              type: 'tool_result',
-              tool_use_id: use.id,
-              is_error: true,
-              content: 'lookup_failed',
-            });
-            continue;
-          }
-          summary = found;
-          results.push({
-            type: 'tool_result',
-            tool_use_id: use.id,
-            content: JSON.stringify(toolPayload(found)),
-          });
-        }
-      }
-      messages.push({ role: 'user', content: results });
-    }
+    let callIndex = 0;
+    result = await runToolTurn({
+      call: async ({ system, tools, messages }) => {
+        const startedAt = Date.now();
+        const message = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 512,
+          system,
+          tools,
+          messages,
+        });
+        callIndex += 1;
+        logUsage(callIndex, message.usage, Date.now() - startedAt);
+        return message;
+      },
+      db,
+      userId: user.id,
+      question,
+      budget,
+      // A write tool proposed here stays pending until /api/ai/confirm runs it.
+      pending: async ({ tool, args }) => {
+        const created = await createPendingAction({
+          userId: user.id,
+          tool,
+          args,
+          store: supabasePendingStore(supabase, user.id),
+        });
+        return { actionId: created.id, token: created.token, expiresAt: created.expiresAt, tool };
+      },
+    });
   } catch (e) {
     console.error('[ask] failed', (e as Error)?.message);
     return NextResponse.json({ reply: FALLBACK }, { status: 500, ...NO_STORE });
   }
 
+  const summary = (result.toolRuns.find(
+    (run) => run.status === 'ok' && run.name === UNPAID_TOOL_NAME,
+  )?.output ?? null) as UnpaidSummary | null;
+
+  // The data the result's template may render, and the plain text shown when no
+  // component exists for that template (or its props do not fit). A null card is
+  // never replaced by a makeshift one.
+  const okRun = result.toolRuns.find((run) => run.status === 'ok');
+  const okTool = okRun ? REGISTRY.find(okRun.name) : undefined;
+  const card = okRun && okTool ? cardFor(okTool, okRun.output) : null;
+  const fallback = okRun && okTool ? okTool.fallback(okRun.output as never) : null;
+
+  // Money guard: a dollar figure the model states must already exist in this
+  // turn's tool results. A sentence carrying one that does not is dropped.
+  const moneyGuard = guardModelMoney(result.replyText, result.toolResults);
+  if (!moneyGuard.ok) {
+    console.error('[ask] dropped model money with no tool source', moneyGuard.offending);
+  }
+
+  // A turn that ran out of model calls says so in plain words: the server
+  // sentence when one was composed, otherwise the reserve reply. Never an error.
+  const reply = result.budgetExhausted
+    ? summary?.sentence ?? TURN_BUDGET_REPLY
+    : replyFor({ modelText: moneyGuard.text, summary, toolCalled: !!summary });
+
+  // Chat logging: one row per turn, under the caller's session. Best effort —
+  // a failed log never fails the answer the user is waiting for.
+  const loggedRun = result.toolRuns.find((run) => run.status === 'ok');
+  await logTurn(supabaseChatLog(supabase), {
+    userId: user.id,
+    sessionId: sessionFrom(req.headers),
+    turn: turnIndexFrom(req.headers),
+    userText: question,
+    replyText: reply,
+    toolsCalled: result.toolRuns.map((run) => run.name),
+    templateId: loggedRun
+      ? REGISTRY.find(loggedRun.name)?.defaultTemplate.id ?? null
+      : null,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+  });
+
   return NextResponse.json(
     {
-      reply: replyFor({ modelText: replyText, summary, toolCalled }),
+      reply,
+      template: card,
+      fallback,
       tool: summary
         ? {
           totalCount: summary.totalCount,
@@ -194,6 +192,7 @@ export async function POST(req: NextRequest) {
           rows: summary.rows,
         }
         : null,
+      pending: result.pending,
     },
     NO_STORE
   );

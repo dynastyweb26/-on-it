@@ -1,6 +1,8 @@
 // Browser side of POST /api/route. Fetch and the clock are injected so the
 // outcomes (answer, feature off, bad body, timeout, no network) are unit-tested
-// with a fake. Sends the message and nothing else: no history, no draft.
+// with a fake. Sends the message and the turn id, and nothing else: no history,
+// no draft. The turn id is how this call and /api/ask share ONE model-call
+// budget (lib/tools/budget); without it each request is capped on its own.
 import type { BypassReason, RouterRoute } from './decide';
 
 export interface RouteAnswer {
@@ -25,7 +27,7 @@ export function createRouterClient(
 ) {
   let inFlight: Promise<RouteAnswer | null> | null = null;
 
-  return function classifyTurn(message: string): Promise<RouteAnswer | null> {
+  return function classifyTurn(message: string, turnId?: string | null): Promise<RouteAnswer | null> {
     if (inFlight) return inFlight;
 
     inFlight = (async (): Promise<RouteAnswer | null> => {
@@ -34,7 +36,10 @@ export function createRouterClient(
       try {
         const res = await fetchImpl('/api/route', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            ...(turnId ? { 'x-turn-id': turnId } : {}),
+          },
           body: JSON.stringify({ message }),
           signal: controller.signal,
         });
