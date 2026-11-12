@@ -106,6 +106,8 @@ export const ICON_NAMES = [
   'sync_problem',
   'touch_app',
   'trending_down',
+  'thumb_down',
+  'thumb_up',
   'trending_flat',
   'trending_up',
   'undo',
