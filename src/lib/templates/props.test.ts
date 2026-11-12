@@ -11,6 +11,11 @@ import {
   TEMPLATE_STATES,
   parseTemplateProps,
 } from './props';
+import type {
+  NavLinkCallbacks,
+  RankedListCallbacks,
+  StatTilesCallbacks,
+} from './callbacks';
 import {
   BREAKDOWN_FIXTURE,
   CANT_DO_FIXTURE,
@@ -61,10 +66,33 @@ test('the board sample values are copied, not invented', () => {
   assert.equal(BREAKDOWN_FIXTURE.total, '$5,200.80');
   assert.equal(CONFIRM_BATCH_FIXTURE.actions.length, 3);
   assert.equal(NAV_LINK_FIXTURE.items.length, 1);
+  assert.equal(NAV_LINK_FIXTURE.emptyTitle, 'INV-0069 is gone');
   assert.equal(FEEDBACK_THUMBS_FIXTURE.state, 'idle');
   assert.equal(FEEDBACK_CHECKIN_FIXTURE.state, 'open');
   assert.match(DRAFT_MESSAGE_FIXTURE.body, /\$8,100\.00/);
   assert.equal(CANT_DO_FIXTURE.alternatives?.length, 2);
+});
+
+test('nav.link needs an emptyTitle only when there is nothing to link to', () => {
+  const withoutTitle = { ...NAV_LINK_FIXTURE, emptyTitle: undefined };
+
+  const filled = parseTemplateProps('nav.link', { ...withoutTitle, state: 'filled' });
+  assert.equal(filled.success, true, 'a filled link does not need an empty headline');
+
+  const empty = parseTemplateProps('nav.link', { ...withoutTitle, state: 'empty' });
+  assert.equal(empty.success, false, 'an empty link needs its headline');
+
+  const titled = parseTemplateProps('nav.link', { ...NAV_LINK_FIXTURE, state: 'empty' });
+  assert.equal(titled.success, true, 'an empty link with its headline parses');
+});
+
+test('the three round-1 error cards report a retry', () => {
+  const retry = () => {};
+  const ranked: RankedListCallbacks = { onRetry: retry };
+  const tiles: StatTilesCallbacks = { onRetry: retry };
+  const link: NavLinkCallbacks = { onRetry: retry };
+
+  assert.deepEqual([ranked.onRetry, tiles.onRetry, link.onRetry], [retry, retry, retry]);
 });
 
 test('the caps the design declares are enforced', () => {

@@ -17,10 +17,19 @@ export type FeedbackReason =
 export type RankedListCallbacks = {
   onRowTap?: (row: RankedListProps['rows'][number], index: number) => void;
   onShowAll?: () => void;
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
+};
+
+export type StatTilesCallbacks = {
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
 };
 
 export type NavLinkCallbacks = {
   onOpen?: (item: NavLinkProps['items'][number], index: number) => void;
+  /** The error card's "Retry" button. */
+  onRetry?: () => void;
 };
 
 export type BreakdownCallbacks = {
@@ -42,12 +51,13 @@ export type FeedbackCheckinCallbacks = {
 };
 
 export type DraftMessageCallbacks = {
-  onChannel?: (channel: 'Text' | 'Email') => void;
-  onBody?: (body: string) => void;
-  onPrimary?: () => void;
-  onCancel?: () => void;
-  onUndo?: () => void;
+  onSend?: () => void;
+  onOpenMessages?: () => void;
+  onCopy?: () => void;
+  onMarkDone?: () => void;
   onEdit?: () => void;
+  onCancel?: () => void;
+  onAddContact?: () => void;
 };
 
 export type ConfirmBatchCallbacks = {
