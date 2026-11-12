@@ -2137,26 +2137,65 @@ results(id, ok, expected, actual) as (
         where not t.tgisinternal and t.tgrelid = to_regclass('public.bank_deposit_links')
           and t.tgname = 'guard_bank_deposit_link'), 'trigger missing') end
 
-  -- BD5-BD6. Other income (money in, 20261103000001). SKIP until pushed.
-  --     Owner SELECT only, service-role writes, and one income row per deposit.
+  -- BD5. Other income writes (money in, 20261111120000). SKIP until pushed.
+  --     The owner writes their own MANUAL rows only; a row a bank deposit
+  --     decided (deposit_id not null) stays server-written.
   union all
   select 'BD5 other income rls',
-    case when not exists (select 1 from applied where version = '20261103000001') then null
+    case when not exists (select 1 from applied where version = '20261111120000') then null
       else (select count(*) from pg_class c
         where c.oid = to_regclass('public.other_income') and c.relrowsecurity) = 1
         and (select count(*) from pg_policies p
           where p.schemaname = 'public' and p.tablename = 'other_income'
             and p.cmd = 'SELECT' and p.qual ilike '%auth.uid()%') = 1
-        and not exists (select 1 from pg_policies p
+        and (select count(*) from pg_policies p
           where p.schemaname = 'public' and p.tablename = 'other_income'
-            and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL'))
-        and not has_table_privilege('authenticated', 'public.other_income', 'INSERT')
+            and p.cmd = 'INSERT'
+            and p.with_check ilike '%auth.uid() = user_id%'
+            and p.with_check ilike '%deposit_id is null%'
+            and p.with_check ilike '%classification = ''other_income''%'
+            -- Postgres stores the literal as "amount > (0)::numeric", so a
+            -- plain '%amount > 0%' never matches. Accept both stored forms and
+            -- nothing looser: the clause must still be an amount > zero.
+            and p.with_check ~* 'amount[[:space:]]*>[[:space:]]*(\([[:space:]]*0[[:space:]]*\)[[:space:]]*::[[:space:]]*numeric|0)') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'other_income'
+            and p.cmd = 'UPDATE'
+            and p.qual ilike '%auth.uid() = user_id%'
+            and p.qual ilike '%deposit_id is null%'
+            and p.with_check ilike '%auth.uid() = user_id%'
+            and p.with_check ilike '%deposit_id is null%'
+            and p.with_check ilike '%classification = ''other_income''%') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'other_income'
+            and p.cmd = 'DELETE'
+            and p.qual ilike '%auth.uid() = user_id%'
+            and p.qual ilike '%deposit_id is null%') = 1
+        and has_table_privilege('authenticated', 'public.other_income', 'INSERT')
+        and has_table_privilege('authenticated', 'public.other_income', 'UPDATE')
+        and has_table_privilege('authenticated', 'public.other_income', 'DELETE')
         and not has_table_privilege('anon', 'public.other_income', 'SELECT')
+        and not has_table_privilege('anon', 'public.other_income', 'INSERT')
         and has_table_privilege('service_role', 'public.other_income', 'INSERT') end,
-    'other_income: RLS on, one owner SELECT policy, no write policy, service_role writes',
-    case when not exists (select 1 from applied where version = '20261103000001') then 'not applied yet'
+    'other_income: RLS on, owner rows writable (deposit_id null), deposit rows server-only',
+    case when not exists (select 1 from applied where version = '20261111120000') then 'not applied yet'
       else 'insert=' || coalesce(has_table_privilege('authenticated', 'public.other_income', 'INSERT')::text, 'missing')
         || ' anon_select=' || coalesce(has_table_privilege('anon', 'public.other_income', 'SELECT')::text, 'missing') end
+  union all
+  select 'BD9 other income idempotency',
+    case when not exists (select 1 from applied where version = '20261111120000') then null
+      else exists (select 1 from pg_indexes
+        where schemaname = 'public' and indexname = 'other_income_user_idempotency_key_uidx'
+          and indexdef ilike '%unique%'
+          and indexdef ilike '%user_id, idempotency_key%'
+          and indexdef ilike '%where%')
+        and exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'other_income'
+            and column_name = 'method') end,
+    'one other_income row per (user_id, idempotency_key); method stored on the row',
+    case when not exists (select 1 from applied where version = '20261111120000') then 'not applied yet'
+      else coalesce((select indexdef from pg_indexes
+        where schemaname = 'public' and indexname = 'other_income_user_idempotency_key_uidx'), 'index missing') end
   union all
   select 'BD6 other income keys',
     case when not exists (select 1 from applied where version = '20261103000001') then null

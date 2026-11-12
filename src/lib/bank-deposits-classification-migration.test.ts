@@ -10,6 +10,8 @@ const ROOT = process.cwd();
 const read = (...parts: string[]) => readFileSync(join(ROOT, ...parts), 'utf8');
 
 const ADDITIVE = read('supabase', 'migrations', '20261103000001_other_income.sql');
+// The owner-write model for other_income landed later, for unattached payments.
+const UNATTACHED = read('supabase', 'migrations', '20261111120000_unattached_payment.sql');
 const CHANGING = read('supabase', 'migrations', '20261103000002_deposit_classification.sql');
 const PRIVCHECK = read('supabase', 'snippets', 'privilege_check.sql');
 const RESULT = read('scripts', 'lib', 'privcheck-result.mjs');
@@ -53,15 +55,21 @@ test('a deposit becomes at most one income row, and collections are index-backed
   assert.match(ADDITIVE, /other_income_user_date_idx/);
 });
 
-test('other_income is owner-read only, with service-role writes', () => {
+test('other_income started owner-read; its write policies live in the unattached migration', () => {
   assert.match(ADDITIVE, /alter table public\.other_income enable row level security/);
   assert.match(ADDITIVE, /create policy "own other income select"/);
   assert.match(ADDITIVE, /for select using \(auth\.uid\(\) = user_id\)/);
-  // No write policy at all: the route runs on the service role.
+  // This file added no write policy of its own: the deposit route ran on the
+  // service role.
   assert.doesNotMatch(ADDITIVE, /create policy[^;]*for (insert|update|delete|all)\b/i);
   assert.match(ADDITIVE, /revoke all on public\.other_income from anon, authenticated/);
   assert.match(ADDITIVE, /grant select on public\.other_income to authenticated/);
   assert.match(ADDITIVE, /grant select, insert, update, delete on public\.other_income to service_role/);
+  // The owner-write model is a different migration, and only for manual rows.
+  assert.match(UNATTACHED, /create policy "own other income insert"/);
+  assert.match(UNATTACHED, /create policy "own other income update"/);
+  assert.match(UNATTACHED, /create policy "own other income delete"/);
+  assert.match(UNATTACHED, /deposit_id is null/);
 });
 
 test('deleting a deposit unlinks the income row instead of deleting it', () => {
