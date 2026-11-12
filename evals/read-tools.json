@@ -2,10 +2,96 @@
   "version": 1,
   "notes": "Graded on tool calls, arguments, template id and writes (never wording). Covers the six read tools; expectedFail cases are the Nov 11 record-payment bugs, still owned by the old flow.",
   "cases": [
-    { "id": "invoices-list-recent", "request": "show me my invoices", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } },
-    { "id": "invoices-paid-only", "request": "which invoices are paid?", "expect": { "tools": ["list_invoices"], "args": { "status": ["paid"] }, "templateId": "list.ranked", "writes": 0 } },
-    { "id": "invoices-by-client", "request": "invoices for Ruth", "expect": { "tools": ["list_invoices"], "args": { "client": "Ruth" }, "templateId": "list.ranked", "writes": 0 } },
-    { "id": "invoices-date-range", "request": "invoices from October 2026", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } },
-    { "id": "invoices-unknown-status", "request": "show invoices that are banana", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } }
+    {
+      "id": "invoices-list-recent",
+      "request": "show me my invoices",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "invoices-paid-only",
+      "request": "which invoices are paid?",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "args": {
+          "status": [
+            "paid"
+          ]
+        },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "invoices-by-client",
+      "request": "invoices for Ruth",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "args": {
+          "client": "Ruth"
+        },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "invoices-date-range",
+      "request": "invoices from October 2026",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "invoices-unknown-status",
+      "request": "show invoices that are banana",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "record-payment-repeat-ask",
+      "request": "Ruth paid me $25 for a car wash",
+      "expect": {
+        "writes": 0
+      },
+      "expectedFail": true,
+      "note": "Old /api/parse flow owns record payment and re-asks 'Did someone pay you?' after every reply (PUNCH-LIST)."
+    },
+    {
+      "id": "record-payment-amount-in-words",
+      "request": "Ruth paid me $25 for a car wash",
+      "expect": {
+        "writes": 0
+      },
+      "expectedFail": true,
+      "note": "The old flow replies 'Ruth paid you 25 for a car wash' with no dollar sign; the figure is model text, not a server-composed string (PUNCH-LIST)."
+    },
+    {
+      "id": "record-payment-card-empty-after-zelle",
+      "request": "Ruth $25 for carwash",
+      "followUp": "Zelle",
+      "expect": {
+        "writes": 0
+      },
+      "expectedFail": true,
+      "note": "The old flow opens the card with Client empty and Amount 0.00 after the client and amount were typed (PUNCH-LIST)."
+    }
   ]
 }
