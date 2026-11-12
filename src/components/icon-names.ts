@@ -34,6 +34,7 @@ export const ICON_NAMES = [
   'checklist',
   'close',
   'confirmation_number',
+  'contact_phone',
   'content_copy',
   'contrast',
   'credit_card',
