@@ -3,6 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { REGISTRY, TOOLS, cardFor, findTool, parseCall } from './registry';
+import { buildRegistry } from './contract';
+import { z } from 'zod';
 import { TURN_MODEL_CALL_CAP } from './budget';
 import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
@@ -22,6 +24,30 @@ test('the registry holds the read-only lookups and nothing else yet', () => {
     false
   );
   assert.match(tool.description ?? '', /read-only/i);
+});
+
+test('a tool may choose between the templates it declares, and no others', () => {
+  const base = {
+    name: 'two_cards',
+    description: 'A tool that renders one of exactly two declared cards.',
+    input: REGISTRY.get(UNPAID_TOOL_NAME).input,
+    output: REGISTRY.get(UNPAID_TOOL_NAME).output,
+    type: 'read' as const,
+    risk: 'low' as const,
+    defaultTemplate: REGISTRY.get(UNPAID_TOOL_NAME).defaultTemplate,
+    destination: { screen: 'Invoices', path: '/invoices' },
+    alternateTemplate: { id: 'nav.link' as const, props: z.object({}) },
+    templateFor: () => 'nav.link' as const,
+    handler: async () => ({}),
+    fallback: () => 'text',
+    fixture: REGISTRY.get(UNPAID_TOOL_NAME).fixture,
+  };
+  const built = buildRegistry([base as never]).get('two_cards');
+  assert.equal(cardFor(built, built.fixture.result)?.id, 'nav.link');
+  assert.throws(
+    () => buildRegistry([{ ...base, templateFor: () => 'stat.tiles' } as never]),
+    /did not declare/,
+  );
 });
 
 test('a turn may spend eight model calls at most, across every AI route', () => {

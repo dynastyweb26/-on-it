@@ -23,8 +23,12 @@ export type ToolCard = { id: TemplateId; props: unknown };
  * stand-in card for a template that has no component yet.
  */
 export function cardFor(tool: ToolDefinition, output: unknown): ToolCard | null {
-  const props = tool.defaultTemplate.props.safeParse(output);
-  return props.success ? { id: tool.defaultTemplate.id, props: props.data } : null;
+  const id = tool.templateFor?.(output) ?? tool.defaultTemplate.id;
+  const chosen =
+    id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
+  if (!chosen || chosen.id !== id) return null;
+  const props = chosen.props.safeParse(output);
+  return props.success ? { id, props: props.data } : null;
 }
 
 /** What the model is offered. Derived from each tool's own Zod input schema. */
