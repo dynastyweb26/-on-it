@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureDb } from '../fixture-db';
 import { getClientSummaryTool } from './get_client_summary';
+import { cardFor } from '../registry';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const client = (name: string, over: Record<string, unknown> = {}) => ({
@@ -65,6 +66,14 @@ test('no match invents nothing', async () => {
   assert.equal(out.match, 'none');
   assert.equal(out.summary, null);
   assert.deepEqual(out.tiles, []);
+});
+
+test('zero matches render no card, and two matches render the ranked list', async () => {
+  const none = (await run('zebediah', [])) as never as { match: string };
+  assert.equal(none.match, 'none');
+  assert.equal(cardFor(getClientSummaryTool, none), null);
+  const many = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')])) as never as { count: number };
+  assert.equal(cardFor(getClientSummaryTool, many)?.id, 'list.ranked');
 });
 
 test("another owner's documents do not count towards the summary", async () => {

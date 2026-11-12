@@ -89,7 +89,8 @@ for (const tool of REGISTRY.list) {
 
   test(`${tool.name}: the declared template accepts what the tool produces`, () => {
     const fixture = tool.output.parse(tool.fixture.result);
-    const id = tool.templateFor?.(fixture) ?? tool.defaultTemplate.id;
+    const id = tool.templateFor ? tool.templateFor(fixture) : tool.defaultTemplate.id;
+    if (id === null) return; // deliberately plain text for this result
     const template = id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
     assert.ok(template && template.id === id, `${tool.name} chose a template it did not declare`);
     const props = template.props.safeParse(fixture);

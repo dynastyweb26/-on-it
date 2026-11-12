@@ -28,7 +28,8 @@ export const GetClientSummaryOutput = z.object({
     }),
   ),
   rows: RankedListProps.shape.rows,
-  total: z.number().int().nonnegative(),
+  totalCount: z.number().int().nonnegative(),
+  total: RankedListProps.shape.total,
   clients: z.array(z.object({ id: z.string(), name: z.string() })),
   summary: z
     .object({
@@ -55,7 +56,8 @@ const fixture = {
       { label: 'Open documents', value: '1', tone: 'neutral' as const, period: 'invoices and estimates' },
     ],
     rows: [{ name: 'Ruth Lawrence', secondary: 'INV-0001 · Due Sep 1', amount: '$120.00' }],
-    total: 1,
+    totalCount: 1,
+    total: { label: '1 client', amount: '$120.00' },
     clients: [{ id: 'cli-1', name: 'Ruth Lawrence' }],
     summary: { clientName: 'Ruth Lawrence', owed: '$120.00', paid: '$0.00', open: 1, estimates: 0 },
   },
@@ -71,7 +73,12 @@ export const getClientSummaryTool = defineTool({
   risk: 'low',
   defaultTemplate: { id: 'stat.tiles', props: StatTilesProps },
   alternateTemplate: { id: 'list.ranked', props: RankedListProps },
-  templateFor: (result) => ((result as { count: number }).count === 1 ? 'stat.tiles' : 'list.ranked'),
+  templateFor: (result) => {
+    const count = (result as { count: number }).count;
+    // No client by that name: plain text, not an empty card.
+    if (count === 0) return null;
+    return count === 1 ? 'stat.tiles' : 'list.ranked';
+  },
   destination: { screen: 'Clients', path: '/clients' },
   handler: async (ctx, args) => {
     const clients = await ctx.db.select<ClientRow>('clients', {
@@ -108,7 +115,11 @@ export const getClientSummaryTool = defineTool({
       eyebrow: matched.length === 1 ? matched[0].name : 'Clients',
       title: matched.length === 1 ? 'Since you started.' : 'Which one?',
       rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name) })),
-      total: matched.length,
+      totalCount: matched.length,
+      total: {
+        label: `${matched.length} ${matched.length === 1 ? 'client' : 'clients'}`,
+        amount: moneyText(matched.reduce((sum, c) => sum + (owed.get(c.name.trim().toLowerCase()) ?? 0), 0)),
+      },
       clients: matched.map((c) => ({ id: c.id, name: c.name })),
     };
     if (matched.length !== 1) return { ...base, tiles: [], summary: null };

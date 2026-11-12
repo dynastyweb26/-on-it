@@ -23,7 +23,10 @@ export type ToolCard = { id: TemplateId; props: unknown };
  * stand-in card for a template that has no component yet.
  */
 export function cardFor(tool: ToolDefinition, output: unknown): ToolCard | null {
-  const id = tool.templateFor?.(output) ?? tool.defaultTemplate.id;
+  // null from templateFor is deliberate: plain text, never a card.
+  const chosenId = tool.templateFor ? tool.templateFor(output) : tool.defaultTemplate.id;
+  if (chosenId === null) return null;
+  const id = chosenId;
   const chosen =
     id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
   if (!chosen || chosen.id !== id) return null;

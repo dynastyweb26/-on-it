@@ -29,7 +29,8 @@ export const FindClientOutput = z.object({
   items: z.array(z.object({ icon: z.string(), title: z.string(), line: z.string() })),
   eyebrow: z.string(),
   rows: RankedListProps.shape.rows,
-  total: z.number().int().nonnegative(),
+  totalCount: z.number().int().nonnegative(),
+  total: RankedListProps.shape.total,
   clients: z.array(Client),
 });
 
@@ -42,7 +43,8 @@ const fixture = {
     items: [{ icon: 'person', title: 'Ruth Lawrence', line: 'ruth@example.com' }],
     eyebrow: 'Clients',
     rows: [{ name: 'Ruth Lawrence', secondary: 'ruth@example.com', amount: '$120.00' }],
-    total: 1,
+    totalCount: 1,
+    total: { label: '1 client', amount: '$120.00' },
     clients: [{ id: 'cli-1', name: 'Ruth Lawrence', email: 'ruth@example.com', phone: null }],
   },
 };
@@ -59,7 +61,10 @@ export const findClientTool = defineTool({
   alternateTemplate: { id: 'nav.link', props: NavLinkProps },
   templateFor: (result) => {
     const count = (result as { count: number }).count;
-    return count >= 1 && count <= 3 ? 'nav.link' : 'list.ranked';
+    // No client by that name: plain text. An empty "Nobody owes you." card is
+    // the wrong sentence for a failed lookup.
+    if (count === 0) return null;
+    return count <= 3 ? 'nav.link' : 'list.ranked';
   },
   destination: { screen: 'Clients', path: '/clients' },
   handler: async (ctx, args) => {
@@ -87,6 +92,7 @@ export const findClientTool = defineTool({
       owed.set(key, (owed.get(key) ?? 0) + Math.max(0, num(doc.total) - num(doc.amount_paid)));
     }
     const owedBy = (name: string) => moneyText(owed.get(name.trim().toLowerCase()) ?? 0);
+    const owedTotal = matched.reduce((sum, c) => sum + (owed.get(c.name.trim().toLowerCase()) ?? 0), 0);
     const line = (c: ClientRow) => `${c.email ?? c.phone ?? 'Client'} · ${owedBy(c.name)}`;
 
     return {
@@ -96,7 +102,11 @@ export const findClientTool = defineTool({
       items: matched.slice(0, 3).map((c) => ({ icon: 'person', title: c.name, line: line(c) })),
       eyebrow: 'Clients',
       rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name) })),
-      total: matched.length,
+      totalCount: matched.length,
+      total: {
+        label: `${matched.length} ${matched.length === 1 ? 'client' : 'clients'}`,
+        amount: moneyText(owedTotal),
+      },
       clients: matched.map((c) => ({
         id: c.id,
         name: c.name,

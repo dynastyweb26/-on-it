@@ -80,7 +80,7 @@ export type ToolDefinition = {
    */
   alternateTemplate?: ToolTemplate;
   /** Chooses between the default and the alternate for one result. */
-  templateFor?: (result: unknown) => TemplateId;
+  templateFor?: (result: unknown) => TemplateId | null;
   handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
   /**
    * The plain-text answer shown when the template's component is not built yet
@@ -205,8 +205,9 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
   // fixture must be a real template with props.
   if (complete.templateFor) {
     const chosen = complete.templateFor(result.data);
+    // null means "answer in plain text, no card" (e.g. no client by that name).
     const declared = [complete.defaultTemplate.id, complete.alternateTemplate?.id];
-    if (!declared.includes(chosen)) {
+    if (chosen !== null && !declared.includes(chosen)) {
       throw new Error(`tool ${name} templateFor returned ${chosen}, which it did not declare`);
     }
   }
@@ -234,7 +235,7 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   defaultTemplate: ToolTemplate;
   destination?: { screen: string; path: string };
   alternateTemplate?: ToolTemplate;
-  templateFor?: (result: z.infer<Out>) => TemplateId;
+  templateFor?: (result: z.infer<Out>) => TemplateId | null;
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
   fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };

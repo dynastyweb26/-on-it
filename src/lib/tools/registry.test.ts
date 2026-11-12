@@ -48,6 +48,9 @@ test('a tool may choose between the templates it declares, and no others', () =>
     () => buildRegistry([{ ...base, templateFor: () => 'stat.tiles' } as never]),
     /did not declare/,
   );
+  // null is always allowed: it means a plain text answer with no card.
+  const plain = buildRegistry([{ ...base, templateFor: () => null } as never]).get('two_cards');
+  assert.equal(cardFor(plain, plain.fixture.result), null);
 });
 
 test('a turn may spend eight model calls at most, across every AI route', () => {
