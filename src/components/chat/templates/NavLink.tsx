@@ -11,7 +11,7 @@ const TILE = { width: 40, height: 40, borderRadius: 12, display: 'flex', alignIt
 
 export default function NavLink({
   state = 'filled', items, emptyTitle, onOpen,
-}: NavLinkProps & NavLinkCallbacks & { emptyTitle?: string }) {
+}: NavLinkProps & NavLinkCallbacks) {
   return (
     <div
       data-template="nav.link"
