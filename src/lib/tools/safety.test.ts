@@ -57,6 +57,18 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     phone: null,
     address: null,
   }],
+  expenses: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-expense',
+    user_id: userId,
+    description: userId === OTHER ? 'Other owner fuel' : 'Fill-up',
+    vendor: userId === OTHER ? 'Other Owner Ltd' : 'Shell',
+    amount: 52.1,
+    category: 'fuel',
+    tax_deductible: false,
+    spent_on: '2026-11-06',
+    created_at: '2026-11-06T00:00:00Z',
+    deleted_at: null,
+  }],
 };
 
 const tables = Object.keys(ROWS);

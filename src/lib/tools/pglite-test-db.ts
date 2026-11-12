@@ -24,6 +24,7 @@ export const OTHER = '22222222-2222-2222-2222-222222222222';
  */
 export const TOOL_MIGRATIONS = [
   '001_init.sql',
+  '20260724002308_expenses.sql',
   '20260915000000_deposit_support.sql',
   '20260916000000_deposits_and_partial_payments.sql',
   '20260905000000_soft_delete.sql',

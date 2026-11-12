@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "notes": "Phase 2 batch 2 read tools. Graded on tool calls, arguments, template id and writes, never wording.",
+  "cases": [
+    {
+      "id": "expenses-gas-list",
+      "request": "show me my gas expenses",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null },
+          { "id": "e2", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Lunch", "vendor": "Diner", "amount": 18, "category": "food", "tax_deductible": false, "spent_on": "2026-11-05", "created_at": "2026-11-05T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "args": { "list_expenses": { "category": "fuel" } },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-october",
+      "request": "show me my expenses from October 2026",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Paint", "vendor": "Sherwin", "amount": 80, "category": "supplies", "tax_deductible": true, "spent_on": "2026-10-14", "created_at": "2026-10-14T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-over-100",
+      "request": "show me expenses over $100",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Drill", "vendor": "Home Depot", "amount": 149, "category": "tools", "tax_deductible": true, "spent_on": "2026-11-02", "created_at": "2026-11-02T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "args": { "list_expenses": { "min_amount": 100 } },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-unknown-category",
+      "request": "show me expenses in the banana category",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-signed-out",
+      "request": "show me my expenses",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
+    }
+  ]
+}

@@ -24,10 +24,11 @@ import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 const OWNER_INVOICE = 'aaaaaaaa-0000-4000-8000-000000000001';
 const OTHER_INVOICE = 'bbbbbbbb-0000-4000-8000-000000000002';
 const OTHER_CLIENT = 'Other Owner Ltd';
+const OTHER_EXPENSE = 'eeeeeeee-0000-4000-8000-000000000005';
 
 /** Tables the tools under test read, and the rows seeded for both owners. */
-const SEEDED_TABLES = new Set(['invoices', 'clients']);
-const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT];
+const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses']);
+const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT, OTHER_EXPENSE];
 
 let db: TestDb;
 
@@ -53,10 +54,20 @@ async function seedInvoices(): Promise<void> {
   );
 }
 
+async function seedExpenses(): Promise<void> {
+  await db.seed(
+    `insert into public.expenses (id, user_id, description, vendor, amount, category, spent_on)
+     values ($1, $2, 'Fill-up', 'Shell', 52.10, 'fuel', '2026-11-06'),
+            ($3, $4, 'Other fuel', 'Other Owner Ltd', 99.00, 'fuel', '2026-11-06')`,
+    [OWNER_INVOICE, OWNER, OTHER_EXPENSE, OTHER],
+  );
+}
+
 before(async () => {
   db = await openTestDb();
   await seedClients();
   await seedInvoices();
+  await seedExpenses();
 });
 
 after(async () => {
