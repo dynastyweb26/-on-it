@@ -17,6 +17,7 @@
 //   node --import ./scripts/test-register.mjs scripts/evals/run.ts --file evals/unpaid.json
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { REGISTRY } from '../../src/lib/tools/registry';
 import { fixtureDb, type FixtureRows } from '../../src/lib/tools/fixture-db';
@@ -30,6 +31,10 @@ type EvalCase = {
   request: string;
   signedIn?: boolean;
   fixture: FixtureRows;
+  /** Known bug this case documents: the gate expects it to fail. */
+  expectedFail?: boolean;
+  /** Why it is expected to fail. Required whenever expectedFail is true. */
+  reason?: string;
   expect: {
     tools: string[];
     templateId?: string | null;
@@ -40,6 +45,7 @@ type EvalCase = {
 };
 
 type Result = { id: string; tags: string[]; pass: boolean; reasons: string[] };
+type Graded = Result & { gatePass: boolean };
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const PASS_RATE = 0.9;
@@ -50,7 +56,32 @@ function load(file: string): EvalCase[] {
   if (!Array.isArray(parsed.cases) || parsed.cases.length === 0) {
     throw new Error(`no cases in ${file}`);
   }
+  for (const testCase of parsed.cases) {
+    if (testCase.expectedFail && !(testCase.reason ?? '').trim()) {
+      throw new Error(`case ${testCase.id} is marked expectedFail without a reason`);
+    }
+  }
   return parsed.cases;
+}
+
+/**
+ * expectedFail inverts the gate for one case, and only for that case: while the
+ * known bug is still there the case passes the gate; the day the behaviour is
+ * fixed the case starts passing and the gate fails until the marker is removed.
+ */
+export function applyExpectedFail(testCase: EvalCase, result: Result): Graded {
+  if (!testCase.expectedFail) return { ...result, gatePass: result.pass };
+  if (!(testCase.reason ?? '').trim()) {
+    return { ...result, gatePass: false, reasons: [...result.reasons, 'expectedFail needs a reason'] };
+  }
+  if (result.pass) {
+    return {
+      ...result,
+      gatePass: false,
+      reasons: [...result.reasons, `marked expectedFail but passed: remove the marker (${testCase.reason})`],
+    };
+  }
+  return { ...result, gatePass: true, reasons: result.reasons };
 }
 
 function realCall(apiKey: string): ModelCall {
@@ -146,19 +177,20 @@ async function main(): Promise<number> {
   }
 
   const call = realCall(apiKey);
-  const results: Result[] = [];
-  for (const testCase of cases) results.push(await runCase(testCase, call));
+  const results: Graded[] = [];
+  for (const testCase of cases) results.push(applyExpectedFail(testCase, await runCase(testCase, call)));
 
   for (const result of results) {
-    const label = result.pass ? 'PASS' : 'FAIL';
-    console.log(`${label}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}`);
+    const label = result.gatePass ? 'PASS' : 'FAIL';
+    const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
+    console.log(`${label}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
     for (const reason of result.reasons) console.log(`      ${reason}`);
   }
 
-  const passed = results.filter((result) => result.pass).length;
+  const passed = results.filter((result) => result.gatePass).length;
   const rate = passed / results.length;
   const blockingFailures = results.filter(
-    (result) => !result.pass && result.tags.some((tag) => BLOCKING_TAGS.has(tag)),
+    (result) => !result.gatePass && result.tags.some((tag) => BLOCKING_TAGS.has(tag)),
   );
 
   console.log(`\n[evals] ${passed}/${results.length} passed (${(rate * 100).toFixed(0)}%)`);
@@ -169,4 +201,6 @@ async function main(): Promise<number> {
   return rate >= PASS_RATE && blockingFailures.length === 0 ? 0 : 1;
 }
 
-main().then((code) => process.exit(code));
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().then((code) => process.exit(code));
+}
