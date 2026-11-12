@@ -10,6 +10,7 @@ import RankedList from '@/components/chat/templates/RankedList';
 import StatTiles from '@/components/chat/templates/StatTiles';
 import NavLink from '@/components/chat/templates/NavLink';
 import CantDo from '@/components/chat/templates/CantDo';
+import TrendChart from '@/components/chat/templates/TrendChart';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -24,10 +25,11 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'stat.tiles': StatTiles,
   'nav.link': NavLink,
   'cant.do': CantDo,
+  'chart.trend': TrendChart,
 };
 
 // Sample text a design file carries that is not in the typed props yet (the design's emptyTitle default).
-const EXTRAS: Partial<Record<TemplateId, object>> = { 'nav.link': { emptyTitle: 'INV-0069 is gone' } };
+const EXTRAS = (t: TemplateId, s: string): object => (t === 'nav.link' ? { emptyTitle: 'INV-0069 is gone' } : t === 'confirm.batch' && s === 'partial' ? { failIndex: 1 } : {});
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
@@ -46,7 +48,7 @@ export default function Page({ searchParams }: { searchParams: { template?: stri
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <AssistantAvatar />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS[template]} state={state} />
+            <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS(template, state)} state={state} />
           </div>
         </div>
       </div>
