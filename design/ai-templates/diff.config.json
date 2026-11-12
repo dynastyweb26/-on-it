@@ -1005,7 +1005,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=draft",
+        "path": "/dev/ai-templates?template=draft.message&state=draft&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1036,7 +1036,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=draft",
+        "path": "/dev/ai-templates?template=draft.message&state=draft&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1067,7 +1067,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=editing",
+        "path": "/dev/ai-templates?template=draft.message&state=editing&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1098,7 +1098,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=editing",
+        "path": "/dev/ai-templates?template=draft.message&state=editing&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1119,6 +1119,254 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "draft.message-opened-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=opened&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message opened",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"opened\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-opened-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=opened&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message opened",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"opened\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-copied-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=copied&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message copied",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"copied\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-copied-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=copied&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message copied",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"copied\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-done-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=done&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message done",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"done\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-done-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=done&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message done",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"done\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-openError-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=openError&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message openError",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"openError\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-openError-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=openError&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message openError",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"openError\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "draft.message-sent-390",
       "viewport": {
         "width": 390,
@@ -1129,7 +1377,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=sent",
+        "path": "/dev/ai-templates?template=draft.message&state=sent&channel=Email&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1160,7 +1408,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=sent",
+        "path": "/dev/ai-templates?template=draft.message&state=sent&channel=Email&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1181,68 +1429,6 @@
       "maxPixelDiffPct": null
     },
     {
-      "name": "draft.message-nocontact-390",
-      "viewport": {
-        "width": 390,
-        "height": 900
-      },
-      "design": {
-        "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
-      },
-      "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=nocontact",
-        "steps": [
-          {
-            "wait": 300
-          }
-        ]
-      },
-      "pairs": [
-        {
-          "name": "draft.message nocontact",
-          "design": "x-dc > div",
-          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
-          "check": [
-            "w"
-          ],
-          "animations": true
-        }
-      ],
-      "maxPixelDiffPct": null
-    },
-    {
-      "name": "draft.message-nocontact-1280",
-      "viewport": {
-        "width": 1280,
-        "height": 900
-      },
-      "design": {
-        "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
-      },
-      "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=nocontact",
-        "steps": [
-          {
-            "wait": 300
-          }
-        ]
-      },
-      "pairs": [
-        {
-          "name": "draft.message nocontact",
-          "design": "x-dc > div",
-          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
-          "check": [
-            "w"
-          ],
-          "animations": true
-        }
-      ],
-      "maxPixelDiffPct": null
-    },
-    {
       "name": "draft.message-error-390",
       "viewport": {
         "width": 390,
@@ -1253,7 +1439,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=error",
+        "path": "/dev/ai-templates?template=draft.message&state=error&channel=Email&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1284,7 +1470,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=error",
+        "path": "/dev/ai-templates?template=draft.message&state=error&channel=Email&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1305,6 +1491,68 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "draft.message-nocontact-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=nocontact&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message nocontact",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-nocontact-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=nocontact&channel=Text&device=phone",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message nocontact",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "draft.message-loading-390",
       "viewport": {
         "width": 390,
@@ -1315,7 +1563,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=loading",
+        "path": "/dev/ai-templates?template=draft.message&state=loading&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1346,7 +1594,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=loading",
+        "path": "/dev/ai-templates?template=draft.message&state=loading&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1377,7 +1625,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=cancelled",
+        "path": "/dev/ai-templates?template=draft.message&state=cancelled&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
@@ -1408,7 +1656,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=draft.message&state=cancelled",
+        "path": "/dev/ai-templates?template=draft.message&state=cancelled&channel=Text&device=phone",
         "steps": [
           {
             "wait": 300
