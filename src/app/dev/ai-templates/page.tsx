@@ -9,6 +9,7 @@ import { AssistantAvatar } from '@/components/chat/EventCard';
 import RankedList from '@/components/chat/templates/RankedList';
 import StatTiles from '@/components/chat/templates/StatTiles';
 import NavLink from '@/components/chat/templates/NavLink';
+import CantDo from '@/components/chat/templates/CantDo';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -22,6 +23,7 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'list.ranked': RankedList,
   'stat.tiles': StatTiles,
   'nav.link': NavLink,
+  'cant.do': CantDo,
 };
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
