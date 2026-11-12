@@ -112,7 +112,7 @@ export default function FeedbackThumbs({
                 <div
                   key={label}
                   {...tap(() => setPicked((p) => (on ? p.filter((x) => x !== label) : [...p, label])))}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 40, padding: '0 14px', borderRadius: 999, fontSize: 14, fontWeight: 500, border: `1.5px solid ${on ? 'var(--tpl-thumb-on)' : 'var(--tpl-btn-border)'}`, background: on ? 'var(--tpl-thumb-on)' : 'var(--tpl-white)', color: on ? 'var(--tpl-chip-on-fg)' : 'var(--tpl-ink)' }}
+                  style={{ boxSizing: 'content-box', display: 'inline-flex', alignItems: 'center', gap: 4, height: 40, padding: '0 14px', borderRadius: 999, fontSize: 14, fontWeight: 500, border: `1.5px solid ${on ? 'var(--tpl-thumb-on)' : 'var(--tpl-btn-border)'}`, background: on ? 'var(--tpl-thumb-on)' : 'var(--tpl-white)', color: on ? 'var(--tpl-chip-on-fg)' : 'var(--tpl-ink)' }}
                 >
                   {on && <Sym name="check" size={16} />}
                   {label}
@@ -134,7 +134,7 @@ export default function FeedbackThumbs({
             </div>
           )}
           <div style={{ display: 'flex', gap: 10 }}>
-            <div {...tap(close)} style={{ flex: 1, height: 44, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>Skip</div>
+            <div {...tap(close)} style={{ boxSizing: 'content-box', flex: 1, height: 44, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>Skip</div>
             <div {...tap(send)} style={{ flex: 1, height: 44, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, background: can ? 'var(--tpl-gold)' : 'var(--tpl-gold-soft)', color: can ? 'var(--tpl-ink)' : 'var(--tpl-send-off-fg)' }}>{failed ? 'Try again' : 'Send'}</div>
           </div>
         </div>
