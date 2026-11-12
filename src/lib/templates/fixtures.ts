@@ -156,6 +156,7 @@ export const CANT_DO_FIXTURE = {
 
 export const NAV_LINK_FIXTURE = {
   state: 'filled',
+  emptyTitle: 'INV-0069 is gone',
   items: [{ icon: 'description', title: 'INV-0069 · Ruth Lawrence', line: 'Paid in full · Closed Nov 11' }],
 } satisfies NavLinkProps;
 

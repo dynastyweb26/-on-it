@@ -17,10 +17,19 @@ export type FeedbackReason =
 export type RankedListCallbacks = {
   onRowTap?: (row: RankedListProps['rows'][number], index: number) => void;
   onShowAll?: () => void;
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
+};
+
+export type StatTilesCallbacks = {
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
 };
 
 export type NavLinkCallbacks = {
   onOpen?: (item: NavLinkProps['items'][number], index: number) => void;
+  /** The error card's "Retry" button. */
+  onRetry?: () => void;
 };
 
 export type BreakdownCallbacks = {

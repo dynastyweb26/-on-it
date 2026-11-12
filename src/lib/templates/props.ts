@@ -200,8 +200,10 @@ export type CantDoProps = z.infer<typeof CantDoProps>;
 
 // ── nav.link · NavLink.dc.html (1 to 3 items) ───────────────────────────────
 
-export const NavLinkProps = z.object({
+const NavLinkBaseProps = z.object({
   state: State(['filled', 'loading', 'empty', 'error']).default('filled'),
+  /** The empty card's headline; required only when there is nothing to link to. */
+  emptyTitle: z.string().min(1).optional(),
   items: z
     .array(
       z.object({
@@ -212,6 +214,16 @@ export const NavLinkProps = z.object({
     )
     .min(1)
     .max(3),
+});
+
+export const NavLinkProps = NavLinkBaseProps.superRefine((props, ctx) => {
+  if (props.state === 'empty' && !props.emptyTitle) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['emptyTitle'],
+      message: 'emptyTitle is required when state is empty',
+    });
+  }
 });
 export type NavLinkProps = z.infer<typeof NavLinkProps>;
 
