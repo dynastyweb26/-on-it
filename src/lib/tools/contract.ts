@@ -68,6 +68,11 @@ export type ToolDefinition = {
   type: ToolType;
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
+  /**
+   * Where this tool's full list lives, for list.ranked's "Show all N". Required
+   * for that template, so the card never has to guess a screen.
+   */
+  destination?: { screen: string; path: string };
   handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
   /**
    * The plain-text answer shown when the template's component is not built yet
@@ -141,6 +146,12 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
     problems.push(`defaultTemplate.id: one of ${TEMPLATE_IDS.join('|')}`);
   }
   if (!isZod(template?.props)) problems.push('defaultTemplate.props: a Zod schema');
+  if (template?.id === 'list.ranked') {
+    const d = tool?.destination;
+    if (!nonEmpty(d?.screen) || !nonEmpty(d?.path) || !d.path.startsWith('/')) {
+      problems.push('destination: list.ranked needs { screen, path } with an in-app path');
+    }
+  }
   if (typeof tool?.handler !== 'function') problems.push('handler: a function');
   if (typeof tool?.fallback !== 'function') {
     problems.push('fallback: a function returning the plain-text answer');
@@ -190,6 +201,7 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   type: ToolType;
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
+  destination?: { screen: string; path: string };
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
   fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };
