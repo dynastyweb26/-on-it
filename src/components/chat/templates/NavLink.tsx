@@ -10,7 +10,7 @@ const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'elli
 const TILE = { width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } as const;
 
 export default function NavLink({
-  state = 'filled', items, emptyTitle = 'INV-0069 is gone', onOpen,
+  state = 'filled', items, emptyTitle, onOpen,
 }: NavLinkProps & NavLinkCallbacks & { emptyTitle?: string }) {
   return (
     <div
@@ -34,7 +34,7 @@ export default function NavLink({
             <Sym name="link_off" size={20} color="var(--tpl-icon-muted)" />
           </div>
           <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tpl-muted-2)' }}>{emptyTitle}</div>
+            {emptyTitle && <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tpl-muted-2)' }}>{emptyTitle}</div>}
             <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>It was deleted or merged.</div>
           </div>
         </div>

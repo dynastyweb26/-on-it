@@ -26,6 +26,9 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'cant.do': CantDo,
 };
 
+// Sample text a design file carries that is not in the typed props yet (the design's emptyTitle default).
+const EXTRAS: Partial<Record<TemplateId, object>> = { 'nav.link': { emptyTitle: 'INV-0069 is gone' } };
+
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
 
@@ -43,7 +46,7 @@ export default function Page({ searchParams }: { searchParams: { template?: stri
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <AssistantAvatar />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Card {...TEMPLATE_FIXTURES[template]} state={state} />
+            <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS[template]} state={state} />
           </div>
         </div>
       </div>
