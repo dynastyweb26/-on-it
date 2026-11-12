@@ -7,7 +7,7 @@
 // Adding a tool: write one file in ./definitions, add it to ./definitions/index.ts.
 // Nothing else changes here. See TOOLS.md.
 import type Anthropic from '@anthropic-ai/sdk';
-import { buildRegistry, type Registry, type ToolDefinition } from './contract';
+import { buildRegistry, declaredTemplate, type Registry, type ToolDefinition } from './contract';
 import { TOOL_DEFINITIONS } from './definitions';
 import type { TemplateId } from './templates';
 
@@ -27,10 +27,10 @@ export function cardFor(tool: ToolDefinition, output: unknown): ToolCard | null 
   const chosenId = tool.templateFor ? tool.templateFor(output) : tool.defaultTemplate.id;
   if (chosenId === null) return null;
   const id = chosenId;
-  const chosen =
-    id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
+  const chosen = declaredTemplate(tool, id);
   if (!chosen || chosen.id !== id) return null;
-  const props = chosen.props.safeParse(output);
+  const data = tool.propsFor ? tool.propsFor(output, id) : output;
+  const props = chosen.props.safeParse(data);
   return props.success ? { id, props: props.data } : null;
 }
 

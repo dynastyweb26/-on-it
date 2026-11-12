@@ -35,6 +35,14 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400e3);
 }
 
+/** The Monday-start week containing local date `today` (yyyy-mm-dd). */
+export function weekBounds(today: string): RecapPeriod {
+  const [y, m, d] = today.split('-').map(Number);
+  const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // 0 = Monday
+  const start = addDays(today, -dow);
+  return { kind: 'week', start, end: addDays(start, 6) };
+}
+
 /** The periods that close on local date `today`: the previous Mon–Sun on a
  *  Monday, the previous calendar month on the 1st (both on a Monday the 1st). */
 export function periodsEndingBefore(today: string): RecapPeriod[] {
@@ -45,7 +53,9 @@ export function periodsEndingBefore(today: string): RecapPeriod[] {
     out.push({ kind: 'month', start: `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-01`, end: addDays(today, -1) });
   }
   if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 1) {
-    out.push({ kind: 'week', start: addDays(today, -7), end: addDays(today, -1) });
+    // The week that just closed is the one before this Monday.
+    const previous = weekBounds(addDays(today, -7));
+    out.push({ kind: 'week', start: previous.start, end: previous.end });
   }
   return out;
 }

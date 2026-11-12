@@ -13,7 +13,7 @@ import { TOOL_SYSTEM } from './prompt';
 test('the registry holds the read-only lookups and nothing else yet', () => {
   const tool = REGISTRY.get(UNPAID_TOOL_NAME);
   assert.ok(tool, 'the unpaid lookup is registered');
-  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items'].sort());
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items', 'run_report'].sort());
   assert.ok(REGISTRY.list.every((t) => t.type === 'read'), 'every registered tool is read-only');
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
   const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);
@@ -83,7 +83,7 @@ test('the system prompt forbids money and emoji and names the right document wor
 });
 
 test('the template a tool renders into is declared in the registry', () => {
-  assert.deepEqual(REGISTRY.templates().slice().sort(), ['list.ranked', 'nav.link', 'stat.tiles']);
+  assert.deepEqual(REGISTRY.templates().slice().sort(), ['chart.breakdown', 'chart.trend', 'list.ranked', 'nav.link', 'stat.tiles']);
 });
 
 test('a card is handed over only when the template accepts the result', () => {

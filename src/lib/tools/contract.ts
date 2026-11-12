@@ -69,6 +69,18 @@ export type ToolDefinition = {
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   /**
+   * A fixed set of templates this tool may return, declared up front (the
+   * default is always one of them). templateFor chooses among these; no tool
+   * may return an id it did not declare here.
+   */
+  templates?: readonly ToolTemplate[];
+  /**
+   * The object to parse against the chosen template's props. Defaults to the
+   * whole result. A tool with several card shapes (a report's tiles, trend,
+   * breakdown and ranked list) names the right slice here.
+   */
+  propsFor?: (result: unknown, id: TemplateId) => unknown;
+  /**
    * Where this tool's full list lives, for list.ranked's "Show all N". Required
    * for that template, so the card never has to guess a screen.
    */
@@ -160,6 +172,31 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
       problems.push('destination: list.ranked needs { screen, path } with an in-app path');
     }
   }
+  const templates = tool?.templates;
+  if (templates !== undefined) {
+    if (!Array.isArray(templates) || templates.length === 0) {
+      problems.push('templates: a non-empty fixed list');
+    } else {
+      const ids = new Set<string>();
+      for (const entry of templates) {
+        if (!isTemplateId(entry?.id)) problems.push('templates.id: a template id');
+        if (!isZod(entry?.props)) problems.push('templates.props: a Zod schema');
+        if (isTemplateId(entry?.id)) {
+          if (ids.has(entry.id)) problems.push(`templates: duplicate ${entry.id}`);
+          ids.add(entry.id);
+        }
+      }
+      if (isTemplateId(tool?.defaultTemplate?.id) && !ids.has(tool.defaultTemplate.id)) {
+        problems.push('templates: must include the default template');
+      }
+    }
+    if (typeof tool?.propsFor !== 'function') {
+      problems.push('propsFor: required when templates declares more than one shape');
+    }
+  } else if (tool?.propsFor !== undefined) {
+    problems.push('propsFor: only allowed with templates');
+  }
+
   const alternate = tool?.alternateTemplate;
   if (alternate !== undefined) {
     if (!isTemplateId(alternate.id)) problems.push('alternateTemplate.id: a template id');
@@ -167,11 +204,16 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
       problems.push('alternateTemplate.id: must differ from the default');
     }
     if (!isZod(alternate.props)) problems.push('alternateTemplate.props: a Zod schema');
-    if (typeof tool?.templateFor !== 'function') {
-      problems.push('templateFor: required when alternateTemplate is set');
+    if (templates !== undefined && !templates.some((entry) => entry.id === alternate.id)) {
+      problems.push('alternateTemplate.id: must also be declared in templates');
     }
-  } else if (tool?.templateFor !== undefined) {
-    problems.push('templateFor: only allowed with alternateTemplate');
+  }
+  if (typeof tool?.templateFor === 'function') {
+    if (templates === undefined && alternate === undefined) {
+      problems.push('templateFor: only allowed with a second declared template');
+    }
+  } else if (alternate !== undefined || (templates !== undefined && templates.length > 1)) {
+    problems.push('templateFor: required when more than one template is declared');
   }
   if (typeof tool?.handler !== 'function') problems.push('handler: a function');
   if (typeof tool?.fallback !== 'function') {
@@ -206,7 +248,7 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
   if (complete.templateFor) {
     const chosen = complete.templateFor(result.data);
     // null means "answer in plain text, no card" (e.g. no client by that name).
-    const declared = [complete.defaultTemplate.id, complete.alternateTemplate?.id];
+    const declared = declaredTemplateIds(complete);
     if (chosen !== null && !declared.includes(chosen)) {
       throw new Error(`tool ${name} templateFor returned ${chosen}, which it did not declare`);
     }
@@ -233,6 +275,8 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   type: ToolType;
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
+  templates?: readonly ToolTemplate[];
+  propsFor?: (result: unknown, id: TemplateId) => unknown;
   destination?: { screen: string; path: string };
   alternateTemplate?: ToolTemplate;
   templateFor?: (result: z.infer<Out>) => TemplateId | null;
@@ -261,6 +305,19 @@ export function inputSchemaJson(tool: ToolDefinition): Record<string, unknown> {
   } catch (e) {
     throw new Error(`tool ${tool.name} input schema cannot be described to the model: ${(e as Error).message}`);
   }
+}
+
+/** Every template id a tool is allowed to return, in declaration order. */
+export function declaredTemplateIds(tool: ToolDefinition): TemplateId[] {
+  return tool.templates?.map((entry) => entry.id)
+    ?? [tool.defaultTemplate.id, ...(tool.alternateTemplate ? [tool.alternateTemplate.id] : [])];
+}
+
+/** The declared template with this id, or undefined. */
+export function declaredTemplate(tool: ToolDefinition, id: TemplateId): ToolTemplate | undefined {
+  if (tool.templates) return tool.templates.find((entry) => entry.id === id);
+  if (tool.defaultTemplate.id === id) return tool.defaultTemplate;
+  return tool.alternateTemplate?.id === id ? tool.alternateTemplate : undefined;
 }
 
 export function toModelTool(tool: ToolDefinition): Anthropic.Tool {
@@ -293,7 +350,7 @@ export function buildRegistry(tools: readonly ToolDefinition[]): Registry {
     assertComplete(tool);
     if (seen.has(tool.name)) throw new Error(`duplicate tool name: ${tool.name}`);
     seen.add(tool.name);
-    templates.add(tool.defaultTemplate.id);
+    for (const id of declaredTemplateIds(tool)) templates.add(id);
   }
 
   const byName = new Map(tools.map((tool) => [tool.name, tool]));

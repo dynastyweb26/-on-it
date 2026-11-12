@@ -17,7 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { buildRegistry, defineTool, isPlainText, type ToolDb } from './contract';
+import { buildRegistry, declaredTemplate, declaredTemplateIds, defineTool, isPlainText, type ToolDb } from './contract';
 import { REGISTRY } from './registry';
 import { TEMPLATE_IDS } from './templates';
 import { guardModelMoney } from './money';
@@ -121,10 +121,9 @@ for (const tool of REGISTRY.list) {
   test(`${tool.name}: the definition and its fixture are valid`, () => {
     assert.ok(tool.input.safeParse(tool.fixture.args).success);
     assert.ok(tool.output.safeParse(tool.fixture.result).success);
-    assert.ok(
-      TEMPLATE_IDS.includes(tool.defaultTemplate.id),
-      `${tool.defaultTemplate.id} is not one of the design templates`,
-    );
+    for (const id of declaredTemplateIds(tool)) {
+      assert.ok(TEMPLATE_IDS.includes(id), `${id} is not one of the design templates`);
+    }
   });
 
   test(`${tool.name}: the plain-text fallback is safe to show on its own`, () => {
@@ -138,9 +137,10 @@ for (const tool of REGISTRY.list) {
     const fixture = tool.output.parse(tool.fixture.result);
     const id = tool.templateFor ? tool.templateFor(fixture) : tool.defaultTemplate.id;
     if (id === null) return; // deliberately plain text for this result
-    const template = id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
+    const template = declaredTemplate(tool, id);
     assert.ok(template && template.id === id, `${tool.name} chose a template it did not declare`);
-    const props = template.props.safeParse(fixture);
+    const data = tool.propsFor ? tool.propsFor(fixture, id) : fixture;
+    const props = template.props.safeParse(data);
     assert.equal(props.success, true, `${template.id} rejects its own result`);
   });
 
