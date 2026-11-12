@@ -143,6 +143,61 @@
         "tools": [],
         "writes": 0
       }
+    },
+    {
+      "id": "estimates-what-i-quoted",
+      "request": "what did I quote Mike for the door",
+      "expect": {
+        "tools": [
+          "list_estimates"
+        ],
+        "args": {
+          "client": "Mike"
+        },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "estimates-not-invoices",
+      "request": "show me my estimates",
+      "expect": {
+        "tools": [
+          "list_estimates"
+        ],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "estimates-word-is-estimate",
+      "request": "any quotes outstanding for Ruth?",
+      "expect": {
+        "tools": [
+          "list_estimates"
+        ],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "estimates-empty",
+      "request": "estimates for Nobody At All",
+      "expect": {
+        "tools": [
+          "list_estimates"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "estimates-signed-out",
+      "request": "show me my estimates",
+      "signedOut": true,
+      "expect": {
+        "tools": [],
+        "writes": 0
+      }
     }
   ]
 }
