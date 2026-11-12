@@ -298,6 +298,56 @@
         "tools": [],
         "writes": 0
       }
+    },
+    {
+      "id": "client-summary-one",
+      "request": "what does Ruth owe me in total?",
+      "expect": {
+        "tools": [
+          "get_client_summary"
+        ],
+        "templateId": "stat.tiles",
+        "writes": 0
+      }
+    },
+    {
+      "id": "client-summary-ambiguous",
+      "request": "what does Ruth owe me?",
+      "expect": {
+        "tools": [
+          "get_client_summary"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "client-summary-none",
+      "request": "what does Zebediah owe me?",
+      "expect": {
+        "tools": [
+          "get_client_summary"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "client-summary-not-unpaid",
+      "request": "who hasn't paid me",
+      "expect": {
+        "tools": [
+          "unpaid"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "client-summary-signed-out",
+      "request": "what does Ruth owe me?",
+      "signedOut": true,
+      "expect": {
+        "tools": [],
+        "writes": 0
+      }
     }
   ]
 }
