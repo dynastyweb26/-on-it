@@ -11,6 +11,7 @@ import { money } from '@/lib/financials';
 import { payCardActions, payCardProgress, type PayCard } from '@/lib/payment-card';
 import { AssistantAvatar } from '@/components/chat/EventCard';
 import Icon from '@/components/Icon';
+import { useRef, useState } from 'react';
 import '@/components/alive/alive.css';
 
 const first = (n: string) => n.trim().split(/\s+/)[0] || 'your client';
@@ -112,6 +113,60 @@ export default function PaymentCard({ card, onOpen, onUndo, animate = true }: {
           <span><b style={{ color: 'var(--al-ink)' }}>{money(card.left)}</b> left</span>
         </div>
         {buttons}
+      </div>
+    </div>
+  );
+}
+
+export interface UnattachedCard { id: string; title: string; amount: number; method: string; paidOn: string; removed: boolean }
+
+const dayOfYmd = (ymd: string) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return y && m && d ? new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ymd;
+};
+
+/** The recorded card for a payment with no invoice: same rows, the name where the invoice line was. */
+export function UnattachedPaymentCard({ card, onUndo, onRestore, animate = true }: {
+  card: UnattachedCard;
+  onUndo: () => Promise<void>;
+  onRestore: () => Promise<void>;
+  animate?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false); // synchronous guard: a repeat tap does nothing
+  async function run(fn: () => Promise<void>) {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try { await fn(); } finally { pending.current = false; setBusy(false); }
+  }
+  const btn = { height: 36, fontSize: 13.5, padding: '0 14px' } as const;
+  return (
+    <div className={`mt-2 w-full ${animate ? 'al-fade-up' : ''}`} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <AssistantAvatar />
+      <div className="al-wcard" style={{ flex: 1, minWidth: 0, padding: 14 }}>
+        {card.removed ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13.5, color: 'var(--al-mute)' }}>
+            <span>Payment removed.</span>
+            <button type="button" disabled={busy} onClick={() => void run(onRestore)} style={{ font: inter('700 13.5px'), color: 'var(--al-gold-link)', background: 'none', border: 0, cursor: 'pointer', padding: '6px 4px' }}>Undo</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div className={animate ? 'al-pop-in' : undefined} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--al-gold)', display: 'grid', placeItems: 'center', flex: 'none' }}>
+                <Icon name="check" size={17} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="al-tt">Payment recorded</div>
+                <div className="al-td">{money(card.amount)} · {methodLabel(card.method as PaymentMethod)} · {dayOfYmd(card.paidOn)}</div>
+              </div>
+            </div>
+            <div style={{ font: inter('400 12.5px'), color: 'var(--al-mute)', marginTop: 12, overflowWrap: 'anywhere' }}>{card.title}</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" className="al-btn-w" style={btn} disabled={busy} onClick={() => void run(onUndo)}>Undo</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
