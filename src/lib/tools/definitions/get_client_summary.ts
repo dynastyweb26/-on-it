@@ -89,20 +89,32 @@ export const getClientSummaryTool = defineTool({
     });
     if (docs.error) throw new Error(docs.error.message);
 
+    // What each matched client still owes, from the caller's own documents.
+    // Nothing here is a literal: every figure is summed from rows.
+    const owed = new Map<string, number>();
+    for (const raw of docs.data ?? []) {
+      const doc = asInvoiceRow(raw);
+      if (doc.kind === 'quote' || doc.status === 'paid' || doc.status === 'void') continue;
+      const key = doc.client_name.trim().toLowerCase();
+      owed.set(key, (owed.get(key) ?? 0) + Math.max(0, num(doc.total) - num(doc.amount_paid)));
+    }
+    const owedBy = (name: string) => moneyText(owed.get(name.trim().toLowerCase()) ?? 0);
+    const line = (c: ClientRow) => `${c.email ?? c.phone ?? 'Client'} · ${owedBy(c.name)}`;
+
     const base = {
       match: matchOf(matched.length),
       count: matched.length,
       ignored: [] as string[],
       eyebrow: matched.length === 1 ? matched[0].name : 'Clients',
       title: matched.length === 1 ? 'Since you started.' : 'Which one?',
-      rows: matched.map((c) => ({ name: c.name, secondary: 'Client', amount: '$0.00' })),
+      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name) })),
       total: matched.length,
       clients: matched.map((c) => ({ id: c.id, name: c.name })),
     };
     if (matched.length !== 1) return { ...base, tiles: [], summary: null };
 
     const who = matched[0].name.trim().toLowerCase();
-    let owed = 0;
+    let owedTotal = 0;
     let paid = 0;
     let open = 0;
     let estimates = 0;
@@ -118,18 +130,18 @@ export const getClientSummaryTool = defineTool({
         continue;
       }
       if (doc.status === 'void' || doc.status === 'draft') continue;
-      owed += Math.max(0, num(doc.total) - num(doc.amount_paid));
+      owedTotal += Math.max(0, num(doc.total) - num(doc.amount_paid));
       open += 1;
     }
 
     return {
       ...base,
       tiles: [
-        { label: 'Still owed', value: moneyText(owed), tone: 'out' as const, period: 'open invoices' },
+        { label: 'Still owed', value: moneyText(owedTotal), tone: 'out' as const, period: 'open invoices' },
         { label: 'Paid', value: moneyText(paid), tone: 'in' as const, period: 'all time' },
         { label: 'Open documents', value: String(open), tone: 'neutral' as const, period: 'invoices and estimates' },
       ],
-      summary: { clientName: matched[0].name, owed: moneyText(owed), paid: moneyText(paid), open, estimates },
+      summary: { clientName: matched[0].name, owed: moneyText(owedTotal), paid: moneyText(paid), open, estimates },
     };
   },
   fallback: (result) =>

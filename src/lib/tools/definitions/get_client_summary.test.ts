@@ -44,6 +44,22 @@ test('two Ruths are never guessed between', async () => {
   assert.equal(out.clients.length, 2);
 });
 
+test('two matches carry each client’s own owed balance, never a literal', async () => {
+  const out = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')], [
+    doc(1, { total: '120.00', amount_paid: 0 }),
+    doc(2, { client_name: 'Ruth Chen', total: '80.00', amount_paid: '30.00' }),
+  ])) as never as { rows: { name: string; amount: string }[] };
+  const byName = new Map(out.rows.map((r) => [r.name, r.amount]));
+  assert.equal(byName.get('Ruth Lawrence'), '$120.00');
+  assert.equal(byName.get('Ruth Chen'), '$50.00');
+  // The computed figures, not one repeated stub, and no figure that the
+  // client's own documents do not support.
+  for (const row of out.rows) {
+    const expected = row.name === 'Ruth Lawrence' ? '$120.00' : '$50.00';
+    assert.equal(row.amount, expected, `${row.name} shows an amount its documents do not support`);
+  }
+});
+
 test('no match invents nothing', async () => {
   const out = (await run('zebediah', [])) as never as { match: string; summary: unknown; tiles: unknown[] };
   assert.equal(out.match, 'none');
