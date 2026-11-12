@@ -69,6 +69,30 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     created_at: '2026-11-06T00:00:00Z',
     deleted_at: null,
   }],
+  invoice_payments: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-payment',
+    user_id: userId,
+    invoice_id: userId === OTHER ? OTHER_MARKER : 'owner-invoice',
+    amount: 120,
+    method: 'zelle',
+    paid_at: '2026-11-06T17:00:00Z',
+    created_at: '2026-11-06T17:00:00Z',
+    entry_type: 'payment',
+    stripe_checkout_session_id: null,
+  }],
+  other_income: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-income',
+    user_id: userId,
+    amount: 300,
+    title: userId === OTHER ? 'Other Owner Ltd' : 'Side job',
+    client_name: userId === OTHER ? 'Other Owner Ltd' : null,
+    received_on: '2026-11-04',
+    classification: 'other_income',
+    deposit_id: null,
+    created_at: '2026-11-04T00:00:00Z',
+    deleted_at: null,
+  }],
+  profiles: (userId) => [{ id: userId, timezone: 'America/Chicago' }],
 };
 
 const tables = Object.keys(ROWS);

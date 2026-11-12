@@ -13,7 +13,7 @@ import { TOOL_SYSTEM } from './prompt';
 test('the registry holds the read-only lookups and nothing else yet', () => {
   const tool = REGISTRY.get(UNPAID_TOOL_NAME);
   assert.ok(tool, 'the unpaid lookup is registered');
-  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense'].sort());
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments'].sort());
   assert.ok(REGISTRY.list.every((t) => t.type === 'read'), 'every registered tool is read-only');
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
   const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);

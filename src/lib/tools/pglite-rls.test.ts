@@ -25,10 +25,11 @@ const OWNER_INVOICE = 'aaaaaaaa-0000-4000-8000-000000000001';
 const OTHER_INVOICE = 'bbbbbbbb-0000-4000-8000-000000000002';
 const OTHER_CLIENT = 'Other Owner Ltd';
 const OTHER_EXPENSE = 'eeeeeeee-0000-4000-8000-000000000005';
+const OTHER_PAYMENT = 'ffffffff-0000-4000-8000-000000000006';
 
 /** Tables the tools under test read, and the rows seeded for both owners. */
-const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses']);
-const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT, OTHER_EXPENSE];
+const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses', 'invoice_payments', 'other_income', 'profiles']);
+const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT, OTHER_EXPENSE, OTHER_PAYMENT];
 
 let db: TestDb;
 
@@ -63,11 +64,27 @@ async function seedExpenses(): Promise<void> {
   );
 }
 
+async function seedPayments(): Promise<void> {
+  await db.seed(
+    `insert into public.invoice_payments (id, invoice_id, user_id, amount, method, paid_at)
+     values ($1, $2, $3, 120.00, 'zelle', '2026-11-06T17:00:00Z'),
+            ($4, $5, $6, 999.00, 'cash', '2026-11-06T17:00:00Z')`,
+    [OWNER_INVOICE, OWNER_INVOICE, OWNER, OTHER_PAYMENT, OTHER_INVOICE, OTHER],
+  );
+  await db.seed(
+    `insert into public.other_income (id, user_id, amount, title, client_name, received_on, classification)
+     values ('aaaaaaaa-0000-4000-8000-000000000007', $1, 300.00, 'Side job', null, '2026-11-04', 'other_income'),
+            ('bbbbbbbb-0000-4000-8000-000000000008', $2, 999.00, 'Other Owner Ltd', 'Other Owner Ltd', '2026-11-04', 'customer_payment')`,
+    [OWNER, OTHER],
+  );
+}
+
 before(async () => {
   db = await openTestDb();
   await seedClients();
   await seedInvoices();
   await seedExpenses();
+  await seedPayments();
 });
 
 after(async () => {
