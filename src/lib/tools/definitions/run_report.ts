@@ -421,7 +421,7 @@ function grouped(data: ReportData, metric: Metric, range: ReportRange, category?
   return [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
-type Payer = { days: number; count: number };
+type Payer = { name: string; days: number; count: number };
 
 function payerStats(invoices: Invoice[]): Map<string, Payer> {
   const map = new Map<string, Payer>();
@@ -431,7 +431,7 @@ function payerStats(invoices: Invoice[]): Map<string, Payer> {
     const days = daysBetween(invoice.sentDay, invoice.paidDay);
     if (days < 0) continue;
     const key = normName(invoice.clientName);
-    const current = map.get(key) ?? { days: 0, count: 0 };
+    const current = map.get(key) ?? { name: invoice.clientName, days: 0, count: 0 };
     current.days += days;
     current.count += 1;
     map.set(key, current);
@@ -441,6 +441,41 @@ function payerStats(invoices: Invoice[]): Map<string, Payer> {
 
 const averageDays = (payer: Payer | undefined): number | null =>
   !payer || payer.count < 2 ? null : Math.round(payer.days / payer.count);
+
+type Slowest = { name: string; owed: number; days: number; paidInvoices: number };
+
+/** What each client still owes now, across every open invoice. */
+function outstandingByClient(invoices: Invoice[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const invoice of invoices) {
+    if (invoice.deleted || invoice.kind !== 'invoice') continue;
+    if (invoice.status !== 'sent' && invoice.status !== 'overdue') continue;
+    const key = normName(invoice.clientName);
+    map.set(key, roundCurrency((map.get(key) ?? 0) + Math.max(0, invoice.total - invoice.amountPaid)));
+  }
+  return map;
+}
+
+/**
+ * The slowest payers, from all fully paid invoices ever — never the requested
+ * period's groups. A client needs at least two fully paid invoices to rank; a
+ * client with exactly one is counted as left out.
+ */
+function slowestPayers(invoices: Invoice[]): { ranked: Slowest[]; excluded: number } {
+  const stats = payerStats(invoices);
+  const owed = outstandingByClient(invoices);
+  const ranked = [...stats.entries()]
+    .filter(([, payer]) => payer.count >= 2)
+    .map(([key, payer]) => ({
+      name: payer.name,
+      owed: owed.get(key) ?? 0,
+      days: Math.round(payer.days / payer.count),
+      paidInvoices: payer.count,
+    }))
+    .sort((a, b) => b.days - a.days || b.owed - a.owed || a.name.localeCompare(b.name));
+  const excluded = [...stats.values()].filter((payer) => payer.count === 1).length;
+  return { ranked, excluded };
+}
 
 function trendPoints(
   data: ReportData,
@@ -511,7 +546,7 @@ const fixtureTile = {
 export const runReportTool = defineTool({
   name: RUN_REPORT,
   description:
-    'Read-only money report: collected, spent, net, invoiced or outstanding for this/last week, month or year, or a custom from/to. Uses the owner’s profile timezone; weeks start Monday. Group by none (tiles), week or month (trend), category (spending breakdown) or client (ranked list, optionally slowest payers with average days to pay). Optional compare to the previous period. Outstanding is always as of now, never limited to the past period. Figures equal the Books tab for the same period.',
+    'Read-only money report: collected, spent, net, invoiced or outstanding for this/last week, month or year, or a custom from/to. Uses the owner’s profile timezone; weeks start Monday. Group by none (tiles), week or month (trend), category (spending breakdown) or client (ranked list). Pass sort "slowest" to answer who pays slowest: it always groups by client and ranks clients with two or more fully paid invoices across all time by average days to pay, ignoring the requested period for the ranking; each row shows what that client still owes now. Optional compare to the previous period. Outstanding is always as of now, never limited to the past period. Figures equal the Books tab for the same period.',
   input: RunReportInput,
   output: RunReportOutput,
   type: 'read',
@@ -553,7 +588,7 @@ export const runReportTool = defineTool({
     if (rawMetric && metric !== rawMetric) ignored.push(args.metric as string);
 
     const rawGroup = args.group_by?.trim().toLowerCase();
-    const group: GroupBy = (GROUPS as readonly string[]).includes(rawGroup ?? '')
+    let group: GroupBy = (GROUPS as readonly string[]).includes(rawGroup ?? '')
       ? rawGroup as GroupBy
       : 'none';
     if (rawGroup && group !== rawGroup) ignored.push(args.group_by as string);
@@ -565,12 +600,10 @@ export const runReportTool = defineTool({
     if (rawPeriod && period !== rawPeriod) ignored.push(args.period as string);
 
     const rawSort = args.sort?.trim().toLowerCase();
-    let sort = rawSort === 'slowest' ? 'slowest' : 'amount';
+    const sort = rawSort === 'slowest' ? 'slowest' : 'amount';
     if (rawSort && rawSort !== 'slowest' && rawSort !== 'amount') ignored.push(args.sort as string);
-    if (sort === 'slowest' && group !== 'client') {
-      ignored.push('slowest only applies to client grouping');
-      sort = 'amount';
-    }
+    // Asking for the slowest payers is a client question; it sets the grouping.
+    if (sort === 'slowest') group = 'client';
 
     const category = forgivingCategory(args.category);
     ignored.push(...category.ignored);
@@ -660,10 +693,13 @@ export const runReportTool = defineTool({
     const value = metricTotal(metric, data, range, category.category);
     const money = metricMoney(metric, value.value);
     const label = metricLabel(metric);
-    const eyebrow = group === 'client' ? 'Clients' : group === 'category' ? 'Spending' : 'Your report';
-    const title = group === 'client'
-      ? sort === 'slowest' ? 'Slowest payers' : 'Top clients'
-      : group === 'category' ? 'Spending by category' : range.label;
+    const eyebrow = sort === 'slowest'
+      ? 'Slowest payers · avg days late'
+      : group === 'client' ? 'Clients' : group === 'category' ? 'Spending' : 'Your report';
+    const title = sort === 'slowest'
+      ? 'Slowest to pay, slowest first.'
+      : group === 'client' ? 'Top clients'
+        : group === 'category' ? 'Spending by category' : range.label;
 
     // ── comparison ──
     let comparison: RunReportOutputNullable['comparison'] = null;
@@ -734,23 +770,18 @@ export const runReportTool = defineTool({
 
     // ── client ranking ──
     const stats = payerStats(invoices);
-    let groups = grouped(data, metric, range, category.category);
+    const groups = grouped(data, metric, range, category.category);
+    let slowest: Slowest[] = [];
     let slowestExcluded = 0;
     let slowestNote = '';
     if (sort === 'slowest') {
-      const ranked = groups.filter((entry) => averageDays(stats.get(normName(entry.name))) !== null);
-      slowestExcluded = groups.filter((entry) => {
-        const payer = stats.get(normName(entry.name));
-        return Boolean(payer && payer.count > 0 && payer.count < 2);
-      }).length;
+      const result = slowestPayers(invoices);
+      slowest = result.ranked;
+      slowestExcluded = result.excluded;
+      slowestNote = 'Ranked across all time; the requested period is ignored for the ranking.';
       if (slowestExcluded) {
-        slowestNote = `${slowestExcluded} ${slowestExcluded === 1 ? 'client' : 'clients'} left out (fewer than 2 paid invoices).`;
+        slowestNote += ` ${slowestExcluded} ${slowestExcluded === 1 ? 'client' : 'clients'} left out (only one paid invoice).`;
       }
-      groups = ranked.sort((a, b) => {
-        const ad = averageDays(stats.get(normName(a.name))) ?? 0;
-        const bd = averageDays(stats.get(normName(b.name))) ?? 0;
-        return bd - ad || b.total - a.total;
-      });
     }
 
     const noun = metric === 'collected' ? 'payments'
@@ -759,57 +790,72 @@ export const runReportTool = defineTool({
           : metric === 'outstanding' ? 'open invoices'
             : 'records';
 
-    const rankedRows = groups.slice(0, args.limit ?? READ_CAP).map((entry) => {
-      const amount = metricMoney(metric, entry.total);
-      const payer = stats.get(normName(entry.name));
-      const days = averageDays(payer);
-      return {
+    const rankedRows = sort === 'slowest'
+      ? slowest.slice(0, args.limit ?? READ_CAP).map((entry) => ({
         name: entry.name,
-        secondary: sort === 'slowest' && days !== null
-          ? `Avg ${days} ${days === 1 ? 'day' : 'days'} · ${payer?.count ?? 0} paid ${payer?.count === 1 ? 'invoice' : 'invoices'}`
-          : `${entry.count} ${noun}`,
-        amount: amount.text,
-        tone: amount.tone,
+        secondary: `${entry.paidInvoices} paid ${entry.paidInvoices === 1 ? 'invoice' : 'invoices'}`,
+        amount: moneyText(entry.owed),
+        tone: 'neutral' as const,
+        chip: { tone: 'late' as const, label: `${entry.days}d avg` },
+      }))
+      : groups.slice(0, args.limit ?? READ_CAP).map((entry) => {
+        const amount = metricMoney(metric, entry.total);
+        const payer = stats.get(normName(entry.name));
+        const days = averageDays(payer);
+        return {
+          name: entry.name,
+          secondary: `${entry.count} ${noun}`,
+          amount: amount.text,
+          tone: amount.tone,
+          ...(days !== null ? { chip: { tone: 'late' as const, label: `${days}d avg` } } : {}),
+        };
+      });
+    const slowestOwed = roundCurrency(slowest.reduce((sum, entry) => sum + entry.owed, 0));
+    const rankedTotal = sort === 'slowest'
+      ? {
+        label: `Still owed · ${slowest.length} ${slowest.length === 1 ? 'client' : 'clients'}`,
+        amount: moneyText(slowestOwed),
+        tone: 'neutral' as const,
+      }
+      : {
+        label: `${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`,
+        amount: metricMoney(metric, value.value).text,
       };
-    });
-    const rankedTotal = {
-      label: sort === 'slowest'
-        ? `${rankedRows.length} ${rankedRows.length === 1 ? 'client' : 'clients'} ranked`
-        : `${groups.length} ${groups.length === 1 ? 'client' : 'clients'}`,
-      amount: sort === 'slowest'
-        ? `${Math.round(
-          groups.reduce((sum, entry) => sum + (averageDays(stats.get(normName(entry.name))) ?? 0), 0)
-          / Math.max(1, groups.length),
-        )} days avg`
-        : metricMoney(metric, value.value).text,
-    };
     const ranked = rankedView({
       eyebrow,
       title,
       rows: rankedRows,
-      totalCount: groups.length,
+      totalCount: sort === 'slowest' ? slowest.length : groups.length,
       total: rankedTotal,
       destination: { screen: 'Books summary', path: '/summary' },
     });
 
-    const clients = groups.map((entry) => {
-      const payer = stats.get(normName(entry.name));
-      const days = averageDays(payer);
-      return {
+    const clients = sort === 'slowest'
+      ? slowest.map((entry) => ({
         name: entry.name,
-        total: metricMoney(metric, entry.total).text,
-        averageDaysToPay: days,
-        paidInvoices: payer?.count ?? 0,
-      };
-    });
+        total: moneyText(entry.owed),
+        averageDaysToPay: entry.days,
+        paidInvoices: entry.paidInvoices,
+      }))
+      : groups.map((entry) => {
+        const payer = stats.get(normName(entry.name));
+        const days = averageDays(payer);
+        return {
+          name: entry.name,
+          total: metricMoney(metric, entry.total).text,
+          averageDaysToPay: days,
+          paidInvoices: payer?.count ?? 0,
+        };
+      });
 
     const total = group === 'client'
       ? ranked.props.total
       : { label: `${value.count} ${value.count === 1 ? 'record' : 'records'}`, amount: money.text };
+    const matched = sort === 'slowest' ? slowest.length : value.count;
 
     return {
-      match: matchOf(value.count),
-      count: value.count,
+      match: matchOf(matched),
+      count: matched,
       ignored,
       eyebrow,
       title,

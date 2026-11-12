@@ -73,8 +73,10 @@ const run = (rows: Rows, args: unknown) =>
     groupBy: string;
     value: { amount: number; text: string };
     comparison: { previousZero: boolean; text: string; previousAmount: number } | null;
-    rows: Array<{ name: string; secondary: string; amount: string }>;
-    clients: Array<{ name: string; averageDaysToPay: number | null; paidInvoices: number }>;
+    rows: Array<{ name: string; secondary: string; amount: string; tone: string; chip?: { tone: string; label: string } }>;
+    total: { label: string; amount: string };
+    totalCount: number;
+    clients: Array<{ name: string; total: string; averageDaysToPay: number | null; paidInvoices: number }>;
     slowestExcluded: number;
     slowestNote: string;
     period: { start: string; end: string; timezone: string };
@@ -121,15 +123,61 @@ test('outstanding is as of now even when the period is in the past', async () =>
   assert.equal(out.count, 1);
 });
 
-test('slowest payers use average days and leave out clients with fewer than 2 paid invoices', async () => {
-  const out = await run(baseFixture(), { metric: 'collected', group_by: 'client', sort: 'slowest', ...SEP_OCT });
+test('slowest payers are all-time, show what is owed now, and leave out clients with one paid invoice', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', sort: 'slowest', ...SEP_OCT });
+  assert.equal(out.groupBy, 'client');
   assert.equal(out.rows.length, 1);
   assert.equal(out.rows[0].name, 'Maria Santos');
-  assert.match(out.rows[0].secondary, /Avg 12 days · 2 paid invoices/);
+  assert.equal(out.rows[0].secondary, '2 paid invoices');
+  assert.equal(out.rows[0].amount, '$400.00');
+  assert.equal(out.rows[0].tone, 'neutral');
+  assert.deepEqual(out.rows[0].chip, { tone: 'late', label: '12d avg' });
+  assert.deepEqual(out.total, { label: 'Still owed · 1 client', amount: '$400.00', tone: 'neutral' });
   assert.equal(out.slowestExcluded, 1);
+  assert.match(out.slowestNote, /all time/);
   assert.match(out.slowestNote, /1 client left out/);
+  assert.equal(out.clients[0].total, '$400.00');
   assert.equal(out.clients[0].averageDaysToPay, 12);
   assert.equal(out.clients[0].paidInvoices, 2);
+});
+
+test('slowest sets the grouping and ignores the requested period', async () => {
+  const out = await run(baseFixture(), {
+    metric: 'collected', group_by: 'category', sort: 'slowest',
+    period: 'custom', from: '2020-01-01', to: '2020-01-31',
+  });
+  assert.equal(out.groupBy, 'client');
+  assert.equal(out.rows[0]?.name, 'Maria Santos');
+  assert.equal(out.rows[0]?.amount, '$400.00');
+  assert.equal(out.match, 'one');
+  assert.equal(out.slowestExcluded, 1, 'left out is counted across all time, not the period');
+  assert.match(out.slowestNote, /requested period is ignored/);
+});
+
+test('the slowest total is the money still owed by every ranked client', async () => {
+  const rows = baseFixture();
+  rows.invoices = [
+    ...rows.invoices,
+    invoice({
+      id: 'inv-5', total: 150, amount_paid: 0, client_name: 'Ruth Lawrence', status: 'sent',
+      first_sent_at: '2026-10-01T12:00:00Z', paid_at: null, created_at: '2026-09-01T12:00:00Z',
+    }),
+    invoice({
+      id: 'inv-6', total: 300, amount_paid: 300, client_name: 'Ruth Lawrence',
+      first_sent_at: '2026-10-01T12:00:00Z', paid_at: '2026-10-04T12:00:00Z',
+    }),
+  ];
+  rows.invoice_payments = [
+    ...rows.invoice_payments,
+    payment({ id: 'p5', invoice_id: 'inv-6', amount: 300, paid_at: '2026-10-04T12:00:00Z' }),
+  ];
+
+  const out = await run(rows, { metric: 'collected', sort: 'slowest', period: 'custom', from: '2020-01-01', to: '2020-01-31' });
+  assert.deepEqual(out.rows.map((r) => r.name), ['Maria Santos', 'Ruth Lawrence']);
+  assert.deepEqual(out.rows.map((r) => r.amount), ['$400.00', '$150.00']);
+  assert.deepEqual(out.rows.map((r) => r.chip?.label), ['12d avg', '7d avg']);
+  assert.deepEqual(out.total, { label: 'Still owed · 2 clients', amount: '$550.00', tone: 'neutral' });
+  assert.equal(out.slowestExcluded, 0);
 });
 
 test('top clients rank by the metric, and the card is a ranked list', async () => {
