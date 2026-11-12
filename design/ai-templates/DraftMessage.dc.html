@@ -21,12 +21,21 @@
 </sc-if>
 <sc-if value="{{ notCancelled }}">
 <div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden">
-  <sc-if value="{{ notSent }}">
+  <sc-if value="{{ isDraftHead }}">
     <div style="padding:16px;display:flex;gap:12px;align-items:center">
       <div style="width:44px;height:44px;border-radius:14px;background:#F2E6BF;display:flex;align-items:center;justify-content:center;flex:none"><span class="material-symbols-outlined" style="font-size:22px;color:#5E4700">{{ channelIcon }}</span></div>
       <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
         <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Message for {{ firstName }}</div>
-        <div style="font-size:14px;color:#6E655A">Nothing's sent until you tap Send.</div>
+        <div style="font-size:14px;color:#6E655A">{{ draftSub }}</div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isHandoffHead }}">
+    <div style="padding:16px;display:flex;gap:12px;align-items:center">
+      <div style="width:44px;height:44px;border-radius:14px;background:#F2E6BF;display:flex;align-items:center;justify-content:center;flex:none"><span class="material-symbols-outlined" style="font-size:22px;color:#5E4700">{{ handoffIcon }}</span></div>
+      <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ handoffTitle }}</div>
+        <div style="font-size:14px;color:#6E655A">{{ handoffSub }}</div>
       </div>
     </div>
   </sc-if>
@@ -34,8 +43,8 @@
     <div style="padding:16px;display:flex;gap:12px;align-items:center">
       {{ popCheck }}
       <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
-        <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sent to {{ firstName }}</div>
-        <div style="font-size:14px;color:#6E655A">{{ channel }} · {{ contact }} · just now</div>
+        <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ doneTitle }}</div>
+        <div style="font-size:14px;color:#6E655A">{{ doneSub }}</div>
       </div>
     </div>
   </sc-if>
@@ -51,7 +60,7 @@
           <div style="font-size:13px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ contactColor }}">{{ contactLine }}</div>
         </div>
       </div>
-      <sc-if value="{{ notSent }}">
+      <sc-if value="{{ isDraftHead }}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1.5px dashed #E8DDCB">
           <div style="font-size:15px;color:#857B6E">Send by</div>
           <div style="display:flex;gap:8px">
@@ -83,62 +92,101 @@
     </div>
   </sc-if>
   <sc-if value="{{ isError }}">
-    <div style="background:#F8E3DC;padding:12px 16px;display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;color:#7E2F1C"><span class="material-symbols-outlined" style="font-size:18px">error</span><span>Didn't send. The number for {{ firstName }} may be wrong. Your draft is saved.</span></div>
+    <div style="background:#F8E3DC;padding:12px 16px;display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;color:#7E2F1C"><span class="material-symbols-outlined" style="font-size:18px">error</span><span>{{ errorText }}</span></div>
   </sc-if>
   <sc-if value="{{ showFooter }}">
-    <div style="padding:12px 16px 16px;display:flex;align-items:center;gap:8px">
-      <div role="button" onClick="{{ onCancel }}" style="height:44px;display:flex;align-items:center;padding:0 6px;font-size:15px;font-weight:600;color:#5F574D;cursor:pointer">{{ cancelLabel }}</div>
-      <div style="flex:1"></div>
-      <sc-if value="{{ showEdit }}"><div role="button" onClick="{{ onEdit }}" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">edit</span>Edit</div></sc-if>
-      <div role="button" onClick="{{ onPrimary }}" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:600;cursor:pointer;background:{{ primaryBg }};color:{{ primaryFg }}">{{ primaryIcon }}<span>{{ primaryLabel }}</span></div>
+    <div style="padding:12px 16px 16px;display:flex;align-items:center;gap:8px;flex-wrap:{{ footerWrap }}">
+      <sc-if value="{{ showCancel }}"><div role="button" onClick="{{ onCancel }}" style="height:44px;display:flex;align-items:center;padding:0 6px;font-size:15px;font-weight:600;color:#5F574D;cursor:pointer">{{ cancelLabel }}</div></sc-if>
+      <sc-if value="{{ showSpacer }}"><div style="flex:1"></div></sc-if>
+      <sc-if value="{{ showSecondary }}"><div role="button" onClick="{{ onSecondary }}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer;box-sizing:border-box;flex:{{ secondaryFlex }}"><span class="material-symbols-outlined" style="font-size:18px">{{ secondaryIcon }}</span><span style="white-space:nowrap">{{ secondaryLabel }}</span></div></sc-if>
+      <div role="button" onClick="{{ onPrimary }}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:600;cursor:pointer;box-sizing:border-box;flex:{{ primaryFlex }};order:{{ primaryOrder }};background:{{ primaryBg }};color:{{ primaryFg }}">{{ primaryIcon }}<span style="white-space:nowrap">{{ primaryLabel }}</span></div>
     </div>
   </sc-if>
 </div>
 </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:560},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;draft&quot;,&quot;editing&quot;,&quot;sent&quot;,&quot;nocontact&quot;,&quot;error&quot;,&quot;loading&quot;,&quot;cancelled&quot;],&quot;default&quot;:&quot;draft&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;channel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Text&quot;,&quot;Email&quot;],&quot;default&quot;:&quot;Text&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;recipientName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Chenyi&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;phone&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;(945) 555-0182&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;email&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;chenyi.w@mail.com&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;INV-0074&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutAmount&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;$8,100.00 due&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;body&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:560},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;draft&quot;,&quot;editing&quot;,&quot;opened&quot;,&quot;copied&quot;,&quot;done&quot;,&quot;openError&quot;,&quot;sent&quot;,&quot;error&quot;,&quot;nocontact&quot;,&quot;loading&quot;,&quot;cancelled&quot;],&quot;default&quot;:&quot;draft&quot;,&quot;tsType&quot;:&quot;'draft'|'editing'|'opened'(Text, phone)|'copied'(Text, laptop)|'done'(Text)|'openError'(Text)|'sent'(Email)|'error'(Email)|'nocontact'|'loading'|'cancelled'&quot;},&quot;channel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Text&quot;,&quot;Email&quot;],&quot;default&quot;:&quot;Text&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;laptop&quot;],&quot;default&quot;:&quot;phone&quot;,&quot;tsType&quot;:&quot;'phone'|'laptop'&quot;},&quot;recipientName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Chenyi&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;phone&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;(945) 555-0182&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;email&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;chenyi.w@mail.com&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;INV-0074&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutAmount&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;$8,100.00 due&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;body&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;onOpenMessages&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;()=&gt;void&quot;}}">
 class Component extends DCLogic {
   state = { mode: this.props.state ?? 'draft', channel: this.props.channel ?? 'Text', body: null };
   componentDidUpdate(pp) { if (pp.state !== this.props.state) this.setState({ mode: this.props.state ?? 'draft' }); if (pp.channel !== this.props.channel) this.setState({ channel: this.props.channel ?? 'Text' }); }
   componentWillUnmount() { clearTimeout(this.t); }
   send = () => { this.setState({ mode: 'sending' }); this.t = setTimeout(() => this.setState({ mode: 'sent' }), 900); };
+  copy = text => { try { navigator.clipboard?.writeText(text); } catch (e) {} this.setState({ mode: 'copied' }); };
+  openMessages = () => { this.props.onOpenMessages?.(); this.setState({ mode: 'opened' }); };
   renderVals() {
-    const p = this.props, m = this.state.mode, ch = this.state.channel;
+    const p = this.props, ch = this.state.channel, isText = ch === 'Text';
+    const laptop = (p.device ?? 'phone') === 'laptop';
+    let m = this.state.mode;
+    // Text can't know if a message was sent: map Email-only states to their Text equivalents.
+    if (isText && m === 'sent') m = laptop ? 'copied' : 'opened';
+    if (isText && m === 'error') m = 'openError';
+    if (!isText && ['opened', 'copied', 'done', 'openError'].includes(m)) m = m === 'openError' ? 'error' : 'sent';
     const h = React.createElement;
-    const name = p.recipientName ?? 'Chenyi';
+    const ic = (n, extra) => h('span', { className: 'material-symbols-outlined', style: { fontSize: 18, ...(extra || {}) } }, n);
+    const name = p.recipientName ?? 'Chenyi', first = name.split(' ')[0];
     const phone = p.phone ?? '(945) 555-0182', email = p.email ?? 'chenyi.w@mail.com';
-    const contact = ch === 'Email' ? email : phone;
+    const contact = isText ? phone : email;
     const body = this.state.body ?? p.body ?? `Hi Chenyi, just a reminder that invoice INV-0074 for the kitchen remodel ($8,100.00) was due Oct 8. You can pay by Zelle or card from the link in the invoice. Thanks!`;
     const chip = on => on ? { bg: '#322C25', fg: '#FCF6EE', border: '#322C25' } : { bg: '#FFFFFF', fg: '#221D18', border: '#E2D6C2' };
-    const noC = m === 'nocontact';
-    const sending = m === 'sending';
-    let primaryLabel = 'Send', primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'send');
-    if (m === 'editing') { primaryLabel = 'Done'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'check'); }
-    if (m === 'error') { primaryLabel = 'Try again'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'refresh'); }
-    if (sending) { primaryLabel = 'Sending…'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18, animation: 'onitSpin .9s linear infinite' } }, 'progress_activity'); }
+    const noC = m === 'nocontact', sending = m === 'sending';
+    const handoff = m === 'opened' || m === 'copied';
+    const finished = m === 'sent' || m === 'done';
+    const textDraftLike = isText && (m === 'draft' || m === 'openError' || noC);
+
+    let primaryLabel = 'Send', primaryIcon = ic('send'), onPrimary = () => { if (!noC) this.send(); };
+    if (isText && !laptop) { primaryLabel = 'Open in Messages'; primaryIcon = ic('open_in_new'); onPrimary = () => { if (!noC) this.openMessages(); }; }
+    if (isText && laptop) { primaryLabel = 'Copy text'; primaryIcon = ic('content_copy'); onPrimary = () => { if (!noC) this.copy(body); }; }
+    if (m === 'openError') { primaryLabel = 'Copy text'; primaryIcon = ic('content_copy'); onPrimary = () => this.copy(body); }
+    if (m === 'editing') { primaryLabel = 'Done'; primaryIcon = ic('check'); onPrimary = () => this.setState({ mode: 'draft' }); }
+    if (m === 'error') { primaryLabel = 'Try again'; primaryIcon = ic('refresh'); onPrimary = () => this.send(); }
+    if (sending) { primaryLabel = 'Sending…'; primaryIcon = ic('progress_activity', { animation: 'onitSpin .9s linear infinite' }); onPrimary = () => {}; }
+    if (handoff) { primaryLabel = 'Mark done'; primaryIcon = ic('check'); onPrimary = () => this.setState({ mode: 'done' }); }
+
+    let secondary = null;
+    if (m === 'draft' || m === 'error' || m === 'openError' || noC) secondary = { label: 'Edit', icon: 'edit', on: () => this.setState({ mode: 'editing' }) };
+    if (m === 'opened') secondary = { label: 'Reopen', icon: 'open_in_new', on: () => this.openMessages() };
+    if (m === 'copied') secondary = { label: 'Copy again', icon: 'content_copy', on: () => this.copy(body) };
+
+    // Phone + Text: the longer primary takes its own full-width row above Cancel / Edit.
+    const fullRow = isText && !laptop && textDraftLike;
     return {
-      name, firstName: name.split(' ')[0], channel: ch, contact,
-      channelIcon: ch === 'Email' ? 'mail' : 'sms',
+      name, firstName: first, channel: ch, contact,
+      channelIcon: isText ? 'sms' : 'mail',
+      draftSub: !isText ? "Nothing's sent until you tap Send." : laptop ? 'Copy it, then send it from your phone.' : 'Opens in Messages. You send it from there.',
       contactLine: noC ? 'No phone or email on file' : contact,
       contactColor: noC ? '#A8432A' : '#6E655A',
-      body, bodyColor: m === 'sent' ? '#5F574D' : '#221D18',
+      body, bodyColor: finished || handoff ? '#5F574D' : '#221D18',
       hasAbout: (p.aboutLabel ?? 'INV-0074') !== '', aboutLabel: (p.aboutLabel ?? 'INV-0074') + ' ·', aboutAmount: p.aboutAmount ?? '$8,100.00 due',
-      isLoading: m === 'loading', isSent: m === 'sent', notSent: m !== 'sent',
+      isLoading: m === 'loading',
+      isDraftHead: !finished && !handoff,
+      isHandoffHead: handoff,
+      handoffIcon: m === 'opened' ? 'open_in_new' : 'content_copy',
+      handoffTitle: m === 'opened' ? 'Opened in Messages' : 'Text copied',
+      handoffSub: m === 'opened' ? `Send it to ${first} there. On It can't see if it went.` : `Paste it into your messaging app to send to ${first}.`,
+      isSent: finished,
+      doneTitle: m === 'done' ? 'Marked done' : `Sent to ${first}`,
+      doneSub: m === 'done' ? `You sent it · ${phone}` : `${ch} · ${contact} · just now`,
       isCancelled: m === 'cancelled', notCancelled: m !== 'cancelled',
       showForm: m !== 'loading', isEditing: m === 'editing', notEditing: m !== 'editing',
-      isNoContact: noC, isError: m === 'error',
-      showFooter: m !== 'loading' && m !== 'sent',
-      showEdit: m === 'draft' || m === 'error' || noC,
+      isNoContact: noC,
+      isError: m === 'error' || m === 'openError',
+      errorText: m === 'openError' ? "Couldn't open Messages on this device. Copy the text and paste it into any messaging app." : `Didn't send. The number for ${first} may be wrong. Your draft is saved.`,
+      showFooter: m !== 'loading' && !finished,
+      showCancel: !handoff, showSpacer: !handoff,
+      showSecondary: !!secondary,
+      secondaryLabel: secondary?.label ?? '', secondaryIcon: secondary?.icon ?? '', onSecondary: secondary?.on,
+      secondaryFlex: handoff ? '1 1 auto' : '0 0 auto',
+      footerWrap: fullRow ? 'wrap' : 'nowrap',
       cancelLabel: m === 'editing' ? 'Discard edits' : 'Cancel',
-      textChip: chip(ch === 'Text'), emailChip: chip(ch === 'Email'),
+      textChip: chip(isText), emailChip: chip(!isText),
       pickText: () => this.setState({ channel: 'Text' }), pickEmail: () => this.setState({ channel: 'Email' }),
       onBody: e => this.setState({ body: e.target.value }),
-      onEdit: () => this.setState({ mode: 'editing' }),
       onCancel: () => this.setState(m === 'editing' ? { mode: 'draft', body: null } : { mode: 'cancelled' }),
       onUndo: () => this.setState({ mode: 'draft' }),
-      onPrimary: () => { if (noC || sending) return; if (m === 'editing') this.setState({ mode: 'draft' }); else this.send(); },
-      primaryLabel, primaryIcon,
+      onPrimary, primaryLabel, primaryIcon,
+      primaryFlex: fullRow ? '1 1 100%' : handoff ? '1 1 auto' : '0 0 auto',
+      primaryOrder: fullRow ? -1 : 0,
       primaryBg: noC ? '#F2E6BF' : '#D4AF37', primaryFg: noC ? '#8C7A45' : '#221D18',
       popCheck: h('span', { key: 'pop', className: 'material-symbols-outlined', style: { width: 44, height: 44, borderRadius: '50%', background: '#D4AF37', color: '#221D18', fontSize: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', animation: 'onitPop 420ms cubic-bezier(.2,.9,.3,1.25) both' } }, 'check')
     };

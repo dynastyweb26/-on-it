@@ -3,7 +3,8 @@
 Binding for every phase that builds or wires these templates. Re-read at the start of each
 session. Do not paraphrase away.
 
-Source of truth: the Claude Design export in this folder (Board 9, exported Nov 11 2026).
+Source of truth: the Claude Design export in this folder (Board 9, exported Nov 11 2026;
+`DraftMessage` and the board revised Nov 12 for the Text channel).
 `Chat_Templates_Board.dc.html` is the board; each template is its own `.dc.html` file.
 `support.js` is the design runtime the files need to open in a browser. It is not app code.
 
@@ -26,7 +27,7 @@ name. Do not invent other ids.
 | `stat.tiles` | `StatTiles.dc.html` | 1 to 3 tiles |
 | `chart.trend` | `TrendChart.dc.html` | falls back to `stat.tiles` at 1 point |
 | `chart.breakdown` | `Breakdown.dc.html` | horizontal bars, never a pie |
-| `draft.message` | `DraftMessage.dc.html` | see section 6 |
+| `draft.message` | `DraftMessage.dc.html` | revised Nov 12; see section 6, item 8 |
 | `confirm.batch` | `BatchConfirm.dc.html` | 2 to 4 actions |
 | `cant.do` | `CantDo.dc.html` | extends P-73 on Board 8 |
 | `nav.link` | `NavLink.dc.html` | 1 to 3 items |
@@ -101,11 +102,22 @@ name. Do not invent other ids.
    and discards an unsent draft. It never claims to unsend a message.
 7. `draft.message` body: any dollar amount inside the body is filled in by the server, not
    written by the model. The money guard applies to draft bodies too.
-8. OPEN: `draft.message` on the Text channel. Send opens the user's own Messages app with
-   the text filled in, so the app cannot know the message was sent or that a number is
-   wrong. The "Sent to ..." state and the "Didn't send. The number ... may be wrong." error
-   are correct for Email only. The Text wording needs a Claude Design revision before this
-   template is built. Build nothing for the Text sent and error states until it lands here.
+8. `draft.message` on the Text channel (settled Nov 12, design revised). On It hands a text
+   off to the user's own Messages app and cannot know whether it was sent.
+   - States: `draft`, `editing`, `nocontact`, `loading`, `cancelled` apply to both channels.
+     `opened`, `copied`, `done`, `openError` are Text only. `sent` and `error` are Email only.
+     If an Email-only state arrives with Text (or the reverse), map it exactly as the design
+     file's script does.
+   - Text on phone: primary is "Open in Messages" on its own full-width row above Cancel and
+     Edit. After the tap the card shows "Opened in Messages" with Reopen and Mark done.
+   - Text on laptop: primary is "Copy text". After copying the card shows "Text copied" with
+     Copy again and Mark done.
+   - The only Text error is that Messages could not be opened, with Copy text as the action.
+   - The check animation plays only on Email Sent and on Text Mark done.
+   - `device` is `laptop` at viewport 1280 and up, `phone` below, the same breakpoint the
+     rest of the app uses for laptop.
+   - "Mark done" records that the user says they sent it. Nothing may describe a text as
+     sent by On It.
 9. OPEN: the trend chart readout says "Kept" and the stat tiles say "Net". Build as designed
    unless the owner picks one word.
 
