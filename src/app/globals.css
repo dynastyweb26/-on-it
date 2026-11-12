@@ -1343,3 +1343,8 @@ html[data-splash=""] .onit-splash {
   --tpl-send-off-fg: #8c7a45;
   --tpl-seg: #efe7db;
 }
+
+/* ---- AI chat template tokens, round 3 part 2 (DraftMessage) ---- */
+:root {
+  --tpl-nocontact-bg: #f4ecdd;
+}

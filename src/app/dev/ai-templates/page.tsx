@@ -15,6 +15,7 @@ import Breakdown from '@/components/chat/templates/Breakdown';
 import ConfirmBatch from '@/components/chat/templates/ConfirmBatch';
 import FeedbackThumbs from '@/components/chat/templates/FeedbackThumbs';
 import FeedbackCheckin from '@/components/chat/templates/FeedbackCheckin';
+import DraftMessage from '@/components/chat/templates/DraftMessage';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -34,15 +35,16 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'confirm.batch': ConfirmBatch,
   'feedback.thumbs': FeedbackThumbs,
   'feedback.checkin': FeedbackCheckin,
+  'draft.message': DraftMessage,
 };
 
 // Sample state a design file seeds that the typed props do not carry (picks, a made choice, row statuses).
 const EXTRAS = (t: TemplateId, s: string): object => (t === 'feedback.thumbs' && (s === 'openFilled' || s === 'error') ? { initial: { reasons: ['Wrong number'], note: 'It used last month, not this one.' } } : t === 'feedback.checkin' && s === 'picked' ? { picked: 'Love it' } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
 
-export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
+export default function Page({ searchParams }: { searchParams: { template?: string; state?: string; channel?: string; device?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
 
-  const { template, state } = searchParams;
+  const { template, state, channel, device } = searchParams;
   if (!template) return <Index />;
   if (!isTemplateId(template)) notFound();
   const states: readonly string[] = TEMPLATE_STATES[template];
@@ -56,7 +58,7 @@ export default function Page({ searchParams }: { searchParams: { template?: stri
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <AssistantAvatar />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS(template, state)} state={state} />
+            <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS(template, state)} {...(template === 'draft.message' ? { channel, device } : {})} state={state} />
           </div>
         </div>
       </div>
