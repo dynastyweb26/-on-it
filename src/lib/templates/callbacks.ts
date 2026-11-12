@@ -42,12 +42,13 @@ export type FeedbackCheckinCallbacks = {
 };
 
 export type DraftMessageCallbacks = {
-  onChannel?: (channel: 'Text' | 'Email') => void;
-  onBody?: (body: string) => void;
-  onPrimary?: () => void;
-  onCancel?: () => void;
-  onUndo?: () => void;
+  onSend?: () => void;
+  onOpenMessages?: () => void;
+  onCopy?: () => void;
+  onMarkDone?: () => void;
   onEdit?: () => void;
+  onCancel?: () => void;
+  onAddContact?: () => void;
 };
 
 export type ConfirmBatchCallbacks = {

@@ -112,21 +112,61 @@ export type BreakdownProps = z.infer<typeof BreakdownProps>;
 
 // ── draft.message · DraftMessage.dc.html ────────────────────────────────────
 
+export const DraftMessageState = State([
+  'draft',
+  'editing',
+  'opened',
+  'copied',
+  'done',
+  'openError',
+  'sent',
+  'error',
+  'nocontact',
+  'loading',
+  'cancelled',
+] as const);
+export type DraftMessageState = z.infer<typeof DraftMessageState>;
+export type DraftMessageChannel = 'Text' | 'Email';
+export type DraftMessageDevice = 'phone' | 'laptop';
+
 export const DraftMessageProps = z.object({
-  state: State(['draft', 'editing', 'sent', 'nocontact', 'error', 'loading', 'cancelled']).default(
-    'draft',
-  ),
+  state: DraftMessageState.default('draft'),
   channel: z.enum(['Text', 'Email']).default('Text'),
+  device: z.enum(['phone', 'laptop']).default('phone'),
   recipientName: z.string().min(1),
   phone: z.string(),
   email: z.string(),
   aboutLabel: z.string(),
   /** A finished money string (`$8,100.00 due`). */
   aboutAmount: z.string(),
-  /** Server-composed body: every amount inside it is already filled in. */
+  /**
+   * Server-composed body: every dollar amount inside it is filled in by the
+   * server; the model never writes one (RULES.md §6.7).
+   */
   body: z.string().min(1),
 });
 export type DraftMessageProps = z.infer<typeof DraftMessageProps>;
+
+/**
+ * The design file's own state/channel reconciliation. Text cannot know whether
+ * a message was sent, and Email cannot know it was opened or copied; an
+ * Email-only state with Text (or the reverse) becomes its counterpart.
+ */
+export function resolveDraftMessageState(
+  state: DraftMessageState,
+  channel: DraftMessageChannel,
+  device: DraftMessageDevice = 'phone',
+): DraftMessageState {
+  if (channel === 'Text') {
+    if (state === 'sent') return device === 'laptop' ? 'copied' : 'opened';
+    if (state === 'error') return 'openError';
+    return state;
+  }
+  if (state === 'opened' || state === 'copied' || state === 'done' || state === 'openError') {
+    return state === 'openError' ? 'error' : 'sent';
+  }
+  return state;
+}
 
 // ── confirm.batch · BatchConfirm.dc.html (2 to 4 actions) ───────────────────
 
@@ -214,7 +254,19 @@ export const TEMPLATE_STATES = {
   'stat.tiles': ['filled', 'loading', 'empty', 'error'],
   'chart.trend': ['filled', 'loading', 'empty', 'error'],
   'chart.breakdown': ['filled', 'loading', 'empty', 'error'],
-  'draft.message': ['draft', 'editing', 'sent', 'nocontact', 'error', 'loading', 'cancelled'],
+  'draft.message': [
+    'draft',
+    'editing',
+    'opened',
+    'copied',
+    'done',
+    'openError',
+    'sent',
+    'error',
+    'nocontact',
+    'loading',
+    'cancelled',
+  ],
   'confirm.batch': ['pending', 'confirming', 'done', 'partial', 'loading'],
   'cant.do': ['filled', 'requested', 'error', 'loading'],
   'nav.link': ['filled', 'loading', 'empty', 'error'],

@@ -8,6 +8,7 @@ import type {
   CantDoProps,
   ConfirmBatchProps,
   DraftMessageProps,
+  DraftMessageState,
   FeedbackCheckinProps,
   FeedbackThumbsProps,
   NavLinkProps,
@@ -109,6 +110,7 @@ export const BREAKDOWN_FIXTURE = {
 export const DRAFT_MESSAGE_FIXTURE = {
   state: 'draft',
   channel: 'Text',
+  device: 'phone',
   recipientName: 'Chenyi',
   phone: '(945) 555-0182',
   email: 'chenyi.w@mail.com',
@@ -117,6 +119,24 @@ export const DRAFT_MESSAGE_FIXTURE = {
   body:
     'Hi Chenyi, just a reminder that invoice INV-0074 for the kitchen remodel ($8,100.00) was due Oct 8. You can pay by Zelle or card from the link in the invoice. Thanks!',
 } satisfies DraftMessageProps;
+
+/**
+ * One sample per design state. Text on phone is the base; copied needs the
+ * laptop, and sent/error are the Email-only states.
+ */
+export const DRAFT_MESSAGE_STATE_FIXTURES = {
+  draft: DRAFT_MESSAGE_FIXTURE,
+  editing: { ...DRAFT_MESSAGE_FIXTURE, state: 'editing' },
+  opened: { ...DRAFT_MESSAGE_FIXTURE, state: 'opened', device: 'phone' },
+  copied: { ...DRAFT_MESSAGE_FIXTURE, state: 'copied', device: 'laptop' },
+  done: { ...DRAFT_MESSAGE_FIXTURE, state: 'done', device: 'phone' },
+  openError: { ...DRAFT_MESSAGE_FIXTURE, state: 'openError', device: 'phone' },
+  sent: { ...DRAFT_MESSAGE_FIXTURE, state: 'sent', channel: 'Email', device: 'phone' },
+  error: { ...DRAFT_MESSAGE_FIXTURE, state: 'error', channel: 'Email', device: 'phone' },
+  nocontact: { ...DRAFT_MESSAGE_FIXTURE, state: 'nocontact' },
+  loading: { ...DRAFT_MESSAGE_FIXTURE, state: 'loading' },
+  cancelled: { ...DRAFT_MESSAGE_FIXTURE, state: 'cancelled' },
+} satisfies Record<DraftMessageState, DraftMessageProps>;
 
 export const CONFIRM_BATCH_FIXTURE = {
   state: 'pending',
