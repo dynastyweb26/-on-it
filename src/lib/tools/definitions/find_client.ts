@@ -42,9 +42,9 @@ const fixture = {
     ignored: [],
     items: [{ icon: 'person', title: 'Ruth Lawrence', line: 'ruth@example.com' }],
     eyebrow: 'Clients',
-    rows: [{ name: 'Ruth Lawrence', secondary: 'ruth@example.com', amount: '$120.00' }],
+    rows: [{ name: 'Ruth Lawrence', secondary: 'ruth@example.com', amount: '$120.00', tone: 'neutral' as const }],
     totalCount: 1,
-    total: { label: '1 client', amount: '$120.00' },
+    total: { label: '1 client', amount: '$120.00', tone: 'neutral' as const },
     clients: [{ id: 'cli-1', name: 'Ruth Lawrence', email: 'ruth@example.com', phone: null }],
   },
 };
@@ -101,11 +101,12 @@ export const findClientTool = defineTool({
       ignored: [],
       items: matched.slice(0, 3).map((c) => ({ icon: 'person', title: c.name, line: line(c) })),
       eyebrow: 'Clients',
-      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name) })),
+      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name), tone: 'neutral' as const })),
       totalCount: matched.length,
       total: {
         label: `${matched.length} ${matched.length === 1 ? 'client' : 'clients'}`,
         amount: moneyText(owedTotal),
+        tone: 'neutral' as const,
       },
       clients: matched.map((c) => ({
         id: c.id,

@@ -51,13 +51,13 @@ const fixture = {
     eyebrow: 'Ruth Lawrence',
     title: 'Since you started.',
     tiles: [
-      { label: 'Still owed', value: '$120.00', tone: 'out' as const, period: 'open invoices' },
+      { label: 'Still owed', value: '$120.00', tone: 'neutral' as const, period: 'open invoices' },
       { label: 'Paid', value: '$0.00', tone: 'in' as const, period: 'all time' },
       { label: 'Open documents', value: '1', tone: 'neutral' as const, period: 'invoices and estimates' },
     ],
-    rows: [{ name: 'Ruth Lawrence', secondary: 'INV-0001 · Due Sep 1', amount: '$120.00' }],
+    rows: [{ name: 'Ruth Lawrence', secondary: 'INV-0001 · Due Sep 1', amount: '$120.00', tone: 'neutral' as const }],
     totalCount: 1,
-    total: { label: '1 client', amount: '$120.00' },
+    total: { label: '1 client', amount: '$120.00', tone: 'neutral' as const },
     clients: [{ id: 'cli-1', name: 'Ruth Lawrence' }],
     summary: { clientName: 'Ruth Lawrence', owed: '$120.00', paid: '$0.00', open: 1, estimates: 0 },
   },
@@ -114,11 +114,12 @@ export const getClientSummaryTool = defineTool({
       ignored: [] as string[],
       eyebrow: matched.length === 1 ? matched[0].name : 'Clients',
       title: matched.length === 1 ? 'Since you started.' : 'Which one?',
-      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name) })),
+      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name), tone: 'neutral' as const })),
       totalCount: matched.length,
       total: {
         label: `${matched.length} ${matched.length === 1 ? 'client' : 'clients'}`,
         amount: moneyText(matched.reduce((sum, c) => sum + (owed.get(c.name.trim().toLowerCase()) ?? 0), 0)),
+        tone: 'neutral' as const,
       },
       clients: matched.map((c) => ({ id: c.id, name: c.name })),
     };
@@ -148,7 +149,7 @@ export const getClientSummaryTool = defineTool({
     return {
       ...base,
       tiles: [
-        { label: 'Still owed', value: moneyText(owedTotal), tone: 'out' as const, period: 'open invoices' },
+        { label: 'Still owed', value: moneyText(owedTotal), tone: 'neutral' as const, period: 'open invoices' },
         { label: 'Paid', value: moneyText(paid), tone: 'in' as const, period: 'all time' },
         { label: 'Open documents', value: String(open), tone: 'neutral' as const, period: 'invoices and estimates' },
       ],
