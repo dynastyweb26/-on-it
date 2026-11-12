@@ -33,7 +33,7 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
 };
 
 // Sample text a design file carries that is not in the typed props yet (the design's emptyTitle default).
-const EXTRAS = (t: TemplateId, s: string): object => (t === 'nav.link' ? { emptyTitle: 'INV-0069 is gone' } : t === 'confirm.batch' && s === 'partial' ? { failIndex: 1 } : {});
+const EXTRAS = (t: TemplateId, s: string): object => (t === 'nav.link' ? { emptyTitle: 'INV-0069 is gone' } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();

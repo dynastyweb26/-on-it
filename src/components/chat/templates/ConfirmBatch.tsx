@@ -16,21 +16,22 @@ const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
 export default function ConfirmBatch({
-  state = 'pending', failIndex, actions, onPrimary, onRemove, onUndo,
-}: ConfirmBatchProps & ConfirmBatchCallbacks) {
-  const [batch, setBatch] = useState(() => batchFromProps(state, failIndex, actions));
+  state = 'pending', statuses, actions, onPrimary, onRemove, onUndo,
+}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[] }) {
+  const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
   const busy = useRef(batch.phase === 'confirming'); // synchronous: a second tap never gets past it
   const loading = state === 'loading';
+  const statusKey = (statuses ?? []).join(','); // a new array each render must not reset the card
 
   // A new `state` from the host moves the card on, as the design's componentDidUpdate does.
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
-    const next = batchFromProps(state, failIndex, actions);
+    const next = batchFromProps(state, statuses, actions);
     busy.current = next.phase === 'confirming';
     setBatch(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, failIndex]);
+  }, [state, statusKey]);
 
   const ph = loading ? 'loading' : batch.phase;
   const n = batch.rows.length;

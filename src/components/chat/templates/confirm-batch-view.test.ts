@@ -12,12 +12,13 @@ test('each state prop starts the machine in the matching phase', () => {
   assert.equal(batchFromProps('done', undefined, actions).phase, 'done');
 });
 
-test('partial fails exactly the row at failIndex and saves the others', () => {
-  const s = batchFromProps('partial', 1, actions);
+test('partial uses the statuses it is given', () => {
+  const s = batchFromProps('partial', ['saved', 'failed', 'saved'], actions);
   assert.equal(s.phase, 'partial');
   assert.deepEqual(s.outcomes, { '0': 'saved', '1': 'failed', '2': 'saved' });
 });
 
-test('partial with no failIndex still reads as partial', () => {
-  assert.equal(batchFromProps('partial', undefined, actions).phase, 'partial');
+test('with no statuses no row is marked failed: nothing is guessed', () => {
+  const s = batchFromProps('partial', undefined, actions);
+  assert.deepEqual(s.outcomes, {});
 });
