@@ -11,6 +11,7 @@ import StatTiles from '@/components/chat/templates/StatTiles';
 import NavLink from '@/components/chat/templates/NavLink';
 import CantDo from '@/components/chat/templates/CantDo';
 import TrendChart from '@/components/chat/templates/TrendChart';
+import Breakdown from '@/components/chat/templates/Breakdown';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -26,6 +27,7 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'nav.link': NavLink,
   'cant.do': CantDo,
   'chart.trend': TrendChart,
+  'chart.breakdown': Breakdown,
 };
 
 // Sample text a design file carries that is not in the typed props yet (the design's emptyTitle default).
