@@ -6,5 +6,6 @@
 import type { ToolDefinition } from '../contract';
 import { unpaidTool } from './unpaid';
 import { listInvoicesTool } from './list_invoices';
+import { getInvoiceTool } from './get_invoice';
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool];
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, getInvoiceTool];

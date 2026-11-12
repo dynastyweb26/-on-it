@@ -92,6 +92,57 @@
       },
       "expectedFail": true,
       "note": "The old flow opens the card with Client empty and Amount 0.00 after the client and amount were typed (PUNCH-LIST)."
+    },
+    {
+      "id": "get-invoice-by-number",
+      "request": "show me invoice 74",
+      "expect": {
+        "tools": [
+          "get_invoice"
+        ],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-invoice-missing",
+      "request": "show me invoice 999",
+      "expect": {
+        "tools": [
+          "get_invoice"
+        ],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-invoice-not-estimate",
+      "request": "show me estimate 74 as an invoice",
+      "expect": {
+        "tools": [
+          "get_invoice"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-invoice-no-tool-on-list",
+      "request": "show me my invoices",
+      "expect": {
+        "tools": [
+          "list_invoices"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-invoice-signed-out",
+      "request": "show me invoice 74",
+      "signedOut": true,
+      "expect": {
+        "tools": [],
+        "writes": 0
+      }
     }
   ]
 }
