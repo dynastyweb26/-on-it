@@ -30,7 +30,7 @@ export default function RankedList({
     <div
       data-template="list.ranked"
       data-state={state}
-      style={{ background: 'var(--tpl-card)', border: '1.5px solid var(--tpl-card-border)', borderRadius: 24, overflow: 'hidden', fontFamily: 'var(--font-inter), Inter, sans-serif', color: 'var(--tpl-ink)' }}
+      style={{ background: 'var(--tpl-card)', border: '1.5px solid var(--tpl-card-border)', borderRadius: 24, overflow: 'hidden', fontFamily: 'var(--font-inter), Inter, sans-serif', lineHeight: 'normal', color: 'var(--tpl-ink)' }}
     >
       <div style={{ padding: '16px 16px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <Eyebrow>{eyebrow}</Eyebrow>
