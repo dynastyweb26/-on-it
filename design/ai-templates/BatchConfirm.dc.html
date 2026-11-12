@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+<style>@keyframes onitPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}@keyframes onitSpin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}</style>
+</helmet>
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden;font-family:Inter,sans-serif;color:#221D18">
+  <div style="padding:16px;display:flex;gap:12px;align-items:center">
+    <sc-if value="{{ isDone }}">{{ popCheck }}</sc-if>
+    <sc-if value="{{ notDone }}"><div style="width:44px;height:44px;border-radius:14px;background:#F2E6BF;display:flex;align-items:center;justify-content:center;flex:none"><span class="material-symbols-outlined" style="font-size:22px;color:#5E4700">checklist</span></div></sc-if>
+    <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:17px;font-weight:700">{{ head }}</div>
+      <div style="font-size:14px;color:#6E655A">{{ sub }}</div>
+    </div>
+  </div>
+  <sc-if value="{{ isLoading }}">
+    <sc-for list="{{ skel }}" as="s" hint-placeholder-count="3">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid #EFE6D8"><div style="width:20px;height:20px;border-radius:6px;background:#F1E9DC"></div><div style="flex:1;height:12px;border-radius:6px;background:#F1E9DC"></div><div style="width:56px;height:12px;border-radius:6px;background:#F1E9DC"></div></div>
+    </sc-for>
+  </sc-if>
+  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 6px 10px 16px;border-top:1px solid #EFE6D8;min-height:60px;box-sizing:border-box;opacity:{{ r.opacity }}">
+      <span class="material-symbols-outlined" style="font-size:20px;color:#5F574D;flex:none">{{ r.icon }}</span>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.summary }}</div>
+        <sc-if value="{{ r.hasStatus }}"><div style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:{{ r.statusColor }}"><span class="material-symbols-outlined" style="font-size:15px;font-variation-settings:'FILL' 1">{{ r.statusIcon }}</span>{{ r.statusText }}</div></sc-if>
+      </div>
+      <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;white-space:nowrap;flex:none;color:{{ r.color }}">{{ r.amount }}</div>
+      <sc-if value="{{ r.canRemove }}"><div role="button" aria-label="Remove" onClick="{{ r.onRemove }}" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer"><div style="width:30px;height:30px;border-radius:50%;background:#F1E9DC;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:17px;color:#5F574D">close</span></div></div></sc-if>
+      <sc-if value="{{ r.noRemove }}"><div style="width:10px;flex:none"></div></sc-if>
+    </div>
+  </sc-for>
+  <sc-if value="{{ isPartial }}">
+    <div style="background:#F8E3DC;padding:12px 16px;display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;color:#7E2F1C;border-top:1px solid #EFD3C8"><span class="material-symbols-outlined" style="font-size:18px">error</span><span>{{ partialText }}</span></div>
+  </sc-if>
+  <sc-if value="{{ isDone }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:52px;border-top:1px solid #EFE6D8;font-size:14px;color:#5F574D"><span>Saved to your books.</span><span role="button" onClick="{{ onUndo }}" style="color:#7A5E00;font-weight:600;cursor:pointer">Undo all</span></div>
+  </sc-if>
+  <sc-if value="{{ isEmpty }}">
+    <div style="padding:0 16px 16px;border-top:1px solid #EFE6D8;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#5F574D"><span>You removed every change.</span><span role="button" onClick="{{ onUndo }}" style="color:#7A5E00;font-weight:600;cursor:pointer">Bring back</span></div>
+  </sc-if>
+  <sc-if value="{{ showFooter }}">
+    <div style="padding:12px 16px 16px;display:flex;gap:10px;border-top:1px solid #EFE6D8">
+      <sc-if value="{{ isPending }}"><div role="button" style="flex:1;height:48px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;cursor:pointer">Cancel</div></sc-if>
+      <div role="button" onClick="{{ onPrimary }}" style="flex:1.6;height:48px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:16px;font-weight:600;cursor:pointer;background:{{ primaryBg }};color:#221D18">{{ primaryIcon }}<span>{{ primaryLabel }}</span></div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:420},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pending&quot;,&quot;confirming&quot;,&quot;done&quot;,&quot;partial&quot;,&quot;loading&quot;],&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;failIndex&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;actions&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{icon,summary,amount,tone}[]&quot;}}">
+class Component extends DCLogic {
+  state = { phase: this.props.state ?? 'pending', removed: [], retried: false };
+  componentDidUpdate(pp) { if (pp.state !== this.props.state) this.setState({ phase: this.props.state ?? 'pending', removed: [], retried: false }); }
+  componentWillUnmount() { clearTimeout(this.t); }
+  run(retry) {
+    this.setState({ phase: 'confirming' });
+    this.t = setTimeout(() => this.setState({ phase: this.props.failIndex != null && !retry ? 'partial' : 'done', retried: retry }), 1100);
+  }
+  renderVals() {
+    const p = this.props, ph = this.state.phase, h = React.createElement;
+    const tone = { in: '#2D6B3E', out: '#A8432A', neutral: '#221D18' };
+    const all = p.actions ?? [
+      { icon: 'payments', summary: 'Record Ruth Lawrence paid · Zelle', amount: '+$270.00', tone: 'in' },
+      { icon: 'notifications', summary: 'Remind Tony about INV-0077', amount: '$640.00', tone: 'neutral' },
+      { icon: 'receipt_long', summary: 'Log The Home Depot · Supplies', amount: '−$39.70', tone: 'out' }
+    ];
+    const fail = p.failIndex != null ? Number(p.failIndex) : -1;
+    const list = all.map((a, i) => ({ ...a, i })).filter(a => !this.state.removed.includes(a.i));
+    const n = list.length;
+    const failedNow = ph === 'partial';
+    const rows = ph === 'loading' ? [] : list.map(a => {
+      const bad = failedNow && a.i === fail;
+      const ok = ph === 'done' || (failedNow && a.i !== fail);
+      return { ...a, color: tone[a.tone ?? 'neutral'], opacity: ph === 'confirming' ? .55 : 1,
+        canRemove: ph === 'pending', noRemove: ph !== 'pending',
+        hasStatus: ok || bad, statusIcon: bad ? 'error' : 'check_circle', statusText: bad ? "Didn't save" : 'Saved', statusColor: bad ? '#A8432A' : '#2B7A4B',
+        onRemove: () => this.setState(s => ({ removed: [...s.removed, a.i] })) };
+    });
+    const word = k => k === 1 ? 'change' : 'changes';
+    const heads = {
+      loading: ['Getting these ready…', 'One moment.'],
+      pending: [`Confirm ${n} ${word(n)}?`, "Nothing's saved until you confirm."],
+      confirming: [`Saving ${n} ${word(n)}…`, 'Keep the app open.'],
+      done: [`All ${n} saved.`, 'Your books are up to date.'],
+      partial: [`${n - 1} saved, 1 didn't.`, 'Retry the one that failed.']
+    };
+    const isEmpty = ph === 'pending' && n === 0;
+    const [head, sub] = isEmpty ? ['Nothing left to confirm.', 'Tell me what to do next.'] : (heads[ph] ?? heads.pending);
+    const sp = ph === 'confirming';
+    const ic = name => h('span', { className: 'material-symbols-outlined', style: { fontSize: 19, ...(name === 'progress_activity' ? { animation: 'onitSpin .9s linear infinite' } : {}) } }, name);
+    return {
+      head, sub, rows, skel: [1, 2, 3],
+      isLoading: ph === 'loading', isDone: ph === 'done', notDone: ph !== 'done',
+      isPending: ph === 'pending', isPartial: failedNow, isEmpty,
+      partialText: failedNow ? `"${(all[fail] ?? {}).summary}" didn't save. The connection dropped. The others are saved.` : '',
+      showFooter: (ph === 'pending' && n > 0) || sp || failedNow,
+      primaryLabel: sp ? 'Saving…' : failedNow ? 'Retry 1' : `Confirm all ${n}`,
+      primaryIcon: sp ? ic('progress_activity') : failedNow ? ic('refresh') : ic('done_all'),
+      primaryBg: sp ? '#F2E6BF' : '#D4AF37',
+      onPrimary: () => { if (sp) return; this.run(failedNow); },
+      onUndo: () => this.setState({ phase: 'pending', removed: [] }),
+      popCheck: h('span', { key: 'pop', className: 'material-symbols-outlined', style: { width: 44, height: 44, borderRadius: '50%', background: '#D4AF37', color: '#221D18', fontSize: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', animation: 'onitPop 420ms cubic-bezier(.2,.9,.3,1.25) both' } }, 'check')
+    };
+  }
+}
+</script>
+</body>
+</html>

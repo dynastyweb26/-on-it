@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+<style>@keyframes onitPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}@keyframes onitSpin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}</style>
+</helmet>
+<div style="width:100%;font-family:Inter,sans-serif;color:#221D18">
+<sc-if value="{{ isCancelled }}">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1.5px dashed #E2D6C2;border-radius:20px;font-size:14px;color:#5F574D">
+    <span>Draft to {{ firstName }} discarded. Nothing was sent.</span>
+    <span role="button" onClick="{{ onUndo }}" style="color:#7A5E00;font-weight:600;cursor:pointer">Undo</span>
+  </div>
+</sc-if>
+<sc-if value="{{ notCancelled }}">
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden">
+  <sc-if value="{{ notSent }}">
+    <div style="padding:16px;display:flex;gap:12px;align-items:center">
+      <div style="width:44px;height:44px;border-radius:14px;background:#F2E6BF;display:flex;align-items:center;justify-content:center;flex:none"><span class="material-symbols-outlined" style="font-size:22px;color:#5E4700">{{ channelIcon }}</span></div>
+      <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Message for {{ firstName }}</div>
+        <div style="font-size:14px;color:#6E655A">Nothing's sent until you tap Send.</div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isSent }}">
+    <div style="padding:16px;display:flex;gap:12px;align-items:center">
+      {{ popCheck }}
+      <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div style="font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sent to {{ firstName }}</div>
+        <div style="font-size:14px;color:#6E655A">{{ channel }} · {{ contact }} · just now</div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isLoading }}">
+    <div style="padding:0 16px 18px;display:flex;flex-direction:column;gap:10px"><div style="height:12px;width:70%;border-radius:6px;background:#F1E9DC"></div><div style="height:96px;border-radius:16px;background:#F5EFE5"></div><div style="height:44px;width:40%;align-self:flex-end;border-radius:999px;background:#F1E9DC"></div></div>
+  </sc-if>
+  <sc-if value="{{ showForm }}">
+    <div style="padding:0 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1.5px dashed #E8DDCB">
+        <div style="font-size:15px;color:#857B6E;flex:none">To</div>
+        <div style="min-width:0;text-align:right;display:flex;flex-direction:column;align-items:flex-end">
+          <div style="font-size:15px;font-weight:600;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ name }}</div>
+          <div style="font-size:13px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ contactColor }}">{{ contactLine }}</div>
+        </div>
+      </div>
+      <sc-if value="{{ notSent }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1.5px dashed #E8DDCB">
+          <div style="font-size:15px;color:#857B6E">Send by</div>
+          <div style="display:flex;gap:8px">
+            <div role="button" onClick="{{ pickText }}" style="display:inline-flex;align-items:center;gap:5px;height:38px;padding:0 14px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid {{ textChip.border }};background:{{ textChip.bg }};color:{{ textChip.fg }}"><span class="material-symbols-outlined" style="font-size:16px">sms</span>Text</div>
+            <div role="button" onClick="{{ pickEmail }}" style="display:inline-flex;align-items:center;gap:5px;height:38px;padding:0 14px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid {{ emailChip.border }};background:{{ emailChip.bg }};color:{{ emailChip.fg }}"><span class="material-symbols-outlined" style="font-size:16px">mail</span>Email</div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ hasAbout }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1.5px dashed #E8DDCB">
+          <div style="font-size:15px;color:#857B6E;flex:none">About</div>
+          <div style="display:flex;align-items:baseline;gap:6px;min-width:0"><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;color:#5F574D;white-space:nowrap">{{ aboutLabel }}</span><span style="font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;white-space:nowrap">{{ aboutAmount }}</span></div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="padding:4px 16px 14px">
+      <sc-if value="{{ isEditing }}">
+        <textarea value="{{ body }}" onChange="{{ onBody }}" rows="6" style="width:100%;box-sizing:border-box;border:2px solid #D4AF37;box-shadow:0 0 0 4px #F2E6BF;border-radius:16px;padding:12px 14px;font-family:Inter,sans-serif;font-size:15px;line-height:1.45;color:#221D18;background:#FFFFFF;resize:vertical;outline:none"></textarea>
+      </sc-if>
+      <sc-if value="{{ notEditing }}">
+        <div style="border:1.5px solid #E8DDCB;border-radius:16px;padding:12px 14px;background:#FFFFFF;font-size:15px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:{{ bodyColor }}">{{ body }}</div>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isNoContact }}">
+    <div style="background:#F4ECDD;padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;color:#221D18"><span class="material-symbols-outlined" style="font-size:18px;color:#5F574D">contact_phone</span><span>No phone or email on file for {{ firstName }}. Add one to send this.</span></div>
+      <div style="display:flex"><div role="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;background:#D4AF37;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">person_add</span>Add phone or email</div></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isError }}">
+    <div style="background:#F8E3DC;padding:12px 16px;display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.4;color:#7E2F1C"><span class="material-symbols-outlined" style="font-size:18px">error</span><span>Didn't send. The number for {{ firstName }} may be wrong. Your draft is saved.</span></div>
+  </sc-if>
+  <sc-if value="{{ showFooter }}">
+    <div style="padding:12px 16px 16px;display:flex;align-items:center;gap:8px">
+      <div role="button" onClick="{{ onCancel }}" style="height:44px;display:flex;align-items:center;padding:0 6px;font-size:15px;font-weight:600;color:#5F574D;cursor:pointer">{{ cancelLabel }}</div>
+      <div style="flex:1"></div>
+      <sc-if value="{{ showEdit }}"><div role="button" onClick="{{ onEdit }}" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">edit</span>Edit</div></sc-if>
+      <div role="button" onClick="{{ onPrimary }}" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:600;cursor:pointer;background:{{ primaryBg }};color:{{ primaryFg }}">{{ primaryIcon }}<span>{{ primaryLabel }}</span></div>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:560},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;draft&quot;,&quot;editing&quot;,&quot;sent&quot;,&quot;nocontact&quot;,&quot;error&quot;,&quot;loading&quot;,&quot;cancelled&quot;],&quot;default&quot;:&quot;draft&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;channel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Text&quot;,&quot;Email&quot;],&quot;default&quot;:&quot;Text&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;recipientName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Chenyi&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;phone&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;(945) 555-0182&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;email&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;chenyi.w@mail.com&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;INV-0074&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;aboutAmount&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;$8,100.00 due&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;body&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { mode: this.props.state ?? 'draft', channel: this.props.channel ?? 'Text', body: null };
+  componentDidUpdate(pp) { if (pp.state !== this.props.state) this.setState({ mode: this.props.state ?? 'draft' }); if (pp.channel !== this.props.channel) this.setState({ channel: this.props.channel ?? 'Text' }); }
+  componentWillUnmount() { clearTimeout(this.t); }
+  send = () => { this.setState({ mode: 'sending' }); this.t = setTimeout(() => this.setState({ mode: 'sent' }), 900); };
+  renderVals() {
+    const p = this.props, m = this.state.mode, ch = this.state.channel;
+    const h = React.createElement;
+    const name = p.recipientName ?? 'Chenyi';
+    const phone = p.phone ?? '(945) 555-0182', email = p.email ?? 'chenyi.w@mail.com';
+    const contact = ch === 'Email' ? email : phone;
+    const body = this.state.body ?? p.body ?? `Hi Chenyi, just a reminder that invoice INV-0074 for the kitchen remodel ($8,100.00) was due Oct 8. You can pay by Zelle or card from the link in the invoice. Thanks!`;
+    const chip = on => on ? { bg: '#322C25', fg: '#FCF6EE', border: '#322C25' } : { bg: '#FFFFFF', fg: '#221D18', border: '#E2D6C2' };
+    const noC = m === 'nocontact';
+    const sending = m === 'sending';
+    let primaryLabel = 'Send', primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'send');
+    if (m === 'editing') { primaryLabel = 'Done'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'check'); }
+    if (m === 'error') { primaryLabel = 'Try again'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18 } }, 'refresh'); }
+    if (sending) { primaryLabel = 'Sending…'; primaryIcon = h('span', { className: 'material-symbols-outlined', style: { fontSize: 18, animation: 'onitSpin .9s linear infinite' } }, 'progress_activity'); }
+    return {
+      name, firstName: name.split(' ')[0], channel: ch, contact,
+      channelIcon: ch === 'Email' ? 'mail' : 'sms',
+      contactLine: noC ? 'No phone or email on file' : contact,
+      contactColor: noC ? '#A8432A' : '#6E655A',
+      body, bodyColor: m === 'sent' ? '#5F574D' : '#221D18',
+      hasAbout: (p.aboutLabel ?? 'INV-0074') !== '', aboutLabel: (p.aboutLabel ?? 'INV-0074') + ' ·', aboutAmount: p.aboutAmount ?? '$8,100.00 due',
+      isLoading: m === 'loading', isSent: m === 'sent', notSent: m !== 'sent',
+      isCancelled: m === 'cancelled', notCancelled: m !== 'cancelled',
+      showForm: m !== 'loading', isEditing: m === 'editing', notEditing: m !== 'editing',
+      isNoContact: noC, isError: m === 'error',
+      showFooter: m !== 'loading' && m !== 'sent',
+      showEdit: m === 'draft' || m === 'error' || noC,
+      cancelLabel: m === 'editing' ? 'Discard edits' : 'Cancel',
+      textChip: chip(ch === 'Text'), emailChip: chip(ch === 'Email'),
+      pickText: () => this.setState({ channel: 'Text' }), pickEmail: () => this.setState({ channel: 'Email' }),
+      onBody: e => this.setState({ body: e.target.value }),
+      onEdit: () => this.setState({ mode: 'editing' }),
+      onCancel: () => this.setState(m === 'editing' ? { mode: 'draft', body: null } : { mode: 'cancelled' }),
+      onUndo: () => this.setState({ mode: 'draft' }),
+      onPrimary: () => { if (noC || sending) return; if (m === 'editing') this.setState({ mode: 'draft' }); else this.send(); },
+      primaryLabel, primaryIcon,
+      primaryBg: noC ? '#F2E6BF' : '#D4AF37', primaryFg: noC ? '#8C7A45' : '#221D18',
+      popCheck: h('span', { key: 'pop', className: 'material-symbols-outlined', style: { width: 44, height: 44, borderRadius: '50%', background: '#D4AF37', color: '#221D18', fontSize: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', animation: 'onitPop 420ms cubic-bezier(.2,.9,.3,1.25) both' } }, 'check')
+    };
+  }
+}
+</script>
+</body>
+</html>
