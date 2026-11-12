@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { AssistantAvatar } from '@/components/chat/EventCard';
 import RankedList from '@/components/chat/templates/RankedList';
+import StatTiles from '@/components/chat/templates/StatTiles';
 import { TEMPLATE_IDS, isTemplateId, type TemplateId } from '@/lib/tools/templates';
 import { TEMPLATE_STATES } from '@/lib/templates/props';
 import { TEMPLATE_FIXTURES } from '@/lib/templates/fixtures';
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
   'list.ranked': RankedList,
+  'stat.tiles': StatTiles,
 };
 
 export default function Page({ searchParams }: { searchParams: { template?: string; state?: string } }) {
