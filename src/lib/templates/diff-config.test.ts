@@ -60,7 +60,7 @@ test('the app side is the non-production fixtures page, never a product route', 
 test('every case pairs the design card with the app card at one width', () => {
   for (const c of CONFIG.cases) {
     assert.equal(c.pairs?.length, 1, c.name);
-    assert.equal(c.pairs?.[0].design, 'x-dc > div', c.name);
+    assert.equal(c.pairs?.[0].design, '#dc-root .sc-host > div', c.name);
     assert.match(c.pairs?.[0].app ?? '', /^\[data-template="[a-z.]+"\]\[data-state="[a-zA-Z]+"\]$/, c.name);
   }
 });

@@ -15,7 +15,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "wait": 300
@@ -33,7 +33,7 @@
       "pairs": [
         {
           "name": "list.ranked filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -57,7 +57,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "wait": 300
@@ -75,7 +75,7 @@
       "pairs": [
         {
           "name": "list.ranked filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -99,7 +99,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
@@ -120,7 +120,7 @@
       "pairs": [
         {
           "name": "list.ranked loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -144,7 +144,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
@@ -165,7 +165,7 @@
       "pairs": [
         {
           "name": "list.ranked loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -189,7 +189,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
@@ -210,7 +210,7 @@
       "pairs": [
         {
           "name": "list.ranked empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -234,7 +234,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
@@ -255,7 +255,7 @@
       "pairs": [
         {
           "name": "list.ranked empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -279,7 +279,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'error'})"
@@ -300,7 +300,7 @@
       "pairs": [
         {
           "name": "list.ranked error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -324,7 +324,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('RankedList',{state:'error'})"
@@ -345,7 +345,7 @@
       "pairs": [
         {
           "name": "list.ranked error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -369,7 +369,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "wait": 300
@@ -387,7 +387,7 @@
       "pairs": [
         {
           "name": "stat.tiles filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -411,7 +411,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "wait": 300
@@ -429,7 +429,7 @@
       "pairs": [
         {
           "name": "stat.tiles filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -453,7 +453,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
@@ -474,7 +474,7 @@
       "pairs": [
         {
           "name": "stat.tiles loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -498,7 +498,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
@@ -519,7 +519,7 @@
       "pairs": [
         {
           "name": "stat.tiles loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -543,7 +543,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
@@ -564,7 +564,7 @@
       "pairs": [
         {
           "name": "stat.tiles empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -588,7 +588,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
@@ -609,7 +609,7 @@
       "pairs": [
         {
           "name": "stat.tiles empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -633,7 +633,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
@@ -654,7 +654,7 @@
       "pairs": [
         {
           "name": "stat.tiles error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -678,7 +678,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
@@ -699,7 +699,7 @@
       "pairs": [
         {
           "name": "stat.tiles error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -731,7 +731,7 @@
       "pairs": [
         {
           "name": "chart.trend filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
             "w"
@@ -762,7 +762,7 @@
       "pairs": [
         {
           "name": "chart.trend filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
             "w"
@@ -793,7 +793,7 @@
       "pairs": [
         {
           "name": "chart.trend loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -824,7 +824,7 @@
       "pairs": [
         {
           "name": "chart.trend loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -855,7 +855,7 @@
       "pairs": [
         {
           "name": "chart.trend empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
             "w"
@@ -886,7 +886,7 @@
       "pairs": [
         {
           "name": "chart.trend empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
             "w"
@@ -917,7 +917,7 @@
       "pairs": [
         {
           "name": "chart.trend error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -948,7 +948,7 @@
       "pairs": [
         {
           "name": "chart.trend error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -979,7 +979,7 @@
       "pairs": [
         {
           "name": "chart.breakdown filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
             "w"
@@ -1010,7 +1010,7 @@
       "pairs": [
         {
           "name": "chart.breakdown filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
             "w"
@@ -1041,7 +1041,7 @@
       "pairs": [
         {
           "name": "chart.breakdown loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1072,7 +1072,7 @@
       "pairs": [
         {
           "name": "chart.breakdown loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1103,7 +1103,7 @@
       "pairs": [
         {
           "name": "chart.breakdown empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
             "w"
@@ -1134,7 +1134,7 @@
       "pairs": [
         {
           "name": "chart.breakdown empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
             "w"
@@ -1165,7 +1165,7 @@
       "pairs": [
         {
           "name": "chart.breakdown error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -1196,7 +1196,7 @@
       "pairs": [
         {
           "name": "chart.breakdown error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -1227,7 +1227,7 @@
       "pairs": [
         {
           "name": "draft.message draft",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
           "check": [
             "w"
@@ -1258,7 +1258,7 @@
       "pairs": [
         {
           "name": "draft.message draft",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
           "check": [
             "w"
@@ -1289,7 +1289,7 @@
       "pairs": [
         {
           "name": "draft.message editing",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
           "check": [
             "w"
@@ -1320,7 +1320,7 @@
       "pairs": [
         {
           "name": "draft.message editing",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
           "check": [
             "w"
@@ -1351,7 +1351,7 @@
       "pairs": [
         {
           "name": "draft.message sent",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
           "check": [
             "w"
@@ -1382,7 +1382,7 @@
       "pairs": [
         {
           "name": "draft.message sent",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
           "check": [
             "w"
@@ -1413,7 +1413,7 @@
       "pairs": [
         {
           "name": "draft.message nocontact",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
           "check": [
             "w"
@@ -1444,7 +1444,7 @@
       "pairs": [
         {
           "name": "draft.message nocontact",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
           "check": [
             "w"
@@ -1475,7 +1475,7 @@
       "pairs": [
         {
           "name": "draft.message error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -1506,7 +1506,7 @@
       "pairs": [
         {
           "name": "draft.message error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -1537,7 +1537,7 @@
       "pairs": [
         {
           "name": "draft.message loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1568,7 +1568,7 @@
       "pairs": [
         {
           "name": "draft.message loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1599,7 +1599,7 @@
       "pairs": [
         {
           "name": "draft.message cancelled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
           "check": [
             "w"
@@ -1630,7 +1630,7 @@
       "pairs": [
         {
           "name": "draft.message cancelled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
           "check": [
             "w"
@@ -1661,7 +1661,7 @@
       "pairs": [
         {
           "name": "confirm.batch pending",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
             "w"
@@ -1692,7 +1692,7 @@
       "pairs": [
         {
           "name": "confirm.batch pending",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
             "w"
@@ -1723,7 +1723,7 @@
       "pairs": [
         {
           "name": "confirm.batch confirming",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
             "w"
@@ -1754,7 +1754,7 @@
       "pairs": [
         {
           "name": "confirm.batch confirming",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
             "w"
@@ -1785,7 +1785,7 @@
       "pairs": [
         {
           "name": "confirm.batch done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
             "w"
@@ -1816,7 +1816,7 @@
       "pairs": [
         {
           "name": "confirm.batch done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
             "w"
@@ -1847,7 +1847,7 @@
       "pairs": [
         {
           "name": "confirm.batch partial",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
             "w"
@@ -1878,7 +1878,7 @@
       "pairs": [
         {
           "name": "confirm.batch partial",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
             "w"
@@ -1909,7 +1909,7 @@
       "pairs": [
         {
           "name": "confirm.batch loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1940,7 +1940,7 @@
       "pairs": [
         {
           "name": "confirm.batch loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
             "w"
@@ -1963,7 +1963,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "wait": 300
@@ -1981,7 +1981,7 @@
       "pairs": [
         {
           "name": "cant.do filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -2005,7 +2005,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "wait": 300
@@ -2023,7 +2023,7 @@
       "pairs": [
         {
           "name": "cant.do filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -2047,7 +2047,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
@@ -2068,7 +2068,7 @@
       "pairs": [
         {
           "name": "cant.do requested",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
             "w",
@@ -2092,7 +2092,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
@@ -2113,7 +2113,7 @@
       "pairs": [
         {
           "name": "cant.do requested",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
             "w",
@@ -2137,7 +2137,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'error'})"
@@ -2158,7 +2158,7 @@
       "pairs": [
         {
           "name": "cant.do error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -2182,7 +2182,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'error'})"
@@ -2203,7 +2203,7 @@
       "pairs": [
         {
           "name": "cant.do error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -2227,7 +2227,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
@@ -2248,7 +2248,7 @@
       "pairs": [
         {
           "name": "cant.do loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -2272,7 +2272,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
@@ -2293,7 +2293,7 @@
       "pairs": [
         {
           "name": "cant.do loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -2317,7 +2317,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "wait": 300
@@ -2335,7 +2335,7 @@
       "pairs": [
         {
           "name": "nav.link filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -2359,7 +2359,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "wait": 300
@@ -2377,7 +2377,7 @@
       "pairs": [
         {
           "name": "nav.link filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
             "w",
@@ -2401,7 +2401,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
@@ -2422,7 +2422,7 @@
       "pairs": [
         {
           "name": "nav.link loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -2446,7 +2446,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
@@ -2467,7 +2467,7 @@
       "pairs": [
         {
           "name": "nav.link loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
             "w",
@@ -2491,7 +2491,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
@@ -2512,7 +2512,7 @@
       "pairs": [
         {
           "name": "nav.link empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -2536,7 +2536,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
@@ -2557,7 +2557,7 @@
       "pairs": [
         {
           "name": "nav.link empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
             "w",
@@ -2581,7 +2581,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'error'})"
@@ -2602,7 +2602,7 @@
       "pairs": [
         {
           "name": "nav.link error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -2626,7 +2626,7 @@
             "wait": 300
           },
           {
-            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
           },
           {
             "eval": "window.__dcSetProps('NavLink',{state:'error'})"
@@ -2647,7 +2647,7 @@
       "pairs": [
         {
           "name": "nav.link error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
             "w",
@@ -2679,7 +2679,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs idle",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
           "check": [
             "w"
@@ -2710,7 +2710,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs idle",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
           "check": [
             "w"
@@ -2741,7 +2741,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs up",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
           "check": [
             "w"
@@ -2772,7 +2772,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs up",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
           "check": [
             "w"
@@ -2803,7 +2803,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs down",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
           "check": [
             "w"
@@ -2834,7 +2834,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs down",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
           "check": [
             "w"
@@ -2865,7 +2865,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
           "check": [
             "w"
@@ -2896,7 +2896,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
           "check": [
             "w"
@@ -2927,7 +2927,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs openFilled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
           "check": [
             "w"
@@ -2958,7 +2958,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs openFilled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
           "check": [
             "w"
@@ -2989,7 +2989,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -3020,7 +3020,7 @@
       "pairs": [
         {
           "name": "feedback.thumbs error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
           "check": [
             "w"
@@ -3051,7 +3051,7 @@
       "pairs": [
         {
           "name": "feedback.checkin open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
           "check": [
             "w"
@@ -3082,7 +3082,7 @@
       "pairs": [
         {
           "name": "feedback.checkin open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
           "check": [
             "w"
@@ -3113,7 +3113,7 @@
       "pairs": [
         {
           "name": "feedback.checkin picked",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
           "check": [
             "w"
@@ -3144,7 +3144,7 @@
       "pairs": [
         {
           "name": "feedback.checkin picked",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
           "check": [
             "w"
@@ -3175,7 +3175,7 @@
       "pairs": [
         {
           "name": "feedback.checkin dismissed",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
           "check": [
             "w"
@@ -3206,7 +3206,7 @@
       "pairs": [
         {
           "name": "feedback.checkin dismissed",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
           "check": [
             "w"
