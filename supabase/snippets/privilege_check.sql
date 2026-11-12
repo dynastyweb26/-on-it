@@ -2154,7 +2154,10 @@ results(id, ok, expected, actual) as (
             and p.with_check ilike '%auth.uid() = user_id%'
             and p.with_check ilike '%deposit_id is null%'
             and p.with_check ilike '%classification = ''other_income''%'
-            and p.with_check ilike '%amount > 0%') = 1
+            -- Postgres stores the literal as "amount > (0)::numeric", so a
+            -- plain '%amount > 0%' never matches. Accept both stored forms and
+            -- nothing looser: the clause must still be an amount > zero.
+            and p.with_check ~* 'amount[[:space:]]*>[[:space:]]*(\([[:space:]]*0[[:space:]]*\)[[:space:]]*::[[:space:]]*numeric|0)') = 1
         and (select count(*) from pg_policies p
           where p.schemaname = 'public' and p.tablename = 'other_income'
             and p.cmd = 'UPDATE'
