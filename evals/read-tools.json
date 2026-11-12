@@ -198,6 +198,56 @@
         "tools": [],
         "writes": 0
       }
+    },
+    {
+      "id": "get-estimate-by-number",
+      "request": "show me estimate E-0003",
+      "expect": {
+        "tools": [
+          "get_estimate"
+        ],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-estimate-missing",
+      "request": "show me estimate 999",
+      "expect": {
+        "tools": [
+          "get_estimate"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-estimate-not-invoice",
+      "request": "show me estimate 3 as an invoice",
+      "expect": {
+        "tools": [
+          "get_estimate"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-estimate-no-tool-on-list",
+      "request": "show me my estimates",
+      "expect": {
+        "tools": [
+          "list_estimates"
+        ],
+        "writes": 0
+      }
+    },
+    {
+      "id": "get-estimate-signed-out",
+      "request": "show me estimate 3",
+      "signedOut": true,
+      "expect": {
+        "tools": [],
+        "writes": 0
+      }
     }
   ]
 }

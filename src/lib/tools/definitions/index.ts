@@ -8,5 +8,6 @@ import { unpaidTool } from './unpaid';
 import { listInvoicesTool } from './list_invoices';
 import { listEstimatesTool } from './list_estimates';
 import { getInvoiceTool } from './get_invoice';
+import { getEstimateTool } from './get_estimate';
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool];
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool];
