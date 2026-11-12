@@ -5,5 +5,11 @@
 // incomplete, so adding a file is the only way to add a tool.
 import type { ToolDefinition } from '../contract';
 import { unpaidTool } from './unpaid';
+import { listInvoicesTool } from './list_invoices';
+import { listEstimatesTool } from './list_estimates';
+import { getInvoiceTool } from './get_invoice';
+import { getEstimateTool } from './get_estimate';
+import { findClientTool } from './find_client';
+import { getClientSummaryTool } from './get_client_summary';
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool];
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool];

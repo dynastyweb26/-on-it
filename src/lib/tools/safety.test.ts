@@ -49,6 +49,14 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     status: 'sent',
     deleted_at: null,
   }],
+  clients: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-client',
+    user_id: userId,
+    name: userId === OTHER ? 'Other Owner Ltd' : 'Maria Santos',
+    email: 'maria@example.com',
+    phone: null,
+    address: null,
+  }],
 };
 
 const tables = Object.keys(ROWS);
@@ -81,8 +89,12 @@ for (const tool of REGISTRY.list) {
 
   test(`${tool.name}: the declared template accepts what the tool produces`, () => {
     const fixture = tool.output.parse(tool.fixture.result);
-    const props = tool.defaultTemplate.props.safeParse(fixture);
-    assert.equal(props.success, true, `${tool.defaultTemplate.id} rejects its own result`);
+    const id = tool.templateFor ? tool.templateFor(fixture) : tool.defaultTemplate.id;
+    if (id === null) return; // deliberately plain text for this result
+    const template = id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
+    assert.ok(template && template.id === id, `${tool.name} chose a template it did not declare`);
+    const props = template.props.safeParse(fixture);
+    assert.equal(props.success, true, `${template.id} rejects its own result`);
   });
 
   test(`${tool.name}: money in the result is server-composed and grounded`, () => {

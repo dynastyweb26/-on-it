@@ -3,23 +3,54 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { REGISTRY, TOOLS, cardFor, findTool, parseCall } from './registry';
+import { buildRegistry } from './contract';
+import { z } from 'zod';
 import { TURN_MODEL_CALL_CAP } from './budget';
 import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 import { TOOL_SYSTEM } from './prompt';
 
-test('exactly one tool, and it is the read-only unpaid lookup', () => {
-  const tool = TOOLS[0];
-  assert.ok(tool, 'the registry has a tool');
-  assert.equal(TOOLS.length, 1);
-  assert.equal(tool.name, UNPAID_TOOL_NAME);
+test('the registry holds the read-only lookups and nothing else yet', () => {
+  const tool = REGISTRY.get(UNPAID_TOOL_NAME);
+  assert.ok(tool, 'the unpaid lookup is registered');
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary'].sort());
+  assert.ok(REGISTRY.list.every((t) => t.type === 'read'), 'every registered tool is read-only');
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
-  assert.equal(tool.input_schema.type, 'object');
+  const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);
+  assert.ok(modelTool, 'the unpaid lookup is offered to the model');
+  assert.equal(modelTool.input_schema.type, 'object');
   assert.equal(
-    (tool.input_schema as { additionalProperties?: boolean }).additionalProperties,
+    (modelTool.input_schema as { additionalProperties?: boolean }).additionalProperties,
     false
   );
   assert.match(tool.description ?? '', /read-only/i);
+});
+
+test('a tool may choose between the templates it declares, and no others', () => {
+  const base = {
+    name: 'two_cards',
+    description: 'A tool that renders one of exactly two declared cards.',
+    input: REGISTRY.get(UNPAID_TOOL_NAME).input,
+    output: REGISTRY.get(UNPAID_TOOL_NAME).output,
+    type: 'read' as const,
+    risk: 'low' as const,
+    defaultTemplate: REGISTRY.get(UNPAID_TOOL_NAME).defaultTemplate,
+    destination: { screen: 'Invoices', path: '/invoices' },
+    alternateTemplate: { id: 'nav.link' as const, props: z.object({}) },
+    templateFor: () => 'nav.link' as const,
+    handler: async () => ({}),
+    fallback: () => 'text',
+    fixture: REGISTRY.get(UNPAID_TOOL_NAME).fixture,
+  };
+  const built = buildRegistry([base as never]).get('two_cards');
+  assert.equal(cardFor(built, built.fixture.result)?.id, 'nav.link');
+  assert.throws(
+    () => buildRegistry([{ ...base, templateFor: () => 'stat.tiles' } as never]),
+    /did not declare/,
+  );
+  // null is always allowed: it means a plain text answer with no card.
+  const plain = buildRegistry([{ ...base, templateFor: () => null } as never]).get('two_cards');
+  assert.equal(cardFor(plain, plain.fixture.result), null);
 });
 
 test('a turn may spend eight model calls at most, across every AI route', () => {
@@ -52,7 +83,7 @@ test('the system prompt forbids money and emoji and names the right document wor
 });
 
 test('the template a tool renders into is declared in the registry', () => {
-  assert.deepEqual(REGISTRY.templates(), ['list.ranked']);
+  assert.deepEqual(REGISTRY.templates().slice().sort(), ['list.ranked', 'nav.link', 'stat.tiles']);
 });
 
 test('a card is handed over only when the template accepts the result', () => {

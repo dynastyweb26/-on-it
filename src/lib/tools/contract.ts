@@ -73,6 +73,14 @@ export type ToolDefinition = {
    * for that template, so the card never has to guess a screen.
    */
   destination?: { screen: string; path: string };
+  /**
+   * A second template this tool may return, with its own props schema (e.g.
+   * nav.link for 1-3 matches, list.ranked above that). Never a third, never an
+   * id the tool did not declare.
+   */
+  alternateTemplate?: ToolTemplate;
+  /** Chooses between the default and the alternate for one result. */
+  templateFor?: (result: unknown) => TemplateId | null;
   handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
   /**
    * The plain-text answer shown when the template's component is not built yet
@@ -152,6 +160,19 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
       problems.push('destination: list.ranked needs { screen, path } with an in-app path');
     }
   }
+  const alternate = tool?.alternateTemplate;
+  if (alternate !== undefined) {
+    if (!isTemplateId(alternate.id)) problems.push('alternateTemplate.id: a template id');
+    if (alternate.id === tool?.defaultTemplate?.id) {
+      problems.push('alternateTemplate.id: must differ from the default');
+    }
+    if (!isZod(alternate.props)) problems.push('alternateTemplate.props: a Zod schema');
+    if (typeof tool?.templateFor !== 'function') {
+      problems.push('templateFor: required when alternateTemplate is set');
+    }
+  } else if (tool?.templateFor !== undefined) {
+    problems.push('templateFor: only allowed with alternateTemplate');
+  }
   if (typeof tool?.handler !== 'function') problems.push('handler: a function');
   if (typeof tool?.fallback !== 'function') {
     problems.push('fallback: a function returning the plain-text answer');
@@ -180,6 +201,17 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
     throw new Error(`tool ${name} fixture.result does not match its output schema: ${result.error.message}`);
   }
 
+  // templateFor may only choose an id the tool declared, and its choice for the
+  // fixture must be a real template with props.
+  if (complete.templateFor) {
+    const chosen = complete.templateFor(result.data);
+    // null means "answer in plain text, no card" (e.g. no client by that name).
+    const declared = [complete.defaultTemplate.id, complete.alternateTemplate?.id];
+    if (chosen !== null && !declared.includes(chosen)) {
+      throw new Error(`tool ${name} templateFor returned ${chosen}, which it did not declare`);
+    }
+  }
+
   // The fallback is shown to the user whenever no component exists, so it is
   // proven here: non-empty plain text for the tool's own fixture, never a card.
   const fallback = complete.fallback(result.data as never);
@@ -202,6 +234,8 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   destination?: { screen: string; path: string };
+  alternateTemplate?: ToolTemplate;
+  templateFor?: (result: z.infer<Out>) => TemplateId | null;
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
   fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };

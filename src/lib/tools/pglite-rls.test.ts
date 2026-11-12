@@ -26,10 +26,21 @@ const OTHER_INVOICE = 'bbbbbbbb-0000-4000-8000-000000000002';
 const OTHER_CLIENT = 'Other Owner Ltd';
 
 /** Tables the tools under test read, and the rows seeded for both owners. */
-const SEEDED_TABLES = new Set(['invoices']);
+const SEEDED_TABLES = new Set(['invoices', 'clients']);
 const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT];
 
 let db: TestDb;
+
+const OTHER_CLIENT_ID = 'cccccccc-0000-4000-8000-000000000002';
+
+async function seedClients(): Promise<void> {
+  await db.seed(
+    `insert into public.clients (id, user_id, name, email)
+     values ($1, $2, 'Maria Santos', 'maria@example.com'), ($3, $4, $5, null)
+     on conflict (id) do nothing`,
+    [OWNER_INVOICE, OWNER, OTHER_CLIENT_ID, OTHER, OTHER_CLIENT],
+  );
+}
 
 async function seedInvoices(): Promise<void> {
   await db.seed(
@@ -44,6 +55,7 @@ async function seedInvoices(): Promise<void> {
 
 before(async () => {
   db = await openTestDb();
+  await seedClients();
   await seedInvoices();
 });
 
@@ -114,7 +126,8 @@ test('an empty database invents nothing', async () => {
     assert.equal(output.totalBalance, 0);
     assert.equal(output.sentence, 'Nothing is outstanding: every invoice you have sent is paid.');
   } finally {
-    await seedInvoices();
+    await seedClients();
+  await seedInvoices();
   }
 });
 
