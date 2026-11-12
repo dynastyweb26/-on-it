@@ -233,6 +233,8 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   destination?: { screen: string; path: string };
+  alternateTemplate?: ToolTemplate;
+  templateFor?: (result: z.infer<Out>) => TemplateId;
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
   fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };

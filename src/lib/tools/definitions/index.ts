@@ -9,5 +9,6 @@ import { listInvoicesTool } from './list_invoices';
 import { listEstimatesTool } from './list_estimates';
 import { getInvoiceTool } from './get_invoice';
 import { getEstimateTool } from './get_estimate';
+import { findClientTool } from './find_client';
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool];
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool];
