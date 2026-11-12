@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+</helmet>
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden;font-family:Inter,sans-serif;color:#221D18">
+  <div style="padding:16px 16px 14px;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E">{{ eyebrow }}</div>
+    <sc-if value="{{ hasTitle }}"><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.01em">{{ title }}</div></sc-if>
+  </div>
+  <sc-if value="{{ isLoading }}">
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#EFE6D8;border-top:1px solid #EFE6D8">
+      <sc-for list="{{ skel }}" as="s" hint-placeholder-count="3">
+        <div style="background:#FFFCF7;padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px"><div style="height:10px;width:60%;border-radius:5px;background:#F5EFE5"></div><div style="height:18px;width:80%;border-radius:6px;background:#F1E9DC"></div><div style="height:9px;width:45%;border-radius:5px;background:#F5EFE5"></div></div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isEmpty }}">
+    <div style="padding:14px 16px 16px;border-top:1px solid #EFE6D8;display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:15px;font-weight:600">No money in or out yet.</div>
+      <div style="font-size:13px;line-height:1.4;color:#6E655A">{{ emptyLine }}</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isError }}">
+    <div style="padding:14px 16px 16px;border-top:1px solid #EFE6D8;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span class="material-symbols-outlined" style="font-size:20px;color:#A8432A">error</span>
+        <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:15px;font-weight:600">Couldn't load these numbers.</div><div style="font-size:13px;color:#6E655A">Check your connection and try again.</div></div>
+      </div>
+      <div style="display:flex"><div role="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">refresh</span>Try again</div></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isFilled }}">
+    <div style="display:grid;grid-template-columns:{{ cols }};gap:1px;background:#EFE6D8;border-top:1px solid #EFE6D8">
+      <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="3">
+        <div style="background:#FFFCF7;padding:14px 16px 16px;display:flex;flex-direction:column;gap:4px;min-width:0;grid-column:{{ t.span }}">
+          <div style="font-size:13px;color:#5F574D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.label }}</div>
+          <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:{{ t.size }};line-height:1.15;letter-spacing:-.01em;white-space:nowrap;color:{{ t.color }}">{{ t.value }}</div>
+          <div style="font-size:12px;color:#857B6E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.period }}</div>
+          <sc-if value="{{ t.hasChange }}"><div style="display:flex;align-items:center;gap:3px;font-size:12px;font-weight:500;color:#5F574D;margin-top:2px;min-width:0"><span class="material-symbols-outlined" style="font-size:15px;flex:none">{{ t.changeIcon }}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.changeText }}</span></div></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:220},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eyebrow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;This month · Nov 1–11&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tiles&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{label,value,tone,period,change?:{dir,text}}[]&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const st = p.state ?? 'filled';
+    const tone = { in: '#2D6B3E', out: '#A8432A', neutral: '#221D18' };
+    const icon = { up: 'arrow_upward', down: 'arrow_downward', flat: 'remove' };
+    const src = (p.tiles ?? [
+      { label: 'Collected', value: '+$4,210', tone: 'in', period: 'Nov 1–11', change: { dir: 'up', text: 'Up 18% vs Oct' } },
+      { label: 'Spent', value: '−$3,598', tone: 'out', period: 'Nov 1–11', change: { dir: 'down', text: 'Down 6% vs Oct' } },
+      { label: 'Net', value: '+$612', tone: 'in', period: 'Nov 1–11', change: { dir: 'up', text: 'Up from −$240' } }
+    ]).slice(0, 3);
+    const n = src.length;
+    const compact = n === 3 && src.every(t => t.value.length <= 7);
+    const cols = n === 1 ? 'minmax(0,1fr)' : (n === 3 && compact ? 'repeat(3,minmax(0,1fr))' : 'repeat(2,minmax(0,1fr))');
+    const tiles = src.map((t, i) => {
+      const wide = n === 3 && !compact && i === 0;
+      const size = n === 1 || wide ? '30px' : (n === 2 ? '24px' : (compact ? '20px' : '20px'));
+      return { ...t, span: wide ? 'span 2' : 'auto', size, color: tone[t.tone ?? 'neutral'], hasChange: !!t.change, changeIcon: t.change ? icon[t.change.dir] ?? 'remove' : '', changeText: t.change?.text };
+    });
+    return {
+      eyebrow: p.eyebrow ?? 'This month · Nov 1–11',
+      title: p.title ?? '',
+      hasTitle: !!(p.title ?? ''),
+      emptyLine: p.emptyLine ?? 'Record a payment or snap a receipt and it will show here.',
+      isLoading: st === 'loading', isEmpty: st === 'empty', isError: st === 'error', isFilled: st === 'filled',
+      skel: [1, 2, 3], cols, tiles
+    };
+  }
+}
+</script>
+</body>
+</html>

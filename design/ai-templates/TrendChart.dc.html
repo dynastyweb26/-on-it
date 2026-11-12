@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+</helmet>
+<div style="width:100%">
+<sc-if value="{{ isFallback }}">
+  <dc-import name="StatTiles" eyebrow="{{ eyebrow }}" tiles="{{ fallbackTiles }}" hint-size="100%,180px"></dc-import>
+</sc-if>
+<sc-if value="{{ notFallback }}">
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden;font-family:Inter,sans-serif;color:#221D18">
+  <div style="padding:16px 16px 10px;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E">{{ eyebrow }}</div>
+    <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.01em">{{ title }}</div>
+  </div>
+  <sc-if value="{{ isLoading }}">
+    <div style="padding:8px 16px 18px;display:flex;flex-direction:column;gap:10px"><div style="height:140px;border-radius:12px;background:#F5EFE5"></div><div style="height:10px;width:50%;border-radius:5px;background:#F1E9DC"></div></div>
+  </sc-if>
+  <sc-if value="{{ isEmpty }}">
+    <div style="padding:0 16px 16px;font-size:15px;line-height:1.45;color:#5F574D">No income or expenses in this period yet. Once money moves, the trend shows here.</div>
+  </sc-if>
+  <sc-if value="{{ isError }}">
+    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:10px;align-items:flex-start"><span class="material-symbols-outlined" style="font-size:20px;color:#A8432A">error</span><div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:15px;font-weight:600">Couldn't load the chart.</div><div style="font-size:13px;color:#6E655A">Check your connection and try again.</div></div></div>
+      <div style="display:flex"><div role="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">refresh</span>Try again</div></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isFilled }}">
+    <div style="padding:0 16px;display:flex;align-items:center;gap:14px;font-size:12px;color:#5F574D">
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:18px;border-top:2.5px solid #2F6B3F"></div>In</div>
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:18px;border-top:2px dashed #A8432A"></div>Out</div>
+      <div style="flex:1"></div>
+      <div style="color:#857B6E">Tap a point</div>
+    </div>
+    <div ref="{{ boxRef }}" style="padding:6px 8px 0;position:relative">{{ chart }}</div>
+    <sc-if value="{{ hasOver }}">
+      <div style="padding:2px 16px 12px;display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:#A8432A"><span class="material-symbols-outlined" style="font-size:17px">trending_down</span><span>{{ overText }}</span></div>
+    </sc-if>
+    <div style="border-top:1px solid #EFE6D8;background:#F7F0E4;padding:10px 16px 12px;display:flex;flex-direction:column;gap:6px">
+      <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E">{{ sel.full }}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <div style="min-width:0"><div style="font-size:12px;color:#5F574D">In</div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:15px;color:#2D6B3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sel.inc }}</div></div>
+        <div style="min-width:0"><div style="font-size:12px;color:#5F574D">Out</div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:15px;color:#A8432A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sel.out }}</div></div>
+        <div style="min-width:0"><div style="font-size:12px;color:#5F574D">Kept</div><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ sel.keptColor }}">{{ sel.kept }}</div></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:420},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eyebrow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;In vs out · Last 6 months&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Jun – Nov 2026&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;points&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{label,full?,inc:number,out:number}[]&quot;}}">
+class Component extends DCLogic {
+  state = { sel: null, w: 300 };
+  boxRef = React.createRef();
+  componentDidMount() {
+    const el = this.boxRef.current;
+    if (!el) return;
+    const upd = () => { const w = el.clientWidth - 16; if (w > 0 && Math.abs(w - this.state.w) > 1) this.setState({ w }); };
+    this.ro = new ResizeObserver(upd); this.ro.observe(el); upd();
+  }
+  componentDidUpdate() { if (!this.ro && this.boxRef.current) this.componentDidMount(); }
+  componentWillUnmount() { this.ro?.disconnect(); }
+  fmt(v, sign) { const s = '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return sign ? (v < 0 ? '−' : '+') + s : s; }
+  chart(pts, sel, W) {
+    const h = React.createElement, H = 170, top = 24, bot = 22, L = 6, R = 6, n = pts.length;
+    const mx = Math.max(...pts.flatMap(p => [p.inc, p.out]), 1);
+    const step = Math.pow(10, Math.floor(Math.log10(mx))) / 2; const max = Math.ceil(mx / step) * step;
+    const pw = W - L - R, ph = H - top - bot, base = top + ph;
+    const x = i => L + i * pw / (n - 1), y = v => top + ph - v / max * ph;
+    const inc = pts.map((p, i) => [x(i), y(p.inc)]), out = pts.map((p, i) => [x(i), y(p.out)]);
+    const ln = a => 'M' + a.map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L');
+    const ar = a => ln(a) + ` L${a[n - 1][0]} ${base} L${a[0][0]} ${base} Z`;
+    const polys = []; let T = null, B = null;
+    for (let i = 0; i < n; i++) {
+      const d = pts[i].out - pts[i].inc;
+      if (d > 0) { if (!T) { T = []; B = []; } T.push(out[i]); B.push(inc[i]); }
+      if (i < n - 1) {
+        const d1 = pts[i + 1].out - pts[i + 1].inc;
+        if ((d > 0) !== (d1 > 0)) {
+          const t = d / (d - d1), c = [x(i) + t * (x(i + 1) - x(i)), y(pts[i].inc + t * (pts[i + 1].inc - pts[i].inc))];
+          if (d > 0) { T.push(c); B.push(c); polys.push([T, B]); T = B = null; } else { T = [c]; B = [c]; }
+        }
+      }
+    }
+    if (T) polys.push([T, B]);
+    const pk = pts.reduce((b, p, i) => p.inc > pts[b].inc ? i : b, 0);
+    const pkx = Math.min(Math.max(x(pk), 34), W - 34);
+    const ds = n > 8 ? 7 : 9, colW = pw / (n - 1);
+    const kids = [
+      h('text', { key: 'mx', x: L, y: 11, fontSize: 10, fill: '#8C8275', fontFamily: 'Inter' }, this.fmt(max)),
+      h('line', { key: 'bl', x1: L, x2: W - R, y1: base, y2: base, stroke: '#EFE6D8' }),
+      h('path', { key: 'oa', d: ar(out), fill: '#A8432A', opacity: .07 }),
+      h('path', { key: 'ia', d: ar(inc), fill: '#2F6B3F', opacity: .17 }),
+      ...polys.map(([t, b], k) => h('path', { key: 'p' + k, d: ln(t) + ' L' + b.slice().reverse().map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') + ' Z', fill: '#C4553A', opacity: .24 })),
+      h('line', { key: 'g', x1: x(sel), x2: x(sel), y1: top - 6, y2: base, stroke: '#B8921F', strokeDasharray: '2 3' }),
+      h('path', { key: 'ol', d: ln(out), fill: 'none', stroke: '#A8432A', strokeWidth: 1.8, strokeDasharray: '5 4' }),
+      h('path', { key: 'il', d: ln(inc), fill: 'none', stroke: '#2F6B3F', strokeWidth: 2.4, strokeLinejoin: 'round' }),
+      h('text', { key: 'pk', x: pkx, y: Math.max(inc[pk][1] - 9, 20), fontSize: 11, fontWeight: 700, fill: '#2D6B3E', textAnchor: 'middle', fontFamily: 'Montserrat' }, this.fmt(pts[pk].inc).replace('.00', '')),
+      ...inc.map((q, i) => h('rect', { key: 'd' + i, x: q[0] - ds / 2, y: q[1] - ds / 2, width: ds, height: ds, transform: `rotate(45 ${q[0]} ${q[1]})`, fill: i === sel ? '#D4AF37' : '#FFFCF7', stroke: '#B8921F', strokeWidth: 1.5 })),
+      ...[0, Math.floor((n - 1) / 2), n - 1].map((i, k) => h('text', { key: 'x' + k, x: x(i), y: H - 5, fontSize: 11, fill: '#8C8275', fontFamily: 'Inter', textAnchor: k === 0 ? 'start' : k === 2 ? 'end' : 'middle' }, pts[i].label)),
+      ...pts.map((p, i) => h('rect', { key: 'h' + i, x: x(i) - colW / 2, y: 0, width: colW, height: H, fill: 'transparent', style: { cursor: 'pointer' }, onClick: () => this.setState({ sel: i }) }))
+    ];
+    return h('svg', { width: W, height: H, style: { display: 'block', overflow: 'visible' }, role: 'img', 'aria-label': 'Income versus expenses chart' }, kids);
+  }
+  renderVals() {
+    const p = this.props, st = p.state ?? 'filled';
+    const pts = p.points ?? [
+      { label: 'Jun 2026', full: 'Jun 2026', inc: 2400, out: 1200 },
+      { label: 'Jul', full: 'Jul 2026', inc: 3150, out: 1640 },
+      { label: 'Aug', full: 'Aug 2026', inc: 1980, out: 2310 },
+      { label: 'Sep', full: 'Sep 2026', inc: 14771, out: 3980 },
+      { label: 'Oct', full: 'Oct 2026', inc: 4210, out: 3597.61 },
+      { label: 'Nov 2026', full: 'Nov 1–11', inc: 2860, out: 1420 }
+    ];
+    const n = pts.length;
+    const fb = st === 'filled' && n < 2 && n > 0;
+    const si = Math.min(this.state.sel ?? n - 1, n - 1);
+    const s = pts[si] ?? { inc: 0, out: 0 };
+    const over = pts.filter(q => q.out > q.inc);
+    return {
+      eyebrow: p.eyebrow ?? 'In vs out · Last 6 months',
+      title: p.title ?? 'Jun – Nov 2026',
+      isFallback: fb, notFallback: !fb,
+      fallbackTiles: fb ? [{ label: 'Collected', value: this.fmt(s.inc, true), tone: 'in', period: s.full ?? s.label }, { label: 'Spent', value: '−' + this.fmt(s.out), tone: 'out', period: s.full ?? s.label }] : [],
+      isLoading: st === 'loading', isEmpty: st === 'empty' || (st === 'filled' && n === 0), isError: st === 'error', isFilled: st === 'filled' && n >= 2,
+      boxRef: this.boxRef,
+      chart: st === 'filled' && n >= 2 ? this.chart(pts, si, this.state.w) : null,
+      hasOver: over.length > 0,
+      overText: over.length === 1 ? `Spent more than you brought in during ${over[0].full ?? over[0].label}.` : `Spent more than you brought in during ${over.length} periods.`,
+      sel: { full: s.full ?? s.label, inc: this.fmt(s.inc, true), out: '−' + this.fmt(s.out), kept: this.fmt(s.inc - s.out, true), keptColor: s.inc - s.out < 0 ? '#A8432A' : '#2D6B3E' }
+    };
+  }
+}
+</script>
+</body>
+</html>

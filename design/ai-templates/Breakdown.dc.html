@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+</helmet>
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden;font-family:Inter,sans-serif;color:#221D18">
+  <div style="padding:16px 16px 12px;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E">{{ eyebrow }}</div>
+    <sc-if value="{{ isFilled }}" hint-placeholder-val="{{ true }}"><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:24px;line-height:1.15;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ totalColor }}">{{ totalText }}</div></sc-if>
+    <sc-if value="{{ isLoading }}"><div style="height:22px;width:50%;border-radius:6px;background:#F1E9DC;margin-top:4px"></div></sc-if>
+  </div>
+  <sc-if value="{{ isLoading }}">
+    <sc-for list="{{ skel }}" as="s" hint-placeholder-count="3">
+      <div style="padding:14px 16px;border-top:1px solid #EFE6D8;display:flex;flex-direction:column;gap:9px"><div style="display:flex;justify-content:space-between"><div style="height:12px;width:40%;border-radius:6px;background:#F1E9DC"></div><div style="height:12px;width:22%;border-radius:6px;background:#F1E9DC"></div></div><div style="height:8px;border-radius:4px;background:#F5EFE5"></div></div>
+    </sc-for>
+  </sc-if>
+  <sc-if value="{{ isEmpty }}">
+    <div style="padding:0 16px 16px;font-size:15px;line-height:1.45;color:#5F574D">Nothing to break down yet for this period.</div>
+  </sc-if>
+  <sc-if value="{{ isError }}">
+    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:10px;align-items:flex-start"><span class="material-symbols-outlined" style="font-size:20px;color:#A8432A">error</span><div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:15px;font-weight:600">Couldn't load categories.</div><div style="font-size:13px;color:#6E655A">Check your connection and try again.</div></div></div>
+      <div style="display:flex"><div role="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">refresh</span>Try again</div></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isFilled }}">
+    <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+      <div role="button" onClick="{{ r.onTap }}" style="padding:12px 10px 12px 16px;border-top:1px solid #EFE6D8;display:flex;align-items:center;gap:8px;cursor:pointer;min-height:60px;box-sizing:border-box" style-hover="background:#FBF5EA" style-active="background:#F5EDDF">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <div style="flex:1;min-width:0;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
+            <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;white-space:nowrap;color:{{ r.color }}">{{ r.amount }}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="flex:1;height:8px;border-radius:4px;background:#F1E9DC;overflow:hidden"><div style="height:100%;border-radius:4px;width:{{ r.pct }};background:{{ r.bar }}"></div></div>
+            <div style="width:34px;text-align:right;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#5F574D">{{ r.shareText }}</div>
+          </div>
+        </div>
+        <span class="material-symbols-outlined" style="font-size:20px;color:#A39888;flex:none">chevron_right</span>
+      </div>
+    </sc-for>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:560},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tone&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;out&quot;,&quot;in&quot;],&quot;default&quot;:&quot;out&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eyebrow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Spent by category · October&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;total&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;$5,200.80&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;rows&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{name,amount,share:number,other?:boolean}[]&quot;},&quot;onRowTap&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(row,i)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props, st = p.state ?? 'filled';
+    const isIn = p.tone === 'in';
+    const src = p.rows ?? [
+      { name: 'Materials', amount: '$2,140.00', share: 41 },
+      { name: 'Fuel', amount: '$860.40', share: 17 },
+      { name: 'Tools', amount: '$720.00', share: 14 },
+      { name: 'Subcontractors', amount: '$650.00', share: 12 },
+      { name: 'Food', amount: '$310.25', share: 6 },
+      { name: 'Vehicle', amount: '$280.00', share: 5 },
+      { name: 'Other', amount: '$240.15', share: 5, other: true }
+    ];
+    const main = src.filter(r => !r.other).slice(0, 6), other = src.filter(r => r.other);
+    const sign = isIn ? '+' : '−', color = isIn ? '#2D6B3E' : '#A8432A', bar = isIn ? '#2F6B3F' : '#B5583C';
+    const rows = [...main, ...other].map((r, i) => ({ ...r, amount: sign + r.amount, color, bar: r.other ? '#C9BEAD' : bar, pct: Math.max(r.share, 1.5) + '%', shareText: r.share + '%', onTap: () => p.onRowTap?.(r, i) }));
+    return {
+      eyebrow: p.eyebrow ?? 'Spent by category · October',
+      totalText: sign + (p.total ?? '$5,200.80') + (isIn ? ' in.' : ' out.'),
+      totalColor: color,
+      isLoading: st === 'loading', isEmpty: st === 'empty', isError: st === 'error', isFilled: st === 'filled',
+      skel: [1, 2, 3], rows
+    };
+  }
+}
+</script>
+</body>
+</html>
