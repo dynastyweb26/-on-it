@@ -123,6 +123,8 @@ const logRow = (over: Partial<ChatLogRow> = {}): ChatLogRow => ({
   userId: OWNER,
   sessionId: 'chat-1',
   turn: 1,
+  userText: 'Who owes me money?',
+  replyText: 'Two invoices are unpaid, $120.00 in total.',
   toolsCalled: ['unpaid_invoices'],
   templateId: 'list.ranked',
   inputTokens: 120,
@@ -138,12 +140,18 @@ test('a turn writes one row listing every tool call it made', async () => {
   assert.equal(ok, true);
 
   const mine = await db.as(OWNER, (q) =>
-    q.query<{ user_id: string; tools_called: string[]; template_id: string | null }>(
-      'select user_id, tools_called, template_id from public.chat_messages',
-    ),
+    q.query<{
+      user_id: string;
+      user_text: string;
+      reply_text: string | null;
+      tools_called: string[];
+      template_id: string | null;
+    }>('select user_id, user_text, reply_text, tools_called, template_id from public.chat_messages'),
   );
   assert.equal(mine.rows.length, 1);
   assert.equal(mine.rows[0].user_id, OWNER);
+  assert.equal(mine.rows[0].user_text, 'Who owes me money?');
+  assert.equal(mine.rows[0].reply_text, 'Two invoices are unpaid, $120.00 in total.');
   assert.deepEqual(mine.rows[0].tools_called, ['unpaid_invoices', 'open_record']);
   assert.equal(mine.rows[0].template_id, 'list.ranked');
 

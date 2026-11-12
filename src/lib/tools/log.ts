@@ -13,11 +13,19 @@ export type ChatLogRow = {
   userId: string;
   sessionId: string;
   turn: number;
+  /** What the owner asked, so the log answers "what did I ask?" later. */
+  userText: string;
+  /** What the assistant answered; null when nothing was composed. */
+  replyText: string | null;
   toolsCalled: string[];
   templateId: string | null;
   inputTokens: number;
   outputTokens: number;
 };
+
+/** The table's caps. The writer truncates to them; it never rejects a turn. */
+export const USER_TEXT_MAX = 4000;
+export const REPLY_TEXT_MAX = 8000;
 
 export interface ChatLogWriter {
   insert(row: ChatLogRow): Promise<void>;
@@ -30,6 +38,8 @@ export function supabaseChatLog(client: SupabaseClient): ChatLogWriter {
         user_id: row.userId,
         session_id: row.sessionId,
         turn: row.turn,
+        user_text: row.userText,
+        reply_text: row.replyText,
         tools_called: row.toolsCalled,
         template_id: row.templateId,
         input_tokens: row.inputTokens,
@@ -47,6 +57,8 @@ export async function logTurn(writer: ChatLogWriter, row: ChatLogRow): Promise<b
       ...row,
       sessionId: row.sessionId.slice(0, 120) || 'unknown',
       turn: Math.max(1, Math.trunc(row.turn)),
+      userText: row.userText.slice(0, USER_TEXT_MAX),
+      replyText: row.replyText == null ? null : row.replyText.slice(0, REPLY_TEXT_MAX),
       toolsCalled: row.toolsCalled.slice(0, 20),
     });
     return true;

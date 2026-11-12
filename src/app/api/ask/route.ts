@@ -169,6 +169,8 @@ export async function POST(req: NextRequest) {
     userId: user.id,
     sessionId: sessionFrom(req.headers),
     turn: turnIndexFrom(req.headers),
+    userText: question,
+    replyText: reply,
     toolsCalled: result.toolRuns.map((run) => run.name),
     templateId: loggedRun
       ? REGISTRY.find(loggedRun.name)?.defaultTemplate.id ?? null

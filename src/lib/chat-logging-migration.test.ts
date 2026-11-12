@@ -1,6 +1,7 @@
 // The chat logging migration, executed against an in-memory Postgres with
 // Supabase's roles and auth.uid() stubbed. Two seeded users, real RLS: a user can
-// insert and read only their own rows, and deleting the account removes all
+// insert and read only their own rows, a vote is one row per message that can be
+// changed or cleared but never repointed, and deleting the account removes all
 // three tables' rows. No live project, no service role.
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,30 +65,90 @@ test('all three tables exist with RLS on and no anon access', async () => {
   assert.ok(tables.every((t) => !/anon=/.test(t.relacl ?? '')), 'no anon grant survives');
 });
 
-test('a user inserts and reads only their own messages', async () => {
-  await as(A, `insert into public.chat_messages (user_id, session_id, turn, tools_called, template_id, input_tokens, output_tokens)
-               values ($1, 'chat-1', 1, array['unpaid_invoices'], 'list.ranked', 100, 20)`, [A]);
+test('a vote may change only thumb, reasons and note, and may be deleted', async () => {
+  const grants = await everyone<{
+    table_update: boolean;
+    thumb_update: boolean;
+    message_update: boolean;
+    del: boolean;
+  }>(
+    `select
+       has_table_privilege('authenticated', 'public.chat_feedback', 'UPDATE') as table_update,
+       has_column_privilege('authenticated', 'public.chat_feedback', 'thumb', 'UPDATE') as thumb_update,
+       has_column_privilege('authenticated', 'public.chat_feedback', 'message_id', 'UPDATE') as message_update,
+       has_table_privilege('authenticated', 'public.chat_feedback', 'DELETE') as del`,
+  );
+  assert.deepEqual(grants[0], {
+    table_update: false,
+    thumb_update: true,
+    message_update: false,
+    del: true,
+  });
+});
 
-  const mine = await as<{ user_id: string }>(A, 'select user_id from public.chat_messages');
+test('a user inserts and reads only their own messages, with the text kept', async () => {
+  await as(
+    A,
+    `insert into public.chat_messages
+       (user_id, session_id, turn, user_text, reply_text, tools_called, template_id, input_tokens, output_tokens)
+     values ($1, 'chat-1', 1, 'Who owes me money?', 'Two invoices are unpaid.', array['unpaid_invoices'], 'list.ranked', 100, 20)`,
+    [A],
+  );
+
+  const mine = await as<{ user_id: string; user_text: string; reply_text: string | null }>(
+    A,
+    'select user_id, user_text, reply_text from public.chat_messages',
+  );
   assert.deepEqual(mine.rows.map((r) => r.user_id), [A]);
+  assert.equal(mine.rows[0].user_text, 'Who owes me money?');
+  assert.equal(mine.rows[0].reply_text, 'Two invoices are unpaid.');
 
   const theirs = await as<{ user_id: string }>(B, 'select user_id from public.chat_messages');
   assert.equal(theirs.rows.length, 0, "another user's log is invisible");
 
   await assert.rejects(
-    as(B, `insert into public.chat_messages (user_id, session_id, turn) values ($1, 'chat-2', 1)`, [A]),
+    as(
+      B,
+      `insert into public.chat_messages (user_id, session_id, turn, user_text) values ($1, 'chat-2', 1, 'forged')`,
+      [A],
+    ),
     /row-level security|violates/i,
     'a user cannot write a row attributed to somebody else',
   );
 });
 
+test('the question is bounded at 4000 and the reply at 8000', async () => {
+  await assert.rejects(
+    as(A, `insert into public.chat_messages (user_id, session_id, turn, user_text) values ($1, 'chat-3', 2, $2)`, [
+      A,
+      'q'.repeat(4001),
+    ]),
+    /check constraint/i,
+  );
+  await assert.rejects(
+    as(
+      A,
+      `insert into public.chat_messages (user_id, session_id, turn, user_text, reply_text) values ($1, 'chat-3', 3, 'ok', $2)`,
+      [A, 'a'.repeat(8001)],
+    ),
+    /check constraint/i,
+  );
+});
+
 test('chat feedback must point at the caller own message', async () => {
   const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
-  await as(A, `insert into public.chat_feedback (user_id, message_id, thumb, reason)
-               values ($1, $2, 'down', 'wrong_client')`, [A, message.id]);
+  await as(
+    A,
+    `insert into public.chat_feedback (user_id, message_id, thumb, reasons)
+     values ($1, $2, 'down', array['wrong_number', 'too_slow'])`,
+    [A, message.id],
+  );
 
-  const mine = await as<{ thumb: string }>(A, 'select thumb from public.chat_feedback');
-  assert.deepEqual(mine.rows.map((r) => r.thumb), ['down']);
+  const mine = await as<{ thumb: string; reasons: string[] | null }>(
+    A,
+    'select thumb, reasons from public.chat_feedback',
+  );
+  assert.deepEqual(mine.rows, [{ thumb: 'down', reasons: ['wrong_number', 'too_slow'] }]);
 
   const theirs = await as<{ thumb: string }>(B, 'select thumb from public.chat_feedback');
   assert.equal(theirs.rows.length, 0);
@@ -99,12 +160,71 @@ test('chat feedback must point at the caller own message', async () => {
   );
 });
 
-test('a thumb is one of up or down, and the note is bounded', async () => {
+test('a thumb is up or down, reasons are from the fixed list and at most six', async () => {
   const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
   await assert.rejects(
     as(A, `insert into public.chat_feedback (user_id, message_id, thumb) values ($1, $2, 'meh')`, [A, message.id]),
     /check constraint/i,
   );
+  await assert.rejects(
+    as(
+      A,
+      `insert into public.chat_feedback (user_id, message_id, thumb, reasons) values ($1, $2, 'up', array['because'])`,
+      [A, message.id],
+    ),
+    /check constraint/i,
+    'a reason outside the list is refused',
+  );
+  await assert.rejects(
+    as(
+      A,
+      `insert into public.chat_feedback (user_id, message_id, thumb, reasons)
+       values ($1, $2, 'up', array['other','other','other','other','other','other','other'])`,
+      [A, message.id],
+    ),
+    /check constraint/i,
+    'more than six reasons is refused',
+  );
+});
+
+test('one vote per message: a second insert is refused', async () => {
+  const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
+  await assert.rejects(
+    as(A, `insert into public.chat_feedback (user_id, message_id, thumb) values ($1, $2, 'up')`, [A, message.id]),
+    /duplicate key|unique/i,
+  );
+});
+
+test('a vote can be changed in place but never repointed at another message', async () => {
+  const feedback = (await as<{ id: string }>(A, 'select id from public.chat_feedback limit 1')).rows[0];
+
+  const changed = await as<{ thumb: string; reasons: string[] | null; note: string | null }>(
+    A,
+    `update public.chat_feedback set thumb = 'up', reasons = array['didnt_understand'], note = 'changed my mind'
+      where id = $1 returning thumb, reasons, note`,
+    [feedback.id],
+  );
+  assert.deepEqual(changed.rows, [{ thumb: 'up', reasons: ['didnt_understand'], note: 'changed my mind' }]);
+
+  // message_id is outside the column grant: the vote cannot move to a message
+  // the caller did not vote on.
+  await assert.rejects(
+    as(A, `update public.chat_feedback set message_id = message_id where id = $1`, [feedback.id]),
+    /permission denied|row-level security/i,
+  );
+
+  // Another owner's row is outside the policy, so the update touches nothing.
+  const theirs = await as<{ id: string }>(B, `update public.chat_feedback set thumb = 'up' where id = $1 returning id`, [
+    feedback.id,
+  ]);
+  assert.deepEqual(theirs.rows, []);
+});
+
+test('a vote can be cleared', async () => {
+  const feedback = (await as<{ id: string }>(A, 'select id from public.chat_feedback limit 1')).rows[0];
+  await as(A, `delete from public.chat_feedback where id = $1`, [feedback.id]);
+  const left = await as(A, 'select id from public.chat_feedback');
+  assert.equal(left.rows.length, 0);
 });
 
 test('help gaps are logged per user and read back only by them', async () => {
@@ -116,7 +236,7 @@ test('help gaps are logged per user and read back only by them', async () => {
   assert.equal(theirs.rows.length, 0);
 });
 
-test('no client can update or delete the log', async () => {
+test('no client can update or delete the turn log', async () => {
   await assert.rejects(
     as(A, `update public.chat_messages set turn = 99`),
     /permission denied|row-level security/i,
@@ -128,6 +248,8 @@ test('no client can update or delete the log', async () => {
 });
 
 test('deleting the account cascades through all three tables', async () => {
+  const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
+  await as(A, `insert into public.chat_feedback (user_id, message_id, thumb) values ($1, $2, 'up')`, [A, message.id]);
   await as(A, `insert into public.help_gaps (user_id, request_text) values ($1, 'second gap')`, [A]);
   await everyone(`delete from auth.users where id = $1`, [A]);
 
