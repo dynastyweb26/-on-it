@@ -10,7 +10,17 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=filled",
@@ -26,7 +36,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -41,7 +52,17 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=filled",
@@ -57,7 +78,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -74,6 +96,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
           },
           {
@@ -95,7 +123,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -112,6 +141,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
           },
           {
@@ -133,7 +168,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -150,6 +186,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
           },
           {
@@ -171,7 +213,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -188,6 +231,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
           },
           {
@@ -209,7 +258,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -226,6 +276,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'error'})"
           },
           {
@@ -247,7 +303,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -264,6 +321,12 @@
         "file": "design/ai-templates/RankedList.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('RankedList',{state:'error'})"
           },
           {
@@ -285,7 +348,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -300,7 +364,17 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=filled",
@@ -316,7 +390,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -331,7 +406,17 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=filled",
@@ -347,7 +432,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -364,6 +450,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
           },
           {
@@ -385,7 +477,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -402,6 +495,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
           },
           {
@@ -423,7 +522,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -440,6 +540,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
           },
           {
@@ -461,7 +567,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -478,6 +585,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
           },
           {
@@ -499,7 +612,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -516,6 +630,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
           },
           {
@@ -537,7 +657,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -554,6 +675,12 @@
         "file": "design/ai-templates/StatTiles.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
           },
           {
@@ -575,7 +702,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1830,7 +1958,17 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=filled",
@@ -1846,7 +1984,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1861,7 +2000,17 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=filled",
@@ -1877,7 +2026,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1894,6 +2044,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
           },
           {
@@ -1915,7 +2071,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1932,6 +2089,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
           },
           {
@@ -1953,7 +2116,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1970,6 +2134,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'error'})"
           },
           {
@@ -1991,7 +2161,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2008,6 +2179,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'error'})"
           },
           {
@@ -2029,7 +2206,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2046,6 +2224,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
           },
           {
@@ -2067,7 +2251,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2084,6 +2269,12 @@
         "file": "design/ai-templates/CantDo.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
           },
           {
@@ -2105,7 +2296,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2120,7 +2312,17 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=filled",
@@ -2136,7 +2338,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2151,7 +2354,17 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=filled",
@@ -2167,7 +2380,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2184,6 +2398,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
           },
           {
@@ -2205,7 +2425,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2222,6 +2443,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
           },
           {
@@ -2243,7 +2470,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2260,6 +2488,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
           },
           {
@@ -2281,7 +2515,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2298,6 +2533,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
           },
           {
@@ -2319,7 +2560,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2336,6 +2578,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'error'})"
           },
           {
@@ -2357,7 +2605,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2374,6 +2623,12 @@
         "file": "design/ai-templates/NavLink.dc.html",
         "steps": [
           {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.querySelector(\"x-dc\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
             "eval": "window.__dcSetProps('NavLink',{state:'error'})"
           },
           {
@@ -2395,7 +2650,8 @@
           "design": "x-dc > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
