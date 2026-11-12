@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "notes": "Graded on tool calls, arguments, template id and writes (never wording). Covers the six read tools; expectedFail cases are the Nov 11 record-payment bugs, still owned by the old flow.",
+  "cases": [
+    { "id": "invoices-list-recent", "request": "show me my invoices", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } },
+    { "id": "invoices-paid-only", "request": "which invoices are paid?", "expect": { "tools": ["list_invoices"], "args": { "status": ["paid"] }, "templateId": "list.ranked", "writes": 0 } },
+    { "id": "invoices-by-client", "request": "invoices for Ruth", "expect": { "tools": ["list_invoices"], "args": { "client": "Ruth" }, "templateId": "list.ranked", "writes": 0 } },
+    { "id": "invoices-date-range", "request": "invoices from October 2026", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } },
+    { "id": "invoices-unknown-status", "request": "show invoices that are banana", "expect": { "tools": ["list_invoices"], "templateId": "list.ranked", "writes": 0 } }
+  ]
+}

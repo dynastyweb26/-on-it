@@ -8,15 +8,17 @@ import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 import { TOOL_SYSTEM } from './prompt';
 
-test('exactly one tool, and it is the read-only unpaid lookup', () => {
-  const tool = TOOLS[0];
-  assert.ok(tool, 'the registry has a tool');
-  assert.equal(TOOLS.length, 1);
-  assert.equal(tool.name, UNPAID_TOOL_NAME);
+test('the registry holds the read-only lookups and nothing else yet', () => {
+  const tool = REGISTRY.get(UNPAID_TOOL_NAME);
+  assert.ok(tool, 'the unpaid lookup is registered');
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices'].sort());
+  assert.ok(REGISTRY.list.every((t) => t.type === 'read'), 'every registered tool is read-only');
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
-  assert.equal(tool.input_schema.type, 'object');
+  const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);
+  assert.ok(modelTool, 'the unpaid lookup is offered to the model');
+  assert.equal(modelTool.input_schema.type, 'object');
   assert.equal(
-    (tool.input_schema as { additionalProperties?: boolean }).additionalProperties,
+    (modelTool.input_schema as { additionalProperties?: boolean }).additionalProperties,
     false
   );
   assert.match(tool.description ?? '', /read-only/i);
