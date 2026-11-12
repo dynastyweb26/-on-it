@@ -2983,8 +2983,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   // Eligibility for the "Got a minute?" card, right after a quote or invoice
   // goes out. Rules live in lib/feedback.ts (shouldAskForFeedback): 3+ documents
-  // sent, never again once the user has submitted feedback (read from the table,
-  // so it holds across devices), 21-day snooze, 60 days after two dismissals.
+  // sent, a 30-day check-in window after the newest feedback row (read from the
+  // table, so it holds across devices), 21-day snooze, 60 days after two dismissals.
   // Skipped during a voice session, an open template or the paywall. The
   // walkthrough is on-demand and runs on sample data, so it can't overlap a
   // real send. Best-effort: any failure means no card.
@@ -2995,14 +2995,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
       const state = parsePromptState(localStorage.getItem(FEEDBACK_PROMPT_KEY));
       const now = Date.now();
       // Cheap local gate first so most sends never touch the database.
-      if (!shouldAskForFeedback({ now, docsSent: PROMPT_MIN_DOCS, moment: true, hasSubmitted: false, blocked: false, state })) return false;
-      const [{ count: submitted }, { count: sent }] = await Promise.all([
-        supabase.from('feedback').select('id', { count: 'exact', head: true }),
+      if (!shouldAskForFeedback({ now, docsSent: PROMPT_MIN_DOCS, moment: true, lastSubmittedAt: null, blocked: false, state })) return false;
+      const [{ data: latest }, { count: sent }] = await Promise.all([
+        supabase.from('feedback').select('created_at').order('created_at', { ascending: false }).limit(1),
         supabase.from('invoices').select('id', { count: 'exact', head: true })
           .is('deleted_at', null).neq('status', 'draft'),
       ]);
+      const lastSubmittedAt = latest?.[0]?.created_at ? Date.parse(latest[0].created_at) : null;
       return shouldAskForFeedback({
-        now, docsSent: sent ?? 0, moment: true, hasSubmitted: (submitted ?? 0) > 0, blocked: false, state,
+        now,
+        docsSent: sent ?? 0,
+        moment: true,
+        lastSubmittedAt: Number.isNaN(lastSubmittedAt as number) ? null : lastSubmittedAt,
+        blocked: false,
+        state,
       });
     } catch { return false; /* never block the send flow */ }
   }

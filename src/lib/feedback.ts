@@ -100,6 +100,8 @@ export function feedbackEmail(i: FeedbackEmailInput): { subject: string; text: s
 
 export const PROMPT_MIN_DOCS = 3;
 export const SNOOZE_DAYS = 21;
+/** After a submission we stay quiet for 30 days, then check in again. */
+export const CHECKIN_DAYS = 30;
 export const LONG_SNOOZE_DAYS = 60;
 const DAY = 86_400_000;
 
@@ -114,13 +116,13 @@ export interface PromptContext {
   now: number;
   docsSent: number; // quotes + invoices the user has sent so far
   moment: boolean; // a quote or invoice was just sent / finalized
-  hasSubmitted: boolean; // any feedback row for this user: never ask again
+  lastSubmittedAt: number | null; // ms of the newest feedback row, if any
   blocked: boolean; // voice session, open template, paywall or tour
   state: PromptState;
 }
 
 export function shouldAskForFeedback(c: PromptContext): boolean {
-  if (c.hasSubmitted) return false;
+  if (c.lastSubmittedAt !== null && c.now - c.lastSubmittedAt < CHECKIN_DAYS * DAY) return false;
   if (c.blocked || !c.moment) return false;
   if (c.docsSent < PROMPT_MIN_DOCS) return false;
   if (c.state.snoozedUntil !== null && c.now < c.state.snoozedUntil) return false;

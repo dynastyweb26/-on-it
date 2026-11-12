@@ -83,7 +83,7 @@ test('email: no business name reads "new user"', () => {
 });
 
 const base: PromptContext = {
-  now: 1_000 * DAY, docsSent: 3, moment: true, hasSubmitted: false, blocked: false, state: EMPTY_PROMPT_STATE,
+  now: 1_000 * DAY, docsSent: 3, moment: true, lastSubmittedAt: null, blocked: false, state: EMPTY_PROMPT_STATE,
 };
 
 test('prompt: asks after a moment once 3 documents are sent', () => {
@@ -92,9 +92,11 @@ test('prompt: asks after a moment once 3 documents are sent', () => {
   assert.equal(shouldAskForFeedback({ ...base, moment: false }), false);
 });
 
-test('prompt: never asks again once feedback was submitted (any device)', () => {
-  assert.equal(shouldAskForFeedback({ ...base, hasSubmitted: true }), false);
-  assert.equal(shouldAskForFeedback({ ...base, hasSubmitted: true, state: EMPTY_PROMPT_STATE }), false);
+test('prompt: after feedback it checks in again once 30 days have passed (any device)', () => {
+  assert.equal(shouldAskForFeedback({ ...base, lastSubmittedAt: base.now - 10 * DAY }), false);
+  assert.equal(shouldAskForFeedback({ ...base, lastSubmittedAt: base.now - 29 * DAY, state: EMPTY_PROMPT_STATE }), false);
+  assert.equal(shouldAskForFeedback({ ...base, lastSubmittedAt: base.now - 30 * DAY, state: EMPTY_PROMPT_STATE }), true);
+  assert.equal(shouldAskForFeedback({ ...base, lastSubmittedAt: base.now - 400 * DAY, state: EMPTY_PROMPT_STATE }), true);
 });
 
 test('prompt: never during voice, template, paywall or tour', () => {
