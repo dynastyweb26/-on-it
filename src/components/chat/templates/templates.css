@@ -5,3 +5,4 @@
 .tpl-hover:hover{background:var(--tpl-hover)}
 .tpl-press:hover{background:var(--tpl-hover)}
 .tpl-press:active{background:var(--tpl-press)}
+@keyframes onitSpin{to{transform:rotate(360deg)}}

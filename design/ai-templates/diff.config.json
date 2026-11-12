@@ -718,7 +718,17 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=filled",
@@ -734,7 +744,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -749,7 +760,17 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=filled",
@@ -765,7 +786,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -780,7 +802,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=loading",
@@ -796,7 +831,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -811,7 +847,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=loading",
@@ -827,7 +876,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -842,7 +892,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=empty",
@@ -858,7 +921,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -873,7 +937,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=empty",
@@ -889,7 +966,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -904,7 +982,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=error",
@@ -920,7 +1011,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -935,7 +1027,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=error",
@@ -951,7 +1056,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -966,7 +1072,17 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
@@ -982,7 +1098,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -997,7 +1114,17 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
@@ -1013,7 +1140,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1028,7 +1156,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
@@ -1044,7 +1185,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1059,7 +1201,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
@@ -1075,7 +1230,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1090,7 +1246,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
@@ -1106,7 +1275,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1121,7 +1291,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
@@ -1137,7 +1320,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1152,7 +1336,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=error",
@@ -1168,7 +1365,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1183,7 +1381,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=error",
@@ -1199,7 +1410,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1648,7 +1860,17 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=pending",
@@ -1664,7 +1886,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1679,7 +1902,17 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=pending",
@@ -1695,7 +1928,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1710,7 +1944,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'confirming'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
@@ -1726,7 +1973,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1741,7 +1989,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'confirming'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
@@ -1757,7 +2018,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1772,7 +2034,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'done'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=done",
@@ -1788,7 +2063,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1803,7 +2079,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'done'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=done",
@@ -1819,7 +2108,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1834,7 +2124,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'partial',failIndex:1})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=partial",
@@ -1850,7 +2153,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1865,7 +2169,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'partial',failIndex:1})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=partial",
@@ -1881,7 +2198,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1896,7 +2214,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=loading",
@@ -1912,7 +2243,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1927,7 +2259,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=loading",
@@ -1943,7 +2288,8 @@
           "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }

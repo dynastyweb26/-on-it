@@ -1322,3 +1322,14 @@ html[data-splash=""] .onit-splash {
   --tpl-paid: #2b7a4b;
   --tpl-paid-soft: #e3f1e6;
 }
+
+/* ---- AI chat template tokens, round 2 (TrendChart, Breakdown, BatchConfirm) ---- */
+:root {
+  --tpl-chart-in: #2f6b3f;
+  --tpl-chart-over: #c4553a;
+  --tpl-chart-gold: #b8921f;
+  --tpl-bar-out: #b5583c;
+  --tpl-bar-other: #c9bead;
+  --tpl-fail-ink: #7e2f1c;
+  --tpl-fail-line: #efd3c8;
+}
