@@ -17,8 +17,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { buildRegistry, defineTool, type ToolDb } from './contract';
+import { buildRegistry, defineTool, isPlainText, type ToolDb } from './contract';
 import { REGISTRY } from './registry';
+import { TEMPLATE_IDS } from './templates';
 import { guardModelMoney } from './money';
 import { fixtureDb, type FixtureRow, type FixtureRows } from './fixture-db';
 import { confirmActions, createPendingAction } from './confirm';
@@ -65,7 +66,17 @@ for (const tool of REGISTRY.list) {
   test(`${tool.name}: the definition and its fixture are valid`, () => {
     assert.ok(tool.input.safeParse(tool.fixture.args).success);
     assert.ok(tool.output.safeParse(tool.fixture.result).success);
-    assert.ok(tool.defaultTemplate.id.length > 0);
+    assert.ok(
+      TEMPLATE_IDS.includes(tool.defaultTemplate.id),
+      `${tool.defaultTemplate.id} is not one of the design templates`,
+    );
+  });
+
+  test(`${tool.name}: the plain-text fallback is safe to show on its own`, () => {
+    const result = tool.output.parse(tool.fixture.result);
+    const fallback = tool.fallback(result as never);
+    assert.ok(fallback.trim().length > 0, 'a fallback is never empty');
+    assert.equal(isPlainText(fallback), true, 'no markup, no emoji');
   });
 
   test(`${tool.name}: the declared template accepts what the tool produces`, () => {
@@ -124,11 +135,12 @@ function writeTool(counter: { rows: number }) {
     output: z.object({ rows: z.number().int() }),
     type: 'write',
     risk: 'high',
-    defaultTemplate: { id: 'safety_card', props: z.object({ rows: z.number().int() }) },
+    defaultTemplate: { id: 'confirm.batch', props: z.object({ rows: z.number().int() }) },
     handler: async (_ctx, args) => {
       counter.rows += 1;
       return { rows: counter.rows + args.value * 0 };
     },
+    fallback: () => 'Saved.',
     fixture: { args: { value: 1 }, result: { rows: 1 } },
   });
 }

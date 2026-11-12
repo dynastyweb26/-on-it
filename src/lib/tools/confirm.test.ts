@@ -30,11 +30,12 @@ function writeTool(rows: { rows: number }) {
     output: z.object({ invoice_id: z.string(), recorded: z.number().int() }),
     type: 'write',
     risk: 'high',
-    defaultTemplate: { id: 'payment_card', props: z.object({ invoice_id: z.string() }) },
+    defaultTemplate: { id: 'confirm.batch', props: z.object({ invoice_id: z.string() }) },
     handler: async (_ctx, args) => {
       rows.rows += 1;
       return { invoice_id: args.invoice_id, recorded: rows.rows };
     },
+    fallback: () => 'Payment recorded.',
     fixture: { args: { invoice_id: 'inv-1', amount: 50 }, result: { invoice_id: 'inv-1', recorded: 1 } },
   });
 }
@@ -192,8 +193,9 @@ test('a read tool can never be confirmed into a write path', async () => {
     output: z.object({ ok: z.boolean() }),
     type: 'read',
     risk: 'low',
-    defaultTemplate: { id: 'lookup_card', props: z.object({ ok: z.boolean() }) },
+    defaultTemplate: { id: 'nav.link', props: z.object({ ok: z.boolean() }) },
     handler: async () => ({ ok: true }),
+    fallback: () => 'Found it.',
     fixture: { args: {}, result: { ok: true } },
   });
   const registry = buildRegistry([readOnly]);

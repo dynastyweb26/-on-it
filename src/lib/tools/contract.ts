@@ -14,6 +14,7 @@
 // file under src/lib/tools reaches adminClient, directly or through a helper.
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { TEMPLATE_IDS, isTemplateId, type TemplateId } from './templates';
 
 /** What a tool does to the world. write and send never run without a confirm token. */
 export const TOOL_TYPES = ['read', 'write', 'send', 'nav', 'meta'] as const;
@@ -53,11 +54,11 @@ export interface ToolDb {
 export type ToolContext = { db: ToolDb; userId: string };
 
 /**
- * The chat card a tool's result renders into. `id` is graded by the eval runner
- * and `props` is validated by the safety suite, so a tool can never claim a
- * template that cannot render its own result.
+ * The chat card a tool's result renders into. `id` is one of the ten ids in
+ * ./templates (RULES.md §2) and `props` is validated by the safety suite, so a
+ * tool can never claim a template that cannot render its own result.
  */
-export type ToolTemplate = { id: string; props: z.ZodType };
+export type ToolTemplate = { id: TemplateId; props: z.ZodType };
 
 export type ToolDefinition = {
   name: string;
@@ -68,6 +69,11 @@ export type ToolDefinition = {
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
+  /**
+   * The plain-text answer shown when the template's component is not built yet
+   * (or its props do not fit). Pure, composed by the server, never a card.
+   */
+  fallback: (result: never) => string;
   /** A real, valid call and its result. Fixtures power tests, never a live turn. */
   fixture: { args: unknown; result: unknown };
   /**
@@ -84,6 +90,16 @@ const isZod = (value: unknown): value is z.ZodType =>
 const nonEmpty = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
+/**
+ * A fallback is what the user reads when there is no card, so it is plain text:
+ * no markup, no emoji, no fenced code. Money in it is already server-formatted.
+ */
+export function isPlainText(value: string): boolean {
+  return !/[<>`]/.test(value)
+    && !/\*\*|^#{1,6}\s/m.test(value)
+    && !/\p{Extended_Pictographic}/u.test(value);
+}
+
 /** Every field a tool must carry, in the order the error lists them. */
 export const REQUIRED_FIELDS = [
   'name',
@@ -94,6 +110,7 @@ export const REQUIRED_FIELDS = [
   'risk',
   'defaultTemplate',
   'handler',
+  'fallback',
   'fixture',
 ] as const;
 
@@ -120,11 +137,14 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
     problems.push(`risk: one of ${TOOL_RISKS.join('|')}`);
   }
   const template = tool?.defaultTemplate;
-  if (!nonEmpty(template?.id) || !/^[a-z][a-z0-9_]*$/.test(template.id)) {
-    problems.push('defaultTemplate.id: snake_case template id');
+  if (!isTemplateId(template?.id)) {
+    problems.push(`defaultTemplate.id: one of ${TEMPLATE_IDS.join('|')}`);
   }
   if (!isZod(template?.props)) problems.push('defaultTemplate.props: a Zod schema');
   if (typeof tool?.handler !== 'function') problems.push('handler: a function');
+  if (typeof tool?.fallback !== 'function') {
+    problems.push('fallback: a function returning the plain-text answer');
+  }
   if (
     tool?.fixture == null ||
     !('args' in tool.fixture) ||
@@ -148,6 +168,13 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
   if (!result.success) {
     throw new Error(`tool ${name} fixture.result does not match its output schema: ${result.error.message}`);
   }
+
+  // The fallback is shown to the user whenever no component exists, so it is
+  // proven here: non-empty plain text for the tool's own fixture, never a card.
+  const fallback = complete.fallback(result.data as never);
+  if (!nonEmpty(fallback) || !isPlainText(fallback)) {
+    throw new Error(`tool ${name} fallback must be non-empty plain text`);
+  }
 }
 
 /**
@@ -164,6 +191,7 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   handler: (ctx: ToolContext, args: z.infer<In>) => Promise<z.infer<Out>>;
+  fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };
   modelPayload?: (result: z.infer<Out>) => unknown;
 }): ToolDefinition {

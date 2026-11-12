@@ -22,7 +22,8 @@ export const myTool = defineTool({
   output: MyOutput,                // Zod, the only shape allowed out of the handler
   type: 'read',                    // read | write | send | nav | meta
   risk: 'low',                     // low | medium | high
-  defaultTemplate: { id: 'my_card', props: MyCardProps },
+  defaultTemplate: { id: 'list.ranked', props: MyCardProps },
+  fallback: (result) => 'Plain text the user reads when no card exists.',
   handler: async (ctx, args) => { /* ctx.db, ctx.userId only */ },
   fixture: { args: {}, result: {} }, // must satisfy the schemas, or the registry throws
 });
@@ -42,9 +43,20 @@ export const myTool = defineTool({
 
 **3. Declare what the result renders into**
 
-`defaultTemplate.id` names the chat card, `props` is the Zod schema of what that
-card accepts, and the safety suite checks the schema against your own result. If
-no card exists for the result, stop: that is a design gap (Handoff Note).
+`defaultTemplate.id` names the chat card and must be one of the ten ids in
+`src/lib/tools/templates.ts` (copied from `design/ai-templates/RULES.md` §2 —
+never invent, rename or alias one). `props` is the Zod schema of what that card
+accepts, and the safety suite checks the schema against your own result.
+`fallback` is the plain-text answer shown when the card's component does not
+exist yet, or when `props` rejects the result: no markup, no emoji, money already
+formatted by the server. Never draw a stand-in card, and never return a template
+id with no design file.
+
+Money rule (`RULES.md` §5): every amount in `props` is a finished string. Compose
+it with `moneyField()` (neutral, e.g. an amount still owed), `moneyIn()` (`+$270.00`)
+or `moneyOut()` (`−$39.70`, U+2212). A `draft.message` body never carries a figure
+the model wrote: fill it with `fillDraftBody()` and pass it through
+`guardDraftBody()`.
 
 **4. Export it**
 

@@ -35,7 +35,7 @@ import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
-import { REGISTRY } from '@/lib/tools/registry';
+import { REGISTRY, cardFor } from '@/lib/tools/registry';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -141,6 +141,14 @@ export async function POST(req: NextRequest) {
     (run) => run.status === 'ok' && run.name === UNPAID_TOOL_NAME,
   )?.output ?? null) as UnpaidSummary | null;
 
+  // The data the result's template may render, and the plain text shown when no
+  // component exists for that template (or its props do not fit). A null card is
+  // never replaced by a makeshift one.
+  const okRun = result.toolRuns.find((run) => run.status === 'ok');
+  const okTool = okRun ? REGISTRY.find(okRun.name) : undefined;
+  const card = okRun && okTool ? cardFor(okTool, okRun.output) : null;
+  const fallback = okRun && okTool ? okTool.fallback(okRun.output as never) : null;
+
   // Money guard: a dollar figure the model states must already exist in this
   // turn's tool results. A sentence carrying one that does not is dropped.
   const moneyGuard = guardModelMoney(result.replyText, result.toolResults);
@@ -172,6 +180,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       reply,
+      template: card,
+      fallback,
       tool: summary
         ? {
           totalCount: summary.totalCount,

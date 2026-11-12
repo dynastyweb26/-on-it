@@ -9,7 +9,7 @@ const row: ChatLogRow = {
   sessionId: 'chat-1',
   turn: 2,
   toolsCalled: ['unpaid_invoices'],
-  templateId: 'unpaid_list',
+  templateId: 'list.ranked',
   inputTokens: 120,
   outputTokens: 40,
 };

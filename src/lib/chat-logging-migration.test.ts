@@ -66,7 +66,7 @@ test('all three tables exist with RLS on and no anon access', async () => {
 
 test('a user inserts and reads only their own messages', async () => {
   await as(A, `insert into public.chat_messages (user_id, session_id, turn, tools_called, template_id, input_tokens, output_tokens)
-               values ($1, 'chat-1', 1, array['unpaid_invoices'], 'unpaid_list', 100, 20)`, [A]);
+               values ($1, 'chat-1', 1, array['unpaid_invoices'], 'list.ranked', 100, 20)`, [A]);
 
   const mine = await as<{ user_id: string }>(A, 'select user_id from public.chat_messages');
   assert.deepEqual(mine.rows.map((r) => r.user_id), [A]);

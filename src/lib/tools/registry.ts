@@ -9,8 +9,23 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { buildRegistry, type Registry, type ToolDefinition } from './contract';
 import { TOOL_DEFINITIONS } from './definitions';
+import type { TemplateId } from './templates';
 
 export const REGISTRY = buildRegistry(TOOL_DEFINITIONS);
+
+/** The template and the data its component is handed. */
+export type ToolCard = { id: TemplateId; props: unknown };
+
+/**
+ * The card for one tool result, or null when the tool's own props schema rejects
+ * it. Null is the rule, not a failure: the reply then shows the tool's plain-text
+ * fallback. We never hand a component data it did not ask for, and never draw a
+ * stand-in card for a template that has no component yet.
+ */
+export function cardFor(tool: ToolDefinition, output: unknown): ToolCard | null {
+  const props = tool.defaultTemplate.props.safeParse(output);
+  return props.success ? { id: tool.defaultTemplate.id, props: props.data } : null;
+}
 
 /** What the model is offered. Derived from each tool's own Zod input schema. */
 export const TOOLS: Anthropic.Tool[] = REGISTRY.modelTools();

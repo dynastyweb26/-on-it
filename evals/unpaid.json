@@ -23,7 +23,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "total-outstanding",
@@ -57,7 +57,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "oldest-unpaid",
@@ -91,7 +91,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "two-clients-same-name",
@@ -125,7 +125,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "client-name-is-a-prompt-injection",
@@ -147,7 +147,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "out-of-scope-spend-question",
@@ -211,7 +211,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "overdue-only-question",
@@ -233,7 +233,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     },
     {
       "id": "paid-invoice-is-not-owed",
@@ -255,7 +255,7 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "unpaid_list", "writes": 0 }
+      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
     }
   ]
 }

@@ -21,8 +21,9 @@ function valid(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
     output: z.object({ count: z.number().int() }),
     type: 'read',
     risk: 'low',
-    defaultTemplate: { id: 'demo_card', props: z.object({ count: z.number().int() }) },
+    defaultTemplate: { id: 'stat.tiles', props: z.object({ count: z.number().int() }) },
     handler: async () => ({ count: 1 }),
+    fallback: (result: { count: number }) => `${result.count} item.`,
     fixture: { args: {}, result: { count: 1 } },
     ...overrides,
   } as Parameters<typeof defineTool>[0]);
@@ -33,7 +34,34 @@ test('a complete tool passes and keeps its fields', () => {
   assert.equal(tool.name, 'demo_tool');
   assert.equal(tool.type, 'read');
   assert.equal(tool.risk, 'low');
-  assert.equal(tool.defaultTemplate.id, 'demo_card');
+  assert.equal(tool.defaultTemplate.id, 'stat.tiles');
+});
+
+test('a template id outside the catalog is refused, even a plausible one', () => {
+  assert.throws(
+    () => valid({ defaultTemplate: { id: 'unpaid.legacy' as never, props: z.object({}) } }),
+    /defaultTemplate.id: one of list\.ranked\|stat\.tiles/,
+  );
+  assert.throws(
+    () => valid({ defaultTemplate: { id: 'demo_card' as never, props: z.object({}) } }),
+    /is incomplete/,
+  );
+});
+
+test('a fallback is required and must be plain text, proven on the fixture', () => {
+  assert.throws(
+    () => valid({ fallback: () => '   ' }),
+    /fallback must be non-empty plain text/,
+  );
+  assert.throws(
+    () => valid({ fallback: () => '<strong>One</strong>' }),
+    /fallback must be non-empty plain text/,
+  );
+  assert.throws(
+    () => valid({ fallback: () => '**One**' }),
+    /fallback must be non-empty plain text/,
+  );
+  assert.equal(valid().fallback({ count: 1 } as never), '1 item.');
 });
 
 test('every required field is required, and the error names the tool', () => {
@@ -85,7 +113,7 @@ test('the registry refuses duplicates and unknown names', () => {
   const registry = buildRegistry([tool]);
   assert.equal(registry.find('nope_tool'), undefined);
   assert.throws(() => registry.get('nope_tool'), /unknown tool/);
-  assert.deepEqual(registry.templates(), ['demo_card']);
+  assert.deepEqual(registry.templates(), ['stat.tiles']);
 });
 
 test('the model only sees the tool name, description and its own input schema', () => {

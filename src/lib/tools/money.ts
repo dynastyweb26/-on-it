@@ -15,16 +15,41 @@ import { money, roundCurrency } from '@/lib/financials';
 export const MoneySchema = z.object({
   amount: z.number().finite(),
   text: z.string().min(1),
+  /** in: money received. out: money spent. neutral: owed, not yet paid. */
+  tone: z.enum(['in', 'out', 'neutral']).default('neutral'),
 });
 
 export type MoneyField = z.infer<typeof MoneySchema>;
+export type MoneyTone = MoneyField['tone'];
+
+/** The sign glyphs the design uses. Money out is U+2212, never a hyphen. */
+export const MONEY_IN_SIGN = '+';
+export const MONEY_OUT_SIGN = '\u2212';
 
 /** One server-composed money field. The only way a number becomes speakable. */
 export function moneyField(amount: number): MoneyField {
   const rounded = roundCurrency(amount);
   // Negative zero would print as "-$0.00"; a zero balance is a zero balance.
   const value = Object.is(rounded, -0) ? 0 : rounded;
-  return { amount: value, text: money(value) };
+  return { amount: value, text: money(value), tone: 'neutral' };
+}
+
+/**
+ * Money in: a finished string with the design's plus sign, and the positive
+ * amount for arithmetic. Components never add the sign themselves.
+ */
+export function moneyIn(amount: number): MoneyField {
+  const value = Math.abs(roundCurrency(amount));
+  return { amount: value, text: `${MONEY_IN_SIGN}${money(value)}`, tone: 'in' };
+}
+
+/**
+ * Money out: a finished string with U+2212 (never a hyphen or "-$400"), and the
+ * negative amount for arithmetic.
+ */
+export function moneyOut(amount: number): MoneyField {
+  const value = -Math.abs(roundCurrency(amount));
+  return { amount: value, text: `${MONEY_OUT_SIGN}${money(Math.abs(value))}`, tone: 'out' };
 }
 
 export function isMoneyField(value: unknown): value is MoneyField {
@@ -55,7 +80,7 @@ export function moneyFigures(value: unknown, seen = new Set<unknown>()): number[
   seen.add(value);
 
   const collected = isMoneyField(value)
-    ? [roundCurrency(value.amount)]
+    ? [Math.abs(roundCurrency(value.amount))]
     : Array.isArray(value)
       ? value.flatMap((item) => moneyFigures(item, seen))
       : Object.values(value as Record<string, unknown>)
@@ -102,4 +127,29 @@ export function guardModelMoney(
     text: keep.join(' ').trim(),
     offending: [...new Set(offending)],
   };
+}
+
+/** Where the server drops the amount into a draft message body. */
+export const DRAFT_AMOUNT_TOKEN = '{{amount}}';
+
+/**
+ * Fills the server's amount into a draft body (RULES §6.7). The model writes the
+ * token, never a figure; every token becomes the finished, signed string this
+ * server composed. `draft.message` bodies are never formatted by a component.
+ */
+export function fillDraftBody(body: string, amount: MoneyField): string {
+  return body.split(DRAFT_AMOUNT_TOKEN).join(amount.text);
+}
+
+/**
+ * The money guard for draft bodies: fill the server amount in first, then apply
+ * the same rule as every reply. A figure the model wrote that no server result
+ * backs is dropped with its sentence, so a wrong number can never be sent.
+ */
+export function guardDraftBody(
+  body: string,
+  amount: MoneyField,
+  serverResults: readonly unknown[] = [],
+): MoneyGuardResult {
+  return guardModelMoney(fillDraftBody(body, amount), [amount, ...serverResults]);
 }

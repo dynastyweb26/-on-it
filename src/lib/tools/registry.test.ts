@@ -2,7 +2,7 @@
 // an argument schema that refuses anything it was not designed for.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REGISTRY, TOOLS, findTool, parseCall } from './registry';
+import { REGISTRY, TOOLS, cardFor, findTool, parseCall } from './registry';
 import { TURN_MODEL_CALL_CAP } from './budget';
 import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
@@ -52,5 +52,31 @@ test('the system prompt forbids money and emoji and names the right document wor
 });
 
 test('the template a tool renders into is declared in the registry', () => {
-  assert.deepEqual(REGISTRY.templates(), ['unpaid_list']);
+  assert.deepEqual(REGISTRY.templates(), ['list.ranked']);
+});
+
+test('a card is handed over only when the template accepts the result', () => {
+  const tool = REGISTRY.get(UNPAID_TOOL_NAME);
+  const result = tool.output.parse(tool.fixture.result);
+
+  const card = cardFor(tool, result);
+  assert.ok(card, 'the fixture renders');
+  assert.equal(card.id, 'list.ranked');
+  assert.deepEqual(card.props, {
+    eyebrow: 'Who owes you',
+    rows: [{
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Maria Santos',
+      secondary: 'INV-0042 · Due Oct 1',
+      amount: '$120.00',
+      tone: 'neutral',
+      chip: { tone: 'late', label: '42d late' },
+    }],
+    totalCount: 1,
+    total: { label: 'Owed to you · 1 client', amount: '$120.00', tone: 'neutral' },
+  });
+
+  // Data the template does not accept is not drawn as a makeshift card.
+  assert.equal(cardFor(REGISTRY.get(UNPAID_TOOL_NAME), { rows: 'nope' }), null);
+  assert.equal(cardFor(tool, null), null);
 });
