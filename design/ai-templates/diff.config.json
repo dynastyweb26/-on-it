@@ -1,5 +1,5 @@
 {
-  "tolerancePx": 8,
+  "tolerancePx": 2,
   "_note": "Every state from every design file, at 390 and 1280. The app side is the /dev/ai-templates fixtures page (not in production), which must render one card per case with data-template and data-state. Design files render their default state; a non-default case needs the matching design state before its pair can gate.",
   "cases": [
     {
