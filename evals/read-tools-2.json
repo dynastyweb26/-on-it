@@ -177,6 +177,45 @@
       "signedIn": false,
       "fixture": {},
       "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "saved-items-service-call",
+      "request": "what do I charge for a service call?",
+      "fixture": {
+        "products": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Service call", "unit": "job", "unit_price": 85, "detail": "First hour included", "use_count": 4, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-hourly",
+      "request": "what is my hourly rate?",
+      "fixture": {
+        "products": [{ "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Hourly labor", "unit": "hour", "unit_price": 65, "detail": null, "use_count": 12, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-all",
+      "request": "show me my saved items and prices",
+      "fixture": {
+        "products": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Service call", "unit": "job", "unit_price": 85, "detail": null, "use_count": 0, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-text",
+      "request": "do I have paint saved as an item?",
+      "fixture": {
+        "products": [{ "id": "p3", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Paint", "unit": "each", "unit_price": 45, "detail": null, "use_count": 0, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-signed-out",
+      "request": "show me my saved items",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
     }
   ]
 }

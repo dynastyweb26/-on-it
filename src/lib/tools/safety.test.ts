@@ -93,6 +93,17 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     deleted_at: null,
   }],
   profiles: (userId) => [{ id: userId, timezone: 'America/Chicago' }],
+  products: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-product',
+    user_id: userId,
+    name: userId === OTHER ? 'Other Owner Ltd' : 'Service call',
+    unit: 'job',
+    unit_price: 85,
+    detail: null,
+    use_count: 1,
+    last_used_at: null,
+    deleted_at: null,
+  }],
 };
 
 const tables = Object.keys(ROWS);

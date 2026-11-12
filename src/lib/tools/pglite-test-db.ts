@@ -30,6 +30,7 @@ export const TOOL_MIGRATIONS = [
   '20260905000000_soft_delete.sql',
   '20260918000000_invoice_payments.sql',
   '20261103000001_other_income.sql',
+  '20261003000002_products_services.sql',
   '20261111170000_tool_pending_actions.sql',
   '20261111180000_ai_chat_logging.sql',
 ] as const;

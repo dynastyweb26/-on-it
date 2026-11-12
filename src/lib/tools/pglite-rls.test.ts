@@ -28,7 +28,7 @@ const OTHER_EXPENSE = 'eeeeeeee-0000-4000-8000-000000000005';
 const OTHER_PAYMENT = 'ffffffff-0000-4000-8000-000000000006';
 
 /** Tables the tools under test read, and the rows seeded for both owners. */
-const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses', 'invoice_payments', 'other_income', 'profiles']);
+const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses', 'invoice_payments', 'other_income', 'profiles', 'products']);
 const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT, OTHER_EXPENSE, OTHER_PAYMENT];
 
 let db: TestDb;
@@ -75,6 +75,12 @@ async function seedPayments(): Promise<void> {
     `insert into public.other_income (id, user_id, amount, title, client_name, received_on, classification)
      values ('aaaaaaaa-0000-4000-8000-000000000007', $1, 300.00, 'Side job', null, '2026-11-04', 'other_income'),
             ('bbbbbbbb-0000-4000-8000-000000000008', $2, 999.00, 'Other Owner Ltd', 'Other Owner Ltd', '2026-11-04', 'customer_payment')`,
+    [OWNER, OTHER],
+  );
+  await db.seed(
+    `insert into public.products (id, user_id, name, unit, unit_price)
+     values ('aaaaaaaa-0000-4000-8000-000000000009', $1, 'Service call', 'job', 85.00),
+            ('bbbbbbbb-0000-4000-8000-000000000010', $2, 'Other Owner Ltd', 'job', 999.00)`,
     [OWNER, OTHER],
   );
 }
