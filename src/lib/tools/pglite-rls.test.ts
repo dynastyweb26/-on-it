@@ -171,3 +171,55 @@ test('a log row attributed to another owner is refused, never thrown', async () 
   );
   assert.equal(theirs.rows[0].count, 0, 'nothing was written under the other owner');
 });
+
+// ── A proposal is write-once except its executed_at latch ─────────────────
+const PENDING_ID = 'dddddddd-0000-4000-8000-000000000004';
+const TOKEN_HASH = 'a'.repeat(64);
+
+async function insertProposal(): Promise<void> {
+  await db.as(OWNER, (q) =>
+    q.query(
+      `insert into public.tool_pending_actions (id, user_id, tool, args, token_hash, expires_at)
+       values ($1, $2, 'record_payment', '{"invoice_id":"inv-1"}'::jsonb, $3, now() + interval '10 minutes')`,
+      [PENDING_ID, OWNER, TOKEN_HASH],
+    ),
+  );
+}
+
+test('a client cannot rewrite a proposal: args, tool and token are refused', async () => {
+  await insertProposal();
+
+  for (const sql of [
+    `update public.tool_pending_actions set args = '{"invoice_id":"other"}'::jsonb`,
+    `update public.tool_pending_actions set tool = 'send_invoice'`,
+    `update public.tool_pending_actions set token_hash = '${'b'.repeat(64)}'`,
+    `update public.tool_pending_actions set expires_at = now() + interval '10 years'`,
+  ]) {
+    await assert.rejects(
+      db.as(OWNER, (q) => q.query(sql)),
+      /permission denied|row-level security/i,
+      sql,
+    );
+  }
+});
+
+test('the executed_at latch is the one column a client may write', async () => {
+  const latched = await db.as(OWNER, (q) =>
+    q.query<{ executed_at: Date | null }>(
+      'update public.tool_pending_actions set executed_at = now() returning executed_at',
+    ),
+  );
+  assert.ok(latched.rows[0].executed_at, 'the latch landed');
+});
+
+test("another owner can neither see nor latch the proposal", async () => {
+  const seen = await db.as(OTHER, (q) =>
+    q.query('select id from public.tool_pending_actions'),
+  );
+  assert.equal(seen.rows.length, 0);
+
+  const latched = await db.as(OTHER, (q) =>
+    q.query('update public.tool_pending_actions set executed_at = now() returning id'),
+  );
+  assert.equal(latched.rows.length, 0, 'the other owner latched nothing');
+});

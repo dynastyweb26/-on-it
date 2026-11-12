@@ -55,7 +55,10 @@ alter table public.tool_action_commits enable row level security;
 
 revoke all on public.tool_pending_actions from anon, authenticated;
 revoke all on public.tool_action_commits from anon, authenticated;
-grant select, insert, update on public.tool_pending_actions to authenticated;
+grant select, insert on public.tool_pending_actions to authenticated;
+-- Only the one-way latch is writable: a proposal's tool, args, token_hash and
+-- expires_at are fixed at insert. The UPDATE policy below scopes the row.
+grant update (executed_at) on public.tool_pending_actions to authenticated;
 grant select, insert on public.tool_action_commits to authenticated;
 
 drop policy if exists "own pending actions" on public.tool_pending_actions;
@@ -68,8 +71,9 @@ create policy "propose own pending actions" on public.tool_pending_actions
   for insert to authenticated
   with check (auth.uid() = user_id);
 
--- Only the executed_at latch is ever writable by a browser session, and only on
--- the caller's own row. A proposal's tool/args/token cannot be edited.
+-- Only the executed_at latch is ever writable by a browser session (column
+-- grant above), and only on the caller's own row. tool, args, token_hash and
+-- expires_at cannot be edited after insert.
 drop policy if exists "confirm own pending actions" on public.tool_pending_actions;
 create policy "confirm own pending actions" on public.tool_pending_actions
   for update to authenticated
