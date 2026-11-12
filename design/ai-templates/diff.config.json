@@ -72,7 +72,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=loading",
@@ -103,7 +110,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=loading",
@@ -134,7 +148,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=empty",
@@ -165,7 +186,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=empty",
@@ -196,7 +224,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=error",
@@ -227,7 +262,14 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=error",
@@ -320,7 +362,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=loading",
@@ -351,7 +400,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=loading",
@@ -382,7 +438,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=empty",
@@ -413,7 +476,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=empty",
@@ -444,7 +514,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=error",
@@ -475,7 +552,14 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=error",
@@ -1808,7 +1892,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=requested",
@@ -1839,7 +1930,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=requested",
@@ -1870,7 +1968,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=error",
@@ -1901,7 +2006,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=error",
@@ -1932,7 +2044,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=loading",
@@ -1963,7 +2082,14 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=loading",
@@ -2056,7 +2182,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=loading",
@@ -2087,7 +2220,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=loading",
@@ -2118,7 +2258,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=empty",
@@ -2149,7 +2296,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=empty",
@@ -2180,7 +2334,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=error",
@@ -2211,7 +2372,14 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=error",
