@@ -67,6 +67,65 @@
       "signedIn": false,
       "fixture": {},
       "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "expense-by-vendor",
+      "request": "show me the Shell expense",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": true, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-by-category",
+      "request": "find the gas expense from November 6",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": true, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-missing",
+      "request": "show me the paint expense",
+      "fixture": { "expenses": [] },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-not-a-list",
+      "request": "show me all my expenses",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-signed-out",
+      "request": "show me the Shell expense",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
     }
   ]
 }
