@@ -1,0 +1,57 @@
+// ═══ AI chat templates · actions out ═══
+//
+// The design files' callbacks, typed. Props carry data; these are the taps the
+// component reports back. Kept apart from ./props so a server response can never
+// pretend to carry a function.
+import type { BreakdownProps, RankedListProps, NavLinkProps } from './props';
+
+/** The six stored reasons (design chips; ./reasons maps the labels). */
+export type FeedbackReason =
+  | 'wrong_number'
+  | 'wrong_record'
+  | 'didnt_understand'
+  | 'couldnt_do_it'
+  | 'too_slow'
+  | 'other';
+
+export type RankedListCallbacks = {
+  onRowTap?: (row: RankedListProps['rows'][number], index: number) => void;
+  onShowAll?: () => void;
+};
+
+export type NavLinkCallbacks = {
+  onOpen?: (item: NavLinkProps['items'][number], index: number) => void;
+};
+
+export type BreakdownCallbacks = {
+  onRowTap?: (row: BreakdownProps['rows'][number], index: number) => void;
+};
+
+export type CantDoCallbacks = {
+  onAlt?: (label: string) => void;
+  onRequest?: () => void;
+};
+
+export type FeedbackThumbsCallbacks = {
+  onVote?: (vote: 'up' | 'down' | null, reasons?: FeedbackReason[], note?: string) => void;
+};
+
+export type FeedbackCheckinCallbacks = {
+  onDismiss?: () => void;
+  onPick?: (choice: 'Not great' | "It's okay" | 'Love it') => void;
+};
+
+export type DraftMessageCallbacks = {
+  onChannel?: (channel: 'Text' | 'Email') => void;
+  onBody?: (body: string) => void;
+  onPrimary?: () => void;
+  onCancel?: () => void;
+  onUndo?: () => void;
+  onEdit?: () => void;
+};
+
+export type ConfirmBatchCallbacks = {
+  onPrimary?: () => void;
+  onRemove?: (index: number) => void;
+  onUndo?: () => void;
+};

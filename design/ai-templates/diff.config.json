@@ -1,0 +1,2796 @@
+{
+  "tolerancePx": 8,
+  "_note": "Every state from every design file, at 390 and 1280. The app side is the /dev/ai-templates fixtures page (not in production), which must render one card per case with data-template and data-state. Design files render their default state; a non-default case needs the matching design state before its pair can gate.",
+  "cases": [
+    {
+      "name": "list.ranked-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-empty-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-empty-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "list.ranked-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/RankedList.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=list.ranked&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "list.ranked error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-empty-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-empty-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "stat.tiles-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/StatTiles.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=stat.tiles&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "stat.tiles error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-empty-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-empty-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.trend-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/TrendChart.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.trend&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.trend error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-empty-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-empty-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "chart.breakdown-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Breakdown.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=chart.breakdown&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "chart.breakdown error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-draft-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=draft",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message draft",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-draft-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=draft",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message draft",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-editing-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=editing",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message editing",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-editing-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=editing",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message editing",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-sent-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=sent",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message sent",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-sent-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=sent",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message sent",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-nocontact-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=nocontact",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message nocontact",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-nocontact-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=nocontact",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message nocontact",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-cancelled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=cancelled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message cancelled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-cancelled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=cancelled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message cancelled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-pending-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=pending",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch pending",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-pending-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=pending",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch pending",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-confirming-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch confirming",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-confirming-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch confirming",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-done-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=done",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch done",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-done-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=done",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch done",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-partial-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch partial",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-partial-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch partial",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "confirm.batch-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/BatchConfirm.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=confirm.batch&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "confirm.batch loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-requested-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=requested",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do requested",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-requested-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=requested",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do requested",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "cant.do-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CantDo.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=cant.do&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "cant.do loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-filled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-filled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=filled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link filled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-loading-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-loading-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=loading",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link loading",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-empty-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-empty-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=empty",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link empty",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "nav.link-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/NavLink.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=nav.link&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "nav.link error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-idle-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=idle",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs idle",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-idle-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=idle",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs idle",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-up-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=up",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs up",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-up-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=up",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs up",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-down-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=down",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs down",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-down-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=down",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs down",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-open-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=open",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs open",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-open-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=open",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs open",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-openFilled-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=openFilled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs openFilled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-openFilled-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=openFilled",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs openFilled",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-error-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.thumbs-error-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/Feedback.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.thumbs&state=error",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.thumbs error",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-open-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=open",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin open",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-open-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=open",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin open",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-picked-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=picked",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin picked",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-picked-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=picked",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin picked",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-dismissed-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=dismissed",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin dismissed",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "feedback.checkin-dismissed-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/CheckIn.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=feedback.checkin&state=dismissed",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "feedback.checkin dismissed",
+          "design": "x-dc > div",
+          "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    }
+  ]
+}

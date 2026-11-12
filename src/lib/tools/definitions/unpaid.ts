@@ -139,7 +139,9 @@ export const unpaidTool = defineTool({
   output: UnpaidOutput,
   type: 'read',
   risk: 'low',
-  defaultTemplate: { id: 'list.ranked', props: UnpaidCardProps },
+      defaultTemplate: { id: 'list.ranked', props: UnpaidCardProps },
+    // "Show all N" opens Invoices, which already has the unpaid filter.
+    destination: { screen: 'Invoices · unpaid', path: '/invoices?filter=unpaid' },
   fallback: (result) => result.sentence,
   modelPayload: (result) => ({
     total_count: result.totalCount,
