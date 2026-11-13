@@ -55,6 +55,11 @@ name. Do not invent other ids.
 - Motion exists only where the file has it: the `onitPop` check on Sent, All saved and
   Requested, the `onitSpin` spinner while saving or sending, and the 150ms opacity fade-in
   of the thumbs. Respect reduced motion exactly as the files do.
+- Owner-approved addition (Nov 13 2026): a template card enters with the alive layer's
+  existing `fadeUp` (design/alive-layer/On_It_Alive_Layer.dc.html: translateY 6px to 0,
+  opacity 0 to 1, .3s ease-out), starting once the reply text above it has finished.
+  Reduced motion and restored chats show the card with no motion. No other entrance
+  motion is invented.
 - Material Symbols Outlined only, through the app's subset font. Add any missing glyph to
   the subset; do not swap icons. No emojis. No dark mode.
 - Never edit the chat header, composer or tab bar for this work.
