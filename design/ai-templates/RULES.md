@@ -94,6 +94,12 @@ name. Do not invent other ids.
 3. Thumbs up fills the icon and does nothing else. Thumbs down fills the icon and opens the
    follow-up. Close, Skip and Send all keep the thumbs-down. The user can change the vote
    while the reply is still the latest; the log keeps the final vote.
+   - Exception, owner approved Nov 13 2026, not in the design file: when a vote fails to
+     save, the vote un-fills and the cause shows under the thumbs in the same error-strip
+     style the follow-up uses ("You're signed out. Sign in, then try again." for 401,
+     "Slow down a moment, then try again." for 429, "Could not save." otherwise). The
+     follow-up's own error line keeps its designed copy, "Didn't send. Your picks are kept."
+     No other state may be added this way.
 4. Check-in card: at most once every 30 days, never in the middle of a task.
 5. `list.ranked` shows at most 5 rows. "Show all N" opens the matching app screen; each tool
    that uses the template declares that destination.
