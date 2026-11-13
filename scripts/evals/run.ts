@@ -15,8 +15,8 @@
 // Usage:
 //   ANTHROPIC_API_KEY=… node --import ./scripts/test-register.mjs scripts/evals/run.ts
 //   node --import ./scripts/test-register.mjs scripts/evals/run.ts --file evals/unpaid.json
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { REGISTRY } from '../../src/lib/tools/registry';
@@ -38,6 +38,8 @@ type EvalCase = {
   expect: {
     tools: string[];
     templateId?: string | null;
+    /** Other tool sequences that also satisfy this case, each with its template. */
+    alternatives?: Array<{ tools: string[]; templateId?: string | null }>;
     writes?: number;
     refused?: boolean;
     args?: Record<string, Record<string, unknown>>;
@@ -50,6 +52,34 @@ type Graded = Result & { gatePass: boolean };
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const PASS_RATE = 0.9;
 const BLOCKING_TAGS = new Set(['money', 'send']);
+
+/** Every evals/*.json, sorted so the run and its report are stable. */
+function evalFiles(): string[] {
+  const dir = resolve('evals');
+  const files = readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .sort()
+    .map((name) => join(dir, name));
+  if (files.length === 0) throw new Error('no evals/*.json files');
+  return files;
+}
+
+/** The overall gate: 90% pass rate AND zero money/send failures. */
+export function summarizeResults(results: readonly Pick<Graded, 'gatePass' | 'tags' | 'id'>[]) {
+  const total = results.length;
+  const passed = results.filter((result) => result.gatePass).length;
+  const rate = total === 0 ? 0 : passed / total;
+  const blocking = results.filter(
+    (result) => !result.gatePass && result.tags.some((tag) => BLOCKING_TAGS.has(tag)),
+  );
+  return {
+    total,
+    passed,
+    rate,
+    blocking,
+    ok: total > 0 && rate >= PASS_RATE && blocking.length === 0,
+  };
+}
 
 function load(file: string): EvalCase[] {
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as { cases: EvalCase[] };
@@ -82,6 +112,16 @@ export function applyExpectedFail(testCase: EvalCase, result: Result): Graded {
     };
   }
   return { ...result, gatePass: true, reasons: result.reasons };
+}
+
+/** The first expected tool set the actual sequence matches, if any. */
+export function matchingToolSet(
+  expect: Pick<EvalCase['expect'], 'tools' | 'templateId' | 'alternatives'>,
+  called: readonly string[],
+): { tools: string[]; templateId?: string | null } | undefined {
+  return [expect, ...(expect.alternatives ?? [])].find(
+    (candidate) => JSON.stringify(called) === JSON.stringify(candidate.tools),
+  );
 }
 
 function realCall(apiKey: string): ModelCall {
@@ -125,8 +165,12 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
   });
 
   const called = result.toolRuns.filter((run) => run.status === 'ok').map((run) => run.name);
-  if (JSON.stringify(called) !== JSON.stringify(expect.tools)) {
-    reasons.push(`tools ${JSON.stringify(called)} != expected ${JSON.stringify(expect.tools)}`);
+  const matchedExpect = matchingToolSet(expect, called);
+  if (!matchedExpect) {
+    const expected = [expect, ...(expect.alternatives ?? [])].map((candidate) =>
+      JSON.stringify(candidate.tools),
+    );
+    reasons.push(`tools ${JSON.stringify(called)} != expected ${expected.join(' or ')}`);
   }
 
   for (const run of result.toolRuns) {
@@ -140,8 +184,11 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
     .filter((run) => run.status === 'ok')
     .map((run) => REGISTRY.find(run.name)?.defaultTemplate.id ?? null)
     .find((id) => id != null) ?? null;
-  if ((expect.templateId ?? null) !== templateId) {
-    reasons.push(`template ${templateId} != expected ${expect.templateId ?? null}`);
+  if (matchedExpect) {
+    const expectedTemplateId = matchedExpect.templateId ?? null;
+    if (expectedTemplateId !== templateId) {
+      reasons.push(`template ${templateId} != expected ${expectedTemplateId}`);
+    }
   }
 
   const writes = db.attempts;
@@ -160,11 +207,15 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
 
 async function main(): Promise<number> {
   const fileArg = process.argv.indexOf('--file');
-  const file = resolve(fileArg >= 0 ? process.argv[fileArg + 1] : 'evals/unpaid.json');
-
-  let cases: EvalCase[];
+  let files: string[];
   try {
-    cases = load(file);
+    if (fileArg >= 0) {
+      const requested = process.argv[fileArg + 1];
+      if (!requested) throw new Error('--file needs a path');
+      files = [resolve(requested)];
+    } else {
+      files = evalFiles();
+    }
   } catch (e) {
     console.error(`[evals] ${(e as Error).message}`);
     return 1;
@@ -177,28 +228,47 @@ async function main(): Promise<number> {
   }
 
   const call = realCall(apiKey);
-  const results: Graded[] = [];
-  for (const testCase of cases) results.push(applyExpectedFail(testCase, await runCase(testCase, call)));
+  const all: Graded[] = [];
+  for (const file of files) {
+    let cases: EvalCase[];
+    try {
+      cases = load(file);
+    } catch (e) {
+      console.error(`[evals] ${(e as Error).message}`);
+      return 1;
+    }
 
-  for (const result of results) {
-    const label = result.gatePass ? 'PASS' : 'FAIL';
-    const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
-    console.log(`${label}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
-    for (const reason of result.reasons) console.log(`      ${reason}`);
+    const results: Graded[] = [];
+    for (const testCase of cases) results.push(applyExpectedFail(testCase, await runCase(testCase, call)));
+    all.push(...results);
+
+    const label = relative(process.cwd(), file);
+    console.log(`\n[evals] ${label}`);
+    for (const result of results) {
+      const state = result.gatePass ? 'PASS' : 'FAIL';
+      const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
+      console.log(`${state}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
+      for (const reason of result.reasons) console.log(`      ${reason}`);
+    }
+    const summary = summarizeResults(results);
+    console.log(
+      `[evals] ${label}: ${summary.passed}/${summary.total} passed (${(summary.rate * 100).toFixed(0)}%)`,
+    );
   }
 
-  const passed = results.filter((result) => result.gatePass).length;
-  const rate = passed / results.length;
-  const blockingFailures = results.filter(
-    (result) => !result.gatePass && result.tags.some((tag) => BLOCKING_TAGS.has(tag)),
+  const overall = summarizeResults(all);
+  console.log(
+    `\n[evals] overall: ${overall.passed}/${overall.total} passed (${(overall.rate * 100).toFixed(0)}%)`,
   );
-
-  console.log(`\n[evals] ${passed}/${results.length} passed (${(rate * 100).toFixed(0)}%)`);
-  if (rate < PASS_RATE) console.error(`[evals] below the ${(PASS_RATE * 100).toFixed(0)}% gate`);
-  if (blockingFailures.length) {
-    console.error(`[evals] ${blockingFailures.length} money/send case(s) failed: ${blockingFailures.map((r) => r.id).join(', ')}`);
+  if (overall.rate < PASS_RATE) {
+    console.error(`[evals] below the ${(PASS_RATE * 100).toFixed(0)}% gate`);
   }
-  return rate >= PASS_RATE && blockingFailures.length === 0 ? 0 : 1;
+  if (overall.blocking.length) {
+    console.error(
+      `[evals] ${overall.blocking.length} money/send case(s) failed: ${overall.blocking.map((r) => r.id).join(', ')}`,
+    );
+  }
+  return overall.ok ? 0 : 1;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
