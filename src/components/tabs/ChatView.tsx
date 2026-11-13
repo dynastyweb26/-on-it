@@ -2964,6 +2964,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return {
       onRowTap: open, onShowAll: open, onOpen: open,
       onRetry: asked ? () => { void send(asked, 'typed', m.id); } : undefined,
+      // cant.do: an alternative starts the message (never sends); Request opens the
+      // existing Tell us about On It screen, the feature-request flow.
+      onAlt: fillComposer,
+      onRequest: () => router.push('/settings/help/feedback?src=chat_prompt&from=/chat'),
     };
   }
 
