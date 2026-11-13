@@ -5,10 +5,30 @@ import { ASK_COPY, askQuestion } from './ask-client';
 const fake = (status: number, body: unknown = {}) =>
   (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
-test('200 returns the reply', async () => {
-  assert.deepEqual(await askQuestion('who owes me', fake(200, { reply: 'Two are unpaid.' })), {
+test('200 returns the reply and the logged message id', async () => {
+  assert.deepEqual(
+    await askQuestion('who owes me', fake(200, {
+      reply: 'Two are unpaid.',
+      messageId: '11111111-1111-4111-8111-111111111111',
+    })),
+    {
+      kind: 'ok',
+      reply: 'Two are unpaid.',
+      messageId: '11111111-1111-4111-8111-111111111111',
+    },
+  );
+});
+
+test('a reply without a message id is still an answer', async () => {
+  assert.deepEqual(await askQuestion('q', fake(200, { reply: 'An answer.' })), {
     kind: 'ok',
-    reply: 'Two are unpaid.',
+    reply: 'An answer.',
+    messageId: null,
+  });
+  assert.deepEqual(await askQuestion('q', fake(200, { reply: 'An answer.', messageId: 42 })), {
+    kind: 'ok',
+    reply: 'An answer.',
+    messageId: null,
   });
 });
 
