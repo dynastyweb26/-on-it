@@ -4,7 +4,7 @@ import { fixtureDb } from '../fixture-db';
 import { booksTotals } from '@/lib/books-totals';
 import { booksDay, inBooksPeriod } from '@/lib/books-period';
 import { localYmd, weekBounds } from '@/lib/recap/dates';
-import { forgivingPeriod } from '../read';
+import { forgivingMetric, forgivingPeriod } from '../read';
 import { resolveReportRange, runReportTool } from './run_report';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
@@ -365,3 +365,49 @@ test('from and to with no period word mean custom, not this month', async () => 
   assert.equal(figured(out).amount, 250);
 });
 
+test('an unknown metric word returns no figures and names the word', async () => {
+  const out = await run(baseFixture(), { metric: 'banana', ...OCT });
+  assert.equal(out.match, 'none');
+  assert.equal(out.value, null);
+  assert.equal(out.problem?.kind, 'unknown_metric');
+  assert.equal(out.problem?.word, 'banana');
+  assert.deepEqual(out.ignored, ['banana']);
+  assert.equal(runReportTool.templateFor?.(out as never), null);
+  assert.match(runReportTool.fallback(out as never), /banana/);
+});
+
+test('metric words map to the metric they name', async () => {
+  assert.deepEqual(forgivingMetric('income'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('revenue'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('Made'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('earned'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('expenses'), { metric: 'spent', ignored: [] });
+  assert.deepEqual(forgivingMetric('spending'), { metric: 'spent', ignored: [] });
+  assert.deepEqual(forgivingMetric('profit'), { metric: 'net', ignored: [] });
+  assert.deepEqual(forgivingMetric('kept'), { metric: 'net', ignored: [] });
+  assert.deepEqual(forgivingMetric('owed'), { metric: 'outstanding', ignored: [] });
+  assert.deepEqual(forgivingMetric('unpaid'), { metric: 'outstanding', ignored: [] });
+  assert.deepEqual(forgivingMetric('collected'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('banana'), { ignored: ['banana'] });
+  assert.deepEqual(forgivingMetric(undefined), { ignored: [] });
+});
+
+test('an alias reports the same figures as the metric it names', async () => {
+  const spending = await run(baseFixture(), { metric: 'spending', ...OCT });
+  assert.equal(spending.metric, 'spent');
+  assert.deepEqual(spending.ignored, []);
+  assert.equal(figured(spending).amount, -72.1);
+
+  const income = await run(baseFixture(), { metric: 'income', ...OCT });
+  assert.equal(income.metric, 'collected');
+  assert.equal(figured(income).amount, 250);
+
+  const profit = await run(baseFixture(), { metric: 'profit', ...OCT });
+  const net = await run(baseFixture(), { metric: 'net', ...OCT });
+  assert.equal(profit.metric, 'net');
+  assert.equal(figured(profit).amount, figured(net).amount);
+
+  const owed = await run(baseFixture(), { metric: 'unpaid' });
+  assert.equal(owed.metric, 'outstanding');
+  assert.equal(figured(owed).amount, 400);
+});

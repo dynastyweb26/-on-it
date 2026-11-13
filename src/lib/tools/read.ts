@@ -141,6 +141,52 @@ export function forgivingPeriod(value: string | null | undefined): {
   return { ignored: [raw] };
 }
 
+/** The metrics run_report understands: one stored key per metric. */
+export const REPORT_METRICS = ['collected', 'spent', 'net', 'invoiced', 'outstanding'] as const;
+export type ReportMetric = (typeof REPORT_METRICS)[number];
+
+/**
+ * The words a person uses for a metric, normalised with normName() so case and
+ * punctuation never decide it: "income", "revenue", "made" and "earned" are
+ * collected money, "owed" and "unpaid" are outstanding.
+ */
+const METRIC_ALIASES: Record<string, ReportMetric> = {
+  income: 'collected',
+  revenue: 'collected',
+  made: 'collected',
+  earned: 'collected',
+  expense: 'spent',
+  expenses: 'spent',
+  spending: 'spent',
+  spend: 'spent',
+  profit: 'net',
+  kept: 'net',
+  keep: 'net',
+  owed: 'outstanding',
+  unpaid: 'outstanding',
+  due: 'outstanding',
+};
+
+/**
+ * One metric word → the stored metric, or nothing. Forgiving by rule, the same
+ * way forgivingCategory is: an unknown word is named in `ignored` and resolves
+ * to NO metric, so the caller can refuse to report rather than pick one.
+ */
+export function forgivingMetric(value: string | null | undefined): {
+  metric?: ReportMetric;
+  ignored: string[];
+} {
+  const raw = value?.trim();
+  if (!raw) return { ignored: [] };
+  const key = normName(raw);
+  if ((REPORT_METRICS as readonly string[]).includes(key)) {
+    return { metric: key as ReportMetric, ignored: [] };
+  }
+  const alias = METRIC_ALIASES[key];
+  if (alias) return { metric: alias, ignored: [] };
+  return { ignored: [raw] };
+}
+
 export type Filters = {
   status?: string[];
   client?: string;

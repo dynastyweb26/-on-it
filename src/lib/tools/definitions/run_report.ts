@@ -40,22 +40,25 @@ import { roundCurrency } from '@/lib/financials';
 import { MoneySchema, moneyField, moneyIn, moneyOut, type MoneyField } from '../money';
 import {
   READ_CAP,
+  REPORT_METRICS,
   forgivingCategory,
+  forgivingMetric,
   forgivingPeriod,
   matchOf,
   moneyText,
   normName,
   num,
   toIso,
+  type ReportMetric,
   type ReportPeriod,
 } from '../read';
 
 export const RUN_REPORT = 'run_report';
 
-const METRICS = ['collected', 'spent', 'net', 'invoiced', 'outstanding'] as const;
+const METRICS = REPORT_METRICS;
 const GROUPS = ['none', 'week', 'month', 'client', 'category'] as const;
 
-type Metric = (typeof METRICS)[number];
+type Metric = ReportMetric;
 type GroupBy = (typeof GROUPS)[number];
 type PeriodName = ReportPeriod;
 
@@ -594,11 +597,12 @@ export const runReportTool = defineTool({
   handler: async (ctx, args) => {
     const ignored: string[] = [];
 
-    const rawMetric = args.metric?.trim().toLowerCase();
-    const metric: Metric = (METRICS as readonly string[]).includes(rawMetric ?? '')
-      ? rawMetric as Metric
-      : 'collected';
-    if (rawMetric && metric !== rawMetric) ignored.push(args.metric as string);
+    const rawMetric = args.metric?.trim();
+    const metricResult = forgivingMetric(args.metric);
+    ignored.push(...metricResult.ignored);
+    // No metric word keeps the long-standing default; only a word we do not
+    // understand refuses to report.
+    const metric: Metric = metricResult.metric ?? 'collected';
 
     const rawGroup = args.group_by?.trim().toLowerCase();
     let group: GroupBy = (GROUPS as readonly string[]).includes(rawGroup ?? '')
@@ -641,15 +645,18 @@ export const runReportTool = defineTool({
       : { range: null, ignored: [] as string[] };
     ignored.push(...rangeIgnored);
 
-    if (!period || !range) {
+    const unknownMetric = Boolean(rawMetric) && !metricResult.metric;
+    if (unknownMetric || !period || !range) {
       // A word we do not know never borrows another metric's or period's
       // numbers: no figures are computed at all.
       const inputProblem: {
         kind: 'unknown_period' | 'unknown_metric' | 'custom_needs_dates';
         word: string;
-      } = !period
-        ? { kind: 'unknown_period', word: rawPeriod ?? '' }
-        : { kind: 'custom_needs_dates', word: rangeIgnored[0] ?? rawPeriod ?? '' };
+      } = unknownMetric
+        ? { kind: 'unknown_metric', word: rawMetric ?? '' }
+        : !period
+          ? { kind: 'unknown_period', word: rawPeriod ?? '' }
+          : { kind: 'custom_needs_dates', word: rangeIgnored[0] ?? rawPeriod ?? '' };
       const title = 'Not understood';
       return {
         match: 'none' as const,
