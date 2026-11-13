@@ -54,6 +54,7 @@ export const RUN_REPORT = 'run_report';
 
 const METRICS = ['collected', 'spent', 'net', 'invoiced', 'outstanding'] as const;
 const GROUPS = ['none', 'week', 'month', 'client', 'category'] as const;
+
 type Metric = (typeof METRICS)[number];
 type GroupBy = (typeof GROUPS)[number];
 type PeriodName = ReportPeriod;
@@ -94,8 +95,17 @@ export const RunReportOutput = z.object({
     end: z.string(),
     timezone: z.string(),
   }),
-  /** Set when the period was not understood: then every figure below is null. */
-  periodProblem: z.enum(['unknown_period', 'custom_needs_dates']).optional(),
+  /**
+   * Set when an input word was given and not understood: every figure below is
+   * null then. One shape for a period, a metric and a custom range.
+   */
+  problem: z
+    .object({
+      kind: z.enum(['unknown_period', 'unknown_metric', 'custom_needs_dates']),
+      /** The value as the owner sent it (empty when none was given). */
+      word: z.string(),
+    })
+    .optional(),
   value: MoneySchema.nullable(),
   comparison: z
     .object({
@@ -596,9 +606,15 @@ export const runReportTool = defineTool({
       : 'none';
     if (rawGroup && group !== rawGroup) ignored.push(args.group_by as string);
 
-    const periodWord = forgivingPeriod(args.period);
-    const period = periodWord.period;
-    ignored.push(...periodWord.ignored);
+    const rawPeriod = args.period?.trim();
+    const periodResult = forgivingPeriod(args.period);
+    ignored.push(...periodResult.ignored);
+    // No period word at all keeps the old meaning: this month, or a custom
+    // range when from/to were given. Only a word we do not know refuses.
+    const period: PeriodName | undefined = periodResult.period
+      ?? (rawPeriod
+        ? undefined
+        : (args.from?.trim() || args.to?.trim()) ? 'custom' : 'this_month');
 
     const rawSort = args.sort?.trim().toLowerCase();
     const sort = rawSort === 'slowest' ? 'slowest' : 'amount';
@@ -625,12 +641,16 @@ export const runReportTool = defineTool({
       : { range: null, ignored: [] as string[] };
     ignored.push(...rangeIgnored);
 
-    if (!range) {
-      // A period word we do not know (or a custom period without real dates)
-      // never borrows another period's numbers: no figures are computed at all.
-      const problem: 'unknown_period' | 'custom_needs_dates' =
-        period ? 'custom_needs_dates' : 'unknown_period';
-      const title = 'Period not understood';
+    if (!period || !range) {
+      // A word we do not know never borrows another metric's or period's
+      // numbers: no figures are computed at all.
+      const inputProblem: {
+        kind: 'unknown_period' | 'unknown_metric' | 'custom_needs_dates';
+        word: string;
+      } = !period
+        ? { kind: 'unknown_period', word: rawPeriod ?? '' }
+        : { kind: 'custom_needs_dates', word: rangeIgnored[0] ?? rawPeriod ?? '' };
+      const title = 'Not understood';
       return {
         match: 'none' as const,
         count: 0,
@@ -640,7 +660,7 @@ export const runReportTool = defineTool({
         metric,
         groupBy: group,
         period: { id: 'unknown', label: title, start: '', end: '', timezone: tz },
-        periodProblem: problem,
+        problem: inputProblem,
         value: null,
         comparison: null,
         tiles: null,
@@ -916,23 +936,27 @@ export const runReportTool = defineTool({
   },
   // A period this tool did not understand reaches the model with no money in it
   // at all, so it has nothing to quote for a period the owner never named.
-  modelPayload: (result) => result.periodProblem
+  modelPayload: (result) => result.problem
     ? {
       match: result.match,
       count: result.count,
       ignored: result.ignored,
-      periodProblem: result.periodProblem,
-      note: 'No figures were computed: say the period was not understood.',
+      problem: result.problem,
+      note: 'No figures were computed: say the word was not understood.',
     }
     : result,
   fallback: (result) => {
-    if (result.periodProblem === 'unknown_period') {
-      const word = result.ignored[0];
-      return word
-        ? `No figures: I did not understand the period "${word}".`
+    if (result.problem?.kind === 'unknown_period') {
+      return result.problem.word
+        ? `No figures: I did not understand the period "${result.problem.word}".`
         : 'No figures: I did not understand that period.';
     }
-    if (result.periodProblem === 'custom_needs_dates') {
+    if (result.problem?.kind === 'unknown_metric') {
+      return result.problem.word
+        ? `No figures: I did not understand the metric "${result.problem.word}".`
+        : 'No figures: I did not understand that metric.';
+    }
+    if (result.problem?.kind === 'custom_needs_dates') {
       return 'No figures: a custom period needs a real from and to date.';
     }
     if (!result.value) return `Nothing logged for ${result.period.label}.`;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fixtureDb } from '../fixture-db';
 import { booksTotals } from '@/lib/books-totals';
 import { booksDay, inBooksPeriod } from '@/lib/books-period';
-import { weekBounds } from '@/lib/recap/dates';
+import { localYmd, weekBounds } from '@/lib/recap/dates';
 import { forgivingPeriod } from '../read';
 import { resolveReportRange, runReportTool } from './run_report';
 
@@ -86,7 +86,7 @@ const run = (rows: Rows, args: unknown) =>
     breakdown: { state: string; rows: Array<{ name: string }> };
     outstandingAsOf: string;
     ignored: string[];
-    periodProblem?: string;
+    problem?: { kind: string; word: string };
   }>;
 
 /** The figures, proven present: every case below asks for a period we know. */
@@ -315,7 +315,8 @@ test('an unknown period word returns no figures and names the word', async () =>
   const out = await run(baseFixture(), { metric: 'collected', period: 'banana' });
   assert.equal(out.match, 'none');
   assert.equal(out.value, null);
-  assert.equal(out.periodProblem, 'unknown_period');
+  assert.equal(out.problem?.kind, 'unknown_period');
+  assert.equal(out.problem?.word, 'banana');
   assert.deepEqual(out.ignored, ['banana']);
   assert.equal(runReportTool.templateFor?.(out as never), null);
   assert.match(runReportTool.fallback(out as never), /banana/);
@@ -324,7 +325,43 @@ test('an unknown period word returns no figures and names the word', async () =>
 test('a custom period without real dates returns no figures instead of borrowing this month', async () => {
   const out = await run(baseFixture(), { metric: 'collected', period: 'custom', from: '10/01/2026' });
   assert.equal(out.value, null);
-  assert.equal(out.periodProblem, 'custom_needs_dates');
+  assert.equal(out.problem?.kind, 'custom_needs_dates');
   assert.deepEqual(out.ignored, ['10/01/2026']);
   assert.equal(runReportTool.templateFor?.(out as never), null);
 });
+
+test('no period given means this month, with this month figures', async () => {
+  const today = localYmd('UTC', new Date());
+  const rows = baseFixture();
+  rows.invoice_payments = [
+    payment({ id: 'p-now', invoice_id: 'inv-1', amount: 75, paid_at: `${today}T12:00:00Z` }),
+  ];
+  const out = await run(rows, { metric: 'collected' });
+  assert.equal(out.period.id, 'this_month');
+  assert.equal(out.period.label, 'This month');
+  assert.equal(out.period.start, `${today.slice(0, 7)}-01`);
+  assert.equal(out.problem, undefined);
+  assert.equal(figured(out).amount, 75);
+});
+
+test('outstanding and slowest still answer with no period given', async () => {
+  const outstanding = await run(baseFixture(), { metric: 'outstanding' });
+  assert.equal(outstanding.period.id, 'this_month');
+  assert.equal(figured(outstanding).amount, 400);
+
+  const slowest = await run(baseFixture(), { sort: 'slowest' });
+  assert.equal(slowest.groupBy, 'client');
+  assert.equal(slowest.problem, undefined);
+  assert.equal(slowest.rows[0]?.name, 'Maria Santos');
+  assert.equal(slowest.rows[0]?.amount, '$400.00');
+});
+
+test('from and to with no period word mean custom, not this month', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', from: '2026-10-01', to: '2026-10-31' });
+  assert.equal(out.period.id, 'custom');
+  assert.equal(out.period.start, '2026-10-01');
+  assert.equal(out.period.end, '2026-10-31');
+  assert.equal(out.problem, undefined);
+  assert.equal(figured(out).amount, 250);
+});
+
