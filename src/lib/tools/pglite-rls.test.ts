@@ -24,10 +24,12 @@ import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 const OWNER_INVOICE = 'aaaaaaaa-0000-4000-8000-000000000001';
 const OTHER_INVOICE = 'bbbbbbbb-0000-4000-8000-000000000002';
 const OTHER_CLIENT = 'Other Owner Ltd';
+const OTHER_EXPENSE = 'eeeeeeee-0000-4000-8000-000000000005';
+const OTHER_PAYMENT = 'ffffffff-0000-4000-8000-000000000006';
 
 /** Tables the tools under test read, and the rows seeded for both owners. */
-const SEEDED_TABLES = new Set(['invoices', 'clients']);
-const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT];
+const SEEDED_TABLES = new Set(['invoices', 'clients', 'expenses', 'invoice_payments', 'other_income', 'profiles', 'products']);
+const FOREIGN_MARKERS = [OTHER_INVOICE, OTHER_CLIENT, OTHER_EXPENSE, OTHER_PAYMENT];
 
 let db: TestDb;
 
@@ -53,10 +55,42 @@ async function seedInvoices(): Promise<void> {
   );
 }
 
+async function seedExpenses(): Promise<void> {
+  await db.seed(
+    `insert into public.expenses (id, user_id, description, vendor, amount, category, spent_on)
+     values ($1, $2, 'Fill-up', 'Shell', 52.10, 'fuel', '2026-11-06'),
+            ($3, $4, 'Other fuel', 'Other Owner Ltd', 99.00, 'fuel', '2026-11-06')`,
+    [OWNER_INVOICE, OWNER, OTHER_EXPENSE, OTHER],
+  );
+}
+
+async function seedPayments(): Promise<void> {
+  await db.seed(
+    `insert into public.invoice_payments (id, invoice_id, user_id, amount, method, paid_at)
+     values ($1, $2, $3, 120.00, 'zelle', '2026-11-06T17:00:00Z'),
+            ($4, $5, $6, 999.00, 'cash', '2026-11-06T17:00:00Z')`,
+    [OWNER_INVOICE, OWNER_INVOICE, OWNER, OTHER_PAYMENT, OTHER_INVOICE, OTHER],
+  );
+  await db.seed(
+    `insert into public.other_income (id, user_id, amount, title, client_name, received_on, classification)
+     values ('aaaaaaaa-0000-4000-8000-000000000007', $1, 300.00, 'Side job', null, '2026-11-04', 'other_income'),
+            ('bbbbbbbb-0000-4000-8000-000000000008', $2, 999.00, 'Other Owner Ltd', 'Other Owner Ltd', '2026-11-04', 'customer_payment')`,
+    [OWNER, OTHER],
+  );
+  await db.seed(
+    `insert into public.products (id, user_id, name, unit, unit_price)
+     values ('aaaaaaaa-0000-4000-8000-000000000009', $1, 'Service call', 'job', 85.00),
+            ('bbbbbbbb-0000-4000-8000-000000000010', $2, 'Other Owner Ltd', 'job', 999.00)`,
+    [OWNER, OTHER],
+  );
+}
+
 before(async () => {
   db = await openTestDb();
   await seedClients();
   await seedInvoices();
+  await seedExpenses();
+  await seedPayments();
 });
 
 after(async () => {
@@ -146,22 +180,24 @@ const logRow = (over: Partial<ChatLogRow> = {}): ChatLogRow => ({
 });
 
 test('a turn writes one row listing every tool call it made', async () => {
-  const ok = await logTurn(
+  const id = await logTurn(
     db.chatLog(OWNER),
     logRow({ toolsCalled: ['unpaid_invoices', 'open_record'] }),
   );
-  assert.equal(ok, true);
+  assert.match(id ?? '', /^[0-9a-f-]{36}$/, 'logTurn returns the inserted row id');
 
   const mine = await db.as(OWNER, (q) =>
     q.query<{
+      id: string;
       user_id: string;
       user_text: string;
       reply_text: string | null;
       tools_called: string[];
       template_id: string | null;
-    }>('select user_id, user_text, reply_text, tools_called, template_id from public.chat_messages'),
+    }>('select id, user_id, user_text, reply_text, tools_called, template_id from public.chat_messages'),
   );
   assert.equal(mine.rows.length, 1);
+  assert.equal(mine.rows[0].id, id);
   assert.equal(mine.rows[0].user_id, OWNER);
   assert.equal(mine.rows[0].user_text, 'Who owes me money?');
   assert.equal(mine.rows[0].reply_text, 'Two invoices are unpaid, $120.00 in total.');
@@ -177,7 +213,7 @@ test('a turn writes one row listing every tool call it made', async () => {
 
 test('a log row attributed to another owner is refused, never thrown', async () => {
   const forged = await logTurn(db.chatLog(OWNER), logRow({ userId: OTHER, turn: 2 }));
-  assert.equal(forged, false, 'logTurn reports the failure instead of breaking the turn');
+  assert.equal(forged, null, 'logTurn reports the failure instead of breaking the turn');
 
   const theirs = await db.as(OTHER, (q) =>
     q.query<{ count: number }>('select count(*)::int as count from public.chat_messages'),

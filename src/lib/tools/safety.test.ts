@@ -17,7 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { buildRegistry, defineTool, isPlainText, type ToolDb } from './contract';
+import { buildRegistry, declaredTemplate, declaredTemplateIds, defineTool, isPlainText, type ToolDb } from './contract';
 import { REGISTRY } from './registry';
 import { TEMPLATE_IDS } from './templates';
 import { guardModelMoney } from './money';
@@ -57,6 +57,53 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     phone: null,
     address: null,
   }],
+  expenses: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-expense',
+    user_id: userId,
+    description: userId === OTHER ? 'Other owner fuel' : 'Fill-up',
+    vendor: userId === OTHER ? 'Other Owner Ltd' : 'Shell',
+    amount: 52.1,
+    category: 'fuel',
+    tax_deductible: false,
+    spent_on: '2026-11-06',
+    created_at: '2026-11-06T00:00:00Z',
+    deleted_at: null,
+  }],
+  invoice_payments: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-payment',
+    user_id: userId,
+    invoice_id: userId === OTHER ? OTHER_MARKER : 'owner-invoice',
+    amount: 120,
+    method: 'zelle',
+    paid_at: '2026-11-06T17:00:00Z',
+    created_at: '2026-11-06T17:00:00Z',
+    entry_type: 'payment',
+    stripe_checkout_session_id: null,
+  }],
+  other_income: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-income',
+    user_id: userId,
+    amount: 300,
+    title: userId === OTHER ? 'Other Owner Ltd' : 'Side job',
+    client_name: userId === OTHER ? 'Other Owner Ltd' : null,
+    received_on: '2026-11-04',
+    classification: 'other_income',
+    deposit_id: null,
+    created_at: '2026-11-04T00:00:00Z',
+    deleted_at: null,
+  }],
+  profiles: (userId) => [{ id: userId, timezone: 'America/Chicago' }],
+  products: (userId) => [{
+    id: userId === OTHER ? OTHER_MARKER : 'owner-product',
+    user_id: userId,
+    name: userId === OTHER ? 'Other Owner Ltd' : 'Service call',
+    unit: 'job',
+    unit_price: 85,
+    detail: null,
+    use_count: 1,
+    last_used_at: null,
+    deleted_at: null,
+  }],
 };
 
 const tables = Object.keys(ROWS);
@@ -74,10 +121,9 @@ for (const tool of REGISTRY.list) {
   test(`${tool.name}: the definition and its fixture are valid`, () => {
     assert.ok(tool.input.safeParse(tool.fixture.args).success);
     assert.ok(tool.output.safeParse(tool.fixture.result).success);
-    assert.ok(
-      TEMPLATE_IDS.includes(tool.defaultTemplate.id),
-      `${tool.defaultTemplate.id} is not one of the design templates`,
-    );
+    for (const id of declaredTemplateIds(tool)) {
+      assert.ok(TEMPLATE_IDS.includes(id), `${id} is not one of the design templates`);
+    }
   });
 
   test(`${tool.name}: the plain-text fallback is safe to show on its own`, () => {
@@ -91,9 +137,10 @@ for (const tool of REGISTRY.list) {
     const fixture = tool.output.parse(tool.fixture.result);
     const id = tool.templateFor ? tool.templateFor(fixture) : tool.defaultTemplate.id;
     if (id === null) return; // deliberately plain text for this result
-    const template = id === tool.defaultTemplate.id ? tool.defaultTemplate : tool.alternateTemplate;
+    const template = declaredTemplate(tool, id);
     assert.ok(template && template.id === id, `${tool.name} chose a template it did not declare`);
-    const props = template.props.safeParse(fixture);
+    const data = tool.propsFor ? tool.propsFor(fixture, id) : fixture;
+    const props = template.props.safeParse(data);
     assert.equal(props.success, true, `${template.id} rejects its own result`);
   });
 

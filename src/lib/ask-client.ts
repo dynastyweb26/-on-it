@@ -16,12 +16,10 @@ export type AskExtras = {
   pending?: unknown;
   /** Where the tool's full list lives (in-app path), once the server returns it. */
   destination?: { screen: string; path: string };
-  /** The logged message's id, once the server returns it. */
-  messageId?: string;
 };
 
 export type AskOutcome =
-  | ({ kind: 'ok'; reply: string } & AskExtras)
+  | ({ kind: 'ok'; reply: string; messageId: string | null } & AskExtras)
   | { kind: 'signed-out'; reply: string }
   | { kind: 'rate-limited'; reply: string }
   | { kind: 'off' } // 404: the feature is not on here, so the caller uses parse as today
@@ -60,7 +58,8 @@ export async function askQuestion(
   if (typeof data?.reply !== 'string' || !data.reply.trim()) {
     return { kind: 'error', reply: ASK_COPY.serverError };
   }
-  return { kind: 'ok', reply: data.reply, ...extrasOf(data) };
+  const messageId = typeof data.messageId === 'string' && data.messageId.trim() ? data.messageId : null;
+  return { kind: 'ok', reply: data.reply, messageId, ...extrasOf(data) };
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -74,6 +73,5 @@ function extrasOf(data: Record<string, unknown>): AskExtras {
   if (data.pending != null) out.pending = data.pending;
   const d = data.destination;
   if (isObj(d) && typeof d.screen === 'string' && typeof d.path === 'string' && d.path.startsWith('/') && !d.path.startsWith('//')) out.destination = { screen: d.screen, path: d.path };
-  if (typeof data.messageId === 'string' && data.messageId) out.messageId = data.messageId;
   return out;
 }

@@ -1,0 +1,339 @@
+{
+  "version": 1,
+  "notes": "Phase 2 batch 2 read tools. Graded on tool calls, arguments, template id and writes, never wording.",
+  "cases": [
+    {
+      "id": "expenses-gas-list",
+      "request": "show me my gas expenses",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null },
+          { "id": "e2", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Lunch", "vendor": "Diner", "amount": 18, "category": "food", "tax_deductible": false, "spent_on": "2026-11-05", "created_at": "2026-11-05T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "args": { "list_expenses": { "category": "fuel" } },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-october",
+      "request": "show me my expenses from October 2026",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Paint", "vendor": "Sherwin", "amount": 80, "category": "supplies", "tax_deductible": true, "spent_on": "2026-10-14", "created_at": "2026-10-14T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-over-100",
+      "request": "show me expenses over $100",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Drill", "vendor": "Home Depot", "amount": 149, "category": "tools", "tax_deductible": true, "spent_on": "2026-11-02", "created_at": "2026-11-02T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "args": { "list_expenses": { "min_amount": 100 } },
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-unknown-category",
+      "request": "show me expenses in the banana category",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expenses-signed-out",
+      "request": "show me my expenses",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "expense-by-vendor",
+      "request": "show me the Shell expense",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": true, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-by-category",
+      "request": "find the gas expense from November 6",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": true, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-missing",
+      "request": "show me the paint expense",
+      "fixture": { "expenses": [] },
+      "expect": {
+        "tools": ["get_expense"],
+        "templateId": "nav.link",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-not-a-list",
+      "request": "show me all my expenses",
+      "fixture": {
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "description": "Fill-up", "vendor": "Shell", "amount": 52.1, "category": "fuel", "tax_deductible": false, "spent_on": "2026-11-06", "created_at": "2026-11-06T00:00:00Z", "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["list_expenses"],
+        "templateId": "list.ranked",
+        "writes": 0
+      }
+    },
+    {
+      "id": "expense-signed-out",
+      "request": "show me the Shell expense",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "payments-this-month",
+      "request": "show me the payments I received this month",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [{ "id": "inv-7", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 7, "client_name": "Maria Santos", "deleted_at": null }],
+        "invoice_payments": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-7", "amount": 120, "method": "zelle", "paid_at": "2026-11-06T17:00:00Z", "created_at": "2026-11-06T17:00:00Z", "entry_type": "payment", "stripe_checkout_session_id": null }],
+        "other_income": []
+      },
+      "expect": { "tools": ["list_payments"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "payments-by-client",
+      "request": "what has Maria paid me?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [{ "id": "inv-7", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 7, "client_name": "Maria Santos", "deleted_at": null }],
+        "invoice_payments": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-7", "amount": 120, "method": "zelle", "paid_at": "2026-11-06T17:00:00Z", "created_at": "2026-11-06T17:00:00Z", "entry_type": "payment", "stripe_checkout_session_id": null }],
+        "other_income": []
+      },
+      "expect": { "tools": ["list_payments"], "args": { "list_payments": { "client": "Maria" } }, "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "payments-refund-rows",
+      "request": "show me my refunds",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [{ "id": "inv-8", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 8, "client_name": "Ruth Lawrence", "deleted_at": null }],
+        "invoice_payments": [{ "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-8", "amount": -20, "method": "card", "paid_at": "2026-11-06T17:00:00Z", "created_at": "2026-11-06T17:00:00Z", "entry_type": "refund", "stripe_checkout_session_id": "cs_1" }],
+        "other_income": []
+      },
+      "expect": { "tools": ["list_payments"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "payments-not-tied-to-invoice",
+      "request": "what income came in that was not an invoice?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [],
+        "invoice_payments": [],
+        "other_income": [{ "id": "o1", "user_id": "11111111-1111-1111-1111-111111111111", "amount": 300, "title": "Side job", "client_name": null, "received_on": "2026-11-04", "classification": "other_income", "deposit_id": null, "created_at": "2026-11-04T00:00:00Z", "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_payments"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "payments-signed-out",
+      "request": "show me my payments",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "saved-items-service-call",
+      "request": "what do I charge for a service call?",
+      "fixture": {
+        "products": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Service call", "unit": "job", "unit_price": 85, "detail": "First hour included", "use_count": 4, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-hourly",
+      "request": "what is my hourly rate?",
+      "fixture": {
+        "products": [{ "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Hourly labor", "unit": "hour", "unit_price": 65, "detail": null, "use_count": 12, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-all",
+      "request": "show me my saved items and prices",
+      "fixture": {
+        "products": [{ "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Service call", "unit": "job", "unit_price": 85, "detail": null, "use_count": 0, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-text",
+      "request": "do I have paint saved as an item?",
+      "fixture": {
+        "products": [{ "id": "p3", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Paint", "unit": "each", "unit_price": 45, "detail": null, "use_count": 0, "last_used_at": null, "deleted_at": null }]
+      },
+      "expect": { "tools": ["list_saved_items"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "saved-items-signed-out",
+      "request": "show me my saved items",
+      "signedIn": false,
+      "fixture": {},
+      "expect": { "tools": [], "refused": true, "writes": 0 }
+    },
+    {
+      "id": "report-gas-october",
+      "request": "how much did I spend on gas in October?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [],
+        "invoice_payments": [],
+        "other_income": [],
+        "expenses": [
+          { "id": "e1", "user_id": "11111111-1111-1111-1111-111111111111", "amount": 52.1, "category": "fuel", "spent_on": "2026-10-14", "invoice_id": null, "deleted_at": null },
+          { "id": "e2", "user_id": "11111111-1111-1111-1111-111111111111", "amount": 20, "category": "food", "spent_on": "2026-10-15", "invoice_id": null, "deleted_at": null }
+        ]
+      },
+      "expect": {
+        "tools": ["run_report"],
+        "args": { "run_report": { "metric": "spent", "category": "fuel" } },
+        "templateId": "stat.tiles",
+        "writes": 0
+      }
+    },
+    {
+      "id": "report-no-data-period",
+      "request": "how much did I make in March 2020?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [],
+        "invoice_payments": [],
+        "other_income": [],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "templateId": "stat.tiles", "writes": 0 }
+    },
+    {
+      "id": "report-compare-zero-previous",
+      "request": "am I up from last month?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [],
+        "invoice_payments": [],
+        "other_income": [
+          { "id": "o1", "user_id": "11111111-1111-1111-1111-111111111111", "amount": 300, "title": "Side job", "client_name": null, "received_on": "2026-11-04", "classification": "other_income", "deposit_id": null, "created_at": "2026-11-04T00:00:00Z", "deleted_at": null }
+        ],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "templateId": "stat.tiles", "writes": 0 }
+    },
+    {
+      "id": "report-top-clients",
+      "request": "who are my top clients?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [
+          { "id": "inv-1", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 1000, "amount_paid": 1000, "client_name": "Maria Santos", "created_at": "2026-11-01T12:00:00Z", "first_sent_at": "2026-11-01T12:00:00Z", "sent_at": null, "paid_at": "2026-11-10T12:00:00Z", "deleted_at": null }
+        ],
+        "invoice_payments": [
+          { "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-1", "amount": 1000, "method": "zelle", "paid_at": "2026-11-10T12:00:00Z", "entry_type": "payment" }
+        ],
+        "other_income": [],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "templateId": "stat.tiles", "writes": 0 }
+    },
+    {
+      "id": "report-slowest-payers",
+      "request": "who pays slowest?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [
+          { "id": "inv-1", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-21T12:00:00Z", "deleted_at": null },
+          { "id": "inv-2", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-25T12:00:00Z", "deleted_at": null }
+        ],
+        "invoice_payments": [
+          { "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-1", "amount": 500, "method": "zelle", "paid_at": "2026-10-21T12:00:00Z", "entry_type": "payment" },
+          { "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-2", "amount": 500, "method": "cash", "paid_at": "2026-10-25T12:00:00Z", "entry_type": "payment" }
+        ],
+        "other_income": [],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest" } }, "templateId": "stat.tiles", "writes": 0 }
+    },
+    {
+      "id": "report-longest-to-pay",
+      "request": "who takes longest to pay me?",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [
+          { "id": "inv-1", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-21T12:00:00Z", "deleted_at": null },
+          { "id": "inv-2", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-25T12:00:00Z", "deleted_at": null },
+          { "id": "inv-3", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "sent", "total": 400, "amount_paid": 0, "client_name": "Maria Santos", "created_at": "2026-11-01T12:00:00Z", "first_sent_at": "2026-11-01T12:00:00Z", "paid_at": null, "deleted_at": null }
+        ],
+        "invoice_payments": [
+          { "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-1", "amount": 500, "method": "zelle", "paid_at": "2026-10-21T12:00:00Z", "entry_type": "payment" },
+          { "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-2", "amount": 500, "method": "cash", "paid_at": "2026-10-25T12:00:00Z", "entry_type": "payment" }
+        ],
+        "other_income": [],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest" } }, "templateId": "stat.tiles", "writes": 0 }
+    },
+    {
+      "id": "report-slowest-this-year",
+      "request": "slowest payers this year",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [
+          { "id": "inv-1", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-21T12:00:00Z", "deleted_at": null },
+          { "id": "inv-2", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "paid", "total": 500, "amount_paid": 500, "client_name": "Maria Santos", "created_at": "2026-10-01T12:00:00Z", "first_sent_at": "2026-10-01T12:00:00Z", "paid_at": "2026-10-25T12:00:00Z", "deleted_at": null },
+          { "id": "inv-3", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "status": "sent", "total": 400, "amount_paid": 0, "client_name": "Maria Santos", "created_at": "2026-11-01T12:00:00Z", "first_sent_at": "2026-11-01T12:00:00Z", "paid_at": null, "deleted_at": null }
+        ],
+        "invoice_payments": [
+          { "id": "p1", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-1", "amount": 500, "method": "zelle", "paid_at": "2026-10-21T12:00:00Z", "entry_type": "payment" },
+          { "id": "p2", "user_id": "11111111-1111-1111-1111-111111111111", "invoice_id": "inv-2", "amount": 500, "method": "cash", "paid_at": "2026-10-25T12:00:00Z", "entry_type": "payment" }
+        ],
+        "other_income": [],
+        "expenses": []
+      },
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest", "period": "this_year" } }, "templateId": "stat.tiles", "writes": 0 }
+    }
+  ]
+}

@@ -24,10 +24,13 @@ export const OTHER = '22222222-2222-2222-2222-222222222222';
  */
 export const TOOL_MIGRATIONS = [
   '001_init.sql',
+  '20260724002308_expenses.sql',
   '20260915000000_deposit_support.sql',
   '20260916000000_deposits_and_partial_payments.sql',
   '20260905000000_soft_delete.sql',
   '20260918000000_invoice_payments.sql',
+  '20261103000001_other_income.sql',
+  '20261003000002_products_services.sql',
   '20261111170000_tool_pending_actions.sql',
   '20261111180000_ai_chat_logging.sql',
 ] as const;
@@ -76,6 +79,10 @@ const SUPABASE_STUBS = `
   create function auth.role() returns text language sql stable as $$
     select nullif(current_setting('request.jwt.claim.role', true), '')
   $$;
+  -- other_income's foreign key points at bank_deposits. The Plaid tables are
+  -- out of scope for these read-tool tests; only the referenced table needs to
+  -- exist for the real other_income migration to run.
+  create table public.bank_deposits (id uuid primary key default gen_random_uuid());
   create schema if not exists storage;
   create table storage.buckets (
     id text primary key,
@@ -113,6 +120,9 @@ export async function openTestDb(): Promise<TestDb> {
 
   await db.exec(SUPABASE_STUBS);
   for (const file of TOOL_MIGRATIONS) await db.exec(read(file));
+  // profiles.timezone arrives in a later migration that also touches
+  // notification_log; only the column these read tools need is added here.
+  await db.exec('alter table public.profiles add column if not exists timezone text');
 
   // Two owners. profiles.business_name is required by 001_init.
   await db.exec(`
@@ -153,13 +163,15 @@ export async function openTestDb(): Promise<TestDb> {
   const chatLog = (userId: string): ChatLogWriter => ({
     insert: (row: ChatLogRow) =>
       as(userId, async () => {
-        await db.query(
+        const result = await db.query<{ id: string }>(
           `insert into public.chat_messages
              (user_id, session_id, turn, user_text, reply_text, tools_called, template_id, input_tokens, output_tokens)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           returning id`,
           [row.userId, row.sessionId, row.turn, row.userText, row.replyText,
             row.toolsCalled, row.templateId, row.inputTokens, row.outputTokens],
         );
+        return result.rows[0].id;
       }),
   });
 

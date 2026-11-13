@@ -5,10 +5,30 @@ import { ASK_COPY, askQuestion } from './ask-client';
 const fake = (status: number, body: unknown = {}) =>
   (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
-test('200 returns the reply', async () => {
-  assert.deepEqual(await askQuestion('who owes me', fake(200, { reply: 'Two are unpaid.' })), {
+test('200 returns the reply and the logged message id', async () => {
+  assert.deepEqual(
+    await askQuestion('who owes me', fake(200, {
+      reply: 'Two are unpaid.',
+      messageId: '11111111-1111-4111-8111-111111111111',
+    })),
+    {
+      kind: 'ok',
+      reply: 'Two are unpaid.',
+      messageId: '11111111-1111-4111-8111-111111111111',
+    },
+  );
+});
+
+test('a reply without a message id is still an answer', async () => {
+  assert.deepEqual(await askQuestion('q', fake(200, { reply: 'An answer.' })), {
     kind: 'ok',
-    reply: 'Two are unpaid.',
+    reply: 'An answer.',
+    messageId: null,
+  });
+  assert.deepEqual(await askQuestion('q', fake(200, { reply: 'An answer.', messageId: 42 })), {
+    kind: 'ok',
+    reply: 'An answer.',
+    messageId: null,
   });
 });
 
@@ -84,6 +104,7 @@ test('200 keeps template, fallback, tool and pending when the server sends them'
   };
   assert.deepEqual(await askQuestion('who owes me', fake(200, body)), {
     kind: 'ok',
+    messageId: null,
     reply: 'Two are unpaid.',
     template: { id: 'list.ranked', props: { eyebrow: 'x' } },
     fallback: 'Two invoices are unpaid.',
@@ -93,13 +114,16 @@ test('200 keeps template, fallback, tool and pending when the server sends them'
 
 test('a null template stays absent, so the caller shows the fallback text', async () => {
   const out = await askQuestion('q', fake(200, { reply: 'r', template: null, fallback: 'Plain answer.' }));
-  assert.deepEqual(out, { kind: 'ok', reply: 'r', fallback: 'Plain answer.' });
+  assert.deepEqual(out, { kind: 'ok',
+    messageId: null, reply: 'r', fallback: 'Plain answer.' });
 });
 
 test('a destination is kept only when it is an in-app path', async () => {
   const ok = await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } }));
-  assert.deepEqual(ok, { kind: 'ok', reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } });
+  assert.deepEqual(ok, { kind: 'ok',
+    messageId: null, reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } });
   for (const path of ['https://evil.example', '//evil.example', 'invoices']) {
-    assert.deepEqual(await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'x', path } })), { kind: 'ok', reply: 'r' }, path);
+    assert.deepEqual(await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'x', path } })), { kind: 'ok',
+    messageId: null, reply: 'r' }, path);
   }
 });

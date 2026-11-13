@@ -26,13 +26,15 @@ test('one client gets owed, paid and open tiles as money strings', async () => {
     doc(2, { status: 'paid', amount_paid: '120.00' }),
     doc(3, { kind: 'quote' }),
     doc(4, { status: 'void' }),
-  ])) as never as { match: string; tiles: { value: string }[]; summary: { owed: string; paid: string; open: number; estimates: number } };
+  ])) as never as { match: string; tiles: { value: string; tone: string }[]; summary: { owed: string; paid: string; open: number; estimates: number } };
   assert.equal(out.match, 'one');
   assert.equal(out.summary.owed, '$120.00');
   assert.equal(out.summary.paid, '$120.00');
   assert.equal(out.summary.open, 1);
   assert.equal(out.summary.estimates, 1);
   assert.equal(out.tiles[0].value, '$120.00');
+  // Money a client owes the owner is not money out.
+  assert.equal(out.tiles[0].tone, 'neutral');
 });
 
 test('two Ruths are never guessed between', async () => {
