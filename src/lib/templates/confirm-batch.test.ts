@@ -5,9 +5,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   batchHeadline,
+  batchRows,
   beginConfirm,
   failedCount,
   removeRow,
+  rowStatus,
+  rowStatuses,
   settle,
   startBatch,
   undoAll,
@@ -22,7 +25,7 @@ const pay: BatchRow = {
 };
 const remind: BatchRow = {
   id: 'b',
-  kind: 'reminder',
+  kind: 'draft',
   summary: 'Remind Tony about INV-0077',
   amount: '$640.00',
 };
@@ -38,6 +41,7 @@ test('a batch starts pending with nothing saved', () => {
   assert.equal(s.phase, 'pending');
   assert.deepEqual(s.outcomes, {});
   assert.deepEqual(s.draftRowIds, []);
+  assert.deepEqual(rowStatuses(s), { a: 'pending', b: 'pending', c: 'pending' });
   assert.deepEqual(batchHeadline(s), {
     head: 'Confirm 3 changes?',
     sub: "Nothing's saved until you confirm.",
@@ -63,6 +67,7 @@ test('confirm then settle saves each record and drafts each reminder', () => {
   );
   assert.equal(done.phase, 'done');
   assert.deepEqual(done.draftRowIds, ['b'], 'exactly one draft for one reminder');
+  assert.deepEqual(rowStatuses(done), { a: 'saved', b: 'saved', c: 'saved' });
   assert.deepEqual(batchHeadline(done), { head: 'All 3 saved.', sub: 'Your books are up to date.' });
 });
 
@@ -75,6 +80,13 @@ test('a partial saves the rest, and a retry runs only the failed row', () => {
   ]);
   assert.equal(partial.phase, 'partial');
   assert.equal(failedCount(partial), 1);
+  assert.equal(rowStatus(partial, 'a'), 'saved');
+  assert.equal(rowStatus(partial, 'c'), 'failed', 'the failed row is named, not inferred from an index');
+  assert.deepEqual(rowStatuses(partial), { a: 'saved', b: 'saved', c: 'failed' });
+  assert.deepEqual(
+    batchRows(partial).map((row) => [row.id, row.status]),
+    [['a', 'saved'], ['b', 'saved'], ['c', 'failed']],
+  );
   assert.deepEqual(batchHeadline(partial), {
     head: '2 saved, 1 didn\'t.',
     sub: 'Retry the one that failed.',

@@ -12,14 +12,19 @@ import {
   parseTemplateProps,
 } from './props';
 import type {
+  BreakdownCallbacks,
+  ConfirmBatchCallbacks,
   NavLinkCallbacks,
   RankedListCallbacks,
   StatTilesCallbacks,
+  TrendChartCallbacks,
 } from './callbacks';
 import {
   BREAKDOWN_FIXTURE,
   CANT_DO_FIXTURE,
   CONFIRM_BATCH_FIXTURE,
+  CONFIRM_BATCH_PARTIAL_FIXTURE,
+  CONFIRM_BATCH_STATE_FIXTURES,
   DRAFT_MESSAGE_FIXTURE,
   FEEDBACK_CHECKIN_FIXTURE,
   FEEDBACK_THUMBS_FIXTURE,
@@ -65,6 +70,14 @@ test('the board sample values are copied, not invented', () => {
   assert.equal(TREND_CHART_FIXTURE.points[4].out, 3597.61);
   assert.equal(BREAKDOWN_FIXTURE.total, '$5,200.80');
   assert.equal(CONFIRM_BATCH_FIXTURE.actions.length, 3);
+  assert.deepEqual(
+    CONFIRM_BATCH_FIXTURE.actions.map((action) => [action.id, action.kind, action.status]),
+    [
+      ['pay-ruth', 'record', 'pending'],
+      ['remind-tony', 'draft', 'pending'],
+      ['expense-home-depot', 'record', 'pending'],
+    ],
+  );
   assert.equal(NAV_LINK_FIXTURE.items.length, 1);
   assert.equal(NAV_LINK_FIXTURE.emptyTitle, 'INV-0069 is gone');
   assert.equal(FEEDBACK_THUMBS_FIXTURE.state, 'idle');
@@ -93,6 +106,29 @@ test('the three round-1 error cards report a retry', () => {
   const link: NavLinkCallbacks = { onRetry: retry };
 
   assert.deepEqual([ranked.onRetry, tiles.onRetry, link.onRetry], [retry, retry, retry]);
+});
+
+test('the round-2 chart errors retry and the batch cancels', () => {
+  const retry = () => {};
+  const cancel = () => {};
+  const trend: TrendChartCallbacks = { onRetry: retry };
+  const breakdown: BreakdownCallbacks = { onRetry: retry };
+  const batch: ConfirmBatchCallbacks = { onCancel: cancel };
+
+  assert.deepEqual([trend.onRetry, breakdown.onRetry], [retry, retry]);
+  assert.equal(batch.onCancel, cancel);
+});
+
+test('confirm.batch carries server row statuses, including the one that failed', () => {
+  for (const state of ['pending', 'confirming', 'done', 'partial', 'loading'] as const) {
+    const parsed = parseTemplateProps('confirm.batch', CONFIRM_BATCH_STATE_FIXTURES[state]);
+    assert.equal(parsed.success, true, `confirm.batch ${state}`);
+  }
+
+  assert.deepEqual(
+    CONFIRM_BATCH_PARTIAL_FIXTURE.actions.map((action) => [action.kind, action.status]),
+    [['record', 'saved'], ['draft', 'saved'], ['record', 'failed']],
+  );
 });
 
 test('the caps the design declares are enforced', () => {

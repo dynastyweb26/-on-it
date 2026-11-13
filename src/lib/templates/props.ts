@@ -170,17 +170,28 @@ export function resolveDraftMessageState(
 
 // ── confirm.batch · BatchConfirm.dc.html (2 to 4 actions) ───────────────────
 
+export const BatchActionKind = z.enum(['record', 'draft']);
+export type BatchActionKind = z.infer<typeof BatchActionKind>;
+
+export const BatchActionStatus = z.enum(['pending', 'saved', 'failed']);
+export type BatchActionStatus = z.infer<typeof BatchActionStatus>;
+
 export const ConfirmBatchProps = z.object({
   state: State(['pending', 'confirming', 'done', 'partial', 'loading']).default('pending'),
-  failIndex: z.number().int().min(0).optional(),
   actions: z
     .array(
       z.object({
+        /** Stable id from the proposal; the row's status is keyed by it. */
+        id: z.string().min(1),
+        /** A record saves; a draft produces a draft.message card instead. */
+        kind: BatchActionKind,
         icon: z.string().min(1),
         summary: z.string().min(1),
         /** A finished money string, sign included when it moves money. */
         amount: z.string(),
         tone: Tone,
+        /** The server's own per-row outcome; the component never infers it. */
+        status: BatchActionStatus,
       }),
     )
     .min(2)

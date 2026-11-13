@@ -32,8 +32,15 @@ export type NavLinkCallbacks = {
   onRetry?: () => void;
 };
 
+export type TrendChartCallbacks = {
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
+};
+
 export type BreakdownCallbacks = {
   onRowTap?: (row: BreakdownProps['rows'][number], index: number) => void;
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
 };
 
 export type CantDoCallbacks = {
@@ -64,4 +71,6 @@ export type ConfirmBatchCallbacks = {
   onPrimary?: () => void;
   onRemove?: (index: number) => void;
   onUndo?: () => void;
+  /** The pending footer's Cancel button. */
+  onCancel?: () => void;
 };

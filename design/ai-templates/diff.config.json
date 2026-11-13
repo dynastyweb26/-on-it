@@ -1873,7 +1873,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
         "steps": [
           {
             "wait": 300
@@ -1904,7 +1904,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
         "steps": [
           {
             "wait": 300
