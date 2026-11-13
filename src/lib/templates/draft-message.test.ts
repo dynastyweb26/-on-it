@@ -7,6 +7,7 @@ import {
   type DraftMessageDevice,
   type DraftMessageState,
 } from './props';
+import type { DraftMessageCallbacks } from './callbacks';
 import { DRAFT_MESSAGE_STATE_FIXTURES } from './fixtures';
 
 // Every state on both channels. The design's script maps Email-only states
@@ -20,6 +21,7 @@ const EXPECTED: Record<
   editing: { textPhone: 'editing', textLaptop: 'editing', email: 'editing' },
   opened: { textPhone: 'opened', textLaptop: 'opened', email: 'sent' },
   copied: { textPhone: 'copied', textLaptop: 'copied', email: 'sent' },
+  copyError: { textPhone: 'openError', textLaptop: 'copyError', email: 'error' },
   done: { textPhone: 'done', textLaptop: 'done', email: 'sent' },
   openError: { textPhone: 'openError', textLaptop: 'openError', email: 'error' },
   sent: { textPhone: 'opened', textLaptop: 'copied', email: 'sent' },
@@ -60,7 +62,25 @@ test('every draft.message state has a fixture in the channel and device it needs
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.opened.device, 'phone');
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.done.device, 'phone');
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.copied.device, 'laptop');
+  assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.copyError.channel, 'Text');
+  assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.copyError.device, 'laptop');
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.openError.channel, 'Text');
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.sent.channel, 'Email');
   assert.equal(DRAFT_MESSAGE_STATE_FIXTURES.error.channel, 'Email');
+});
+
+test('send and edit carry the edited body, and channel changes are reported', () => {
+  const events: string[] = [];
+  const callbacks: DraftMessageCallbacks = {
+    onEdit: (body) => events.push(`edit:${body}`),
+    onSend: (body) => events.push(`send:${body}`),
+    onChannel: (channel) => events.push(`channel:${channel}`),
+  };
+  const edited = 'Hi Chenyi, could you send the payment by Friday? Thanks!';
+
+  callbacks.onEdit?.(edited);
+  callbacks.onSend?.(edited);
+  callbacks.onChannel?.('Email');
+
+  assert.deepEqual(events, [`edit:${edited}`, `send:${edited}`, 'channel:Email']);
 });

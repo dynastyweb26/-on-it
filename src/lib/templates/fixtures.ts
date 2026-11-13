@@ -121,14 +121,15 @@ export const DRAFT_MESSAGE_FIXTURE = {
 } satisfies DraftMessageProps;
 
 /**
- * One sample per design state. Text on phone is the base; copied needs the
- * laptop, and sent/error are the Email-only states.
+ * One sample per design state. Text on phone is the base; copied and
+ * copyError need the laptop, and sent/error are the Email-only states.
  */
 export const DRAFT_MESSAGE_STATE_FIXTURES = {
   draft: DRAFT_MESSAGE_FIXTURE,
   editing: { ...DRAFT_MESSAGE_FIXTURE, state: 'editing' },
   opened: { ...DRAFT_MESSAGE_FIXTURE, state: 'opened', device: 'phone' },
   copied: { ...DRAFT_MESSAGE_FIXTURE, state: 'copied', device: 'laptop' },
+  copyError: { ...DRAFT_MESSAGE_FIXTURE, state: 'copyError', channel: 'Text', device: 'laptop' },
   done: { ...DRAFT_MESSAGE_FIXTURE, state: 'done', device: 'phone' },
   openError: { ...DRAFT_MESSAGE_FIXTURE, state: 'openError', device: 'phone' },
   sent: { ...DRAFT_MESSAGE_FIXTURE, state: 'sent', channel: 'Email', device: 'phone' },
