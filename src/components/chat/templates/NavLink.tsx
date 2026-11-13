@@ -1,6 +1,6 @@
 'use client';
 // nav.link — design/ai-templates/NavLink.dc.html. One to three rows that open a record.
-import { Sym, tap } from './shared';
+import { Sym, tap, usePendingTap } from './shared';
 import type { NavLinkProps } from '@/lib/templates/props';
 import type { NavLinkCallbacks } from '@/lib/templates/callbacks';
 import './templates.css';
@@ -12,6 +12,7 @@ const TILE = { width: 40, height: 40, borderRadius: 12, display: 'flex', alignIt
 export default function NavLink({
   state = 'filled', items, emptyTitle, onOpen, onRetry,
 }: NavLinkProps & NavLinkCallbacks) {
+  const retry = usePendingTap(onRetry);
   return (
     <div
       data-template="nav.link"
@@ -49,7 +50,7 @@ export default function NavLink({
             <div style={{ fontSize: 16, fontWeight: 600, ...ELLIPSIS }}>{`Couldn't open ${items[0]?.title ?? ''}`}</div>
             <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>Check your connection.</div>
           </div>
-          <div {...tap(onRetry)} style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: 15, fontWeight: 600, color: 'var(--tpl-gold-ink)', cursor: 'pointer', flex: 'none' }}>Retry</div>
+          <div {...tap(retry.run)} aria-busy={retry.pending} style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: 15, fontWeight: 600, color: 'var(--tpl-gold-ink)', cursor: 'pointer', flex: 'none', opacity: retry.pending ? 0.55 : 1 }}>Retry</div>
         </div>
       )}
 

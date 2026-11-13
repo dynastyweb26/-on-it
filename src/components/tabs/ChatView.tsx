@@ -2987,7 +2987,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
     return {
       onRowTap: open, onShowAll: open, onOpen: open,
-      onRetry: asked ? () => { void send(asked, 'typed', m.id); } : undefined,
+      // Returns the send, so the card shows pending until it settles and ignores repeat taps.
+      onRetry: asked ? () => send(asked, 'typed', m.id) : undefined,
       // cant.do: an alternative starts the message (never sends); Request opens the
       // existing Tell us about On It screen, the feature-request flow.
       onAlt: fillComposer,
