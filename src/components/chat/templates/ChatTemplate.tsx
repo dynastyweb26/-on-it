@@ -8,7 +8,10 @@ import CantDo from './CantDo';
 import type { ResolvedTemplate } from './render-model';
 import type { CantDoCallbacks, NavLinkCallbacks, RankedListCallbacks } from '@/lib/templates/callbacks';
 
-export type ChatTemplateHandlers = RankedListCallbacks & NavLinkCallbacks & CantDoCallbacks;
+export type ChatTemplateHandlers = RankedListCallbacks & NavLinkCallbacks & CantDoCallbacks & {
+  /** cant.do: false hides Request this feature (the reply has no messageId to attach it to). */
+  requestable?: boolean;
+};
 
 export default function ChatTemplate({ card, handlers }: { card: ResolvedTemplate; handlers: ChatTemplateHandlers }) {
   switch (card.id) {
@@ -19,6 +22,6 @@ export default function ChatTemplate({ card, handlers }: { card: ResolvedTemplat
     case 'nav.link':
       return <NavLink {...card.props} onOpen={handlers.onOpen} onRetry={handlers.onRetry} />;
     case 'cant.do':
-      return <CantDo {...card.props} onAlt={handlers.onAlt} onRequest={handlers.onRequest} />;
+      return <CantDo {...card.props} onAlt={handlers.onAlt} onRequest={handlers.onRequest} requestable={handlers.requestable} />;
   }
 }

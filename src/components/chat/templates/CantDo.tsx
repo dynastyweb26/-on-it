@@ -11,21 +11,38 @@ import './templates.css';
 const BUBBLE = { background: 'var(--tpl-bubble)', border: '1px solid var(--tpl-bubble-border)', borderRadius: 20 } as const;
 
 export default function CantDo({
-  state = 'filled', line, noAlts = false, alternatives = [], onAlt, onRequest,
-}: CantDoProps & CantDoCallbacks) {
+  state = 'filled', line, noAlts = false, alternatives = [], onAlt, onRequest, requestable = true,
+}: CantDoProps & CantDoCallbacks & {
+  /** false hides the Request button (nothing to attach the request to). */
+  requestable?: boolean;
+}) {
   // The design keeps its state locally so the Request tap can flip it.
   const [st, setSt] = useState<string>(state);
-  useEffect(() => setSt(state), [state]);
-  const sent = useRef(false); // synchronous guard: a second tap never re-requests
+  const [pending, setPending] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const busy = useRef(false); // synchronous guard: a second tap never re-requests
   useEffect(() => {
-    sent.current = state === 'requested';
+    setSt(state);
+    setErrMsg(null);
   }, [state]);
 
-  const request = () => {
-    if (sent.current) return;
-    sent.current = true;
-    setSt('requested');
-    onRequest?.();
+  // Requested shows only after onRequest succeeds; a rejection returns the button to
+  // idle with the cause (its Error message) on the designed error line.
+  const request = async () => {
+    if (busy.current || st === 'requested') return;
+    busy.current = true;
+    setPending(true);
+    setErrMsg(null);
+    try {
+      await onRequest?.();
+      setSt('requested');
+    } catch (e) {
+      setSt('error');
+      setErrMsg(e instanceof Error && e.message ? e.message : null);
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
   };
 
   const alts = alternatives.slice(0, 2);
@@ -48,13 +65,13 @@ export default function CantDo({
         <>
           <div style={{ ...BUBBLE, maxWidth: '100%', boxSizing: 'border-box', padding: '11px 15px', fontSize: 16, lineHeight: 1.4, textWrap: 'pretty' }}>{line}</div>
 
-          {st !== 'requested' && (
+          {st !== 'requested' && requestable && (
             <div
               {...t}
               className="tpl-tap tpl-hover"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 44, padding: '0 16px', borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', fontSize: 15, fontWeight: 600 }}
             >
-              <Sym name="lightbulb" size={18} />
+              <Sym name={pending ? 'progress_activity' : 'lightbulb'} size={18} style={pending ? { animation: 'onitSpin .9s linear infinite' } : undefined} />
               Request this feature
             </div>
           )}
@@ -75,7 +92,7 @@ export default function CantDo({
           {st === 'error' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--tpl-red)' }}>
               <Sym name="error" size={16} />
-              Couldn&apos;t send the request. Tap to try again.
+              {errMsg ?? "Couldn't send the request. Tap to try again."}
             </div>
           )}
 

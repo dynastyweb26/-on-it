@@ -120,6 +120,7 @@ import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide'
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
 import { openDestination } from '@/components/chat/templates/destination';
+import { sendFeatureRequest } from '@/lib/ask-feature-request-client';
 import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
@@ -2989,10 +2990,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
       onRowTap: open, onShowAll: open, onOpen: open,
       // Returns the send, so the card shows pending until it settles and ignores repeat taps.
       onRetry: asked ? () => send(asked, 'typed', m.id) : undefined,
-      // cant.do: an alternative starts the message (never sends); Request opens the
-      // existing Tell us about On It screen, the feature-request flow.
+      // cant.do: an alternative starts the message (never sends); Request posts the
+      // reply's messageId to /api/ask/request-feature (hidden without one).
       onAlt: fillComposer,
-      onRequest: () => router.push('/settings/help/feedback?src=chat_prompt&from=/chat'),
+      requestable: Boolean(m.messageId),
+      onRequest: m.messageId
+        ? async () => {
+            const out = await sendFeatureRequest(m.messageId as string);
+            if (out.kind !== 'ok') throw new Error(out.message);
+          }
+        : undefined,
     };
   }
 
