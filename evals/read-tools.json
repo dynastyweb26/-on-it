@@ -252,6 +252,14 @@
     {
       "id": "find-client-one-ruth",
       "request": "show me Ruth's invoice",
+      "fixture": {
+        "clients": [
+          { "id": "cli-ruth", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Lawrence", "email": "ruth@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ],
+        "invoices": [
+          { "id": "inv-74", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 74, "client_name": "Ruth Lawrence", "status": "sent", "total": 120, "amount_paid": 0, "due_date": "2026-10-08", "created_at": "2026-09-01T12:00:00Z", "deleted_at": null, "line_items": [] }
+        ]
+      },
       "expect": {
         "tools": [
           "find_client",
@@ -335,7 +343,7 @@
       "request": "who hasn't paid me",
       "expect": {
         "tools": [
-          "unpaid"
+          "unpaid_invoices"
         ],
         "writes": 0
       }
