@@ -118,7 +118,7 @@ import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
-import ChatTemplate from '@/components/chat/templates/ChatTemplate';
+import TemplateReply from '@/components/chat/templates/TemplateReply';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
@@ -5063,19 +5063,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.template && resolveTemplate(m.template) ? (
-            <div key={m.id} className="flex justify-start gap-2">
-              {messages[mi - 1]?.role !== 'assistant' && (
-                <AssistantMark pulsing={false} />
-              )}
-              <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2">
-                {m.content && (
-                  <div className="max-w-[82%] self-start whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
-                    {m.content}
-                  </div>
-                )}
-                <ChatTemplate card={resolveTemplate(m.template)!} handlers={{}} />
-              </div>
-            </div>
+            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={{}} prevRole={messages[mi - 1]?.role} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { AssistantAvatar } from '@/components/chat/EventCard';
+import TemplateReply from '@/components/chat/templates/TemplateReply';
+import { resolveTemplate } from '@/components/chat/templates/render-model';
 import RankedList from '@/components/chat/templates/RankedList';
 import StatTiles from '@/components/chat/templates/StatTiles';
 import NavLink from '@/components/chat/templates/NavLink';
@@ -41,9 +43,10 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
 // Sample state a design file seeds that the typed props do not carry (picks, a made choice, row statuses).
 const EXTRAS = (t: TemplateId, s: string): object => (t === 'feedback.thumbs' && (s === 'openFilled' || s === 'error') ? { initial: { reasons: ['Wrong number'], note: 'It used last month, not this one.' } } : t === 'feedback.checkin' && s === 'picked' ? { picked: 'Love it' } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
 
-export default function Page({ searchParams }: { searchParams: { template?: string; state?: string; channel?: string; device?: string } }) {
+export default function Page({ searchParams }: { searchParams: { thread?: string; template?: string; state?: string; channel?: string; device?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
 
+  if (searchParams.thread) return <Thread />;
   const { template, state, channel, device } = searchParams;
   if (!template) return <Index />;
   if (!isTemplateId(template)) notFound();
@@ -61,6 +64,25 @@ export default function Page({ searchParams }: { searchParams: { template?: stri
             <Card {...TEMPLATE_FIXTURES[template]} {...EXTRAS(template, state)} {...(template === 'draft.message' ? { channel, device } : {})} state={state} />
           </div>
         </div>
+      </div>
+    </main>
+  );
+}
+
+// A short thread in the chat list's own container (classes copied from ChatView), so the
+// reply spacing and column widths can be measured: /dev/ai-templates?thread=1
+const USER_BUBBLE = 'max-w-[82%] whitespace-pre-wrap rounded-[18px] rounded-br-md bg-inverse-surface px-3.5 py-2.5 text-[15px] leading-snug text-inverse-on-surface';
+function Thread() {
+  const ranked = resolveTemplate({ id: 'list.ranked', props: TEMPLATE_FIXTURES['list.ranked'] });
+  const nav = resolveTemplate({ id: 'nav.link', props: TEMPLATE_FIXTURES['nav.link'] });
+  if (!ranked || !nav) return null;
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-col xl:max-w-[720px]">
+      <div data-thread className="min-h-0 flex-1 space-y-3 overflow-x-hidden px-4 py-4 md:px-6">
+        <div className="flex justify-end"><div className={USER_BUBBLE}>who owes me</div></div>
+        <TemplateReply content="Here is who owes you." card={ranked} handlers={{}} prevRole="user" />
+        <div className="flex justify-end"><div className={USER_BUBBLE}>show me Ruth&apos;s invoice</div></div>
+        <TemplateReply content="Found it." card={nav} handlers={{}} prevRole="user" />
       </div>
     </main>
   );
