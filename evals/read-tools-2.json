@@ -13,7 +13,7 @@
       },
       "expect": {
         "tools": ["list_expenses"],
-        "args": { "list_expenses": { "category": "fuel" } },
+        "args": { "list_expenses": { "category": { "oneOf": ["gas", "fuel"] } } },
         "templateId": "list.ranked",
         "writes": 0
       }

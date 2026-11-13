@@ -130,11 +130,20 @@ function realCall(apiKey: string): ModelCall {
     client.messages.create({ model: MODEL, max_tokens: 512, system, tools, messages });
 }
 
+/** A case may accept any one of several spellings for one argument. */
+function isOneOf(value: unknown): value is { oneOf: unknown[] } {
+  return Boolean(value)
+    && typeof value === 'object'
+    && Array.isArray((value as { oneOf?: unknown }).oneOf);
+}
+
 function argsMatch(expected: Record<string, unknown> | undefined, actual: unknown): boolean {
   if (!expected) return true;
   if (!actual || typeof actual !== 'object') return false;
   const got = actual as Record<string, unknown>;
-  return Object.entries(expected).every(([key, value]) => got[key] === value);
+  return Object.entries(expected).every(([key, value]) =>
+    isOneOf(value) ? value.oneOf.includes(got[key]) : got[key] === value,
+  );
 }
 
 async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Result> {

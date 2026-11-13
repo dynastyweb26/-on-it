@@ -30,6 +30,18 @@ test('filters narrow by client and stay forgiving about status', async () => {
   assert.deepEqual(out.ignored, ['banana']);
 });
 
+test('a from that is not a real day returns no rows instead of widening to all time', async () => {
+  const out = (await run([row(3), row(4)], { from: '2026-13-01' })) as never as {
+    count: number;
+    ignored: string[];
+    dateProblem?: string;
+  };
+  assert.equal(out.count, 0);
+  assert.deepEqual(out.ignored, ['2026-13-01']);
+  assert.equal(out.dateProblem, '2026-13-01');
+  assert.match(listEstimatesTool.fallback(out as never), /2026-13-01/);
+});
+
 test("another owner's estimates are invisible", async () => {
   const out = (await run([row(3, { user_id: '22222222-2222-2222-2222-222222222222' })])) as never as { count: number; match: string };
   assert.equal(out.count, 0);

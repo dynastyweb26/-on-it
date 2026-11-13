@@ -40,25 +40,27 @@ import { roundCurrency } from '@/lib/financials';
 import { MoneySchema, moneyField, moneyIn, moneyOut, type MoneyField } from '../money';
 import {
   READ_CAP,
+  REPORT_METRICS,
   forgivingCategory,
+  forgivingMetric,
+  forgivingPeriod,
   matchOf,
   moneyText,
   normName,
   num,
   toIso,
+  type ReportMetric,
+  type ReportPeriod,
 } from '../read';
 
 export const RUN_REPORT = 'run_report';
 
-const METRICS = ['collected', 'spent', 'net', 'invoiced', 'outstanding'] as const;
+const METRICS = REPORT_METRICS;
 const GROUPS = ['none', 'week', 'month', 'client', 'category'] as const;
-const PERIODS = [
-  'this_week', 'last_week', 'this_month', 'last_month', 'this_year', 'last_year', 'custom',
-] as const;
 
-type Metric = (typeof METRICS)[number];
+type Metric = ReportMetric;
 type GroupBy = (typeof GROUPS)[number];
-type PeriodName = (typeof PERIODS)[number];
+type PeriodName = ReportPeriod;
 
 export const RunReportInput = z
   .object({
@@ -96,7 +98,18 @@ export const RunReportOutput = z.object({
     end: z.string(),
     timezone: z.string(),
   }),
-  value: MoneySchema,
+  /**
+   * Set when an input word was given and not understood: every figure below is
+   * null then. One shape for a period, a metric and a custom range.
+   */
+  problem: z
+    .object({
+      kind: z.enum(['unknown_period', 'unknown_metric', 'custom_needs_dates']),
+      /** The value as the owner sent it (empty when none was given). */
+      word: z.string(),
+    })
+    .optional(),
+  value: MoneySchema.nullable(),
   comparison: z
     .object({
       previousLabel: z.string().min(1),
@@ -107,12 +120,12 @@ export const RunReportOutput = z.object({
       text: z.string().min(1),
     })
     .nullable(),
-  tiles: StatTilesProps,
-  trend: TrendChartProps,
-  breakdown: BreakdownProps,
+  tiles: StatTilesProps.nullable(),
+  trend: TrendChartProps.nullable(),
+  breakdown: BreakdownProps.nullable(),
   rows: RankedListProps.shape.rows,
   totalCount: z.number().int().nonnegative(),
-  total: RankedListProps.shape.total,
+  total: RankedListProps.shape.total.nullable(),
   hideTotal: z.boolean().optional(),
   clients: z.array(ClientStat),
   slowestExcluded: z.number().int().nonnegative(),
@@ -155,19 +168,21 @@ export function resolveReportRange(
   today: string,
   from?: string,
   to?: string,
-): { range: ReportRange; ignored: string[] } {
+): { range: ReportRange | null; ignored: string[] } {
   const [y, m] = today.split('-').map(Number);
 
   if (period === 'custom') {
     const start = from?.trim() ?? '';
     const end = to?.trim() ?? '';
-    if (ISO.test(start) && ISO.test(end) && !Number.isNaN(Date.parse(start)) && !Number.isNaN(Date.parse(end)) && start <= end) {
+    const validDay = (day: string) => ISO.test(day) && !Number.isNaN(Date.parse(day));
+    if (validDay(start) && validDay(end) && start <= end) {
       return { range: { id: 'custom', label: `${start} – ${end}`, start, end, kind: 'custom' }, ignored: [] };
     }
-    const fallback = monthBounds(y, m);
+    // A custom period without real dates must never become this month: the
+    // caller reports no figures and names the dates it could not use.
     return {
-      range: { id: 'this_month', label: 'This month', ...fallback, kind: 'month' },
-      ignored: ['custom period needs a valid from and to'],
+      range: null,
+      ignored: [start, end].filter((day) => Boolean(day) && !validDay(day)),
     };
   }
 
@@ -569,11 +584,11 @@ export const runReportTool = defineTool({
   templateFor: (result) => {
     if (result.match === 'none') return null;
     if (result.groupBy === 'week' || result.groupBy === 'month') {
-      return result.trend.points.length >= 2 ? 'chart.trend' : 'stat.tiles';
+      return (result.trend?.points.length ?? 0) >= 2 ? 'chart.trend' : 'stat.tiles';
     }
     if (result.groupBy === 'category') {
       if (result.metric !== 'spent') return 'stat.tiles';
-      return result.breakdown.state === 'filled' ? 'chart.breakdown' : 'stat.tiles';
+      return result.breakdown?.state === 'filled' ? 'chart.breakdown' : 'stat.tiles';
     }
     if (result.groupBy === 'client') return 'list.ranked';
     return 'stat.tiles';
@@ -582,11 +597,12 @@ export const runReportTool = defineTool({
   handler: async (ctx, args) => {
     const ignored: string[] = [];
 
-    const rawMetric = args.metric?.trim().toLowerCase();
-    const metric: Metric = (METRICS as readonly string[]).includes(rawMetric ?? '')
-      ? rawMetric as Metric
-      : 'collected';
-    if (rawMetric && metric !== rawMetric) ignored.push(args.metric as string);
+    const rawMetric = args.metric?.trim();
+    const metricResult = forgivingMetric(args.metric);
+    ignored.push(...metricResult.ignored);
+    // No metric word keeps the long-standing default; only a word we do not
+    // understand refuses to report.
+    const metric: Metric = metricResult.metric ?? 'collected';
 
     const rawGroup = args.group_by?.trim().toLowerCase();
     let group: GroupBy = (GROUPS as readonly string[]).includes(rawGroup ?? '')
@@ -594,11 +610,15 @@ export const runReportTool = defineTool({
       : 'none';
     if (rawGroup && group !== rawGroup) ignored.push(args.group_by as string);
 
-    const rawPeriod = args.period?.trim().toLowerCase();
-    const period: PeriodName = (PERIODS as readonly string[]).includes(rawPeriod ?? '')
-      ? rawPeriod as PeriodName
-      : 'this_month';
-    if (rawPeriod && period !== rawPeriod) ignored.push(args.period as string);
+    const rawPeriod = args.period?.trim();
+    const periodResult = forgivingPeriod(args.period);
+    ignored.push(...periodResult.ignored);
+    // No period word at all keeps the old meaning: this month, or a custom
+    // range when from/to were given. Only a word we do not know refuses.
+    const period: PeriodName | undefined = periodResult.period
+      ?? (rawPeriod
+        ? undefined
+        : (args.from?.trim() || args.to?.trim()) ? 'custom' : 'this_month');
 
     const rawSort = args.sort?.trim().toLowerCase();
     const sort = rawSort === 'slowest' ? 'slowest' : 'amount';
@@ -620,8 +640,50 @@ export const runReportTool = defineTool({
     const tz = resolveTimeZone(profile.data?.[0]?.timezone);
 
     const today = localYmd(tz, new Date());
-    const { range, ignored: rangeIgnored } = resolveReportRange(period, today, args.from, args.to);
+    const { range, ignored: rangeIgnored } = period
+      ? resolveReportRange(period, today, args.from, args.to)
+      : { range: null, ignored: [] as string[] };
     ignored.push(...rangeIgnored);
+
+    const unknownMetric = Boolean(rawMetric) && !metricResult.metric;
+    if (unknownMetric || !period || !range) {
+      // A word we do not know never borrows another metric's or period's
+      // numbers: no figures are computed at all.
+      const inputProblem: {
+        kind: 'unknown_period' | 'unknown_metric' | 'custom_needs_dates';
+        word: string;
+      } = unknownMetric
+        ? { kind: 'unknown_metric', word: rawMetric ?? '' }
+        : !period
+          ? { kind: 'unknown_period', word: rawPeriod ?? '' }
+          : { kind: 'custom_needs_dates', word: rangeIgnored[0] ?? rawPeriod ?? '' };
+      const title = 'Not understood';
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Your report',
+        title,
+        metric,
+        groupBy: group,
+        period: { id: 'unknown', label: title, start: '', end: '', timezone: tz },
+        problem: inputProblem,
+        value: null,
+        comparison: null,
+        tiles: null,
+        trend: null,
+        breakdown: null,
+        rows: [],
+        totalCount: 0,
+        total: null,
+        hideTotal: true,
+        clients: [],
+        slowestExcluded: 0,
+        slowestNote: '',
+        outstandingAsOf: 'now' as const,
+        outstandingNote: 'Still owed is as of now, not limited to the period.',
+      };
+    }
 
     const [payRes, invRes, expRes, otherRes] = await Promise.all([
       ctx.db.select<RawPayment>('invoice_payments', {
@@ -879,15 +941,40 @@ export const runReportTool = defineTool({
       outstandingNote: 'Still owed is as of now, not limited to the period.',
     };
   },
+  // A period this tool did not understand reaches the model with no money in it
+  // at all, so it has nothing to quote for a period the owner never named.
+  modelPayload: (result) => result.problem
+    ? {
+      match: result.match,
+      count: result.count,
+      ignored: result.ignored,
+      problem: result.problem,
+      note: 'No figures were computed: say the word was not understood.',
+    }
+    : result,
   fallback: (result) => {
+    if (result.problem?.kind === 'unknown_period') {
+      return result.problem.word
+        ? `No figures: I did not understand the period "${result.problem.word}".`
+        : 'No figures: I did not understand that period.';
+    }
+    if (result.problem?.kind === 'unknown_metric') {
+      return result.problem.word
+        ? `No figures: I did not understand the metric "${result.problem.word}".`
+        : 'No figures: I did not understand that metric.';
+    }
+    if (result.problem?.kind === 'custom_needs_dates') {
+      return 'No figures: a custom period needs a real from and to date.';
+    }
+    if (!result.value) return `Nothing logged for ${result.period.label}.`;
     if (result.match === 'none') return `Nothing logged for ${result.period.label}.`;
     if (result.metric === 'outstanding') {
       return `Still owed as of now: ${result.value.text}.`;
     }
     if (result.groupBy === 'client' && result.slowestNote) {
-      return `${result.total.label}. ${result.slowestNote}`;
+      return `${result.total?.label ?? 'Clients'}. ${result.slowestNote}`;
     }
-    return `${result.tiles.tiles[0]?.label ?? 'Report'} for ${result.period.label}: ${result.value.text}.`;
+    return `${result.tiles?.tiles[0]?.label ?? 'Report'} for ${result.period.label}: ${result.value.text}.`;
   },
   fixture: {
     args: { metric: 'collected', period: 'this_month' },

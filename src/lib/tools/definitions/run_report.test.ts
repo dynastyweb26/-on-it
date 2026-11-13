@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { fixtureDb } from '../fixture-db';
 import { booksTotals } from '@/lib/books-totals';
 import { booksDay, inBooksPeriod } from '@/lib/books-period';
-import { weekBounds } from '@/lib/recap/dates';
+import { localYmd, weekBounds } from '@/lib/recap/dates';
+import { forgivingMetric, forgivingPeriod } from '../read';
 import { resolveReportRange, runReportTool } from './run_report';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
@@ -72,7 +73,7 @@ const run = (rows: Rows, args: unknown) =>
     count: number;
     metric: string;
     groupBy: string;
-    value: { amount: number; text: string };
+    value: { amount: number; text: string } | null;
     comparison: { previousZero: boolean; text: string; previousAmount: number } | null;
     rows: Array<{ name: string; secondary: string; amount: string; tone: string; chip?: { tone: string; label: string } }>;
     total: { label: string; amount: string };
@@ -80,12 +81,19 @@ const run = (rows: Rows, args: unknown) =>
     clients: Array<{ name: string; total: string; averageDaysToPay: number | null; paidInvoices: number }>;
     slowestExcluded: number;
     slowestNote: string;
-    period: { start: string; end: string; timezone: string };
+    period: { id: string; label: string; start: string; end: string; timezone: string };
     trend: { points: Array<{ label: string; inc: number; out: number }> };
     breakdown: { state: string; rows: Array<{ name: string }> };
     outstandingAsOf: string;
     ignored: string[];
+    problem?: { kind: string; word: string };
   }>;
+
+/** The figures, proven present: every case below asks for a period we know. */
+const figured = (out: { value: { amount: number; text: string } | null }) => {
+  assert.ok(out.value, 'expected figures for a period the tool understands');
+  return out.value;
+};
 
 const OCT = { period: 'custom', from: '2026-10-01', to: '2026-10-31' };
 const SEP_OCT = { period: 'custom', from: '2026-09-01', to: '2026-10-31' };
@@ -111,8 +119,8 @@ test('collected equals the Books calculation for the same rows', async () => {
     expenses: rows.expenses as never,
     invoices: rows.invoices as never,
   });
-  assert.equal(out.value.amount, books.collected);
-  assert.equal(out.value.amount, 1850);
+  assert.equal(figured(out).amount, books.collected);
+  assert.equal(figured(out).amount, 1850);
 });
 
 test('spent, net and outstanding equal the Books calculation too', async () => {
@@ -120,13 +128,13 @@ test('spent, net and outstanding equal the Books calculation too', async () => {
   const books = booksTotals(booksRows(rows, { start: OCT.from, end: OCT.to }) as never);
 
   const spent = await run(rows, { metric: 'spent', ...OCT });
-  assert.equal(spent.value.amount, -books.spent);
+  assert.equal(figured(spent).amount, -books.spent);
 
   const net = await run(rows, { metric: 'net', ...OCT });
-  assert.equal(net.value.amount, books.net);
+  assert.equal(figured(net).amount, books.net);
 
   const outstanding = await run(rows, { metric: 'outstanding', ...OCT });
-  assert.equal(outstanding.value.amount, books.outstanding);
+  assert.equal(figured(outstanding).amount, books.outstanding);
 });
 
 test('a month includes its first and last local day, not the minute after midnight', async () => {
@@ -153,17 +161,17 @@ test('a month includes its first and last local day, not the minute after midnig
 
   const out = await run(rows, { metric: 'net', ...OCT });
   // 20 + 30 + 5, with the 23:59 Sep 30 and 00:01 Nov 1 rows outside October.
-  assert.equal(out.value.amount, 55 - 16);
+  assert.equal(figured(out).amount, 55 - 16);
   assert.equal(out.period.timezone, 'America/Chicago');
 
   const books = booksTotals(booksRows(rows, { start: OCT.from, end: OCT.to }, 'America/Chicago') as never);
-  assert.equal(out.value.amount, books.net);
+  assert.equal(figured(out).amount, books.net);
 });
 
 test('a category word narrows spending: gas means fuel', async () => {
   const out = await run(baseFixture(), { metric: 'spent', category: 'gas', ...OCT });
-  assert.equal(out.value.amount, -52.1);
-  assert.equal(out.value.text, '\u2212$52.10');
+  assert.equal(figured(out).amount, -52.1);
+  assert.equal(figured(out).text, '\u2212$52.10');
   assert.equal(out.breakdown.rows[0]?.name, 'Fuel');
 });
 
@@ -175,7 +183,7 @@ test('a period with no data is none and has no card', async () => {
 
 test('outstanding is as of now even when the period is in the past', async () => {
   const out = await run(baseFixture(), { metric: 'outstanding', period: 'custom', from: '2020-01-01', to: '2020-01-31' });
-  assert.equal(out.value.amount, 400);
+  assert.equal(figured(out).amount, 400);
   assert.equal(out.outstandingAsOf, 'now');
   assert.equal(out.period.start, '2020-01-01');
   assert.equal(out.count, 1);
@@ -260,8 +268,11 @@ test('week grouping starts Monday and the chart is chosen at two or more points'
     { start: weekBounds('2026-11-12').start, end: weekBounds('2026-11-12').end },
     { start: '2026-11-09', end: '2026-11-15' },
   );
-  assert.equal(resolveReportRange('this_week', '2026-11-12').range.start, '2026-11-09');
-  assert.equal(resolveReportRange('last_week', '2026-11-12').range.start, '2026-11-02');
+  const thisWeek = resolveReportRange('this_week', '2026-11-12').range;
+  const lastWeek = resolveReportRange('last_week', '2026-11-12').range;
+  assert.ok(thisWeek && lastWeek);
+  assert.equal(thisWeek.start, '2026-11-09');
+  assert.equal(lastWeek.start, '2026-11-02');
 
   const out = await run(baseFixture(), { metric: 'collected', group_by: 'week', ...SEP_OCT });
   assert.ok(out.trend.points.length >= 2);
@@ -275,6 +286,128 @@ test('the profile timezone decides the local day', async () => {
   rows.other_income = [];
   const out = await run(rows, { metric: 'collected', ...OCT });
   // 23:00 UTC on Oct 31 is already Nov 1 in Kiritimati, so October is empty.
-  assert.equal(out.value.amount, 0);
+  assert.equal(figured(out).amount, 0);
   assert.equal(out.match, 'none');
+});
+
+test('the word "year" is this year, never a silent this month', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', period: 'year' });
+  assert.equal(out.period.id, 'this_year');
+  assert.equal(out.period.label, 'This year');
+  assert.match(out.period.start, /-01-01$/);
+  assert.deepEqual(out.ignored, []);
+});
+
+test('period aliases mean exactly the period they say', async () => {
+  assert.deepEqual(forgivingPeriod('year'), { period: 'this_year', ignored: [] });
+  assert.deepEqual(forgivingPeriod('YTD'), { period: 'this_year', ignored: [] });
+  assert.deepEqual(forgivingPeriod('year to date'), { period: 'this_year', ignored: [] });
+  assert.deepEqual(forgivingPeriod('month'), { period: 'this_month', ignored: [] });
+  assert.deepEqual(forgivingPeriod('This Month'), { period: 'this_month', ignored: [] });
+  assert.deepEqual(forgivingPeriod('week'), { period: 'this_week', ignored: [] });
+  assert.deepEqual(forgivingPeriod('last week'), { period: 'last_week', ignored: [] });
+  assert.deepEqual(forgivingPeriod('last month'), { period: 'last_month', ignored: [] });
+  assert.deepEqual(forgivingPeriod('last year'), { period: 'last_year', ignored: [] });
+  assert.deepEqual(forgivingPeriod('previous year'), { period: 'last_year', ignored: [] });
+});
+
+test('an unknown period word returns no figures and names the word', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', period: 'banana' });
+  assert.equal(out.match, 'none');
+  assert.equal(out.value, null);
+  assert.equal(out.problem?.kind, 'unknown_period');
+  assert.equal(out.problem?.word, 'banana');
+  assert.deepEqual(out.ignored, ['banana']);
+  assert.equal(runReportTool.templateFor?.(out as never), null);
+  assert.match(runReportTool.fallback(out as never), /banana/);
+});
+
+test('a custom period without real dates returns no figures instead of borrowing this month', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', period: 'custom', from: '10/01/2026' });
+  assert.equal(out.value, null);
+  assert.equal(out.problem?.kind, 'custom_needs_dates');
+  assert.deepEqual(out.ignored, ['10/01/2026']);
+  assert.equal(runReportTool.templateFor?.(out as never), null);
+});
+
+test('no period given means this month, with this month figures', async () => {
+  const today = localYmd('UTC', new Date());
+  const rows = baseFixture();
+  rows.invoice_payments = [
+    payment({ id: 'p-now', invoice_id: 'inv-1', amount: 75, paid_at: `${today}T12:00:00Z` }),
+  ];
+  const out = await run(rows, { metric: 'collected' });
+  assert.equal(out.period.id, 'this_month');
+  assert.equal(out.period.label, 'This month');
+  assert.equal(out.period.start, `${today.slice(0, 7)}-01`);
+  assert.equal(out.problem, undefined);
+  assert.equal(figured(out).amount, 75);
+});
+
+test('outstanding and slowest still answer with no period given', async () => {
+  const outstanding = await run(baseFixture(), { metric: 'outstanding' });
+  assert.equal(outstanding.period.id, 'this_month');
+  assert.equal(figured(outstanding).amount, 400);
+
+  const slowest = await run(baseFixture(), { sort: 'slowest' });
+  assert.equal(slowest.groupBy, 'client');
+  assert.equal(slowest.problem, undefined);
+  assert.equal(slowest.rows[0]?.name, 'Maria Santos');
+  assert.equal(slowest.rows[0]?.amount, '$400.00');
+});
+
+test('from and to with no period word mean custom, not this month', async () => {
+  const out = await run(baseFixture(), { metric: 'collected', from: '2026-10-01', to: '2026-10-31' });
+  assert.equal(out.period.id, 'custom');
+  assert.equal(out.period.start, '2026-10-01');
+  assert.equal(out.period.end, '2026-10-31');
+  assert.equal(out.problem, undefined);
+  assert.equal(figured(out).amount, 250);
+});
+
+test('an unknown metric word returns no figures and names the word', async () => {
+  const out = await run(baseFixture(), { metric: 'banana', ...OCT });
+  assert.equal(out.match, 'none');
+  assert.equal(out.value, null);
+  assert.equal(out.problem?.kind, 'unknown_metric');
+  assert.equal(out.problem?.word, 'banana');
+  assert.deepEqual(out.ignored, ['banana']);
+  assert.equal(runReportTool.templateFor?.(out as never), null);
+  assert.match(runReportTool.fallback(out as never), /banana/);
+});
+
+test('metric words map to the metric they name', async () => {
+  assert.deepEqual(forgivingMetric('income'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('revenue'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('Made'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('earned'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('expenses'), { metric: 'spent', ignored: [] });
+  assert.deepEqual(forgivingMetric('spending'), { metric: 'spent', ignored: [] });
+  assert.deepEqual(forgivingMetric('profit'), { metric: 'net', ignored: [] });
+  assert.deepEqual(forgivingMetric('kept'), { metric: 'net', ignored: [] });
+  assert.deepEqual(forgivingMetric('owed'), { metric: 'outstanding', ignored: [] });
+  assert.deepEqual(forgivingMetric('unpaid'), { metric: 'outstanding', ignored: [] });
+  assert.deepEqual(forgivingMetric('collected'), { metric: 'collected', ignored: [] });
+  assert.deepEqual(forgivingMetric('banana'), { ignored: ['banana'] });
+  assert.deepEqual(forgivingMetric(undefined), { ignored: [] });
+});
+
+test('an alias reports the same figures as the metric it names', async () => {
+  const spending = await run(baseFixture(), { metric: 'spending', ...OCT });
+  assert.equal(spending.metric, 'spent');
+  assert.deepEqual(spending.ignored, []);
+  assert.equal(figured(spending).amount, -72.1);
+
+  const income = await run(baseFixture(), { metric: 'income', ...OCT });
+  assert.equal(income.metric, 'collected');
+  assert.equal(figured(income).amount, 250);
+
+  const profit = await run(baseFixture(), { metric: 'profit', ...OCT });
+  const net = await run(baseFixture(), { metric: 'net', ...OCT });
+  assert.equal(profit.metric, 'net');
+  assert.equal(figured(profit).amount, figured(net).amount);
+
+  const owed = await run(baseFixture(), { metric: 'unpaid' });
+  assert.equal(owed.metric, 'outstanding');
+  assert.equal(figured(owed).amount, 400);
 });
