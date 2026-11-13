@@ -89,6 +89,58 @@ export function forgivingCategory(value: string | null | undefined): {
   return { ignored: [raw] };
 }
 
+/** The periods run_report understands: one stored key per period. */
+export const REPORT_PERIODS = [
+  'this_week', 'last_week', 'this_month', 'last_month', 'this_year', 'last_year', 'custom',
+] as const;
+export type ReportPeriod = (typeof REPORT_PERIODS)[number];
+
+/**
+ * The words a person uses for a period, normalised with normName() so case,
+ * spacing and punctuation never decide it. A bare "year" is this year and a bare
+ * "month" is this month; "ytd" is this year too.
+ */
+const PERIOD_ALIASES: Record<string, ReportPeriod> = {
+  week: 'this_week',
+  'this week': 'this_week',
+  'current week': 'this_week',
+  'last week': 'last_week',
+  'previous week': 'last_week',
+  month: 'this_month',
+  'this month': 'this_month',
+  'current month': 'this_month',
+  'last month': 'last_month',
+  'previous month': 'last_month',
+  year: 'this_year',
+  ytd: 'this_year',
+  'y t d': 'this_year',
+  'year to date': 'this_year',
+  'this year': 'this_year',
+  'current year': 'this_year',
+  'last year': 'last_year',
+  'previous year': 'last_year',
+};
+
+/**
+ * One period word → the stored period, or nothing. Forgiving by rule, the same
+ * way forgivingCategory is: an unknown word is named in `ignored` and resolves
+ * to NO period, so the caller must refuse to report rather than default.
+ */
+export function forgivingPeriod(value: string | null | undefined): {
+  period?: ReportPeriod;
+  ignored: string[];
+} {
+  const raw = value?.trim();
+  if (!raw) return { ignored: [] };
+  const key = normName(raw);
+  if ((REPORT_PERIODS as readonly string[]).includes(key)) {
+    return { period: key as ReportPeriod, ignored: [] };
+  }
+  const alias = PERIOD_ALIASES[key];
+  if (alias) return { period: alias, ignored: [] };
+  return { ignored: [raw] };
+}
+
 export type Filters = {
   status?: string[];
   client?: string;
